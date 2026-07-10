@@ -13,7 +13,7 @@ import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/fo
 import { Empty, Spin, Typography } from '@arco-design/web-react';
 import { Close, CloseSmall, MessageOne, Search } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -157,6 +157,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [recentKeywords, setRecentKeywords] = useState<string[]>([]);
+  const searchGenerationRef = useRef(0);
 
   useEffect(() => {
     try {
@@ -182,10 +183,13 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
 
   const runSearch = useCallback(
     async (pageToLoad: number, append: boolean) => {
+      const searchGeneration = ++searchGenerationRef.current;
       if (!debouncedKeyword) {
         setItems([]);
         setPage(0);
         setHasMore(false);
+        setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
@@ -202,20 +206,23 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
           page: loadedPage,
           page_size: PAGE_SIZE,
         });
+        if (searchGeneration !== searchGenerationRef.current) return;
         let activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
-        while (activeItems.length === 0 && result.has_more) {
+        while (activeItems.length < PAGE_SIZE && result.has_more) {
           loadedPage += 1;
           result = await ipcBridge.database.searchConversationMessages.invoke({
             keyword: debouncedKeyword,
             page: loadedPage,
             page_size: PAGE_SIZE,
           });
-          activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
+          if (searchGeneration !== searchGenerationRef.current) return;
+          activeItems.push(...result.items.filter((item) => !isConversationArchived(item.conversation)));
         }
         setItems((prev) => (append ? [...prev, ...activeItems] : activeItems));
         setPage(loadedPage);
         setHasMore(result.has_more);
       } catch (error) {
+        if (searchGeneration !== searchGenerationRef.current) return;
         console.error('[ConversationSearchPopover] Search failed:', error);
         if (!append) {
           setItems([]);
@@ -223,8 +230,10 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
           setHasMore(false);
         }
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (searchGeneration === searchGenerationRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [debouncedKeyword]
@@ -232,6 +241,9 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
 
   useEffect(() => {
     void runSearch(0, false);
+    return () => {
+      searchGenerationRef.current += 1;
+    };
   }, [runSearch]);
 
   useEffect(() => {
@@ -258,6 +270,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   }, [debouncedKeyword]);
 
   const resetSearchState = useCallback(() => {
+    searchGenerationRef.current += 1;
     setVisible(false);
     setKeyword('');
     setDebouncedKeyword('');
@@ -305,6 +318,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   }, [resetSearchState]);
 
   const handleClearKeyword = useCallback(() => {
+    searchGenerationRef.current += 1;
     setKeyword('');
     setDebouncedKeyword('');
     setItems([]);

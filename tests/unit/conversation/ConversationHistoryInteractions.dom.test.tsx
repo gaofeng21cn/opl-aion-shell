@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IMessageSearchItem } from '@/common/types/team/database';
 import ConversationSearchPopover from '@/renderer/pages/conversation/GroupedHistory/ConversationSearchPopover';
@@ -82,6 +82,57 @@ describe('conversation history interactions', () => {
     await waitFor(() => expect(mocks.search).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('active conversation')).toBeInTheDocument();
     expect(screen.queryByText('conversation.historySearch.empty')).not.toBeInTheDocument();
+  });
+
+  it('continues active search past a sparse backend page', async () => {
+    mocks.search
+      .mockResolvedValueOnce({
+        items: [searchItem('active-first', false), searchItem('archived', true)],
+        has_more: true,
+      })
+      .mockResolvedValueOnce({ items: [searchItem('active-second', false)], has_more: false });
+
+    render(
+      <ConversationSearchPopover renderTrigger={({ onClick }) => <button onClick={onClick}>Open search</button>} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open search' }));
+    fireEvent.change(screen.getByPlaceholderText('conversation.historySearch.placeholder'), {
+      target: { value: 'result' },
+    });
+
+    await waitFor(() => expect(mocks.search).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('active-first conversation')).toBeInTheDocument();
+    expect(screen.getByText('active-second conversation')).toBeInTheDocument();
+  });
+
+  it('keeps newer keyword results when an older request resolves last', async () => {
+    let resolveFirstSearch!: (value: { items: IMessageSearchItem[]; has_more: boolean }) => void;
+    const firstSearch = new Promise<{ items: IMessageSearchItem[]; has_more: boolean }>((resolve) => {
+      resolveFirstSearch = resolve;
+    });
+    mocks.search
+      .mockReturnValueOnce(firstSearch)
+      .mockResolvedValueOnce({ items: [searchItem('newer', false)], has_more: false });
+
+    render(
+      <ConversationSearchPopover renderTrigger={({ onClick }) => <button onClick={onClick}>Open search</button>} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open search' }));
+    const input = screen.getByPlaceholderText('conversation.historySearch.placeholder');
+    fireEvent.change(input, { target: { value: 'older' } });
+    await waitFor(() => expect(mocks.search).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: 'newer' } });
+    await waitFor(() => expect(mocks.search).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('newer conversation')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirstSearch({ items: [searchItem('older', false)], has_more: false });
+      await firstSearch;
+    });
+
+    expect(screen.getByText('newer conversation')).toBeInTheDocument();
+    expect(screen.queryByText('older conversation')).not.toBeInTheDocument();
   });
 
   it('keeps active and archived workspace expansion in separate storage scopes', () => {
