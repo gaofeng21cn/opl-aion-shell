@@ -16,12 +16,14 @@ const MONTH_OR_DAY_DIR_PATTERN = /^\d{2}$/;
 const DEFAULT_LOG_DAYS = 3;
 const REDACTED = '[REDACTED]';
 const REDACTED_HOME = '[REDACTED_HOME]';
-const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+/gi;
+const URI_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"]+/gi;
 const OPENAI_KEY_PATTERN = /\bsk-[a-z0-9_-]{4,}\b/gi;
 const BEARER_PATTERN = /\bBearer\s+[a-z0-9._~+/=-]+/gi;
 const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*[^\r\n]+/gi;
+const COOKIE_HEADER_PATTERN = /\b((?:Set-Cookie|Cookie)\s*:)\s*[^\r\n]*/gi;
+const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN ([a-z0-9 ]*PRIVATE KEY)-----[\s\S]*?-----END \1-----/gi;
 const SENSITIVE_KEY_NAME =
-  '(?:[a-z0-9]+[_-])*(?:api[ _-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|token|client[_-]?secret|secret|password|passwd)';
+  '(?:[a-z0-9]+[._-])*[a-z0-9]*(?:api[ _.-]?key|auth[._-]?token|access[._-]?token|refresh[._-]?token|client[._-]?secret|secret[._-]?access[._-]?key|private[._-]?key|database[._-]?url|set[._-]?cookie|cookie|token|secret|password|passwd)';
 const SENSITIVE_ASSIGNMENT_PATTERN = new RegExp(
   `((?:["']?\\b${SENSITIVE_KEY_NAME}\\b["']?)\\s*(?:=|:)\\s*)(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|[^\\s,;&}\\]]+)`,
   'gi'
@@ -49,6 +51,8 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'session',
   'sessionid',
   'code',
+  'cookie',
+  'setcookie',
 ]);
 const GENERIC_HOME_PATTERNS = [/\/Users\/[^/\s"'<>]+/g, /\/home\/[^/\s"'<>]+/g, /[a-z]:\\Users\\[^\\\s"'<>]+/gi];
 
@@ -67,10 +71,27 @@ function normalizeSensitiveQueryKey(key: string): string {
   return key.toLowerCase().replaceAll('-', '').replaceAll('_', '');
 }
 
-function redactUrl(rawUrl: string): string {
-  const trailingMatch = rawUrl.match(/[),.;!?]+$/);
+function redactUriUserInfo(rawUri: string): string {
+  const authorityStart = rawUri.indexOf('://') + 3;
+  let authorityEnd = rawUri.length;
+  for (const delimiter of ['/', '?', '#']) {
+    const index = rawUri.indexOf(delimiter, authorityStart);
+    if (index !== -1 && index < authorityEnd) {
+      authorityEnd = index;
+    }
+  }
+
+  const userInfoEnd = rawUri.lastIndexOf('@', authorityEnd - 1);
+  if (userInfoEnd < authorityStart) {
+    return rawUri;
+  }
+  return `${rawUri.slice(0, authorityStart)}${REDACTED}${rawUri.slice(userInfoEnd)}`;
+}
+
+function redactUri(rawUri: string): string {
+  const trailingMatch = rawUri.match(/[)\]}'`,.;!?]+$/);
   const trailing = trailingMatch?.[0] ?? '';
-  const candidate = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl;
+  const candidate = trailing ? rawUri.slice(0, -trailing.length) : rawUri;
 
   try {
     const url = new URL(candidate);
@@ -89,9 +110,9 @@ function redactUrl(rawUrl: string): string {
         changed = true;
       }
     }
-    return changed ? `${url.toString()}${trailing}` : rawUrl;
+    return changed ? `${url.toString()}${trailing}` : rawUri;
   } catch {
-    return rawUrl;
+    return `${redactUriUserInfo(candidate)}${trailing}`;
   }
 }
 
@@ -109,7 +130,7 @@ function replaceHomePath(content: string, homePath: string): string {
 }
 
 export function redactFeedbackLogContent(content: string, homePath = homedir()): string {
-  let redacted = content.replace(URL_PATTERN, redactUrl);
+  let redacted = content.replace(PRIVATE_KEY_BLOCK_PATTERN, REDACTED).replace(URI_PATTERN, redactUri);
   redacted = replaceHomePath(redacted, homePath);
   for (const pattern of GENERIC_HOME_PATTERNS) {
     redacted = redacted.replace(pattern, REDACTED_HOME);
@@ -119,7 +140,8 @@ export function redactFeedbackLogContent(content: string, homePath = homedir()):
     .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
     .replace(OPENAI_KEY_PATTERN, REDACTED)
     .replace(SENSITIVE_ASSIGNMENT_PATTERN, `$1${REDACTED}`)
-    .replace(SENSITIVE_FLAG_PATTERN, `$1${REDACTED}`);
+    .replace(SENSITIVE_FLAG_PATTERN, `$1${REDACTED}`)
+    .replace(COOKIE_HEADER_PATTERN, `$1 ${REDACTED}`);
 }
 
 function isFeedbackLogFileForDate(file: string, date: string): boolean {

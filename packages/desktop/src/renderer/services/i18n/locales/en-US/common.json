@@ -33,7 +33,8 @@
     "includeLogsDescription": "Off by default. Recent logs are collected and redacted only when you select this option.",
     "privacyInfo": "Your description and screenshots are sent with the report. Diagnostic logs are excluded unless you select the option above.",
     "deliveryUnavailable": "Feedback delivery is unavailable. Nothing was sent.",
-    "deliveryFailed": "Delivery could not be confirmed. Please try again."
+    "queueFailed": "Feedback could not be added to the sending queue. Please try again.",
+    "queued": "Feedback added to the sending queue."
   },
   "reload": "Reload",
   "technical_details": "Technical Details",

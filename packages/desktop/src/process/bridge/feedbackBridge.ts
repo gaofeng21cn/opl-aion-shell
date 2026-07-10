@@ -14,7 +14,7 @@ import * as Sentry from '@sentry/electron/main';
 import * as path from 'path';
 import { collectFeedbackLogAttachment } from '../feedback/logs';
 
-const FEEDBACK_FLUSH_TIMEOUT_MS = 5000;
+const FEEDBACK_QUEUE_FLUSH_TIMEOUT_MS = 5000;
 
 function isFeedbackDeliveryAvailable(): boolean {
   return Boolean(process.env.SENTRY_DSN?.trim() && Sentry.getClient()?.getDsn());
@@ -22,12 +22,12 @@ function isFeedbackDeliveryAvailable(): boolean {
 
 ipcMain.handle('feedback:is-delivery-available', async () => isFeedbackDeliveryAvailable());
 
-ipcMain.handle('feedback:flush-delivery', async () => {
+ipcMain.handle('feedback:flush-queue', async () => {
   if (!isFeedbackDeliveryAvailable()) {
     return false;
   }
   try {
-    return await Sentry.flush(FEEDBACK_FLUSH_TIMEOUT_MS);
+    return await Sentry.flush(FEEDBACK_QUEUE_FLUSH_TIMEOUT_MS);
   } catch {
     return false;
   }

@@ -84,20 +84,40 @@ describe('feedback delivery availability', () => {
     await expect(handler({})).resolves.toBe(true);
   });
 
-  it('does not flush when no Sentry DSN is configured', async () => {
-    const handler = handlers.get('feedback:flush-delivery')!;
+  it('registers queue flushing and retires the old channel', () => {
+    expect(handlers.has('feedback:flush-queue')).toBe(true);
+    expect(handlers.has('feedback:flush-delivery')).toBe(false);
+  });
+
+  it('confirms the main queue when Sentry flush succeeds', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.invalid/1';
+    const handler = handlers.get('feedback:flush-queue')!;
+
+    await expect(handler({})).resolves.toBe(true);
+    expect(sentryMainMocks.flush).toHaveBeenCalledWith(5000);
+  });
+
+  it('does not flush the main queue when the backend is unavailable', async () => {
+    const handler = handlers.get('feedback:flush-queue')!;
 
     await expect(handler({})).resolves.toBe(false);
     expect(sentryMainMocks.flush).not.toHaveBeenCalled();
   });
 
-  it('reports a failed main-process Sentry flush', async () => {
+  it('does not confirm the main queue when Sentry flush returns false', async () => {
     process.env.SENTRY_DSN = 'https://public@example.invalid/1';
     sentryMainMocks.flush.mockResolvedValue(false);
-    const handler = handlers.get('feedback:flush-delivery')!;
+    const handler = handlers.get('feedback:flush-queue')!;
 
     await expect(handler({})).resolves.toBe(false);
-    expect(sentryMainMocks.flush).toHaveBeenCalledWith(5000);
+  });
+
+  it('does not confirm the main queue when Sentry flush throws', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.invalid/1';
+    sentryMainMocks.flush.mockRejectedValue(new Error('queue flush failed'));
+    const handler = handlers.get('feedback:flush-queue')!;
+
+    await expect(handler({})).resolves.toBe(false);
   });
 });
 
@@ -201,6 +221,69 @@ describe('feedback logs', () => {
       'url-token',
       'url-api-key',
     ]) {
+      expect(redacted).not.toContain(secret);
+    }
+  });
+
+  it('redacts URI userinfo, cookie headers, and compound secret keys', () => {
+    const secrets = [
+      'db-user',
+      "pa'ss",
+      'cache-user',
+      'cache-password',
+      'mongo-user',
+      'mongo-password',
+      'ssh-user',
+      'array-user',
+      'array-password',
+      'object-user',
+      'object-password',
+      'quoted-user',
+      'quoted-password',
+      'fallback-user',
+      'fallback-password',
+      'cookie-secret',
+      'set-cookie-secret',
+      'database-secret',
+      'aws-secret',
+      'private-key-secret',
+      'camel-aws-secret',
+      'dotted-aws-secret',
+      'camel-private-secret',
+      'dotted-database-secret',
+      'multiline-private-key-secret',
+    ];
+    const redacted = redactFeedbackLogContent(
+      [
+        "endpoint=postgresql://db-user:pa'ss@db.internal/app?sslmode=require",
+        'cache=redis://cache-user:cache-password@cache.internal/0',
+        'source=mongodb+srv://mongo-user:mongo-password@cluster.internal/app',
+        'remote=ssh://ssh-user@host.internal/home',
+        'array=[postgresql://array-user:array-password@db.internal]',
+        'object={redis://object-user:object-password@cache.internal}',
+        "quoted='ssh://quoted-user:quoted-password@host.internal'",
+        'broken=postgresql://fallback-user:fallback-password@[invalid',
+        'Cookie: session_id=cookie-secret; theme=dark',
+        'Set-Cookie: refresh=set-cookie-secret; Path=/; HttpOnly',
+        'DATABASE_URL=database-secret',
+        'AWS_SECRET_ACCESS_KEY=aws-secret',
+        'PRIVATE_KEY="private-key-secret"',
+        'awsSecretAccessKey=camel-aws-secret',
+        'aws.secret.access.key=dotted-aws-secret',
+        'servicePrivateKey=camel-private-secret',
+        'primary.database.url=dotted-database-secret',
+        'PRIVATE_KEY="-----BEGIN PRIVATE KEY-----',
+        'multiline-private-key-secret',
+        '-----END PRIVATE KEY-----"',
+      ].join('\n')
+    );
+
+    expect(redacted).toContain('sslmode=require');
+    expect(redacted).toContain('Cookie: [REDACTED]');
+    expect(redacted).toContain('Set-Cookie: [REDACTED]');
+    expect(redacted).not.toContain('[REDACTED]]');
+    expect(redacted).not.toContain('BEGIN PRIVATE KEY');
+    for (const secret of secrets) {
       expect(redacted).not.toContain(secret);
     }
   });

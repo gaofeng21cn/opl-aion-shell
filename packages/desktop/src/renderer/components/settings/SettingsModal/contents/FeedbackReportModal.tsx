@@ -17,7 +17,7 @@ const DESCRIPTION_MAX_LENGTH = 2000;
 const MAX_SCREENSHOTS = 3;
 const ACCEPTED_IMAGE_TYPES = '.png,.jpg,.jpeg,.gif';
 const SUMMARY_PREVIEW_LENGTH = 60;
-const FEEDBACK_FLUSH_TIMEOUT_MS = 5000;
+const FEEDBACK_QUEUE_FLUSH_TIMEOUT_MS = 5000;
 
 type ScreenshotBuffer = {
   name: string;
@@ -155,7 +155,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
             logData = await electronAPI.collectFeedbackLogs();
           }
         } catch {
-          // Feedback can still be submitted without the optional log attachment.
+          // Feedback can still be queued without the optional log attachment.
         }
       }
 
@@ -228,27 +228,27 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
       });
 
       if (!eventId) {
-        setError(t('common.feedback.deliveryFailed'));
+        setError(t('common.feedback.queueFailed'));
         return;
       }
 
-      let delivered = false;
+      let queued = false;
       try {
-        const rendererFlushed = await client.flush(FEEDBACK_FLUSH_TIMEOUT_MS);
-        delivered = rendererFlushed && (await electronAPI.flushFeedbackDelivery?.()) === true;
+        const rendererQueueFlushed = await client.flush(FEEDBACK_QUEUE_FLUSH_TIMEOUT_MS);
+        queued = rendererQueueFlushed && (await electronAPI.confirmFeedbackQueued?.()) === true;
       } catch {
-        delivered = false;
+        queued = false;
       }
-      if (!delivered) {
-        setError(t('common.feedback.deliveryFailed'));
+      if (!queued) {
+        setError(t('common.feedback.queueFailed'));
         return;
       }
 
-      Message.success(t('settings.bugReportSuccess'));
+      Message.success(t('common.feedback.queued'));
       resetForm();
       onCancel();
     } catch {
-      setError(t('settings.bugReportError'));
+      setError(t('common.feedback.queueFailed'));
     } finally {
       setSubmitting(false);
     }

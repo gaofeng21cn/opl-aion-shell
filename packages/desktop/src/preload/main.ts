@@ -45,8 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   collectFeedbackLogs: () => ipcRenderer.invoke('feedback:collect-logs'),
   // Feedback: check whether the configured delivery backend is available
   isFeedbackDeliveryAvailable: () => ipcRenderer.invoke('feedback:is-delivery-available'),
-  // Feedback: wait for the main-process delivery queue to flush
-  flushFeedbackDelivery: () => ipcRenderer.invoke('feedback:flush-delivery'),
+  // Feedback: confirm the event reached the main sending queue
+  confirmFeedbackQueued: () => ipcRenderer.invoke('feedback:flush-queue'),
   // Feedback: capture a screenshot of the current window
   captureFeedbackScreenshot: () => ipcRenderer.invoke('feedback:capture-screenshot'),
   recoverCorruptedDatabase: () => ipcRenderer.invoke('backend:recover-corrupted-database'),

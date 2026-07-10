@@ -13,6 +13,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfigProvider, Message } from '@arco-design/web-react';
+import enCommon from '@/renderer/services/i18n/locales/en-US/common.json';
+import zhCommon from '@/renderer/services/i18n/locales/zh-CN/common.json';
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@arco-design/web-react')>();
@@ -53,7 +55,7 @@ const renderModal = (ui: React.ReactElement) => render(<ConfigProvider>{ui}</Con
 
 const deliveryAvailable = vi.fn(async () => true);
 const collectFeedbackLogs = vi.fn(async () => ({ filename: 'logs.gz', data: [1, 2, 3] }));
-const flushFeedbackDelivery = vi.fn(async () => true);
+const confirmFeedbackQueued = vi.fn(async () => true);
 
 const installElectronApi = () => {
   (
@@ -61,13 +63,13 @@ const installElectronApi = () => {
       electronAPI?: {
         isFeedbackDeliveryAvailable: typeof deliveryAvailable;
         collectFeedbackLogs: typeof collectFeedbackLogs;
-        flushFeedbackDelivery: typeof flushFeedbackDelivery;
+        confirmFeedbackQueued: typeof confirmFeedbackQueued;
       };
     }
   ).electronAPI = {
     isFeedbackDeliveryAvailable: deliveryAvailable,
     collectFeedbackLogs,
-    flushFeedbackDelivery,
+    confirmFeedbackQueued,
   };
 };
 
@@ -89,8 +91,8 @@ describe('FeedbackReportModal — prefill', () => {
     deliveryAvailable.mockResolvedValue(true);
     collectFeedbackLogs.mockReset();
     collectFeedbackLogs.mockResolvedValue({ filename: 'logs.gz', data: [1, 2, 3] });
-    flushFeedbackDelivery.mockReset();
-    flushFeedbackDelivery.mockResolvedValue(true);
+    confirmFeedbackQueued.mockReset();
+    confirmFeedbackQueued.mockResolvedValue(true);
     sentryMocks.setTag.mockClear();
     sentryMocks.flush.mockReset();
     sentryMocks.flush.mockResolvedValue(true);
@@ -233,15 +235,15 @@ describe('FeedbackReportModal — prefill', () => {
   });
 });
 
-describe('FeedbackReportModal — privacy and delivery', () => {
+describe('FeedbackReportModal — privacy and queue confirmation', () => {
   beforeEach(() => {
     installElectronApi();
     deliveryAvailable.mockReset();
     deliveryAvailable.mockResolvedValue(true);
     collectFeedbackLogs.mockReset();
     collectFeedbackLogs.mockResolvedValue({ filename: 'logs.gz', data: [1, 2, 3] });
-    flushFeedbackDelivery.mockReset();
-    flushFeedbackDelivery.mockResolvedValue(true);
+    confirmFeedbackQueued.mockReset();
+    confirmFeedbackQueued.mockResolvedValue(true);
     sentryMocks.flush.mockReset();
     sentryMocks.flush.mockResolvedValue(true);
     sentryMocks.captureEvent.mockReset();
@@ -298,23 +300,106 @@ describe('FeedbackReportModal — privacy and delivery', () => {
     expect(await screen.findByText('common.feedback.deliveryUnavailable')).toBeInTheDocument();
     expect(sentryMocks.captureEvent).not.toHaveBeenCalled();
     expect(sentryMocks.flush).not.toHaveBeenCalled();
-    expect(flushFeedbackDelivery).not.toHaveBeenCalled();
+    expect(confirmFeedbackQueued).not.toHaveBeenCalled();
     expect(Message.success).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
   });
 
-  it('does not report success when Sentry cannot flush the event', async () => {
-    flushFeedbackDelivery.mockResolvedValue(false);
+  it('reports queued only after renderer and main queue flushes succeed', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
     renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
 
     await submitReport(user);
 
-    expect(await screen.findByText('common.feedback.deliveryFailed')).toBeInTheDocument();
+    await waitFor(() => expect(Message.success).toHaveBeenCalledWith('common.feedback.queued'));
     expect(sentryMocks.captureEvent).toHaveBeenCalledTimes(1);
-    expect(sentryMocks.flush).toHaveBeenCalledTimes(1);
-    expect(flushFeedbackDelivery).toHaveBeenCalledTimes(1);
+    expect(sentryMocks.flush).toHaveBeenCalledWith(5000);
+    expect(confirmFeedbackQueued).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps queued copy free of submitted or delivered claims', () => {
+    const enQueued = (enCommon.feedback as Record<string, string>).queued;
+    const zhQueued = (zhCommon.feedback as Record<string, string>).queued;
+
+    expect(enQueued).toEqual(expect.any(String));
+    expect(enQueued).not.toMatch(/\b(?:submitted|delivered)\b/i);
+    expect(zhQueued).toEqual(expect.any(String));
+    expect(zhQueued).not.toMatch(/已提交|已送达|提交成功|发送成功/);
+  });
+
+  it('keeps the modal open when Sentry does not return a queued event id', async () => {
+    sentryMocks.captureEvent.mockReturnValueOnce('');
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.queueFailed')).toBeInTheDocument();
+    expect(sentryMocks.captureEvent).toHaveBeenCalledTimes(1);
+    expect(sentryMocks.flush).not.toHaveBeenCalled();
+    expect(confirmFeedbackQueued).not.toHaveBeenCalled();
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the modal open when the renderer queue flush returns false', async () => {
+    sentryMocks.flush.mockResolvedValueOnce(false);
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.queueFailed')).toBeInTheDocument();
+    expect(sentryMocks.flush).toHaveBeenCalledWith(5000);
+    expect(confirmFeedbackQueued).not.toHaveBeenCalled();
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the modal open when the main queue flush returns false', async () => {
+    confirmFeedbackQueued.mockResolvedValueOnce(false);
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.queueFailed')).toBeInTheDocument();
+    expect(sentryMocks.flush).toHaveBeenCalledWith(5000);
+    expect(confirmFeedbackQueued).toHaveBeenCalledTimes(1);
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the modal open when the renderer queue flush throws', async () => {
+    sentryMocks.flush.mockRejectedValueOnce(new Error('renderer queue flush failed'));
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.queueFailed')).toBeInTheDocument();
+    expect(confirmFeedbackQueued).not.toHaveBeenCalled();
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the modal open when the main queue flush throws', async () => {
+    confirmFeedbackQueued.mockRejectedValueOnce(new Error('main queue flush failed'));
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.queueFailed')).toBeInTheDocument();
+    expect(sentryMocks.flush).toHaveBeenCalledWith(5000);
+    expect(confirmFeedbackQueued).toHaveBeenCalledTimes(1);
     expect(Message.success).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
   });
