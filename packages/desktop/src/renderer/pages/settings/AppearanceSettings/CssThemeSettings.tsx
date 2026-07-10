@@ -267,7 +267,7 @@ const CssThemeSettings: React.FC = () => {
   /**
    * 打开编辑主题弹窗 / Open edit theme modal
    */
-  const handleEditTheme = useCallback((theme: Theme, e: React.MouseEvent) => {
+  const handleEditTheme = useCallback((theme: Theme, e: Event) => {
     e.stopPropagation();
     setEditingTheme(theme);
     setModalVisible(true);
