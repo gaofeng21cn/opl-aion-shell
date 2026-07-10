@@ -942,6 +942,8 @@ function buildCapabilityPurpose(
     | 'manifestUrl'
     | 'registryUrl'
     | 'physicalSurface'
+    | 'enabled'
+    | 'hidden'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
     | 'connectorReadinessGroups'
