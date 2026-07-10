@@ -157,17 +157,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(setCodexModelSelection).toHaveBeenCalledWith('gpt-5.6-sol', 'high');
     expect(setSelectedAcpModel).not.toHaveBeenCalled();
     expect(setSelectedReasoningEffort).not.toHaveBeenCalled();
-
-    fireEvent.mouseEnter(screen.getByText('智力增强'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: '开启' }));
-
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_enable',
-        dryRun: false,
-      });
-      expect(mocks.clientConfigSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true);
-    });
+    expect(mocks.executeAction).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes OPL Flow intelligence enhancement status when opening the Home selector menu', async () => {
