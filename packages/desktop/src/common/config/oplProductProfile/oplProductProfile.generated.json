@@ -335,7 +335,17 @@
         "voice_optional",
         "send_stop"
       ],
-      "projectless_conversation_supported": true
+      "projectless_conversation_supported": true,
+      "project_context_inputs": {
+        "scope": "canonical_workspace_path",
+        "optional": true,
+        "item_kind": "workspace_file_or_directory_ref",
+        "mutations": ["add", "remove"],
+        "persistence": "shell_client_configuration_keyed_by_workspace",
+        "composer_application": "visible_removable_context_refs_preloaded_for_project_conversations",
+        "fabricated_defaults_allowed": false,
+        "artifact_body_copy_allowed": false
+      }
     },
     "right_context_inspector": {
       "placement": "right",
