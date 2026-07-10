@@ -182,9 +182,9 @@ const AboutModalContent: React.FC = () => {
             </div>
           </div>
 
-          <section className='opl-settings-section' data-testid='about-version-section'>
+          <section className='opl-settings-section' id='version' data-testid='about-version-section'>
             <div className='opl-settings-list'>
-              <div className='opl-settings-row flex items-center justify-between gap-16px'>
+              <div className='opl-settings-row flex items-center justify-between gap-16px' id='update-status'>
                 <div className='opl-settings-row__main text-14px text-t-primary'>
                   {t('settings.aboutVersionBadge', {
                     version: appVersions.appVersion,
@@ -216,7 +216,7 @@ const AboutModalContent: React.FC = () => {
             </div>
           </section>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='feedback'>
             <div className='opl-settings-list'>
               {linkItems.map((item) => (
                 <Button
@@ -246,6 +246,7 @@ const AboutModalContent: React.FC = () => {
             <details
               className='opl-settings-details'
               onToggle={(event) => setTechnicalDetailsOpen(event.currentTarget.open)}
+              id='technical-details'
               data-testid='about-technical-details'
             >
               <summary className='cursor-pointer text-14px font-medium text-t-primary'>

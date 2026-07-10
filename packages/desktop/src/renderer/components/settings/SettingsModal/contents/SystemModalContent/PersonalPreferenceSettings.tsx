@@ -7,7 +7,6 @@
 import { ipcBridge } from '@/common';
 import type { IGpuStatus, IStartOnBootStatus } from '@/common/adapter/ipcBridge';
 import { configService } from '@/common/config/configService';
-import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
@@ -228,7 +227,6 @@ const PersonalPreferenceSettings: React.FC = () => {
   }, []);
 
   const behaviorPreferenceItems: PreferenceItem[] = [
-    { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     {
       key: 'startOnBoot',
       label: t('settings.startOnBoot'),
@@ -240,6 +238,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
+      description: t('settings.closeToTrayDesc'),
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
     {
@@ -259,6 +258,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
+      description: t('settings.promptTimeoutDesc'),
       component: (
         <InputNumber
           value={promptTimeout}
@@ -310,7 +310,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     <>
       {modalContextHolder}
 
-      <section className='opl-settings-section' data-testid='appearance-behavior-section'>
+      <section className='opl-settings-section' id='app-behavior' data-testid='appearance-behavior-section'>
         <div className='opl-settings-section__header'>
           <div className='text-14px font-medium text-t-primary leading-22px'>
             {t('settings.appBehaviorPreferencesTitle')}
@@ -339,7 +339,7 @@ const PersonalPreferenceSettings: React.FC = () => {
       </section>
 
       <section className='opl-settings-section'>
-        <details className='opl-settings-details' data-testid='advanced-preferences'>
+        <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
           <summary className='cursor-pointer text-14px font-medium text-t-primary'>
             {t('settings.advancedSettings')}
           </summary>

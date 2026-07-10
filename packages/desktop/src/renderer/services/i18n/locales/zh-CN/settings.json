@@ -154,15 +154,15 @@
   "cacheClearSuccess": "缓存清理成功",
   "cacheClearFailed": "缓存清理失败",
   "language": "语言",
-  "saveUploadToWorkspace": "上传文件保存到项目文件夹",
+  "saveUploadToWorkspace": "将上传文件保存到工作区",
   "autoPreviewOfficeFiles": "自动预览新建 Office 文件",
   "autoPreviewOfficeFilesDesc": "自动打开当前项目中新创建的 Word、Excel 和 PowerPoint 文件，并忽略 Office 临时锁定文件。",
   "personalPreferencesTitle": "偏好",
   "personalPreferencesDesc": "设置界面行为、显示字体和主题外观。",
-  "appBehaviorPreferencesTitle": "界面行为",
-  "appBehaviorPreferencesDesc": "语言、通知、启动、托盘和文件处理等日常使用方式。",
-  "timeoutPreferencesTitle": "请求与空闲时间",
-  "timeoutPreferencesDesc": "控制请求等待和 Agent 空闲释放时间。",
+  "appBehaviorPreferencesTitle": "应用行为",
+  "appBehaviorPreferencesDesc": "设置启动、关闭、通知和文件处理方式。",
+  "timeoutPreferencesTitle": "响应与后台运行",
+  "timeoutPreferencesDesc": "这些设置只影响异常等待和后台资源释放，一般无需修改。",
   "appearancePreferencesTitle": "显示与字体",
   "appearancePreferencesDesc": "设置聊天、Markdown、代码字号和界面缩放。",
   "advancedThemeListTitle": "高级主题",
@@ -173,7 +173,8 @@
   "startOnBootDesc": "登录 macOS 或 Windows 后自动启动 One Person Lab。",
   "startOnBootUnsupported": "仅在打包后的 macOS 和 Windows 客户端中可用。",
   "startOnBootUpdateFailed": "更新开机启动设置失败",
-  "closeToTray": "关闭到托盘",
+  "closeToTray": "关闭窗口后继续运行",
+  "closeToTrayDesc": "关闭主窗口时保留后台任务，并可从菜单栏重新打开。",
   "hardwareAcceleration": "硬件加速",
   "hardwareAccelerationDesc": "使用 GPU 渲染界面。如果启动时崩溃或画面异常，请关闭。",
   "hardwareAccelerationAutoDisabled": "因 GPU 反复崩溃已自动关闭。",
@@ -181,12 +182,13 @@
   "hardwareAccelerationUpdateFailed": "更新硬件加速设置失败",
   "notification": "通知",
   "cronNotificationEnabled": "定时任务完成通知",
-  "promptTimeout": "LLM 请求超时时间（秒）",
+  "promptTimeout": "模型响应超时（秒）",
+  "promptTimeoutDesc": "模型长时间没有响应时停止等待。",
   "groupAiCore": "AI 核心",
   "groupApp": "应用",
   "groupAbout": "其他",
-  "agentIdleTimeout": "Agent 空闲超时（分钟）",
-  "agentIdleTimeoutDesc": "空闲超过该时长后自动终止 Agent 进程以释放内存",
+  "agentIdleTimeout": "后台助手空闲时间（分钟）",
+  "agentIdleTimeoutDesc": "后台助手无任务达到该时长后自动退出，以释放内存。",
   "gemini": "Gemini CLI",
   "model": "模型",
   "system": "系统",
@@ -683,7 +685,12 @@
   "checkForUpdates": "检查更新",
   "includePrereleaseUpdates": "包含预发布/dev 版本",
   "includeNightlyUpdates": "包含 nightly/dev 版本",
-  "aboutVersionBadge": "App v{{version}} · {{channel}}",
+  "aboutVersionBadge": "版本 {{version}} · {{channel}}",
+  "aboutUpdateChecking": "正在检查更新…",
+  "aboutUpdateAvailable": "发现新版本 {{version}}",
+  "aboutUpdateCurrent": "已是最新版",
+  "aboutUpdateUnknown": "暂时无法检查更新",
+  "releasePage": "版本发布记录",
   "aboutShellVersion": "GUI shell {{version}}",
   "aboutFrameworkVersion": "OPL Framework {{version}}",
   "aboutFrameworkRevision": "OPL Framework {{revision}}",
@@ -1020,8 +1027,20 @@
   "developerProfileStateLimited": "开发者受限",
   "developerProfileStateReady": "开发者就绪",
   "unavailable": "不可用",
-  "oplDeveloperProfile": "OPL 开发者配置",
-  "oplDeveloperProfileDesc": "按能力显示当前开发者配置；普通用户默认使用稳定包通道，本地 checkout 需要显式选择。",
+  "oplDeveloperProfile": "开发者功能",
+  "oplDeveloperProfileDesc": "查看源码通道、工作目录访问和自动化权限。日常使用无需调整。",
+  "oplDeveloperCapabilities": {
+    "source_channel": "能力来源",
+    "workspace_trust": "工作目录访问",
+    "github_authority": "GitHub 操作权限",
+    "agent_automation": "自动化任务",
+    "runtime_mutation_scope": "本机服务修改权限"
+  },
+  "oplDeveloperCapabilityStates": {
+    "available": "可用",
+    "attention": "需检查",
+    "unavailable": "不可用"
+  },
   "oplFlowContext": "OPL Flow 上下文",
   "oplFlowContextDesc": "App 管理的会话上下文跟随界面语言、尊重用户 AGENTS.md 文件，并记录来源，不改写用户文件。",
   "oplFlowIntelligenceEnhancementMode": "智力增强模式",
@@ -1582,65 +1601,65 @@
     }
   },
   "storagePage": {
-    "title": "存储",
-    "description": "查看本地数据，先预览清理变化，并在破坏性操作前保留必要证明。",
+    "title": "数据与存储",
+    "description": "查看本机数据占用，并安全归档或清理不再需要的内容。",
     "sections": {
       "updater": {
-        "title": "更新缓存",
-        "description": "只针对安装包缓存。"
+        "title": "安装包缓存",
+        "description": "用于应用更新；清理前会先列出影响范围。"
       },
       "conversations": {
-        "title": "对话产物",
-        "description": "对话文件必须先有归档和恢复证明，才能清理。"
+        "title": "对话与附件",
+        "description": "先创建可恢复的归档，再清理本机对话文件。"
       },
       "runtime": {
         "title": "运行缓存",
-        "description": "本机运行缓存清理必须先预览，确认后才能执行。"
+        "description": "临时运行数据；清理前会先列出影响范围。"
       },
       "logs": {
-        "title": "日志",
-        "description": "日志轮转和对话产物清理是两个不同入口。"
+        "title": "应用日志",
+        "description": "用于问题排查；可按保留规则清理旧日志。"
       }
     },
     "inventory": {
       "bytes": "大小：{{bytes}}",
       "cleanupMode": "清理证明：{{mode}}",
       "rootCount": "根路径：{{count}}",
-      "details": "存储详情",
+      "details": "查看位置与明细",
       "rootDetail": "{{exists}} · {{bytes}}",
       "exists": "存在",
       "missing": "缺失",
-      "noRoots": "没有上报根路径。",
-      "notLoaded": "存储详情尚未加载。",
-      "silentDeleteAllowed": "无需额外证明",
-      "silentDeleteBlocked": "需要先有证明",
+      "noRoots": "未发现存储位置。",
+      "notLoaded": "正在读取存储信息。",
+      "silentDeleteAllowed": "可直接清理",
+      "silentDeleteBlocked": "需要先准备",
       "cleanupModes": {
-        "safeWithoutExtraProof": "无需额外证明",
-        "needsArchiveProof": "需要归档证明",
-        "needsPreview": "需要先预览",
-        "needsReview": "需要查看详情"
+        "safeWithoutExtraProof": "可直接清理",
+        "needsArchiveProof": "需先归档",
+        "needsPreview": "需先查看",
+        "needsReview": "需检查"
       }
     },
     "overview": {
-      "total": "本地数据总量",
-      "categories": "数据类别",
+      "total": "共占用",
+      "categories": "本机数据",
       "safe": "可直接处理",
       "needsProof": "需要证明"
     },
     "cleanupFlow": {
       "title": "安全清理流程",
-      "detail": "清理始终按预览、确认、执行推进；破坏性动作会在前置证明存在后才启用。",
+      "detail": "先查看影响范围，再确认执行；需要归档的数据会先保留可恢复副本。",
       "step1": "1. 预览",
-      "preview": "先生成 dry-run 计划或归档证明，再改变文件。",
+      "preview": "先查看将受影响的内容或创建归档，再更改文件。",
       "step2": "2. 确认",
-      "confirm": "执行前查看具体回执或预览摘要。",
+      "confirm": "执行前确认范围和预计释放空间。",
       "step3": "3. 执行",
-      "execute": "只执行已确认的计划，并保留回执可见。"
+      "execute": "只处理已确认的内容，并保留操作记录。"
     },
     "researchLifecycle": {
-      "title": "工作数据安全",
-      "detail": "只读展示工作数据的清理边界和来源引用。",
-      "technicalDetails": "高级存储引用",
+      "title": "工作数据保护规则",
+      "detail": "仅在排查清理边界时查看。",
+      "technicalDetails": "工作数据保护详情",
       "boundary": "App 只展示来源引用；不直接读取底层数据库，不扫描工作目录，不删除临床数据正文，也不允许无来源的通用清理。",
       "states": {
         "available": "来源可用",
@@ -1650,21 +1669,24 @@
     },
     "actions": {
       "refresh": "刷新",
-      "archive": "归档对话",
-      "restoreProof": "恢复证明",
-      "deleteWithReceipt": "凭回执删除",
-      "dryRunRuntime": "预览运行缓存清理",
-      "executeRuntime": "按预览清理",
-      "dryRunLogs": "预览日志清理",
-      "executeLogs": "按预览清理日志",
-      "dryRunUpdater": "预览安装包缓存清理",
-      "executeUpdater": "清理安装包缓存"
+      "archive": "创建归档",
+      "restoreProof": "验证归档",
+      "deleteWithReceipt": "删除本机文件",
+      "dryRunRuntime": "查看可清理内容",
+      "executeRuntime": "确认清理",
+      "dryRunLogs": "查看可清理内容",
+      "executeLogs": "确认清理",
+      "dryRunUpdater": "查看可清理内容",
+      "executeUpdater": "确认清理"
     },
     "conversations": {
-      "title": "对话归档与恢复证明",
-      "detail": "只有存在归档或恢复证明回执时，删除按钮才会启用。",
-      "receiptRequired": "请先归档对话，必要时再恢复证明。清理不会静默执行。",
-      "proofReceipt": "证明回执：{{receipt}}"
+      "title": "对话归档",
+      "detail": "先保留可恢复副本，再清理本机文件。",
+      "receiptRequired": "先创建归档；完成后即可验证归档或删除本机文件。",
+      "proofReady": "归档已创建，可继续验证或清理本机文件。",
+      "deleteConfirmation": "将删除本机对话文件。归档会保留，之后仍可恢复。",
+      "technicalReceipt": "归档记录：{{receipt}}",
+      "proofReceipt": "归档记录：{{receipt}}"
     },
     "runtime": {
       "title": "运行缓存清理",
@@ -1686,16 +1708,16 @@
     },
     "plans": {
       "runtime": {
-        "required": "必须先预览，才能执行运行缓存清理。",
-        "summary": "运行缓存清理预览：{{count}} 个候选，{{bytes}}。"
+        "required": "请先查看可清理内容。",
+        "summary": "将清理 {{count}} 项，共 {{bytes}}。"
       },
       "logs": {
-        "required": "必须先预览，才能执行日志清理。",
-        "summary": "日志清理预览：{{count}} 个候选，{{bytes}}。"
+        "required": "请先查看可清理内容。",
+        "summary": "将清理 {{count}} 项，共 {{bytes}}。"
       },
       "updater": {
-        "required": "必须先预览，才能执行安装包缓存清理。",
-        "summary": "安装包缓存清理预览：{{count}} 个候选，{{bytes}}。"
+        "required": "请先查看可清理内容。",
+        "summary": "将清理 {{count}} 项，共 {{bytes}}。"
       }
     },
     "messages": {

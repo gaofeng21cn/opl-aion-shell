@@ -80,14 +80,15 @@ vi.mock('react-i18next', () => ({
       ({
         'settings.personalPreferencesTitle': 'Preferences',
         'settings.personalPreferencesDesc': 'Set interface behavior, display fonts, and theme appearance.',
-        'settings.appBehaviorPreferencesTitle': 'Interface behavior',
+        'settings.appBehaviorPreferencesTitle': 'App behavior',
         'settings.appBehaviorPreferencesDesc': 'Daily application behavior.',
         'settings.language': 'Language',
         'settings.startOnBoot': 'Start on boot',
         'settings.startOnBootDesc': 'Launch after sign-in.',
         'settings.startOnBootUnsupported': 'Unavailable.',
         'settings.closeToTray': 'Keep running after closing the window',
-        'settings.saveUploadToWorkspace': 'Save uploads to project folder',
+        'settings.closeToTrayDesc': 'Keep background tasks running.',
+        'settings.saveUploadToWorkspace': 'Save uploads to workspace',
         'settings.autoPreviewOfficeFiles': 'Preview Office files',
         'settings.autoPreviewOfficeFilesDesc': 'Open new Office files automatically.',
         'settings.notification': 'Notifications',
@@ -95,6 +96,7 @@ vi.mock('react-i18next', () => ({
         'settings.advancedSettings': 'Advanced preferences',
         'settings.timeoutPreferencesDesc': 'Less common performance and background assistant settings.',
         'settings.promptTimeout': 'Model response timeout',
+        'settings.promptTimeoutDesc': 'Stop waiting when a model does not respond.',
         'settings.agentIdleTimeout': 'Release an idle background assistant after',
         'settings.agentIdleTimeoutDesc': 'Stops an unused background assistant to free memory.',
         'settings.hardwareAcceleration': 'Hardware acceleration',
@@ -128,7 +130,7 @@ describe('AppearanceModalContent', () => {
     render(<AppearanceModalContent />);
 
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Interface behavior');
+    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('App behavior');
     expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent(
       'Keep running after closing the window'
     );
@@ -141,6 +143,7 @@ describe('AppearanceModalContent', () => {
     await waitFor(() => expect(advancedPreferences).toHaveTextContent('Hardware acceleration'));
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
+    expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');
     expect(screen.getByText('Chat font size')).toBeInTheDocument();
     expect(screen.getByText('Markdown font size')).toBeInTheDocument();
     expect(screen.getByText('Code font size')).toBeInTheDocument();

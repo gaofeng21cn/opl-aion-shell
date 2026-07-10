@@ -53,43 +53,42 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 
 const translate = (key: string, values?: Record<string, string | number>) => {
   const labels: Record<string, string> = {
-    'settings.storagePage.title': 'Storage',
-    'settings.storagePage.description': 'Review local data.',
-    'settings.storagePage.actions.archive': 'Create recoverable backup',
-    'settings.storagePage.actions.restoreProof': 'Restore backup',
-    'settings.storagePage.actions.dryRunRuntime': 'Preview runtime cleanup',
-    'settings.storagePage.actions.dryRunLogs': 'Preview log cleanup',
-    'settings.storagePage.actions.dryRunUpdater': 'Preview installer cache cleanup',
-    'settings.storagePage.actions.executeRuntime': 'Clean using preview',
-    'settings.storagePage.actions.executeLogs': 'Clean logs using preview',
-    'settings.storagePage.actions.executeUpdater': 'Clean installer cache',
-    'settings.storagePage.actions.deleteWithReceipt': 'Delete after backup confirmation',
-    'settings.storagePage.sections.updater.title': 'Updater cache',
-    'settings.storagePage.sections.updater.description': 'Installer package cache only.',
-    'settings.storagePage.sections.conversations.title': 'Conversation artifacts',
-    'settings.storagePage.sections.conversations.description': 'Conversation files require proof before cleanup.',
+    'settings.storagePage.title': 'Data & Storage',
+    'settings.storagePage.description': 'Review and safely remove local data.',
+    'settings.storagePage.actions.archive': 'Create archive',
+    'settings.storagePage.actions.restoreProof': 'Verify archive',
+    'settings.storagePage.actions.dryRunRuntime': 'Review runtime cleanup',
+    'settings.storagePage.actions.dryRunLogs': 'Review log cleanup',
+    'settings.storagePage.actions.dryRunUpdater': 'Review installer cache cleanup',
+    'settings.storagePage.actions.executeRuntime': 'Confirm runtime cleanup',
+    'settings.storagePage.actions.executeLogs': 'Confirm log cleanup',
+    'settings.storagePage.actions.executeUpdater': 'Confirm installer cleanup',
+    'settings.storagePage.actions.deleteWithReceipt': 'Remove local files',
+    'settings.storagePage.sections.updater.title': 'Installer package cache',
+    'settings.storagePage.sections.updater.description': 'Review affected files before cleanup.',
+    'settings.storagePage.sections.conversations.title': 'Conversations and attachments',
+    'settings.storagePage.sections.conversations.description': 'Create a restorable archive first.',
     'settings.storagePage.sections.runtime.title': 'Runtime cache',
-    'settings.storagePage.sections.runtime.description':
-      'Local runtime cache cleanup must be previewed before it can run.',
-    'settings.storagePage.sections.logs.title': 'Logs',
-    'settings.storagePage.sections.logs.description': 'Log cleanup is separate from conversation artifacts.',
+    'settings.storagePage.sections.runtime.description': 'Review affected files before cleanup.',
+    'settings.storagePage.sections.logs.title': 'App logs',
+    'settings.storagePage.sections.logs.description': 'Older logs can be removed by retention rules.',
     'settings.storagePage.inventory.bytes': `Bytes: ${values?.bytes ?? ''}`,
     'settings.storagePage.inventory.cleanupMode': `Condition: ${values?.mode ?? ''}`,
     'settings.storagePage.inventory.rootCount': `Roots: ${values?.count ?? ''}`,
-    'settings.storagePage.inventory.details': 'Storage details',
+    'settings.storagePage.inventory.details': 'View locations and details',
     'settings.storagePage.inventory.rootDetail': `${values?.exists ?? ''} ${values?.bytes ?? ''}`,
     'settings.storagePage.inventory.exists': 'exists',
     'settings.storagePage.inventory.missing': 'missing',
     'settings.storagePage.inventory.noRoots': 'No roots reported.',
     'settings.storagePage.inventory.notLoaded': 'Storage details are not loaded yet.',
-    'settings.storagePage.inventory.silentDeleteAllowed': 'Safe without extra proof',
-    'settings.storagePage.inventory.silentDeleteBlocked': 'Needs proof first',
-    'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Safe without extra proof',
-    'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Needs archive proof',
-    'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
-    'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
-    'settings.storagePage.overview.total': 'Total stored data',
-    'settings.storagePage.overview.categories': 'Data categories',
+    'settings.storagePage.inventory.silentDeleteAllowed': 'Ready to clean',
+    'settings.storagePage.inventory.silentDeleteBlocked': 'Preparation required',
+    'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Ready to clean',
+    'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Archive first',
+    'settings.storagePage.inventory.cleanupModes.needsPreview': 'Review first',
+    'settings.storagePage.inventory.cleanupModes.needsReview': 'Check required',
+    'settings.storagePage.overview.total': 'Total',
+    'settings.storagePage.overview.categories': 'Local data',
     'settings.storagePage.overview.safe': 'Safe now',
     'settings.storagePage.overview.needsProof': 'Need proof',
     'settings.storagePage.cleanupFlow.title': 'Safe cleanup flow',
@@ -100,19 +99,21 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.cleanupFlow.confirm': 'Review the exact receipt or preview summary.',
     'settings.storagePage.cleanupFlow.step3': '3. Execute',
     'settings.storagePage.cleanupFlow.execute': 'Run only the confirmed plan.',
-    'settings.storagePage.researchLifecycle.title': 'Work data safety',
-    'settings.storagePage.researchLifecycle.detail':
-      'Read-only cleanup boundaries and source references for workspace data.',
-    'settings.storagePage.researchLifecycle.technicalDetails': 'Advanced storage references',
+    'settings.storagePage.researchLifecycle.title': 'Work data protection rules',
+    'settings.storagePage.researchLifecycle.detail': 'Open only when troubleshooting cleanup boundaries.',
+    'settings.storagePage.researchLifecycle.technicalDetails': 'Work data protection details',
     'settings.storagePage.researchLifecycle.boundary':
       'Source references only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
     'settings.storagePage.researchLifecycle.states.available': 'Source available',
     'settings.storagePage.researchLifecycle.states.attention': 'Needs review',
     'settings.storagePage.researchLifecycle.states.blocked': 'Forbidden',
-    'settings.storagePage.conversations.title': 'Conversation archive and restore proof',
-    'settings.storagePage.conversations.detail': 'Delete is disabled until proof is available.',
-    'settings.storagePage.conversations.receiptRequired': 'Create a recoverable backup first.',
-    'settings.storagePage.conversations.proofReceipt': `Operation record: ${values?.receipt ?? ''}`,
+    'settings.storagePage.conversations.title': 'Conversation archive',
+    'settings.storagePage.conversations.detail': 'Keep a restorable copy before removing local files.',
+    'settings.storagePage.conversations.receiptRequired': 'Create an archive first.',
+    'settings.storagePage.conversations.proofReady': 'Archive created.',
+    'settings.storagePage.conversations.deleteConfirmation':
+      'Local files will be removed while the archive remains available.',
+    'settings.storagePage.conversations.technicalReceipt': `Archive record: ${values?.receipt ?? ''}`,
     'settings.storagePage.runtime.title': 'Runtime cleanup',
     'settings.storagePage.runtime.detail': 'Preview the exact runtime paths first.',
     'settings.storagePage.plans.runtime.required': 'Preview required before runtime cleanup can run.',
@@ -248,25 +249,25 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const categoryList = screen.getByTestId('storage-category-list');
-    expect(categoryList).toHaveTextContent('Total stored data');
+    expect(categoryList).toHaveTextContent('Total');
     expect(categoryList).toHaveTextContent('100 B');
-    expect(categoryList).toHaveTextContent('Data categories');
+    expect(categoryList).toHaveTextContent('Local data');
     expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
     expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
     expect(
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
     ).toHaveLength(4);
     expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Ready to clean');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Needs archive proof');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Archive first');
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).not.toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).not.toHaveTextContent('/tmp/logs');
-    expect(screen.getByText('Log cleanup is separate from conversation artifacts.')).toBeInTheDocument();
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Create recoverable backup');
-    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('Preview runtime cleanup');
-    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Preview log cleanup');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Preview installer cache cleanup');
+    expect(screen.getByText('Older logs can be removed by retention rules.')).toBeInTheDocument();
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Create archive');
+    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('Review runtime cleanup');
+    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Review log cleanup');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
     for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
@@ -285,15 +286,15 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
-    expect(lifecycle).toHaveTextContent('Advanced storage references');
-    expect(lifecycle).not.toHaveTextContent('Work data safety');
-    expect(lifecycle).not.toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
+    expect(lifecycle).toHaveTextContent('Work data protection details');
+    expect(lifecycle).not.toHaveTextContent('Work data protection rules');
+    expect(lifecycle).not.toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
     expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
 
     openDetails(screen.getByTestId('storage-research-lifecycle-details') as HTMLDetailsElement);
 
-    expect(lifecycle).toHaveTextContent('Work data safety');
-    expect(lifecycle).toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
+    expect(lifecycle).toHaveTextContent('Work data protection rules');
+    expect(lifecycle).toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
     expect(lifecycle).toHaveTextContent('Work data stages');
     expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
     expect(lifecycle).toHaveTextContent('Large file references');
@@ -320,19 +321,19 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-logs-execute')).toBeDisabled();
     expect(screen.getByTestId('storage-updater-execute')).toBeDisabled();
 
-    fireEvent.click(screen.getByText('Create recoverable backup'));
+    fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-conversation-delete')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Preview runtime cleanup'));
+    fireEvent.click(screen.getByText('Review runtime cleanup'));
     await waitFor(() => expect(bridgeMocks.planRuntimePrune).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Preview log cleanup'));
+    fireEvent.click(screen.getByText('Review log cleanup'));
     await waitFor(() => expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Preview installer cache cleanup'));
+    fireEvent.click(screen.getByText('Review installer cache cleanup'));
     await waitFor(() => expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled();
   });
@@ -341,7 +342,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Preview runtime cleanup'));
+    fireEvent.click(screen.getByText('Review runtime cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-runtime-execute'));
     expect(bridgeMocks.executeRuntimePrune).not.toHaveBeenCalled();
@@ -354,7 +355,7 @@ describe('StorageSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByText('Preview log cleanup'));
+    fireEvent.click(screen.getByText('Review log cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-logs-execute'));
     expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
@@ -368,7 +369,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Preview installer cache cleanup'));
+    fireEvent.click(screen.getByText('Review installer cache cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-updater-execute'));
     expect(bridgeMocks.executeUpdaterCacheCleanup).not.toHaveBeenCalled();
@@ -387,12 +388,15 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('storage-conversation-delete')).toBeDisabled();
-    fireEvent.click(screen.getByText('Create recoverable backup'));
+    fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('storage-conversation-delete'));
     expect(bridgeMocks.deleteConversationArtifacts).not.toHaveBeenCalled();
-    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('receipt://conversation/archive');
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent(
+      'Local files will be removed while the archive remains available.'
+    );
+    expect(screen.getByTestId('storage-action-confirmation')).not.toHaveTextContent('receipt://conversation/archive');
     fireEvent.click(screen.getByTestId('storage-action-confirm'));
     await waitFor(() =>
       expect(bridgeMocks.deleteConversationArtifacts).toHaveBeenCalledWith({
@@ -406,7 +410,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Create recoverable backup'));
+    fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(screen.getByTestId('storage-conversation-restore')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-conversation-restore'));
 

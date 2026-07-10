@@ -68,6 +68,13 @@ const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> 
   },
 };
 
+const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = {
+  updater_cache: 'installer-cache',
+  user_data_artifacts: 'conversation-archives',
+  runtime_substrate: 'runtime-cache',
+  logs: 'logs',
+};
+
 const CLEANUP_MODE_LABEL_KEYS: Record<string, string> = {
   stale_installer_package_cleanup_allowed: 'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof',
   archive_required_before_cleanup: 'settings.storagePage.inventory.cleanupModes.needsArchiveProof',
@@ -100,7 +107,7 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
   const hasTechnicalDetails = Boolean(item.section || technicalDetails);
 
   return (
-    <div data-testid={`storage-inventory-${item.id}`}>
+    <div id={SECTION_ANCHORS[item.id]} data-testid={`storage-inventory-${item.id}`}>
       <div className='opl-settings-row'>
         <div className='opl-settings-row__main min-w-0'>
           <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
@@ -363,7 +370,7 @@ export const StorageSettingsContent: React.FC = () => {
   const dangerActionSummary = () => {
     if (pendingDangerAction === 'delete-conversations') {
       return viewModel.conversationProof.receiptPath
-        ? t('settings.storagePage.conversations.proofReceipt', { receipt: viewModel.conversationProof.receiptPath })
+        ? t('settings.storagePage.conversations.deleteConfirmation')
         : t('settings.storagePage.conversations.receiptRequired');
     }
     if (pendingDangerAction === 'runtime-execute') {
@@ -423,24 +430,27 @@ export const StorageSettingsContent: React.FC = () => {
     user_data_artifacts: {
       actions: (
         <>
-          <Button
-            htmlType='button'
-            icon={<FolderSearch />}
-            loading={loading === 'archive'}
-            onClick={archiveConversations}
-          >
-            {t('settings.storagePage.actions.archive')}
-          </Button>
-          <Button
-            htmlType='button'
-            icon={<CheckOne />}
-            disabled={!viewModel.conversationProof.receiptPath}
-            loading={loading === 'restore'}
-            onClick={restoreConversationProof}
-            data-testid='storage-conversation-restore'
-          >
-            {t('settings.storagePage.actions.restoreProof')}
-          </Button>
+          {!viewModel.conversationProof.receiptPath && (
+            <Button
+              htmlType='button'
+              icon={<FolderSearch />}
+              loading={loading === 'archive'}
+              onClick={archiveConversations}
+            >
+              {t('settings.storagePage.actions.archive')}
+            </Button>
+          )}
+          {viewModel.conversationProof.receiptPath && (
+            <Button
+              htmlType='button'
+              icon={<CheckOne />}
+              loading={loading === 'restore'}
+              onClick={restoreConversationProof}
+              data-testid='storage-conversation-restore'
+            >
+              {t('settings.storagePage.actions.restoreProof')}
+            </Button>
+          )}
           <Button
             htmlType='button'
             status='danger'
@@ -455,10 +465,15 @@ export const StorageSettingsContent: React.FC = () => {
         </>
       ),
       status: viewModel.conversationProof.receiptPath
-        ? t('settings.storagePage.conversations.proofReceipt', {
-            receipt: viewModel.conversationProof.receiptPath,
-          })
+        ? t('settings.storagePage.conversations.proofReady')
         : t('settings.storagePage.conversations.receiptRequired'),
+      technicalDetails: viewModel.conversationProof.receiptPath ? (
+        <Typography.Text className='text-12px break-words'>
+          {t('settings.storagePage.conversations.technicalReceipt', {
+            receipt: viewModel.conversationProof.receiptPath,
+          })}
+        </Typography.Text>
+      ) : undefined,
     },
     runtime_substrate: {
       actions: (
@@ -620,14 +635,7 @@ export const StorageSettingsContent: React.FC = () => {
         />
       )}
 
-      {lastReceipt && (
-        <Alert
-          type='success'
-          content={t('settings.storagePage.conversations.proofReceipt', {
-            receipt: viewModel.lastReceipt.receiptPath ?? '',
-          })}
-        />
-      )}
+      {lastReceipt && <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />}
 
       <section className='opl-settings-section' data-testid='storage-category-list'>
         <div className='opl-settings-section__header flex items-center justify-between gap-12px'>

@@ -214,7 +214,7 @@ const SystemModalContent: React.FC = () => {
             </div>
           </div>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='resolved-paths'>
             <div className='opl-settings-section__header'>
               <div className='text-14px font-medium text-t-primary'>{t('settings.advancedPathsTitle')}</div>
             </div>
@@ -228,7 +228,7 @@ const SystemModalContent: React.FC = () => {
             </div>
           </section>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='developer-profile'>
             <div
               className='opl-settings-section__header flex items-start justify-between gap-16px'
               data-testid='opl-developer-profile-row'
@@ -290,7 +290,7 @@ const SystemModalContent: React.FC = () => {
             </details>
           </section>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='opl-flow'>
             <details
               className='opl-settings-details'
               onToggle={(event) => setOplFlowDetailsOpen(event.currentTarget.open)}
@@ -329,7 +329,7 @@ const SystemModalContent: React.FC = () => {
             </details>
           </section>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='developer-tools'>
             <details
               className='opl-settings-details'
               onToggle={(event) => setDeveloperSettingsOpen(event.currentTarget.open)}

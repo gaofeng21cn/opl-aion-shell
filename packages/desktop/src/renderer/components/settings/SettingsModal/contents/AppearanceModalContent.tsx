@@ -8,6 +8,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ScaleControl from '@/renderer/components/settings/ScaleControl';
 import FontSizeStepper from '@/renderer/components/settings/FontSizeStepper';
+import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import CssThemeSettings from '@renderer/pages/settings/AppearanceSettings/CssThemeSettings';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { FONT_SIZE_KEYS, FONT_SIZE_SPECS, FONT_SIZE_STEP, type FontSizeKey } from '@/common/config/fontSizes';
@@ -73,7 +74,7 @@ const AppearanceModalContent: React.FC = () => {
             <PersonalPreferenceSettings />
           </div>
 
-          <section className='opl-settings-section' data-testid='preferences-display-section'>
+          <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
             <div className='opl-settings-section__header'>
               <div className='text-14px font-medium text-t-primary leading-22px'>
                 {t('settings.appearancePreferencesTitle')}
@@ -81,6 +82,9 @@ const AppearanceModalContent: React.FC = () => {
               <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appearancePreferencesDesc')}</div>
             </div>
             <div className='opl-settings-list'>
+              <PreferenceRow label={t('settings.language')}>
+                <LanguageSwitcher />
+              </PreferenceRow>
               {FONT_SIZE_KEYS.map((key) => (
                 <PreferenceRow key={key} label={t(FONT_SIZE_LABEL_KEY[key])}>
                   <FontSizeStepper
@@ -100,7 +104,7 @@ const AppearanceModalContent: React.FC = () => {
             </div>
           </section>
 
-          <section className='opl-settings-section' data-testid='preferences-theme-section'>
+          <section className='opl-settings-section' id='themes' data-testid='preferences-theme-section'>
             <div className='opl-settings-section__header'>
               <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.theme')}</div>
               <div className='text-12px text-t-tertiary mt-4px'>{t('settings.advancedThemeListDesc')}</div>

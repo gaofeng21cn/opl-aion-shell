@@ -154,15 +154,15 @@
   "cacheClearSuccess": "Cache cleared successfully",
   "cacheClearFailed": "Failed to clear cache",
   "language": "Language",
-  "saveUploadToWorkspace": "Save Uploads to Project Folder",
+  "saveUploadToWorkspace": "Save uploads to workspace",
   "autoPreviewOfficeFiles": "Auto Preview New Office Files",
   "autoPreviewOfficeFilesDesc": "Automatically open newly created Word, Excel, and PowerPoint files in the current project. Office temporary lock files are ignored.",
   "personalPreferencesTitle": "Preferences",
   "personalPreferencesDesc": "Set interface behavior, display fonts, and theme appearance.",
-  "appBehaviorPreferencesTitle": "Interface behavior",
-  "appBehaviorPreferencesDesc": "Language, notifications, startup, tray, and file handling for daily use.",
-  "timeoutPreferencesTitle": "Request and idle timing",
-  "timeoutPreferencesDesc": "Control request waiting time and idle Agent cleanup.",
+  "appBehaviorPreferencesTitle": "App behavior",
+  "appBehaviorPreferencesDesc": "Control startup, window closing, notifications, and file handling.",
+  "timeoutPreferencesTitle": "Responses and background activity",
+  "timeoutPreferencesDesc": "These settings only affect stalled requests and background resource use. Most people can leave them unchanged.",
   "appearancePreferencesTitle": "Display and fonts",
   "appearancePreferencesDesc": "Set chat, Markdown, code text size, and interface scale.",
   "advancedThemeListTitle": "Advanced themes",
@@ -173,7 +173,8 @@
   "startOnBootDesc": "Launch One Person Lab automatically when you sign in to macOS or Windows.",
   "startOnBootUnsupported": "Available only in packaged macOS and Windows apps.",
   "startOnBootUpdateFailed": "Failed to update start on boot setting",
-  "closeToTray": "Close to Tray",
+  "closeToTray": "Keep running after closing the window",
+  "closeToTrayDesc": "Keep background tasks running and reopen the app from the menu bar.",
   "hardwareAcceleration": "Hardware Acceleration",
   "hardwareAccelerationDesc": "Use the GPU to render the UI. Disable if the app crashes on launch or graphics flicker.",
   "hardwareAccelerationAutoDisabled": "Disabled automatically after repeated GPU crashes.",
@@ -181,12 +182,13 @@
   "hardwareAccelerationUpdateFailed": "Failed to update hardware acceleration setting",
   "notification": "Notifications",
   "cronNotificationEnabled": "Scheduled Task Completion",
-  "promptTimeout": "LLM Prompt Timeout (s)",
+  "promptTimeout": "Model response timeout (seconds)",
+  "promptTimeoutDesc": "Stop waiting when the model has not responded for this long.",
   "groupAiCore": "AI Core",
   "groupApp": "Application",
   "groupAbout": "Other",
-  "agentIdleTimeout": "Agent Idle Timeout (min)",
-  "agentIdleTimeoutDesc": "Kill idle agent processes after this duration to free memory",
+  "agentIdleTimeout": "Background assistant idle time (minutes)",
+  "agentIdleTimeoutDesc": "Exit background assistants after this long without work to free memory.",
   "gemini": "Gemini CLI",
   "model": "Model",
   "system": "System",
@@ -684,6 +686,11 @@
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "includeNightlyUpdates": "Include nightly/dev builds",
   "aboutVersionBadge": "App v{{version}} · {{channel}}",
+  "aboutUpdateChecking": "Checking for updates…",
+  "aboutUpdateAvailable": "Version {{version}} is available",
+  "aboutUpdateCurrent": "You're up to date",
+  "aboutUpdateUnknown": "Unable to check for updates right now",
+  "releasePage": "Release notes",
   "aboutShellVersion": "GUI shell {{version}}",
   "aboutFrameworkVersion": "OPL Framework {{version}}",
   "aboutFrameworkRevision": "OPL Framework {{revision}}",
@@ -1019,8 +1026,20 @@
   "developerProfileStateLimited": "Developer limited",
   "developerProfileStateReady": "Developer ready",
   "unavailable": "Unavailable",
-  "oplDeveloperProfile": "OPL Developer Profile",
-  "oplDeveloperProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the managed GHCR capability packages channel unless they explicitly opt into a checkout source.",
+  "oplDeveloperProfile": "Developer features",
+  "oplDeveloperProfileDesc": "Review source channels, workspace access, and automation permissions. No changes are needed for daily use.",
+  "oplDeveloperCapabilities": {
+    "source_channel": "Capability source",
+    "workspace_trust": "Workspace access",
+    "github_authority": "GitHub permissions",
+    "agent_automation": "Automated tasks",
+    "runtime_mutation_scope": "Local service changes"
+  },
+  "oplDeveloperCapabilityStates": {
+    "available": "Available",
+    "attention": "Check required",
+    "unavailable": "Unavailable"
+  },
   "oplFlowContext": "OPL Flow Context",
   "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
   "oplFlowIntelligenceEnhancementMode": "Intelligence enhancement mode",
@@ -1581,65 +1600,65 @@
     }
   },
   "storagePage": {
-    "title": "Storage",
-    "description": "Review local data, preview cleanup changes, and keep proof before anything destructive can run.",
+    "title": "Data & Storage",
+    "description": "Review local data use, then archive or safely remove content you no longer need.",
     "sections": {
       "updater": {
         "title": "Installer package cache",
-        "description": "Cached app installer packages."
+        "description": "Used for app updates. Review the affected files before cleanup."
       },
       "conversations": {
-        "title": "Conversation archives",
-        "description": "Conversation files require archive and restore proof before cleanup."
+        "title": "Conversations and attachments",
+        "description": "Create a restorable archive before removing local conversation files."
       },
       "runtime": {
         "title": "Runtime cache",
-        "description": "Local runtime cache cleanup must be previewed before it can run."
+        "description": "Temporary runtime data. Review the affected files before cleanup."
       },
       "logs": {
-        "title": "Logs",
-        "description": "App logs are separate from conversation archives."
+        "title": "App logs",
+        "description": "Used for troubleshooting. Older logs can be removed by retention rules."
       }
     },
     "inventory": {
       "bytes": "Bytes: {{bytes}}",
       "cleanupMode": "Cleanup proof: {{mode}}",
       "rootCount": "Locations: {{count}}",
-      "details": "Storage details",
+      "details": "View locations and details",
       "rootDetail": "{{exists}} · {{bytes}}",
       "exists": "exists",
       "missing": "missing",
-      "noRoots": "No roots reported.",
-      "notLoaded": "Storage details are not loaded yet.",
-      "silentDeleteAllowed": "Safe without extra proof",
-      "silentDeleteBlocked": "Needs proof first",
+      "noRoots": "No storage locations found.",
+      "notLoaded": "Reading storage information.",
+      "silentDeleteAllowed": "Ready to clean",
+      "silentDeleteBlocked": "Preparation required",
       "cleanupModes": {
-        "safeWithoutExtraProof": "Safe without extra proof",
-        "needsArchiveProof": "Needs archive proof",
-        "needsPreview": "Needs preview first",
-        "needsReview": "Needs review"
+        "safeWithoutExtraProof": "Ready to clean",
+        "needsArchiveProof": "Archive first",
+        "needsPreview": "Review first",
+        "needsReview": "Check required"
       }
     },
     "overview": {
-      "total": "Total stored data",
-      "categories": "Data categories",
+      "total": "Total",
+      "categories": "Local data",
       "safe": "Safe now",
       "needsProof": "Need proof"
     },
     "cleanupFlow": {
       "title": "Safe cleanup flow",
-      "detail": "Cleanup always moves through preview, confirmation, and execution. Destructive actions stay disabled until the earlier proof exists.",
+      "detail": "Review the affected items before confirming cleanup. Data that needs an archive keeps a restorable copy first.",
       "step1": "1. Preview",
-      "preview": "Create a dry-run plan or archive proof before changing files.",
+      "preview": "Review affected content or create an archive before changing files.",
       "step2": "2. Confirm",
-      "confirm": "Review the exact receipt or preview summary before running cleanup.",
+      "confirm": "Confirm the scope and estimated space before cleanup.",
       "step3": "3. Execute",
-      "execute": "Run only the confirmed plan, then keep the receipt visible."
+      "execute": "Process only confirmed items and keep an operation record."
     },
     "researchLifecycle": {
-      "title": "Work data safety",
-      "detail": "Read-only cleanup boundaries and source references for workspace data.",
-      "technicalDetails": "Advanced storage references",
+      "title": "Work data protection rules",
+      "detail": "Open only when troubleshooting cleanup boundaries.",
+      "technicalDetails": "Work data protection details",
       "boundary": "The App shows source references only. It does not read lower-level databases, scan work directories, delete clinical data bodies, or authorize cleanup without an owner source.",
       "states": {
         "available": "Source available",
@@ -1649,21 +1668,24 @@
     },
     "actions": {
       "refresh": "Refresh",
-      "archive": "Archive conversations",
-      "restoreProof": "Restore proof",
-      "deleteWithReceipt": "Delete with receipt",
-      "dryRunRuntime": "Preview runtime cleanup",
-      "executeRuntime": "Clean using preview",
-      "dryRunLogs": "Preview log cleanup",
-      "executeLogs": "Clean logs using preview",
-      "dryRunUpdater": "Preview installer cache cleanup",
-      "executeUpdater": "Clean installer cache"
+      "archive": "Create archive",
+      "restoreProof": "Verify archive",
+      "deleteWithReceipt": "Remove local files",
+      "dryRunRuntime": "Review cleanup",
+      "executeRuntime": "Confirm cleanup",
+      "dryRunLogs": "Review cleanup",
+      "executeLogs": "Confirm cleanup",
+      "dryRunUpdater": "Review cleanup",
+      "executeUpdater": "Confirm cleanup"
     },
     "conversations": {
-      "title": "Conversation archive and restore proof",
-      "detail": "Delete is disabled until an archive or restore proof receipt is available.",
-      "receiptRequired": "Archive conversations first, then restore proof if needed. Cleanup is never silent.",
-      "proofReceipt": "Proof receipt: {{receipt}}"
+      "title": "Conversation archive",
+      "detail": "Keep a restorable copy before removing local files.",
+      "receiptRequired": "Create an archive first. You can then verify it or remove the local files.",
+      "proofReady": "Archive created. You can verify it or remove the local files.",
+      "deleteConfirmation": "Local conversation files will be removed. The archive will remain available for recovery.",
+      "technicalReceipt": "Archive record: {{receipt}}",
+      "proofReceipt": "Archive record: {{receipt}}"
     },
     "runtime": {
       "title": "Runtime cleanup",
@@ -1685,16 +1707,16 @@
     },
     "plans": {
       "runtime": {
-        "required": "Preview required before runtime cleanup can run.",
-        "summary": "Runtime cleanup preview: {{count}} candidate(s), {{bytes}}."
+        "required": "Review the cleanup first.",
+        "summary": "{{count}} item(s), {{bytes}}, will be removed."
       },
       "logs": {
-        "required": "Preview required before log cleanup can run.",
-        "summary": "Log cleanup preview: {{count}} candidate(s), {{bytes}}."
+        "required": "Review the cleanup first.",
+        "summary": "{{count}} item(s), {{bytes}}, will be removed."
       },
       "updater": {
-        "required": "Preview required before installer cache cleanup can run.",
-        "summary": "Installer cache cleanup preview: {{count}} candidate(s), {{bytes}}."
+        "required": "Review the cleanup first.",
+        "summary": "{{count}} item(s), {{bytes}}, will be removed."
       }
     },
     "messages": {
