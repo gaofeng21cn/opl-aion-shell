@@ -267,9 +267,7 @@ describe('StorageSettingsContent', () => {
     expect(categoryList).toHaveTextContent('Total');
     expect(categoryList).toHaveTextContent('100 B');
     expect(categoryList).toHaveTextContent('Local data');
-    await waitFor(() => expect(screen.getByTestId('storage-overview-total')).toHaveTextContent('Total100 B'));
-    expect(screen.getByTestId('storage-overview-safe')).toHaveTextContent('Safe now1');
-    expect(screen.getByTestId('storage-overview-needs-proof')).toHaveTextContent('Need proof3');
+    expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
     expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
     expect(
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')

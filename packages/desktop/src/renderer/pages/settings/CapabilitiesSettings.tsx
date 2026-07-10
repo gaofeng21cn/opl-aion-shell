@@ -681,33 +681,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </div>
 
           <div className='opl-settings-list'>
-            <div
-              className='opl-settings-row opl-settings-capability-columns hidden md:grid'
-              data-testid='capability-column-headers'
-            >
-              <Typography.Text className='text-12px font-500 text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.tableHeaders.package')}
-              </Typography.Text>
-              <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
-                <Typography.Text className='text-12px font-500 text-t-secondary'>
-                  {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
-                </Typography.Text>
-                <Typography.Text className='text-12px font-500 text-t-secondary'>
-                  {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
-                </Typography.Text>
-                <Typography.Text className='text-12px font-500 text-t-secondary'>
-                  {t('settings.capabilitiesPage.visibility.conversation', {
-                    defaultValue: 'Available in conversations',
-                  })}
-                </Typography.Text>
-                <Typography.Text className='text-12px font-500 text-t-secondary'>
-                  {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
-                </Typography.Text>
-                <Typography.Text className='text-12px font-500 text-t-secondary'>
-                  {t('settings.capabilitiesPage.packageManager.tableHeaders.actions')}
-                </Typography.Text>
-              </div>
-            </div>
             {purposeCapabilities.map((item) => {
               const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
               const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
@@ -734,7 +707,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   </div>
                   <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
                     <div className='min-w-0'>
-                      <Typography.Text className='opl-settings-capability-field-label block text-11px text-t-tertiary md:hidden'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
                         {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
                       </Typography.Text>
                       <Tag color={capabilityStatusColor(item.availabilityStatus)}>
@@ -742,7 +715,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Tag>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='opl-settings-capability-field-label block text-11px text-t-tertiary md:hidden'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
                         {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
                       </Typography.Text>
                       <Typography.Text className='block break-words text-12px text-t-secondary'>
@@ -750,7 +723,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Typography.Text>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='opl-settings-capability-field-label block text-11px text-t-tertiary md:hidden'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
                         {t('settings.capabilitiesPage.visibility.conversation', {
                           defaultValue: 'Available in conversations',
                         })}
@@ -760,7 +733,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Typography.Text>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='opl-settings-capability-field-label block text-11px text-t-tertiary md:hidden'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
                         {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
                       </Typography.Text>
                       {shortcut ? (
