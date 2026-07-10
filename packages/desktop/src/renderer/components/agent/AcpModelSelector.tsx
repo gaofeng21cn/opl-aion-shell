@@ -125,7 +125,7 @@ const AcpModelSelector: React.FC<{
     localeKey === 'en-US'
       ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
       : t('common.close', { defaultValue: '关闭' });
-  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? true;
+  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? false;
 
   const defaultModelLabel = t('common.defaultModel');
   const rawDisplayLabel =

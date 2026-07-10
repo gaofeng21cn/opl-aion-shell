@@ -110,7 +110,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     localeKey === 'en-US'
       ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
       : t('common.close', { defaultValue: '关闭' });
-  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? true;
+  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? false;
   const restoreCodexAutoSelection = () => {
     setSelectedAcpModel(null);
     setSelectedReasoningEffort?.(null);

@@ -346,6 +346,14 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.getByTestId('mobile-action-sheet-intelligence-enhancement')).toHaveTextContent(
       'Intelligence enhancement'
     );
+    expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-enable')).toHaveAttribute(
+      'data-active',
+      'false'
+    );
+    expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).toHaveAttribute(
+      'data-active',
+      'true'
+    );
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-option-reasoning-max')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();

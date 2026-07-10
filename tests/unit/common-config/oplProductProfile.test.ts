@@ -145,8 +145,8 @@ describe('OPL generated product profile', () => {
       reasoning_effort_options_source: 'acp_codex_config_options_enum',
       auto_option_current_resolution_visible: true,
       model_menu_policy: 'current_model_secondary_submenu',
-      intelligence_enhancement_menu_policy: 'default_on_secondary_submenu_with_enable_disable_actions',
-      intelligence_enhancement_default_enabled: true,
+      intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions',
+      intelligence_enhancement_default_enabled: false,
       auto_option: {
         label_zh: '自动（推荐）',
         description_zh: '当前 5.6 Sol · 推理超高 · 跟随最新最强',
@@ -518,7 +518,7 @@ describe('OPL generated product profile', () => {
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action',
           service_policy:
             'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair',
-          default_enabled: true,
+          default_enabled: false,
           status_action_id: 'intelligence_enhancement_status',
           enable_action_id: 'intelligence_enhancement_enable',
           disable_action_id: 'intelligence_enhancement_disable',

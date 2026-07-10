@@ -192,7 +192,7 @@ export type OplFlowContextPolicy = {
       upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy';
       behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action';
       service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair';
-      default_enabled: true;
+      default_enabled: false;
       status_action_id: 'intelligence_enhancement_status';
       enable_action_id: 'intelligence_enhancement_enable';
       disable_action_id: 'intelligence_enhancement_disable';
@@ -226,8 +226,8 @@ export type OplCodexModelDisplayOptions = {
   default_reasoning_effort: OplCodexReasoningEffort;
   auto_option_current_resolution_visible: true;
   model_menu_policy: 'current_model_secondary_submenu';
-  intelligence_enhancement_menu_policy: 'default_on_secondary_submenu_with_enable_disable_actions';
-  intelligence_enhancement_default_enabled: true;
+  intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions';
+  intelligence_enhancement_default_enabled: false;
   auto_option: {
     id: '__auto';
     label_zh: string;
@@ -702,8 +702,8 @@ function readCodexModelDisplayOptions(
     value.reasoning_effort_options_source !== 'acp_codex_config_options_enum' ||
     value.auto_option_current_resolution_visible !== true ||
     value.model_menu_policy !== 'current_model_secondary_submenu' ||
-    value.intelligence_enhancement_menu_policy !== 'default_on_secondary_submenu_with_enable_disable_actions' ||
-    value.intelligence_enhancement_default_enabled !== true ||
+    value.intelligence_enhancement_menu_policy !== 'default_off_secondary_submenu_with_enable_disable_actions' ||
+    value.intelligence_enhancement_default_enabled !== false ||
     value.fixed_model_description_zh !== '固定此模型' ||
     value.fixed_model_description_en !== 'Use this model'
   ) {
@@ -825,8 +825,8 @@ function readCodexModelDisplayOptions(
     default_reasoning_effort: displayDefaultReasoningEffort,
     auto_option_current_resolution_visible: true,
     model_menu_policy: 'current_model_secondary_submenu',
-    intelligence_enhancement_menu_policy: 'default_on_secondary_submenu_with_enable_disable_actions',
-    intelligence_enhancement_default_enabled: true,
+    intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions',
+    intelligence_enhancement_default_enabled: false,
     auto_option: {
       id: '__auto',
       label_zh: '自动（推荐）',
@@ -1484,7 +1484,7 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
       'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' &&
     intelligenceEnhancementMode.service_policy ===
       'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' &&
-    intelligenceEnhancementMode.default_enabled === true &&
+    intelligenceEnhancementMode.default_enabled === false &&
     intelligenceEnhancementMode.status_action_id === 'intelligence_enhancement_status' &&
     intelligenceEnhancementMode.enable_action_id === 'intelligence_enhancement_enable' &&
     intelligenceEnhancementMode.disable_action_id === 'intelligence_enhancement_disable' &&
@@ -1501,7 +1501,7 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' as const,
           service_policy:
             'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' as const,
-          default_enabled: true as const,
+          default_enabled: false as const,
           status_action_id: 'intelligence_enhancement_status' as const,
           enable_action_id: 'intelligence_enhancement_enable' as const,
           disable_action_id: 'intelligence_enhancement_disable' as const,

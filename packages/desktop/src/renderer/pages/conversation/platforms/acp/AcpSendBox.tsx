@@ -103,7 +103,7 @@ function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
 
 function readIntelligenceEnhancementPreference(): boolean {
   if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return false;
-  return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? true;
+  return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false;
 }
 
 const useSendBoxDraft = (conversation_id: string) => {
