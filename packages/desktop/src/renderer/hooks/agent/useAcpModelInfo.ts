@@ -19,7 +19,7 @@ import {
 } from '@/common/types/codex/codexModels';
 import type { AcpAvailableModel, AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { configService } from '@/common/config/configService';
-import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
+import { savePreferredCodexSelection, savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { type AcpConfigSetStatus, type AcpDerivedOption, useAcpConfigOptions } from './useAcpConfigOptions';
@@ -583,7 +583,11 @@ export const useAcpModelInfo = ({
       const confirmedModelId =
         (confirmedModelInfo || refreshed ? modelInfoRef.current?.current_model_id : model_id) || model_id;
       if (backend) {
-        await savePreferredModelId(backend, persistFixedPreference ? confirmedModelId : null);
+        if (backend === 'codex' && !persistFixedPreference) {
+          await savePreferredCodexSelection(backend, null, null);
+        } else {
+          await savePreferredModelId(backend, persistFixedPreference ? confirmedModelId : null);
+        }
       }
       logAcpModelInfo('select_model_preference_saved', {
         conversation_id,
@@ -635,7 +639,7 @@ export const useAcpModelInfo = ({
         if (selection.modelId !== reportedCurrentModelId) {
           await requestModelSelection(selection.modelId, false);
         } else {
-          await savePreferredModelId(backend, null);
+          await savePreferredCodexSelection(backend, null, null);
         }
         if (thoughtLevel && selection.reasoningEffort && thoughtLevel.currentValue !== selection.reasoningEffort) {
           await setConfigOption(thoughtLevel.id, selection.reasoningEffort);
@@ -662,7 +666,7 @@ export const useAcpModelInfo = ({
     hasUserChangedModel.current = false;
     attemptedAutoResolutionKeysRef.current.clear();
     autoSelectionRunningRef.current = true;
-    if (backend === 'codex') await savePreferredModelId(backend, null);
+    if (backend === 'codex') await savePreferredCodexSelection(backend, null, null);
     try {
       await applyAutoSelection(true);
     } finally {
@@ -686,7 +690,7 @@ export const useAcpModelInfo = ({
       hasUserChangedModel.current = true;
       try {
         await setConfigOption(thoughtLevel.id, value);
-        await savePreferredModelId(backend, currentModelId);
+        await savePreferredCodexSelection(backend, currentModelId, value);
       } catch (error) {
         hasUserChangedModel.current = false;
         throw error;

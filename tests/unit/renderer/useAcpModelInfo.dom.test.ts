@@ -828,7 +828,13 @@ describe('useAcpModelInfo', () => {
   });
 
   it('clears the Codex model preference when Auto already resolves to the active model', async () => {
-    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-sol' } });
+    configServiceGetMock.mockReturnValue({
+      codex: {
+        preferredMode: 'full-access',
+        preferredModelId: 'gpt-5.6-sol',
+        preferredReasoningEffort: 'ultra',
+      },
+    });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
         current_model_id: 'gpt-5.6-sol',
@@ -857,7 +863,9 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
+      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', {
+        codex: { preferredMode: 'full-access' },
+      });
     });
     expect(setModelInvokeMock).not.toHaveBeenCalled();
   });
@@ -1057,7 +1065,10 @@ describe('useAcpModelInfo', () => {
     });
 
     expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', {
-      codex: { preferredModelId: 'gpt-5.6-sol' },
+      codex: {
+        preferredModelId: 'gpt-5.6-sol',
+        preferredReasoningEffort: 'ultra',
+      },
     });
     expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
       conversation_id: 'reasoning-pin-codex-conversation',
