@@ -16,8 +16,15 @@ import {
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
 const MANIFEST_PATH = path.resolve(__dirname, '../../screenshots/gui-baseline-manifest.json');
-const RUN_COMMAND =
-  'AIONUI_E2E_PRODUCT_PROFILE=1 E2E_DEV=1 E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/features/visual-evidence/gui-baseline.e2e.ts';
+const E2E_MODE = process.env.E2E_PACKAGED === '1' ? 'E2E_PACKAGED=1' : process.env.E2E_DEV === '1' ? 'E2E_DEV=1' : '';
+const RUN_COMMAND = [
+  'AIONUI_E2E_PRODUCT_PROFILE=1',
+  E2E_MODE,
+  'E2E_SCREENSHOTS=1',
+  'bun run test:e2e -- tests/e2e/features/visual-evidence/gui-baseline.e2e.ts',
+]
+  .filter(Boolean)
+  .join(' ');
 const STREAM_FIXTURE_KEY = 'aionui:e2e-message-stream-conversation-id';
 const WORKSPACE_PATH = path.join(os.tmpdir(), 'aionui-gui-baseline-workspace');
 const NAVIGATION_RAIL_SELECTOR = '.layout-sider:has([data-testid="app-navigation-rail"])';
