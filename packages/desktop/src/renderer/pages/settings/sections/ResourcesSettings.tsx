@@ -6,7 +6,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Earth, LinkCloud, Open, Toolkit } from '@icon-park/react';
+import { Earth, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -479,20 +479,7 @@ export const ResourcesSettingsContent: React.FC = () => {
         onAction={executeConnectionAction}
       />
 
-      {resourceSources.length === 0 ? (
-        <section className='opl-settings-section' id='reported-resources'>
-          <div className='opl-settings-row' data-testid='opl-settings-resource-sources-empty'>
-            <div className='opl-settings-row__main flex min-w-0 flex-row items-center gap-10px'>
-              <LinkCloud className='shrink-0 text-t-secondary' theme='outline' />
-              <Typography.Text className='min-w-0 text-13px text-t-secondary'>
-                {t('settings.resourcesPage.connections.empty', {
-                  defaultValue: 'No workspace or external connection has been reported.',
-                })}
-              </Typography.Text>
-            </div>
-          </div>
-        </section>
-      ) : (
+      {resourceSources.length > 0 && (
         <>
           <section className='flex flex-col gap-12px' id='workspace-resources'>
             <Typography.Text className='block text-12px text-t-secondary'>
