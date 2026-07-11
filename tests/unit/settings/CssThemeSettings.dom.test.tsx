@@ -73,7 +73,11 @@ describe('CssThemeSettings', () => {
   it('renders theme choices as selectable preview tiles', async () => {
     render(<CssThemeSettings />);
 
-    await waitFor(() => expect(screen.getAllByTestId('css-theme-option').length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(screen.getAllByTestId('css-theme-option')).toHaveLength(4));
+    expect(screen.getByText('Light')).toBeInTheDocument();
+    expect(screen.getByText('Dark')).toBeInTheDocument();
+    expect(screen.getByText('Codex')).toBeInTheDocument();
+    expect(screen.getByText('Custom theme')).toBeInTheDocument();
     expect(screen.getByTestId('css-theme-option-list')).toHaveAttribute('data-layout', 'theme-tile-grid');
     for (const option of screen.getAllByTestId('css-theme-option')) {
       expect(option).toHaveAttribute('data-theme-option-surface', 'tile');

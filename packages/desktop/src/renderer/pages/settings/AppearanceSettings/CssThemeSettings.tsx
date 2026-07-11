@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal.tsx';
 import { BUILTIN_THEMES, DEFAULT_THEME_ID } from './presets.ts';
 import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils.ts';
-import { CODEX_THEME_ID, LIGHT_THEME_ID } from '@/common/theme/constants';
+import { CODEX_THEME_ID, DARK_THEME_ID, LIGHT_THEME_ID } from '@/common/theme/constants';
 
 interface ThemePreviewPalette {
   appBg: string;
@@ -186,11 +186,11 @@ const CssThemeSettings: React.FC = () => {
         const normalizedUserThemes = userThemes.map((theme) => ensureBackgroundCss(theme));
 
         // 合并主题，按 ID 去重（先出现的优先）
-        // Merge the two product defaults with user-managed themes.
+        // Merge the three product defaults with user-managed themes.
         const seenIds = new Set<string>();
         const allThemes: Theme[] = [];
         const productDefaultThemes = BUILTIN_THEMES.filter((theme) =>
-          [LIGHT_THEME_ID, CODEX_THEME_ID].includes(theme.id)
+          [LIGHT_THEME_ID, DARK_THEME_ID, CODEX_THEME_ID].includes(theme.id)
         );
         for (const theme of [...productDefaultThemes, ...normalizedUserThemes]) {
           if (!theme?.id || seenIds.has(theme.id)) continue;

@@ -447,13 +447,15 @@ export const ResourcesSettingsContent: React.FC = () => {
 
       {resourceSources.length === 0 ? (
         <section className='opl-settings-section' id='external-resources'>
-          <div className='opl-settings-empty' data-testid='opl-settings-resource-sources-empty'>
-            <LinkCloud theme='outline' />
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.resourcesPage.connections.empty', {
-                defaultValue: 'No workspace or external connection has been reported.',
-              })}
-            </Typography.Text>
+          <div className='opl-settings-row' data-testid='opl-settings-resource-sources-empty'>
+            <div className='opl-settings-row__main flex min-w-0 flex-row items-center gap-10px'>
+              <LinkCloud className='shrink-0 text-t-secondary' theme='outline' />
+              <Typography.Text className='min-w-0 text-13px text-t-secondary'>
+                {t('settings.resourcesPage.connections.empty', {
+                  defaultValue: 'No workspace or external connection has been reported.',
+                })}
+              </Typography.Text>
+            </div>
           </div>
         </section>
       ) : (

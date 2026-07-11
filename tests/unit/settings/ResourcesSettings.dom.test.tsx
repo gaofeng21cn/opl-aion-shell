@@ -574,7 +574,9 @@ describe('ResourcesSettingsContent', () => {
 
     const view = renderResources();
 
-    expect(view.getByTestId('opl-settings-resource-sources-empty')).toBeTruthy();
+    const empty = view.getByTestId('opl-settings-resource-sources-empty');
+    expect(empty).toHaveClass('opl-settings-row');
+    expect(empty).not.toHaveClass('opl-settings-empty');
     expect(view.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
     expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
     expect(view.getByText('当前没有上报工作区或外部连接。')).toBeTruthy();
