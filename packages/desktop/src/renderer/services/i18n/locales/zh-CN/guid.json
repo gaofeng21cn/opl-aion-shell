@@ -41,7 +41,13 @@
     "clearWorkspace": "清除",
     "specifyWorkspace": "选择项目文件夹",
     "searchPlaceholder": "搜索项目…",
-    "noProject": "不使用项目"
+    "noProject": "不使用项目",
+    "manageRegistered": "管理目录",
+    "registeredTitle": "已注册目录",
+    "registeredDescription": "这些目录只用于快速选择。移除记录不会删除磁盘文件，也不会改变正在进行的对话。",
+    "removeRegistered": "移除目录记录 {{name}}",
+    "removeRegisteredAction": "移除记录",
+    "noRegistered": "没有已注册目录"
   },
   "activity": {
     "title": "继续工作",

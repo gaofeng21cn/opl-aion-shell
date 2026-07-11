@@ -38,7 +38,7 @@ const assistant = (id: string): Assistant => ({
 });
 
 describe('HomeStarters', () => {
-  it('shows no more than four App-owned starters and selects one capability', async () => {
+  it('shows every user-visible App-owned starter and selects one capability', async () => {
     const onSelect = vi.fn();
     render(
       <HomeStarters
@@ -50,8 +50,8 @@ describe('HomeStarters', () => {
       />
     );
 
-    expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(4);
-    expect(screen.queryByTestId('home-starter-opl-meta-agent')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
+    expect(screen.getByTestId('home-starter-opl-meta-agent')).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('home-starter-med-autogrant'));
     expect(onSelect).toHaveBeenCalledWith('med-autogrant');
@@ -72,7 +72,7 @@ describe('HomeStarters', () => {
       />
     );
 
-    expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(4);
+    expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
     const activeStarter = screen.getByTestId('home-starter-opl-meta-agent');
     expect(activeStarter).toHaveAttribute('aria-pressed', 'true');
 

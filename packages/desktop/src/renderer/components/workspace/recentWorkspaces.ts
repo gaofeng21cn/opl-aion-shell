@@ -22,3 +22,10 @@ export const addRecentWorkspace = (path: string, storageKey: string = DEFAULT_RE
     localStorage.setItem(storageKey, JSON.stringify(next));
   } catch {}
 };
+
+export const removeRecentWorkspace = (path: string, storageKey: string = DEFAULT_RECENT_WS_KEY): void => {
+  try {
+    const next = getRecentWorkspaces(storageKey).filter((item) => item !== path);
+    localStorage.setItem(storageKey, JSON.stringify(next));
+  } catch {}
+};

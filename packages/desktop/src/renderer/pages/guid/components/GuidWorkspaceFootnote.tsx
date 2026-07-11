@@ -6,8 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import type { ProjectContextRef } from '@/common/config/configKeys';
-import { addRecentWorkspace, getRecentWorkspaces } from '@/renderer/components/workspace';
-import { Button, Tooltip } from '@arco-design/web-react';
+import { addRecentWorkspace, getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
+import { Button, Modal, Tooltip, Typography } from '@arco-design/web-react';
 import { BranchOne, Close, CloseSmall, Down, FileText, FolderClose } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -66,6 +66,8 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
   const [open, setOpen] = useState(false);
+  const [managementOpen, setManagementOpen] = useState(false);
+  const [registeredWorkspaces, setRegisteredWorkspaces] = useState(() => getRecentWorkspaces());
   const [searchQuery, setSearchQuery] = useState('');
   const [branch, setBranch] = useState<string>();
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -136,6 +138,17 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
     setSearchQuery('');
   }, []);
 
+  const openWorkspaceManagement = useCallback(() => {
+    closeDropdown();
+    setRegisteredWorkspaces(getRecentWorkspaces());
+    setManagementOpen(true);
+  }, [closeDropdown]);
+
+  const removeWorkspaceRegistration = useCallback((path: string) => {
+    removeRecentWorkspace(path);
+    setRegisteredWorkspaces(getRecentWorkspaces());
+  }, []);
+
   const toggleOpen = useCallback(() => {
     if (open) closeDropdown();
     else openDropdown();
@@ -159,7 +172,8 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [open, closeDropdown]);
 
-  const filteredRecent = recentWorkspaces.filter((p) => {
+  const activeWorkspaceOptions = workspaceDir ? [workspaceDir] : [];
+  const filteredRecent = activeWorkspaceOptions.filter((p) => {
     if (!searchQuery) return true;
     const name = p.split(/[\\/]/).pop() || p;
     return (
@@ -228,6 +242,18 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
             <PlusIcon />
             <span>{t('team.create.chooseDifferentFolder')}</span>
           </div>
+
+          {recentWorkspaces.length > 0 && (
+            <button
+              type='button'
+              className={`${styles.wsDropdownItem} ${styles.wsDropdownItemButton} ${styles.wsDropdownItemMuted}`}
+              onClick={openWorkspaceManagement}
+              aria-label={t('guid.workspace.manageRegistered')}
+            >
+              <FolderIcon size={13} />
+              <span>{t('guid.workspace.manageRegistered')}</span>
+            </button>
+          )}
 
           <>
             <div className={styles.wsDropdownSep} />
@@ -363,6 +389,44 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
           </span>
         </Tooltip>
       ))}
+      <Modal
+        visible={managementOpen}
+        title={t('guid.workspace.registeredTitle')}
+        footer={null}
+        onCancel={() => setManagementOpen(false)}
+        unmountOnExit
+      >
+        <Typography.Text className='block pb-12px text-13px text-t-secondary'>
+          {t('guid.workspace.registeredDescription')}
+        </Typography.Text>
+        <div className='flex flex-col divide-y divide-border-1' data-testid='registered-workspace-list'>
+          {registeredWorkspaces.map((path) => {
+            const name = path.split(/[\\/]/).pop() || path;
+            return (
+              <div key={path} className='flex min-w-0 items-center gap-10px py-10px'>
+                <FolderIcon size={14} />
+                <div className='min-w-0 flex-1'>
+                  <Typography.Text className='block font-500 text-t-primary'>{name}</Typography.Text>
+                  <Typography.Text className='block break-all text-12px text-t-secondary'>{path}</Typography.Text>
+                </div>
+                <Button
+                  type='text'
+                  status='danger'
+                  onClick={() => removeWorkspaceRegistration(path)}
+                  aria-label={t('guid.workspace.removeRegistered', { name })}
+                >
+                  {t('guid.workspace.removeRegisteredAction')}
+                </Button>
+              </div>
+            );
+          })}
+          {registeredWorkspaces.length === 0 && (
+            <Typography.Text className='py-12px text-13px text-t-secondary'>
+              {t('guid.workspace.noRegistered')}
+            </Typography.Text>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };
