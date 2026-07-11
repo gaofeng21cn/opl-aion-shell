@@ -22,8 +22,6 @@ type HomeStartersProps = {
   onClear?: () => void;
 };
 
-const MAX_HOME_STARTERS = 4;
-
 const HomeStarters: React.FC<HomeStartersProps> = ({
   assistants,
   localeKey,
@@ -38,11 +36,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
     const available = assistants.filter((assistant) =>
       allowedIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
     );
-    if (!activeCapabilityId) return available.slice(0, MAX_HOME_STARTERS);
-    const active = available.find((assistant) => assistant.id === activeCapabilityId);
-    return active
-      ? [active, ...available.filter((assistant) => assistant !== active)].slice(0, MAX_HOME_STARTERS)
-      : available.slice(0, MAX_HOME_STARTERS);
+    return available;
   }, [activeCapabilityId, assistants, shortcutPreferences]);
 
   if (starters.length === 0) return null;

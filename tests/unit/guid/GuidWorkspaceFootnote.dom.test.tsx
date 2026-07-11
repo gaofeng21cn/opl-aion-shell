@@ -1,7 +1,14 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import GuidWorkspaceFootnote from '@/renderer/pages/guid/components/GuidWorkspaceFootnote';
+
+const workspaceMocks = vi.hoisted(() => ({
+  recent: ['/workspace/research', '/workspace/inactive'],
+  removeRecentWorkspace: vi.fn((path: string) => {
+    workspaceMocks.recent = workspaceMocks.recent.filter((entry) => entry !== path);
+  }),
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -16,7 +23,8 @@ vi.mock('@/common', () => ({
 
 vi.mock('@/renderer/components/workspace', () => ({
   addRecentWorkspace: vi.fn(),
-  getRecentWorkspaces: () => [],
+  getRecentWorkspaces: () => workspaceMocks.recent,
+  removeRecentWorkspace: workspaceMocks.removeRecentWorkspace,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -67,5 +75,28 @@ describe('GuidWorkspaceFootnote', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'conversation.history.projectContext.remove' }));
     expect(onRemove).toHaveBeenCalledWith('/workspace/research/docs/protocol.md');
+  });
+
+  it('keeps inactive registered directories out of the selector and removes them from management', () => {
+    const onClearWorkspace = vi.fn();
+    render(
+      <GuidWorkspaceFootnote
+        workspaceDir='/workspace/research'
+        onSelectWorkspace={vi.fn()}
+        onClearWorkspace={onClearWorkspace}
+      />
+    );
+
+    fireEvent.click(screen.getByText('research'));
+    expect(screen.queryByText('inactive')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'guid.workspace.manageRegistered' }));
+    expect(screen.getByRole('dialog', { name: 'guid.workspace.registeredTitle' })).toBeInTheDocument();
+    expect(screen.getByText('/workspace/inactive')).toBeInTheDocument();
+
+    const inactiveRow = screen.getByText('/workspace/inactive').closest('div.flex');
+    expect(inactiveRow).not.toBeNull();
+    fireEvent.click(within(inactiveRow as HTMLElement).getByRole('button'));
+    expect(workspaceMocks.removeRecentWorkspace).toHaveBeenCalledWith('/workspace/inactive');
+    expect(onClearWorkspace).not.toHaveBeenCalled();
   });
 });

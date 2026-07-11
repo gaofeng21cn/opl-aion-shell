@@ -787,6 +787,14 @@
   background: var(--color-fill-2);
 }
 
+.wsDropdownItemButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+}
+
 .wsDropdownItemActive {
   color: var(--aou-7);
   font-weight: 600;
