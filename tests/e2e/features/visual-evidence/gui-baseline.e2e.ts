@@ -299,7 +299,15 @@ async function openEnvironmentPopover(page: Page): Promise<void> {
 
 async function openMobileActionSheet(page: Page, triggerSelector: string): Promise<void> {
   await page.locator(triggerSelector).click();
-  await expect(page.locator('[role="dialog"][aria-modal="true"]')).toBeVisible();
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]');
+  await expect(dialog).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await dialog.boundingBox();
+      const viewport = page.viewportSize();
+      return Boolean(box && viewport && box.y < viewport.height && box.y + box.height <= viewport.height + 1);
+    })
+    .toBe(true);
 }
 
 async function openWorkspacePreview(page: Page, fileName: string): Promise<void> {
