@@ -374,8 +374,11 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['Maintenance and updates', '维护与更新'],
-        ['Make OPL usable', '让 OPL 可用'],
+        ['Maintenance', '维护'],
+        [
+          'Check whether the local app, workspace, background services, capability packages, updates, and stored data need action.',
+          '检查本机 App、工作目录、后台服务、能力包、更新和本地数据是否需要处理。',
+        ],
         ['Runtime environment', '运行环境'],
         ['Capability packs and Codex Surface sync', '能力包与 Codex Surface 同步'],
       ])
