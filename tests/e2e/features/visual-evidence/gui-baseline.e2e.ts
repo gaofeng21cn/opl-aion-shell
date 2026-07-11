@@ -316,6 +316,8 @@ async function openWorkspacePreview(page: Page, fileName: string): Promise<void>
   await expect(workspace.locator('.workspace-tree')).toBeVisible({ timeout: 30_000 });
   await workspace.getByText(fileName, { exact: true }).first().click();
   await expect(page.locator('[data-testid="conversation-preview-surface"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-testid="conversation-side-panel-layer"]')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('[data-testid="conversation-side-panel-surface"]')).toBeHidden();
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
