@@ -2,13 +2,11 @@
 set -euo pipefail
 
 OPL_INSTALL_SCRIPT_URL=${OPL_INSTALL_SCRIPT_URL:-https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh}
-OPL_APP_INSTALL_MODE=${OPL_APP_INSTALL_MODE:-app-first}
 OPL_LOCAL_APP_PATH=${OPL_LOCAL_APP_PATH:-/Applications/One Person Lab.app}
 OPL_APP_RELEASE_REPO=${OPL_APP_RELEASE_REPO:-gaofeng21cn/one-person-lab-app}
 OPL_APP_DOCS_REF=${OPL_APP_DOCS_REF:-main}
 
 INSTALL_ARGS=()
-COMPLETE_INSTALL=0
 AUTHORIZE_LOCAL_APP=0
 AUTHORIZE_LOCAL_APP_ONLY=0
 AUTHORIZE_LOCAL_APP_YES=${OPL_AUTHORIZE_LOCAL_APP_YES:-0}
@@ -23,13 +21,12 @@ STABLE_MACOS_WORK_DIR=''
 usage() {
   cat <<'USAGE'
 Usage:
-  install.sh [--complete|--app-first] [OPL install args...]
+  install.sh [OPL install args...]
   install.sh --stable-macos-install [--full|--standard] [--release-tag vX.Y.Z] [--yes]
   install.sh --authorize-local-app-only [--app-path "/Applications/One Person Lab.app"] [--yes]
 
 Options:
-  --complete                 Run complete framework/module setup from the terminal.
-  --app-first                Keep the default App-first setup and defer modules.
+  By default, install the OPL base plus the optional App GUI without Agent packages.
   --stable-macos-install     Download, copy, locally authorize, and open the Stable App.
   --full                     Use the Full first-install DMG for --stable-macos-install.
   --standard                 Use the standard App DMG for --stable-macos-install.
@@ -50,12 +47,6 @@ USAGE
 while [ "$#" -gt 0 ]; do
   arg="$1"
   case "$arg" in
-    --complete)
-      COMPLETE_INSTALL=1
-      ;;
-    --app-first)
-      COMPLETE_INSTALL=0
-      ;;
     --stable-macos-install)
       STABLE_MACOS_INSTALL=1
       ;;
@@ -138,6 +129,9 @@ done
 
 arg_present() {
   local expected="$1"
+  if [ "${#INSTALL_ARGS[@]}" -eq 0 ]; then
+    return 1
+  fi
   for arg in "${INSTALL_ARGS[@]}"; do
     if [ "$arg" = "$expected" ]; then
       return 0
@@ -476,10 +470,11 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ "$COMPLETE_INSTALL" != "1" ] && [ "$OPL_APP_INSTALL_MODE" = "app-first" ]; then
-  if ! arg_present "--skip-modules"; then
-    INSTALL_ARGS+=("--skip-modules")
-  fi
+if ! arg_present "--with-app" && ! arg_present "--headless"; then
+  INSTALL_ARGS+=("--with-app")
+fi
+if ! arg_present "--skip-modules" && ! arg_present "--module" && ! arg_present "--modules"; then
+  INSTALL_ARGS+=("--skip-modules")
 fi
 
 curl -fsSL "$OPL_INSTALL_SCRIPT_URL" | bash -s -- "${INSTALL_ARGS[@]}"
