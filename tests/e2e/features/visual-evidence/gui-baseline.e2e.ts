@@ -607,9 +607,10 @@ function buildTargets(conversationId: string): VisualTarget[] {
   ];
 }
 
+test.describe.configure({ timeout: 240_000 });
+
 test('writes route-bound GUI baseline evidence for Home and ordinary conversations', async ({ page }) => {
   test.skip(!process.env.E2E_SCREENSHOTS, 'GUI baseline evidence is opt-in');
-  test.setTimeout(240_000);
 
   const shellHead = requireCleanShellHead(REPO_ROOT);
   const writer = new GuiBaselineManifestWriter(REPO_ROOT, MANIFEST_PATH, shellHead, RUN_COMMAND);
