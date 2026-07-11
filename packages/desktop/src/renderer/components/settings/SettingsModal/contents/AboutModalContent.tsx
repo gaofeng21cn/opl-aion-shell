@@ -285,7 +285,9 @@ const AboutModalContent: React.FC = () => {
           </div>
 
           <div className='flex justify-end'>
-            <Button onClick={() => setTechnicalDetailsOpen(true)}>{t('common.technical_details')}</Button>
+            <Button data-testid='settings-about-diagnostics-action' onClick={() => setTechnicalDetailsOpen(true)}>
+              {t('common.technical_details')}
+            </Button>
           </div>
           <Modal
             visible={technicalDetailsOpen}

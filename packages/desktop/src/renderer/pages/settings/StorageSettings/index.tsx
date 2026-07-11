@@ -703,7 +703,7 @@ export const StorageSettingsContent: React.FC = () => {
       </div>
 
       <div className='flex justify-end' data-testid='storage-research-lifecycle'>
-        <Button onClick={() => setDiagnosticsVisible(true)}>
+        <Button data-testid='settings-storage-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
           {t('settings.storagePage.researchLifecycle.technicalDetails')}
         </Button>
       </div>

@@ -195,7 +195,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                   <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
                     {t('settings.workspacePage.actions.openWorkspace')}
                   </Button>
-                  <Button onClick={() => setDiagnosticsOpen(true)}>
+                  <Button data-testid='settings-workspace-diagnostics-action' onClick={() => setDiagnosticsOpen(true)}>
                     {t('settings.workspacePage.technical.title')}
                   </Button>
                   <Button

@@ -270,7 +270,8 @@ test.describe('Settings Pages', () => {
         anchor('workspace_page', '[data-testid="settings-page-workspace"]'),
         anchor('workspace_primary', '[data-testid="settings-workspace-primary"]'),
         anchor('workspace_primary_action', '[data-testid="settings-workspace-primary-action"]'),
-        anchor('workspace_technical_details', '[data-testid="settings-workspace-technical-details"]'),
+        anchor('workspace_diagnostics_action', '[data-testid="settings-workspace-diagnostics-action"]'),
+        anchor('workspace_technical_details', '[data-testid="settings-workspace-technical-details"]', false),
       ],
     },
     {
@@ -294,7 +295,8 @@ test.describe('Settings Pages', () => {
         anchor('resources_page', '[data-testid="settings-page-resources"]'),
         anchor('resources_primary', '[data-testid="settings-resources-primary"]'),
         anchor('resources_browser', '[data-testid="settings-resources-browser-access"]'),
-        anchor('resources_technical_details', '[data-testid="settings-resources-technical-details"]'),
+        anchor('resources_diagnostics_action', '[data-testid="settings-resources-diagnostics-action"]'),
+        anchor('resources_technical_details', '[data-testid="settings-resources-technical-details"]', false),
       ],
     },
     {
@@ -317,7 +319,8 @@ test.describe('Settings Pages', () => {
         anchor('storage_page', '[data-testid="settings-page-storage"]'),
         anchor('storage_primary', '[data-testid="settings-storage-primary"]'),
         anchor('storage_primary_action', '[data-testid="settings-storage-primary-action"]'),
-        anchor('storage_technical_details', '[data-testid="settings-storage-technical-details"]'),
+        anchor('storage_diagnostics_action', '[data-testid="settings-storage-diagnostics-action"]'),
+        anchor('storage_technical_details', '[data-testid="settings-storage-technical-details"]', false),
       ],
     },
     {
@@ -352,7 +355,8 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('about_page', '[data-testid="settings-page-about"]'),
         anchor('about_primary', '[data-testid="settings-about-primary"]'),
-        anchor('about_technical_details', '[data-testid="settings-about-technical-details"]'),
+        anchor('about_diagnostics_action', '[data-testid="settings-about-diagnostics-action"]'),
+        anchor('about_technical_details', '[data-testid="settings-about-technical-details"]', false),
       ],
     },
   ];

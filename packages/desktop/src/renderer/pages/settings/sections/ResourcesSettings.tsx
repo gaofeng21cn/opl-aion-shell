@@ -488,7 +488,9 @@ export const ResourcesSettingsContent: React.FC = () => {
       )}
 
       <div className='flex justify-end'>
-        <Button onClick={() => setDiagnosticsVisible(true)}>{t('common.technical_details')}</Button>
+        <Button data-testid='settings-resources-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
+          {t('common.technical_details')}
+        </Button>
       </div>
       <Modal
         visible={diagnosticsVisible}
