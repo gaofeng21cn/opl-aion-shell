@@ -57,6 +57,13 @@ type ConversationCurrentTaskV2 = ConversationCurrentTask & {
   timing?: unknown;
 };
 
+export type CurrentTaskReferenceSummary = {
+  artifacts: string[];
+  evidence: string[];
+  receipts: string[];
+  sources: string[];
+};
+
 const SUMMARY_KEYS = ['summary', 'message', 'reason', 'why_it_matters', 'owner', 'status', 'status_label', 'label'];
 const RESULT_KEYS = ['status_label', 'status', 'state', 'priority_bucket', 'progress_label', 'current_step'];
 const REF_KEYS = [
@@ -150,6 +157,56 @@ const refTexts = (value: unknown, keys = REF_KEYS): string[] => {
       return record(field) ? refTexts(field, keys) : [];
     })
   );
+};
+
+export const summarizeCurrentTaskReferences = (
+  task: ConversationCurrentTask | null | undefined
+): CurrentTaskReferenceSummary => {
+  if (!task) return { artifacts: [], evidence: [], receipts: [], sources: [] };
+
+  const taskV2 = task as ConversationCurrentTaskV2;
+  const taskRecord = task as unknown as JsonRecord;
+  const artifactNativeDrilldown = record(taskV2.artifact_native_drilldown);
+  const evidenceCards = cardList(taskV2.evidence_cards);
+  const conditionCards = cardList(taskV2.conditions);
+  const resourceCards = cardList(taskV2.resource_cards);
+
+  return {
+    artifacts: unique([
+      ...refTexts(task.artifact_or_blocker_ref),
+      ...refTexts(taskV2.latest_artifact_ref),
+      ...refTexts(taskV2.artifact_or_blocker),
+      ...refTexts(taskV2.lineage_refs),
+      ...refTexts(taskV2.provenance_bundle_refs),
+      ...refTexts(taskV2.provenance_refs),
+      ...refTexts(artifactNativeDrilldown?.provenance_bundle_refs),
+      ...refTexts(artifactNativeDrilldown?.provenance_index_ref),
+      ...refTexts(artifactNativeDrilldown?.ro_crate_metadata_ref),
+      ...refTexts(artifactNativeDrilldown?.content_hash_refs),
+    ]),
+    evidence: unique([
+      ...evidenceCards.flatMap((card) => refTexts(card)),
+      ...conditionCards.flatMap((card) => refTexts(card)),
+      ...refTexts(taskV2.diagnostics_ref),
+      ...refTexts(artifactNativeDrilldown?.agent_trace_refs),
+      ...refTexts(artifactNativeDrilldown?.review_refs),
+      ...refTexts(artifactNativeDrilldown?.typed_issues),
+    ]),
+    receipts: unique([
+      ...refTexts(task.review_receipt_ref),
+      ...refTexts(task.action_receipt_ref),
+      ...refTexts(task.resource_receipt_ref),
+      ...refTexts(taskV2.latest_receipt_ref),
+      ...refTexts(taskV2.review_receipt),
+      ...refTexts(taskV2.action_receipt),
+    ]),
+    sources: unique([
+      ...refTexts(task.resource_source_refs),
+      ...refTexts(taskRecord.source_refs),
+      ...evidenceCards.flatMap((card) => refTexts(card.source_refs)),
+      ...resourceCards.flatMap((card) => refTexts(card.source_refs)),
+    ]),
+  };
 };
 
 const evidenceItemsFromValue = (
@@ -299,7 +356,7 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
 }) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(!compact);
-  const [pinned, setPinned] = useState(compact);
+  const [pinned, setPinned] = useState(false);
   const [stopping, setStopping] = useState(false);
   if (!hasCurrentTaskAwareness(task)) return null;
 
@@ -394,26 +451,24 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
           <div className='current-task-awareness__kicker'>{t('conversation.currentTask.kicker')}</div>
           <div className='current-task-awareness__title'>{title}</div>
         </div>
-        {(!compact || pinned) && (
-          <div className='current-task-awareness__summary-fields'>
-            <span>
-              <b>{t('conversation.currentTask.status')}</b>
-              {status ?? unavailable}
-            </span>
-            <span>
-              <b>{t('conversation.currentTask.elapsed')}</b>
-              {elapsed ?? unavailable}
-            </span>
-            <span>
-              <b>{t('conversation.currentTask.progress')}</b>
-              {progress ?? stage ?? unavailable}
-            </span>
-            <span>
-              <b>{t('conversation.currentTask.nextAction')}</b>
-              {nextStep ?? unavailable}
-            </span>
-          </div>
-        )}
+        <div className='current-task-awareness__summary-fields'>
+          <span>
+            <b>{t('conversation.currentTask.status')}</b>
+            {status ?? unavailable}
+          </span>
+          <span>
+            <b>{t('conversation.currentTask.elapsed')}</b>
+            {elapsed ?? unavailable}
+          </span>
+          <span>
+            <b>{t('conversation.currentTask.progress')}</b>
+            {progress ?? stage ?? unavailable}
+          </span>
+          <span>
+            <b>{t('conversation.currentTask.nextAction')}</b>
+            {nextStep ?? unavailable}
+          </span>
+        </div>
         {compact && (
           <div className='current-task-awareness__controls'>
             <Tooltip content={pinned ? t('conversation.currentTask.unpin') : t('conversation.currentTask.pin')} mini>
@@ -423,12 +478,7 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
                 icon={<Pushpin size={14} />}
                 aria-label={pinned ? t('conversation.currentTask.unpin') : t('conversation.currentTask.pin')}
                 aria-pressed={pinned}
-                onClick={() => {
-                  setPinned((value) => {
-                    if (value) setExpanded(false);
-                    return !value;
-                  });
-                }}
+                onClick={() => setPinned((value) => !value)}
               />
             </Tooltip>
             <Tooltip

@@ -18,10 +18,10 @@ vi.mock('@/renderer/pages/conversation/Preview', () => ({
 }));
 
 vi.mock('@/renderer/hooks/ui/useResizableSplit', () => ({
-  useResizableSplit: () => ({
-    splitRatio: 380,
+  useResizableSplit: ({ storageKey }: { storageKey: string }) => ({
+    splitRatio: storageKey === 'chat-workspace-width-px' ? 380 : 60,
     setSplitRatio: vi.fn(),
-    createDragHandle: () => null,
+    createDragHandle: () => <div data-testid={`resize-${storageKey}`} />,
   }),
 }));
 
@@ -72,9 +72,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'conversation.sidePanel.open': 'Open tools',
-        'conversation.sidePanel.close': 'Close tools',
-        'conversation.sidePanel.title': 'Tools',
+        'conversation.sidePanel.open': 'Open files',
+        'conversation.sidePanel.close': 'Close files',
+        'conversation.sidePanel.title': 'Files & changes',
         'conversation.navigation.back': 'Back',
         'conversation.navigation.forward': 'Forward',
       })[key] ?? key,
@@ -104,7 +104,11 @@ describe('ChatLayout conversation context surfaces', () => {
         title='Conversation'
         conversation_id='conversation-1'
         environmentSlot={<div data-testid='environment'>Environment</div>}
-        sider={<div data-testid='side-content'>Side content</div>}
+        sider={
+          <div className='chat-workspace' data-testid='side-content' tabIndex={0}>
+            Side content
+          </div>
+        }
       >
         <div>Timeline</div>
       </ChatLayout>
@@ -113,13 +117,15 @@ describe('ChatLayout conversation context surfaces', () => {
     expect(screen.getByTestId('environment')).toBeTruthy();
     expect(screen.queryByRole('complementary')).toBeNull();
 
-    const toggle = screen.getByRole('button', { name: 'Open tools' });
+    const toggle = screen.getByRole('button', { name: 'Open files' });
     await user.tab();
     expect(toggle).toHaveFocus();
     await user.keyboard('{Enter}');
 
     expect(screen.getByRole('complementary')).toBeTruthy();
     expect(screen.getByTestId('side-content')).toBeTruthy();
+    expect(screen.getByTestId('resize-chat-workspace-width-px')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('side-content')).toHaveFocus());
     expect(screen.getByTestId('environment').closest('[data-testid="conversation-header-tools"]')).toBeTruthy();
   });
 
@@ -141,9 +147,9 @@ describe('ChatLayout conversation context surfaces', () => {
     );
 
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Open tools' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open files' })).toBeTruthy());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
 
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false');
     expect(slot.contains(screen.getByTestId('mobile-environment'))).toBe(true);
@@ -161,7 +167,7 @@ describe('ChatLayout conversation context surfaces', () => {
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true');
     expect(screen.queryByRole('complementary')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
 
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false');
   });
@@ -185,30 +191,30 @@ describe('ChatLayout conversation context surfaces', () => {
       </ChatLayout>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Close tools' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close files' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
 
     expect(mounts).toBe(1);
     expect(unmounts).toBe(0);
   });
 
-  it('ignores initial preview state but reopens tools for every later preview request', () => {
-    preview.isOpen = true;
+  it('opens Preview for later artifact, file, URL, or task requests without opening Files', () => {
     const { rerender } = render(previewTransitionView());
 
     expect(screen.queryByRole('complementary')).toBeNull();
+    expect(screen.queryByTestId('preview-panel')).toBeNull();
 
+    preview.isOpen = true;
     preview.openRequestId = 1;
     rerender(previewTransitionView());
-    expect(screen.getByRole('complementary')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close tools' }));
+    expect(screen.getByTestId('preview-panel')).toBeTruthy();
     expect(screen.queryByRole('complementary')).toBeNull();
 
     preview.openRequestId = 2;
     rerender(previewTransitionView());
-    expect(screen.getByRole('complementary')).toBeTruthy();
+    expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 
   it('renders preview content as an independent canvas surface', () => {

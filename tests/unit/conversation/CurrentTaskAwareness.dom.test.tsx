@@ -91,7 +91,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('CurrentTaskAwareness', () => {
-  it('pins, expands, and stops from the compact current-task summary', async () => {
+  it('keeps status, elapsed, progress, next action, and stop readable in the default unpinned summary', async () => {
     const onStop = vi.fn().mockResolvedValue(true);
     render(
       <CurrentTaskAwareness
@@ -121,13 +121,14 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByText('Approve edits')).toBeTruthy();
     expect(screen.queryByText('artifact://draft')).toBeNull();
 
-    const pinButton = screen.getByRole('button', { name: 'Unpin task summary' });
-    expect(pinButton).toHaveAttribute('aria-pressed', 'true');
+    const pinButton = screen.getByRole('button', { name: 'Pin task summary' });
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(pinButton);
-    expect(screen.getByRole('button', { name: 'Pin task summary' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.queryByText('2/4')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Unpin task summary' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('2/4')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pin task summary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin task summary' }));
+    expect(screen.getByRole('button', { name: 'Pin task summary' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('2/4')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show task evidence' }));

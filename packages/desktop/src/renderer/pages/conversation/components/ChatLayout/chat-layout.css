@@ -71,24 +71,33 @@
 .conversation-environment-popover {
   display: flex;
   flex-direction: column;
-  width: min(320px, calc(100vw - 32px));
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 80px));
+  overflow-y: auto;
+}
+
+.conversation-environment-popover__section {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.conversation-environment-popover__section + .conversation-environment-popover__section,
+.conversation-environment-popover__actions {
+  border-top: 1px solid var(--bg-3);
 }
 
 .conversation-environment-popover__row {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 10px;
   padding: 6px 0;
-  border-bottom: 1px solid var(--bg-3);
   font-size: 12px;
   line-height: 17px;
 }
 
-.conversation-environment-popover__row:last-child {
-  border-bottom: 0;
-}
-
-.conversation-environment-popover__row span {
+.conversation-environment-popover__row span,
+.conversation-environment-popover__ref-group > span {
   color: var(--text-secondary);
 }
 
@@ -99,6 +108,50 @@
   white-space: nowrap;
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.conversation-environment-popover__section-title {
+  padding: 6px 0 2px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.conversation-environment-popover__ref-group {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.conversation-environment-popover__ref-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-environment-popover__ref-group li {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+.conversation-environment-popover__ref-group .conversation-environment-popover__more {
+  color: var(--text-secondary);
+}
+
+.conversation-environment-popover__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding-top: 8px;
 }
 
 .conversation-side-panel {
@@ -112,102 +165,10 @@
   background: var(--bg-2);
 }
 
-.conversation-side-panel > .arco-tabs {
-  flex: 0 0 auto;
-  padding: 0 8px;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--bg-3);
-}
-
-.conversation-side-panel > .arco-tabs .arco-tabs-header-nav::before {
-  display: none;
-}
-
-.conversation-side-panel__tab {
-  display: inline-flex;
+.conversation-side-panel--empty {
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.conversation-side-panel__primary {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.conversation-side-panel__browser,
-.conversation-side-panel__content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.conversation-side-panel__browser-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
-  padding: 8px;
-  border-bottom: 1px solid var(--bg-3);
-}
-
-.conversation-side-panel__centered-action,
-.conversation-side-panel__actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
   padding: 16px;
-}
-
-.conversation-side-panel__secondary {
-  flex: 0 0 auto;
-  max-height: 52%;
-  overflow: hidden;
-  border-top: 1px solid var(--bg-3);
-  background: var(--bg-2);
-}
-
-.conversation-side-panel__secondary-toggle .arco-btn-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.conversation-side-panel__secondary-nav {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--bg-3);
-  border-bottom: 1px solid var(--bg-3);
-}
-
-.conversation-side-panel__secondary-nav .arco-btn {
-  min-width: 0;
-  padding: 0 4px;
-}
-
-.conversation-side-panel__secondary-content {
-  min-height: 120px;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.conversation-side-panel__refs {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 10px 16px 12px 28px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  word-break: break-word;
 }
 
 /* Workspace open button dropdown styles */
