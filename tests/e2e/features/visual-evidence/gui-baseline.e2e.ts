@@ -369,12 +369,21 @@ async function openMobileActionSheet(page: Page, triggerSelector: string): Promi
 }
 
 async function openWorkspacePreview(page: Page, fileName: string): Promise<void> {
-  await page.locator('[data-testid="conversation-side-panel-toggle"]').click();
+  const panelToggle = page.locator('[data-testid="conversation-side-panel-toggle"]');
+  await panelToggle.focus();
+  await panelToggle.press('Enter');
   const workspace = page.locator('[data-testid="conversation-side-panel"]');
   await expect(workspace.locator('.workspace-tree')).toBeVisible({ timeout: 30_000 });
   await workspace.getByText(fileName, { exact: true }).first().click();
-  await expect(page.locator('[data-testid="conversation-preview-surface"]')).toBeVisible({ timeout: 15_000 });
+  const preview = page.locator('[data-testid="conversation-preview-surface"]');
+  await expect(preview).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-testid="conversation-side-panel-layer"]')).toHaveAttribute('aria-hidden', 'true');
+
+  // The files toggle is activated by keyboard so its hover-only tooltip must
+  // not leak into the settled Preview evidence after Arco's 200 ms delay.
+  await page.waitForTimeout(250);
+  await expect(page.locator('.arco-tooltip-content:visible')).toHaveCount(0);
+  await expect(preview).toBeVisible();
 }
 
 async function waitForSettledTransform(page: Page, selector: string): Promise<void> {
