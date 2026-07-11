@@ -83,7 +83,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     closePreview();
   };
 
-  const handlePrimaryNavigate = (path: '/archived' | '/capabilities') => {
+  const handlePrimaryNavigate = (path: '/runtime' | '/archived' | '/capabilities') => {
     cleanupSiderTooltips();
     blurActiveElement();
     closePreview();
@@ -160,6 +160,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               isMobile={isMobile}
               collapsed={collapsed}
               siderTooltipProps={siderTooltipProps}
+              onRuntimeClick={() => handlePrimaryNavigate('/runtime')}
               onArchivedClick={() => handlePrimaryNavigate('/archived')}
               onCapabilitiesClick={() => handlePrimaryNavigate('/capabilities')}
             />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import { SiderPrimaryNav, SiderToolbar } from '@/renderer/components/layout/Sider/SiderNav';
@@ -11,6 +11,7 @@ vi.mock('react-i18next', () => ({
         'conversation.welcome.newTask': 'New task',
         'conversation.history.archivedTitle': 'Archived',
         'guid.capabilities.title': 'Capabilities',
+        'common.runtime.sidebarEntry': 'Runtime',
         'common.primaryNavigation': 'Primary navigation',
         'common.account': 'Account',
         'common.help': 'Help',
@@ -25,6 +26,7 @@ const tooltipProps = { disabled: true, popupVisible: false };
 
 describe('Sider navigation hierarchy', () => {
   it('orders primary actions before history utilities and keeps the footer compact', () => {
+    const onRuntimeClick = vi.fn();
     render(
       <div>
         <SiderToolbar isMobile={false} collapsed={false} siderTooltipProps={tooltipProps} onNewChat={vi.fn()} />
@@ -33,6 +35,7 @@ describe('Sider navigation hierarchy', () => {
           isMobile={false}
           pathname='/guid'
           siderTooltipProps={tooltipProps}
+          onRuntimeClick={onRuntimeClick}
           onArchivedClick={vi.fn()}
           onCapabilitiesClick={vi.fn()}
         />
@@ -52,7 +55,9 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Archived', 'Capabilities', 'Settings']);
+    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Capabilities', 'Settings']);
+    fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
+    expect(onRuntimeClick).toHaveBeenCalledOnce();
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();

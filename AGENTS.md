@@ -25,6 +25,12 @@ intake isolated in this shell repo and preserve the App repo's GUI requirements.
 Do not let upstream defaults, model lists, theme presets, or interaction patterns
 silently become OPL App authority.
 
+Do not remove an OPL-owned navigation entry merely to match Codex or upstream
+AionUI. A relocation is valid only when the App contract authorizes it and the
+same change lands a visible, keyboard-reachable replacement plus navigation
+tests. The cross-project Runtime cockpit remains distinct from
+conversation-level Runtime details.
+
 Treat this repository as a replaceable implementation carrier. If a future shell
 candidate is introduced, it must be declared and gated from the App repo under
 `shells/<candidate>`; GUI product authority, page-state expectations,

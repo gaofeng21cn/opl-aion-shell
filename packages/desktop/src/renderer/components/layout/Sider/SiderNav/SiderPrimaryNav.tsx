@@ -5,7 +5,7 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { AllApplication, Inbox } from '@icon-park/react';
+import { ActivitySource, AllApplication, Inbox } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ type SiderPrimaryNavProps = {
   isMobile: boolean;
   pathname: string;
   siderTooltipProps: SiderTooltipProps;
+  onRuntimeClick: () => void;
   onArchivedClick: () => void;
   onCapabilitiesClick: () => void;
 };
@@ -25,11 +26,19 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
   isMobile,
   pathname,
   siderTooltipProps,
+  onRuntimeClick,
   onArchivedClick,
   onCapabilitiesClick,
 }) => {
   const { t } = useTranslation();
   const entries = [
+    {
+      key: 'runtime',
+      label: t('common.runtime.sidebarEntry'),
+      active: pathname.startsWith('/runtime'),
+      icon: <ActivitySource theme='outline' size='16' fill='currentColor' />,
+      onClick: onRuntimeClick,
+    },
     {
       key: 'archived',
       label: t('conversation.history.archivedTitle'),
