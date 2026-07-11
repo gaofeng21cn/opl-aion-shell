@@ -67,6 +67,7 @@ describe('OPL generated product profile', () => {
   });
 
   it('exposes the App-owned visible product name', () => {
+    expect(OPL_PRODUCT_PROFILE.schema_version).toBe(2);
     expect(getOplProductDisplayName()).toBe('One Person Lab App');
     expect(OPL_PRODUCT_PROFILE.product.display_name).toBe('One Person Lab App');
   });
