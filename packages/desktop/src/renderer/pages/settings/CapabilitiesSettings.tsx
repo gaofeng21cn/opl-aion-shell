@@ -955,7 +955,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageActionBusy || !selectedCapability.packageId}
+                      disabled={packageActionBusy || !selectedCapability.packageLockRef}
                       onClick={() =>
                         void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
                           exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
@@ -970,7 +970,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageActionBusy || !selectedCapability.packageId}
+                      disabled={packageActionBusy || !selectedCapability.packageLockRef}
                       onClick={() =>
                         void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
                           exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',

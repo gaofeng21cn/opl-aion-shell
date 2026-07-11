@@ -546,6 +546,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).not.toHaveClass('arco-switch-checked');
+    expect(omaHomeSwitch).not.toBeDisabled();
     fireEvent.click(omaHomeSwitch);
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith(
