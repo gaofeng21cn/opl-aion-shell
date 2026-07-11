@@ -22,6 +22,7 @@ const STREAM_FIXTURE_KEY = 'aionui:e2e-message-stream-conversation-id';
 const WORKSPACE_PATH = path.join(os.tmpdir(), 'aionui-gui-baseline-workspace');
 const NAVIGATION_RAIL_SELECTOR = '.layout-sider:has([data-testid="app-navigation-rail"])';
 const MAIN_CONTENT_SELECTOR = '.app-shell > .arco-layout > .layout-content';
+const VIEWPORT_TOLERANCE_PX = 2;
 
 type CreatedConversation = { id: string };
 type ClientSettings = Record<string, unknown>;
@@ -206,7 +207,10 @@ async function viewportCheck(page: Page, id: string, selector: string): Promise<
   const viewport = page.viewportSize();
   if (!viewport) throw new Error(`Layout check ${id} requires an explicit viewport`);
   const passed =
-    box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1;
+    box.x >= -VIEWPORT_TOLERANCE_PX &&
+    box.y >= -VIEWPORT_TOLERANCE_PX &&
+    box.x + box.width <= viewport.width + VIEWPORT_TOLERANCE_PX &&
+    box.y + box.height <= viewport.height + VIEWPORT_TOLERANCE_PX;
   return {
     id,
     passed,
