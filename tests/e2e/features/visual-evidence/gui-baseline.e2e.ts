@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -70,12 +70,28 @@ async function ensureRendererReady(page: Page): Promise<void> {
 
 async function applyAppearance(
   page: Page,
+  electronApp: ElectronApplication,
   viewport: VisualTarget['viewport'],
   theme: GuiBaselineTheme,
   locale: GuiBaselineLocale
 ): Promise<void> {
+  await electronApp.evaluate(({ BrowserWindow }, size) => {
+    const mainWindow = BrowserWindow.getAllWindows()
+      .filter((window) => !window.isDestroyed())
+      .toSorted((left, right) => {
+        const leftBounds = left.getBounds();
+        const rightBounds = right.getBounds();
+        return rightBounds.width * rightBounds.height - leftBounds.width * leftBounds.height;
+      })[0];
+    if (!mainWindow) throw new Error('GUI baseline could not resolve the Electron main window');
+    mainWindow.setContentSize(size.width, size.height);
+  }, viewport);
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   expect(page.viewportSize()).toEqual({ width: viewport.width, height: viewport.height });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect
+    .poll(() => page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })))
+    .toEqual({ width: viewport.width, height: viewport.height });
   await httpInvoke(page, 'PUT', '/api/settings/client', {
     language: locale,
     'theme.activeId': theme === 'light' ? 'default-theme' : 'dark',
@@ -348,11 +364,12 @@ async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise
 
 async function captureTarget(
   page: Page,
+  electronApp: ElectronApplication,
   writer: GuiBaselineManifestWriter,
   shellHead: string,
   target: VisualTarget
 ): Promise<void> {
-  await applyAppearance(page, target.viewport, target.theme, target.locale);
+  await applyAppearance(page, electronApp, target.viewport, target.theme, target.locale);
   const state = await target.setup(page);
   const anchors = await collectAnchors(page, target.anchors);
   const layoutChecks = await target.layoutChecks(page);
@@ -420,7 +437,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
     {
       id: 'home-mobile-dark-en-US-rail-closed',
       screenshotName: 'gui-baseline/home/mobile/dark/en-US/rail-closed',
-      viewport: { name: 'mobile', width: 390, height: 844 },
+      viewport: { name: 'mobile', width: 420, height: 844 },
       theme: 'dark',
       locale: 'en-US',
       anchors: [
@@ -443,7 +460,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
     {
       id: 'home-mobile-dark-en-US-action-sheet-open',
       screenshotName: 'gui-baseline/home/mobile/dark/en-US/action-sheet-open',
-      viewport: { name: 'mobile', width: 390, height: 844 },
+      viewport: { name: 'mobile', width: 420, height: 844 },
       theme: 'dark',
       locale: 'en-US',
       anchors: [
@@ -595,7 +612,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
     {
       id: 'conversation-mobile-light-en-US-preview-open',
       screenshotName: 'gui-baseline/conversation/mobile/light/en-US/preview-open',
-      viewport: { name: 'mobile', width: 390, height: 844 },
+      viewport: { name: 'mobile', width: 420, height: 844 },
       theme: 'light',
       locale: 'en-US',
       anchors: [
@@ -654,7 +671,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
 
 test.describe.configure({ timeout: 240_000 });
 
-test('writes route-bound GUI baseline evidence for Home and ordinary conversations', async ({ page }) => {
+test('writes route-bound GUI baseline evidence for Home and ordinary conversations', async ({ page, electronApp }) => {
   test.skip(!process.env.E2E_SCREENSHOTS, 'GUI baseline evidence is opt-in');
 
   const shellHead = requireCleanShellHead(REPO_ROOT);
@@ -677,7 +694,7 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     for (const target of buildTargets(conversationId)) {
       // Evidence states intentionally share one Electron window and must run in order.
       // eslint-disable-next-line no-await-in-loop
-      await captureTarget(page, writer, shellHead, target);
+      await captureTarget(page, electronApp, writer, shellHead, target);
     }
   } finally {
     if (conversationId) {
