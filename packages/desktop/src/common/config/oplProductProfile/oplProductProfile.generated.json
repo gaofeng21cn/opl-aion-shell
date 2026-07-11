@@ -330,7 +330,7 @@
       "provider_selector_visible": false,
       "model_status_surface": "executor_policy.default_model_display_value",
       "technical_details_policy": "single_compact_model_reasoning_menu_without_backend_or_provider",
-      "composer_context_strip": ["project", "local", "branch", "active_capability"],
+      "composer_context_strip": ["project_context_refs", "active_capability"],
       "composer_bottom_action_row": [
         "attach",
         "context",
