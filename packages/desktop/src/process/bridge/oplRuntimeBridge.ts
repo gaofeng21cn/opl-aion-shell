@@ -55,6 +55,7 @@ const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
+const OPL_APP_REQUIRED_FRAMEWORK_API_RANGE = 'p19.stage-runtime';
 let standardBootstrapCompleted = false;
 let cachedDeveloperModeGithubIdentity: {
   key: string;
@@ -155,6 +156,21 @@ type ResolvedOplCli = {
   argsPrefix: string[];
   env: NodeJS.ProcessEnv;
   source: string;
+};
+
+type OplFrameworkCarrierReceipt = {
+  selected_carrier: 'developer_checkout' | 'system_homebrew_formula' | 'app_private_install';
+  framework_version: string;
+  framework_api_version: string;
+  app_required_api_range: string;
+  compatibility_status: 'compatible';
+  selection_status: 'active' | 'pre_formula_transition';
+  active_framework_count: 1;
+};
+
+type ResolvedOplFrameworkCarrier = {
+  packageRoot: string;
+  receipt: OplFrameworkCarrierReceipt;
 };
 
 type BuildStandardBootstrapEnvInput = {
@@ -429,6 +445,9 @@ function isLegacyManagedUpdatePassthroughError(spec: RuntimeCommandSpec, error: 
 function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error: unknown): boolean {
   return (
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
+    (error instanceof Error &&
+      error.message === 'The App-managed private OPL Framework carrier is missing.' &&
+      shouldAutoBootstrapOplCommand(spec)) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
 }
@@ -790,59 +809,146 @@ function resolveDeveloperModeCheckoutRoot(env: NodeJS.ProcessEnv): string | null
   return isFrameworkCheckoutRoot(checkoutRoot) ? checkoutRoot : null;
 }
 
-function resolvePackagedRuntimeCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
-  const runtimeHome = normalizeOptionalString(env.OPL_FULL_RUNTIME_HOME);
-  if (!runtimeHome) {
-    return null;
-  }
-  for (const candidate of [path.join(runtimeHome, 'opl'), runtimeHome]) {
-    if (hasOplCliEntrypoint(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
 function resolveManagedInstallCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
   const installDir =
     normalizeOptionalString(env.OPL_INSTALL_DIR) ?? path.join(resolveHomeDir(env), '.opl', 'one-person-lab');
   return hasOplCliEntrypoint(installDir) ? installDir : null;
 }
 
-function listExplicitOplPackageRoots(env: NodeJS.ProcessEnv): string[] {
-  const seen = new Set<string>();
-  const roots: string[] = [];
-  for (const candidate of [
-    resolveDeveloperModeCheckoutRoot(env),
-    resolvePackagedRuntimeCheckoutRoot(env),
-    resolveManagedInstallCheckoutRoot(env),
-  ]) {
-    if (!candidate) {
-      continue;
-    }
-    const resolved = path.resolve(candidate);
-    if (seen.has(resolved)) {
-      continue;
-    }
-    seen.add(resolved);
-    roots.push(resolved);
+function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string; frameworkApiVersion: string } {
+  // The Framework does not yet expose a stable live version command; bind activation to its installed package identity.
+  const packageManifest = readJsonRecordFile(path.join(packageRoot, 'package.json'));
+  const publicSurfaceIndex = readJsonRecordFile(
+    path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json')
+  );
+  if (packageManifest?.name !== 'opl-framework') {
+    throw new Error('Selected OPL Framework carrier must have package identity opl-framework.');
   }
-  return roots;
+  const frameworkVersion = normalizeOptionalString(packageManifest?.version);
+  const frameworkApiVersion = normalizeOptionalString(publicSurfaceIndex?.version);
+  if (!frameworkVersion || !frameworkApiVersion) {
+    throw new Error('Selected OPL Framework carrier is missing package or public API identity.');
+  }
+  return { frameworkVersion, frameworkApiVersion };
+}
+
+function buildFrameworkCarrierSelection(
+  packageRoot: string,
+  selectedCarrier: OplFrameworkCarrierReceipt['selected_carrier'],
+  selectionStatus: OplFrameworkCarrierReceipt['selection_status'] = 'active'
+): ResolvedOplFrameworkCarrier {
+  const { frameworkVersion, frameworkApiVersion } = readFrameworkIdentity(packageRoot);
+  const appRequiredApiRange = OPL_APP_REQUIRED_FRAMEWORK_API_RANGE;
+  const compatibleApiVersions = appRequiredApiRange
+    .split('|')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!compatibleApiVersions.includes(frameworkApiVersion)) {
+    throw new Error(
+      `OPL Framework API ${frameworkApiVersion} is incompatible with App-required ${appRequiredApiRange}.`
+    );
+  }
+  return {
+    packageRoot,
+    receipt: {
+      selected_carrier: selectedCarrier,
+      framework_version: frameworkVersion,
+      framework_api_version: frameworkApiVersion,
+      app_required_api_range: appRequiredApiRange,
+      compatibility_status: 'compatible',
+      selection_status: selectionStatus,
+      active_framework_count: 1,
+    },
+  };
+}
+
+function resolveHomebrewFormulaRoot(env: NodeJS.ProcessEnv): string | null {
+  const explicitFormulaBin = normalizeOptionalString(env.OPL_HOMEBREW_FORMULA_BIN);
+  const formulaBins = explicitFormulaBin ? [explicitFormulaBin] : ['/opt/homebrew/bin', '/usr/local/bin'];
+  for (const binDir of formulaBins) {
+    const normalizedBinDir = normalizeOptionalString(binDir);
+    if (!normalizedBinDir) continue;
+    const executable = path.join(normalizedBinDir, 'opl');
+    if (!pathExistsFile(executable)) continue;
+    const packageRoot = resolveOplPackageRootFromExecutable(executable);
+    if (packageRoot) return packageRoot;
+  }
+  return null;
+}
+
+function hasHomebrewCaskReceipt(env: NodeJS.ProcessEnv): boolean {
+  const explicitRoots = normalizeOptionalString(env.OPL_HOMEBREW_CASKROOM_ROOTS);
+  const caskroomRoots = explicitRoots
+    ? explicitRoots.split(path.delimiter)
+    : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom'];
+  const caskTokens = ['one-person-lab', 'one-person-lab-nightly', 'one-person-lab-full'];
+  return caskroomRoots.some((root) =>
+    caskTokens.some((token) => {
+      try {
+        return fs.readdirSync(path.join(root, token)).length > 0;
+      } catch {
+        return false;
+      }
+    })
+  );
+}
+
+function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv): ResolvedOplFrameworkCarrier {
+  const developerCheckout = resolveDeveloperModeCheckoutRoot(env);
+  if (developerCheckout) {
+    return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout');
+  }
+
+  const explicitInstallOrigin = normalizeOptionalString(env.OPL_APP_INSTALL_ORIGIN);
+  if (
+    explicitInstallOrigin &&
+    !['homebrew_cask', 'dmg_or_direct_download', 'dmg', 'direct_download'].includes(explicitInstallOrigin)
+  ) {
+    throw new Error(`Unsupported OPL App install origin: ${explicitInstallOrigin}.`);
+  }
+  const homebrewCaskInstall =
+    explicitInstallOrigin === 'homebrew_cask' || (!explicitInstallOrigin && hasHomebrewCaskReceipt(env));
+  if (homebrewCaskInstall) {
+    const formulaRoot = resolveHomebrewFormulaRoot(env);
+    if (formulaRoot) {
+      return buildFrameworkCarrierSelection(formulaRoot, 'system_homebrew_formula');
+    }
+    const transitionPrivateRoot = resolveManagedInstallCheckoutRoot(env);
+    if (transitionPrivateRoot) {
+      return buildFrameworkCarrierSelection(transitionPrivateRoot, 'app_private_install', 'pre_formula_transition');
+    }
+    throw new Error(
+      'This Homebrew Cask install has neither the system Formula nor the transition private carrier available.'
+    );
+  }
+
+  const privateRoot = resolveManagedInstallCheckoutRoot(env);
+  if (!privateRoot) {
+    throw new Error('The App-managed private OPL Framework carrier is missing.');
+  }
+  return buildFrameworkCarrierSelection(privateRoot, 'app_private_install');
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
-  for (const packageRoot of listExplicitOplPackageRoots(env)) {
-    if (!packageSupportsCommand(packageRoot, spec)) continue;
-    const resolved = resolveOplCliFromPackageRoot(packageRoot, env);
-    if (resolved) return resolved;
+  const selection = resolveOplFrameworkCarrier(env);
+  if (!packageSupportsCommand(selection.packageRoot, spec)) {
+    throw new Error(`Selected OPL Framework carrier does not support ${spec.surface}.`);
   }
-  for (const candidate of candidatePathsFromPath(env.PATH, 'opl')) {
-    const packageRoot = resolveOplPackageRootFromExecutable(candidate);
-    if (!packageRoot || !packageSupportsCommand(packageRoot, spec)) continue;
-    const resolved = resolveOplCliFromPackageRoot(packageRoot, env);
-    if (resolved) return resolved;
-  }
-  return null;
+  const resolved = resolveOplCliFromPackageRoot(selection.packageRoot, env);
+  if (!resolved) return null;
+  return {
+    ...resolved,
+    env: {
+      ...resolved.env,
+      OPL_FRAMEWORK_SELECTED_CARRIER: selection.receipt.selected_carrier,
+      OPL_FRAMEWORK_VERSION: selection.receipt.framework_version,
+      OPL_FRAMEWORK_API_VERSION: selection.receipt.framework_api_version,
+      OPL_APP_REQUIRED_FRAMEWORK_API_RANGE: selection.receipt.app_required_api_range,
+      OPL_FRAMEWORK_COMPATIBILITY_STATUS: selection.receipt.compatibility_status,
+      OPL_FRAMEWORK_SELECTION_STATUS: selection.receipt.selection_status,
+      OPL_ACTIVE_FRAMEWORK_COUNT: String(selection.receipt.active_framework_count),
+    },
+  };
 }
 
 function normalizePathEntries(entries: Array<string | undefined | null>): string {
@@ -1280,6 +1386,7 @@ export const __oplRuntimeBridgeTest = {
   readInitializeCompletePayload,
   readInitializeEventEnvelope,
   resolveOplCli,
+  resolveOplFrameworkCarrier,
   resolveDeveloperModeCheckoutRoot,
   resolveOplPackageRootFromExecutable,
   parseJson,

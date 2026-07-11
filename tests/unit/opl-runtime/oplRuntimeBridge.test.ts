@@ -13,6 +13,24 @@ function makeTempRoot(name: string): string {
   return root;
 }
 
+function makeFrameworkCarrier(packageRoot: string, version = '26.6.27', apiVersion = 'p19.stage-runtime'): void {
+  fs.mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(packageRoot, 'dist', 'entrypoints'), { recursive: true });
+  fs.mkdirSync(path.join(packageRoot, 'contracts', 'opl-framework'), { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ name: 'opl-framework', version }), 'utf8');
+  fs.writeFileSync(path.join(packageRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(packageRoot, 'dist', 'entrypoints', 'cli.js'), 'console.log("opl")\n', 'utf8');
+  fs.writeFileSync(
+    path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'),
+    JSON.stringify({ version: apiVersion }),
+    'utf8'
+  );
+}
+
+function makeCaskReceipt(caskroomRoot: string, token = 'one-person-lab'): void {
+  fs.mkdirSync(path.join(caskroomRoot, token, '26.6.27'), { recursive: true });
+}
+
 afterEach(() => {
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
@@ -278,6 +296,12 @@ describe('OPL runtime bridge command whitelist', () => {
         appStateFailure
       )
     ).toBe(false);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildInitializeCommand(),
+        new Error('The App-managed private OPL Framework carrier is missing.')
+      )
+    ).toBe(true);
   });
 
   it('detects older OPL runtimes that do not support initialize event streaming', () => {
@@ -449,21 +473,32 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('resolves managed update commands to an OPL CLI that supports the update kernel instead of Codex passthrough wrappers', () => {
+  it('resolves managed update commands through the selected private Framework instead of packaged runtime wrappers', () => {
     const homeDir = makeTempRoot('opl-update-bridge-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
-    const compatibleRoot = path.join(homeDir, 'compatible-opl');
+    const compatibleRoot = path.join(homeDir, '.opl', 'one-person-lab');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'dist', 'entrypoints'), { recursive: true });
+    fs.mkdirSync(path.join(compatibleRoot, 'contracts', 'opl-framework'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'), 'console.log("old")\n', 'utf8');
     fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(compatibleRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(compatibleRoot, 'dist', 'entrypoints', 'cli.js'), 'console.log("new")\n', 'utf8');
     fs.writeFileSync(path.join(compatibleRoot, 'dist', 'managed-update-kernel.js'), 'export {}\n', 'utf8');
+    fs.writeFileSync(
+      path.join(compatibleRoot, 'package.json'),
+      JSON.stringify({ name: 'opl-framework', version: '26.6.27' }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(compatibleRoot, 'contracts', 'opl-framework', 'public-surface-index.json'),
+      JSON.stringify({ version: 'p19.stage-runtime' }),
+      'utf8'
+    );
 
     const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
       baseEnv: {
@@ -490,7 +525,7 @@ describe('OPL runtime bridge command whitelist', () => {
       env
     );
     expect(appStateCommand.args).toEqual([
-      path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'),
+      path.join(compatibleRoot, 'dist', 'entrypoints', 'cli.js'),
       'app',
       'state',
       '--profile',
@@ -534,7 +569,12 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.writeFileSync(path.join(developerCheckout, 'src', 'entrypoints', 'cli.ts'), 'console.log("checkout")\n', 'utf8');
     fs.writeFileSync(
       path.join(developerCheckout, 'contracts', 'opl-framework', 'public-surface-index.json'),
-      '{}',
+      JSON.stringify({ version: 'p19.stage-runtime' }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(developerCheckout, 'package.json'),
+      JSON.stringify({ name: 'opl-framework', version: '26.6.27' }),
       'utf8'
     );
     fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
@@ -559,6 +599,7 @@ describe('OPL runtime bridge command whitelist', () => {
       env
     );
     expect(command.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
+    expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('developer_checkout');
     expect(command.args).toEqual([
       '--experimental-strip-types',
       path.join(developerCheckout, 'src', 'entrypoints', 'cli.ts'),
@@ -576,9 +617,20 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(linkedRoot, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(linkedRoot, 'src', 'entrypoints'), { recursive: true });
     fs.mkdirSync(path.join(linkedRoot, 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(linkedRoot, 'contracts', 'opl-framework'), { recursive: true });
     fs.writeFileSync(path.join(linkedRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(linkedRoot, 'src', 'entrypoints', 'cli.ts'), 'console.log("current")\n', 'utf8');
     fs.writeFileSync(path.join(linkedRoot, 'dist', 'cli.js'), 'console.log("stale")\n', 'utf8');
+    fs.writeFileSync(
+      path.join(linkedRoot, 'package.json'),
+      JSON.stringify({ name: 'opl-framework', version: '26.6.27' }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(linkedRoot, 'contracts', 'opl-framework', 'public-surface-index.json'),
+      JSON.stringify({ version: 'p19.stage-runtime' }),
+      'utf8'
+    );
 
     const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
       baseEnv: { HOME: homeDir, PATH: `${path.join(linkedRoot, 'bin')}:/usr/bin:/bin` },
@@ -598,6 +650,160 @@ describe('OPL runtime bridge command whitelist', () => {
       'initialize',
       '--json',
     ]);
+  });
+
+  it('activates only the system Formula carrier for a Homebrew Cask install', () => {
+    const homeDir = makeTempRoot('opl-homebrew-carrier-home');
+    const formulaRoot = path.join(homeDir, 'formula-opl');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    const formulaBin = path.join(homeDir, 'opt-homebrew-bin');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
+    makeFrameworkCarrier(formulaRoot);
+    makeFrameworkCarrier(privateRoot);
+    makeCaskReceipt(caskroomRoot);
+    fs.mkdirSync(formulaBin, { recursive: true });
+    fs.symlinkSync(path.join(formulaRoot, 'bin', 'opl'), path.join(formulaBin, 'opl'));
+
+    const env = {
+      HOME: homeDir,
+      PATH: '/usr/bin:/bin',
+      OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+      OPL_HOMEBREW_FORMULA_BIN: formulaBin,
+    };
+    const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env);
+
+    expect(selection.receipt).toMatchObject({
+      selected_carrier: 'system_homebrew_formula',
+      framework_version: '26.6.27',
+      framework_api_version: 'p19.stage-runtime',
+      app_required_api_range: 'p19.stage-runtime',
+      compatibility_status: 'compatible',
+      selection_status: 'active',
+      active_framework_count: 1,
+    });
+    expect(selection.packageRoot).toBe(fs.realpathSync(formulaRoot));
+    expect(selection.packageRoot).not.toBe(privateRoot);
+
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+      env
+    );
+    expect(command.env).toMatchObject({
+      OPL_FRAMEWORK_SELECTED_CARRIER: 'system_homebrew_formula',
+      OPL_FRAMEWORK_VERSION: '26.6.27',
+      OPL_FRAMEWORK_API_VERSION: 'p19.stage-runtime',
+      OPL_APP_REQUIRED_FRAMEWORK_API_RANGE: 'p19.stage-runtime',
+      OPL_FRAMEWORK_COMPATIBILITY_STATUS: 'compatible',
+      OPL_ACTIVE_FRAMEWORK_COUNT: '1',
+    });
+  });
+
+  it('fails closed when a Homebrew Cask install cannot locate a compatible Formula', () => {
+    const homeDir = makeTempRoot('opl-missing-formula-home');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
+    makeCaskReceipt(caskroomRoot, 'one-person-lab-nightly');
+
+    expect(() =>
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+        OPL_HOMEBREW_FORMULA_BIN: path.join(homeDir, 'missing-formula-bin'),
+      })
+    ).toThrow(/has neither the system Formula nor the transition private carrier available/);
+  });
+
+  it('uses the private carrier only while a detected Cask is waiting for its first Formula publication', () => {
+    const homeDir = makeTempRoot('opl-cask-transition-home');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
+    makeFrameworkCarrier(privateRoot);
+    makeCaskReceipt(caskroomRoot, 'one-person-lab-full');
+
+    const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+      HOME: homeDir,
+      PATH: '/usr/bin:/bin',
+      OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+      OPL_HOMEBREW_FORMULA_BIN: path.join(homeDir, 'missing-formula-bin'),
+    });
+
+    expect(selection.packageRoot).toBe(privateRoot);
+    expect(selection.receipt.selected_carrier).toBe('app_private_install');
+    expect(selection.receipt.selection_status).toBe('pre_formula_transition');
+  });
+
+  it('does not fall back when a detected Cask has an incompatible Formula', () => {
+    const homeDir = makeTempRoot('opl-cask-incompatible-formula-home');
+    const formulaRoot = path.join(homeDir, 'formula-opl');
+    const formulaBin = path.join(homeDir, 'opt-homebrew-bin');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
+    makeFrameworkCarrier(path.join(homeDir, '.opl', 'one-person-lab'));
+    makeFrameworkCarrier(formulaRoot, '26.6.27', 'p18.stage-runtime');
+    makeCaskReceipt(caskroomRoot);
+    fs.mkdirSync(formulaBin, { recursive: true });
+    fs.symlinkSync(path.join(formulaRoot, 'bin', 'opl'), path.join(formulaBin, 'opl'));
+
+    expect(() =>
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+        OPL_HOMEBREW_FORMULA_BIN: formulaBin,
+      })
+    ).toThrow(/Framework API p18\.stage-runtime is incompatible/);
+  });
+
+  it('activates only the App-managed private carrier for DMG and direct installs', () => {
+    const homeDir = makeTempRoot('opl-direct-carrier-home');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    const formulaRoot = path.join(homeDir, 'formula-opl');
+    const formulaBin = path.join(homeDir, 'opt-homebrew-bin');
+    makeFrameworkCarrier(privateRoot);
+    makeFrameworkCarrier(formulaRoot);
+    fs.mkdirSync(formulaBin, { recursive: true });
+    fs.symlinkSync(path.join(formulaRoot, 'bin', 'opl'), path.join(formulaBin, 'opl'));
+
+    const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+      HOME: homeDir,
+      PATH: `${formulaBin}:/usr/bin:/bin`,
+      OPL_APP_INSTALL_ORIGIN: 'dmg_or_direct_download',
+    });
+
+    expect(selection.receipt.selected_carrier).toBe('app_private_install');
+    expect(selection.receipt.active_framework_count).toBe(1);
+    expect(selection.packageRoot).toBe(privateRoot);
+  });
+
+  it('rejects a selected carrier whose Framework API is outside the App-required range', () => {
+    const homeDir = makeTempRoot('opl-incompatible-carrier-home');
+    makeFrameworkCarrier(path.join(homeDir, '.opl', 'one-person-lab'), '26.6.27', 'p18.stage-runtime');
+
+    expect(() =>
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      })
+    ).toThrow(/Framework API p18\.stage-runtime is incompatible with App-required p19\.stage-runtime/);
+  });
+
+  it('rejects the retired opl-framework-shared package identity', () => {
+    const homeDir = makeTempRoot('opl-retired-carrier-home');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(privateRoot);
+    fs.writeFileSync(
+      path.join(privateRoot, 'package.json'),
+      JSON.stringify({ name: 'opl-framework-shared', version: '0.1.0' }),
+      'utf8'
+    );
+
+    expect(() =>
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      })
+    ).toThrow(/package identity opl-framework/);
   });
 
   it('sends OPL Gateway keys only through stdin and keeps the command redacted', () => {
