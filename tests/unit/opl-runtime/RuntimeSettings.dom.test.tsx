@@ -4,10 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
-import {
-  executeManagedUpdateRead,
-  resetManagedUpdateMaintenanceForTest,
-} from '@/renderer/services/managedUpdateMaintenance';
+import { resetManagedUpdateMaintenanceForTest } from '@/renderer/services/managedUpdateMaintenance';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -278,66 +275,6 @@ const managedUpdateStatusResult = {
   },
 };
 
-const managedUpdateAutoApplyPlanResult = {
-  surface: 'update_plan',
-  command: 'opl update plan --json',
-  stdout: '{}',
-  parsed: {
-    managed_update: {
-      operation: 'plan',
-      idempotency_lock: { status: 'released' },
-      execution: { status: 'completed' },
-      reload_guidance: 'Reload visible OPL capabilities after background maintenance.',
-      components: [
-        {
-          component_id: 'installation_carrier',
-          state: 'host_executor_required',
-          safe_to_apply: true,
-          host_executor_required: true,
-          host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
-          host_update_route_examples: [
-            'install-docker-webui.sh --yes --update',
-            'docker compose pull && docker compose up -d',
-          ],
-          data_volume_preservation: 'required_before_replacing_docker_webui_image',
-          preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
-          required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
-          manual_guidance: 'Update the installation carrier from the host, not from opl update apply.',
-        },
-        {
-          component_id: 'runtime_substrate',
-          state: 'update_available',
-          safe_to_apply: true,
-          needs_restart: true,
-          reload_guidance: 'Restart the app before the new runtime is visible.',
-        },
-        {
-          component_id: 'capability_packages',
-          state: 'update_available',
-          safe_to_apply: true,
-          reload_guidance: 'Reload Codex plugin cache after agent package sync.',
-        },
-        {
-          component_id: 'codex_surface',
-          state: 'staged',
-          needs_reload: true,
-          reload_guidance: 'Reload the app to refresh visible capabilities.',
-        },
-        {
-          component_id: 'workflow_profile',
-          state: 'current',
-          auto_apply: {
-            mode: 'projection_only',
-            eligible: false,
-            app_background_safe: false,
-            blocked_reasons: ['workflow_profile_requires_codex_semantic_merge'],
-          },
-        },
-      ],
-    },
-  },
-};
-
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
     resetOplAppStateLoadsForTest();
@@ -469,31 +406,39 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
   });
 
-  it('renders runtime status and module path-source values through i18n aliases', async () => {
+  it('renders the maintenance health summary and action domains without technical details', async () => {
     render(<RuntimeSettings />);
 
-    await waitFor(() =>
-      expect(
-        screen.getAllByText('settings.oplEnvironmentPage.status.attention_required attention_required').length
-      ).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getByTestId('opl-runtime-health-summary')).toBeInTheDocument());
+    expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
+      'settings.oplEnvironmentPage.healthSummary.usable'
     );
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.diagnostics.title'));
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle'));
-    expect(document.body.textContent).toContain(
-      'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
+    expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.title'
     );
-    expect(screen.queryByText('settings.oplEnvironmentPage.status.attention_needed')).not.toBeInTheDocument();
+    ['appUpdates', 'runtimeEnvironment', 'capabilitySurfaceSync', 'localServicesRepair'].forEach((key) => {
+      expect(screen.getByTestId(`opl-maintenance-hub-${key}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`opl-maintenance-action-${key}`)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
   });
 
-  it('normalizes OPL plugin and module labels to one display style', async () => {
+  it('mounts module and update diagnostics only after the user opens technical details', async () => {
     render(<RuntimeSettings />);
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
 
-    expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OPL Meta Agent').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OPL Flow').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+
+    expect(await screen.findByTestId('settings-maintenance-technical-details')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('Med Auto Science');
+    expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('OPL Book Forge');
+    expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
     expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
     expect(screen.queryByText('opl-meta-agent')).not.toBeInTheDocument();
     expect(screen.queryByText('opl-flow')).not.toBeInTheDocument();
@@ -657,407 +602,6 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(
       screen.queryByText('opl runtime app-operator-drilldown --task dm002-taskrun --json')
     ).not.toBeInTheDocument();
-  });
-
-  it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
-    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent('Installation carrier');
-    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('OPL Runtime Fabric');
-    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent('OPL capability packages');
-    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent('Codex Surface');
-    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent('Workflow profile');
-    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.workflowProfile'
-    );
-    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.semanticMerge'
-    );
-    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.codexSurface'
-    );
-    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.projectionOnly'
-    );
-    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired'
-    );
-    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.hostRoute'
-    );
-    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
-    );
-    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.canApply'
-    );
-    expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
-      'settings.oplEnvironmentPage.healthSummary.usable'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.title'
-    );
-    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
-    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.title'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).not.toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'
-    );
-    expect(screen.queryByTestId('opl-maintenance-recent-results')).not.toBeInTheDocument();
-    [
-      'opl-maintenance-hub-appUpdates',
-      'opl-maintenance-hub-runtimeEnvironment',
-      'opl-maintenance-hub-capabilitySurfaceSync',
-      'opl-maintenance-hub-localServicesRepair',
-    ].forEach((testId) => {
-      expect(within(screen.getByTestId(testId)).queryAllByRole('button')).toHaveLength(0);
-    });
-    expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.repair'
-    );
-    expect(screen.getByTestId('opl-managed-update-recommended-action')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.actions.recommendedRepair'
-    );
-    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
-      'settings.oplEnvironmentPage.developerSource.title'
-    );
-    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
-      'settings.oplEnvironmentPage.developerSource.dirtyImpact'
-    );
-    expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
-    expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent('Preview changes');
-    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
-    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('Runtime update is verified');
-    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent(
-      'receipt://runtime_substrate/latest'
-    );
-    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[2]);
-    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
-      'Reload Codex plugin cache after repair.'
-    );
-    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.hostManualRouteTitle'
-    );
-    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.hostUpdateRoute host_executor_runs_documented_installer_or_compose_pull_and_up'
-    );
-    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.hostUpdateRouteExamples install-docker-webui.sh --yes --update, docker compose pull && docker compose up -d'
-    );
-    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.manualGuidance Docker/WebUI image update must run from the host and preserve data volumes.'
-    );
-    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
-      'OnePersonLab/data -> /data, OnePersonLab/projects -> /projects'
-    );
-    expect(screen.getByTestId('opl-managed-update-copy-host-route-installation_carrier')).toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-apply-installation_carrier')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-repair-installation_carrier')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-rollback-installation_carrier')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-managed-update-apply-runtime_substrate')).toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-apply-codex_surface')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-rollback-codex_surface')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-apply-workflow_profile')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-repair-workflow_profile')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-rollback-workflow_profile')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('opl-managed-update-semantic-merge-workflow_profile'));
-    await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledTimes(1));
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
-
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-capability_packages'));
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
-    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
-    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.confirmation.willChange'
-    );
-    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.confirmation.willNotChange'
-    );
-    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
-      'receipt://capability_packages/failed-sync'
-    );
-    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'capability_packages' })
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
-        'settings.oplEnvironmentPage.updates.postAction.title'
-      )
-    );
-    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('capability_packages');
-    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.postAction.nextCheck'
-    );
-    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.postAction.reloadGuidance'
-    );
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({ componentId: 'runtime_substrate' });
-    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
-    );
-    fireEvent.click(screen.getByTestId('opl-managed-update-repair-capability_packages'));
-    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_packages',
-        receiptId: 'receipt://capability_packages/failed-sync',
-      })
-    );
-    fireEvent.click(screen.getByTestId('opl-managed-update-rollback-runtime_substrate'));
-    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
-    );
-  });
-
-  it('runs only the recommended App repair and refreshes state without batch update mutations', async () => {
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByTestId('settings-maintenance-recommended-action'));
-
-    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
-      'Confirm recommended repair'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
-      'Will not overwrite local work or delete user data.'
-    );
-
-    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable-confirm'));
-
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
-    );
-    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'runtime_substrate',
-    });
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'codex_surface',
-    });
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'installation_carrier',
-    });
-    expect(bridgeMocks.rollbackUpdateComponentInvoke).not.toHaveBeenCalled();
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
-  });
-
-  it('routes a local-service recommendation through the App doctor action contract', async () => {
-    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
-      ...managedUpdateStatusResult,
-      parsed: {
-        managed_update: {
-          ...managedUpdateStatusResult.parsed.managed_update,
-          components: managedUpdateStatusResult.parsed.managed_update.components.map((component) => ({
-            ...component,
-            state: 'current',
-            safe_to_apply: false,
-            repair_allowed: false,
-            needs_restart: false,
-            needs_reload: false,
-            conditions: [],
-          })),
-        },
-      },
-    });
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
-    );
-    fireEvent.click(screen.getByTestId('settings-maintenance-recommended-action'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
-    );
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
-  });
-
-  it('renders user-friendly agent module maintenance from app state modules and managed update actions', async () => {
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    const section = screen.getByTestId('opl-module-maintenance');
-    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.title');
-    expect(section).toHaveTextContent('Med Auto Science');
-    expect(section).toHaveTextContent('Med Auto Grant');
-    expect(section).toHaveTextContent('RedCube AI');
-    expect(section).toHaveTextContent('OPL Meta Agent');
-    expect(section).toHaveTextContent('OPL Book Forge');
-    expect(section).toHaveTextContent('bookforge-1.0.0');
-    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired');
-    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');
-
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-check'));
-    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-repair-capability_packages'));
-    expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
-    expect(screen.getByTestId('opl-module-maintenance-confirmation')).toHaveTextContent('Confirm Changes');
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_packages',
-        receiptId: 'receipt://capability_packages/failed-sync',
-      })
-    );
-    expect(screen.getByTestId('opl-module-maintenance-component-codex_surface')).toHaveTextContent('Codex Surface');
-    expect(screen.queryByTestId('opl-module-maintenance-apply-codex_surface')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-module-maintenance-rollback-codex_surface')).not.toBeInTheDocument();
-  });
-
-  it('does not expose component mutation buttons for dirty managed module checkouts', async () => {
-    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
-      ...managedUpdateStatusResult,
-      parsed: {
-        managed_update: {
-          ...managedUpdateStatusResult.parsed.managed_update,
-          components: managedUpdateStatusResult.parsed.managed_update.components.map((component) =>
-            component.component_id === 'capability_packages'
-              ? { ...component, dirty_checkout: true, safe_to_apply: true, rollback_allowed: true }
-              : component
-          ),
-        },
-      },
-    });
-
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    const component = screen.getByTestId('opl-module-maintenance-component-capability_packages');
-    expect(component).toHaveTextContent('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
-    expect(screen.queryByTestId('opl-module-maintenance-apply-capability_packages')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-module-maintenance-repair-capability_packages')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-module-maintenance-rollback-capability_packages')).not.toBeInTheDocument();
-  });
-
-  it('projects background managed update maintenance timestamps and failures into Settings Runtime', async () => {
-    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
-      ...managedUpdateStatusResult,
-      ok: false,
-      error: { message: 'managed update lock is held' },
-    });
-
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
-    const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastRunAt');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.nextRunAt');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastFailure');
-    expect(backgroundStatus).toHaveTextContent('managed update lock is held');
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    fireEvent.click(screen.getByTestId('opl-managed-update-check'));
-
-    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(screen.getByTestId('opl-managed-update-background-status')).toHaveTextContent(
-        'settings.oplEnvironmentPage.updates.background.noFailure'
-      )
-    );
-  });
-
-  it('shows loading only on the managed update read action that is running', async () => {
-    let resolveCheck: (value: typeof managedUpdateStatusResult) => void = () => {};
-    bridgeMocks.runUpdateCheckInvoke.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveCheck = resolve;
-      })
-    );
-
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    const refreshButton = screen.getByTestId('opl-managed-update-refresh');
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    const checkButton = screen.getByTestId('opl-managed-update-check');
-    const planButton = screen.getByTestId('opl-managed-update-plan');
-    expect(checkButton).toBeTruthy();
-    expect(planButton).toBeTruthy();
-
-    await waitFor(() => expect(refreshButton).not.toBeDisabled());
-    fireEvent.click(checkButton!);
-
-    await waitFor(() => expect(screen.getByTestId('opl-managed-update-check').className).toContain('arco-btn-loading'));
-    expect(refreshButton.className).not.toContain('arco-btn-loading');
-    expect(planButton?.className).not.toContain('arco-btn-loading');
-
-    await act(async () => {
-      resolveCheck(managedUpdateStatusResult);
-    });
-
-    await waitFor(() =>
-      expect(screen.getByTestId('opl-managed-update-check').className).not.toContain('arco-btn-loading')
-    );
-  });
-
-  it('projects background managed update refresh-only skip reason and reload guidance', async () => {
-    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce(managedUpdateAutoApplyPlanResult);
-
-    render(<RuntimeSettings />);
-
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
-
-    await act(async () => {
-      await executeManagedUpdateRead('plan', {
-        background: true,
-        trigger: 'daily_background_maintenance',
-      });
-    });
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
-    const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
-    expect(backgroundStatus).not.toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastSkipReason');
-    expect(backgroundStatus).toHaveTextContent('installation_carrier: host_executor_required');
-    expect(backgroundStatus).toHaveTextContent('runtime_substrate: restart_required');
-    expect(backgroundStatus).toHaveTextContent('capability_packages: refresh_only');
-    expect(backgroundStatus).toHaveTextContent('codex_surface: manual_confirmation_required');
-    expect(backgroundStatus).not.toHaveTextContent('workflow_profile: manual_confirmation_required');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.reloadGuidance');
-    expect(backgroundStatus).toHaveTextContent('Reload visible OPL capabilities after background maintenance.');
   });
 
   it('does not expose a Settings Runtime fast-state refresh button during cached background revalidation', async () => {
