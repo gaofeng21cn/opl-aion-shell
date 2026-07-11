@@ -95,18 +95,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     }
   };
 
-  const handleFooterNavigate = (path: '/settings/access' | '/settings/about') => {
-    cleanupSiderTooltips();
-    blurActiveElement();
-    closePreview();
-    Promise.resolve(navigate(path)).catch((error) => {
-      console.error('Navigation failed:', error);
-    });
-    if (onSessionClick) {
-      onSessionClick();
-    }
-  };
-
   const handleQuickThemeToggle = () => {
     void setTheme(theme === 'dark' ? 'light' : 'dark');
   };
@@ -224,8 +212,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         theme={theme}
         siderTooltipProps={siderTooltipProps}
         onSettingsClick={handleSettingsClick}
-        onAccountClick={() => handleFooterNavigate('/settings/access')}
-        onHelpClick={() => handleFooterNavigate('/settings/about')}
         onThemeToggle={handleQuickThemeToggle}
       />
     </div>

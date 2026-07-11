@@ -7,7 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { ArrowCircleLeft, Help, Moon, SettingTwo, SunOne, User } from '@icon-park/react';
+import { ArrowCircleLeft, Moon, SettingTwo, SunOne } from '@icon-park/react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
 
@@ -18,8 +18,6 @@ interface SiderFooterProps {
   theme: string;
   siderTooltipProps: SiderTooltipProps;
   onSettingsClick: () => void;
-  onAccountClick: () => void;
-  onHelpClick: () => void;
   onThemeToggle: () => void;
 }
 
@@ -30,8 +28,6 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
   theme,
   siderTooltipProps,
   onSettingsClick,
-  onAccountClick,
-  onHelpClick,
   onThemeToggle,
 }) => {
   const { t } = useTranslation();
@@ -53,59 +49,45 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
       style={{ lineHeight: 0 }}
     />
   );
-  const showThemeToggle = isSettings && !collapsed;
+  const settingsLabel = isSettings ? t('common.back') : t('common.settings');
+  const showThemeToggle = isSettings;
   const themeTooltip = theme === 'dark' ? t('settings.lightMode') : t('settings.darkMode');
+  const isSettingsRow = isSettings && !collapsed;
 
   return (
     <div className='shrink-0 sider-footer mt-auto pt-8px pb-8px border-t border-solid border-[var(--color-border-2)] border-l-0 border-r-0 border-b-0'>
-      <div className='flex flex-col gap-2px'>
-        {[
-          {
-            key: 'account',
-            label: t('common.account'),
-            icon: <User theme='outline' size='16' fill='currentColor' />,
-            onClick: onAccountClick,
-          },
-          {
-            key: 'help',
-            label: t('common.help'),
-            icon: <Help theme='outline' size='16' fill='currentColor' />,
-            onClick: onHelpClick,
-          },
-          {
-            key: 'settings',
-            label: isSettings ? t('common.back') : t('common.settings'),
-            icon: settingsIcon,
-            onClick: onSettingsClick,
-          },
-        ].map((entry) => (
-          <Tooltip key={entry.key} {...siderTooltipProps} content={entry.label} position='right'>
-            <Button
-              type='text'
-              className={classNames(
-                '!h-34px !w-full !flex !items-center !gap-8px !rd-8px !text-t-primary !border-0',
-                collapsed ? '!justify-center !px-0' : '!justify-start !px-10px',
-                isMobile && 'sider-footer-btn-mobile',
-                entry.key === 'settings' && isSettings ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3'
-              )}
-              onClick={entry.onClick}
-              data-testid={`sider-footer-${entry.key}`}
-            >
-              <span className='size-22px flex-center shrink-0 text-t-secondary'>{entry.icon}</span>
-              {!collapsed && <span className='text-14px font-[500] leading-24px truncate'>{entry.label}</span>}
-            </Button>
-          </Tooltip>
-        ))}
+      <div className={classNames('flex gap-2px', isSettingsRow ? 'flex-row items-center' : 'flex-col')}>
+        <Tooltip {...siderTooltipProps} content={settingsLabel} position='right'>
+          <Button
+            type='text'
+            className={classNames(
+              '!h-34px !text-t-primary !border-0',
+              isSettingsRow ? '!flex-1 !justify-start !px-10px !bg-fill-3 hover:!bg-fill-3' : '!w-full',
+              !isSettingsRow && (collapsed ? '!justify-center !px-0' : '!justify-start !px-10px'),
+              !isSettings && '!bg-transparent hover:!bg-fill-3',
+              isMobile && 'sider-footer-btn-mobile !h-44px !min-h-44px'
+            )}
+            icon={<span className='size-22px flex-center shrink-0 text-t-secondary'>{settingsIcon}</span>}
+            onClick={onSettingsClick}
+            data-testid='sider-footer-settings'
+            aria-label={settingsLabel}
+          >
+            {!collapsed && <span className='text-14px font-[500] leading-24px truncate'>{settingsLabel}</span>}
+          </Button>
+        </Tooltip>
         {showThemeToggle && (
           <Tooltip {...siderTooltipProps} content={themeTooltip} position='right'>
             <Button
               type='text'
               onClick={onThemeToggle}
               className={classNames(
-                '!h-32px !w-full !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
-                isMobile && 'sider-footer-btn-mobile'
+                '!h-34px !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
+                isSettingsRow ? '!w-34px !shrink-0' : '!w-full',
+                isMobile && 'sider-footer-btn-mobile !h-44px !min-h-44px',
+                isMobile && isSettingsRow && '!w-44px'
               )}
               aria-label={themeTooltip}
+              data-testid='sider-footer-theme'
             >
               <span className='w-28px h-28px flex items-center justify-center shrink-0'>
                 {theme === 'dark' ? (

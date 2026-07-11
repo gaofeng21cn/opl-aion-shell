@@ -15,6 +15,12 @@ import {
   getSettingsSearchEntries,
   getSettingsTabIcon,
 } from '../sections/settingsNav';
+import {
+  getSettingsTabLabel,
+  getSettingsTabSearchText,
+  OPL_SEARCHABLE_SECONDARY_TAB_IDS,
+  SETTINGS_ROUTE_PATHS,
+} from '../registry/settingsRegistry';
 import { iconColors } from '@/renderer/styles/colors';
 import { normalizeSearchText } from '../registry/settingsRegistry';
 
@@ -32,7 +38,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const extensionTabs = useExtensionSettingsTabs();
   const { resolveExtTabName } = useExtI18n();
 
-  const { menus, searchMatches } = useMemo(() => {
+  const { menus, secondaryMenus, searchMatches } = useMemo(() => {
     const builtins = getBuiltinSettingsNavItems(isDesktop, t);
     const result = buildSettingsNavItems({
       builtinItems: builtins,
@@ -66,6 +72,20 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
           .map((item) => ({ ...item, isSearchResult: true, pageLabel: item.label, itemLabel: '' }))
       : [];
     const searchResult = [...itemMatches, ...extensionMatches];
+    const secondaryItems = OPL_SEARCHABLE_SECONDARY_TAB_IDS.map((id) => {
+      const label = getSettingsTabLabel(id, t);
+      return {
+        id,
+        label,
+        icon: getSettingsTabIcon(id, isDesktop ? 'siderDesktop' : 'siderMobile'),
+        isImageIcon: false,
+        path: SETTINGS_ROUTE_PATHS[id].replace(/^\/settings\/?/, ''),
+        searchText: getSettingsTabSearchText(id, label),
+        isSearchResult: false,
+        pageLabel: label,
+        itemLabel: label,
+      };
+    });
 
     return {
       menus: query
@@ -76,6 +96,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
             pageLabel: item.label,
             itemLabel: item.label,
           })),
+      secondaryMenus: query ? [] : secondaryItems,
       searchMatches: query ? searchResult.length : result.length,
     };
   }, [t, language, isDesktop, extensionTabs, resolveExtTabName, searchQuery]);
@@ -91,6 +112,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   );
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
+  const menuGroups = secondaryMenus.length > 0 ? [menus, secondaryMenus] : [menus];
   return (
     <div
       className={classNames('h-full settings-sider flex flex-col gap-2px overflow-y-auto overflow-x-hidden', {
@@ -122,65 +144,76 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
           {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
         </div>
       )}
-      {menus.map((item) => {
-        const isSelected = pathname.includes(item.path);
-        return (
-          <React.Fragment key={item.id}>
-            <Tooltip {...siderTooltipProps} content={item.label} position='right'>
-              <button
-                type='button'
-                data-settings-id={item.id}
-                data-settings-path={item.path}
-                className={classNames(
-                  'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
-                  item.isSearchResult ? 'min-h-44px py-6px' : 'h-34px',
-                  collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
-                  {
-                    'hover:bg-fill-3': !isSelected,
-                    '!bg-fill-3': isSelected,
-                  }
-                )}
-                onClick={() => selectMenuItem(item.path)}
-                data-testid={item.isSearchResult ? 'settings-search-result' : undefined}
-              >
-                {/* Leading icon — 22px slot to align with main sider rows */}
-                <span className='size-22px flex items-center justify-center shrink-0 line-height-0'>
-                  {item.isImageIcon ? (
-                    <span className='w-16px h-16px flex items-center justify-center'>{item.icon}</span>
-                  ) : (
-                    React.cloneElement(
-                      item.icon as React.ReactElement<{
-                        theme?: string;
-                        size?: string | number;
-                        className?: string;
-                        strokeWidth?: number;
-                      }>,
+      {menuGroups.map((group, groupIndex) => (
+        <React.Fragment key={groupIndex === 0 ? 'primary' : 'secondary'}>
+          {groupIndex > 0 && (
+            <div
+              className='settings-sider__secondary-divider'
+              data-testid='settings-sider-secondary-divider'
+              role='separator'
+            />
+          )}
+          {group.map((item) => {
+            const isSelected = pathname.includes(item.path);
+            return (
+              <React.Fragment key={item.id}>
+                <Tooltip {...siderTooltipProps} content={item.label} position='right'>
+                  <button
+                    type='button'
+                    data-settings-id={item.id}
+                    data-settings-path={item.path}
+                    className={classNames(
+                      'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
+                      item.isSearchResult ? 'min-h-44px py-6px' : 'h-34px',
+                      collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
                       {
-                        theme: 'outline',
-                        size: '16',
-                        strokeWidth: 3,
-                        className: 'block leading-none text-t-secondary',
+                        'hover:bg-fill-3': !isSelected,
+                        '!bg-fill-3': isSelected,
                       }
-                    )
-                  )}
-                </span>
-                <FlexFullContainer className='h-24px collapsed-hidden'>
-                  <div className='settings-sider__item-label overflow-hidden w-full text-14px font-[500] text-t-primary'>
-                    {item.isSearchResult ? (
-                      <div className='flex flex-col min-w-0 leading-18px'>
-                        <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
-                        <span className='truncate'>{item.itemLabel || item.label}</span>
-                      </div>
-                    ) : (
-                      <span className='block lh-24px whitespace-nowrap truncate'>{item.label}</span>
                     )}
-                  </div>
-                </FlexFullContainer>
-              </button>
-            </Tooltip>
-          </React.Fragment>
-        );
-      })}
+                    onClick={() => selectMenuItem(item.path)}
+                    data-testid={item.isSearchResult ? 'settings-search-result' : undefined}
+                  >
+                    {/* Leading icon — 22px slot to align with main sider rows */}
+                    <span className='size-22px flex items-center justify-center shrink-0 line-height-0'>
+                      {item.isImageIcon ? (
+                        <span className='w-16px h-16px flex items-center justify-center'>{item.icon}</span>
+                      ) : (
+                        React.cloneElement(
+                          item.icon as React.ReactElement<{
+                            theme?: string;
+                            size?: string | number;
+                            className?: string;
+                            strokeWidth?: number;
+                          }>,
+                          {
+                            theme: 'outline',
+                            size: '16',
+                            strokeWidth: 3,
+                            className: 'block leading-none text-t-secondary',
+                          }
+                        )
+                      )}
+                    </span>
+                    <FlexFullContainer className='h-24px collapsed-hidden'>
+                      <div className='settings-sider__item-label overflow-hidden w-full text-14px font-[500] text-t-primary'>
+                        {item.isSearchResult ? (
+                          <div className='flex flex-col min-w-0 leading-18px'>
+                            <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
+                            <span className='truncate'>{item.itemLabel || item.label}</span>
+                          </div>
+                        ) : (
+                          <span className='block lh-24px whitespace-nowrap truncate'>{item.label}</span>
+                        )}
+                      </div>
+                    </FlexFullContainer>
+                  </button>
+                </Tooltip>
+              </React.Fragment>
+            );
+          })}
+        </React.Fragment>
+      ))}
     </div>
   );
 };

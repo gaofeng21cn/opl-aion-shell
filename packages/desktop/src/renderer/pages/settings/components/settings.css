@@ -63,10 +63,21 @@
   border-color: transparent;
 }
 
+.settings-sider__secondary-divider {
+  height: 1px;
+  flex: 0 0 1px;
+  margin: 6px 10px;
+  background: var(--border-base);
+}
+
+.settings-sider--collapsed .settings-sider__secondary-divider {
+  margin-inline: 6px;
+}
+
 .opl-settings-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
 }
 
@@ -119,6 +130,17 @@
 
 .opl-settings-section--attention {
   border-color: var(--color-warning-5);
+}
+
+.opl-settings-section.bg-transparent {
+  background: var(--bg-2);
+}
+
+.opl-settings-page > .opl-settings-list {
+  overflow: hidden;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
 }
 
 .opl-settings-section__header {
@@ -255,6 +277,8 @@
 
 .opl-settings-details .opl-settings-section {
   border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .opl-settings-technical-group {

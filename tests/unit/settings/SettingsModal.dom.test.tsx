@@ -2,8 +2,11 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
 import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
+import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
+import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
   default: ({
@@ -164,6 +167,10 @@ vi.mock('react-i18next', () => ({
         'settings.webui': 'WebUI',
         'settings.searchPlaceholder': 'Search settings',
         'settings.searchEmpty': 'No matching settings',
+        'settings.lightMode': 'Light mode',
+        'settings.darkMode': 'Dark mode',
+        'common.back': 'Back to chat',
+        'common.settings': 'Settings',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -255,6 +262,52 @@ describe('SettingsModal OPL App navigation', () => {
     expect(activeEntry).toHaveFocus();
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ left: 0 }));
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('keeps Advanced and About after a Settings secondary-group divider', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/general']}>
+        <SettingsSider />
+      </MemoryRouter>
+    );
+
+    const divider = screen.getByTestId('settings-sider-secondary-divider');
+    const preferences = screen.getByRole('button', { name: 'Preferences' });
+    const advanced = screen.getByRole('button', { name: 'Advanced' });
+    const about = screen.getByRole('button', { name: 'About' });
+
+    expect(preferences.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(divider.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(advanced.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working directories' } });
+
+    expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Settings footer to return and named theme actions', () => {
+    const onSettingsClick = vi.fn();
+    const onThemeToggle = vi.fn();
+
+    render(
+      <SiderFooter
+        isMobile
+        isSettings
+        theme='dark'
+        siderTooltipProps={getSiderTooltipProps(false)}
+        onSettingsClick={onSettingsClick}
+        onThemeToggle={onThemeToggle}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('sider-footer-settings'));
+    fireEvent.click(screen.getByTestId('sider-footer-theme'));
+
+    expect(onSettingsClick).toHaveBeenCalledOnce();
+    expect(onThemeToggle).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
+    expect(screen.queryByTestId('sider-footer-account')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 
   it('caps Settings modal surfaces at an 8px radius', () => {
