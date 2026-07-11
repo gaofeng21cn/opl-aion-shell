@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
+import {
+  getOplDefaultCodexModelDisplayLabel,
+  getOplDefaultCodexReasoningEffort,
+} from '@/common/config/oplProductProfile';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexCompactModelLabel,
@@ -52,7 +55,7 @@ describe('oplCodexModelDisplay', () => {
 
     expect(option.label).toBe('自动（推荐）');
     expect(option.description).toBe(
-      `当前 5.6 Terra · ${formatOplCodexReasoningLabel(defaultReasoning, 'zh-CN')} · 跟随最新最强`
+      `当前 ${getOplDefaultCodexModelDisplayLabel()} · ${formatOplCodexReasoningLabel(defaultReasoning, 'zh-CN')} · 跟随最新最强`
     );
   });
 

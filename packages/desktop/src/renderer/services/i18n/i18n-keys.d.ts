@@ -1991,6 +1991,7 @@ export type I18nKey =
   | 'settings.capabilitiesPage.sourceLabels.developer'
   | 'settings.capabilitiesPage.sourceLabels.local'
   | 'settings.capabilitiesPage.sourceLabels.managed'
+  | 'settings.capabilitiesPage.sourceLabels.other'
   | 'settings.capabilitiesPage.sourceLabels.registry'
   | 'settings.capabilitiesPage.status.attention'
   | 'settings.capabilitiesPage.status.missing'
