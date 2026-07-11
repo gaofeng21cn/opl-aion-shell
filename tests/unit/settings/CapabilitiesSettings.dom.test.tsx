@@ -789,6 +789,39 @@ describe('CapabilitiesSettingsContent', () => {
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).not.toContain('research');
   });
 
+  it('keeps other Home switches interactive while one shortcut preference is pending', async () => {
+    let resolveResearch!: (result: { ok: true; command: string }) => void;
+    const researchResult = new Promise<{ ok: true; command: string }>((resolve) => {
+      resolveResearch = resolve;
+    });
+    bridgeMocks.executeActionInvoke.mockReturnValueOnce(researchResult);
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    const researchSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
+    const grantSwitch = screen.getByTestId('agent-package-home-toggle-details-mag');
+    fireEvent.click(researchSwitch);
+
+    await waitFor(() => expect(researchSwitch).toBeDisabled());
+    expect(researchSwitch).toHaveClass('arco-switch-loading');
+    expect(grantSwitch).not.toBeDisabled();
+    fireEvent.click(researchSwitch);
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(grantSwitch);
+    await waitFor(() => expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(2));
+    expect(researchSwitch).toBeDisabled();
+
+    await act(async () => {
+      resolveResearch({
+        ok: true,
+        command: 'opl app action execute --action agent_package_preferences_set --json',
+      });
+    });
+
+    await waitFor(() => expect(researchSwitch).not.toBeDisabled());
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true });
+  });
+
   it('routes package lifecycle management actions through App action refs', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 

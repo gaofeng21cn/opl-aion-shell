@@ -438,6 +438,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const [manifestUrl, setManifestUrl] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const packageActionTokenRef = useRef<symbol | null>(null);
+  const [pendingShortcutIds, setPendingShortcutIds] = useState<Set<string>>(() => new Set());
+  const shortcutActionTokensRef = useRef<Map<string, symbol>>(new Map());
   const capabilityDetailsPanelRef = useRef<HTMLElement | null>(null);
   const capabilityDetailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState<string | null>(null);
@@ -502,6 +504,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     selectedCapability && ['update', 'sync', 'repair', 'missing'].includes(selectedCapability.availabilityStatus)
   );
   const packageActionBusy = busyAction !== null;
+  const shortcutPreferenceBusy = pendingShortcutIds.size > 0;
+  const packageMutationBusy = packageActionBusy || shortcutPreferenceBusy;
 
   useEffect(() => {
     const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
@@ -513,7 +517,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   }, [selectedCapability?.key]);
 
   const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
-    if (packageActionTokenRef.current) return;
+    if (packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     const actionToken = Symbol(actionId);
     packageActionTokenRef.current = actionToken;
     setBusyAction(actionId);
@@ -558,7 +562,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   };
 
   const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
-    if (!item.packageId || packageActionTokenRef.current) return;
+    if (!item.packageId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     Modal.confirm({
       title: t('settings.capabilitiesPage.packageManager.uninstallConfirmTitle'),
       content: t('settings.capabilitiesPage.packageManager.uninstallConfirmContent'),
@@ -573,32 +577,59 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     shortcutId: string,
     preferences: OplHomeShortcutPreferences
   ): Promise<boolean> => {
+    if (packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return false;
     const shortcutOrder = getOplOrderedHomeAgentShortcuts();
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
     if (!shortcut) return false;
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
-    return executePackageAction('agent_package_preferences_set', {
-      package_id: shortcut.package_id,
-      shortcut_id: shortcut.shortcut_id,
-      visible: isOplHomeShortcutVisible(shortcut, preferences),
-      sort_order:
-        preferenceSortOrder >= 0
-          ? preferenceSortOrder
-          : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
-    });
+    const actionToken = Symbol(shortcutId);
+    shortcutActionTokensRef.current.set(shortcutId, actionToken);
+    setPendingShortcutIds((current) => new Set(current).add(shortcutId));
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: shortcut.package_id,
+          shortcut_id: shortcut.shortcut_id,
+          visible: isOplHomeShortcutVisible(shortcut, preferences),
+          sort_order:
+            preferenceSortOrder >= 0
+              ? preferenceSortOrder
+              : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
+        },
+      });
+      if (result.ok === false) throw new Error(result.error?.message || result.command);
+      await appStateQuery.load('fast', { background: true });
+      Message.success(t('settings.capabilitiesPage.packageManager.actionQueued'));
+      return true;
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+      return false;
+    } finally {
+      if (shortcutActionTokensRef.current.get(shortcutId) === actionToken) {
+        shortcutActionTokensRef.current.delete(shortcutId);
+        setPendingShortcutIds((current) => {
+          const next = new Set(current);
+          next.delete(shortcutId);
+          return next;
+        });
+      }
+    }
   };
 
   const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
-    if (!shortcutId || packageActionTokenRef.current) return;
+    if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return;
     const previousPreferences = getOplHomeShortcutPreferences();
+    const wasHidden = previousPreferences.hiddenShortcutIds.includes(shortcutId);
     const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
     void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
-      if (!succeeded) replaceOplHomeShortcutPreferences(previousPreferences);
+      if (!succeeded) setOplHomeShortcutHidden(shortcutId, wasHidden);
     });
   };
 
   const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
-    if (!shortcutId || packageActionTokenRef.current) return;
+    if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     const previousPreferences = getOplHomeShortcutPreferences();
     const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
     void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
@@ -781,7 +812,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         <Switch
                           size='small'
                           checked={shortcutVisible}
-                          disabled={packageActionBusy}
+                          loading={pendingShortcutIds.has(shortcut.shortcut_id)}
+                          disabled={packageActionBusy || pendingShortcutIds.has(shortcut.shortcut_id)}
                           onChange={(checked) => updateShortcutHidden(shortcut.shortcut_id, !checked)}
                           data-testid={`agent-package-home-toggle-details-${item.key}`}
                         />
@@ -906,7 +938,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   <Space wrap size={6}>
                     <Button
                       size='mini'
-                      disabled={packageActionBusy || selectedShortcutIndex <= 0}
+                      disabled={packageMutationBusy || selectedShortcutIndex <= 0}
                       onClick={() => moveShortcut(selectedShortcutId, -1)}
                       data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
                     >
@@ -915,7 +947,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       disabled={
-                        packageActionBusy ||
+                        packageMutationBusy ||
                         selectedShortcutIndex < 0 ||
                         selectedShortcutIndex >= orderedShortcuts.length - 1
                       }
@@ -938,7 +970,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       size='mini'
                       loading={busyAction === 'agent_package_update'}
                       disabled={
-                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_update')
+                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_update')
                       }
                       onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
                       data-testid={`agent-package-update-${selectedCapability.key}`}
@@ -949,7 +981,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       size='mini'
                       loading={busyAction === 'agent_package_repair'}
                       disabled={
-                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_repair')
+                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_repair')
                       }
                       onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
                       data-testid={`agent-package-repair-${selectedCapability.key}`}
@@ -959,7 +991,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageActionBusy || !selectedCapability.packageLockRef}
+                      disabled={packageMutationBusy || !selectedCapability.packageLockRef}
                       onClick={() =>
                         void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
                           exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
@@ -974,7 +1006,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageActionBusy || !selectedCapability.packageLockRef}
+                      disabled={packageMutationBusy || !selectedCapability.packageLockRef}
                       onClick={() =>
                         void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
                           exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
@@ -991,7 +1023,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       status='danger'
                       loading={busyAction === 'agent_package_uninstall'}
                       disabled={
-                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')
+                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')
                       }
                       onClick={() => confirmUninstallPackage(selectedCapability)}
                       data-testid={`agent-package-uninstall-${selectedCapability.key}`}
@@ -1120,7 +1152,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   size='small'
                   icon={<Refresh theme='outline' />}
                   loading={busyAction === 'refresh_registry'}
-                  disabled={packageActionBusy}
+                  disabled={packageMutationBusy}
                   onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
                   data-testid='agent-package-refresh-registry'
                 >
@@ -1151,7 +1183,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   <Button
                     size='small'
                     loading={busyAction === 'install_from_manifest_url'}
-                    disabled={packageActionBusy || !manifestUrl.trim()}
+                    disabled={packageMutationBusy || !manifestUrl.trim()}
                     onClick={() =>
                       executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
                     }
