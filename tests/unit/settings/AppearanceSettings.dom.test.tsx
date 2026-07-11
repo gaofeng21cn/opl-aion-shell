@@ -1,12 +1,14 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppearanceModalContent from '@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent';
 
 const bridgeMocks = vi.hoisted(() => ({
   getStartOnBootStatus: vi.fn(),
   getGpuStatus: vi.fn(),
   getCloseToTray: vi.fn(),
+  getKeepAwake: vi.fn(),
+  setKeepAwake: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -21,6 +23,8 @@ vi.mock('@/common', () => ({
     systemSettings: {
       getCloseToTray: { invoke: bridgeMocks.getCloseToTray },
       setCloseToTray: { invoke: vi.fn() },
+      getKeepAwake: { invoke: bridgeMocks.getKeepAwake },
+      setKeepAwake: { invoke: bridgeMocks.setKeepAwake },
     },
   },
 }));
@@ -30,6 +34,7 @@ vi.mock('@/common/config/configService', () => ({
     get: vi.fn((key: string) => {
       const defaults: Record<string, unknown> = {
         'system.closeToTray': true,
+        'system.keepAwake': false,
         'system.notificationEnabled': true,
         'system.cronNotificationEnabled': false,
         'system.autoPreviewOfficeFiles': true,
@@ -96,6 +101,8 @@ vi.mock('react-i18next', () => ({
         'settings.startOnBootUnsupported': 'Unavailable.',
         'settings.closeToTray': 'Keep running after closing the window',
         'settings.closeToTrayDesc': 'Keep background tasks running.',
+        'settings.keepAwake': 'Keep awake',
+        'settings.keepAwakeDesc': 'Prevent the computer from sleeping.',
         'settings.saveUploadToWorkspace': 'Save uploads to workspace',
         'settings.autoPreviewOfficeFiles': 'Preview Office files',
         'settings.autoPreviewOfficeFilesDesc': 'Open new Office files automatically.',
@@ -135,6 +142,8 @@ describe('AppearanceModalContent', () => {
       data: { userOverride: 'auto', autoDisabled: false, crashCount: 0, lastCrashAt: null },
     });
     bridgeMocks.getCloseToTray.mockResolvedValue(true);
+    bridgeMocks.getKeepAwake.mockResolvedValue(false);
+    bridgeMocks.setKeepAwake.mockResolvedValue(undefined);
 
     render(<AppearanceModalContent />);
 
@@ -151,6 +160,7 @@ describe('AppearanceModalContent', () => {
     const appBehavior = screen.getByTestId('settings-preferences-primary');
     expect(appBehavior).toHaveTextContent('App behavior');
     expect(appBehavior).toHaveTextContent('Keep running after closing the window');
+    expect(appBehavior).toHaveTextContent('Keep awake');
     expect(appBehavior).toHaveTextContent('Save uploads to workspace');
     expect(appBehavior).toHaveTextContent('Model response timeout');
     await waitFor(() => expect(appBehavior).toHaveTextContent('Hardware acceleration'));
@@ -173,5 +183,8 @@ describe('AppearanceModalContent', () => {
     expect(advancedPreferences).not.toHaveAttribute('open');
     expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
     expect(appBehavior.querySelectorAll('details')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('settings-keep-awake').querySelector('[role="switch"]')!);
+    await waitFor(() => expect(bridgeMocks.setKeepAwake).toHaveBeenCalledWith({ enabled: true }));
   });
 });

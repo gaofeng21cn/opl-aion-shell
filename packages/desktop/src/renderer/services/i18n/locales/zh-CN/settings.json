@@ -178,6 +178,8 @@
   "startOnBootUpdateFailed": "更新开机启动设置失败",
   "closeToTray": "关闭窗口后继续运行",
   "closeToTrayDesc": "关闭主窗口时保留后台任务，并可从菜单栏重新打开。",
+  "keepAwake": "保持唤醒",
+  "keepAwakeDesc": "One Person Lab App 运行时阻止电脑进入休眠。",
   "hardwareAcceleration": "硬件加速",
   "hardwareAccelerationDesc": "使用 GPU 渲染界面。如果启动时崩溃或画面异常，请关闭。",
   "hardwareAccelerationAutoDisabled": "因 GPU 反复崩溃已自动关闭。",

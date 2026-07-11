@@ -2363,6 +2363,8 @@ export type I18nKey =
   | 'settings.includeNightlyUpdates'
   | 'settings.includePrereleaseUpdates'
   | 'settings.installed'
+  | 'settings.keepAwake'
+  | 'settings.keepAwakeDesc'
   | 'settings.language'
   | 'settings.lark.agent'
   | 'settings.lark.agentDesc'

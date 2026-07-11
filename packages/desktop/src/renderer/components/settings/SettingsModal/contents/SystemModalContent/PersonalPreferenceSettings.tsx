@@ -34,6 +34,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     platform: 'web',
   });
   const [closeToTray, setCloseToTray] = useState(false);
+  const [keepAwake, setKeepAwake] = useState(false);
   const [gpuStatus, setGpuStatus] = useState<IGpuStatus | null>(null);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [cronNotificationEnabled, setCronNotificationEnabled] = useState(false);
@@ -68,12 +69,20 @@ const PersonalPreferenceSettings: React.FC = () => {
 
   useEffect(() => {
     setCloseToTray(configService.get('system.closeToTray') ?? false);
+    setKeepAwake(configService.get('system.keepAwake') ?? false);
     if (isDesktop) {
       ipcBridge.systemSettings.getCloseToTray
         .invoke()
         .then((enabled) => {
           setCloseToTray(enabled);
           configService.setLocal('system.closeToTray', enabled);
+        })
+        .catch(() => {});
+      ipcBridge.systemSettings.getKeepAwake
+        .invoke()
+        .then((enabled) => {
+          setKeepAwake(enabled);
+          configService.setLocal('system.keepAwake', enabled);
         })
         .catch(() => {});
     }
@@ -150,6 +159,15 @@ const PersonalPreferenceSettings: React.FC = () => {
     },
     [gpuStatus, modal, t]
   );
+
+  const handleKeepAwakeChange = useCallback((checked: boolean) => {
+    setKeepAwake(checked);
+    configService.setLocal('system.keepAwake', checked);
+    ipcBridge.systemSettings.setKeepAwake.invoke({ enabled: checked }).catch(() => {
+      setKeepAwake(!checked);
+      configService.setLocal('system.keepAwake', !checked);
+    });
+  }, []);
 
   const handleStartOnBootChange = useCallback(
     (checked: boolean) => {
@@ -241,6 +259,13 @@ const PersonalPreferenceSettings: React.FC = () => {
       label: t('settings.closeToTray'),
       description: t('settings.closeToTrayDesc'),
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
+    },
+    {
+      key: 'keepAwake',
+      label: t('settings.keepAwake'),
+      description: t('settings.keepAwakeDesc'),
+      testId: 'settings-keep-awake',
+      component: <Switch checked={keepAwake} onChange={handleKeepAwakeChange} />,
     },
     {
       key: 'saveUploadToWorkspace',

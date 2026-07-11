@@ -178,6 +178,8 @@
   "startOnBootUpdateFailed": "Failed to update start on boot setting",
   "closeToTray": "Keep running after closing the window",
   "closeToTrayDesc": "Keep background tasks running and reopen the app from the menu bar.",
+  "keepAwake": "Keep awake",
+  "keepAwakeDesc": "Prevent the computer from sleeping while One Person Lab App is running.",
   "hardwareAcceleration": "Hardware Acceleration",
   "hardwareAccelerationDesc": "Use the GPU to render the UI. Disable if the app crashes on launch or graphics flicker.",
   "hardwareAccelerationAutoDisabled": "Disabled automatically after repeated GPU crashes.",

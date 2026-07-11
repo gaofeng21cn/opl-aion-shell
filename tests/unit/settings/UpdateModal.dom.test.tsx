@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import UpdateModal from '@/renderer/components/settings/UpdateModal';
 
 const bridgeMocks = vi.hoisted(() => ({
+  getAppStateInvoke: vi.fn(),
   updateOpenOn: vi.fn(),
   updateCheckInvoke: vi.fn(),
   updateDownloadInvoke: vi.fn(),
@@ -19,6 +20,9 @@ const bridgeMocks = vi.hoisted(() => ({
 
 vi.mock('@/common', () => ({
   ipcBridge: {
+    oplRuntime: {
+      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
+    },
     update: {
       open: { on: bridgeMocks.updateOpenOn },
       check: { invoke: bridgeMocks.updateCheckInvoke },
@@ -89,6 +93,9 @@ describe('UpdateModal checking layout', () => {
     bridgeMocks.updateOpenOn.mockReturnValue(() => undefined);
     bridgeMocks.updateDownloadProgressOn.mockReturnValue(() => undefined);
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      parsed: { app_state: { update_channel: 'stable' } },
+    });
     bridgeMocks.autoUpdateCheckInvoke.mockReturnValue(new Promise(() => undefined));
     bridgeMocks.updateCheckInvoke.mockReturnValue(new Promise(() => undefined));
   });
@@ -104,6 +111,24 @@ describe('UpdateModal checking layout', () => {
 
     await waitFor(() => expect(screen.getByText('正在检查更新')).toBeInTheDocument());
     expect(screen.getByText('正在检查更新').parentElement).toHaveClass('min-h-224px', 'h-full', 'box-border');
+  });
+
+  it('uses the app-state preview channel for both updater checks and ignores legacy local storage', async () => {
+    localStorage.setItem('update.includeNightly', 'false');
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      parsed: { app_state: { release: { channel: 'preview' } } },
+    });
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({ success: true, data: { checked: true } });
+    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: { currentVersion: '1.0.0', updateAvailable: false },
+    });
+
+    render(<UpdateModal />);
+    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
+
+    await waitFor(() => expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' }));
+    expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' });
   });
 
   it('selects zh-CN release notes from hidden release blocks when the current language is Chinese', async () => {

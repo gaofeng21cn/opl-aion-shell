@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import { Button, Modal, Typography } from '@arco-design/web-react';
 import { Help, Info, Refresh, Right } from '@icon-park/react';
@@ -22,7 +22,14 @@ type UpdateStatus = 'checking' | 'current' | 'available' | 'unknown';
 const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
 const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
-const includeNightlyUpdates = false;
+
+function resolveUpdaterChannel(appState: Record<string, unknown>): 'stable' | 'nightly' {
+  const release = oplRecord(appState.release);
+  const managedUpdate = oplRecord(appState.managed_update_plane);
+  const frameworkChannel =
+    oplString(release.channel) ?? oplString(appState.update_channel) ?? oplString(managedUpdate.update_channel);
+  return frameworkChannel === 'preview' ? 'nightly' : 'stable';
+}
 
 type AppVersions = {
   appVersion: string;
@@ -80,6 +87,7 @@ const AboutModalContent: React.FC = () => {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(isElectron ? 'checking' : 'unknown');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const appStateQuery = useOplAppState('fast');
+  const loadAppState = appStateQuery.load;
   const release = oplRecord(appStateQuery.appState.release);
   const appVersions: AppVersions = {
     appVersion: currentAppVersion,
@@ -102,8 +110,8 @@ const AboutModalContent: React.FC = () => {
       return;
     }
     setUpdateStatus('checking');
-    const channel = includeNightlyUpdates ? 'nightly' : 'stable';
     try {
+      const channel = resolveUpdaterChannel(getAppState(await loadAppState('fast', { background: true })));
       const result = await ipcBridge.update.check.invoke({ channel });
       if (!result?.success) {
         setLatestStableVersion('');
@@ -119,7 +127,7 @@ const AboutModalContent: React.FC = () => {
       setLatestStableVersion('');
       setUpdateStatus('unknown');
     }
-  }, [currentAppVersion, isElectron]);
+  }, [currentAppVersion, isElectron, loadAppState]);
 
   useEffect(() => {
     void checkForUpdates();

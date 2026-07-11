@@ -236,6 +236,7 @@ describe('StorageSettingsContent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       value: scrollIntoView,
       configurable: true,
@@ -412,6 +413,7 @@ describe('StorageSettingsContent', () => {
     expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem('opl.storage.latestConversationArchiveReceipt.v1')).toBe(receipt.receipt_path);
 
     fireEvent.click(screen.getByTestId('storage-conversation-delete'));
     expect(bridgeMocks.deleteConversationArtifacts).not.toHaveBeenCalled();
@@ -426,6 +428,28 @@ describe('StorageSettingsContent', () => {
         confirmation: `delete:${receipt.conversation_id}`,
       })
     );
+  });
+
+  it('restores the latest valid archive receipt after inventory loads', async () => {
+    localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', receipt.receipt_path);
+
+    render(<StorageSettingsContent />);
+
+    await waitFor(() =>
+      expect(bridgeMocks.restoreConversationProof).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path })
+    );
+    expect(screen.getByTestId('storage-conversation-delete')).toBeEnabled();
+  });
+
+  it('keeps conversation deletion locked when the remembered archive proof is invalid', async () => {
+    localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', 'receipt://invalid');
+    bridgeMocks.restoreConversationProof.mockRejectedValueOnce(new Error('missing proof'));
+
+    render(<StorageSettingsContent />);
+
+    await waitFor(() => expect(bridgeMocks.restoreConversationProof).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
+    expect(localStorage.getItem('opl.storage.latestConversationArchiveReceipt.v1')).toBeNull();
   });
 
   it('keeps archive proof in diagnostics instead of adding another ordinary action', async () => {

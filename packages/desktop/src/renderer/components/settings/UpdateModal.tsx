@@ -11,6 +11,7 @@ import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/update/updateTypes';
+import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { useTranslation } from 'react-i18next';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
@@ -20,18 +21,18 @@ type UpdateChannel = 'stable' | 'nightly';
 type ReleaseNotesLocale = 'zh-CN' | 'en-US';
 
 const OPL_APP_RELEASES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
-const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
-const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
 const CHECKING_MODAL_WIDTH = '400px';
 const RELEASE_NOTES_MODAL_WIDTH = '600px';
 const CHECKING_MODAL_HEIGHT = '224px';
 const RELEASE_NOTES_MODAL_HEIGHT = '420px';
 const RELEASE_NOTES_LOCALES: ReleaseNotesLocale[] = ['zh-CN', 'en-US'];
 
-const readUpdateChannelPreference = (): UpdateChannel => {
-  const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
-  const legacySaved = localStorage.getItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY);
-  return (saved ?? legacySaved) === 'true' ? 'nightly' : 'stable';
+const resolveUpdaterChannel = (appState: Record<string, unknown>): UpdateChannel => {
+  const release = oplRecord(appState.release);
+  const managedUpdate = oplRecord(appState.managed_update_plane);
+  const frameworkChannel =
+    oplString(release.channel) ?? oplString(appState.update_channel) ?? oplString(managedUpdate.update_channel);
+  return frameworkChannel === 'preview' ? 'nightly' : 'stable';
 };
 
 const resolveReleaseNotesLocale = (language?: string): ReleaseNotesLocale => {
@@ -70,6 +71,7 @@ export const selectLocalizedReleaseNotes = (markdown: string, language?: string)
 
 const UpdateModal: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const appStateQuery = useOplAppState('fast');
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('checking');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -114,7 +116,6 @@ const UpdateModal: React.FC = () => {
   };
 
   const checkForUpdates = async () => {
-    const channel = readUpdateChannelPreference();
     setStatus('checking');
     setReleasePageUrl(OPL_APP_RELEASES_URL);
     const fallbackCurrentVersion = appStateVersionRef.current;
@@ -122,32 +123,31 @@ const UpdateModal: React.FC = () => {
       setCurrentVersion(fallbackCurrentVersion);
     }
     try {
+      const channel = resolveUpdaterChannel(getAppState(await appStateQuery.load('fast', { background: true })));
       // Try auto-update (electron-updater) first
       let autoUpdateOk = false;
       let autoUpdateChecked = false;
-      if (channel === 'stable') {
-        try {
-          const res = await ipcBridge.autoUpdate.check.invoke({ channel });
-          autoUpdateChecked = Boolean(res?.success && res.data?.checked);
-          if (res?.success && res.data?.updateInfo) {
-            autoUpdateOk = true;
-            setAutoUpdateInfo({
-              version: res.data.updateInfo.version,
-              releaseNotes: res.data.updateInfo.releaseNotes,
-            });
-          } else if (res?.msg) {
-            console.warn('Auto-update check failed, using manual mode:', res.msg);
-          }
-        } catch (err) {
-          console.warn('Auto-update check error, using manual mode:', err);
+      try {
+        const res = await ipcBridge.autoUpdate.check.invoke({ channel });
+        autoUpdateChecked = Boolean(res?.success && res.data?.checked);
+        if (res?.success && res.data?.updateInfo) {
+          autoUpdateOk = true;
+          setAutoUpdateInfo({
+            version: res.data.updateInfo.version,
+            releaseNotes: res.data.updateInfo.releaseNotes,
+          });
+        } else if (res?.msg) {
+          console.warn('Auto-update check failed, using manual mode:', res.msg);
         }
+      } catch (err) {
+        console.warn('Auto-update check error, using manual mode:', err);
       }
       setAutoUpdateAvailable(autoUpdateOk);
 
       // Always run manual check for version info and release notes
       const res = await ipcBridge.update.check.invoke({ channel });
       if (!res?.success) {
-        if (channel === 'stable' && autoUpdateChecked) {
+        if (autoUpdateChecked) {
           setStatus(autoUpdateOk ? 'available' : 'upToDate');
           return;
         }

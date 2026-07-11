@@ -91,6 +91,7 @@ describe('AboutModalContent OPL release metadata', () => {
       stdout: '{}',
       parsed: {
         app_state: {
+          update_channel: 'stable',
           release: {
             version: '26.4.27',
             channel: 'stable',
@@ -199,6 +200,19 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(await screen.findByText('Version 26.6.27 available')).toBeInTheDocument();
     expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledTimes(2);
     expect(bridgeMocks.updateCheckInvoke).toHaveBeenLastCalledWith({ channel: 'stable' });
+  });
+
+  it('maps the framework preview channel to the nightly updater channel', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: { app_state: { release: { channel: 'preview' } } },
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' }));
   });
 
   it('does not use a release projection version as the latest available release', async () => {

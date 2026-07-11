@@ -75,6 +75,33 @@ const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = 
   logs: 'logs',
 };
 
+const LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY = 'opl.storage.latestConversationArchiveReceipt.v1';
+
+// This pointer only locates a restore candidate; restoreConversationProof remains authoritative.
+const readLatestConversationArchiveReceiptPath = (): string | null => {
+  try {
+    return localStorage.getItem(LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const rememberLatestConversationArchiveReceipt = (receiptPath: string): void => {
+  try {
+    localStorage.setItem(LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY, receiptPath);
+  } catch {
+    // The receipt itself remains authoritative when renderer storage is unavailable.
+  }
+};
+
+const forgetLatestConversationArchiveReceipt = (): void => {
+  try {
+    localStorage.removeItem(LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY);
+  } catch {
+    // Ignore unavailable renderer storage.
+  }
+};
+
 const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
   if (state === 'blocked') return 'red';
   if (state === 'attention') return 'orange';
@@ -158,6 +185,15 @@ export const StorageSettingsContent: React.FC = () => {
   const refreshInventory = React.useCallback(async () => {
     const result = await ipcBridge.localDataLifecycle.getInventory.invoke();
     setInventory(result);
+    const receiptPath = readLatestConversationArchiveReceiptPath();
+    if (!receiptPath) return;
+    try {
+      const receipt = await ipcBridge.localDataLifecycle.restoreConversationProof.invoke({ receiptPath });
+      setConversationProofReceipt(receipt);
+    } catch {
+      forgetLatestConversationArchiveReceipt();
+      setConversationProofReceipt(null);
+    }
   }, []);
 
   const runAction = React.useCallback(
@@ -209,6 +245,7 @@ export const StorageSettingsContent: React.FC = () => {
       (receipt) => {
         setLastReceipt(receipt);
         setConversationProofReceipt(receipt);
+        rememberLatestConversationArchiveReceipt(receipt.receipt_path);
       }
     );
   };
