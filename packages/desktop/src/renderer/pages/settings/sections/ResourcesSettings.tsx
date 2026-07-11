@@ -5,9 +5,10 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Alert, Button, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { LinkCloud, Open, Toolkit } from '@icon-park/react';
+import { Alert, Button, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Earth, LinkCloud, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
@@ -196,6 +197,7 @@ export const ResourcesSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
+  const [remoteSettingsVisible, setRemoteSettingsVisible] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [pendingDockerAction, setPendingDockerAction] = useState<DockerWebuiAction | null>(null);
   const [actionEvidence, setActionEvidence] = useState<DockerActionEvidence | null>(null);
@@ -291,7 +293,44 @@ export const ResourcesSettingsContent: React.FC = () => {
         </div>
       </header>
 
-      <div data-testid='settings-resources-primary'>
+      <div className='grid grid-cols-1 gap-14px lg:grid-cols-2' data-testid='settings-resources-primary'>
+        <section className='opl-settings-section' id='browser-access' data-testid='settings-resources-browser-access'>
+          <span id='web-remote' aria-hidden='true' />
+          <div className='opl-settings-row h-full items-start'>
+            <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
+                <Earth theme='outline' />
+              </span>
+              <div className='min-w-0'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.accessPage.remote.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.description')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativePort')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativeAccount')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativePassword')}
+                </Typography.Text>
+              </div>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <Button
+                data-testid='opl-settings-open-native-remote-settings'
+                icon={<Open theme='outline' />}
+                onClick={() => setRemoteSettingsVisible(true)}
+              >
+                {t('settings.accessPage.remote.openNativeSettings')}
+              </Button>
+            </div>
+          </div>
+        </section>
+
         <section className='opl-settings-section' id='resource-readiness' data-testid='opl-settings-server-webui'>
           {dockerReadiness !== 'ready' && <span data-testid='settings-resources-exception' aria-hidden='true' />}
           <div className='opl-settings-section__header'>
@@ -461,6 +500,17 @@ export const ResourcesSettingsContent: React.FC = () => {
           </Typography.Text>
         </div>
       </details>
+
+      <Modal
+        visible={remoteSettingsVisible}
+        title={t('settings.accessPage.remote.nativeTitle')}
+        footer={null}
+        className='settings-sub-modal'
+        style={{ width: 'min(820px, calc(100vw - 48px))' }}
+        onCancel={() => setRemoteSettingsVisible(false)}
+      >
+        <WebuiModalContent />
+      </Modal>
     </div>
   );
 };
@@ -654,7 +704,7 @@ const ResourceSources: React.FC<{
     );
   }
   return (
-    <div className='flex flex-col gap-12px' data-testid={testId}>
+    <div className='grid grid-cols-1 gap-12px md:grid-cols-2' data-testid={testId}>
       {sources.map((source) => (
         <ResourceSourceRow key={source.key} source={source} />
       ))}

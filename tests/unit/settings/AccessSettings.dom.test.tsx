@@ -73,10 +73,6 @@ vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
-  default: () => <div>Native remote settings</div>,
-}));
-
 vi.mock('@arco-design/web-react', () => {
   const message = (text: React.ReactNode) => {
     const element = document.createElement('div');
@@ -357,6 +353,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
         'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Model & Account shows account/API key status.`,
         'settings.accessPage.modelAccount.title': 'Model access',
+        'settings.accessPage.modelAccount.keyTitle': 'OPL Gateway access key',
         'settings.accessPage.modelAccount.description':
           'Model access is connected; open configuration only when you need to replace the access key.',
         'settings.accessPage.modelAccount.showConfigButton': 'Configure OPL Gateway',
@@ -467,14 +464,15 @@ describe('AccessSettingsContent', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders user-facing model, account, and remote access entries from the fast App state projection', () => {
+  it('renders model access, Codex CLI, and progressive Gateway configuration without resource entries', () => {
     const view = render(<AccessSettingsContent />);
 
     expect(view.getByText('Access')).toBeTruthy();
-    expect(view.getByText('Model access and Codex')).toBeTruthy();
     expect(view.getByText('Model access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
-    expect(view.getByText('Check model access, Codex CLI, and local browser access.')).toBeTruthy();
+    expect(
+      view.getByText('Confirm the active access source and default model before changing configuration.')
+    ).toBeTruthy();
     expect(view.getByText('Codex CLI')).toBeTruthy();
     expect(document.body.textContent).toContain('Installed: 0.125.0');
     expect(document.body.textContent).toContain('Default model: gpt-5.5');
@@ -489,13 +487,11 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
     expect(document.body.textContent).not.toContain('Fix issue');
-    expect(view.getByText('Browser access to this computer')).toBeTruthy();
-    expect(view.getByTestId('settings-access-browser-access')).toBeTruthy();
-    expect(view.getByText('Connection details')).toBeTruthy();
-    expect(view.getByText('Port: 25808')).toBeTruthy();
-    expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
-    expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
+    expect(view.queryByText('Browser access to this computer')).toBeNull();
+    expect(view.queryByTestId('settings-access-browser-access')).toBeNull();
+    expect(view.queryByText('Connection details')).toBeNull();
+    expect(view.queryByText('Port: 25808')).toBeNull();
+    expect(view.queryByTestId('opl-settings-open-native-remote-settings')).toBeNull();
     expect(view.queryByTestId('opl-settings-open-resources-connections')).toBeNull();
     expect(document.body.textContent).not.toContain('Docker WebUI actions are not available yet.');
     expect(document.body.textContent).not.toContain('Install Docker WebUI');
@@ -517,7 +513,8 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
-    expect(view.getByTestId('settings-access-technical-details')).not.toHaveAttribute('open');
+    expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
+    expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {

@@ -31,6 +31,10 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => resourcesSettingsMocks.navigate,
 }));
 
+vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
+  default: () => <div>Native remote settings</div>,
+}));
+
 const createResourceSources = () => ({
   cloud_remote_access: {
     status: 'ready',
@@ -110,6 +114,25 @@ vi.mock('@arco-design/web-react', () => {
       {content}
     </div>
   );
+  const Modal = ({
+    children,
+    visible,
+    title,
+    footer: _footer,
+    onCancel: _onCancel,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    visible?: boolean;
+    title?: React.ReactNode;
+    footer?: React.ReactNode;
+    onCancel?: () => void;
+  }) =>
+    visible ? (
+      <div {...props}>
+        <div>{title}</div>
+        {children}
+      </div>
+    ) : null;
   const Tooltip = ({
     children,
     content: _content,
@@ -131,6 +154,7 @@ vi.mock('@arco-design/web-react', () => {
       success: vi.fn(message),
       error: vi.fn(message),
     },
+    Modal,
     Space,
     Tag,
     Tooltip,
@@ -320,6 +344,13 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.cloudRemoteAccess': '云端与远程访问',
         'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
         'settings.accessPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud 托管计算',
+        'settings.accessPage.remote.title': '浏览器访问这台电脑',
+        'settings.accessPage.remote.description': '从浏览器打开这台电脑上的 OPL。',
+        'settings.accessPage.remote.nativeTitle': '连接信息',
+        'settings.accessPage.remote.nativePort': '端口：25808',
+        'settings.accessPage.remote.nativeAccount': '账号：在远程访问设置中查看或修改。',
+        'settings.accessPage.remote.nativePassword': '密码：在远程访问设置中查看、复制或重置。',
+        'settings.accessPage.remote.openNativeSettings': '打开远程访问设置',
       };
       return labels[key] ?? options?.status ?? options?.defaultValue ?? key;
     },
@@ -358,6 +389,10 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('资源与连接')).toBeTruthy();
     expect(view.getByTestId('settings-page-resources')).toHaveClass('opl-settings-page');
     expect(view.getByTestId('settings-resources-primary')).toBeTruthy();
+    expect(view.getByTestId('settings-resources-browser-access')).toBeTruthy();
+    expect(view.getByText('浏览器访问这台电脑')).toBeTruthy();
+    expect(view.getByText('端口：25808')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
     expect(view.getByTestId('settings-resources-technical-details')).not.toHaveAttribute('open');
     expect(view.getByText('浏览器工作台')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace')).toHaveLength(1);

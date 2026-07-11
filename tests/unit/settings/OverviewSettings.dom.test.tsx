@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   workspaceWritable: true as boolean | null,
   workspaceHealthStatus: 'ready' as string | null,
   permissionMode: 'full-access',
+  modelAccessReady: true,
+  temporalStatus: 'ready',
   moduleSourceMode: 'sibling_workspace',
   moduleStatus: 'dirty',
 }));
@@ -22,8 +24,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({
     appState: {
       core: {
-        codex: { permission_mode: mocks.permissionMode },
+        codex: {
+          permission_mode: mocks.permissionMode,
+          status: 'ready',
+          version: '0.142.4',
+          model_access_ready: mocks.modelAccessReady,
+        },
         executor: { permission_mode: mocks.permissionMode },
+      },
+      provider: {
+        temporal: { health_status: mocks.temporalStatus },
       },
       paths: {
         workspace_root_path: mocks.workspaceRoot,
@@ -129,6 +139,8 @@ describe('OverviewSettings', () => {
     mocks.workspaceWritable = true;
     mocks.workspaceHealthStatus = 'ready';
     mocks.permissionMode = 'full-access';
+    mocks.modelAccessReady = true;
+    mocks.temporalStatus = 'ready';
     mocks.moduleSourceMode = 'sibling_workspace';
     mocks.moduleStatus = 'dirty';
   });
@@ -142,6 +154,12 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-technical-details')).not.toHaveAttribute('open');
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
     expect(screen.queryByTestId('settings-overview-primary-action')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('md:grid-cols-2');
+    expect(screen.getByTestId('settings-overview-card-model-access')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-card-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-card-background')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-card-capabilities')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-card-updates')).toBeInTheDocument();
     expect(screen.queryByText('Common settings')).not.toBeInTheDocument();
   });
 
@@ -157,7 +175,7 @@ describe('OverviewSettings', () => {
     fireEvent.click(screen.getByText('Change or Verify'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
     expect(screen.getByTestId('settings-overview-exception')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
   });
 
   it('counts a capability-pack issue and routes its next action to Maintenance', () => {
@@ -167,5 +185,18 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
     fireEvent.click(screen.getByText('Open Maintenance'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=packages');
+  });
+
+  it('includes model access and background services in the issue queue without inventing duplicate actions', () => {
+    mocks.modelAccessReady = false;
+    mocks.temporalStatus = 'attention_required';
+    mocks.moduleSourceMode = 'sibling_workspace';
+    mocks.moduleStatus = 'ready';
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('2 item(s)');
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
+    expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
   });
 });
