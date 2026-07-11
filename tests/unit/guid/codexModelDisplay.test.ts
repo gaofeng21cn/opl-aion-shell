@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexCompactModelLabel,
@@ -47,9 +48,12 @@ describe('oplCodexModelDisplay', () => {
       },
       localeKey: 'zh-CN',
     });
+    const defaultReasoning = getOplDefaultCodexReasoningEffort();
 
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe('当前 5.6 Terra · 推理超高 · 跟随最新最强');
+    expect(option.description).toBe(
+      `当前 5.6 Terra · ${formatOplCodexReasoningLabel(defaultReasoning, 'zh-CN')} · 跟随最新最强`
+    );
   });
 
   it('displays an unknown catalog default and its highest advertised reasoning effort', () => {
