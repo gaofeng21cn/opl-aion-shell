@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { TMessage } from '@/common/chat/chatLib';
 import type { TChatConversation } from '@/common/config/storage';
 import type { SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
@@ -122,13 +123,14 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       return messagesRef.current;
     }
 
-    const messages = await fetchAllConversationMessages(({ page, page_size }) =>
-      ipcBridge.database.getConversationMessages.invoke({
+    const messages = await fetchAllConversationMessages(({ limit, before, after, anchor_message_id, content_mode }) =>
+      ipcBridge.database.getConversationMessagesCursor.invoke({
         conversation_id,
-        page,
-        page_size,
-        order: 'ASC',
-        content_mode: 'compact',
+        limit,
+        before,
+        after,
+        anchor_message_id,
+        content_mode,
       })
     );
     messagesRef.current = messages;
@@ -239,7 +241,6 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       });
       const selectedDirectory = selectedDirectories?.[0]?.trim();
       if (!selectedDirectory) {
-        messageApi.error?.(t('messages.export.directoryCancelled'));
         return;
       }
       directoryRef.current = selectedDirectory;
@@ -267,7 +268,30 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       }
 
       const normalizedFileName = normalizeExportFileName(filename, format);
-      const targetPath = joinFilePath(directoryRef.current, normalizedFileName);
+      let targetPath = joinFilePath(directoryRef.current, normalizedFileName);
+      const extensionIndex = normalizedFileName.lastIndexOf('.');
+      const name = normalizedFileName.slice(0, extensionIndex);
+      const extension = normalizedFileName.slice(extensionIndex);
+      const maxPathAttempts = 100;
+      let foundAvailablePath = false;
+      for (let attempt = 0; attempt < maxPathAttempts; attempt += 1) {
+        try {
+          // A successful metadata lookup means this exact candidate already exists.
+          // eslint-disable-next-line no-await-in-loop
+          await ipcBridge.fs.getFileMetadata.invoke({ path: targetPath });
+          targetPath = joinFilePath(directoryRef.current, `${name}-${attempt + 1}${extension}`);
+        } catch (error) {
+          if (isBackendHttpError(error) && error.status === 404) {
+            foundAvailablePath = true;
+            break;
+          }
+          throw error;
+        }
+      }
+      if (!foundAvailablePath) {
+        messageApi.error?.(t('messages.export.savePathUnavailable'));
+        return;
+      }
       const success = await ipcBridge.fs.writeFile.invoke({
         path: targetPath,
         data: transcript,
