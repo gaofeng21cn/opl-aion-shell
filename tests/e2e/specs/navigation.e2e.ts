@@ -8,15 +8,7 @@ import { test, expect } from '../fixtures';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import {
-  GUID_INPUT,
-  goToGuid,
-  goToSettings,
-  expectUrlContains,
-  httpInvoke,
-  takeScreenshot,
-  type SettingsTab,
-} from '../helpers';
+import { GUID_INPUT, goToGuid, goToSettings, expectUrlContains, takeScreenshot, type SettingsTab } from '../helpers';
 
 const SETTINGS_SCREENSHOT_DIR = path.resolve(__dirname, '..', 'screenshots');
 const SETTINGS_VISUAL_MANIFEST = path.join(SETTINGS_SCREENSHOT_DIR, 'settings-control-center-manifest.json');
@@ -498,10 +490,12 @@ test.describe('Settings Pages', () => {
     for (const viewport of SETTINGS_VISUAL_VIEWPORTS) {
       await page.setViewportSize(viewport.size);
       await goToSettings(page, 'general');
-      await httpInvoke(page, 'PUT', '/api/settings/client', {
-        'theme.activeId': viewport.theme === 'dark' ? 'dark' : 'default-theme',
-      });
-      await page.reload();
+      const currentTheme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+      if (currentTheme !== viewport.theme) {
+        const themeButton = page.locator('[data-testid="sider-footer-theme"]');
+        await expect(themeButton).toBeVisible();
+        await themeButton.click();
+      }
       await page.waitForFunction(
         (theme) => document.documentElement.getAttribute('data-theme') === theme,
         viewport.theme,

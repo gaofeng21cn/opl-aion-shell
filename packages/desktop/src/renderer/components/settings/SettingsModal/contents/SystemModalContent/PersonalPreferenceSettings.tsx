@@ -340,7 +340,11 @@ const PersonalPreferenceSettings: React.FC = () => {
             </PreferenceRow>
           ))}
         </div>
-        <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
+        <details
+          className='opl-settings-details'
+          id='advanced-preferences'
+          data-testid='settings-preferences-technical-details'
+        >
           <summary>{t('settings.advancedSettings')}</summary>
           <span id='models-performance' aria-hidden='true' />
           <span id='hardware' aria-hidden='true' />

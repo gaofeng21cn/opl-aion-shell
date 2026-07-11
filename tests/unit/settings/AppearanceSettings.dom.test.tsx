@@ -171,7 +171,7 @@ describe('AppearanceModalContent', () => {
     expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
 
-    const advancedPreferences = screen.getByTestId('advanced-preferences');
+    const advancedPreferences = screen.getByTestId('settings-preferences-technical-details');
     expect(advancedPreferences).not.toHaveAttribute('open');
     expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
     expect(appBehavior.querySelectorAll('details')).toHaveLength(1);
