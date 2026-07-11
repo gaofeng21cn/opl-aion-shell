@@ -365,7 +365,7 @@ const CssThemeSettings: React.FC = () => {
         <Button
           type='outline'
           size='small'
-          className='rd-18px h-34px px-14px !m-0'
+          className='rounded-6px h-34px px-14px !m-0'
           icon={<Plus theme='outline' size='14' />}
           onClick={handleAddTheme}
         >
@@ -400,7 +400,7 @@ const CssThemeSettings: React.FC = () => {
             <div key={theme.id} className='relative min-w-0' role='listitem'>
               <button
                 type='button'
-                className={`relative block min-w-160px w-full overflow-hidden rounded-8px border-2 border-solid text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-border-2 hover:border-[var(--color-primary)]'}`}
+                className={`relative block min-w-0 w-full overflow-hidden rounded-8px border-2 border-solid text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-border-2 hover:border-[var(--color-primary)]'}`}
                 aria-label={theme.name}
                 aria-pressed={activeThemeId === theme.id}
                 title={theme.name}

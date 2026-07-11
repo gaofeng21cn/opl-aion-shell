@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import { Button, Typography } from '@arco-design/web-react';
-import { Refresh, Right } from '@icon-park/react';
+import { Help, Info, Refresh, Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FeedbackReportModal from './FeedbackReportModal';
@@ -173,112 +173,149 @@ const AboutModalContent: React.FC = () => {
             </div>
           </div>
 
-          <div data-testid='settings-about-primary'>
+          <div className='grid min-w-0 gap-12px lg:grid-cols-2' data-testid='settings-about-primary'>
             <section className='opl-settings-section' id='version' data-testid='about-version-section'>
               {updateStatus === 'unknown' && <span data-testid='settings-about-exception' aria-hidden='true' />}
-              <div className='opl-settings-list'>
-                <div className='opl-settings-row'>
-                  <div className='opl-settings-row__main'>
-                    <div className='text-14px text-t-primary'>{t('settings.aboutAppVersion')}</div>
-                    <div className='text-12px text-t-secondary'>{appVersions.appVersion}</div>
-                  </div>
-                </div>
-                <div className='opl-settings-row' id='channel'>
-                  <div className='opl-settings-row__main'>
-                    <div className='text-14px text-t-primary'>{t('settings.aboutReleaseChannel')}</div>
-                    <div className='text-12px text-t-secondary'>
-                      {formatReleaseChannel(appVersions.releaseChannel, t)}
+              <div className='opl-settings-section__header'>
+                <div className='flex min-w-0 items-start gap-12px'>
+                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                    <Info theme='outline' size='16' />
+                  </span>
+                  <div className='min-w-0'>
+                    <div className='text-14px font-medium text-t-primary leading-22px'>
+                      {t('settings.aboutVersionTitle')}
+                    </div>
+                    <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                      {t('settings.aboutVersionDesc')}
                     </div>
                   </div>
                 </div>
-                <div className='opl-settings-row flex items-center justify-between gap-16px' id='updates'>
-                  <div
-                    className='opl-settings-row__main min-w-0 flex-1 text-left'
-                    id='update-status'
-                    data-testid='about-update-copy'
-                  >
-                    <div className='text-14px text-t-primary'>{t('settings.checkForUpdates')}</div>
-                    <div className='mt-4px text-12px text-t-secondary' data-testid='about-update-status'>
+              </div>
+              <div className='grid min-w-0 border-t border-solid border-border-2 sm:grid-cols-2'>
+                <div className='min-w-0 p-16px'>
+                  <div className='text-12px text-t-tertiary'>{t('settings.aboutAppVersion')}</div>
+                  <div className='mt-6px break-words text-16px font-medium text-t-primary'>
+                    {appVersions.appVersion}
+                  </div>
+                </div>
+                <div
+                  className='min-w-0 border-t border-solid border-border-2 p-16px sm:border-l sm:border-t-0'
+                  id='channel'
+                >
+                  <div className='text-12px text-t-tertiary'>{t('settings.aboutReleaseChannel')}</div>
+                  <div className='mt-6px break-words text-16px font-medium text-t-primary'>
+                    {formatReleaseChannel(appVersions.releaseChannel, t)}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className='opl-settings-section' id='updates' data-testid='about-update-section'>
+              <div className='opl-settings-section__header'>
+                <div className='flex min-w-0 items-start gap-12px'>
+                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                    <Refresh theme='outline' size='16' />
+                  </span>
+                  <div className='min-w-0 flex-1 text-left' id='update-status' data-testid='about-update-copy'>
+                    <div className='text-14px font-medium text-t-primary leading-22px'>
+                      {t('settings.checkForUpdates')}
+                    </div>
+                    <div className='mt-2px text-12px text-t-tertiary leading-18px' data-testid='about-update-status'>
                       {updateStatusLabel}
                     </div>
                   </div>
-                  {isElectron && (
-                    <div className='opl-settings-row__meta'>
-                      <span data-testid='settings-about-primary-action'>
-                        <Button
-                          type='primary'
-                          icon={<Refresh />}
-                          loading={updateStatus === 'checking'}
-                          onClick={() => void checkForUpdates()}
-                          data-testid='about-check-updates'
-                        >
-                          {t('settings.checkForUpdates')}
-                        </Button>
-                      </span>
-                    </div>
-                  )}
                 </div>
+              </div>
+              {isElectron && (
+                <div className='flex min-w-0 justify-start border-t border-solid border-border-2 px-16px py-14px'>
+                  <span data-testid='settings-about-primary-action'>
+                    <Button
+                      type='primary'
+                      icon={<Refresh />}
+                      loading={updateStatus === 'checking'}
+                      onClick={() => void checkForUpdates()}
+                      data-testid='about-check-updates'
+                    >
+                      {t('settings.checkForUpdates')}
+                    </Button>
+                  </span>
+                </div>
+              )}
+            </section>
+
+            <section className='opl-settings-section lg:col-span-2' id='feedback'>
+              <div className='opl-settings-section__header'>
+                <div className='flex min-w-0 items-start gap-12px'>
+                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                    <Help theme='outline' size='16' />
+                  </span>
+                  <div className='min-w-0'>
+                    <div className='text-14px font-medium text-t-primary leading-22px'>
+                      {t('settings.aboutSupportTitle')}
+                    </div>
+                    <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                      {t('settings.aboutSupportDesc')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className='opl-settings-list'>
+                {linkItems.map((item) => (
+                  <Button
+                    key={item.id}
+                    type='text'
+                    long
+                    className='opl-settings-row !h-auto !justify-start !px-16px'
+                    onClick={() => {
+                      if ('url' in item) {
+                        void openLink(item.url);
+                      } else {
+                        item.onClick();
+                      }
+                    }}
+                    data-testid={`about-link-${item.id}`}
+                  >
+                    <span
+                      className='flex w-full min-w-0 items-center justify-between gap-16px text-left'
+                      data-testid={`about-link-${item.id}-content`}
+                    >
+                      <span className='opl-settings-row__main min-w-0 flex-1 text-14px text-t-primary'>
+                        {item.title}
+                      </span>
+                      <span className='opl-settings-row__meta shrink-0'>
+                        <Right theme='outline' size='16' />
+                      </span>
+                    </span>
+                  </Button>
+                ))}
               </div>
             </section>
           </div>
 
-          <section className='opl-settings-section' id='feedback'>
-            <div className='opl-settings-list'>
-              {linkItems.map((item) => (
-                <Button
-                  key={item.id}
-                  type='text'
-                  long
-                  className='opl-settings-row !h-auto !justify-start !px-16px'
-                  onClick={() => {
-                    if ('url' in item) {
-                      void openLink(item.url);
-                    } else {
-                      item.onClick();
-                    }
-                  }}
-                  data-testid={`about-link-${item.id}`}
-                >
-                  <span
-                    className='flex w-full min-w-0 items-center justify-between gap-16px text-left'
-                    data-testid={`about-link-${item.id}-content`}
-                  >
-                    <span className='opl-settings-row__main min-w-0 flex-1 text-14px text-t-primary'>{item.title}</span>
-                    <span className='opl-settings-row__meta shrink-0'>
-                      <Right theme='outline' size='16' />
-                    </span>
-                  </span>
-                </Button>
-              ))}
-            </div>
-          </section>
-
-          <div>
-            <div data-testid='settings-about-technical-details'>
-              <details
-                className='opl-settings-details'
-                onToggle={(event) => setTechnicalDetailsOpen(event.currentTarget.open)}
-                id='technical-details'
-                data-testid='about-technical-details'
-              >
-                <summary className='cursor-pointer text-14px font-medium text-t-primary'>
-                  {t('common.technical_details')}
-                </summary>
-                {technicalDetailsOpen && (
-                  <div className='mt-10px space-y-6px text-12px text-t-secondary'>
-                    <Typography.Text className='block'>
-                      {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
-                    </Typography.Text>
-                    <Typography.Text className='block'>
-                      {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
-                    </Typography.Text>
-                    <Typography.Text className='block break-words'>
-                      {t('settings.releasePage')}: {appVersions.releaseRepo}
-                    </Typography.Text>
-                  </div>
-                )}
-              </details>
-            </div>
+          <div data-testid='settings-about-technical-details'>
+            <details
+              className='opl-settings-details'
+              onToggle={(event) => setTechnicalDetailsOpen(event.currentTarget.open)}
+              id='technical-details'
+              data-testid='about-technical-details'
+            >
+              <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+                {t('common.technical_details')}
+              </summary>
+              {technicalDetailsOpen && (
+                <div className='mt-10px space-y-6px text-12px text-t-secondary'>
+                  <Typography.Text className='block'>
+                    {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
+                  </Typography.Text>
+                  <Typography.Text className='block'>
+                    {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
+                  </Typography.Text>
+                  <Typography.Text className='block break-words'>
+                    {t('settings.releasePage')}: {appVersions.releaseRepo}
+                  </Typography.Text>
+                </div>
+              )}
+            </details>
           </div>
         </div>
       </div>

@@ -76,6 +76,9 @@ describe('SystemModalContent read-only Advanced page', () => {
 
     expect(screen.getByTestId('settings-page-advanced')).toBeInTheDocument();
     expect(screen.getByTestId('settings-advanced-primary')).toHaveAttribute('id', 'working-directories');
+    expect(
+      screen.getByTestId('settings-advanced-primary').querySelector('[data-layout="path-status-grid"]')
+    ).toBeTruthy();
     expect(screen.getByTestId('settings-advanced-technical-details')).not.toHaveAttribute('open');
     expect(screen.getByText('Working directories')).toBeInTheDocument();
     expect(screen.getAllByText('Available')).toHaveLength(2);

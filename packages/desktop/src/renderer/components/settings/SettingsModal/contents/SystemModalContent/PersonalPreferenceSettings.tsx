@@ -10,6 +10,7 @@ import { configService } from '@/common/config/configService';
 import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
+import { Communication, SettingConfig } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
@@ -226,7 +227,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     });
   }, []);
 
-  const startupWindowPreferenceItems: PreferenceItem[] = [
+  const appBehaviorPreferenceItems: PreferenceItem[] = [
     {
       key: 'startOnBoot',
       label: t('settings.startOnBoot'),
@@ -240,6 +241,17 @@ const PersonalPreferenceSettings: React.FC = () => {
       label: t('settings.closeToTray'),
       description: t('settings.closeToTrayDesc'),
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
+    },
+    {
+      key: 'saveUploadToWorkspace',
+      label: t('settings.saveUploadToWorkspace'),
+      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
+    },
+    {
+      key: 'autoPreviewOfficeFiles',
+      label: t('settings.autoPreviewOfficeFiles'),
+      description: t('settings.autoPreviewOfficeFilesDesc'),
+      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
     },
   ];
 
@@ -298,110 +310,78 @@ const PersonalPreferenceSettings: React.FC = () => {
     },
   ];
 
-  const filePreferenceItems: PreferenceItem[] = [
-    {
-      key: 'saveUploadToWorkspace',
-      label: t('settings.saveUploadToWorkspace'),
-      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
-    },
-    {
-      key: 'autoPreviewOfficeFiles',
-      label: t('settings.autoPreviewOfficeFiles'),
-      description: t('settings.autoPreviewOfficeFilesDesc'),
-      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
-    },
-  ];
-
   return (
     <>
       {modalContextHolder}
 
-      <div className='space-y-12px' data-testid='settings-preferences-primary'>
-        <section className='opl-settings-section' id='startup-window' data-testid='preferences-startup-window-section'>
-          <span id='app-behavior' aria-hidden='true' />
-          <span id='tray' aria-hidden='true' />
-          <div className='opl-settings-section__header'>
-            <div className='text-14px font-medium text-t-primary leading-22px'>
-              {t('settings.startupWindowPreferencesTitle')}
-            </div>
-          </div>
-          <div className='opl-settings-list'>
-            {startupWindowPreferenceItems.map((item) => (
-              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-                {item.component}
-              </PreferenceRow>
-            ))}
-          </div>
-        </section>
-
-        <section
-          className='opl-settings-section'
-          id='models-performance'
-          data-testid='preferences-models-performance-section'
-        >
-          <span id='hardware' aria-hidden='true' />
-          <div className='opl-settings-section__header'>
-            <div>
+      <section className='opl-settings-section' id='app-behavior' data-testid='settings-preferences-primary'>
+        <span id='startup-window' aria-hidden='true' />
+        <span id='tray' aria-hidden='true' />
+        <span id='files-notifications' aria-hidden='true' />
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-12px'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+              <SettingConfig theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
               <div className='text-14px font-medium text-t-primary leading-22px'>
-                {t('settings.performancePreferencesTitle')}
+                {t('settings.appBehaviorPreferencesTitle')}
               </div>
-              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.timeoutPreferencesDesc')}</div>
+              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                {t('settings.appBehaviorPreferencesDesc')}
+              </div>
             </div>
           </div>
-          <div className='opl-settings-list'>
-            {performancePreferenceItems.map((item) => (
-              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-                {item.component}
-              </PreferenceRow>
-            ))}
-          </div>
-        </section>
-
-        <section
-          className='opl-settings-section'
-          id='files-notifications'
-          data-testid='preferences-files-notifications-section'
-        >
-          <div className='opl-settings-section__header'>
-            <div className='text-14px font-medium text-t-primary leading-22px'>
-              {t('settings.filesNotificationsPreferencesTitle')}
-            </div>
-          </div>
-          <div className='opl-settings-list'>
-            {filePreferenceItems.map((item) => (
-              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-                {item.component}
-              </PreferenceRow>
-            ))}
-            <PreferenceRow label={t('settings.notification')}>
-              <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+        </div>
+        <div className='opl-settings-list'>
+          {appBehaviorPreferenceItems.map((item) => (
+            <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+              {item.component}
             </PreferenceRow>
-            <PreferenceRow label={t('settings.cronNotificationEnabled')}>
-              <Switch
-                checked={cronNotificationEnabled}
-                disabled={!notificationEnabled}
-                onChange={handleCronNotificationEnabledChange}
-              />
-            </PreferenceRow>
-          </div>
-        </section>
-      </div>
-
-      <div data-testid='settings-preferences-technical-details'>
+          ))}
+        </div>
         <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
-          <summary className='cursor-pointer text-14px font-medium text-t-primary'>
-            {t('settings.advancedSettings')}
-          </summary>
-          <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
+          <summary>{t('settings.advancedSettings')}</summary>
+          <span id='models-performance' aria-hidden='true' />
+          <span id='hardware' aria-hidden='true' />
+          <div className='mt-4px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
           <div className='opl-settings-list mt-10px'>
-            {technicalPreferenceItems.map((item) => (
+            {[...performancePreferenceItems, ...technicalPreferenceItems].map((item) => (
               <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
                 {item.component}
               </PreferenceRow>
             ))}
           </div>
         </details>
-      </div>
+      </section>
+
+      <section className='opl-settings-section' id='notifications' data-testid='preferences-notifications-section'>
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-12px'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+              <Communication theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
+              <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.notification')}</div>
+              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                {t('settings.notificationPreferencesDesc')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className='opl-settings-list'>
+          <PreferenceRow label={t('settings.notification')}>
+            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+          </PreferenceRow>
+          <PreferenceRow label={t('settings.cronNotificationEnabled')}>
+            <Switch
+              checked={cronNotificationEnabled}
+              disabled={!notificationEnabled}
+              onChange={handleCronNotificationEnabledChange}
+            />
+          </PreferenceRow>
+        </div>
+      </section>
     </>
   );
 };

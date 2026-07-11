@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Tooltip, Typography } from '@arco-design/web-react';
-import { FolderSearch } from '@icon-park/react';
+import { FolderSearch, Info } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
@@ -93,12 +93,25 @@ const SystemModalContent: React.FC = () => {
             <span id='resolved-paths' aria-hidden='true' />
             {!pathsReady && <span data-testid='settings-advanced-exception' aria-hidden='true' />}
             <div className='opl-settings-section__header'>
-              <div className='text-14px font-medium text-t-primary'>{t('settings.advancedPathsTitle')}</div>
+              <div className='flex min-w-0 items-start gap-12px'>
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                  <Info theme='outline' size='16' />
+                </span>
+                <div className='min-w-0'>
+                  <div className='text-14px font-medium text-t-primary leading-22px'>
+                    {t('settings.advancedPathsTitle')}
+                  </div>
+                  <div className='mt-2px text-12px text-t-tertiary leading-18px'>{t('settings.advancedPathsDesc')}</div>
+                </div>
+              </div>
             </div>
-            <div className='opl-settings-list'>
-              <div className='opl-settings-row'>
-                <div className='opl-settings-row__main text-14px text-t-primary'>{t('settings.workDir')}</div>
-                <div className='opl-settings-row__meta'>
+            <div
+              className='grid min-w-0 border-t border-solid border-border-2 sm:grid-cols-2'
+              data-layout='path-status-grid'
+            >
+              <div className='min-w-0 p-16px'>
+                <div className='mb-10px text-13px font-medium text-t-primary'>{t('settings.workDir')}</div>
+                <div>
                   <span
                     className={`opl-settings-status ${workspacePath ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
                   >
@@ -106,9 +119,9 @@ const SystemModalContent: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className='opl-settings-row'>
-                <div className='opl-settings-row__main text-14px text-t-primary'>{t('settings.logDir')}</div>
-                <div className='opl-settings-row__meta'>
+              <div className='min-w-0 border-t border-solid border-border-2 p-16px sm:border-l sm:border-t-0'>
+                <div className='mb-10px text-13px font-medium text-t-primary'>{t('settings.logDir')}</div>
+                <div>
                   <span
                     className={`opl-settings-status ${logsPath ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
                   >
@@ -121,6 +134,7 @@ const SystemModalContent: React.FC = () => {
 
           <details className='opl-settings-details' data-testid='settings-advanced-technical-details'>
             <summary>{t('common.technical_details')}</summary>
+            <div className='mb-10px text-12px text-t-tertiary'>{t('settings.advancedPathsDesc')}</div>
             <div className='opl-settings-list mt-10px'>
               <ReadOnlyPathRow
                 label={t('settings.workDir')}

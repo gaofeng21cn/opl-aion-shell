@@ -36,6 +36,10 @@ vi.mock('react-i18next', () => ({
         'settings.checkForUpdates': 'Check for updates',
         'settings.aboutAppVersion': 'App version',
         'settings.aboutReleaseChannel': 'Release channel',
+        'settings.aboutVersionTitle': 'Version and channel',
+        'settings.aboutVersionDesc': 'Installed build and channel.',
+        'settings.aboutSupportTitle': 'Help and feedback',
+        'settings.aboutSupportDesc': 'Documentation, releases, and feedback.',
         'settings.aboutUpdateChecking': 'Checking for updates',
         'settings.aboutUpdateCurrent': 'You are up to date',
         'settings.aboutUpdateUnknown': 'Update status unavailable',
@@ -121,6 +125,8 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.getByText('Stable')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-about')).toBeInTheDocument();
     expect(screen.getByTestId('settings-about-primary')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-about-primary')).toHaveClass('grid', 'lg:grid-cols-2');
+    expect(screen.getByTestId('about-update-section')).toBeInTheDocument();
     expect(screen.getByTestId('settings-about-technical-details')).toBeInTheDocument();
     expect(await screen.findByText('You are up to date')).toBeInTheDocument();
     expect(screen.getByTestId('about-check-updates')).toBeInTheDocument();

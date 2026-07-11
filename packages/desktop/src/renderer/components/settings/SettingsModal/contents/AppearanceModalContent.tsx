@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Typography } from '@arco-design/web-react';
+import { SwitchThemes, Text } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import ScaleControl from '@/renderer/components/settings/ScaleControl';
 import FontSizeStepper from '@/renderer/components/settings/FontSizeStepper';
@@ -34,9 +35,27 @@ const PreferenceRow: React.FC<{
   /** 控件元素 / Control element */
   children: React.ReactNode;
 }> = ({ label, children }) => (
-  <div className='opl-settings-row flex min-w-0 flex-col items-stretch gap-10px md:flex-row md:items-center md:justify-between md:gap-24px'>
+  <div className='opl-settings-row'>
     <div className='opl-settings-row__main min-w-0 text-14px text-t-primary leading-22px'>{label}</div>
-    <div className='opl-settings-row__meta flex min-w-0 w-full md:flex-1 md:justify-end'>{children}</div>
+    <div className='opl-settings-row__meta w-full md:w-240px'>{children}</div>
+  </div>
+);
+
+const SectionHeading: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+}> = ({ icon, title, description }) => (
+  <div className='opl-settings-section__header'>
+    <div className='flex min-w-0 items-start gap-12px'>
+      <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+        {icon}
+      </span>
+      <div className='min-w-0'>
+        <div className='text-14px font-medium text-t-primary leading-22px'>{title}</div>
+        {description && <div className='mt-2px text-12px text-t-tertiary leading-18px'>{description}</div>}
+      </div>
+    </div>
   </div>
 );
 
@@ -66,48 +85,45 @@ const AppearanceModalContent: React.FC = () => {
             </div>
           </div>
 
-          <div className='space-y-12px' data-testid='appearance-behavior-layer'>
+          <div className='grid min-w-0 gap-12px xl:grid-cols-2' data-testid='preferences-card-grid'>
             <PersonalPreferenceSettings />
-          </div>
 
-          <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
-            <div className='opl-settings-section__header'>
-              <div className='text-14px font-medium text-t-primary leading-22px'>
-                {t('settings.appearancePreferencesTitle')}
-              </div>
-              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appearancePreferencesDesc')}</div>
-            </div>
-            <div className='opl-settings-list'>
-              <PreferenceRow label={t('settings.language')}>
-                <LanguageSwitcher />
-              </PreferenceRow>
-              {FONT_SIZE_KEYS.map((key) => (
-                <PreferenceRow key={key} label={t(FONT_SIZE_LABEL_KEY[key])}>
-                  <FontSizeStepper
-                    value={fontSizes[key]}
-                    min={FONT_SIZE_SPECS[key].min}
-                    max={FONT_SIZE_SPECS[key].max}
-                    step={FONT_SIZE_STEP}
-                    defaultValue={FONT_SIZE_SPECS[key].default}
-                    resetLabel={t('settings.fontSizeStepperReset')}
-                    onChange={(px) => void setFontSize(key, px)}
-                  />
+            <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
+              <SectionHeading
+                icon={<Text theme='outline' size='16' />}
+                title={t('settings.appearancePreferencesTitle')}
+                description={t('settings.appearancePreferencesDesc')}
+              />
+              <div className='opl-settings-list'>
+                <PreferenceRow label={t('settings.language')}>
+                  <LanguageSwitcher />
                 </PreferenceRow>
-              ))}
-              <PreferenceRow label={t('settings.scale')}>
-                <ScaleControl />
-              </PreferenceRow>
-            </div>
-          </section>
+                {FONT_SIZE_KEYS.map((key) => (
+                  <PreferenceRow key={key} label={t(FONT_SIZE_LABEL_KEY[key])}>
+                    <FontSizeStepper
+                      value={fontSizes[key]}
+                      min={FONT_SIZE_SPECS[key].min}
+                      max={FONT_SIZE_SPECS[key].max}
+                      step={FONT_SIZE_STEP}
+                      defaultValue={FONT_SIZE_SPECS[key].default}
+                      resetLabel={t('settings.fontSizeStepperReset')}
+                      onChange={(px) => void setFontSize(key, px)}
+                    />
+                  </PreferenceRow>
+                ))}
+                <PreferenceRow label={t('settings.scale')}>
+                  <ScaleControl />
+                </PreferenceRow>
+              </div>
+            </section>
 
-          <section className='opl-settings-section' id='themes' data-testid='preferences-theme-section'>
-            <div className='opl-settings-section__header'>
-              <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.theme')}</div>
-            </div>
-            <div className='pb-2px'>
-              <CssThemeSettings />
-            </div>
-          </section>
+            <section className='opl-settings-section xl:col-span-2' id='themes' data-testid='preferences-theme-section'>
+              <SectionHeading icon={<SwitchThemes theme='outline' size='16' />} title={t('settings.theme')} />
+              <div className='border-t border-solid border-border-2 p-16px'>
+                <CssThemeSettings />
+              </div>
+            </section>
+          </div>
         </div>
       </AionScrollArea>
     </div>

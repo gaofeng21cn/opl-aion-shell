@@ -78,7 +78,7 @@ describe('CssThemeSettings', () => {
     for (const option of screen.getAllByTestId('css-theme-option')) {
       expect(option).toHaveAttribute('data-theme-option-surface', 'tile');
       expect(option).toHaveAttribute('aria-pressed');
-      expect(option).toHaveClass('min-w-160px');
+      expect(option).toHaveClass('min-w-0');
       expect(option.querySelector('[data-testid="css-theme-option-preview"]')).toHaveClass('h-104px');
       expect(option.querySelector('.truncate')).toBeNull();
     }
