@@ -42,7 +42,6 @@ const ChatLayout: React.FC<{
   workspaceEnabled?: boolean;
   conversation_id?: string;
   tabsSlot?: React.ReactNode;
-  currentTaskSlot?: React.ReactNode;
   workspacePath?: string;
   isTemporaryWorkspace?: boolean;
   workspacePreferenceKey?: string;
@@ -262,7 +261,6 @@ const ChatLayout: React.FC<{
             {isMobile ? mobileActionsSlot && createPortal(headerTools, mobileActionsSlot) : desktopHeader}
             {props.tabsSlot}
           </div>
-          {props.currentTaskSlot && <div className='shrink-0 !bg-1'>{props.currentTaskSlot}</div>}
           <div className='flex flex-1 min-h-0 relative'>
             <div
               className='flex flex-col relative min-w-0'

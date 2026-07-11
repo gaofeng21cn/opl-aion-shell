@@ -8,7 +8,7 @@ import type { TConversationRuntimeSummary } from '@/common/config/storage';
 import { Button, Tooltip } from '@arco-design/web-react';
 import { Down, PauseOne, Pushpin, Up } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './current-task-awareness.css';
 
@@ -55,6 +55,7 @@ type ConversationCurrentTaskV2 = ConversationCurrentTask & {
   elapsed_label?: unknown;
   duration_label?: unknown;
   timing?: unknown;
+  long_running?: unknown;
 };
 
 export type CurrentTaskReferenceSummary = {
@@ -355,12 +356,20 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
   onStop,
 }) => {
   const { t } = useTranslation();
+  const taskV2 = (task ?? {}) as ConversationCurrentTaskV2;
+  const taskKey = trim(task?.task_id) ?? trim(task?.title) ?? '';
+  const timingRecord = record(taskV2.timing);
+  const runtimePinned = taskV2.long_running === true || timingRecord?.long_running === true;
   const [expanded, setExpanded] = useState(!compact);
-  const [pinned, setPinned] = useState(false);
+  const [pinned, setPinned] = useState(runtimePinned);
   const [stopping, setStopping] = useState(false);
+
+  useEffect(() => {
+    setPinned(runtimePinned);
+  }, [runtimePinned, taskKey]);
+
   if (!hasCurrentTaskAwareness(task)) return null;
 
-  const taskV2 = task as ConversationCurrentTaskV2;
   const taskRecord = task as unknown as JsonRecord;
   const statusRecord = record(taskV2.status);
   const progressRecord = record(taskRecord.progress);

@@ -20,7 +20,8 @@ import React from 'react';
 const LegacyReadOnlyConversation: React.FC<{
   conversation: TChatConversation;
   emptySlot?: React.ReactNode;
-}> = ({ conversation, emptySlot }) => {
+  timelineHeaderSlot?: React.ReactNode;
+}> = ({ conversation, emptySlot, timelineHeaderSlot }) => {
   useMessageLstCache(conversation.id);
 
   return (
@@ -37,7 +38,7 @@ const LegacyReadOnlyConversation: React.FC<{
       <ConversationArtifactProvider conversation_id={conversation.id}>
         <div className='flex-1 flex flex-col px-20px min-h-0'>
           <FlexFullContainer>
-            <MessageList className='flex-1' emptySlot={emptySlot} />
+            <MessageList className='flex-1' emptySlot={emptySlot} timelineHeaderSlot={timelineHeaderSlot} />
           </FlexFullContainer>
         </div>
       </ConversationArtifactProvider>

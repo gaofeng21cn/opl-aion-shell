@@ -162,6 +162,17 @@ describe('MessageList', () => {
     expect(messageRow.className).not.toContain('pt-10px');
   });
 
+  it('renders the current task summary inside the timeline scroller', () => {
+    render(<MessageList timelineHeaderSlot={<div data-testid='timeline-task-summary'>Current task</div>} />, {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
+
+    const scroller = screen.getByTestId('message-list-scroller');
+    const summary = screen.getByTestId('timeline-task-summary');
+    expect(scroller).toContainElement(summary);
+    expect(screen.getByTestId('message-list-content').firstElementChild).toBe(summary);
+  });
+
   it('renders the empty slot when there are no messages', () => {
     render(<MessageList emptySlot={<div>empty state</div>} />, {
       wrapper: ({ children }) => <Wrapper messages={[]}>{children}</Wrapper>,

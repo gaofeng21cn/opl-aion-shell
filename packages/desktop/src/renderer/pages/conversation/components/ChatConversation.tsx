@@ -28,7 +28,7 @@ import AionrsChat from '../platforms/aionrs/AionrsChat';
 import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import LegacyReadOnlyConversation from '../platforms/legacy/LegacyReadOnlyConversation';
 import { useConversationRuntimeView } from '../runtime/useConversationRuntimeView';
-import CurrentTaskAwareness from '../runtime/CurrentTaskAwareness';
+import CurrentTaskAwareness, { hasCurrentTaskAwareness } from '../runtime/CurrentTaskAwareness';
 import { isLegacyReadOnlyConversationType } from '../utils/conversationRuntime';
 import { sanitizeOplOrdinaryConversationExtra } from '@/common/config/oplProductProfile';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
@@ -171,6 +171,15 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
   });
   const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
   const aionrsAssistantId = resolveAssistantConfigId(conversation) ?? undefined;
+  const timelineHeaderSlot = hasCurrentTaskAwareness(runtimeView.currentTask) ? (
+    <CurrentTaskAwareness
+      task={runtimeView.currentTask}
+      compact
+      statusLabel={runtimeView.view.state}
+      stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
+      onStop={runtimeView.stopActiveTurn}
+    />
+  ) : undefined;
 
   const chatLayoutProps = {
     title: conversation.name,
@@ -178,15 +187,6 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
     sider: <ChatSlider conversation={conversation} currentTask={runtimeView.currentTask} />,
     environmentSlot: (
       <ConversationEnvironmentPopover conversation={conversation} currentTask={runtimeView.currentTask} />
-    ),
-    currentTaskSlot: (
-      <CurrentTaskAwareness
-        task={runtimeView.currentTask}
-        compact
-        statusLabel={runtimeView.view.state}
-        stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
-        onStop={runtimeView.stopActiveTurn}
-      />
     ),
     workspaceEnabled: true,
     workspacePath: conversation.extra?.workspace,
@@ -214,6 +214,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
         agent_name={presetAssistantInfo?.name}
         branch={getConversationBranch(conversation)}
         activeCapabilityLabel={presetAssistantInfo?.name}
+        timelineHeaderSlot={timelineHeaderSlot}
       />
     </ChatLayout>
   );
@@ -243,11 +244,36 @@ const ChatConversation: React.FC<{
     () => sanitizeOplOrdinaryConversationExtra(conversation?.extra as Record<string, unknown> | undefined),
     [conversation?.extra]
   );
+  const timelineHeaderSlot = useMemo(
+    () =>
+      hasCurrentTaskAwareness(currentTask) ? (
+        <CurrentTaskAwareness
+          task={currentTask}
+          compact
+          statusLabel={runtimeView.view.state}
+          stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
+          onStop={runtimeView.stopActiveTurn}
+        />
+      ) : undefined,
+    [
+      currentTask,
+      runtimeView.activeTurnId,
+      runtimeView.isProcessing,
+      runtimeView.stopActiveTurn,
+      runtimeView.view.state,
+    ]
+  );
 
   const conversationNode = useMemo(() => {
     if (!conversation || isAionrsConversation) return null;
     if (isLegacyReadOnlyConversation) {
-      return <LegacyReadOnlyConversation key={conversation.id} conversation={conversation} />;
+      return (
+        <LegacyReadOnlyConversation
+          key={conversation.id}
+          conversation={conversation}
+          timelineHeaderSlot={timelineHeaderSlot}
+        />
+      );
     }
     switch (conversation.type) {
       case 'acp':
@@ -266,6 +292,7 @@ const ChatConversation: React.FC<{
             loadedSkills={(ordinaryExtra as { skills?: string[] } | undefined)?.skills}
             loadedMcpServers={(ordinaryExtra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
             loadedMcpStatuses={(ordinaryExtra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses}
+            timelineHeaderSlot={timelineHeaderSlot}
           ></AcpChat>
         );
       default:
@@ -278,6 +305,7 @@ const ChatConversation: React.FC<{
     assistantDisplayName,
     resolvedHideSendBox,
     ordinaryExtra,
+    timelineHeaderSlot,
   ]);
 
   const sliderTitle = useMemo(() => {
@@ -325,15 +353,6 @@ const ChatConversation: React.FC<{
       environmentSlot={<ConversationEnvironmentPopover conversation={conversation} currentTask={currentTask} />}
       siderTitle={sliderTitle}
       sider={<ChatSlider conversation={conversation} currentTask={currentTask} />}
-      currentTaskSlot={
-        <CurrentTaskAwareness
-          task={currentTask}
-          compact
-          statusLabel={runtimeView.view.state}
-          stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
-          onStop={runtimeView.stopActiveTurn}
-        />
-      }
       workspaceEnabled={Boolean(conversation)}
       workspacePath={conversation?.extra?.workspace}
       isTemporaryWorkspace={

@@ -33,6 +33,7 @@ const AcpChat: React.FC<{
   cron_job_id?: string;
   hideSendBox?: boolean;
   emptySlot?: React.ReactNode;
+  timelineHeaderSlot?: React.ReactNode;
   loadedSkills?: string[];
   loadedMcpServers?: string[];
   loadedMcpStatuses?: IConversationMcpStatus[];
@@ -47,6 +48,7 @@ const AcpChat: React.FC<{
   cron_job_id,
   hideSendBox,
   emptySlot,
+  timelineHeaderSlot,
   loadedSkills,
   loadedMcpServers,
   loadedMcpStatuses,
@@ -72,7 +74,7 @@ const AcpChat: React.FC<{
       <ConversationArtifactProvider conversation_id={conversation_id}>
         <div className='flex-1 flex flex-col px-20px min-h-0'>
           <FlexFullContainer>
-            <MessageList className='flex-1' emptySlot={emptySlot} />
+            <MessageList className='flex-1' emptySlot={emptySlot} timelineHeaderSlot={timelineHeaderSlot} />
           </FlexFullContainer>
           <AcpE2EStreamInjector conversationId={conversation_id} />
           {!hideSendBox && (
