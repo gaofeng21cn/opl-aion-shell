@@ -616,6 +616,14 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
         anchor('conversation_environment_trigger', '.conversation-environment-trigger'),
         anchor('conversation_environment_popover', '[data-testid="conversation-environment-popover"]'),
+        anchor(
+          'conversation_environment_browser_address',
+          '[data-testid="conversation-environment-popover"] input[aria-label]'
+        ),
+        anchor(
+          'conversation_environment_browser_open',
+          '[data-testid="conversation-environment-popover"] button[aria-label]'
+        ),
       ],
       coverageGaps: [],
       setup: async (page) => {

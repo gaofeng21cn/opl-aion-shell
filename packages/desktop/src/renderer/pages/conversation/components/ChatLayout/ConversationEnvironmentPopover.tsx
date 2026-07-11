@@ -9,8 +9,9 @@ import {
   WORKSPACE_STATE_EVENT,
   type WorkspaceStateDetail,
 } from '@/renderer/utils/workspace/workspaceEvents';
-import { Button, Popover } from '@arco-design/web-react';
-import { Down, FolderOpen, Info } from '@icon-park/react';
+import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
+import { Button, Input, Popover } from '@arco-design/web-react';
+import { Down, FolderOpen, Info, Link } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import WorkspaceOpenButton from './WorkspaceOpenButton';
@@ -19,6 +20,17 @@ const VISIBLE_REF_LIMIT = 3;
 
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const normalizeBrowserUrl = (value: string): string | null => {
+  const input = value.trim();
+  if (!input) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
 
 const ReferenceGroup: React.FC<{ label: string; refs: string[]; moreLabel: string }> = ({ label, refs, moreLabel }) => {
   if (!refs.length) return null;
@@ -42,8 +54,11 @@ const ConversationEnvironmentPopover: React.FC<{
   currentTask?: ConversationCurrentTask | null;
 }> = ({ conversation, currentTask }) => {
   const { t } = useTranslation();
+  const { openPreview } = usePreviewContext();
   const [workspaceSnapshot, setWorkspaceSnapshot] = useState<{ branch?: string; changeCount?: number }>({});
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
+  const [browserUrl, setBrowserUrl] = useState('');
+  const [browserUrlInvalid, setBrowserUrlInvalid] = useState(false);
   const summary = useMemo(() => {
     const extra = (conversation?.extra ?? {}) as Record<string, unknown>;
     const task = (currentTask ?? {}) as Record<string, unknown>;
@@ -109,6 +124,12 @@ const ConversationEnvironmentPopover: React.FC<{
   const hasTaskReferences = Boolean(
     summary.references.artifacts.length || summary.references.evidence.length || summary.references.receipts.length
   );
+  const openBrowser = () => {
+    const url = normalizeBrowserUrl(browserUrl);
+    setBrowserUrlInvalid(!url);
+    if (!url) return;
+    openPreview(url, 'url', { title: url }, { replace: true });
+  };
 
   const content = (
     <div className='conversation-environment-popover' data-testid='conversation-environment-popover'>
@@ -157,6 +178,30 @@ const ConversationEnvironmentPopover: React.FC<{
           {renderReferenceGroup(t('conversation.environment.receipts'), summary.references.receipts)}
         </div>
       )}
+
+      <div className='conversation-environment-popover__browser'>
+        <Input
+          size='small'
+          value={browserUrl}
+          status={browserUrlInvalid ? 'error' : undefined}
+          aria-label={t('conversation.sidePanel.browserAddress')}
+          placeholder={t('conversation.sidePanel.browserAddress')}
+          onChange={(value) => {
+            setBrowserUrl(value);
+            setBrowserUrlInvalid(false);
+          }}
+          onPressEnter={openBrowser}
+        />
+        <Button
+          type='secondary'
+          size='small'
+          icon={<Link size={14} />}
+          aria-label={t('conversation.sidePanel.openBrowser')}
+          onClick={openBrowser}
+        >
+          {t('conversation.sidePanel.openBrowser')}
+        </Button>
+      </div>
 
       {summary.workspace && summary.supportsWorkspaceSurface && (
         <div className='conversation-environment-popover__actions'>

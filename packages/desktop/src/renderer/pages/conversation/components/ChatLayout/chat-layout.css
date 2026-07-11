@@ -83,6 +83,7 @@
 }
 
 .conversation-environment-popover__section + .conversation-environment-popover__section,
+.conversation-environment-popover__browser,
 .conversation-environment-popover__actions {
   border-top: 1px solid var(--bg-3);
 }
@@ -152,6 +153,13 @@
   gap: 6px;
   min-height: 40px;
   padding-top: 8px;
+}
+
+.conversation-environment-popover__browser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px 0;
 }
 
 .conversation-side-panel {
