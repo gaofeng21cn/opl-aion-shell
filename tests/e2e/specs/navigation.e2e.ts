@@ -146,6 +146,9 @@ const resetSettingsScreenshotPointer = async (
     }
   });
   await page.mouse.move(viewport.width - 4, 48);
+  await page.locator('.settings-sider__item').evaluateAll(async (items) => {
+    await Promise.all(items.flatMap((item) => item.getAnimations().map((animation) => animation.finished)));
+  });
   await expect(page.locator('.settings-sider__item:hover')).toHaveCount(0);
   await expect(page.locator('.settings-mobile-top-nav__item:hover')).toHaveCount(0);
 };
