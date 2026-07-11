@@ -163,7 +163,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       assistant_short_name: 'MAS',
       source: 'opl_app_home',
     });
-    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
   });
 
   it('sends an unknown future Auto model with its highest advertised reasoning effort', async () => {
