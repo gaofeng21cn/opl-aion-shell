@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
 import {
   getOplCodexSessionContext,
   getOplCommandLineToolsInstallMessage,
@@ -61,6 +62,10 @@ import { migrateThemeConfig } from '@/common/theme/migrateThemeConfig';
 import { LIGHT_THEME_ID } from '@/common/theme/constants';
 
 describe('OPL generated product profile', () => {
+  afterEach(() => {
+    vi.doUnmock('@/common/config/oplProductProfile/oplProductProfile.generated.json');
+  });
+
   it('exposes the App-owned visible product name', () => {
     expect(getOplProductDisplayName()).toBe('One Person Lab App');
     expect(OPL_PRODUCT_PROFILE.product.display_name).toBe('One Person Lab App');
@@ -68,10 +73,10 @@ describe('OPL generated product profile', () => {
 
   it('exposes the App-generated Codex default model profile', () => {
     expect(getOplDefaultCodexModel()).toBe('gpt-5.6-sol');
-    expect(getOplDefaultCodexReasoningEffort()).toBe('xhigh');
+    expect(getOplDefaultCodexReasoningEffort()).toBe('max');
     expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-5.6-sol');
-    expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('xhigh');
-    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.6-sol/xhigh');
+    expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('max');
+    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.6-sol/max');
     expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('5.6 Sol');
     expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.6-sol');
     expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('5.6 Sol');
@@ -93,6 +98,35 @@ describe('OPL generated product profile', () => {
         'gpt-5.1-codex-mini',
       ])
     );
+  });
+
+  it('accepts a future App-generated reasoning effort without a Shell allowlist change', async () => {
+    const futureEffort = 'future-deep';
+    const futureProfile = structuredClone(generatedProfile);
+    futureProfile.default_session_profile.reasoning_effort = futureEffort;
+    futureProfile.gui.home.codex_default_reasoning_effort = futureEffort;
+    futureProfile.gui.home.codex_model_display_options.default_reasoning_effort = futureEffort;
+    futureProfile.gui.home.codex_model_display_options.auto_option.catalog_unavailable_fallback_reasoning_effort =
+      futureEffort;
+    futureProfile.gui.home.codex_model_display_options.user_reasoning_effort_options.push(futureEffort);
+    Object.assign(futureProfile.gui.home.codex_model_display_options.reasoning_labels, {
+      [futureEffort]: { zh: '未来推理', en: 'Future reasoning' },
+    });
+    futureProfile.codex.default_reasoning_effort = futureEffort;
+    futureProfile.codex.auto_model_policy.known_model_reasoning_effort_overrides['gpt-5.6-sol'] = futureEffort;
+    futureProfile.codex.auto_model_policy.catalog_unavailable_fallback.reasoning_effort = futureEffort;
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: futureProfile,
+    }));
+    const futureProfileModule = await import('@/common/config/oplProductProfile');
+
+    expect(futureProfileModule.getOplDefaultCodexReasoningEffort()).toBe(futureEffort);
+    expect(futureProfileModule.getOplCodexModelDisplayOptions().reasoning_labels[futureEffort]).toEqual({
+      zh: '未来推理',
+      en: 'Future reasoning',
+    });
   });
 
   it('keeps App-owned GUI defaults for theme, fixed Codex executor, and visible model controls', () => {
@@ -141,7 +175,7 @@ describe('OPL generated product profile', () => {
       catalog_pagination_completion_policy: 'exhaust_pages_until_next_cursor_is_null',
       unknown_default_model_policy: 'accept_catalog_default_even_when_not_in_frontier_model_preference_order',
       unknown_model_reasoning_effort_policy: 'highest_supported_reasoning_effort_from_catalog',
-      catalog_unavailable_fallback: { model: 'gpt-5.6-sol', reasoning_effort: 'xhigh' },
+      catalog_unavailable_fallback: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
       persistence_policy: {
         auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog',
         fixed: 'persist_selected_model_and_reasoning_effort',
@@ -166,7 +200,7 @@ describe('OPL generated product profile', () => {
         label_zh: '自动（推荐）',
         description_zh: '跟随 Codex CLI 当前默认模型与 App 推理策略',
         catalog_unavailable_fallback_model: 'gpt-5.6-sol',
-        catalog_unavailable_fallback_reasoning_effort: 'xhigh',
+        catalog_unavailable_fallback_reasoning_effort: 'max',
       },
       visible_models: [
         { id: 'gpt-5.6-sol', label_zh: '5.6 Sol' },
@@ -183,6 +217,7 @@ describe('OPL generated product profile', () => {
       'medium',
       'high',
       'xhigh',
+      'max',
       'ultra',
     ]);
     expect(getOplRetiredCodexModels()).toEqual([
@@ -648,7 +683,7 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
   });
 
   it('accepts an unknown Codex catalog default at its highest advertised reasoning effort', () => {
@@ -689,11 +724,11 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
   });
 
   it('falls back to the App default when the Codex catalog is unavailable', () => {
-    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
   });
 
   it('exposes default visible skills without allowing caller mutation', () => {

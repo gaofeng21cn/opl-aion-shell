@@ -7,7 +7,7 @@
 import generatedProfile from './oplProductProfile.generated.json';
 import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
 
-export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ultra';
+export type OplCodexReasoningEffort = string;
 export type OplCodexAutoModelPolicy = {
   authority: 'one-person-lab-app';
   mode_default: 'auto';
@@ -548,7 +548,6 @@ type AppProductProfile = {
   };
 };
 
-const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'ultra']);
 const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[] = [
   'source_channel',
   'workspace_trust',
@@ -665,10 +664,10 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
 
 function readReasoningEffort(value: unknown, context: string): OplCodexReasoningEffort | null {
   if (value === null) return null;
-  if (typeof value !== 'string' || !CODEX_REASONING_EFFORTS.has(value)) {
-    throw new Error(`Invalid OPL product profile: ${context} is unsupported`);
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Invalid OPL product profile: ${context} must be a non-empty string`);
   }
-  return value as OplCodexReasoningEffort;
+  return value.trim();
 }
 
 function readRequiredReasoningEffort(value: unknown, context: string): OplCodexReasoningEffort {
@@ -858,21 +857,6 @@ function readCodexModelDisplayOptions(
   }
 
   const reasoningLabels = isRecord(value.reasoning_labels) ? value.reasoning_labels : null;
-  const xhighReasoningLabel = isRecord(reasoningLabels?.xhigh) ? reasoningLabels.xhigh : null;
-  const ultraReasoningLabel = isRecord(reasoningLabels?.ultra) ? reasoningLabels.ultra : null;
-  const highReasoningLabel = isRecord(reasoningLabels?.high) ? reasoningLabels.high : null;
-  if (
-    highReasoningLabel?.zh !== '推理高' ||
-    highReasoningLabel.en !== 'High reasoning' ||
-    xhighReasoningLabel?.zh !== '推理超高' ||
-    xhighReasoningLabel.en !== 'Extra high reasoning' ||
-    ultraReasoningLabel?.zh !== '推理极高' ||
-    ultraReasoningLabel.en !== 'Ultra reasoning'
-  ) {
-    throw new Error(
-      'Invalid OPL product profile: Codex model display options must label high, xhigh, and ultra reasoning'
-    );
-  }
   const userReasoningEffortOptions = Array.isArray(value.user_reasoning_effort_options)
     ? value.user_reasoning_effort_options.map((entry, index) =>
         readRequiredReasoningEffort(
@@ -962,14 +946,13 @@ function readCodexModelDisplayOptions(
     reasoning_labels: {
       ...Object.fromEntries(
         Object.entries(reasoningLabels ?? {}).flatMap(([key, label]) => {
-          if (!CODEX_REASONING_EFFORTS.has(key) || !isRecord(label)) return [];
-          if (typeof label.zh !== 'string' || typeof label.en !== 'string') return [];
+          if (!key.trim() || !isRecord(label)) return [];
+          if (typeof label.zh !== 'string' || !label.zh.trim() || typeof label.en !== 'string' || !label.en.trim()) {
+            return [];
+          }
           return [[key, { zh: label.zh.trim(), en: label.en.trim() }]];
         })
       ),
-      high: { zh: '推理高', en: 'High reasoning' },
-      xhigh: { zh: '推理超高', en: 'Extra high reasoning' },
-      ultra: { zh: '推理极高', en: 'Ultra reasoning' },
     } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
     user_reasoning_effort_options: userReasoningEffortOptions,
     visible_models: visibleModels,
