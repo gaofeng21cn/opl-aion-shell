@@ -58,6 +58,7 @@ const ChatLayout: React.FC<{
   const usesWorkspaceOverlay = isMobile || (containerWidth > 0 && containerWidth <= WORKSPACE_OVERLAY_MAX_PX);
   const isDesktop = !usesWorkspaceOverlay;
   const { isOpen: isPreviewOpen, closePreview } = usePreviewContext();
+  const previewOwnsCanvas = isPreviewOpen && usesWorkspaceOverlay;
   const { rightSiderCollapsed, setRightSiderCollapsed } = useWorkspaceCollapse({
     workspaceEnabled,
     isMobile: usesWorkspaceOverlay,
@@ -253,6 +254,40 @@ const ChatLayout: React.FC<{
     </ArcoLayout.Header>
   );
 
+  const previewSurface = (
+    <div
+      className={`preview-panel flex flex-col overflow-visible rounded-[15px] ${
+        isDesktop ? 'relative mb-[12px] mr-[12px] ml-[8px]' : 'fixed'
+      }`}
+      style={{
+        top: previewOwnsCanvas ? 'calc(var(--titlebar-height) + 8px)' : undefined,
+        right: previewOwnsCanvas ? '8px' : undefined,
+        bottom: previewOwnsCanvas ? '8px' : undefined,
+        left: previewOwnsCanvas ? '8px' : undefined,
+        zIndex: previewOwnsCanvas ? 20 : undefined,
+        flexGrow: 1,
+        flexShrink: 1,
+        flexBasis: 0,
+        border: '1px solid var(--bg-3)',
+        minWidth: isDesktop ? '260px' : 0,
+        boxSizing: 'border-box',
+      }}
+      data-testid='conversation-preview-surface'
+    >
+      {isDesktop &&
+        createPreviewDragHandle({
+          className: 'absolute top-0 bottom-0 z-30',
+          style: { width: '20px', left: '-20px' },
+          linePlacement: 'end',
+          lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
+          lineStyle: { width: '2px' },
+        })}
+      <div className='h-full w-full overflow-hidden rounded-[15px]'>
+        <PreviewPanel />
+      </div>
+    </div>
+  );
+
   return (
     <ArcoLayout className='size-full color-black'>
       <div ref={containerRef} className='flex flex-1 relative w-full overflow-hidden'>
@@ -264,8 +299,10 @@ const ChatLayout: React.FC<{
           <div className='flex flex-1 min-h-0 relative'>
             <div
               className='flex flex-col relative min-w-0'
-              hidden={isPreviewOpen && usesWorkspaceOverlay}
+              aria-hidden={previewOwnsCanvas}
+              data-testid='conversation-timeline-surface'
               style={{
+                display: previewOwnsCanvas ? 'none' : undefined,
                 flexGrow: isPreviewOpen && isDesktop ? 0 : 1,
                 flexShrink: 0,
                 flexBasis: isPreviewOpen && isDesktop ? `${chatFlex}%` : 0,
@@ -275,37 +312,11 @@ const ChatLayout: React.FC<{
                 {props.children}
               </ArcoLayout.Content>
             </div>
-            {isPreviewOpen && (
-              <div
-                className={`preview-panel flex flex-col relative overflow-visible rounded-[15px] ${
-                  isDesktop ? 'mb-[12px] mr-[12px] ml-[8px]' : 'm-[8px]'
-                }`}
-                style={{
-                  flexGrow: 1,
-                  flexShrink: 1,
-                  flexBasis: 0,
-                  border: '1px solid var(--bg-3)',
-                  minWidth: isDesktop ? '260px' : 0,
-                  width: usesWorkspaceOverlay ? 'calc(100% - 16px)' : undefined,
-                  boxSizing: 'border-box',
-                }}
-                data-testid='conversation-preview-surface'
-              >
-                {isDesktop &&
-                  createPreviewDragHandle({
-                    className: 'absolute top-0 bottom-0 z-30',
-                    style: { width: '20px', left: '-20px' },
-                    linePlacement: 'end',
-                    lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
-                    lineStyle: { width: '2px' },
-                  })}
-                <div className='h-full w-full overflow-hidden rounded-[15px]'>
-                  <PreviewPanel />
-                </div>
-              </div>
-            )}
+            {isPreviewOpen && isDesktop && previewSurface}
           </div>
         </div>
+
+        {previewOwnsCanvas && createPortal(previewSurface, document.body)}
 
         {workspaceEnabled && isDesktop && (
           <aside
