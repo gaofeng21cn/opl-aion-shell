@@ -706,6 +706,17 @@ const GuidPage: React.FC = () => {
           : t('guid.home.projectRequiredForAttachments')
       }
       modelSelectorNode={modelSelectorNode}
+      mobileCodexModelSelection={
+        effectiveAgentType === 'codex' && modelSelectorNode
+          ? {
+              modelInfo: agentSelection.currentAcpCachedModelInfo,
+              selectedModelId: agentSelection.selectedAcpModel,
+              selectedReasoningEffort: agentSelection.selectedReasoningEffort,
+              onChange: agentSelection.setCodexModelSelection,
+            }
+          : undefined
+      }
+      activeCapabilityLabel={activeCapabilityLabel}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agent_type}
       selectedMode={agentSelection.selectedMode}

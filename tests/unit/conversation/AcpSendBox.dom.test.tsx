@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
@@ -75,6 +75,19 @@ vi.mock('@/renderer/components/agent/AgentModeSelector', () => ({
   default: () => <div data-testid='agent-mode-selector' />,
 }));
 
+vi.mock('@/renderer/components/agent/AcpModelSelector', () => ({
+  default: ({ backend, waitForWarmup }: { backend?: string; waitForWarmup?: boolean }) => (
+    <button
+      type='button'
+      data-testid='acp-model-selector'
+      data-backend={backend}
+      data-wait-for-warmup={waitForWarmup ? 'true' : 'false'}
+    >
+      Model
+    </button>
+  ),
+}));
+
 vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
   default: ({
     open,
@@ -115,7 +128,10 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
         ))}
       </div>
     ) : null,
-  useAttachEntry: () => ({ entries: [], hiddenFileInput: null }),
+  useAttachEntry: () => ({
+    entries: [{ key: 'attach', label: 'Add files', onClick: vi.fn() }],
+    hiddenFileInput: null,
+  }),
 }));
 
 vi.mock('@/renderer/components/chat/SendBox', () => ({
@@ -183,6 +199,14 @@ vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: isMobileLayout }),
 }));
 
+vi.mock('@/renderer/hooks/context/ConversationContext', () => ({
+  useConversationContextSafe: () => ({
+    loadedSkills: ['arbitrary-skill'],
+    loadedMcpServers: ['raw-mcp'],
+    loadedMcpStatuses: [{ id: 'raw-mcp', name: 'Raw MCP', status: 'loaded' }],
+  }),
+}));
+
 vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
   useAcpModelInfo: () => ({
     model_info: {
@@ -196,6 +220,7 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
     canSwitch: true,
     selectModel: acpModelInfoMocks.selectModel,
     selectAutoModel: acpModelInfoMocks.selectAutoModel,
+    selectReasoningEffort: vi.fn().mockResolvedValue(undefined),
     thoughtLevel: {
       id: 'reasoning_effort',
       category: 'thought_level',
@@ -312,18 +337,22 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-mode-selector')).toBeInTheDocument();
+    const decisionControls = screen.getByTestId('acp-sendbox-decision-controls');
+    expect(within(decisionControls).getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
+    expect(within(decisionControls).getByTestId('acp-model-selector')).toHaveAttribute('data-wait-for-warmup', 'true');
+    expect(within(decisionControls).getByTestId('agent-mode-selector')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
   it('keeps the permission mode selector for non-Codex ACP conversations', () => {
     render(<AcpSendBox conversation_id='claude-conversation' backend='claude' messageState={messageState()} />);
 
+    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'claude');
     expect(screen.getByTestId('agent-mode-selector')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
-  it('shows the ordinary conversation project, local, branch, and active capability strip', () => {
+  it('keeps only the active capability in the composer context strip', () => {
     render(
       <AcpSendBox
         conversation_id='codex-conversation'
@@ -336,21 +365,48 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     );
 
     expect(screen.getByTestId('conversation-composer-context-strip')).toBeInTheDocument();
-    expect(screen.getByTestId('composer-project-context')).toHaveTextContent('research');
-    expect(screen.getByTestId('composer-local-context')).toHaveTextContent('conversation.environment.local');
-    expect(screen.getByTestId('composer-branch-context')).toHaveTextContent('codex/context');
     expect(screen.getByTestId('composer-active-capability')).toHaveTextContent('guid.home.activeCapability');
+    expect(screen.queryByTestId('composer-project-context')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('composer-projectless-context')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('composer-local-context')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('composer-branch-context')).not.toBeInTheDocument();
+  });
+
+  it('does not reserve context-strip space without an active capability', () => {
+    render(
+      <AcpSendBox
+        conversation_id='codex-conversation'
+        backend='codex'
+        workspacePath='/workspace/research'
+        branch='codex/context'
+        messageState={messageState()}
+      />
+    );
+
+    expect(screen.queryByTestId('conversation-composer-context-strip')).not.toBeInTheDocument();
   });
 
   it('shows the mobile permission action for ordinary Codex conversations', () => {
     isMobileLayout = true;
 
-    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+    render(
+      <AcpSendBox
+        conversation_id='codex-conversation'
+        backend='codex'
+        activeCapabilityLabel='Research'
+        messageState={messageState()}
+      />
+    );
 
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
 
     expect(screen.getByTestId('mobile-action-sheet')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-attach')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-active-capability')).toHaveTextContent('guid.home.activeCapability');
+    expect(screen.queryByTestId('mobile-action-sheet-skills')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-mcp')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
   });
 
   it('shows App model menu semantics in the mobile ACP action sheet', () => {

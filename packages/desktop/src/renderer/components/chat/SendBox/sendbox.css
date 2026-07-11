@@ -134,6 +134,13 @@
   color: var(--text-primary) !important;
 }
 
+/* Keep the compact controls keyboard-visible after removing their pill chrome. */
+.sendbox-tools .sendbox-model-btn:focus-visible,
+.sendbox-actions .sendbox-model-btn:focus-visible {
+  outline: 2px solid var(--color-primary-6) !important;
+  outline-offset: 2px;
+}
+
 .speech-input-control {
   display: inline-flex;
   align-items: center;
@@ -337,6 +344,25 @@
 .sendbox-actions .agent-mode-compact-pill .arco-btn-content {
   min-width: 0 !important;
   overflow: hidden !important;
+}
+
+.sendbox-decision-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: min(58vw, 430px);
+  overflow: hidden;
+}
+
+.sendbox-decision-control {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sendbox-decision-control .agent-mode-compact-pill {
+  max-width: 100% !important;
 }
 
 /* Pill marquee animation for overflowing text */

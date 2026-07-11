@@ -5,17 +5,18 @@ import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import { configService } from '@/common/config/configService';
 import {
   filterOplOrdinaryMcpStatuses,
-  filterOplOrdinarySkillNames,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
   getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
+  shouldShowOplConversationModelSelector,
   shouldShowOplConversationPermissionModeSelector,
   shouldShowOplCodexModelAutoOption,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
 import { parseError, resolveLocaleKey, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
+import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import ConversationComposerContextStrip from '@/renderer/components/chat/ConversationComposerContextStrip';
 import MobileActionSheet, {
@@ -181,7 +182,6 @@ const AcpSendBox: React.FC<{
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
-  const loadedSkills = filterOplOrdinarySkillNames(conversationContext?.loadedSkills ?? []);
   const loadedMcpStatuses = filterOplOrdinaryMcpStatuses(
     conversationContext?.loadedMcpStatuses ??
       (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
@@ -301,6 +301,8 @@ const AcpSendBox: React.FC<{
   const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
   const showCodexAutoOption =
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
+  const showConversationModelSelector =
+    backend !== 'codex' || !isOplCodexCliFixedExecutor() || shouldShowOplConversationModelSelector();
 
   const handleSheetReasoningSelect = useCallback(
     (value: string) => {
@@ -676,6 +678,24 @@ Please check your local CLI tool authentication status`,
 
     const entries: MobileActionSheetEntry[] = [];
 
+    attachEntries.forEach((entry) => {
+      entries.push({ ...entry, dividerBefore: false });
+    });
+
+    if (modeOptions.length > 0) {
+      entries.push({
+        key: 'permission',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('agentMode.permission', { defaultValue: 'Permission' }),
+        meta: currentModeLabel,
+        submenu: {
+          title: t('agentMode.permission', { defaultValue: 'Permission' }),
+          options: modeOptions,
+          onSelect: (key) => void handleSheetModeChange(key),
+        },
+      });
+    }
+
     if (showCodexAutoOption && autoModelOption && canSwitchModel && thoughtLevel) {
       entries.push({
         key: 'auto',
@@ -725,7 +745,7 @@ Please check your local CLI tool authentication status`,
       });
     }
 
-    if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
+    if (useOplCodexModelDisplay && OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
       entries.push({
         key: 'intelligence-enhancement',
         icon: <MagicHat theme='outline' size='16' />,
@@ -751,70 +771,14 @@ Please check your local CLI tool authentication status`,
       });
     }
 
-    if (modeOptions.length > 0) {
+    if (activeCapabilityLabel) {
       entries.push({
-        key: 'permission',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('agentMode.permission', { defaultValue: 'Permission' }),
-        meta: currentModeLabel,
-        submenu: {
-          title: t('agentMode.permission', { defaultValue: 'Permission' }),
-          options: modeOptions,
-          onSelect: (key) => void handleSheetModeChange(key),
-        },
-      });
-    }
-
-    attachEntries.forEach((entry, idx) => {
-      entries.push({
-        ...entry,
-        dividerBefore: idx === 0 ? entries.length > 0 : false,
-      });
-    });
-
-    if (loadedSkills.length > 0) {
-      const skillOptions: MobileActionSheetOption[] = loadedSkills.map((name) => ({
-        key: name,
-        label: `/${name}`,
-      }));
-      entries.push({
-        key: 'skills',
+        key: 'active-capability',
         icon: <MagicHat theme='outline' size='16' />,
-        label: t('common.skills', { defaultValue: 'Skills' }),
+        label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
         variant: 'muted',
-        submenu: {
-          title: t('common.skills', { defaultValue: 'Skills' }),
-          selectable: false,
-          options: skillOptions,
-          onSelect: (name) => {
-            setContent(`/${name} `);
-          },
-        },
-      });
-    }
-
-    if (loadedMcpStatuses.length > 0) {
-      const mcpOptions: MobileActionSheetOption[] = loadedMcpStatuses.map((item) => ({
-        key: item.id,
-        label: item.name,
-        description:
-          item.status === 'loaded'
-            ? undefined
-            : item.reason
-              ? `${t(`conversation.mcp.status.${item.status}` as const)} · ${item.reason}`
-              : t(`conversation.mcp.status.${item.status}` as const),
-      }));
-      entries.push({
-        key: 'mcp',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
-        variant: 'muted',
-        submenu: {
-          title: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
-          selectable: false,
-          options: mcpOptions,
-          onSelect: () => undefined,
-        },
+        dividerBefore: entries.length > 0,
+        disabled: true,
       });
     }
 
@@ -831,19 +795,17 @@ Please check your local CLI tool authentication status`,
     handleSheetReasoningSelect,
     isMobile,
     isSettingReasoning,
-    loadedMcpStatuses,
-    loadedSkills,
     modelDisplayLocale,
     model_info,
     oplFlowIntelligenceEnhancementApplying,
     oplFlowIntelligenceEnhancementMode,
     selectModel,
-    setContent,
     showModeSelector,
     showCodexAutoOption,
     t,
     thoughtLevel,
     useOplCodexModelDisplay,
+    activeCapabilityLabel,
   ]);
 
   useAddEventListener('acp.selected.file', setAtPath);
@@ -931,19 +893,29 @@ Please check your local CLI tool authentication status`,
           />
         }
         rightTools={
-          showModeSelector ? (
-            <AgentModeSelector
-              backend={backend}
-              conversation_id={conversation_id}
-              compact
-              initialMode={session_mode}
-              compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
-              modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
-              compactLabelPrefix={t('agentMode.permission')}
-              hideCompactLabelPrefixOnMobile
-              onModeChanged={isLeaderInTeam ? teamPermission?.propagateMode : undefined}
-              beforeRuntimeSync={prepareRuntimeSync}
-            />
+          !isMobile && (showConversationModelSelector || showModeSelector) ? (
+            <div className='sendbox-decision-controls' data-testid='acp-sendbox-decision-controls'>
+              {showConversationModelSelector && (
+                <div className='sendbox-decision-control'>
+                  <AcpModelSelector conversation_id={conversation_id} backend={backend} waitForWarmup />
+                </div>
+              )}
+              {showModeSelector && (
+                <div className='sendbox-decision-control'>
+                  <AgentModeSelector
+                    backend={backend}
+                    conversation_id={conversation_id}
+                    compact
+                    initialMode={session_mode}
+                    compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
+                    modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
+                    compactLabelPrefix={t('agentMode.permission')}
+                    onModeChanged={isLeaderInTeam ? teamPermission?.propagateMode : undefined}
+                    beforeRuntimeSync={prepareRuntimeSync}
+                  />
+                </div>
+              )}
+            </div>
           ) : undefined
         }
         prefix={

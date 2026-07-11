@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   locationState: { value: null as Record<string, unknown> | null },
   navigate: vi.fn(),
   setSelectedAgentKey: vi.fn(),
+  setCodexModelSelection: vi.fn(),
   setMentionSelectorVisible: vi.fn(),
   setInput: vi.fn(),
   setFiles: vi.fn(),
@@ -61,6 +62,7 @@ const mocks = vi.hoisted(() => ({
     isButtonDisabled: mocks.sendDisabled.value,
   })),
   isPresetAgent: { value: true },
+  isMobileLayout: { value: false },
 }));
 
 const selectedAssistant: Assistant = {
@@ -162,6 +164,10 @@ vi.mock('@/renderer/hooks/chat/useInputFocusRing', () => ({
   }),
 }));
 
+vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
+  useLayoutContext: () => ({ isMobile: mocks.isMobileLayout.value }),
+}));
+
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState.value }),
 }));
@@ -210,6 +216,9 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
     setSelectedMode: vi.fn(),
     selectedAcpModel: null,
     setSelectedAcpModel: vi.fn(),
+    selectedReasoningEffort: 'max',
+    setSelectedReasoningEffort: vi.fn(),
+    setCodexModelSelection: mocks.setCodexModelSelection,
     currentAcpCachedModelInfo: mocks.isPresetAgent.value
       ? {
           current_model_id: 'gpt-5.5',
@@ -362,6 +371,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.i18nLanguage.value = 'zh-CN';
     mocks.locationState.value = null;
     mocks.isPresetAgent.value = true;
+    mocks.isMobileLayout.value = false;
     mocks.navigate.mockClear();
     mocks.setInput.mockClear();
     mocks.setFiles.mockClear();
@@ -390,6 +400,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.guidInput.files = [];
     mocks.guidInput.dir = '';
     mocks.sendMessageHandler.mockClear();
+    mocks.setCodexModelSelection.mockClear();
     mocks.sendDisabled.value = true;
     mocks.slashExecuteBuiltin.value = undefined;
     mocks.ensureBackendMcpCatalog.mockResolvedValue({
@@ -461,6 +472,26 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
+  });
+
+  it('wires ordinary mobile Home to the bounded action sheet and shared Codex selection state', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.isMobileLayout.value = true;
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+
+    expect(screen.getByTestId('mobile-action-sheet-attach-host-files')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-skills')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-mcp')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
+    expect(mocks.setCodexModelSelection).toHaveBeenCalledWith(null, null);
   });
 
   it('does not render the retired static inspector surface', () => {

@@ -5,22 +5,47 @@
  */
 
 import { ipcBridge } from '@/common';
+import {
+  getOplCodexModelDisplayOptions,
+  getOplDefaultCodexReasoningEffort,
+  isOplCodexCliFixedExecutor,
+} from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
+import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
+import MobileActionSheet, {
+  type MobileActionSheetEntry,
+  type MobileActionSheetOption,
+  useAttachEntry,
+} from '@/renderer/components/chat/MobileActionSheet';
+import { useAgentModesForBackend } from '@/renderer/hooks/agent/useAgentModesForBackend';
 import { supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import type { AvailableAgent } from '../types';
+import {
+  buildOplCodexAutoModelOption,
+  formatOplCodexModelDisplay,
+  formatOplCodexReasoningMenuLabel,
+  type OplModelDisplayLocale,
+} from '@/renderer/utils/model/oplCodexModelDisplay';
+import type { AcpModelInfo, AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, Lightning, Plus, Shield, UploadOne } from '@icon-park/react';
-import React, { useCallback, useRef, useState } from 'react';
+import { ArrowUp, Brain, Lightning, MagicHat, Plus, Shield, UploadOne } from '@icon-park/react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
+
+type GuidMobileCodexModelSelection = {
+  modelInfo: AcpModelInfo | null;
+  selectedModelId: string | null;
+  selectedReasoningEffort: string | null;
+  onChange: (modelId: string | null, reasoningEffort: string | null) => void;
+};
 
 type GuidActionRowProps = {
   // File handling
@@ -31,6 +56,8 @@ type GuidActionRowProps = {
 
   // Model selector node (rendered by parent)
   modelSelectorNode: React.ReactNode;
+  mobileCodexModelSelection?: GuidMobileCodexModelSelection;
+  activeCapabilityLabel?: string;
 
   // Agent mode
   selectedAgent: string | 'custom';
@@ -76,6 +103,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   fileAccessDisabled = false,
   fileAccessDisabledReason,
   modelSelectorNode,
+  mobileCodexModelSelection,
+  activeCapabilityLabel,
   selectedAgent,
   effectiveModeAgent,
   selectedMode,
@@ -106,8 +135,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
+  const availableAgentModes = useAgentModesForBackend(modeBackend);
   const showModeSwitch = showModeSelector && supportsModeSwitch(modeBackend);
+  const showMobileModeSwitch = showModeSelector && availableAgentModes.length > 0;
   const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0);
 
   // Browser file picker ref (WebUI only)
@@ -135,31 +167,185 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     [onFilesUploaded, t]
   );
 
-  const getModeDisplayLabel = (mode: AgentModeOption): string =>
-    t(`agentMode.${mode.value}`, { defaultValue: mode.label });
+  const getModeDisplayLabel = useCallback(
+    (mode: AgentModeOption): string => t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
+    [t]
+  );
 
   const isWebUI = !isElectronDesktop();
+
+  const openHostFilePicker = useCallback(() => {
+    if (fileAccessDisabled) return;
+    ipcBridge.dialog.showOpen
+      .invoke({ properties: ['openFile', 'multiSelections'] })
+      .then((uploadedFiles) => {
+        if (uploadedFiles && uploadedFiles.length > 0) {
+          onFilesUploaded(uploadedFiles);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to open file dialog:', error);
+      });
+  }, [fileAccessDisabled, onFilesUploaded]);
+
+  const handleMobileFilesAdded = useCallback(
+    (items: Array<{ path: string }>) => {
+      onFilesUploaded(items.map((item) => item.path));
+    },
+    [onFilesUploaded]
+  );
+  const { entries: mobileAttachEntries, hiddenFileInput: mobileAttachHiddenInput } = useAttachEntry({
+    openFileSelector: openHostFilePicker,
+    onLocalFilesAdded: handleMobileFilesAdded,
+  });
 
   const isSkillChecked = (skill: GuidSkillMenuItem) => isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
 
   const activeSkillCount = allSkills.filter(isSkillChecked).length;
   const activeMcpCount = selectedMcpServerIds.length;
 
+  const mobileSheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
+    if (!isMobile) return [];
+
+    const entries: MobileActionSheetEntry[] = mobileAttachEntries.map((entry) => ({
+      ...entry,
+      disabled: fileAccessDisabled,
+      description: fileAccessDisabled ? fileAccessDisabledReason : entry.description,
+      dividerBefore: false,
+    }));
+    const modeOptions: MobileActionSheetOption[] = showMobileModeSwitch
+      ? availableAgentModes.map((mode) => ({
+          key: mode.value,
+          label: getModeDisplayLabel(mode),
+          description: mode.description,
+          active: selectedMode === mode.value,
+        }))
+      : [];
+
+    if (modeOptions.length > 0) {
+      entries.push({
+        key: 'permission',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('agentMode.permission', { defaultValue: 'Permission' }),
+        meta: modeOptions.find((option) => option.active)?.label,
+        submenu: {
+          title: t('agentMode.permission', { defaultValue: 'Permission' }),
+          options: modeOptions,
+          onSelect: onModeSelect,
+        },
+      });
+    }
+
+    if (mobileCodexModelSelection && modeBackend === 'codex' && isOplCodexCliFixedExecutor()) {
+      const { modelInfo, selectedModelId, selectedReasoningEffort, onChange } = mobileCodexModelSelection;
+      if (modelInfo?.available_models.length) {
+        const modelLocale: OplModelDisplayLocale = localeKey.startsWith('en') ? 'en-US' : 'zh-CN';
+        const autoSelection = selectedModelId === null ? resolveOplCodexAutoSelection(modelInfo) : null;
+        const reasoningEffort =
+          selectedReasoningEffort ?? autoSelection?.reasoningEffort ?? getOplDefaultCodexReasoningEffort();
+        const effectiveModelId = selectedModelId ?? autoSelection?.modelId ?? modelInfo.current_model_id;
+        const effectiveModel = modelInfo.available_models.find((model) => model.id === effectiveModelId);
+        const autoDisplay = buildOplCodexAutoModelOption({ modelInfo, localeKey: modelLocale });
+        const reasoningTitle =
+          modelLocale === 'en-US'
+            ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
+            : getOplCodexModelDisplayOptions().reasoning_menu_title_zh;
+        const reasoningOptions: MobileActionSheetOption[] =
+          getOplCodexModelDisplayOptions().user_reasoning_effort_options.map((effort) => ({
+            key: effort,
+            label: formatOplCodexReasoningMenuLabel(effort, modelLocale),
+            active: reasoningEffort === effort,
+          }));
+        const modelOptions: MobileActionSheetOption[] = modelInfo.available_models.map((model) => {
+          const display = formatOplCodexModelDisplay({
+            id: model.id,
+            label: model.label,
+            reasoningEffort,
+            localeKey: modelLocale,
+          });
+          return {
+            key: model.id,
+            label: display.modelLabel,
+            description: display.description,
+            active: selectedModelId === model.id,
+          };
+        });
+        const currentModelLabel = effectiveModel
+          ? formatOplCodexModelDisplay({
+              id: effectiveModel.id,
+              label: effectiveModel.label,
+              reasoningEffort,
+              localeKey: modelLocale,
+            }).modelLabel
+          : (modelInfo.current_model_label ?? modelInfo.current_model_id ?? undefined);
+
+        entries.push({
+          key: 'auto',
+          icon: <MagicHat theme='outline' size='16' />,
+          label: autoDisplay.label,
+          description: autoDisplay.description,
+          onClick: () => onChange(null, null),
+        });
+        entries.push({
+          key: 'reasoning',
+          icon: <Brain theme='outline' size='16' />,
+          label: reasoningTitle,
+          meta: formatOplCodexReasoningMenuLabel(reasoningEffort, modelLocale),
+          submenu: {
+            title: reasoningTitle,
+            options: reasoningOptions,
+            onSelect: (effort) => onChange(effectiveModelId, effort),
+          },
+        });
+        entries.push({
+          key: 'model',
+          icon: <Brain theme='outline' size='16' />,
+          label: t('common.model', { defaultValue: 'Model' }),
+          meta: currentModelLabel,
+          submenu: {
+            title: t('common.model', { defaultValue: 'Model' }),
+            options: modelOptions,
+            onSelect: (modelId) => onChange(modelId, reasoningEffort),
+          },
+        });
+      }
+    }
+
+    if (activeCapabilityLabel) {
+      entries.push({
+        key: 'active-capability',
+        icon: <MagicHat theme='outline' size='16' />,
+        label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
+        variant: 'muted',
+        dividerBefore: entries.length > 0,
+        disabled: true,
+      });
+    }
+
+    return entries;
+  }, [
+    activeCapabilityLabel,
+    availableAgentModes,
+    fileAccessDisabled,
+    fileAccessDisabledReason,
+    getModeDisplayLabel,
+    isMobile,
+    localeKey,
+    mobileAttachEntries,
+    mobileCodexModelSelection,
+    modeBackend,
+    onModeSelect,
+    selectedMode,
+    showMobileModeSwitch,
+    t,
+  ]);
+
   const menuContent = (
     <Menu
       className='min-w-200px'
       onClickMenuItem={(key) => {
         if (key === 'file') {
-          ipcBridge.dialog.showOpen
-            .invoke({ properties: ['openFile', 'multiSelections'] })
-            .then((uploadedFiles) => {
-              if (uploadedFiles && uploadedFiles.length > 0) {
-                onFilesUploaded(uploadedFiles);
-              }
-            })
-            .catch((error) => {
-              console.error('Failed to open file dialog:', error);
-            });
+          openHostFilePicker();
         } else if (key === 'device') {
           fileInputRef.current?.click();
         }
@@ -287,7 +473,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         loading={uploading}
         disabled={uploading || fileAccessDisabled}
         data-testid='file-upload-btn'
-        aria-label={fileAccessDisabled ? fileAccessDisabledReason : undefined}
+        aria-label={
+          fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFiles', { defaultValue: 'Add files' })
+        }
       />
       {files.length > 0 && (
         <Tooltip
@@ -304,7 +492,30 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     <div className={styles.actionRow} data-testid='guid-action-row'>
       <div className={styles.actionTools}>
         <div className={styles.actionEntry}>
-          {fileAccessDisabled ? (
+          {isMobile ? (
+            <span className='flex items-center gap-4px lh-[1]'>
+              <Button
+                type='secondary'
+                shape='circle'
+                icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
+                loading={uploading}
+                disabled={uploading}
+                data-testid='file-upload-btn'
+                aria-label={t('common.more', { defaultValue: 'More' })}
+                onClick={() => setIsMobileSheetOpen(true)}
+              />
+              {files.length > 0 && (
+                <Tooltip
+                  className={'!max-w-max'}
+                  content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}
+                >
+                  <span className='text-t-primary'>
+                    {t('conversation.commandQueue.files', { count: files.length })}
+                  </span>
+                </Tooltip>
+              )}
+            </span>
+          ) : fileAccessDisabled ? (
             <Tooltip content={fileAccessDisabledReason}>{fileEntry}</Tooltip>
           ) : (
             <Dropdown trigger='hover' onVisibleChange={setIsPlusDropdownOpen} droplist={menuContent}>
@@ -322,8 +533,19 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           )}
         </div>
       </div>
+      {isMobile && (
+        <>
+          <MobileActionSheet
+            open={isMobileSheetOpen}
+            onClose={() => setIsMobileSheetOpen(false)}
+            title={t('common.more', { defaultValue: 'More' })}
+            entries={mobileSheetEntries}
+          />
+          {mobileAttachHiddenInput}
+        </>
+      )}
       <div className={styles.actionSubmit} data-testid='guid-action-submit'>
-        {configOptionCount > 0 && (
+        {!isMobile && configOptionCount > 0 && (
           <div className={styles.actionConfigGroup} data-mobile={isMobile ? 'true' : undefined}>
             {modelSelectorNode}
 
@@ -364,6 +586,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           icon={<ArrowUp theme='filled' size='14' fill='currentColor' strokeWidth={5} />}
           onClick={onSend}
           data-testid='guid-send-btn'
+          aria-label={t('common.send', { defaultValue: 'Send' })}
         />
       </div>
     </div>
