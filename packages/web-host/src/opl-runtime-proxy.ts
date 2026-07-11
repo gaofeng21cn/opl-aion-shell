@@ -144,7 +144,7 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
     case 'install-prep':
       return {
         surface: 'install_prep',
-        args: ['install', '--skip-gui-open', '--skip-modules', '--skip-native-helper-repair', '--json'],
+        args: ['install', '--headless', '--skip-modules', '--json'],
       };
     case 'configure-codex': {
       const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
@@ -340,6 +340,14 @@ function resolveOplInstaller(resourcesPath: string): string | null {
   return pathExistsFile(installerPath) ? installerPath : null;
 }
 
+function buildStandardBootstrapCommand(installerPath: string) {
+  return {
+    command: '/bin/bash',
+    args: [installerPath, '--headless', '--skip-modules'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+  };
+}
+
 function shouldBootstrap(spec: RuntimeCommandSpec): boolean {
   return Boolean(spec.surface);
 }
@@ -504,20 +512,11 @@ async function runBootstrap(opts: OplRuntimeProxyOptions, env: NodeJS.ProcessEnv
   if (!installerPath) {
     throw new Error('Packaged OPL installer is missing; cannot run WebUI standard bootstrap.');
   }
+  const bootstrap = buildStandardBootstrapCommand(installerPath);
   await runSpawnJsonCommand({
+    ...bootstrap,
     surface: 'install_prep',
-    command: '/bin/bash',
-    args: [
-      installerPath,
-      '--complete',
-      '--skip-modules',
-      '--skip-gui-open',
-      '--skip-native-helper-repair',
-      '--no-online-runtime',
-    ],
     env,
-    redactedCommand:
-      '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
     timeoutMs: BOOTSTRAP_TIMEOUT_MS,
     parseOutput: false,
     maxStdoutBytes: BOOTSTRAP_MAX_STDOUT_BYTES,
@@ -600,6 +599,7 @@ export async function handleOplRuntimeProxyRequest(
 export const __oplRuntimeProxyTest = {
   buildCommandFromRequest,
   buildOplEnv,
+  buildStandardBootstrapCommand,
   MAINTENANCE_TIMEOUT_MS,
   normalizeOplRuntimeProxyOptions,
   resolveDefaultFullRuntimeHome,

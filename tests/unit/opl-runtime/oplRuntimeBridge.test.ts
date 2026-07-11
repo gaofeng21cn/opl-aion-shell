@@ -85,7 +85,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl runtime app-operator-drilldown --detail full --json',
         'opl system initialize --events --json',
         'opl system initialize --json',
-        'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
+        'opl install --headless --skip-modules --json',
         'opl system configure-codex --api-key-stdin --json',
         'opl system startup-maintenance --json',
         'opl system reconcile-modules --json',
@@ -177,7 +177,7 @@ describe('OPL runtime bridge command whitelist', () => {
     });
     expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
       surface: 'install_prep',
-      args: ['install', '--skip-gui-open', '--skip-modules', '--skip-native-helper-repair', '--json'],
+      args: ['install', '--headless', '--skip-modules', '--json'],
     });
     expect(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand()).toEqual({
       surface: 'startup_maintenance',
@@ -299,7 +299,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(
       __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
         __oplRuntimeBridgeTest.buildInitializeCommand(),
-        new Error('The App-managed private OPL Framework carrier is missing.')
+        new Error('The Framework-managed OPL base carrier is missing.')
       )
     ).toBe(true);
   });
@@ -331,16 +331,8 @@ describe('OPL runtime bridge command whitelist', () => {
   it('runs the packaged App installer as the standard bootstrap carrier without enabling module or GUI install loops', () => {
     expect(__oplRuntimeBridgeTest.buildStandardBootstrapCommand('/opt/One Person Lab/opl-install.sh')).toEqual({
       command: '/bin/bash',
-      args: [
-        '/opt/One Person Lab/opl-install.sh',
-        '--complete',
-        '--skip-modules',
-        '--skip-gui-open',
-        '--skip-native-helper-repair',
-        '--no-online-runtime',
-      ],
-      redactedCommand:
-        '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+      args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-modules'],
+      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
     });
   });
 
@@ -710,10 +702,10 @@ describe('OPL runtime bridge command whitelist', () => {
         OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
         OPL_HOMEBREW_FORMULA_BIN: path.join(homeDir, 'missing-formula-bin'),
       })
-    ).toThrow(/has neither the system Formula nor the transition private carrier available/);
+    ).toThrow(/has neither the system Formula nor the transition Framework-managed carrier available/);
   });
 
-  it('uses the private carrier only while a detected Cask is waiting for its first Formula publication', () => {
+  it('uses the Framework-managed carrier only while a detected Cask is waiting for its first Formula publication', () => {
     const homeDir = makeTempRoot('opl-cask-transition-home');
     const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
     const caskroomRoot = path.join(homeDir, 'Caskroom');
@@ -728,7 +720,7 @@ describe('OPL runtime bridge command whitelist', () => {
     });
 
     expect(selection.packageRoot).toBe(privateRoot);
-    expect(selection.receipt.selected_carrier).toBe('app_private_install');
+    expect(selection.receipt.selected_carrier).toBe('framework_managed_install');
     expect(selection.receipt.selection_status).toBe('pre_formula_transition');
   });
 
@@ -753,7 +745,7 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toThrow(/Framework API p18\.stage-runtime is incompatible/);
   });
 
-  it('activates only the App-managed private carrier for DMG and direct installs', () => {
+  it('activates only the Framework-managed carrier for DMG and direct installs', () => {
     const homeDir = makeTempRoot('opl-direct-carrier-home');
     const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
     const formulaRoot = path.join(homeDir, 'formula-opl');
@@ -769,7 +761,7 @@ describe('OPL runtime bridge command whitelist', () => {
       OPL_APP_INSTALL_ORIGIN: 'dmg_or_direct_download',
     });
 
-    expect(selection.receipt.selected_carrier).toBe('app_private_install');
+    expect(selection.receipt.selected_carrier).toBe('framework_managed_install');
     expect(selection.receipt.active_framework_count).toBe(1);
     expect(selection.packageRoot).toBe(privateRoot);
   });

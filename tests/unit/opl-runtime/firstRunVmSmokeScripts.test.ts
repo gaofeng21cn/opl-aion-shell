@@ -227,16 +227,8 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.resolvePackagedStandardInstaller(appPath)).toBe(installerPath);
     expect(vmSmoke.buildStandardBootstrapCommand(installerPath)).toEqual({
       command: '/bin/bash',
-      args: [
-        installerPath,
-        '--complete',
-        '--skip-modules',
-        '--skip-gui-open',
-        '--skip-native-helper-repair',
-        '--no-online-runtime',
-      ],
-      redactedCommand:
-        '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+      args: [installerPath, '--headless', '--skip-modules'],
+      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
     });
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
   });
@@ -471,7 +463,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
   });
 
-  it('runs bootstrap-only launch diagnostics after opening the packaged app before secondary release gates', () => {
+  it('runs focused launch diagnostics after opening the packaged app before secondary release gates', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
     const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
 
@@ -590,7 +582,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
   });
 
-  it('forwards bootstrap-only launch diagnostics into the guest without secondary release smokes', () => {
+  it('forwards focused launch diagnostics into the guest without secondary release smokes', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
       'clean-vm',
@@ -624,7 +616,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).not.toContain('--codex-ai-self-check');
   });
 
-  it('lets bootstrap-only diagnostics override secondary smokes enabled by the host profile', () => {
+  it('lets focused launch diagnostics override secondary smokes enabled by the host profile', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
       'clean-vm',
@@ -646,7 +638,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(tartSmoke.buildDryRunPlan(options).settings_smoke).toBe(false);
   });
 
-  it('rejects bootstrap-only diagnostics when secondary release smokes are explicitly requested', () => {
+  it('rejects focused launch diagnostics when secondary release smokes are explicitly requested', () => {
     expect(() =>
       tartSmoke.parseArgs([
         '--source-vm',
@@ -1652,8 +1644,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_home: '/tmp/runtime/current',
         standard_bootstrap: {
           status: 'passed',
-          command:
-            '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+          command: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
         },
         managed_opl_bin: '/Users/tester/.opl/one-person-lab/bin',
         managed_node_bin: null,

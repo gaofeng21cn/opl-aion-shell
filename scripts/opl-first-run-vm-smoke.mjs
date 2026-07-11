@@ -176,7 +176,7 @@ Options:
                          Optional npm cache directory to expose to the packaged
                          app during first-run Codex install via NPM_CONFIG_CACHE.
   --bootstrap-launch-diagnostics
-                         Only verify packaged bootstrap and initial renderer/CDP
+                         Run focused packaged bootstrap and initial renderer/CDP
                          launch diagnostics. Skips Codex config/readiness and
                          secondary release smokes.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
@@ -1796,16 +1796,8 @@ function resolvePackagedStandardInstaller(appPath) {
 function buildStandardBootstrapCommand(installerPath) {
   return {
     command: '/bin/bash',
-    args: [
-      installerPath,
-      '--complete',
-      '--skip-modules',
-      '--skip-gui-open',
-      '--skip-native-helper-repair',
-      '--no-online-runtime',
-    ],
-    redactedCommand:
-      '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+    args: [installerPath, '--headless', '--skip-modules'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
   };
 }
 

@@ -117,7 +117,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl runtime app-operator-drilldown --detail full --json',
     'opl system initialize --events --json',
     'opl system initialize --json',
-    'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
+    'opl install --headless --skip-modules --json',
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
     'opl system reconcile-modules --json',
@@ -159,7 +159,7 @@ type ResolvedOplCli = {
 };
 
 type OplFrameworkCarrierReceipt = {
-  selected_carrier: 'developer_checkout' | 'system_homebrew_formula' | 'app_private_install';
+  selected_carrier: 'developer_checkout' | 'system_homebrew_formula' | 'framework_managed_install';
   framework_version: string;
   framework_api_version: string;
   app_required_api_range: string;
@@ -271,7 +271,7 @@ function buildInitializeFallbackCommand(): RuntimeCommandSpec {
 function buildInstallPrepCommand(): RuntimeCommandSpec {
   return {
     surface: 'install_prep',
-    args: ['install', '--skip-gui-open', '--skip-modules', '--skip-native-helper-repair', '--json'],
+    args: ['install', '--headless', '--skip-modules', '--json'],
   };
 }
 
@@ -446,7 +446,7 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
   return (
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
     (error instanceof Error &&
-      error.message === 'The App-managed private OPL Framework carrier is missing.' &&
+      error.message === 'The Framework-managed OPL base carrier is missing.' &&
       shouldAutoBootstrapOplCommand(spec)) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
@@ -913,20 +913,24 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv): ResolvedOplFramewor
     if (formulaRoot) {
       return buildFrameworkCarrierSelection(formulaRoot, 'system_homebrew_formula');
     }
-    const transitionPrivateRoot = resolveManagedInstallCheckoutRoot(env);
-    if (transitionPrivateRoot) {
-      return buildFrameworkCarrierSelection(transitionPrivateRoot, 'app_private_install', 'pre_formula_transition');
+    const transitionManagedRoot = resolveManagedInstallCheckoutRoot(env);
+    if (transitionManagedRoot) {
+      return buildFrameworkCarrierSelection(
+        transitionManagedRoot,
+        'framework_managed_install',
+        'pre_formula_transition'
+      );
     }
     throw new Error(
-      'This Homebrew Cask install has neither the system Formula nor the transition private carrier available.'
+      'This Homebrew Cask install has neither the system Formula nor the transition Framework-managed carrier available.'
     );
   }
 
-  const privateRoot = resolveManagedInstallCheckoutRoot(env);
-  if (!privateRoot) {
-    throw new Error('The App-managed private OPL Framework carrier is missing.');
+  const managedRoot = resolveManagedInstallCheckoutRoot(env);
+  if (!managedRoot) {
+    throw new Error('The Framework-managed OPL base carrier is missing.');
   }
-  return buildFrameworkCarrierSelection(privateRoot, 'app_private_install');
+  return buildFrameworkCarrierSelection(managedRoot, 'framework_managed_install');
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
@@ -1049,16 +1053,8 @@ function resolvePackagedStandardInstaller(resourcesPath?: string): string | null
 function buildStandardBootstrapCommand(installerPath: string): SpawnCommandSpec {
   return {
     command: '/bin/bash',
-    args: [
-      installerPath,
-      '--complete',
-      '--skip-modules',
-      '--skip-gui-open',
-      '--skip-native-helper-repair',
-      '--no-online-runtime',
-    ],
-    redactedCommand:
-      '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+    args: [installerPath, '--headless', '--skip-modules'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
   };
 }
 
