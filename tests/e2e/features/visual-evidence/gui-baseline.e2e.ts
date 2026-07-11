@@ -606,7 +606,6 @@ function buildTargets(conversationId: string): VisualTarget[] {
           '[data-testid="conversation-side-panel-surface"][aria-hidden="true"]',
           'attached'
         ),
-        anchor('conversation_composer_hidden_for_preview', '[data-testid="conversation-composer"]', 'hidden'),
       ],
       coverageGaps: [],
       setup: async (page) => {
@@ -632,6 +631,12 @@ function buildTargets(conversationId: string): VisualTarget[] {
           'mobile_files_surface_does_not_cover_preview',
           '[data-testid="conversation-side-panel-surface"]',
           '[data-testid="conversation-preview-surface"]'
+        ),
+        await disjointCheck(
+          page,
+          'mobile_preview_does_not_cover_composer',
+          '[data-testid="conversation-preview-surface"]',
+          '[data-testid="conversation-composer"]'
         ),
         await textOverflowCheck(
           page,
