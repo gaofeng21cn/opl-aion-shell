@@ -866,16 +866,12 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain('.find(visible)');
     expect(readyExpression).toContain('@科研');
     expect(readyExpression).toContain('@MAS');
-    for (const hiddenSelector of [
-      'agent-mode-selector',
-      'aionrs-model-selector',
-      'acp-model-selector',
-      'google-model-selector',
-      'agent-pill-',
-      'sendbox-model',
-    ]) {
-      expect(readyExpression).toContain(hiddenSelector);
-    }
+    expect(readyExpression).toContain('acp-model-selector');
+    expect(readyExpression).toContain('agent-mode-selector-');
+    expect(readyExpression).toContain('agent-pill-');
+    expect(readyExpression).toContain('model_selector_visible: true');
+    expect(readyExpression).toContain('permission_selector_visible: true');
+    expect(readyExpression).toContain('executor_selectors_hidden: true');
     expect(createExpression).toContain('/api/conversations');
     expect(createExpression).toContain("method: 'POST'");
     expect(createExpression).toContain('preset_assistant_id');
@@ -1298,7 +1294,8 @@ describe('packaged first-run VM smoke helpers', () => {
           launch_allowed: false,
           readiness_hint: 'repair',
         },
-        selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
+        decision_controls_visible: null,
+        executor_selectors_hidden: ['agent-pill-*'],
         route_receipt: null,
       },
     });

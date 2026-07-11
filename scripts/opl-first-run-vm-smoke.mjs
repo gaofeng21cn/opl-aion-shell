@@ -3041,15 +3041,7 @@ function homeAssistantBlockedReadinessExpression(target) {
 }
 
 function homeAssistantDeniedSelectorParts() {
-  return [
-    '[data-testid="agent-mode-selector"]',
-    '[data-testid="aionrs-model-selector"]',
-    '[data-testid="acp-model-selector"]',
-    '[data-testid="google-model-selector"]',
-    '[data-testid^="agent-pill-"]',
-    '[class*="sendbox-model"]',
-    '.sendbox-model-btn',
-  ];
+  return ['[data-testid^="agent-pill-"]'];
 }
 
 function homeAssistantDeniedSelectorExpression() {
@@ -3090,6 +3082,8 @@ function homeAssistantRouteReadyExpression(target) {
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
+    const modelSelector = document.querySelector('[data-testid="acp-model-selector"]');
+    const permissionSelector = document.querySelector('[data-testid^="agent-mode-selector-"], [data-testid="agent-mode-selector"]');
     const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
       .flatMap((selector) => [...document.querySelectorAll(selector)])
       .filter(visible)
@@ -3097,7 +3091,7 @@ function homeAssistantRouteReadyExpression(target) {
     if (deniedVisible.length > 0) {
       return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
     }
-    if (!visible(input) || !visible(sendButton) || !visible(card)) return false;
+    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(modelSelector) || !visible(permissionSelector)) return false;
     const acceptedBadges = ${JSON.stringify(acceptedBadges)};
     const matchedBadge = acceptedBadges.find((badge) => text.includes(badge));
     if (!matchedBadge) return false;
@@ -3106,7 +3100,9 @@ function homeAssistantRouteReadyExpression(target) {
       badge: ${cdpString(target.badge)},
       matched_badge: matchedBadge,
       selected_card_text: card.textContent || '',
-      selectors_hidden: true,
+      model_selector_visible: true,
+      permission_selector_visible: true,
+      executor_selectors_hidden: true,
     };
   })()`;
 }
@@ -4292,7 +4288,9 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
               readiness_hint: 'repair',
             }
           : null,
-      selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
+      decision_controls_visible:
+        verificationMode === 'route_receipt' ? ['acp-model-selector', 'agent-mode-selector-*'] : null,
+      executor_selectors_hidden: ['agent-pill-*'],
       route_receipt:
         verificationMode === 'route_receipt'
           ? {
