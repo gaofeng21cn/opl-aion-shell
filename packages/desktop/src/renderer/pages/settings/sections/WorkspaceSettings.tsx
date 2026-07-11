@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useMemo } from 'react';
-import { Button, Message, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Button, Message, Modal, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -41,6 +41,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const { t } = useTranslation();
   const [message, messageContextHolder] = Message.useMessage();
   const [workspaceAction, setWorkspaceAction] = React.useState<'choose' | null>(null);
+  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const paths = oplRecord(appState.paths);
@@ -152,196 +153,204 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           </div>
         </header>
 
-        <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='settings-workspace-primary'>
+        <div data-testid='settings-workspace-primary'>
           <section
             className={`opl-settings-section flex ${workspaceNeedsAction ? 'opl-settings-section--attention' : ''}`}
             id='current-workspace'
             data-testid='opl-workspace-settings-root'
           >
             <span id='work-directory' aria-hidden='true' />
-            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
-              <div className='flex min-w-0 items-start gap-10px'>
-                <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                  <FolderOpen theme='outline' />
-                </span>
-                <div className='min-w-0'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.workspacePage.root.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block break-all text-12px text-t-secondary'>
-                    {workspaceSummary}
-                  </Typography.Text>
+            {permissionState !== 'ready' && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
+            <div className='flex min-w-0 flex-1 flex-col'>
+              <div className='flex min-w-0 flex-col gap-16px p-16px'>
+                <div className='flex min-w-0 items-start gap-10px'>
+                  <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                    <FolderOpen theme='outline' />
+                  </span>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.workspacePage.root.title')}
+                    </Typography.Text>
+                    <Typography.Text className='block break-all text-12px text-t-secondary'>
+                      {workspaceSummary}
+                    </Typography.Text>
+                  </div>
+                </div>
+                <div className='flex flex-wrap items-center gap-8px'>
+                  <span
+                    className={`opl-settings-status ${
+                      workspaceReady
+                        ? 'opl-settings-status--ready'
+                        : workspaceNeedsAction
+                          ? 'opl-settings-status--attention'
+                          : ''
+                    }`}
+                  >
+                    {workspaceReady
+                      ? t('settings.workspacePage.status.ready')
+                      : workspaceNeedsAction
+                        ? t('settings.workspacePage.status.needsAction')
+                        : t('settings.oplEnvironmentPage.status.unknown')}
+                  </span>
+                  <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
+                    {t('settings.workspacePage.actions.openWorkspace')}
+                  </Button>
+                  <Button onClick={() => setDiagnosticsOpen(true)}>
+                    {t('settings.workspacePage.technical.title')}
+                  </Button>
+                  <Button
+                    type='primary'
+                    loading={workspaceAction === 'choose'}
+                    onClick={chooseWorkspaceRoot}
+                    data-testid='settings-workspace-primary-action'
+                  >
+                    {t('settings.workspacePage.actions.changeWorkspace')}
+                  </Button>
                 </div>
               </div>
-              <div className='mt-auto flex flex-wrap items-center gap-8px'>
-                <span
-                  className={`opl-settings-status ${
-                    workspaceReady
-                      ? 'opl-settings-status--ready'
-                      : workspaceNeedsAction
-                        ? 'opl-settings-status--attention'
-                        : ''
-                  }`}
-                >
-                  {workspaceReady
-                    ? t('settings.workspacePage.status.ready')
-                    : workspaceNeedsAction
-                      ? t('settings.workspacePage.status.needsAction')
-                      : t('settings.oplEnvironmentPage.status.unknown')}
-                </span>
-                <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
-                  {t('settings.workspacePage.actions.openWorkspace')}
-                </Button>
-                <Button
-                  type='primary'
-                  loading={workspaceAction === 'choose'}
-                  onClick={chooseWorkspaceRoot}
-                  data-testid='settings-workspace-primary-action'
-                >
-                  {t('settings.workspacePage.actions.changeWorkspace')}
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          <section
-            className={`opl-settings-section flex ${permissionState === 'needsAction' ? 'opl-settings-section--attention' : ''}`}
-            id='permissions'
-            data-testid='opl-workspace-settings-permission'
-          >
-            {permissionState !== 'ready' && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
-            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
-              <div>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.workspacePage.permission.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t(`settings.workspacePage.permission.${permissionState}`)}
-                </Typography.Text>
-              </div>
-              <div className='mt-auto flex flex-wrap items-center justify-between gap-8px'>
-                <span
-                  className={`opl-settings-status ${
-                    permissionState === 'ready'
-                      ? 'opl-settings-status--ready'
+              <div
+                className='opl-settings-row border-t border-solid border-[var(--border-base)]'
+                id='permissions'
+                data-testid='opl-workspace-settings-permission'
+              >
+                <div className='opl-settings-row__main'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.workspacePage.permission.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t(`settings.workspacePage.permission.${permissionState}`)}
+                  </Typography.Text>
+                </div>
+                <div className='opl-settings-row__meta flex flex-wrap items-center justify-end gap-8px'>
+                  <span
+                    className={`opl-settings-status ${
+                      permissionState === 'ready'
+                        ? 'opl-settings-status--ready'
+                        : permissionState === 'needsAction'
+                          ? 'opl-settings-status--attention'
+                          : ''
+                    }`}
+                  >
+                    {permissionState === 'ready'
+                      ? t('settings.workspacePage.status.ready')
                       : permissionState === 'needsAction'
-                        ? 'opl-settings-status--attention'
-                        : ''
-                  }`}
-                >
-                  {permissionState === 'ready'
-                    ? t('settings.workspacePage.status.ready')
-                    : permissionState === 'needsAction'
-                      ? t('settings.workspacePage.status.needsAction')
-                      : t('settings.oplEnvironmentPage.status.unknown')}
-                </span>
-                {permissionState !== 'ready' && (
-                  <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
-                )}
+                        ? t('settings.workspacePage.status.needsAction')
+                        : t('settings.oplEnvironmentPage.status.unknown')}
+                  </span>
+                  {permissionState !== 'ready' && (
+                    <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
+                  )}
+                </div>
               </div>
-              {permissionState !== 'ready' && (
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.workspacePage.actions.attentionDescription')}
-                </Typography.Text>
-              )}
             </div>
           </section>
         </div>
 
-        <details
-          className='opl-settings-details'
-          id='technical-paths'
-          data-testid='settings-workspace-technical-details'
+        <Modal
+          visible={diagnosticsOpen}
+          title={t('settings.workspacePage.technical.title')}
+          footer={null}
+          onCancel={() => setDiagnosticsOpen(false)}
+          unmountOnExit
         >
-          <summary>{t('settings.workspacePage.technical.title')}</summary>
-          <Typography.Text className='block pb-10px text-12px text-t-secondary'>
-            {t('settings.workspacePage.technical.description')}
-          </Typography.Text>
-          <div className='opl-settings-technical-group'>
-            <div className='opl-settings-list'>
-              <div className='opl-settings-row' data-testid='opl-workspace-settings-modules-root'>
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='font-500 text-t-primary'>
-                    {t('settings.workspacePage.modulesRoot.title')}
-                  </Typography.Text>
-                  <Typography.Text className='break-all text-12px text-t-secondary'>
-                    {modulesRoot
-                      ? t('settings.workspacePage.modulesRoot.current', { path: modulesRoot })
-                      : t('settings.workspacePage.modulesRoot.missing')}
-                  </Typography.Text>
+          <div id='technical-paths' data-testid='settings-workspace-technical-details'>
+            <Typography.Text className='block pb-10px text-12px text-t-secondary'>
+              {t('settings.workspacePage.technical.description')}
+            </Typography.Text>
+            <div className='opl-settings-technical-group'>
+              <div className='opl-settings-list'>
+                <div className='opl-settings-row' data-testid='opl-workspace-settings-modules-root'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='font-500 text-t-primary'>
+                      {t('settings.workspacePage.modulesRoot.title')}
+                    </Typography.Text>
+                    <Typography.Text className='break-all text-12px text-t-secondary'>
+                      {modulesRoot
+                        ? t('settings.workspacePage.modulesRoot.current', { path: modulesRoot })
+                        : t('settings.workspacePage.modulesRoot.missing')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <Button disabled={!modulesRoot} onClick={() => openFolder(modulesRoot)}>
+                      {t('common.open', { defaultValue: 'Open' })}
+                    </Button>
+                  </div>
                 </div>
-                <div className='opl-settings-row__meta'>
-                  <Button disabled={!modulesRoot} onClick={() => openFolder(modulesRoot)}>
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
+                <div className='opl-settings-row' data-testid='opl-workspace-settings-logs'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='font-500 text-t-primary'>
+                      {t('settings.workspacePage.logs.title')}
+                    </Typography.Text>
+                    <Typography.Text className='break-all text-12px text-t-secondary'>
+                      {logsRoot
+                        ? t('settings.workspacePage.logs.current', { path: logsRoot })
+                        : t('settings.workspacePage.logs.missing')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
+                      {t('settings.workspacePage.actions.openLogs')}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className='opl-settings-row' data-testid='opl-workspace-settings-logs'>
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='font-500 text-t-primary'>
-                    {t('settings.workspacePage.logs.title')}
-                  </Typography.Text>
-                  <Typography.Text className='break-all text-12px text-t-secondary'>
-                    {logsRoot
-                      ? t('settings.workspacePage.logs.current', { path: logsRoot })
-                      : t('settings.workspacePage.logs.missing')}
-                  </Typography.Text>
-                </div>
-                <div className='opl-settings-row__meta'>
-                  <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
-                    {t('settings.workspacePage.actions.openLogs')}
-                  </Button>
-                </div>
-              </div>
-              <div className='opl-settings-row'>
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='font-500 text-t-primary'>
-                    {t('settings.workspacePage.cards.lastCheck')}
-                  </Typography.Text>
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {appStateQuery.loadedAt ?? t('settings.oplEnvironmentPage.status.unknown')}
-                  </Typography.Text>
-                </div>
-                <div className='opl-settings-row__meta'>
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.workspacePage.modules.description', { ready: readyModules, total: modules.length })}
-                  </Typography.Text>
+                <div className='opl-settings-row'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='font-500 text-t-primary'>
+                      {t('settings.workspacePage.cards.lastCheck')}
+                    </Typography.Text>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {appStateQuery.loadedAt ?? t('settings.oplEnvironmentPage.status.unknown')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.workspacePage.modules.description', { ready: readyModules, total: modules.length })}
+                    </Typography.Text>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className='mt-14px flex flex-col divide-y divide-border-1' data-testid='opl-workspace-settings-modules'>
-            {modules.map((module, index) => {
-              const id = moduleId(module) || `module-${index + 1}`;
-              const status = moduleStatus(module);
-              const path = modulePath(module);
-              return (
-                <div key={id} className='flex flex-col gap-6px py-12px md:flex-row md:items-center md:justify-between'>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block font-500 text-t-primary'>
-                      {moduleDisplayLabel(module)}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
-                    </Typography.Text>
-                    {path ? (
-                      <Tooltip content={path}>
-                        <Typography.Text className='block break-all text-12px text-t-secondary'>{path}</Typography.Text>
-                      </Tooltip>
-                    ) : null}
+            <div
+              className='mt-14px flex flex-col divide-y divide-border-1'
+              data-testid='opl-workspace-settings-modules'
+            >
+              {modules.map((module, index) => {
+                const id = moduleId(module) || `module-${index + 1}`;
+                const status = moduleStatus(module);
+                const path = modulePath(module);
+                return (
+                  <div
+                    key={id}
+                    className='flex flex-col gap-6px py-12px md:flex-row md:items-center md:justify-between'
+                  >
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-500 text-t-primary'>
+                        {moduleDisplayLabel(module)}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
+                      </Typography.Text>
+                      {path ? (
+                        <Tooltip content={path}>
+                          <Typography.Text className='block break-all text-12px text-t-secondary'>
+                            {path}
+                          </Typography.Text>
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                    <Tag color={isReadyStatus(status) ? 'gray' : 'orange'}>{formatStatus(status, t)}</Tag>
                   </div>
-                  <Tag color={isReadyStatus(status) ? 'gray' : 'orange'}>{formatStatus(status, t)}</Tag>
-                </div>
-              );
-            })}
-            {modules.length === 0 && (
-              <Typography.Text className='py-12px text-13px text-t-secondary'>
-                {t('settings.workspacePage.modules.empty')}
-              </Typography.Text>
-            )}
+                );
+              })}
+              {modules.length === 0 && (
+                <Typography.Text className='py-12px text-13px text-t-secondary'>
+                  {t('settings.workspacePage.modules.empty')}
+                </Typography.Text>
+              )}
+            </div>
           </div>
-        </details>
+        </Modal>
       </div>
     </>
   );

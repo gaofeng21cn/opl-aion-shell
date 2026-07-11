@@ -85,10 +85,11 @@ const AppearanceModalContent: React.FC = () => {
             </div>
           </div>
 
-          <div className='grid min-w-0 gap-12px xl:grid-cols-2' data-testid='preferences-card-grid'>
+          <div className='flex min-w-0 flex-col gap-12px' data-testid='preferences-card-grid'>
             <PersonalPreferenceSettings />
 
             <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
+              <span id='display-fonts' aria-hidden='true' />
               <SectionHeading
                 icon={<Text theme='outline' size='16' />}
                 title={t('settings.appearancePreferencesTitle')}
@@ -115,12 +116,14 @@ const AppearanceModalContent: React.FC = () => {
                   <ScaleControl />
                 </PreferenceRow>
               </div>
-            </section>
-
-            <section className='opl-settings-section xl:col-span-2' id='themes' data-testid='preferences-theme-section'>
-              <SectionHeading icon={<SwitchThemes theme='outline' size='16' />} title={t('settings.theme')} />
-              <div className='border-t border-solid border-[var(--border-base)] p-16px'>
-                <CssThemeSettings />
+              <div id='themes' className='border-t border-solid border-[var(--border-base)]'>
+                <div className='flex min-w-0 items-center gap-10px px-16px pt-16px'>
+                  <SwitchThemes theme='outline' size='16' />
+                  <div className='text-14px font-medium text-t-primary'>{t('settings.theme')}</div>
+                </div>
+                <div className='p-16px' data-testid='preferences-theme-section'>
+                  <CssThemeSettings />
+                </div>
               </div>
             </section>
           </div>

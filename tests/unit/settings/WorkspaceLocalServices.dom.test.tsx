@@ -189,9 +189,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-workspace-primary')).toHaveClass('md:grid-cols-2');
+    expect(screen.getByTestId('settings-workspace-primary')).not.toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
-    expect(screen.getByTestId('opl-workspace-settings-permission')).toHaveClass('opl-settings-section');
+    expect(screen.getByTestId('opl-workspace-settings-permission')).toHaveClass('opl-settings-row');
     expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
@@ -201,8 +201,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-workspace-technical-details')).not.toHaveAttribute('open');
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Technical paths'));
+    expect(screen.getByTestId('settings-workspace-technical-details')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
     expect(screen.getByText('1 / 2 ready in technical paths.')).toBeInTheDocument();

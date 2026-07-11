@@ -10,7 +10,7 @@ import { configService } from '@/common/config/configService';
 import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
-import { Communication, SettingConfig } from '@icon-park/react';
+import { SettingConfig } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
@@ -315,6 +315,8 @@ const PersonalPreferenceSettings: React.FC = () => {
       {modalContextHolder}
 
       <section className='opl-settings-section' id='app-behavior' data-testid='settings-preferences-primary'>
+        <span id='behavior' aria-hidden='true' />
+        <span id='notifications' aria-hidden='true' />
         <span id='startup-window' aria-hidden='true' />
         <span id='tray' aria-hidden='true' />
         <span id='files-notifications' aria-hidden='true' />
@@ -339,6 +341,16 @@ const PersonalPreferenceSettings: React.FC = () => {
               {item.component}
             </PreferenceRow>
           ))}
+          <PreferenceRow label={t('settings.notification')} description={t('settings.notificationPreferencesDesc')}>
+            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+          </PreferenceRow>
+          <PreferenceRow label={t('settings.cronNotificationEnabled')}>
+            <Switch
+              checked={cronNotificationEnabled}
+              disabled={!notificationEnabled}
+              onChange={handleCronNotificationEnabledChange}
+            />
+          </PreferenceRow>
         </div>
         <details
           className='opl-settings-details'
@@ -357,34 +369,6 @@ const PersonalPreferenceSettings: React.FC = () => {
             ))}
           </div>
         </details>
-      </section>
-
-      <section className='opl-settings-section' id='notifications' data-testid='preferences-notifications-section'>
-        <div className='opl-settings-section__header'>
-          <div className='flex min-w-0 items-start gap-12px'>
-            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
-              <Communication theme='outline' size='16' />
-            </span>
-            <div className='min-w-0'>
-              <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.notification')}</div>
-              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-                {t('settings.notificationPreferencesDesc')}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className='opl-settings-list'>
-          <PreferenceRow label={t('settings.notification')}>
-            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
-          </PreferenceRow>
-          <PreferenceRow label={t('settings.cronNotificationEnabled')}>
-            <Switch
-              checked={cronNotificationEnabled}
-              disabled={!notificationEnabled}
-              onChange={handleCronNotificationEnabledChange}
-            />
-          </PreferenceRow>
-        </div>
       </section>
     </>
   );

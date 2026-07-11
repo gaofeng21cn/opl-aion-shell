@@ -125,7 +125,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AppearanceModalContent', () => {
-  it('organizes preferences as bounded behavior, notification, display, and theme cards', async () => {
+  it('organizes preferences as two full-width behavior and display groups', async () => {
     bridgeMocks.getStartOnBootStatus.mockResolvedValue({
       success: true,
       data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
@@ -143,11 +143,10 @@ describe('AppearanceModalContent', () => {
     const page = screen.getByTestId('settings-page-preferences');
     expect(Array.from(page.querySelectorAll('section')).map((section) => section.id)).toEqual([
       'app-behavior',
-      'notifications',
       'display',
-      'themes',
     ]);
-    expect(screen.getByTestId('preferences-card-grid')).toHaveClass('grid', 'xl:grid-cols-2');
+    expect(screen.getByTestId('preferences-card-grid')).toHaveClass('flex', 'flex-col');
+    expect(screen.getByTestId('preferences-card-grid')).not.toHaveClass('xl:grid-cols-2');
 
     const appBehavior = screen.getByTestId('settings-preferences-primary');
     expect(appBehavior).toHaveTextContent('App behavior');
@@ -156,9 +155,8 @@ describe('AppearanceModalContent', () => {
     expect(appBehavior).toHaveTextContent('Model response timeout');
     await waitFor(() => expect(appBehavior).toHaveTextContent('Hardware acceleration'));
 
-    const notifications = screen.getByTestId('preferences-notifications-section');
-    expect(notifications).toHaveTextContent('Notifications');
-    expect(notifications).toHaveTextContent('Background task completion');
+    expect(appBehavior).toHaveTextContent('Notifications');
+    expect(appBehavior).toHaveTextContent('Background task completion');
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');
@@ -167,7 +165,7 @@ describe('AppearanceModalContent', () => {
     expect(screen.getByText('Code font size')).toBeInTheDocument();
     expect(screen.getByText('Scale')).toBeInTheDocument();
 
-    expect(screen.getByTestId('preferences-theme-section')).toHaveTextContent('Theme appearance');
+    expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Theme appearance');
     expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
 

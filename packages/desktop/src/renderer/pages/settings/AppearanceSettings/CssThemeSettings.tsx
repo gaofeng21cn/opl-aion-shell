@@ -6,7 +6,6 @@
 
 import { configService } from '@/common/config/configService';
 import type { Theme } from '@/common/theme/types';
-import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext.tsx';
 import { Button, Message, Modal } from '@arco-design/web-react';
@@ -16,8 +15,7 @@ import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal.tsx';
 import { BUILTIN_THEMES, DEFAULT_THEME_ID } from './presets.ts';
 import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils.ts';
-import { resolveExtensionAssetUrl } from '@renderer/utils/platform.ts';
-import { LIGHT_THEME_ID, SYSTEM_THEME_ID } from '@/common/theme/constants';
+import { LIGHT_THEME_ID } from '@/common/theme/constants';
 
 interface ThemePreviewPalette {
   appBg: string;
@@ -178,23 +176,6 @@ const CssThemeSettings: React.FC = () => {
     return map;
   }, [themes, currentTheme]);
 
-  // Virtual "Follow System" card, third in the gallery (after Light and Dark).
-  // Not part of BUILTIN_THEMES — it must never enter resolution/dedup/persistence.
-  const displayThemes = useMemo(() => {
-    if (themes.length === 0) return themes;
-    const systemCard: Theme = {
-      id: SYSTEM_THEME_ID,
-      name: t('settings.cssTheme.followSystem'),
-      appearance: 'light',
-      builtin: true,
-      created_at: 0,
-      updated_at: 0,
-    };
-    const arr = [...themes];
-    arr.splice(Math.min(2, arr.length), 0, systemCard);
-    return arr;
-  }, [themes, t]);
-
   // 加载主题列表 / Load theme list
   useEffect(() => {
     const loadThemes = async () => {
@@ -204,42 +185,26 @@ const CssThemeSettings: React.FC = () => {
         // Apply background CSS to user themes that have cover images
         const normalizedUserThemes = userThemes.map((theme) => ensureBackgroundCss(theme));
 
-        // 加载扩展主题 / Load extension-contributed themes
-        let extensionThemes: Theme[] = [];
-        try {
-          const loadedExtensionThemes = await ipcBridge.extensions.getThemes.invoke();
-          // Map extension themes to Theme shape (css-only, builtin: true, appearance inferred as 'light')
-          extensionThemes = loadedExtensionThemes.map((theme) => ({
-            id: theme.id,
-            name: theme.name,
-            cover: resolveExtensionAssetUrl(theme.cover),
-            css: theme.css,
-            appearance: 'light' as const,
-            builtin: true,
-            created_at: theme.created_at ?? 0,
-            updated_at: theme.updated_at ?? 0,
-          }));
-        } catch {
-          // Extensions not available (e.g., WebUI mode or not initialized yet)
-        }
-
         // 合并主题，按 ID 去重（先出现的优先）
-        // Merge builtin, extension, and user themes; deduplicate by ID (first occurrence wins)
+        // Merge the two product defaults with user-managed themes.
         const seenIds = new Set<string>();
         const allThemes: Theme[] = [];
-        for (const theme of [...BUILTIN_THEMES, ...extensionThemes, ...normalizedUserThemes]) {
+        for (const theme of [...BUILTIN_THEMES, ...normalizedUserThemes]) {
           if (!theme?.id || seenIds.has(theme.id)) continue;
           seenIds.add(theme.id);
           allThemes.push(theme);
         }
 
         setThemes(allThemes);
+        if (!allThemes.some((theme) => theme.id === activeThemeId)) {
+          await selectTheme(LIGHT_THEME_ID);
+        }
       } catch (error) {
         console.error('Failed to load CSS themes:', error);
       }
     };
     void loadThemes();
-  }, []);
+  }, [activeThemeId, selectTheme]);
 
   /**
    * 选择主题 / Select theme
@@ -383,7 +348,7 @@ const CssThemeSettings: React.FC = () => {
           gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))',
         }}
       >
-        {displayThemes.map((theme) => {
+        {themes.map((theme) => {
           const previewPalette =
             themePreviewPalettes.get(theme.id) ||
             fallbackThemePreviewPaletteByMode[currentTheme === 'dark' ? 'dark' : 'light'];
@@ -413,46 +378,33 @@ const CssThemeSettings: React.FC = () => {
                   data-testid='css-theme-option-preview'
                   style={previewStyle}
                 >
-                  {theme.id === SYSTEM_THEME_ID ? (
+                  {!theme.cover && (
                     <>
                       <span
-                        className='absolute inset-y-0 left-0 w-1/2'
-                        style={{ background: fallbackThemePreviewPaletteByMode.light.appBg }}
+                        className='absolute inset-x-0 top-0 h-16px border-b border-solid'
+                        style={{ background: previewPalette.headerBg, borderColor: previewPalette.border }}
                       />
                       <span
-                        className='absolute inset-y-0 right-0 w-1/2'
-                        style={{ background: fallbackThemePreviewPaletteByMode.dark.appBg }}
+                        className='absolute bottom-0 left-0 top-16px w-42px border-r border-solid'
+                        style={{ background: previewPalette.sideBg, borderColor: previewPalette.border }}
+                      />
+                      <span
+                        className='absolute bottom-10px left-52px right-10px top-26px rounded-6px border border-solid'
+                        style={{ background: previewPalette.mainBg, borderColor: previewPalette.border }}
+                      />
+                      <span
+                        className='absolute left-62px top-36px h-4px w-48px rounded-full opacity-70'
+                        style={{ background: previewPalette.textMuted }}
+                      />
+                      <span
+                        className='absolute left-62px top-50px h-18px w-72px rounded-6px'
+                        style={{ background: previewPalette.aiBubble }}
+                      />
+                      <span
+                        className='absolute right-16px top-74px h-18px w-56px rounded-6px'
+                        style={{ background: previewPalette.userBubble }}
                       />
                     </>
-                  ) : (
-                    !theme.cover && (
-                      <>
-                        <span
-                          className='absolute inset-x-0 top-0 h-16px border-b border-solid'
-                          style={{ background: previewPalette.headerBg, borderColor: previewPalette.border }}
-                        />
-                        <span
-                          className='absolute bottom-0 left-0 top-16px w-42px border-r border-solid'
-                          style={{ background: previewPalette.sideBg, borderColor: previewPalette.border }}
-                        />
-                        <span
-                          className='absolute bottom-10px left-52px right-10px top-26px rounded-6px border border-solid'
-                          style={{ background: previewPalette.mainBg, borderColor: previewPalette.border }}
-                        />
-                        <span
-                          className='absolute left-62px top-36px h-4px w-48px rounded-full opacity-70'
-                          style={{ background: previewPalette.textMuted }}
-                        />
-                        <span
-                          className='absolute left-62px top-50px h-18px w-72px rounded-6px'
-                          style={{ background: previewPalette.aiBubble }}
-                        />
-                        <span
-                          className='absolute right-16px top-74px h-18px w-56px rounded-6px'
-                          style={{ background: previewPalette.userBubble }}
-                        />
-                      </>
-                    )
                   )}
                   {activeThemeId === theme.id && (
                     <span className='absolute right-8px top-8px flex h-24px w-24px items-center justify-center rounded-full border border-solid border-[var(--border-base)] bg-[var(--bg-1)]'>

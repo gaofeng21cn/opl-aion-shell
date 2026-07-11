@@ -111,9 +111,7 @@ describe('AboutModalContent OPL release metadata', () => {
     );
 
   const openTechnicalDetails = () => {
-    const details = screen.getByTestId('about-technical-details') as HTMLDetailsElement;
-    details.open = true;
-    fireEvent(details, new Event('toggle'));
+    fireEvent.click(screen.getByText('Technical details'));
   };
 
   it('keeps the main page focused on app version, update state, and three distinct actions', async () => {
@@ -125,15 +123,15 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.getByText('Stable')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-about')).toBeInTheDocument();
     expect(screen.getByTestId('settings-about-primary')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-about-primary')).toHaveClass('grid', 'lg:grid-cols-2');
+    expect(screen.getByTestId('settings-about-primary')).toHaveClass('flex', 'flex-col');
     expect(screen.getByTestId('about-update-section')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-about-technical-details')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-about-technical-details')).not.toBeInTheDocument();
     expect(await screen.findByText('You are up to date')).toBeInTheDocument();
     expect(screen.getByTestId('about-check-updates')).toBeInTheDocument();
     expect(screen.getByTestId('about-link-help')).toHaveTextContent('Help documentation');
     expect(screen.getByTestId('about-link-releases')).toHaveTextContent('Release page');
     expect(screen.getByTestId('about-link-feedback')).toHaveTextContent('Feedback');
-    expect(screen.getByTestId('about-update-copy')).toHaveClass('flex-1');
+    expect(screen.getByTestId('about-update-copy')).toHaveClass('min-w-0');
     expect(screen.getByTestId('about-link-help-content')).toHaveClass(
       'flex',
       'items-center',
@@ -145,7 +143,7 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.queryByText('settings.contactMe')).not.toBeInTheDocument();
     expect(screen.queryByText('GUI shell')).not.toBeInTheDocument();
     expect(screen.queryByText(/Framework revision/)).not.toBeInTheDocument();
-    expect(screen.getByTestId('about-technical-details')).not.toHaveAttribute('open');
+    expect(screen.queryByTestId('about-technical-details')).not.toBeInTheDocument();
   });
 
   it('shows shell, framework revision, and release repo only after technical details open', async () => {

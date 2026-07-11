@@ -50,7 +50,7 @@ vi.mock('@renderer/hooks/context/ThemeContext.tsx', () => ({
   useThemeContext: () => ({
     theme: 'light',
     activeTheme: null,
-    activeId: 'builtin-light',
+    activeId: 'default-theme',
     selectTheme: themeMocks.selectTheme,
   }),
 }));
