@@ -29,6 +29,7 @@ const AionrsChat: React.FC<{
   session_mode?: string;
   cron_job_id?: string;
   emptySlot?: React.ReactNode;
+  timelineHeaderSlot?: React.ReactNode;
   loadedSkills?: string[];
   loadedMcpServers?: string[];
   loadedMcpStatuses?: IConversationMcpStatus[];
@@ -42,6 +43,7 @@ const AionrsChat: React.FC<{
   session_mode,
   cron_job_id,
   emptySlot,
+  timelineHeaderSlot,
   loadedSkills,
   loadedMcpServers,
   loadedMcpStatuses,
@@ -72,7 +74,7 @@ const AionrsChat: React.FC<{
       <ConversationArtifactProvider conversation_id={conversation_id}>
         <div className='flex-1 flex flex-col px-20px min-h-0'>
           <FlexFullContainer>
-            <MessageList className='flex-1' emptySlot={emptySlot} />
+            <MessageList className='flex-1' emptySlot={emptySlot} timelineHeaderSlot={timelineHeaderSlot} />
           </FlexFullContainer>
           <AionrsSendBox
             conversation_id={conversation_id}

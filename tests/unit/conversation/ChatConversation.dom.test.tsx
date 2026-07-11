@@ -93,6 +93,7 @@ vi.mock('@/renderer/pages/conversation/runtime/useConversationRuntimeView', () =
 }));
 
 vi.mock('@/renderer/pages/conversation/runtime/CurrentTaskAwareness', () => ({
+  hasCurrentTaskAwareness: (task?: { title?: string } | null) => Boolean(task?.title),
   default: ({ onStop, stopDisabled }: { onStop?: () => unknown; stopDisabled?: boolean }) => (
     <button type='button' disabled={stopDisabled} onClick={() => void onStop?.()}>
       Stop current task
@@ -104,15 +105,19 @@ vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
   default: ({
     loadedMcpServers,
     loadedMcpStatuses,
+    timelineHeaderSlot,
   }: {
     loadedMcpServers?: string[];
     loadedMcpStatuses?: Array<{ id: string; name: string; status: string }>;
+    timelineHeaderSlot?: React.ReactNode;
   }) => (
     <div
       data-testid='acp-chat'
       data-mcp-servers={JSON.stringify(loadedMcpServers ?? [])}
       data-mcp-statuses={JSON.stringify(loadedMcpStatuses ?? [])}
-    />
+    >
+      <div data-testid='message-list-scroller'>{timelineHeaderSlot}</div>
+    </div>
   ),
 }));
 
@@ -226,6 +231,10 @@ describe('ChatConversation composer and side-panel surface', () => {
   it('wires the current-task stop control to the active runtime turn', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
 
+    expect(screen.getByTestId('chat-current-task')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('message-list-scroller')).toContainElement(
+      screen.getByRole('button', { name: 'Stop current task' })
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Stop current task' }));
 
     expect(runtimeView.stopActiveTurn).toHaveBeenCalledTimes(1);

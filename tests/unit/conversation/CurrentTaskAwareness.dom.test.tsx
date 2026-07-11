@@ -139,6 +139,24 @@ describe('CurrentTaskAwareness', () => {
     await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
   });
 
+  it('pins only when the runtime explicitly marks the task as long running', () => {
+    render(
+      <CurrentTaskAwareness
+        compact
+        task={
+          {
+            task_id: 'task-long-running',
+            title: 'Long analysis',
+            long_running: true,
+          } as never
+        }
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Unpin task summary' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('conversation-current-task-inline')).toHaveClass('current-task-awareness--pinned');
+  });
+
   it('renders inspector evidence refs without artifact body', () => {
     render(
       <CurrentTaskAwareness

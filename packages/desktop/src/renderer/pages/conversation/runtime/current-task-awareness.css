@@ -10,13 +10,18 @@
 }
 
 .current-task-awareness--compact {
+  width: calc(100% - 16px);
+  max-width: 780px;
+  margin: 8px auto 0;
   padding: 6px 16px;
+  border: 1px solid var(--bg-3);
+  border-radius: 8px;
   background: var(--bg-1);
 }
 
 .current-task-awareness--pinned {
   position: sticky;
-  top: 0;
+  top: 8px;
   z-index: 8;
 }
 

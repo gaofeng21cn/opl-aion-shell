@@ -230,7 +230,11 @@ const MessageItem: React.FC<{ message: TMessage; highlighted?: boolean }> = Reac
     prev.highlighted === next.highlighted
 );
 
-const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }> = ({ emptySlot }) => {
+const MessageList: React.FC<{
+  className?: string;
+  emptySlot?: React.ReactNode;
+  timelineHeaderSlot?: React.ReactNode;
+}> = ({ emptySlot, timelineHeaderSlot }) => {
   const list = useMessageList();
   const isMessageListLoading = useMessageListLoading();
   const artifacts = useConversationArtifacts();
@@ -480,7 +484,7 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
     return <MessageListSkeleton />;
   }
 
-  if (processedList.length === 0 && emptySlot) {
+  if (processedList.length === 0 && emptySlot && !timelineHeaderSlot) {
     return <div className='relative flex-1 h-full flex items-center justify-center'>{emptySlot}</div>;
   }
 
@@ -501,10 +505,17 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
             onWheel={handleWheel}
           >
             <div ref={handleContentRef} data-testid='message-list-content' style={{ overflowAnchor: 'none' }}>
+              {timelineHeaderSlot}
               <div className='h-10px' />
-              {processedList.map((item, index) => (
-                <React.Fragment key={getProcessedItemAnchorId(item) || index}>{renderItem(index, item)}</React.Fragment>
-              ))}
+              {processedList.length === 0 && emptySlot ? (
+                <div className='min-h-240px flex items-center justify-center'>{emptySlot}</div>
+              ) : (
+                processedList.map((item, index) => (
+                  <React.Fragment key={getProcessedItemAnchorId(item) || index}>
+                    {renderItem(index, item)}
+                  </React.Fragment>
+                ))
+              )}
               <div className='h-20px' />
             </div>
           </div>
