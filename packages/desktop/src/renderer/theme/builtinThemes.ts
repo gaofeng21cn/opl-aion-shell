@@ -5,7 +5,7 @@
  */
 
 import type { Theme } from '@/common/theme/types';
-import { LIGHT_THEME_ID, CODEX_THEME_ID } from '@/common/theme/constants';
+import { LIGHT_THEME_ID, DARK_THEME_ID, CODEX_THEME_ID } from '@/common/theme/constants';
 import { defaultThemeCover } from '@renderer/pages/settings/AppearanceSettings/themeCovers';
 import oplCodexCss from '@renderer/pages/settings/AppearanceSettings/presets/opl-codex.css?raw';
 
@@ -32,6 +32,7 @@ export const BUILTIN_THEMES: Theme[] = [
     created_at: T0,
     updated_at: T0,
   },
+  { id: DARK_THEME_ID, name: 'Dark', appearance: 'dark', builtin: true, created_at: T0, updated_at: T0 },
   decorative(CODEX_THEME_ID, 'Codex', 'light', oplCodexCss),
 ];
 

@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal.tsx';
 import { BUILTIN_THEMES, DEFAULT_THEME_ID } from './presets.ts';
 import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils.ts';
-import { LIGHT_THEME_ID } from '@/common/theme/constants';
+import { CODEX_THEME_ID, LIGHT_THEME_ID } from '@/common/theme/constants';
 
 interface ThemePreviewPalette {
   appBg: string;
@@ -189,22 +189,22 @@ const CssThemeSettings: React.FC = () => {
         // Merge the two product defaults with user-managed themes.
         const seenIds = new Set<string>();
         const allThemes: Theme[] = [];
-        for (const theme of [...BUILTIN_THEMES, ...normalizedUserThemes]) {
+        const productDefaultThemes = BUILTIN_THEMES.filter((theme) =>
+          [LIGHT_THEME_ID, CODEX_THEME_ID].includes(theme.id)
+        );
+        for (const theme of [...productDefaultThemes, ...normalizedUserThemes]) {
           if (!theme?.id || seenIds.has(theme.id)) continue;
           seenIds.add(theme.id);
           allThemes.push(theme);
         }
 
         setThemes(allThemes);
-        if (!allThemes.some((theme) => theme.id === activeThemeId)) {
-          await selectTheme(LIGHT_THEME_ID);
-        }
       } catch (error) {
         console.error('Failed to load CSS themes:', error);
       }
     };
     void loadThemes();
-  }, [activeThemeId, selectTheme]);
+  }, []);
 
   /**
    * 选择主题 / Select theme
