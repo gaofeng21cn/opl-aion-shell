@@ -734,17 +734,15 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('工作台状态检查完成。');
   });
 
-  it('renders one honest empty state when no resource source is reported', () => {
+  it('keeps absent reported resources quiet while preserving the connection action', () => {
     getMocks().resourceSources = null;
 
     const view = renderResources();
 
-    const empty = view.getByTestId('opl-settings-resource-sources-empty');
-    expect(empty).toHaveClass('opl-settings-row');
-    expect(empty).not.toHaveClass('opl-settings-empty');
+    expect(view.queryByTestId('opl-settings-resource-sources-empty')).toBeNull();
     expect(view.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
     expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
-    expect(view.getByText('当前没有上报工作区或外部连接。')).toBeTruthy();
+    expect(view.queryByText('当前没有上报工作区或外部连接。')).toBeNull();
     expect(view.getByTestId('opl-settings-add-connection')).toBeTruthy();
     expect(view.queryAllByText('OPL Workspace')).toHaveLength(0);
   });
