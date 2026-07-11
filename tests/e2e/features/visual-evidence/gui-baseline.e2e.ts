@@ -274,13 +274,6 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
   };
 }
 
-async function inertBackgroundCheck(page: Page): Promise<GuiBaselineLayoutCheck> {
-  const main = page.locator('[data-testid="conversation-main-column"]');
-  await expect(main).toHaveAttribute('inert', '');
-  await expect(main).toHaveAttribute('aria-hidden', 'true');
-  return { id: 'compact_overlay_background_inert', passed: true, details: 'main_column=inert aria-hidden=true' };
-}
-
 async function expectHomeLocale(page: Page, locale: GuiBaselineLocale): Promise<void> {
   await expect(page.locator('[data-testid="opl-guid-entry"]')).toContainText(
     locale === 'zh-CN' ? /推进什么/ : /move forward/i
@@ -290,8 +283,31 @@ async function expectHomeLocale(page: Page, locale: GuiBaselineLocale): Promise<
 async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): Promise<void> {
   await expect(page.locator('[data-testid="conversation-side-panel-toggle"]')).toHaveAttribute(
     'aria-label',
-    locale === 'zh-CN' ? /打开工具面板|关闭工具面板/ : /Open tools|Close tools/
+    locale === 'zh-CN' ? /打开文件面板|关闭文件面板/ : /Open files|Close files/
   );
+}
+
+async function openConversationModelMenu(page: Page): Promise<void> {
+  await page.locator('[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn').first().click();
+  await expect(page.locator('.arco-trigger-popup:has(.arco-menu)').last()).toBeVisible();
+}
+
+async function openEnvironmentPopover(page: Page): Promise<void> {
+  await page.locator('.conversation-environment-trigger').click();
+  await expect(page.locator('[data-testid="conversation-environment-popover"]')).toBeVisible();
+}
+
+async function openMobileActionSheet(page: Page, triggerSelector: string): Promise<void> {
+  await page.locator(triggerSelector).click();
+  await expect(page.locator('[role="dialog"][aria-modal="true"]')).toBeVisible();
+}
+
+async function openWorkspacePreview(page: Page, fileName: string): Promise<void> {
+  await page.locator('[data-testid="conversation-side-panel-toggle"]').click();
+  const workspace = page.locator('[data-testid="conversation-side-panel"]');
+  await expect(workspace.locator('.workspace-tree')).toBeVisible({ timeout: 30_000 });
+  await workspace.getByText(fileName, { exact: true }).first().click();
+  await expect(page.locator('[data-testid="conversation-preview-surface"]')).toBeVisible({ timeout: 15_000 });
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
@@ -363,7 +379,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
-      coverageGaps: [{ id: 'mobile_home_states', reason: 'covered by separate mobile route-state entries' }],
+      coverageGaps: [],
       setup: async (page) => {
         await goToGuid(page);
         await setNavigationRailExpanded(page, true);
@@ -386,7 +402,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('mobile_rail_closed', `${NAVIGATION_RAIL_SELECTOR}.collapsed`, 'attached'),
       ],
-      coverageGaps: [{ id: 'narrow_drawer_open', reason: 'covered by a separate mobile route-state entry' }],
+      coverageGaps: [],
       setup: async (page) => {
         await goToGuid(page);
         await setNavigationRailExpanded(page, false);
@@ -399,137 +415,192 @@ function buildTargets(conversationId: string): VisualTarget[] {
       ],
     },
     {
-      id: 'home-mobile-dark-en-US-narrow-drawer-open',
-      screenshotName: 'gui-baseline/home/mobile/dark/en-US/narrow-drawer-open',
+      id: 'home-mobile-dark-en-US-action-sheet-open',
+      screenshotName: 'gui-baseline/home/mobile/dark/en-US/action-sheet-open',
       viewport: { name: 'mobile', width: 390, height: 844 },
       theme: 'dark',
       locale: 'en-US',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
-        anchor('narrow_drawer', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
-        anchor('narrow_drawer_backdrop', '[data-testid="app-navigation-rail-backdrop"]'),
+        anchor('mobile_action_sheet', '[role="dialog"][aria-modal="true"]'),
+        anchor('mobile_attach_host_files', '[data-testid="mobile-action-sheet-attach-host-files"]'),
+        anchor('mobile_permission', '[data-testid="mobile-action-sheet-permission"]'),
+        anchor('mobile_reasoning', '[data-testid="mobile-action-sheet-reasoning"]'),
+        anchor('mobile_model', '[data-testid="mobile-action-sheet-model"]'),
       ],
-      coverageGaps: [{ id: 'mobile_home_unobscured', reason: 'covered by the separate rail-closed entry' }],
+      coverageGaps: [],
       setup: async (page) => {
         await goToGuid(page);
-        await setNavigationRailExpanded(page, true);
-        await expectHomeLocale(page, 'en-US');
-        return { route_kind: 'home', rail: 'narrow_drawer_open' };
+        await setNavigationRailExpanded(page, false);
+        await openMobileActionSheet(page, '[data-testid="file-upload-btn"]');
+        return { route_kind: 'home', rail: 'closed', composer_surface: 'mobile_action_sheet' };
       },
       layoutChecks: async (page) => [
-        await viewportCheck(page, 'narrow_drawer_within_viewport', NAVIGATION_RAIL_SELECTOR),
-        await viewportCheck(
+        await viewportCheck(page, 'mobile_home_action_sheet_within_viewport', '[role="dialog"][aria-modal="true"]'),
+        await textOverflowCheck(
           page,
-          'narrow_drawer_backdrop_within_viewport',
-          '[data-testid="app-navigation-rail-backdrop"]'
+          'mobile_home_action_sheet_text_does_not_overflow',
+          '[role="dialog"][aria-modal="true"]'
         ),
-        await textOverflowCheck(page, 'narrow_drawer_text_does_not_overflow', NAVIGATION_RAIL_SELECTOR),
       ],
     },
     {
-      id: 'conversation-desktop-light-en-US-side-panel-closed',
-      screenshotName: 'gui-baseline/conversation/desktop/light/en-US/side-panel-closed',
+      id: 'conversation-desktop-light-en-US-composer-controls',
+      screenshotName: 'gui-baseline/conversation/desktop/light/en-US/composer-controls',
       viewport: { name: 'desktop', width: 1440, height: 960 },
       theme: 'light',
       locale: 'en-US',
       anchors: [
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
-        anchor('conversation_side_panel_toggle', '[data-testid="conversation-side-panel-toggle"]'),
-        anchor('conversation_side_panel_closed', '[data-testid="conversation-side-panel-surface"]', 'hidden'),
+        anchor('conversation_decision_controls', '[data-testid="acp-sendbox-decision-controls"]'),
+        anchor('conversation_model_control', '[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn'),
+        anchor('conversation_permission_control', '[data-testid="agent-mode-selector-codex"]'),
+        anchor('conversation_files_closed', '[data-testid="conversation-side-panel-surface"]', 'hidden'),
       ],
-      coverageGaps: [{ id: 'side_panel_content', reason: 'covered by the separate desktop open entry' }],
+      coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
         await expectConversationLocale(page, 'en-US');
-        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', side_panel: 'closed' };
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', composer: 'decision_ready' };
       },
       layoutChecks: conversationChecks,
     },
     {
-      id: 'conversation-desktop-dark-zh-CN-side-panel-open',
-      screenshotName: 'gui-baseline/conversation/desktop/dark/zh-CN/side-panel-open',
+      id: 'conversation-desktop-light-en-US-model-menu-open',
+      screenshotName: 'gui-baseline/conversation/desktop/light/en-US/model-menu-open',
+      viewport: { name: 'desktop', width: 1440, height: 960 },
+      theme: 'light',
+      locale: 'en-US',
+      anchors: [
+        anchor('conversation_composer', '[data-testid="conversation-composer"]'),
+        anchor('conversation_model_control', '[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn'),
+        anchor('conversation_model_menu', '.arco-trigger-popup:has(.arco-menu)'),
+      ],
+      coverageGaps: [],
+      setup: async (page) => {
+        await openFixtureConversation(page, conversationId, 'closed');
+        await openConversationModelMenu(page);
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', model_menu: 'open' };
+      },
+      layoutChecks: async (page) => [
+        ...(await conversationChecks(page)),
+        await viewportCheck(page, 'conversation_model_menu_within_viewport', '.arco-trigger-popup:has(.arco-menu)'),
+        await textOverflowCheck(
+          page,
+          'conversation_model_menu_text_does_not_overflow',
+          '.arco-trigger-popup:has(.arco-menu)'
+        ),
+      ],
+    },
+    {
+      id: 'conversation-desktop-dark-zh-CN-environment-open',
+      screenshotName: 'gui-baseline/conversation/desktop/dark/zh-CN/environment-open',
+      viewport: { name: 'desktop', width: 1440, height: 960 },
+      theme: 'dark',
+      locale: 'zh-CN',
+      anchors: [
+        anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
+        anchor('conversation_environment_trigger', '.conversation-environment-trigger'),
+        anchor('conversation_environment_popover', '[data-testid="conversation-environment-popover"]'),
+      ],
+      coverageGaps: [],
+      setup: async (page) => {
+        await openFixtureConversation(page, conversationId, 'closed');
+        await openEnvironmentPopover(page);
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', environment: 'open' };
+      },
+      layoutChecks: async (page) => [
+        ...(await conversationChecks(page)),
+        await viewportCheck(
+          page,
+          'conversation_environment_popover_within_viewport',
+          '[data-testid="conversation-environment-popover"]'
+        ),
+        await textOverflowCheck(
+          page,
+          'conversation_environment_text_does_not_overflow',
+          '[data-testid="conversation-environment-popover"]'
+        ),
+      ],
+    },
+    {
+      id: 'conversation-desktop-dark-zh-CN-files-open',
+      screenshotName: 'gui-baseline/conversation/desktop/dark/zh-CN/files-open',
       viewport: { name: 'desktop', width: 1440, height: 960 },
       theme: 'dark',
       locale: 'zh-CN',
       anchors: [
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
-        anchor('conversation_side_panel', '[data-testid="conversation-side-panel-surface"]'),
-        anchor('conversation_side_panel_content', '[data-testid="conversation-side-panel"]'),
+        anchor('conversation_files_surface', '[data-testid="conversation-side-panel-surface"]'),
+        anchor('conversation_files_content', '[data-testid="conversation-side-panel"]'),
+        anchor('conversation_workspace_tree', '[data-testid="conversation-side-panel"] .workspace-tree'),
       ],
-      coverageGaps: [{ id: 'compact_overlay', reason: 'covered by the separate compact viewport entry' }],
+      coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'open');
         await expectConversationLocale(page, 'zh-CN');
-        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', side_panel: 'desktop_open' };
+        await expect(page.locator('[data-testid="conversation-side-panel"] .workspace-tree')).toBeVisible({
+          timeout: 30_000,
+        });
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', files: 'desktop_open' };
       },
       layoutChecks: async (page) => [
         ...(await conversationChecks(page)),
         await disjointCheck(
           page,
-          'main_column_does_not_cover_side_panel',
+          'main_column_does_not_cover_files',
           '[data-testid="conversation-main-column"]',
           '[data-testid="conversation-side-panel-surface"]'
         ),
         await disjointCheck(
           page,
-          'composer_does_not_cover_side_panel',
+          'composer_does_not_cover_files',
           '[data-testid="conversation-composer"]',
           '[data-testid="conversation-side-panel-surface"]'
         ),
         await textOverflowCheck(
           page,
-          'side_panel_text_does_not_overflow',
+          'conversation_files_text_does_not_overflow',
           '[data-testid="conversation-side-panel-surface"]'
         ),
       ],
     },
     {
-      id: 'conversation-compact-light-en-US-side-panel-overlay',
-      screenshotName: 'gui-baseline/conversation/compact/light/en-US/side-panel-overlay',
-      viewport: { name: 'compact', width: 1000, height: 760 },
+      id: 'conversation-mobile-light-en-US-preview-open',
+      screenshotName: 'gui-baseline/conversation/mobile/light/en-US/preview-open',
+      viewport: { name: 'mobile', width: 390, height: 844 },
       theme: 'light',
       locale: 'en-US',
       anchors: [
-        anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
-        anchor('conversation_composer', '[data-testid="conversation-composer"]'),
-        anchor('compact_overlay_layer', '[data-testid="conversation-side-panel-layer"][aria-hidden="false"]'),
-        anchor('compact_overlay_backdrop', '[data-testid="conversation-side-panel-backdrop"]'),
-        anchor('compact_overlay_panel', '[data-testid="conversation-side-panel-surface"]'),
+        anchor('conversation_preview_surface', '[data-testid="conversation-preview-surface"]'),
+        anchor(
+          'conversation_files_layer_closed',
+          '[data-testid="conversation-side-panel-layer"][aria-hidden="true"]',
+          'attached'
+        ),
+        anchor('conversation_files_surface_hidden', '[data-testid="conversation-side-panel-surface"]', 'hidden'),
+        anchor('conversation_composer_hidden_for_preview', '[data-testid="conversation-composer"]', 'hidden'),
       ],
-      coverageGaps: [{ id: 'desktop_split_panel', reason: 'covered by the separate desktop open entry' }],
+      coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
-        await page.locator('[data-testid="conversation-side-panel-toggle"]').click();
-        await expect(page.locator('[data-testid="conversation-side-panel-layer"]')).toHaveAttribute(
-          'aria-hidden',
-          'false'
-        );
-        await expectConversationLocale(page, 'en-US');
+        await setNavigationRailExpanded(page, false);
+        await openWorkspacePreview(page, 'README.md');
         return {
           route_kind: 'ordinary_conversation',
           fixture: 'persisted_with_workspace',
-          side_panel: 'compact_overlay_open',
+          preview: 'mobile_open',
+          files: 'closed_by_preview',
         };
       },
       layoutChecks: async (page) => [
-        ...(await conversationChecks(page)),
-        await viewportCheck(
-          page,
-          'compact_overlay_panel_within_viewport',
-          '[data-testid="conversation-side-panel-surface"]'
-        ),
-        await viewportCheck(
-          page,
-          'compact_overlay_backdrop_within_viewport',
-          '[data-testid="conversation-side-panel-backdrop"]'
-        ),
-        await inertBackgroundCheck(page),
+        await viewportCheck(page, 'mobile_preview_within_viewport', '[data-testid="conversation-preview-surface"]'),
         await textOverflowCheck(
           page,
-          'compact_overlay_text_does_not_overflow',
-          '[data-testid="conversation-side-panel-surface"]'
+          'mobile_preview_text_does_not_overflow',
+          '[data-testid="conversation-preview-surface"]'
         ),
       ],
     },
