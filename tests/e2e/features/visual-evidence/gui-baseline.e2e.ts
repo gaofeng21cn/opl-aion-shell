@@ -214,6 +214,19 @@ async function viewportCheck(page: Page, id: string, selector: string): Promise<
   };
 }
 
+async function outsideViewportCheck(page: Page, id: string, selector: string): Promise<GuiBaselineLayoutCheck> {
+  const box = await requiredBox(page.locator(selector), id);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error(`Layout check ${id} requires an explicit viewport`);
+  const passed =
+    box.x + box.width <= 1 || box.y + box.height <= 1 || box.x >= viewport.width - 1 || box.y >= viewport.height - 1;
+  return {
+    id,
+    passed,
+    details: `box=${JSON.stringify(box)} viewport=${viewport.width}x${viewport.height}`,
+  };
+}
+
 async function textOverflowCheck(page: Page, id: string, rootSelector: string): Promise<GuiBaselineLayoutCheck> {
   const violations = await page
     .locator(rootSelector)
@@ -317,7 +330,6 @@ async function openWorkspacePreview(page: Page, fileName: string): Promise<void>
   await workspace.getByText(fileName, { exact: true }).first().click();
   await expect(page.locator('[data-testid="conversation-preview-surface"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-testid="conversation-side-panel-layer"]')).toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('[data-testid="conversation-side-panel-surface"]')).toBeHidden();
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
@@ -589,7 +601,11 @@ function buildTargets(conversationId: string): VisualTarget[] {
           '[data-testid="conversation-side-panel-layer"][aria-hidden="true"]',
           'attached'
         ),
-        anchor('conversation_files_surface_hidden', '[data-testid="conversation-side-panel-surface"]', 'hidden'),
+        anchor(
+          'conversation_files_surface_closed',
+          '[data-testid="conversation-side-panel-surface"][aria-hidden="true"]',
+          'attached'
+        ),
         anchor('conversation_composer_hidden_for_preview', '[data-testid="conversation-composer"]', 'hidden'),
       ],
       coverageGaps: [],
@@ -606,6 +622,17 @@ function buildTargets(conversationId: string): VisualTarget[] {
       },
       layoutChecks: async (page) => [
         await viewportCheck(page, 'mobile_preview_within_viewport', '[data-testid="conversation-preview-surface"]'),
+        await outsideViewportCheck(
+          page,
+          'mobile_files_surface_outside_viewport',
+          '[data-testid="conversation-side-panel-surface"]'
+        ),
+        await disjointCheck(
+          page,
+          'mobile_files_surface_does_not_cover_preview',
+          '[data-testid="conversation-side-panel-surface"]',
+          '[data-testid="conversation-preview-surface"]'
+        ),
         await textOverflowCheck(
           page,
           'mobile_preview_text_does_not_overflow',
