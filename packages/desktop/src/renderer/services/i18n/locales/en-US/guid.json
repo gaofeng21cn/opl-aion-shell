@@ -41,7 +41,13 @@
     "clearWorkspace": "Clear",
     "specifyWorkspace": "Select project folder",
     "searchPlaceholder": "Search projects…",
-    "noProject": "No Project"
+    "noProject": "No Project",
+    "manageRegistered": "Manage folders",
+    "registeredTitle": "Registered folders",
+    "registeredDescription": "These folders are saved for quick selection. Removing a record does not delete files or change an active conversation.",
+    "removeRegistered": "Remove folder record {{name}}",
+    "removeRegisteredAction": "Remove record",
+    "noRegistered": "No registered folders"
   },
   "activity": {
     "title": "Continue work",
