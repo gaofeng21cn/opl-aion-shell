@@ -3,23 +3,28 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TMessage } from '@/common/chat/chatLib';
 import type { TChatConversation } from '@/common/config/storage';
+import { BackendHttpError } from '@/common/adapter/httpBridge';
 import { useConversationExport } from '@/renderer/hooks/file/useConversationExport';
 
 const mocks = vi.hoisted(() => ({
   getConversation: vi.fn(),
-  getConversationMessages: vi.fn(),
+  getConversationMessagesCursor: vi.fn(),
   getPath: vi.fn(),
   showOpen: vi.fn(),
   writeFile: vi.fn(),
+  getFileMetadata: vi.fn(),
   copyText: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
     application: { getPath: { invoke: mocks.getPath } },
-    database: { getConversationMessages: { invoke: mocks.getConversationMessages } },
+    database: { getConversationMessagesCursor: { invoke: mocks.getConversationMessagesCursor } },
     dialog: { showOpen: { invoke: mocks.showOpen } },
-    fs: { writeFile: { invoke: mocks.writeFile } },
+    fs: {
+      getFileMetadata: { invoke: mocks.getFileMetadata },
+      writeFile: { invoke: mocks.writeFile },
+    },
   },
 }));
 
@@ -57,6 +62,9 @@ const messages = [
   },
 ] as TMessage[];
 
+const missingFileError = (path: string) =>
+  new BackendHttpError({ method: 'POST', path: '/api/fs/metadata', status: 404, body: { code: 'NOT_FOUND', path } });
+
 const renderExport = () => {
   const success = vi.fn();
   const error = vi.fn();
@@ -84,9 +92,10 @@ describe('useConversationExport', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.getConversation.mockResolvedValue(conversation);
-    mocks.getConversationMessages.mockResolvedValue({ items: messages, total: messages.length, has_more: false });
+    mocks.getConversationMessagesCursor.mockResolvedValue({ items: messages, has_more_before: false });
     mocks.getPath.mockResolvedValue('/desktop');
     mocks.writeFile.mockResolvedValue(true);
+    mocks.getFileMetadata.mockRejectedValue(missingFileError('/exports'));
     mocks.copyText.mockResolvedValue(undefined);
   });
 
@@ -98,11 +107,9 @@ describe('useConversationExport', () => {
     expect(result.current.format).toBe('markdown');
     expect(result.current.filename).toMatch(/\.md$/);
     expect(result.current.directory).toBe('');
-    expect(mocks.getConversationMessages).toHaveBeenCalledWith({
+    expect(mocks.getConversationMessagesCursor).toHaveBeenCalledWith({
       conversation_id: conversation.id,
-      page: 0,
-      page_size: 200,
-      order: 'ASC',
+      limit: 200,
       content_mode: 'compact',
     });
 
@@ -132,7 +139,7 @@ describe('useConversationExport', () => {
     await act(async () => {
       await result.current.selectDirectory();
     });
-    expect(error).toHaveBeenCalledWith('messages.export.directoryCancelled');
+    expect(error).not.toHaveBeenCalledWith('messages.export.directoryCancelled');
     expect(mocks.writeFile).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -162,6 +169,45 @@ describe('useConversationExport', () => {
     );
   });
 
+  it('never overwrites an existing export and uses a stable suffix after checking each candidate', async () => {
+    const { result, success } = renderExport();
+    await openExport(result);
+    act(() => {
+      result.current.onSelectMenuItem('save');
+      result.current.setFilename('export-review.md');
+    });
+    mocks.showOpen.mockResolvedValue(['/exports']);
+    mocks.getFileMetadata
+      .mockResolvedValueOnce({ path: '/exports/export-review.md' })
+      .mockRejectedValueOnce(missingFileError('/exports/export-review-1.md'));
+
+    await act(async () => {
+      await result.current.selectDirectory();
+      await result.current.submitFilename();
+    });
+
+    expect(mocks.getFileMetadata).toHaveBeenNthCalledWith(1, { path: '/exports/export-review.md' });
+    expect(mocks.getFileMetadata).toHaveBeenNthCalledWith(2, { path: '/exports/export-review-1.md' });
+    expect(mocks.writeFile).toHaveBeenCalledWith(expect.objectContaining({ path: '/exports/export-review-1.md' }));
+    expect(success).toHaveBeenCalledWith('messages.export.saveSuccess');
+  });
+
+  it('fails closed when metadata cannot confirm that a candidate is absent', async () => {
+    const { result, error } = renderExport();
+    await openExport(result);
+    act(() => result.current.onSelectMenuItem('save'));
+    mocks.showOpen.mockResolvedValue(['/exports']);
+    mocks.getFileMetadata.mockRejectedValue(new Error('metadata unavailable'));
+
+    await act(async () => {
+      await result.current.selectDirectory();
+      await result.current.submitFilename();
+    });
+
+    expect(mocks.writeFile).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith('messages.export.saveFailed');
+  });
+
   it('keeps failures visible and never reports a failed write as success', async () => {
     mocks.writeFile.mockResolvedValue(false);
     const { result, success, error } = renderExport();
@@ -179,7 +225,7 @@ describe('useConversationExport', () => {
   });
 
   it('shows message loading failure without opening the export menu', async () => {
-    mocks.getConversationMessages.mockRejectedValue(new Error('read failed'));
+    mocks.getConversationMessagesCursor.mockRejectedValue(new Error('read failed'));
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { result, error } = renderExport();
 

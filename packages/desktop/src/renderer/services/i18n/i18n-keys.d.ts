@@ -1373,6 +1373,7 @@ export type I18nKey =
   | 'messages.export.saveDescription'
   | 'messages.export.saveFailed'
   | 'messages.export.saveLabel'
+  | 'messages.export.savePathUnavailable'
   | 'messages.export.saveSuccess'
   | 'messages.export.unavailable'
   | 'messages.export.userLabel'

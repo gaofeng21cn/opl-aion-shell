@@ -39,31 +39,44 @@ const textMessage = (id: string, position: 'left' | 'right' | 'center', content:
 const syntheticCredential = (...parts: string[]): string => parts.join('');
 
 describe('conversation transcript pagination', () => {
-  it('reads every bounded page in ascending order until the complete history is loaded', async () => {
+  it('walks backwards through cursor pages and returns a stable created_at ascending transcript', async () => {
     const messages = [
-      textMessage('m1', 'right', 'one'),
-      textMessage('m2', 'left', 'two'),
-      textMessage('m3', 'right', 'three'),
-      textMessage('m4', 'left', 'four'),
-      textMessage('m5', 'right', 'five'),
+      { ...textMessage('m1', 'right', 'one'), created_at: 1 },
+      { ...textMessage('m2', 'left', 'two'), created_at: 2 },
+      { ...textMessage('m3', 'right', 'three'), created_at: 3 },
+      { ...textMessage('m4', 'left', 'four'), created_at: 4 },
     ];
     const fetchPage = vi
       .fn()
-      .mockResolvedValueOnce({ items: messages.slice(0, 2), total: 5, has_more: true })
-      .mockResolvedValueOnce({ items: messages.slice(2, 4), total: 5, has_more: true })
-      .mockResolvedValueOnce({ items: messages.slice(4), total: 5, has_more: false });
+      .mockResolvedValueOnce({
+        items: messages.slice(2),
+        oldest_cursor: 'before-m3',
+        newest_cursor: 'after-m4',
+        has_more_before: true,
+        has_more_after: false,
+      })
+      .mockResolvedValueOnce({
+        items: messages.slice(0, 2),
+        oldestCursor: 'before-m1',
+        newestCursor: 'after-m2',
+        hasMoreBefore: false,
+        hasMoreAfter: true,
+      });
 
     await expect(fetchAllConversationMessages(fetchPage, { pageSize: 2 })).resolves.toEqual(messages);
     expect(fetchPage.mock.calls.map(([request]) => request)).toEqual([
-      { page: 0, page_size: 2 },
-      { page: 1, page_size: 2 },
-      { page: 2, page_size: 2 },
+      { limit: 2, content_mode: 'compact' },
+      { limit: 2, before: 'before-m3', content_mode: 'compact' },
     ]);
   });
 
   it('rejects repeated pages instead of looping or returning duplicated history', async () => {
     const repeatedPage = [textMessage('m1', 'right', 'one'), textMessage('m2', 'left', 'two')];
-    const fetchPage = vi.fn().mockResolvedValue({ items: repeatedPage, total: 6, has_more: true });
+    const fetchPage = vi.fn().mockResolvedValue({
+      items: repeatedPage,
+      oldest_cursor: 'before-m1',
+      has_more_before: true,
+    });
 
     await expect(fetchAllConversationMessages(fetchPage, { pageSize: 2, maxPages: 4 })).rejects.toThrow(
       /repeated page/i
@@ -75,26 +88,49 @@ describe('conversation transcript pagination', () => {
       .fn()
       .mockResolvedValueOnce({
         items: [textMessage('m1', 'right', 'one'), textMessage('m2', 'left', 'two')],
-        total: 4,
-        has_more: true,
+        oldest_cursor: 'before-m1',
+        has_more_before: true,
       })
       .mockResolvedValueOnce({
         items: [textMessage('m2', 'left', 'two'), textMessage('m3', 'right', 'three')],
-        total: 4,
-        has_more: false,
+        oldest_cursor: 'before-m2',
+        has_more_before: false,
       });
 
     await expect(fetchAllConversationMessages(fetchPage, { pageSize: 2 })).rejects.toThrow(/duplicate message/i);
   });
 
-  it('rejects contradictory pagination metadata instead of silently truncating a short page', async () => {
+  it('rejects contradictory empty cursor pages and repeated cursors instead of silently truncating', async () => {
+    const emptyPage = vi.fn().mockResolvedValue({
+      items: [],
+      oldest_cursor: 'before-m1',
+      has_more_before: true,
+    });
+    const repeatedCursor = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [textMessage('m2', 'left', 'two')],
+        oldest_cursor: 'before-m1',
+        has_more_before: true,
+      })
+      .mockResolvedValueOnce({
+        items: [textMessage('m1', 'right', 'one')],
+        oldest_cursor: 'before-m1',
+        has_more_before: true,
+      });
+
+    await expect(fetchAllConversationMessages(emptyPage, { pageSize: 2 })).rejects.toThrow(/empty page/i);
+    await expect(fetchAllConversationMessages(repeatedCursor, { pageSize: 2 })).rejects.toThrow(/repeated cursor/i);
+  });
+
+  it('fails at the configured cursor page cap instead of returning a partial transcript', async () => {
     const fetchPage = vi.fn().mockResolvedValue({
       items: [textMessage('m1', 'right', 'one')],
-      total: 3,
-      has_more: true,
+      oldest_cursor: 'before-m1',
+      has_more_before: true,
     });
 
-    await expect(fetchAllConversationMessages(fetchPage, { pageSize: 2 })).rejects.toThrow(/incomplete page/i);
+    await expect(fetchAllConversationMessages(fetchPage, { pageSize: 2, maxPages: 1 })).rejects.toThrow(/maximum/i);
   });
 });
 
@@ -163,5 +199,49 @@ describe('shareable conversation transcript', () => {
     );
     expect(normalizeExportFileName('review.json', 'markdown')).toBe('review.md');
     expect(normalizeExportFileName('review.md', 'json')).toBe('review.json');
+  });
+
+  it('recursively redacts parseable JSON and adversarial credential patterns without exporting metadata', () => {
+    const messages = [
+      textMessage(
+        'user',
+        'right',
+        JSON.stringify({
+          api_key: syntheticCredential('sk-', 'proj-', 'abcdefghijklmnopqrstuvwxyz123456'),
+          nested: { client_secret: 'client-secret-value', authorization: 'Bearer hidden-value' },
+        })
+      ),
+      textMessage(
+        'assistant',
+        'left',
+        [
+          'Basic dXNlcjpwYXNzd29yZA==',
+          `jwt ${syntheticCredential('eyJhbGciOiJIUzI1NiJ9', '.eyJzdWIiOiIxIn0', '.signature')}`,
+          syntheticCredential('hf_', 'abcdefghijklmnopqrstuvwxyz'),
+          `stripe ${syntheticCredential('sk_', 'live_', 'abcdefghijklmnopqrstuvwxyz')}`,
+          `AWS ${syntheticCredential('AKIA', 'IOSFODNN7EXAMPLE')}`,
+          `GitHub ${syntheticCredential('github_', 'pat_', 'abcdefghijklmnopqrstuvwxyz')}`,
+        ].join(' ')
+      ),
+    ];
+
+    const parsed = JSON.parse(buildConversationExportContent(conversation, messages, 'json', labels)) as {
+      redacted: boolean;
+      messages: Array<{ content: string }>;
+    };
+
+    expect(JSON.parse(parsed.messages[0]?.content ?? '')).toEqual({
+      api_key: '[REDACTED]',
+      nested: { client_secret: '[REDACTED]', authorization: '[REDACTED]' },
+    });
+    expect(parsed.messages[1]?.content).toContain('Basic [REDACTED]');
+    expect(parsed.messages[1]?.content).not.toMatch(/eyJhbGci|hf_[a-z]|sk_live_|AKIAIOSFODNN7EXAMPLE|github_pat_/);
+    expect(parsed.redacted).toBe(true);
+  });
+
+  it('normalizes Unicode and removes control characters, Windows reserved names, and trailing spaces or dots', () => {
+    expect(normalizeExportFileName('  CON. \u0000', 'markdown')).toBe('CON_.md');
+    expect(normalizeExportFileName(' cafe\u0301.  ', 'json')).toBe('caf\u00e9.json');
+    expect(normalizeExportFileName('../private\\report. ', 'markdown')).toBe('___private_report.md');
   });
 });
