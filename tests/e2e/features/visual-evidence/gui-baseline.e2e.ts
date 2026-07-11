@@ -241,6 +241,23 @@ async function viewportCheck(page: Page, id: string, selector: string): Promise<
   };
 }
 
+async function viewportWidthCoverageCheck(
+  page: Page,
+  id: string,
+  selector: string,
+  minimumRatio: number
+): Promise<GuiBaselineLayoutCheck> {
+  const box = await requiredBox(page.locator(selector), id);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error(`Layout check ${id} requires an explicit viewport`);
+  const ratio = box.width / viewport.width;
+  return {
+    id,
+    passed: ratio >= minimumRatio,
+    details: `width_ratio=${ratio.toFixed(3)} minimum=${minimumRatio.toFixed(3)} box_width=${box.width.toFixed(2)} viewport_width=${viewport.width}`,
+  };
+}
+
 async function outsideViewportCheck(page: Page, id: string, selector: string): Promise<GuiBaselineLayoutCheck> {
   const box = await requiredBox(page.locator(selector), id);
   const viewport = page.viewportSize();
@@ -357,6 +374,24 @@ async function openWorkspacePreview(page: Page, fileName: string): Promise<void>
   await workspace.getByText(fileName, { exact: true }).first().click();
   await expect(page.locator('[data-testid="conversation-preview-surface"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-testid="conversation-side-panel-layer"]')).toHaveAttribute('aria-hidden', 'true');
+}
+
+async function waitForSettledTransform(page: Page, selector: string): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page
+          .locator(selector)
+          .first()
+          .evaluate((element) => {
+            const transform = window.getComputedStyle(element).transform;
+            if (transform === 'none') return 0;
+            const matrix = new DOMMatrixReadOnly(transform);
+            return Math.abs(matrix.m41) + Math.abs(matrix.m42);
+          }),
+      { timeout: 5_000, message: `Expected ${selector} entrance transform to settle` }
+    )
+    .toBeLessThan(0.5);
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
@@ -624,6 +659,8 @@ function buildTargets(conversationId: string): VisualTarget[] {
       locale: 'en-US',
       anchors: [
         anchor('conversation_preview_surface', '[data-testid="conversation-preview-surface"]'),
+        anchor('conversation_timeline_hidden', '[data-testid="conversation-timeline-surface"]', 'hidden'),
+        anchor('conversation_composer_hidden', '[data-testid="conversation-composer"]', 'hidden'),
         anchor(
           'conversation_files_layer_closed',
           '[data-testid="conversation-side-panel-layer"][aria-hidden="true"]',
@@ -640,6 +677,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         await openFixtureConversation(page, conversationId, 'closed');
         await setNavigationRailExpanded(page, false);
         await openWorkspacePreview(page, 'README.md');
+        await waitForSettledTransform(page, '[data-testid="conversation-preview-surface"]');
         return {
           route_kind: 'ordinary_conversation',
           fixture: 'persisted_with_workspace',
@@ -649,6 +687,12 @@ function buildTargets(conversationId: string): VisualTarget[] {
       },
       layoutChecks: async (page) => [
         await viewportCheck(page, 'mobile_preview_within_viewport', '[data-testid="conversation-preview-surface"]'),
+        await viewportWidthCoverageCheck(
+          page,
+          'mobile_preview_owns_readable_canvas',
+          '[data-testid="conversation-preview-surface"]',
+          0.9
+        ),
         await outsideViewportCheck(
           page,
           'mobile_files_surface_outside_viewport',
@@ -659,12 +703,6 @@ function buildTargets(conversationId: string): VisualTarget[] {
           'mobile_files_surface_does_not_cover_preview',
           '[data-testid="conversation-side-panel-surface"]',
           '[data-testid="conversation-preview-surface"]'
-        ),
-        await disjointCheck(
-          page,
-          'mobile_preview_does_not_cover_composer',
-          '[data-testid="conversation-preview-surface"]',
-          '[data-testid="conversation-composer"]'
         ),
         await textOverflowCheck(
           page,

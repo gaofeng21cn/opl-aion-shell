@@ -186,6 +186,8 @@ describe('ChatLayout conversation context surfaces', () => {
     render(previewTransitionView());
 
     expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.getByTestId('conversation-timeline-surface')).toHaveStyle({ display: 'none' });
+    expect(screen.getByTestId('conversation-timeline-surface')).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true');
   });
 
@@ -202,6 +204,7 @@ describe('ChatLayout conversation context surfaces', () => {
 
     await waitFor(() => expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true'));
     expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.getByTestId('conversation-timeline-surface')).toHaveStyle({ display: 'none' });
   });
 
   it('closes Preview before opening Files on a narrow viewport', async () => {
@@ -268,6 +271,7 @@ describe('ChatLayout conversation context surfaces', () => {
     render(previewTransitionView());
 
     expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.getByTestId('conversation-timeline-surface')).not.toHaveStyle({ display: 'none' });
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 });
