@@ -249,7 +249,7 @@ describe('OPL generated product profile', () => {
       system: 'advanced',
       model: 'environment',
       agent: 'capabilities',
-      assistants: 'capabilities?tab=assistants#custom-assistants',
+      assistants: 'capabilities?tab=skills',
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
