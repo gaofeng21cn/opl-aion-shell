@@ -956,17 +956,15 @@ function readCodexModelDisplayOptions(
     },
     fixed_model_description_zh: '固定此模型',
     fixed_model_description_en: 'Use this model',
-    reasoning_labels: {
-      ...Object.fromEntries(
-        Object.entries(reasoningLabels ?? {}).flatMap(([key, label]) => {
-          if (!key.trim() || !isRecord(label)) return [];
-          if (typeof label.zh !== 'string' || !label.zh.trim() || typeof label.en !== 'string' || !label.en.trim()) {
-            return [];
-          }
-          return [[key, { zh: label.zh.trim(), en: label.en.trim() }]];
-        })
-      ),
-    } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
+    reasoning_labels: Object.fromEntries(
+      Object.entries(reasoningLabels ?? {}).flatMap(([key, label]) => {
+        if (!key.trim() || !isRecord(label)) return [];
+        if (typeof label.zh !== 'string' || !label.zh.trim() || typeof label.en !== 'string' || !label.en.trim()) {
+          return [];
+        }
+        return [[key, { zh: label.zh.trim(), en: label.en.trim() }]];
+      })
+    ) as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
     user_reasoning_effort_options: userReasoningEffortOptions,
     visible_models: visibleModels,
   };
