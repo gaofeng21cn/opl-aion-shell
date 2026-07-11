@@ -418,7 +418,7 @@ export type OplSettingsControlPlaneActionContract = {
 };
 
 type AppProductProfile = {
-  schema_version: 1;
+  schema_version: 2;
   owner: 'one-person-lab-app';
   purpose: 'app_owned_product_profile';
   state: string;
@@ -1640,7 +1640,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: root must be an object');
   }
-  if (value.schema_version !== 1) {
+  if (value.schema_version !== 2) {
     throw new Error('Invalid OPL product profile: unsupported schema_version');
   }
   if (value.owner !== 'one-person-lab-app') {
@@ -2004,7 +2004,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     owner: 'one-person-lab-app',
     purpose: 'app_owned_product_profile',
     state: typeof value.state === 'string' ? value.state : '',
