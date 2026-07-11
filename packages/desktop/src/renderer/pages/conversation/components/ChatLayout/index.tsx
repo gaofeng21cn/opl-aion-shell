@@ -58,13 +58,27 @@ const ChatLayout: React.FC<{
   const { containerRef, containerWidth } = useContainerWidth();
   const usesWorkspaceOverlay = isMobile || (containerWidth > 0 && containerWidth <= WORKSPACE_OVERLAY_MAX_PX);
   const isDesktop = !usesWorkspaceOverlay;
-  const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { isOpen: isPreviewOpen, closePreview } = usePreviewContext();
   const { rightSiderCollapsed, setRightSiderCollapsed } = useWorkspaceCollapse({
     workspaceEnabled,
     isMobile: usesWorkspaceOverlay,
     conversation_id,
     preferenceKey: workspacePreferenceKey ?? conversation_id,
   });
+
+  useEffect(() => {
+    if (usesWorkspaceOverlay && isPreviewOpen) {
+      setRightSiderCollapsed(true);
+    }
+  }, [isPreviewOpen, setRightSiderCollapsed, usesWorkspaceOverlay]);
+
+  const toggleWorkspace = () => {
+    if (usesWorkspaceOverlay && rightSiderCollapsed) {
+      closePreview();
+    }
+    dispatchWorkspaceToggleEvent();
+  };
+
   const workspacePanelRef = useRef<HTMLElement>(null);
   const previousWorkspaceCollapsedRef = useRef(true);
 
@@ -172,7 +186,7 @@ const ChatLayout: React.FC<{
         aria-label={rightSiderCollapsed ? t('conversation.sidePanel.open') : t('conversation.sidePanel.close')}
         aria-expanded={!rightSiderCollapsed}
         aria-controls='conversation-workspace-panel'
-        onClick={() => dispatchWorkspaceToggleEvent()}
+        onClick={toggleWorkspace}
         data-testid='conversation-side-panel-toggle'
       />
     </Tooltip>
@@ -319,7 +333,7 @@ const ChatLayout: React.FC<{
             <WorkspacePanelHeader
               showToggle
               collapsed={false}
-              onToggle={() => dispatchWorkspaceToggleEvent()}
+              onToggle={toggleWorkspace}
               workspacePath={workspacePath}
               isTemporaryWorkspace={isTemporaryWorkspace}
             >

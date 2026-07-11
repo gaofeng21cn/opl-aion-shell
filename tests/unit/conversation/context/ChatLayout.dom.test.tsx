@@ -6,7 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const layout = vi.hoisted(() => ({ isMobile: false }));
 const viewport = vi.hoisted(() => ({ width: 1200 }));
-const preview = vi.hoisted(() => ({ isOpen: false, openRequestId: 0 }));
+const preview = vi.hoisted(() => {
+  const state = { isOpen: false, openRequestId: 0, closePreview: vi.fn() };
+  state.closePreview.mockImplementation(() => {
+    state.isOpen = false;
+  });
+  return state;
+});
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => layout,
@@ -93,6 +99,7 @@ describe('ChatLayout conversation context surfaces', () => {
     viewport.width = 1200;
     preview.isOpen = false;
     preview.openRequestId = 0;
+    preview.closePreview.mockClear();
     localStorage.clear();
     document.getElementById('app-titlebar-actions-slot')?.remove();
   });
@@ -170,6 +177,44 @@ describe('ChatLayout conversation context surfaces', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
 
     expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false');
+  });
+
+  it('keeps Files closed when Preview is initially open on a mobile viewport', () => {
+    layout.isMobile = true;
+    preview.isOpen = true;
+
+    render(previewTransitionView());
+
+    expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true');
+  });
+
+  it('closes an open narrow Files overlay for later Preview requests', async () => {
+    viewport.width = 900;
+    const { rerender } = render(previewTransitionView());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
+    expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false');
+
+    preview.isOpen = true;
+    preview.openRequestId = 1;
+    rerender(previewTransitionView());
+
+    await waitFor(() => expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true'));
+    expect(screen.getByTestId('preview-panel')).toBeTruthy();
+  });
+
+  it('closes Preview before opening Files on a narrow viewport', async () => {
+    viewport.width = 900;
+    preview.isOpen = true;
+
+    render(previewTransitionView());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
+
+    expect(preview.closePreview).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false'));
+    expect(screen.queryByTestId('preview-panel')).toBeNull();
   });
 
   it('keeps side-panel content mounted while the desktop panel closes and reopens', () => {
