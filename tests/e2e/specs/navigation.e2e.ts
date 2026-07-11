@@ -118,6 +118,25 @@ const collectAnchorEvidence = async (
   return evidence;
 };
 
+const expectSelectedSettingsNavigationItem = async (
+  page: import('@playwright/test').Page,
+  tab: string,
+  viewport: 'desktop' | 'mobile'
+) => {
+  const itemSelector = viewport === 'mobile' ? '.settings-mobile-top-nav__item' : '.settings-sider__item';
+  await expect(page.locator(`${itemSelector}[data-settings-path="${tab}"]`)).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator(`${itemSelector}[aria-current="page"]`)).toHaveCount(1);
+};
+
+const resetSettingsScreenshotPointer = async (
+  page: import('@playwright/test').Page,
+  viewport: { width: number; height: number }
+) => {
+  await page.mouse.move(viewport.width - 4, 48);
+  await expect(page.locator('.settings-sider__item:hover')).toHaveCount(0);
+  await expect(page.locator('.settings-mobile-top-nav__item:hover')).toHaveCount(0);
+};
+
 const coverageGapsFor = (
   anchors: SettingsVisualAnchor[],
   evidence: ManifestAnchorEvidence[]
@@ -397,6 +416,7 @@ test.describe('Settings Pages', () => {
     for (const { tab } of tabs) {
       await goToSettings(page, tab);
       await expectUrlContains(page, tab);
+      await expectSelectedSettingsNavigationItem(page, tab, 'desktop');
       await expectVisualAnchors(page, allVisualTargets.find((target) => target.tab === tab)?.anchors ?? []);
     }
     for (const tab of legacyTabs) {
@@ -460,7 +480,9 @@ test.describe('Settings Pages', () => {
       await page.setViewportSize(viewport.size);
       for (const { tab, level, anchors } of allVisualTargets) {
         await goToSettings(page, tab);
+        await expectSelectedSettingsNavigationItem(page, tab, viewport.name);
         await expectVisualAnchors(page, anchors);
+        await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, anchors);
         const screenshotName = `settings/control-center/${viewport.name}/${tab}`;
         const screenshotPath = await takeScreenshot(page, screenshotName, { fullPage: true });
@@ -484,6 +506,7 @@ test.describe('Settings Pages', () => {
         await goToSettings(page, target.route);
         await target.action(page);
         await expectVisualAnchors(page, target.anchors);
+        await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, target.anchors);
         const screenshotName = `settings/control-center/${viewport.name}/${target.id}`;
         const screenshotPath = await takeScreenshot(page, screenshotName, { fullPage: true });
@@ -506,6 +529,7 @@ test.describe('Settings Pages', () => {
       for (const target of compatibilityTargets) {
         await openCompatibilityTarget(page, target);
         await expectVisualAnchors(page, target.anchors);
+        await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, target.anchors);
         const screenshotName = `settings/control-center/${viewport.name}/compatibility-${target.id}`;
         const screenshotPath = await takeScreenshot(page, screenshotName, { fullPage: true });

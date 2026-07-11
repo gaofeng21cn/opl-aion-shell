@@ -171,6 +171,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                     <Button
                       key={item.path}
                       ref={active ? activeMobileNavItemRef : undefined}
+                      data-settings-path={item.path}
                       htmlType='button'
                       aria-current={active ? 'page' : undefined}
                       className={classNames('settings-mobile-top-nav__item', {

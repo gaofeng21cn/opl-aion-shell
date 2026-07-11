@@ -162,6 +162,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                     type='button'
                     data-settings-id={item.id}
                     data-settings-path={item.path}
+                    aria-current={isSelected ? 'page' : undefined}
                     className={classNames(
                       'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
                       item.isSearchResult ? 'min-h-44px py-6px' : 'h-34px',
