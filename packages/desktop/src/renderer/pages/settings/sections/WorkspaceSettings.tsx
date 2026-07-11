@@ -196,7 +196,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                     {t('settings.workspacePage.actions.openWorkspace')}
                   </Button>
                   <Button data-testid='settings-workspace-diagnostics-action' onClick={() => setDiagnosticsOpen(true)}>
-                    {t('settings.workspacePage.technical.title')}
+                    {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
                   </Button>
                   <Button
                     type='primary'
@@ -248,7 +248,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
 
         <Modal
           visible={diagnosticsOpen}
-          title={t('settings.workspacePage.technical.title')}
+          title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
           footer={null}
           onCancel={() => setDiagnosticsOpen(false)}
           unmountOnExit

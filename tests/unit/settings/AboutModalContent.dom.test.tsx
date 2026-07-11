@@ -45,6 +45,7 @@ vi.mock('react-i18next', () => ({
         'settings.aboutUpdateUnknown': 'Update status unavailable',
         'settings.runtimePage.releaseChannels.stable': 'Stable',
         'common.technical_details': 'Technical details',
+        'settings.oplEnvironmentPage.updates.diagnostics.title': 'Diagnostics',
       };
       if (key === 'settings.aboutVersionBadge') {
         return `App ${options?.version} · ${options?.channel}`;
@@ -111,7 +112,7 @@ describe('AboutModalContent OPL release metadata', () => {
     );
 
   const openTechnicalDetails = () => {
-    fireEvent.click(screen.getByText('Technical details'));
+    fireEvent.click(screen.getByText('Diagnostics'));
   };
 
   it('keeps the main page focused on app version, update state, and three distinct actions', async () => {

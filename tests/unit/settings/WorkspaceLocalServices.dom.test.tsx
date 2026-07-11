@@ -121,6 +121,7 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.cards.permission': 'App can access it',
         'settings.workspacePage.cards.lastCheck': 'Last check',
         'settings.workspacePage.technical.title': 'Technical paths',
+        'settings.oplEnvironmentPage.updates.diagnostics.title': 'Diagnostics',
         'settings.workspacePage.technical.description': 'Support-only paths.',
         'settings.workspacePage.modulesRoot.title': 'OPL modules directory',
         'settings.workspacePage.modulesRoot.description': 'Modules root detail.',
@@ -201,9 +202,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
-    expect(screen.getByText('Technical paths')).toBeInTheDocument();
+    expect(screen.getByText('Diagnostics')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('Technical paths'));
+    fireEvent.click(screen.getByText('Diagnostics'));
     expect(screen.getByTestId('settings-workspace-technical-details')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();

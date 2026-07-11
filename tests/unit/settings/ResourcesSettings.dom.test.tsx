@@ -339,6 +339,7 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.resourceSources.noRefs': '未报告资源上下文。',
         'settings.capabilitiesPage.refLabels.receipt': '回执摘要',
         'common.technical_details': '技术详情',
+        'settings.oplEnvironmentPage.updates.diagnostics.title': '诊断详情',
         'settings.accessPage.resourceSources.cloudRemoteAccess': '云端与远程访问',
         'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
         'settings.accessPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud 托管计算',
@@ -428,7 +429,7 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('attention_needed');
 
-    fireEvent.click(view.getByText('技术详情'));
+    fireEvent.click(view.getByText('诊断详情'));
     expect(view.getByTestId('settings-resources-technical-details')).toBeTruthy();
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).toContain('opl://environment/default');

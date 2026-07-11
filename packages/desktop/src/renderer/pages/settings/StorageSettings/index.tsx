@@ -603,6 +603,9 @@ export const StorageSettingsContent: React.FC = () => {
             {t('settings.storagePage.title')}
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
+          <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
+            {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
+          </Typography.Text>
         </div>
         <div className='opl-settings-page-header__actions'>
           {cleanupCandidatesAvailable && (
@@ -672,30 +675,9 @@ export const StorageSettingsContent: React.FC = () => {
 
       {lastReceipt && <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />}
 
-      <div data-testid='settings-storage-primary'>
-        <section className='opl-settings-section' id='storage-categories' data-testid='storage-overview'>
-          <span id='cleanup-preview' aria-hidden='true' />
-          <div className='flex flex-wrap items-center justify-between gap-12px p-16px'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.storagePage.overview.categories')}
-              </Typography.Text>
-              <Typography.Text className='mt-4px block text-12px text-t-secondary'>
-                {t('settings.storagePage.description')}
-              </Typography.Text>
-            </div>
-            <div className='text-right'>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.storagePage.overview.total')}
-              </Typography.Text>
-              <Typography.Text className='block text-18px font-600 text-t-primary'>
-                {formatStorageBytes(totalBytes)}
-              </Typography.Text>
-            </div>
-          </div>
-        </section>
-
-        <div className='mt-14px grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='storage-category-list'>
+      <div id='storage-categories' data-testid='settings-storage-primary'>
+        <span id='cleanup-preview' aria-hidden='true' />
+        <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='storage-category-list'>
           {viewModel.sections.map((item) => (
             <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
           ))}
@@ -704,12 +686,12 @@ export const StorageSettingsContent: React.FC = () => {
 
       <div className='flex justify-end' data-testid='storage-research-lifecycle'>
         <Button data-testid='settings-storage-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
-          {t('settings.storagePage.researchLifecycle.technicalDetails')}
+          {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
         </Button>
       </div>
       <Modal
         visible={diagnosticsVisible}
-        title={t('settings.storagePage.researchLifecycle.technicalDetails')}
+        title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
         footer={null}
         onCancel={() => setDiagnosticsVisible(false)}
         unmountOnExit

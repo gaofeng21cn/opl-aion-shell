@@ -672,49 +672,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       </header>
 
       <div className='flex flex-col gap-14px' data-testid='settings-capabilities-primary'>
-        <div className='grid grid-cols-1 gap-12px md:grid-cols-3' data-testid='capability-summary-grid'>
-          <section className='opl-settings-section p-16px' data-testid='capability-summary-catalog'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.title')}
-            </Typography.Text>
-            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
-              {t('settings.capabilitiesPage.packageManager.packageCount', {
-                count: purposeCapabilities.length,
-                total: purposeCapabilities.length,
-              })}
-            </Typography.Text>
-            <span
-              className={`opl-settings-status mt-10px ${
-                hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
-              }`}
-            >
-              {t(`settings.capabilitiesPage.status.${hasCapabilityIssue ? 'attention' : 'ready'}`)}
-            </span>
-          </section>
-          <section className='opl-settings-section p-16px' data-testid='capability-summary-conversation'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.visibility.conversation')}
-            </Typography.Text>
-            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
-              {conversationReadyCount} / {purposeCapabilities.length}
-            </Typography.Text>
-            <Typography.Text className='mt-10px block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.visibility.conversationAvailable')}
-            </Typography.Text>
-          </section>
-          <section className='opl-settings-section p-16px' data-testid='capability-summary-home'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.visibility.home')}
-            </Typography.Text>
-            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
-              {homeShortcutCount} / {purposeCapabilities.length}
-            </Typography.Text>
-            <Typography.Text className='mt-10px block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.catalogDescription')}
-            </Typography.Text>
-          </section>
-        </div>
-
         <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
           {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
           <span id='source' aria-hidden='true' />
@@ -734,6 +691,32 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 total: purposeCapabilities.length,
               })}
             </Typography.Text>
+          </div>
+
+          <div
+            className='flex flex-wrap items-center gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+            data-testid='capability-summary-grid'
+          >
+            <span data-testid='capability-summary-catalog'>
+              {t('settings.capabilitiesPage.packageManager.packageCount', {
+                count: purposeCapabilities.length,
+                total: purposeCapabilities.length,
+              })}
+            </span>
+            <span data-testid='capability-summary-conversation'>
+              {t('settings.capabilitiesPage.visibility.conversation')}: {conversationReadyCount} /{' '}
+              {purposeCapabilities.length}
+            </span>
+            <span data-testid='capability-summary-home'>
+              {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {purposeCapabilities.length}
+            </span>
+            <span
+              className={`opl-settings-status ${
+                hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+              }`}
+            >
+              {t(`settings.capabilitiesPage.status.${hasCapabilityIssue ? 'attention' : 'ready'}`)}
+            </span>
           </div>
 
           <div className='opl-settings-list'>

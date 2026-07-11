@@ -104,6 +104,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.researchLifecycle.title': 'Work data protection rules',
     'settings.storagePage.researchLifecycle.detail': 'Open only when troubleshooting cleanup boundaries.',
     'settings.storagePage.researchLifecycle.technicalDetails': 'Work data protection details',
+    'settings.oplEnvironmentPage.updates.diagnostics.title': 'Diagnostics',
     'settings.storagePage.researchLifecycle.boundary':
       'Source references only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
     'settings.storagePage.researchLifecycle.states.available': 'Source available',
@@ -260,7 +261,6 @@ describe('StorageSettingsContent', () => {
     expect(categoryList).toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
-    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Local data');
     expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
     expect(
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
@@ -278,7 +278,7 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
-    fireEvent.click(screen.getByText('Work data protection details'));
+    fireEvent.click(screen.getByText('Diagnostics'));
     const diagnostics = screen.getByTestId('settings-storage-technical-details');
     expect(diagnostics).toHaveTextContent('/tmp/updater-cache');
     expect(diagnostics).toHaveTextContent('/tmp/conversations');
@@ -308,12 +308,12 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
-    expect(lifecycle).toHaveTextContent('Work data protection details');
+    expect(lifecycle).toHaveTextContent('Diagnostics');
     expect(lifecycle).not.toHaveTextContent('Work data protection rules');
     expect(lifecycle).not.toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
     expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
 
-    fireEvent.click(screen.getByText('Work data protection details'));
+    fireEvent.click(screen.getByText('Diagnostics'));
 
     const diagnostics = screen.getByTestId('settings-storage-technical-details');
     expect(diagnostics).toHaveTextContent('Work data protection rules');

@@ -286,12 +286,12 @@ const AboutModalContent: React.FC = () => {
 
           <div className='flex justify-end'>
             <Button data-testid='settings-about-diagnostics-action' onClick={() => setTechnicalDetailsOpen(true)}>
-              {t('common.technical_details')}
+              {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
             </Button>
           </div>
           <Modal
             visible={technicalDetailsOpen}
-            title={t('common.technical_details')}
+            title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
             footer={null}
             onCancel={() => setTechnicalDetailsOpen(false)}
             unmountOnExit

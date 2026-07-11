@@ -489,12 +489,12 @@ export const ResourcesSettingsContent: React.FC = () => {
 
       <div className='flex justify-end'>
         <Button data-testid='settings-resources-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
-          {t('common.technical_details')}
+          {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
         </Button>
       </div>
       <Modal
         visible={diagnosticsVisible}
-        title={t('common.technical_details')}
+        title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
         footer={null}
         onCancel={() => setDiagnosticsVisible(false)}
         unmountOnExit
