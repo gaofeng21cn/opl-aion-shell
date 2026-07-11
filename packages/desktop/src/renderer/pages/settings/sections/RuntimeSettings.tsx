@@ -1240,10 +1240,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           <RuntimeHealthSummary items={healthSummaryItems} />
         </section>
 
-        <div data-testid='settings-maintenance-primary'>
-          <section className='opl-settings-section' data-testid='opl-maintenance-hub'>
+        <div className='flex flex-col gap-12px' data-testid='settings-maintenance-primary'>
+          <div className='flex flex-col gap-12px' data-testid='opl-maintenance-hub'>
             {maintenanceNeedsAction && <span data-testid='settings-maintenance-exception' aria-hidden='true' />}
-            <div className='opl-settings-section__header'>
+            <div className='flex flex-wrap items-start justify-between gap-12px'>
               <div>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t('settings.oplEnvironmentPage.maintenanceHub.title')}
@@ -1260,37 +1260,35 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Typography.Text>
               )}
             </div>
-            <div className='opl-settings-list'>
-              {maintenanceHubItems.map((item) => {
-                const anchors: Record<string, string> = {
-                  appUpdates: 'updates',
-                  runtimeEnvironment: 'runtime-environment',
-                  capabilitySurfaceSync: 'packages',
-                  localServicesRepair: 'services',
-                };
-                return (
-                  <div
-                    key={`maintenance-hub-${item.key}`}
-                    className='opl-settings-row'
-                    id={anchors[item.key]}
-                    data-testid={`opl-maintenance-hub-${item.key}`}
-                  >
-                    <div className='opl-settings-row__main'>
-                      <Typography.Text className='font-500 text-t-primary'>{item.title}</Typography.Text>
-                      <Typography.Text className='text-12px text-t-secondary'>{item.detail}</Typography.Text>
+            {maintenanceHubItems.map((item) => {
+              const anchors: Record<string, string> = {
+                appUpdates: 'updates',
+                runtimeEnvironment: 'runtime-environment',
+                capabilitySurfaceSync: 'packages',
+                localServicesRepair: 'services',
+              };
+              return (
+                <section
+                  key={`maintenance-hub-${item.key}`}
+                  className='opl-settings-section'
+                  id={anchors[item.key]}
+                  data-testid={`opl-maintenance-hub-${item.key}`}
+                >
+                  <div className='opl-settings-section__header'>
+                    <div>
+                      <Typography.Text className='block font-500 text-t-primary'>{item.title}</Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>{item.detail}</Typography.Text>
                     </div>
-                    <div className='opl-settings-row__meta'>
-                      <span
-                        className={`opl-settings-status ${item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-                      >
-                        {item.status}
-                      </span>
-                    </div>
+                    <span
+                      className={`opl-settings-status ${item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+                    >
+                      {item.status}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </section>
+                </section>
+              );
+            })}
+          </div>
           {makeUsableConfirmationOpen && (
             <Alert
               type='warning'

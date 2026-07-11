@@ -418,35 +418,25 @@ export const ResourcesSettingsContent: React.FC = () => {
         </section>
       ) : (
         <>
-          <section className='opl-settings-section' id='workspace-resources'>
-            <div className='opl-settings-section__header'>
-              <div>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.resourcesPage.connections.workspaceTitle')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('settings.resourcesPage.connections.workspaceDescription')}
-                </Typography.Text>
-              </div>
-            </div>
+          <section className='flex flex-col gap-12px' id='workspace-resources'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.resourcesPage.connections.workspaceDescription')}
+            </Typography.Text>
             <ResourceSources
               sources={workspaceSources}
               emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
               testId='opl-settings-workspace-resource-sources'
-              hideTitles
             />
           </section>
 
-          <section className='opl-settings-section' id='external-resources'>
-            <div className='opl-settings-section__header'>
-              <div>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.resourcesPage.connections.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('settings.resourcesPage.connections.description')}
-                </Typography.Text>
-              </div>
+          <section className='flex flex-col gap-12px' id='external-resources'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.resourcesPage.connections.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.resourcesPage.connections.description')}
+              </Typography.Text>
             </div>
             <ResourceSources
               sources={externalSources}
@@ -654,8 +644,7 @@ const ResourceSources: React.FC<{
   sources: ResourceSourceProjection[];
   emptyKey: string;
   testId: string;
-  hideTitles?: boolean;
-}> = ({ sources, emptyKey, testId, hideTitles = false }) => {
+}> = ({ sources, emptyKey, testId }) => {
   const { t } = useTranslation();
   if (sources.length === 0) {
     return (
@@ -665,69 +654,66 @@ const ResourceSources: React.FC<{
     );
   }
   return (
-    <div className='opl-settings-list' data-testid={testId}>
+    <div className='flex flex-col gap-12px' data-testid={testId}>
       {sources.map((source) => (
-        <ResourceSourceRow key={source.key} source={source} hideTitle={hideTitles} />
+        <ResourceSourceRow key={source.key} source={source} />
       ))}
     </div>
   );
 };
 
-const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection; hideTitle: boolean }> = ({
-  source,
-  hideTitle,
-}) => {
+const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection }> = ({ source }) => {
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const refs = [...source.managementRefs, ...source.environmentRefs, ...source.refs];
   const readiness = resourceReadiness(source.status);
 
   return (
-    <div className='opl-settings-row'>
-      <div className='opl-settings-row__main min-w-0'>
-        {!hideTitle && (
+    <section className='opl-settings-section'>
+      <div className='opl-settings-row'>
+        <div className='opl-settings-row__main min-w-0'>
           <Typography.Text className='block break-words font-600 text-t-primary'>{source.title}</Typography.Text>
-        )}
-        <div className='mt-4px flex flex-wrap gap-6px'>
-          {source.category !== 'oplWorkspace' && (
-            <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
-          )}
-          {source.management && (
-            <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-              {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
-            </Tag>
-          )}
-          {source.managementRefs.length > 0 && (
-            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
-          )}
-          {source.environmentRefs.length > 0 && (
-            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
+          <div className='mt-4px flex flex-wrap gap-6px'>
+            {source.category !== 'oplWorkspace' && (
+              <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
+            )}
+            {source.management && (
+              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+                {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
+              </Tag>
+            )}
+            {source.managementRefs.length > 0 && (
+              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
+            )}
+            {source.environmentRefs.length > 0 && (
+              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
+            )}
+          </div>
+          {refs.length === 0 ? (
+            <Typography.Text className='mt-4px block text-12px text-t-secondary'>
+              {t('settings.resourcesPage.resourceSources.noRefs')}
+            </Typography.Text>
+          ) : (
+            <details className='mt-4px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
+              <summary className='cursor-pointer text-12px text-t-secondary'>
+                {t('settings.resourcesPage.resourceSources.technicalRefs')}
+              </summary>
+              {detailsOpen && (
+                <div className='mt-6px grid grid-cols-1 gap-4px'>
+                  {refs.map((ref) => (
+                    <Typography.Text key={`${source.key}-${ref}`} className='break-words text-12px text-t-secondary'>
+                      {ref}
+                    </Typography.Text>
+                  ))}
+                </div>
+              )}
+            </details>
           )}
         </div>
-        {refs.length === 0 ? (
-          <Typography.Text className='mt-4px block text-12px text-t-secondary'>
-            {t('settings.resourcesPage.resourceSources.noRefs')}
-          </Typography.Text>
-        ) : (
-          <details className='mt-4px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
-            <summary className='cursor-pointer text-12px text-t-secondary'>
-              {t('settings.resourcesPage.resourceSources.technicalRefs')}
-            </summary>
-            {detailsOpen && (
-              <div className='mt-6px grid grid-cols-1 gap-4px'>
-                {refs.map((ref) => (
-                  <Typography.Text key={`${source.key}-${ref}`} className='break-words text-12px text-t-secondary'>
-                    {ref}
-                  </Typography.Text>
-                ))}
-              </div>
-            )}
-          </details>
-        )}
+        <div className='opl-settings-row__meta'>
+          <Tag color={resourceReadinessColor(readiness)}>{resourceReadinessLabel(readiness, t)}</Tag>
+        </div>
       </div>
-      <div className='opl-settings-row__meta'>
-        <Tag color={resourceReadinessColor(readiness)}>{resourceReadinessLabel(readiness, t)}</Tag>
-      </div>
-    </div>
+    </section>
   );
 };

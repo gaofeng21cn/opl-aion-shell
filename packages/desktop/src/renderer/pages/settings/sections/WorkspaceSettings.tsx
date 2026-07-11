@@ -106,15 +106,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     workspaceExistsState === 'needsAction' ||
     workspaceAccessState === 'needsAction' ||
     permissionState === 'needsAction';
-  const workspaceSummary = workspaceReady
-    ? [
-        t('settings.workspacePage.root.current', { path: workspaceRoot }),
-        t('settings.workspacePage.permission.title'),
-        t('settings.workspacePage.permission.ready'),
-      ].join(' · ')
-    : workspaceRoot
-      ? t('settings.workspacePage.root.current', { path: workspaceRoot })
-      : t('settings.workspacePage.root.missing');
+  const workspaceSummary = workspaceRoot
+    ? t('settings.workspacePage.root.current', { path: workspaceRoot })
+    : t('settings.workspacePage.root.missing');
 
   const chooseWorkspaceRoot = useCallback(async () => {
     setWorkspaceAction('choose');
@@ -208,13 +202,29 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                 </Button>
               </div>
             </div>
-            {permissionState !== 'ready' && workspaceRoot && (
+          </section>
+        </div>
+
+        {workspaceRoot && (
+          <section
+            className={`opl-settings-section ${permissionState === 'needsAction' ? 'opl-settings-section--attention' : ''}`}
+            id='permissions'
+          >
+            {permissionState !== 'ready' && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
+            <div className='opl-settings-section__header'>
+              <div>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.workspacePage.permission.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t(`settings.workspacePage.permission.${permissionState}`)}
+                </Typography.Text>
+              </div>
+            </div>
+            {permissionState !== 'ready' && (
               <div className='opl-settings-list'>
-                <div className='opl-settings-row' id='permissions' data-testid='settings-workspace-exception'>
+                <div className='opl-settings-row'>
                   <div className='opl-settings-row__main'>
-                    <Typography.Text className='font-500 text-t-primary'>
-                      {t(`settings.workspacePage.permission.${permissionState}`)}
-                    </Typography.Text>
                     <Typography.Text className='text-12px text-t-secondary'>
                       {t('settings.workspacePage.actions.attentionDescription')}
                     </Typography.Text>
@@ -226,7 +236,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
               </div>
             )}
           </section>
-        </div>
+        )}
 
         <details
           className='opl-settings-details'

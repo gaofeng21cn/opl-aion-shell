@@ -191,9 +191,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
     expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Work root: /Users/example/OPL Workspace · Writes are allowed · Permission ready')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
+    expect(screen.getByText('Permission ready')).toBeInTheDocument();
     expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Permission: Full Access')).not.toBeInTheDocument();
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
