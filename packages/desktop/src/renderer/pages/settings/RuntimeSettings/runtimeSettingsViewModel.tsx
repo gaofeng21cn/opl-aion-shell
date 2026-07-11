@@ -70,6 +70,8 @@ export function buildRuntimeSettingsViewModel({
     moduleReady >= modules.length &&
     (!capabilityPackagesComponent || componentStatusTone(capabilityPackagesComponent) === 'green') &&
     (!codexSurfaceComponent || componentStatusTone(codexSurfaceComponent) === 'green');
+  const capabilityPacksChecked =
+    modules.length > 0 || Boolean(capabilityPackagesComponent) || Boolean(codexSurfaceComponent);
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
     {
       key: 'appUpdates',
@@ -78,7 +80,7 @@ export function buildRuntimeSettingsViewModel({
         ? componentUserSummary(installationCarrierComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
       status: formatStatus(installationCarrierComponent?.state ?? 'unknown', t),
-      tone: installationCarrierComponent ? componentStatusTone(installationCarrierComponent) : 'orange',
+      tone: installationCarrierComponent ? componentStatusTone(installationCarrierComponent) : 'gray',
       icon: <UpdateRotation theme='outline' />,
       actionLabel: t('settings.checkForUpdates'),
       onAction: actions.openUpdateModal,
@@ -90,7 +92,7 @@ export function buildRuntimeSettingsViewModel({
         ? componentUserSummary(runtimeSubstrateComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.description'),
       status: formatStatus(runtimeSubstrateComponent?.state ?? 'unknown', t),
-      tone: runtimeSubstrateComponent ? componentStatusTone(runtimeSubstrateComponent) : 'orange',
+      tone: runtimeSubstrateComponent ? componentStatusTone(runtimeSubstrateComponent) : 'gray',
       icon: <Repair theme='outline' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'),
@@ -110,11 +112,13 @@ export function buildRuntimeSettingsViewModel({
               .filter((value): value is string => Boolean(value))
               .join(' ')
           : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
-      status: t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
-        ready: moduleReady,
-        total: modules.length,
-      }),
-      tone: capabilityPacksHealthy ? 'green' : 'orange',
+      status: capabilityPacksChecked
+        ? t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
+            ready: moduleReady,
+            total: modules.length,
+          })
+        : formatStatus('unknown', t),
+      tone: capabilityPacksChecked ? (capabilityPacksHealthy ? 'green' : 'orange') : 'gray',
       icon: <Repair theme='outline' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.actionHelp'),

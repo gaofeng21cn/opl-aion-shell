@@ -1464,6 +1464,7 @@
     "description": "Check where local projects and task artifacts are stored, and whether the App can access them.",
     "status": {
       "ready": "Available",
+      "writable": "Work directory writable",
       "needsAction": "Needs setup"
     },
     "permission": {
@@ -1646,10 +1647,11 @@
       "silentDeleteBlocked": "Preparation required",
       "cleanupModes": {
         "safeWithoutExtraProof": "Ready to clean",
-        "needsArchiveProof": "Archive first",
-        "needsPreview": "Review first",
-        "needsReview": "Check required"
-      }
+        "needsArchiveProof": "Clean after archiving",
+        "needsPreview": "Review and clean",
+        "needsReview": "Check and clean"
+      },
+      "noCleanupNeeded": "Nothing to clean"
     },
     "overview": {
       "total": "Total",
@@ -2183,9 +2185,9 @@
       }
     },
     "supporting": {
-      "title": "Skills, tools, and custom assistants",
-      "compactTitle": "Skills, tools, and custom assistants",
-      "description": "Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot."
+      "title": "Skills and external tools",
+      "compactTitle": "Skills and external tools",
+      "description": "Manage skills, external tools, and voice input when needed."
     }
   },
   "oplEnvironmentPage": {
@@ -2323,7 +2325,8 @@
       "backgroundRuntimeCheck": "Checking Codex and workspace details in the background."
     },
     "status": {
-      "unknown": "Unknown",
+      "unknown": "Not checked",
+      "dirty": "Local changes",
       "ready": "Ready",
       "current": "Current",
       "update_available": "Update available",

@@ -10,7 +10,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
-import AssistantSettings from './AssistantSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
@@ -38,10 +37,9 @@ import {
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
 
-export type CapabilitiesTab = 'skills' | 'tools' | 'assistants';
+export type CapabilitiesTab = 'skills' | 'tools';
 
-const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
-  value === 'skills' || value === 'tools' || value === 'assistants';
+const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
 const DEFAULT_AGENT_REGISTRY_URL =
   'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json';
 
@@ -1200,12 +1198,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
               >
                 <ToolsModalContent />
               </Tabs.TabPane>
-              <Tabs.TabPane
-                key='assistants'
-                title={t('settings.capabilitiesTab.assistants', { defaultValue: 'Custom assistants' })}
-              >
-                <AssistantSettings withWrapper={false} />
-              </Tabs.TabPane>
             </Tabs>
           </div>
         )}
@@ -1218,14 +1210,17 @@ const CapabilitiesSettings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>(() => {
     const tabParam = searchParams.get('tab');
-    if (searchParams.get('section') === 'custom-assistants') return 'assistants';
     return isCapabilitiesTab(tabParam) ? tabParam : 'skills';
   });
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (searchParams.get('section') === 'custom-assistants' && activeTab !== 'assistants') {
-      setActiveTab('assistants');
+    if (tabParam === 'assistants' || searchParams.get('section') === 'custom-assistants') {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', 'skills');
+      next.delete('section');
+      setSearchParams(next, { replace: true });
+      if (activeTab !== 'skills') setActiveTab('skills');
       return;
     }
     if (isCapabilitiesTab(tabParam) && tabParam !== activeTab) {
@@ -1245,9 +1240,7 @@ const CapabilitiesSettings: React.FC = () => {
       <CapabilitiesSettingsContent
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        supportingSurfaceDefaultOpen={
-          isCapabilitiesTab(searchParams.get('tab')) || searchParams.get('section') === 'custom-assistants'
-        }
+        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab'))}
       />
     </SettingsPageWrapper>
   );

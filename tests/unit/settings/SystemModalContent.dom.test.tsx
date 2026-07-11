@@ -69,26 +69,19 @@ describe('SystemModalContent read-only Advanced page', () => {
       </SWRConfig>
     );
 
-  it('shows only read-only working directories and keeps raw paths in collapsed details', async () => {
+  it('shows read-only working directories directly without a duplicate disclosure', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
     expect(screen.getByTestId('settings-page-advanced')).toBeInTheDocument();
     expect(screen.getByTestId('settings-advanced-primary')).toHaveAttribute('id', 'working-directories');
-    expect(
-      screen.getByTestId('settings-advanced-primary').querySelector('[data-layout="path-status-grid"]')
-    ).toBeTruthy();
-    expect(screen.getByTestId('settings-advanced-technical-details')).not.toHaveAttribute('open');
+    expect(screen.queryByTestId('settings-advanced-technical-details')).not.toBeInTheDocument();
     expect(screen.getByText('Working directories')).toBeInTheDocument();
-    expect(screen.getAllByText('Available')).toHaveLength(2);
     expect(document.body).not.toHaveTextContent('OPL Flow');
     expect(document.body).not.toHaveTextContent('Developer Profile');
     expect(document.body.querySelector('input')).toBeNull();
 
-    const details = screen.getByTestId('settings-advanced-technical-details') as HTMLDetailsElement;
-    details.open = true;
-    fireEvent(details, new Event('toggle'));
     expect(screen.getByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
 
@@ -101,7 +94,7 @@ describe('SystemModalContent read-only Advanced page', () => {
     );
   });
 
-  it('marks missing directories as attention without exposing a shell-owned repair action', async () => {
+  it('shows missing directories directly without inventing a repair action', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -112,7 +105,7 @@ describe('SystemModalContent read-only Advanced page', () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-    expect(screen.getByTestId('settings-advanced-exception')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-advanced-exception')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not configured').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByRole('button', { name: /repair|configure|change/i })).not.toBeInTheDocument();
   });

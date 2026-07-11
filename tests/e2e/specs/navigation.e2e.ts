@@ -258,7 +258,6 @@ test.describe('Settings Pages', () => {
         anchor('access_primary', '[data-testid="settings-access-primary"]'),
         anchor('access_codex_cli', '[data-testid="settings-access-codex-cli"]'),
         anchor('access_gateway', '[data-testid="settings-access-gateway"]'),
-        anchor('access_technical_details', '[data-testid="settings-access-technical-details"]'),
       ],
     },
     {
@@ -344,7 +343,6 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('advanced_page', '[data-testid="settings-page-advanced"]'),
         anchor('advanced_primary', '[data-testid="settings-advanced-primary"]'),
-        anchor('advanced_technical_details', '[data-testid="settings-advanced-technical-details"]'),
       ],
     },
     {
@@ -428,8 +426,13 @@ test.describe('Settings Pages', () => {
 
   test('screenshot: settings pages', async ({ page }) => {
     test.skip(!process.env.E2E_SCREENSHOTS, 'screenshots disabled');
-    for (const { tab } of tabs) {
+    const selectedTabs = process.env.E2E_SETTINGS_SINGLE_ROUTE
+      ? tabs.filter(({ tab }) => tab === process.env.E2E_SETTINGS_SINGLE_ROUTE)
+      : tabs;
+    expect(selectedTabs.length).toBeGreaterThan(0);
+    for (const { tab, anchors } of selectedTabs) {
       await goToSettings(page, tab);
+      await expectVisualAnchors(page, anchors);
       await takeScreenshot(page, `settings-${tab}`);
     }
   });

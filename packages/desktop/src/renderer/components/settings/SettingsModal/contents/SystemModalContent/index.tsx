@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Tooltip, Typography } from '@arco-design/web-react';
-import { FolderSearch, Info } from '@icon-park/react';
+import { FolderSearch } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
@@ -62,17 +62,12 @@ const SystemModalContent: React.FC = () => {
     oplPathString(appPaths.family_workspace_root) ??
     '';
   const logsPath = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir) ?? '';
-  const pathsReady = Boolean(workspacePath && logsPath);
-
   const handleOpenPath = useCallback((path: string) => {
     if (!path) return;
     void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' }).catch((caughtError) => {
       console.error('[SystemModalContent] Failed to open directory:', caughtError);
     });
   }, []);
-
-  const pathStatus = (path: string) =>
-    path ? t('settings.workspacePage.status.ready') : t('settings.dirNotConfigured');
 
   return (
     <div className='opl-settings-page flex h-full w-full flex-col' data-testid='settings-page-advanced'>
@@ -85,57 +80,17 @@ const SystemModalContent: React.FC = () => {
             </div>
           </div>
 
-          <section
-            className={`opl-settings-section ${pathsReady ? '' : 'opl-settings-section--attention'}`}
-            id='working-directories'
-            data-testid='settings-advanced-primary'
-          >
+          <section className='opl-settings-section' id='working-directories' data-testid='settings-advanced-primary'>
             <span id='resolved-paths' aria-hidden='true' />
-            {!pathsReady && <span data-testid='settings-advanced-exception' aria-hidden='true' />}
             <div className='opl-settings-section__header'>
-              <div className='flex min-w-0 items-start gap-12px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
-                  <Info theme='outline' size='16' />
-                </span>
-                <div className='min-w-0'>
-                  <div className='text-14px font-medium text-t-primary leading-22px'>
-                    {t('settings.advancedPathsTitle')}
-                  </div>
-                  <div className='mt-2px text-12px text-t-tertiary leading-18px'>{t('settings.advancedPathsDesc')}</div>
+              <div className='min-w-0'>
+                <div className='text-14px font-medium text-t-primary leading-22px'>
+                  {t('settings.advancedPathsTitle')}
                 </div>
+                <div className='mt-2px text-12px text-t-tertiary leading-18px'>{t('settings.advancedPathsDesc')}</div>
               </div>
             </div>
-            <div
-              className='grid min-w-0 border-t border-solid border-[var(--border-base)] sm:grid-cols-2'
-              data-layout='path-status-grid'
-            >
-              <div className='min-w-0 p-16px'>
-                <div className='mb-10px text-13px font-medium text-t-primary'>{t('settings.workDir')}</div>
-                <div>
-                  <span
-                    className={`opl-settings-status ${workspacePath ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-                  >
-                    {pathStatus(workspacePath)}
-                  </span>
-                </div>
-              </div>
-              <div className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'>
-                <div className='mb-10px text-13px font-medium text-t-primary'>{t('settings.logDir')}</div>
-                <div>
-                  <span
-                    className={`opl-settings-status ${logsPath ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-                  >
-                    {pathStatus(logsPath)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <details className='opl-settings-details' data-testid='settings-advanced-technical-details'>
-            <summary>{t('common.technical_details')}</summary>
-            <div className='mb-10px text-12px text-t-tertiary'>{t('settings.advancedPathsDesc')}</div>
-            <div className='opl-settings-list mt-10px'>
+            <div className='opl-settings-list border-t border-solid border-[var(--border-base)]'>
               <ReadOnlyPathRow
                 label={t('settings.workDir')}
                 path={workspacePath}
@@ -143,7 +98,7 @@ const SystemModalContent: React.FC = () => {
               />
               <ReadOnlyPathRow label={t('settings.logDir')} path={logsPath} onOpen={() => handleOpenPath(logsPath)} />
             </div>
-          </details>
+          </section>
         </div>
       </AionScrollArea>
     </div>

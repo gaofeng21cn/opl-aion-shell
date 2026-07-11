@@ -105,6 +105,7 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.title': 'Workspace',
         'settings.workspacePage.description': 'Review local paths.',
         'settings.workspacePage.status.ready': 'Available',
+        'settings.workspacePage.status.writable': 'Work directory writable',
         'settings.workspacePage.status.needsAction': 'Needs setup',
         'settings.workspacePage.permission.title': 'Writes are allowed',
         'settings.workspacePage.permission.ready': 'Permission ready',
@@ -192,12 +193,12 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).not.toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
-    expect(screen.getByTestId('opl-workspace-settings-permission')).toHaveClass('opl-settings-row');
+    expect(screen.queryByTestId('opl-workspace-settings-permission')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
-    expect(screen.getByText('Permission ready')).toBeInTheDocument();
-    expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Writes are allowed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();
+    expect(screen.getByText('Work directory writable')).toBeInTheDocument();
     expect(screen.queryByText('Permission: Full Access')).not.toBeInTheDocument();
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
@@ -232,8 +233,8 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByTestId('opl-workspace-settings-root')).toHaveClass('opl-settings-section--attention');
     expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
-    expect(screen.getAllByText('Needs setup')).toHaveLength(2);
-    expect(screen.getByText('Permission needs attention')).toBeInTheDocument();
+    expect(screen.getByText('Needs setup')).toBeInTheDocument();
+    expect(screen.queryByText('Permission needs attention')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Open Maintenance'));
 
     expect(window.location.hash).toBe('#/settings/environment');
@@ -252,8 +253,8 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByTestId('opl-workspace-settings-root')).not.toHaveClass('opl-settings-section--attention');
     expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
-    expect(screen.getAllByText('Unknown')).toHaveLength(2);
-    expect(screen.getByText('Not reported')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.queryByText('Not reported')).not.toBeInTheDocument();
     expect(screen.getByText('Open Maintenance')).toBeInTheDocument();
     expect(screen.queryByText('Permission: full_auto')).not.toBeInTheDocument();
     expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();

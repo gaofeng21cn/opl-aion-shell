@@ -1423,13 +1423,7 @@
           "maintenance_hub",
           "capability_status"
         ],
-        "p1_entries": [
-          "remote_access",
-          "advanced_deployment",
-          "developer_profile_status",
-          "external_tools_voice",
-          "custom_assistants"
-        ],
+        "p1_entries": ["remote_access", "advanced_deployment", "developer_profile_status", "external_tools_voice"],
         "hidden_as_ordinary_ui": [
           "AionUI Team",
           "backend/provider raw selector",
@@ -1740,7 +1734,7 @@
         "system": "advanced",
         "model": "environment",
         "agent": "capabilities",
-        "assistants": "capabilities?tab=assistants#custom-assistants",
+        "assistants": "capabilities?tab=skills",
         "skills-hub": "capabilities?tab=skills",
         "tools": "capabilities?tab=tools",
         "display": "appearance",
@@ -2002,7 +1996,7 @@
       },
       "visual_qa_policy": {
         "policy": "settings_control_center_visual_qa_is_shell_behavior_evidence",
-        "required_viewports": ["desktop", "mobile"],
+        "required_viewports": ["desktop"],
         "required_routes": [
           "/settings/general",
           "/settings/access",
@@ -2034,7 +2028,7 @@
             "baseline_ref",
             "hierarchy_comparison_result"
           ],
-          "viewport_policy": "each required route is captured for desktop and mobile viewports",
+          "viewport_policy": "each required route is checked once at the default desktop viewport",
           "secondary_route_policy": "advanced and about are captured as independent secondary pages",
           "compatibility_route_policy": "update, theme, and local-services are captured as redirect landing evidence on their owner route and anchor"
         },
@@ -2313,11 +2307,11 @@
           {
             "id": "capabilities_experience",
             "track": "user_task_ux",
-            "goal": "Capabilities separates availability, source, and Home visibility and mounts the real AssistantSettings surface as the third on-demand tab.",
+            "goal": "Capabilities separates availability, source, and Home visibility while keeping AionUI custom assistants outside the OPL product surface.",
             "evidence_required": [
               "required anchors cover availability/source/home visibility",
-              "custom assistant search entry targets custom-assistants on tab=assistants",
-              "legacy assistants resolves to capabilities?tab=assistants#custom-assistants",
+              "legacy assistants resolves to the OPL capability directory",
+              "AionUI AssistantSettings is not mounted from Settings Capabilities",
               "package diagnostics remain collapsed"
             ]
           },
@@ -2688,6 +2682,7 @@
             "error": "red",
             "action": "brand"
           },
+          "object_accent_policy": "use restrained multi-hue navigation icons and card-edge accents to distinguish access, workspace, capabilities, maintenance, and storage without tinting whole pages",
           "footer_layout": "compact",
           "footer_controls": ["return_to_chat", "theme_switcher"],
           "footer_secondary_navigation_allowed": false,
@@ -2786,9 +2781,9 @@
               "label_en": "Configure model access"
             },
             "exception_state": "highlight missing, expired, or unreachable model access and the one corrective action",
-            "technical_details_boundary": "base URL, environment variables, token paths, Codex CLI details, and raw provider ids stay collapsed",
+            "technical_details_boundary": "base URL, environment variables, token paths, and raw provider ids stay hidden unless a distinct diagnostic surface needs them; displayed model and CLI facts are not repeated",
             "required_dom": {
-              "always": ["settings-page-access", "settings-access-primary", "settings-access-technical-details"],
+              "always": ["settings-page-access", "settings-access-primary"],
               "conditional": [
                 {
                   "testid": "settings-access-exception",
@@ -2815,7 +2810,13 @@
               "where project and task artifacts are stored",
               "open workspace as an inline action and change workspace as the sole primary action"
             ],
-            "first_viewport_groups": ["workspace_location", "access_and_artifacts", "workspace_actions"],
+            "first_viewport_groups": ["workspace_configuration"],
+            "surface_rules": {
+              "workspace_card_count": 1,
+              "permission_presentation": "one merged writability status inside the workspace card",
+              "maintenance_action_visibility": "attention_only",
+              "diagnostics_entry": "explicit_modal_action"
+            },
             "readiness_precedence": "filesystem_writability_and_health_override_executor_permission_mode",
             "primary_action": {
               "id": "change_workspace",
@@ -2830,13 +2831,17 @@
               "always": [
                 "settings-page-workspace",
                 "settings-workspace-primary",
-                "settings-workspace-technical-details",
+                "settings-workspace-diagnostics-action",
                 "settings-workspace-primary-action"
               ],
               "conditional": [
                 {
                   "testid": "settings-workspace-exception",
                   "when": "attention_required"
+                },
+                {
+                  "testid": "settings-workspace-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -2852,10 +2857,10 @@
             "primary_information": [
               "capability catalog with availability and source",
               "Home visibility and shortcut order on capability rows",
-              "Skills, Tools, and Custom Assistants as internal tabs or sections",
-              "custom assistants open the real AssistantSettings surface in the third on-demand tab"
+              "Skills and Tools as internal tabs or sections",
+              "AionUI custom assistants excluded from the OPL product surface"
             ],
-            "first_viewport_groups": ["capability_summary", "capability_catalog", "capability_details"],
+            "first_viewport_groups": ["capability_catalog", "capability_details"],
             "primary_action": {
               "id": "add_capability",
               "availability": "always",
@@ -2866,19 +2871,9 @@
             "tab_contract": {
               "surface_label_zh": "智能体与能力",
               "surface_label_en": "Agents & Capabilities",
-              "tab_order": ["skills", "tools", "assistants"],
+              "tab_order": ["skills", "tools"],
               "default_tab": "skills",
-              "on_demand_tab_ids": ["assistants"],
-              "assistants": {
-                "tab_id": "assistants",
-                "position": 3,
-                "component_key": "AssistantSettings",
-                "anchor": "custom-assistants",
-                "legacy_route_id": "assistants",
-                "legacy_target": "capabilities?tab=assistants#custom-assistants",
-                "hash_router_target_path": "/settings/capabilities?tab=assistants&section=custom-assistants",
-                "top_level_or_secondary_page_allowed": false
-              }
+              "on_demand_tab_ids": []
             },
             "exception_state": "highlight failed or blocked capabilities and keep normal packages visually quiet",
             "technical_details_boundary": "package ids, receipts, paths, manifests, and raw status axes stay collapsed",
@@ -2896,13 +2891,8 @@
                 }
               ]
             },
-            "required_anchors": ["availability", "source", "home-visibility", "custom-assistants"],
-            "search_entry_ids": [
-              "capabilities.availability",
-              "capabilities.source",
-              "capabilities.home_visibility",
-              "capabilities.custom_assistants"
-            ]
+            "required_anchors": ["availability", "source", "home-visibility"],
+            "search_entry_ids": ["capabilities.availability", "capabilities.source", "capabilities.home_visibility"]
           },
           "resources": {
             "product_page_id": "resources",
@@ -3058,7 +3048,14 @@
               "cleanup preview before any destructive action",
               "plain-language archive, restore, and cleanup history"
             ],
-            "first_viewport_groups": ["usage_summary", "data_categories", "cleanup_and_archives"],
+            "first_viewport_groups": ["data_categories", "cleanup_and_archives"],
+            "surface_rules": {
+              "total_usage_presentation": "status_row_in_page_header",
+              "pure_usage_summary_card_allowed": false,
+              "diagnostics_entry": "explicit_modal_action",
+              "zero_byte_policy": "show_nothing_to_clean_and_hide_actions",
+              "cleanup_action_policy": "single_progressive_action_preview_then_confirm"
+            },
             "primary_action": {
               "id": "preview_cleanup",
               "availability": "reclaimable_items_available",
@@ -3069,7 +3066,7 @@
             "exception_state": "highlight unsafe or unprotected cleanup candidates and disable execution",
             "technical_details_boundary": "dry-run, receipt refs, lifecycle ids, SQLite details, and raw paths stay collapsed",
             "required_dom": {
-              "always": ["settings-page-storage", "settings-storage-primary", "settings-storage-technical-details"],
+              "always": ["settings-page-storage", "settings-storage-primary", "settings-storage-diagnostics-action"],
               "conditional": [
                 {
                   "testid": "settings-storage-exception",
@@ -3078,6 +3075,10 @@
                 {
                   "testid": "settings-storage-primary-action",
                   "when": "reclaimable_items_available"
+                },
+                {
+                  "testid": "settings-storage-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -3132,28 +3133,23 @@
             "label_zh": "高级",
             "label_en": "Advanced",
             "primary_information": [
-              "read-only diagnostic paths with user-facing labels",
-              "raw diagnostic details only after explicit disclosure"
+              "read-only diagnostic paths with user-facing labels and direct open actions",
+              "no duplicate summary or disclosure for the same paths"
             ],
-            "first_viewport_groups": ["diagnostic_paths", "diagnostic_details"],
+            "first_viewport_groups": ["diagnostic_paths"],
             "primary_action": {
               "id": "none",
               "availability": "read_only_page",
               "max_visible": 1
             },
             "exception_state": "show missing or inaccessible directories without offering shell-owned repair controls",
-            "technical_details_boundary": "raw path refs may be copied from collapsed details but cannot be edited here",
+            "technical_details_boundary": "paths are already the purpose of this expert page and are shown directly without a second disclosure",
             "required_dom": {
-              "always": ["settings-page-advanced", "settings-advanced-primary", "settings-advanced-technical-details"],
-              "conditional": [
-                {
-                  "testid": "settings-advanced-exception",
-                  "when": "attention_required"
-                }
-              ]
+              "always": ["settings-page-advanced", "settings-advanced-primary"],
+              "conditional": []
             },
-            "required_anchors": ["working-directories", "diagnostics"],
-            "search_entry_ids": ["advanced.directories", "advanced.diagnostics"]
+            "required_anchors": ["working-directories"],
+            "search_entry_ids": ["advanced.directories"]
           },
           "about": {
             "product_page_id": "about",
@@ -3318,15 +3314,6 @@
               "label_en": "Home visibility",
               "keywords_zh": ["首页", "显示", "快捷入口"],
               "keywords_en": ["home", "visibility", "shortcut"]
-            },
-            {
-              "id": "capabilities.custom_assistants",
-              "page_id": "capabilities",
-              "anchor": "custom-assistants",
-              "label_zh": "自定义助手",
-              "label_en": "Custom assistants",
-              "keywords_zh": ["自定义助手", "创建助手", "管理助手"],
-              "keywords_en": ["custom assistant", "create assistant", "manage assistant"]
             },
             {
               "id": "resources.local_browser_access",
@@ -3498,15 +3485,6 @@
               "label_en": "Working directories",
               "keywords_zh": ["工作目录", "日志目录", "运行目录"],
               "keywords_en": ["working directory", "logs path", "runtime path"]
-            },
-            {
-              "id": "advanced.diagnostics",
-              "page_id": "advanced",
-              "anchor": "diagnostics",
-              "label_zh": "诊断详情",
-              "label_en": "Diagnostic details",
-              "keywords_zh": ["诊断", "日志", "详情"],
-              "keywords_en": ["diagnostics", "logs", "details"]
             },
             {
               "id": "about.version",

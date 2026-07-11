@@ -515,7 +515,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
     expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
     expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
-    expect(view.getByTestId('settings-access-technical-details')).not.toHaveAttribute('open');
+    expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
     expect(document.querySelector('#model')).toBeTruthy();
   });
 

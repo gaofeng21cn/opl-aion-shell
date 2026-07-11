@@ -187,7 +187,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                     }`}
                   >
                     {workspaceReady
-                      ? t('settings.workspacePage.status.ready')
+                      ? t('settings.workspacePage.status.writable')
                       : workspaceNeedsAction
                         ? t('settings.workspacePage.status.needsAction')
                         : t('settings.oplEnvironmentPage.status.unknown')}
@@ -198,6 +198,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                   <Button data-testid='settings-workspace-diagnostics-action' onClick={() => setDiagnosticsOpen(true)}>
                     {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
                   </Button>
+                  {permissionState !== 'ready' && (
+                    <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
+                  )}
                   <Button
                     type='primary'
                     loading={workspaceAction === 'choose'}
@@ -206,40 +209,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                   >
                     {t('settings.workspacePage.actions.changeWorkspace')}
                   </Button>
-                </div>
-              </div>
-              <div
-                className='opl-settings-row border-t border-solid border-[var(--border-base)]'
-                id='permissions'
-                data-testid='opl-workspace-settings-permission'
-              >
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.workspacePage.permission.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t(`settings.workspacePage.permission.${permissionState}`)}
-                  </Typography.Text>
-                </div>
-                <div className='opl-settings-row__meta flex flex-wrap items-center justify-end gap-8px'>
-                  <span
-                    className={`opl-settings-status ${
-                      permissionState === 'ready'
-                        ? 'opl-settings-status--ready'
-                        : permissionState === 'needsAction'
-                          ? 'opl-settings-status--attention'
-                          : ''
-                    }`}
-                  >
-                    {permissionState === 'ready'
-                      ? t('settings.workspacePage.status.ready')
-                      : permissionState === 'needsAction'
-                        ? t('settings.workspacePage.status.needsAction')
-                        : t('settings.oplEnvironmentPage.status.unknown')}
-                  </span>
-                  {permissionState !== 'ready' && (
-                    <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
-                  )}
                 </div>
               </div>
             </div>

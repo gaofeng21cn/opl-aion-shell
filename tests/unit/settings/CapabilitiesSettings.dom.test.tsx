@@ -658,9 +658,8 @@ describe('CapabilitiesSettingsContent', () => {
     expect(onTabChange).toHaveBeenCalledWith('tools');
     await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Custom assistants' }));
-    expect(onTabChange).toHaveBeenCalledWith('assistants');
-    await waitFor(() => expect(screen.getByTestId('assistants-detail')).toBeInTheDocument());
+    expect(screen.queryByRole('tab', { name: 'Custom assistants' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assistants-detail')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');

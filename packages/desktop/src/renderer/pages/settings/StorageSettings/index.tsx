@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
+import { Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -30,7 +30,6 @@ type AsyncAction =
   | 'inventory'
   | 'cleanup-preview'
   | 'archive'
-  | 'restore'
   | 'delete-conversations'
   | 'runtime-plan'
   | 'runtime-execute'
@@ -103,6 +102,7 @@ type StorageInventoryRowProps = {
 const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions, status }) => {
   const { t } = useTranslation();
   const meta = SECTION_META[item.id];
+  const isEmpty = item.bytes <= 0;
 
   return (
     <section
@@ -119,15 +119,17 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
           <Typography.Text className='text-16px font-600 text-t-primary'>
             {formatStorageBytes(item.bytes)}
           </Typography.Text>
-          <Tag color={item.silentDeleteAllowed ? 'gray' : 'orange'}>{t(cleanupModeLabelKey(item.cleanupMode))}</Tag>
+          <Tag color={isEmpty || item.silentDeleteAllowed ? 'gray' : 'orange'}>
+            {isEmpty ? t('settings.storagePage.inventory.noCleanupNeeded') : t(cleanupModeLabelKey(item.cleanupMode))}
+          </Tag>
         </div>
-        {status && <div className='text-12px text-t-secondary'>{status}</div>}
+        {!isEmpty && status && <div className='text-12px text-t-secondary'>{status}</div>}
         {!item.section && (
           <Typography.Text className='block text-12px text-t-secondary'>
             {t('settings.storagePage.inventory.notLoaded')}
           </Typography.Text>
         )}
-        <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>
+        {!isEmpty && <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>}
       </div>
     </section>
   );
@@ -218,19 +220,6 @@ export const StorageSettingsContent: React.FC = () => {
     void runAction(
       'archive',
       () => ipcBridge.localDataLifecycle.archiveConversations.invoke(),
-      (receipt) => {
-        setLastReceipt(receipt);
-        setConversationProofReceipt(receipt);
-      }
-    );
-  };
-
-  const restoreConversationProof = () => {
-    const id = viewModel.conversationProof.receiptPath;
-    if (!id) return;
-    void runAction(
-      'restore',
-      () => ipcBridge.localDataLifecycle.restoreConversationProof.invoke({ receiptPath: id }),
       (receipt) => {
         setLastReceipt(receipt);
         setConversationProofReceipt(receipt);
@@ -452,26 +441,16 @@ export const StorageSettingsContent: React.FC = () => {
           {viewModel.conversationProof.receiptPath && (
             <Button
               htmlType='button'
-              icon={<CheckOne />}
-              disabled={interactionLocked}
-              loading={loading === 'restore'}
-              onClick={restoreConversationProof}
-              data-testid='storage-conversation-restore'
+              status='danger'
+              icon={<Delete />}
+              disabled={interactionLocked || !viewModel.canDeleteConversationArtifacts}
+              loading={loading === 'delete-conversations'}
+              onClick={() => requestDangerAction('delete-conversations')}
+              data-testid='storage-conversation-delete'
             >
-              {t('settings.storagePage.actions.restoreProof')}
+              {t('settings.storagePage.actions.deleteWithReceipt')}
             </Button>
           )}
-          <Button
-            htmlType='button'
-            status='danger'
-            icon={<Delete />}
-            disabled={interactionLocked || !viewModel.canDeleteConversationArtifacts}
-            loading={loading === 'delete-conversations'}
-            onClick={() => requestDangerAction('delete-conversations')}
-            data-testid='storage-conversation-delete'
-          >
-            {t('settings.storagePage.actions.deleteWithReceipt')}
-          </Button>
         </>
       ),
       status: viewModel.conversationProof.receiptPath
@@ -486,29 +465,28 @@ export const StorageSettingsContent: React.FC = () => {
       ) : undefined,
     },
     runtime_substrate: {
-      actions: (
-        <>
-          <Button
-            htmlType='button'
-            icon={<FolderSearch />}
-            disabled={interactionLocked}
-            loading={loading === 'runtime-plan'}
-            onClick={dryRunRuntimePrune}
-          >
-            {t('settings.storagePage.actions.dryRunRuntime')}
-          </Button>
-          <Button
-            htmlType='button'
-            status='danger'
-            icon={<Repair />}
-            disabled={interactionLocked || !viewModel.runtimePlan.canExecute}
-            loading={loading === 'runtime-execute'}
-            onClick={() => requestDangerAction('runtime-execute')}
-            data-testid='storage-runtime-execute'
-          >
-            {t('settings.storagePage.actions.executeRuntime')}
-          </Button>
-        </>
+      actions: viewModel.runtimePlan.canExecute ? (
+        <Button
+          htmlType='button'
+          status='danger'
+          icon={<Repair />}
+          disabled={interactionLocked}
+          loading={loading === 'runtime-execute'}
+          onClick={() => requestDangerAction('runtime-execute')}
+          data-testid='storage-runtime-execute'
+        >
+          {t('settings.storagePage.actions.executeRuntime')}
+        </Button>
+      ) : (
+        <Button
+          htmlType='button'
+          icon={<FolderSearch />}
+          disabled={interactionLocked}
+          loading={loading === 'runtime-plan'}
+          onClick={dryRunRuntimePrune}
+        >
+          {t('settings.storagePage.actions.dryRunRuntime')}
+        </Button>
       ),
       status: renderPlanSummary(
         'runtime',
@@ -518,29 +496,28 @@ export const StorageSettingsContent: React.FC = () => {
       ),
     },
     logs: {
-      actions: (
-        <>
-          <Button
-            htmlType='button'
-            icon={<FolderSearch />}
-            disabled={interactionLocked}
-            loading={loading === 'logs-plan'}
-            onClick={dryRunLogRotation}
-          >
-            {t('settings.storagePage.actions.dryRunLogs')}
-          </Button>
-          <Button
-            htmlType='button'
-            status='danger'
-            icon={<UpdateRotation />}
-            disabled={interactionLocked || !viewModel.logsPlan.canExecute}
-            loading={loading === 'logs-execute'}
-            onClick={() => requestDangerAction('logs-execute')}
-            data-testid='storage-logs-execute'
-          >
-            {t('settings.storagePage.actions.executeLogs')}
-          </Button>
-        </>
+      actions: viewModel.logsPlan.canExecute ? (
+        <Button
+          htmlType='button'
+          status='danger'
+          icon={<UpdateRotation />}
+          disabled={interactionLocked}
+          loading={loading === 'logs-execute'}
+          onClick={() => requestDangerAction('logs-execute')}
+          data-testid='storage-logs-execute'
+        >
+          {t('settings.storagePage.actions.executeLogs')}
+        </Button>
+      ) : (
+        <Button
+          htmlType='button'
+          icon={<FolderSearch />}
+          disabled={interactionLocked}
+          loading={loading === 'logs-plan'}
+          onClick={dryRunLogRotation}
+        >
+          {t('settings.storagePage.actions.dryRunLogs')}
+        </Button>
       ),
       status: renderPlanSummary(
         'logs',
@@ -562,28 +539,27 @@ export const StorageSettingsContent: React.FC = () => {
           : undefined,
     },
     updater_cache: {
-      actions: (
-        <>
-          <Button
-            htmlType='button'
-            icon={<FolderSearch />}
-            disabled={interactionLocked}
-            loading={loading === 'updater-plan'}
-            onClick={dryRunUpdaterCleanup}
-          >
-            {t('settings.storagePage.actions.dryRunUpdater')}
-          </Button>
-          <Button
-            htmlType='button'
-            icon={<Repair />}
-            disabled={interactionLocked || !viewModel.updaterPlan.canExecute}
-            loading={loading === 'updater-execute'}
-            onClick={() => requestDangerAction('updater-execute')}
-            data-testid='storage-updater-execute'
-          >
-            {t('settings.storagePage.actions.executeUpdater')}
-          </Button>
-        </>
+      actions: viewModel.updaterPlan.canExecute ? (
+        <Button
+          htmlType='button'
+          icon={<Repair />}
+          disabled={interactionLocked}
+          loading={loading === 'updater-execute'}
+          onClick={() => requestDangerAction('updater-execute')}
+          data-testid='storage-updater-execute'
+        >
+          {t('settings.storagePage.actions.executeUpdater')}
+        </Button>
+      ) : (
+        <Button
+          htmlType='button'
+          icon={<FolderSearch />}
+          disabled={interactionLocked}
+          loading={loading === 'updater-plan'}
+          onClick={dryRunUpdaterCleanup}
+        >
+          {t('settings.storagePage.actions.dryRunUpdater')}
+        </Button>
       ),
       status: renderPlanSummary(
         'updater',

@@ -577,11 +577,6 @@ function ManagedUpdatesPanel({
               {plane.updateChannel && (
                 <Tag>{t('settings.oplEnvironmentPage.updates.channel', { channel: plane.updateChannel })}</Tag>
               )}
-              <Tag>
-                {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
-                  value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
-                })}
-              </Tag>
             </Space>
           </div>
           <Space wrap>
@@ -1284,7 +1279,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                       </div>
                       <span
                         className={`opl-settings-status mt-auto self-start ${
-                          item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'
+                          item.tone === 'green'
+                            ? 'opl-settings-status--ready'
+                            : item.tone === 'orange'
+                              ? 'opl-settings-status--attention'
+                              : ''
                         }`}
                       >
                         {item.status}

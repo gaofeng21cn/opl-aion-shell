@@ -209,19 +209,6 @@ export const AccessSettingsContent: React.FC = () => {
           )}
         </div>
       </section>
-
-      <details className='opl-settings-details' data-testid='settings-access-technical-details'>
-        <summary>{t('common.technical_details')}</summary>
-        <div className='mt-10px grid grid-cols-1 gap-6px text-12px text-t-secondary'>
-          <Typography.Text className='break-words'>{modelAccessStatus}</Typography.Text>
-          {modelAccessSource && <Typography.Text className='break-words'>{modelAccessSource}</Typography.Text>}
-          {codexDetailLines.map((line) => (
-            <Typography.Text key={line} className='break-words'>
-              {line}
-            </Typography.Text>
-          ))}
-        </div>
-      </details>
     </div>
   );
 };

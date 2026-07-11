@@ -200,6 +200,19 @@ export type TranslateFn = (key: string, options?: { defaultValue?: string }) => 
 
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
+const SETTINGS_ICON_COLORS: Record<string, string> = {
+  general: 'var(--color-primary-6)',
+  access: 'rgb(var(--green-6))',
+  workspace: 'rgb(var(--cyan-6))',
+  capabilities: 'rgb(var(--purple-6))',
+  resources: 'rgb(var(--blue-6))',
+  environment: 'rgb(var(--orange-6))',
+  storage: 'rgb(var(--cyan-6))',
+  appearance: 'rgb(var(--magenta-6))',
+  advanced: 'rgb(var(--gray-6))',
+  about: 'rgb(var(--blue-6))',
+};
+
 export function getSettingsTabLabel(tabId: string, t: TranslateFn): string {
   const route = ordinaryRoutesById.get(tabId);
   return t(OPL_SETTINGS_TAB_LABEL_KEYS[tabId] ?? `settings.${tabId}`, {
@@ -241,36 +254,40 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
 
 export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React.ReactElement {
   const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
+  const iconColor = SETTINGS_ICON_COLORS[iconToken] ?? SETTINGS_ICON_COLORS[tabId] ?? iconColors.secondary;
   if (slot === 'modal') {
     const modalIcons: Record<string, React.ReactElement> = {
-      general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
-      workspace: <FolderOpen theme='outline' size='20' fill={iconColors.secondary} />,
-      'local-services': <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-      resources: <LinkCloud theme='outline' size='20' fill={iconColors.secondary} />,
-      environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-      storage: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-      capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
-      access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
-      appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
-      advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
+      general: <Computer theme='outline' size='20' fill={iconColor} />,
+      workspace: <FolderOpen theme='outline' size='20' fill={iconColor} />,
+      'local-services': <Toolkit theme='outline' size='20' fill={iconColor} />,
+      resources: <LinkCloud theme='outline' size='20' fill={iconColor} />,
+      environment: <Toolkit theme='outline' size='20' fill={iconColor} />,
+      storage: <Toolkit theme='outline' size='20' fill={iconColor} />,
+      capabilities: <Lightning theme='outline' size='20' fill={iconColor} />,
+      access: <Earth theme='outline' size='20' fill={iconColor} />,
+      appearance: <SwitchThemes theme='outline' size='20' fill={iconColor} />,
+      advanced: <SettingConfig theme='outline' size='20' fill={iconColor} />,
     };
-    return (
-      modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
-    );
+    return modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColor} />;
   }
 
   const siderIcons: Record<string, React.ReactElement> = {
-    general: <Dashboard />,
-    access: slot === 'siderDesktop' ? <Earth /> : <Communication />,
-    workspace: <FolderOpen />,
-    capabilities: <Lightning />,
-    resources: <LinkCloud />,
-    environment: <Toolkit />,
-    storage: <Toolkit />,
-    appearance: <SwitchThemes />,
-    advanced: <System />,
+    general: <Dashboard fill={iconColor} style={{ color: iconColor }} />,
+    access:
+      slot === 'siderDesktop' ? (
+        <Earth fill={iconColor} style={{ color: iconColor }} />
+      ) : (
+        <Communication fill={iconColor} style={{ color: iconColor }} />
+      ),
+    workspace: <FolderOpen fill={iconColor} style={{ color: iconColor }} />,
+    capabilities: <Lightning fill={iconColor} style={{ color: iconColor }} />,
+    resources: <LinkCloud fill={iconColor} style={{ color: iconColor }} />,
+    environment: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
+    storage: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
+    appearance: <SwitchThemes fill={iconColor} style={{ color: iconColor }} />,
+    advanced: <System fill={iconColor} style={{ color: iconColor }} />,
   };
-  return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle />;
+  return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle fill={iconColor} style={{ color: iconColor }} />;
 }
 
 export function resolveLegacySettingsAnchor(anchor: string): string {
@@ -285,9 +302,9 @@ export function normalizeOplSettingsTab(tabId: string): string {
   return LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId;
 }
 
-export type SettingsCapabilityDetailTab = 'skills' | 'tools' | 'assistants';
+export type SettingsCapabilityDetailTab = 'skills' | 'tools';
 
-const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools', 'assistants']);
+const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools']);
 
 const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
   return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;

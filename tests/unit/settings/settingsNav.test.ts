@@ -131,7 +131,7 @@ const { controlPlane } = vi.hoisted(() => ({
       system: 'advanced',
       model: 'environment',
       agent: 'capabilities',
-      assistants: 'capabilities?tab=assistants#custom-assistants',
+      assistants: 'capabilities?tab=skills',
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
@@ -243,7 +243,7 @@ describe('settingsNav App-owned tabs', () => {
       system: '/settings/advanced',
       model: '/settings/environment',
       agent: '/settings/capabilities',
-      assistants: '/settings/capabilities?tab=assistants&section=custom-assistants',
+      assistants: '/settings/capabilities?tab=skills',
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
       display: '/settings/appearance',
@@ -334,8 +334,7 @@ describe('settingsNav App-owned tabs', () => {
     });
     expect(resolveSettingsRenderTarget('assistants')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'assistants',
-      anchor: 'custom-assistants',
+      capabilitiesTab: 'skills',
     });
     expect(capabilityDetailTabFor('tools')).toBe('tools');
     expect(capabilityDetailTabFor('capabilities')).toBe('skills');

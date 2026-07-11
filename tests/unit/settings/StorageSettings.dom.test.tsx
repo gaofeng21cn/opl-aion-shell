@@ -86,9 +86,10 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.silentDeleteAllowed': 'Ready to clean',
     'settings.storagePage.inventory.silentDeleteBlocked': 'Preparation required',
     'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Ready to clean',
-    'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Archive first',
-    'settings.storagePage.inventory.cleanupModes.needsPreview': 'Review first',
-    'settings.storagePage.inventory.cleanupModes.needsReview': 'Check required',
+    'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Clean after archiving',
+    'settings.storagePage.inventory.cleanupModes.needsPreview': 'Review and clean',
+    'settings.storagePage.inventory.cleanupModes.needsReview': 'Check and clean',
+    'settings.storagePage.inventory.noCleanupNeeded': 'Nothing to clean',
     'settings.storagePage.overview.total': 'Total',
     'settings.storagePage.overview.categories': 'Local data',
     'settings.storagePage.overview.safe': 'Safe now',
@@ -268,7 +269,7 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Ready to clean');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Archive first');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Clean after archiving');
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).not.toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).not.toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Older logs can be removed by retention rules.')).toBeInTheDocument();
@@ -333,27 +334,27 @@ describe('StorageSettingsContent', () => {
     expect(diagnostics.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });
 
-  it('keeps delete and execute buttons disabled until receipt or dry-run plan exists', async () => {
+  it('reveals delete and execute actions only after receipt or dry-run plan exists', async () => {
     render(<StorageSettingsContent />);
 
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByTestId('storage-conversation-delete')).toBeDisabled();
-    expect(screen.getByTestId('storage-runtime-execute')).toBeDisabled();
-    expect(screen.getByTestId('storage-logs-execute')).toBeDisabled();
-    expect(screen.getByTestId('storage-updater-execute')).toBeDisabled();
+    expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('storage-runtime-execute')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('storage-logs-execute')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('storage-updater-execute')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId('storage-conversation-delete')).not.toBeDisabled();
+    expect(screen.getByTestId('storage-conversation-delete')).toBeEnabled();
 
     fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
     await waitFor(() => expect(bridgeMocks.planRuntimePrune).toHaveBeenCalledTimes(1));
     expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled();
-    expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled();
-    expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled();
+    expect(screen.getByTestId('storage-runtime-execute')).toBeEnabled();
+    expect(screen.getByTestId('storage-logs-execute')).toBeEnabled();
+    expect(screen.getByTestId('storage-updater-execute')).toBeEnabled();
   });
 
   it('executes runtime and log cleanup with the dry-run plan object', async () => {
@@ -375,8 +376,6 @@ describe('StorageSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByText('Review log cleanup'));
-    await waitFor(() => expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-logs-execute'));
     expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
     fireEvent.click(screen.getByTestId('storage-action-confirm'));
@@ -407,7 +406,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByTestId('storage-conversation-delete')).toBeDisabled();
+    expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
 
@@ -426,17 +425,16 @@ describe('StorageSettingsContent', () => {
     );
   });
 
-  it('keeps the restore action bound to the recoverable backup record', async () => {
+  it('keeps archive proof in diagnostics instead of adding another ordinary action', async () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByText('Create archive'));
-    await waitFor(() => expect(screen.getByTestId('storage-conversation-restore')).not.toBeDisabled());
-    fireEvent.click(screen.getByTestId('storage-conversation-restore'));
-
-    await waitFor(() =>
-      expect(bridgeMocks.restoreConversationProof).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path })
-    );
+    await waitFor(() => expect(screen.getByTestId('storage-conversation-delete')).toBeEnabled());
+    expect(screen.queryByTestId('storage-conversation-restore')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Diagnostics'));
+    expect(screen.getByTestId('settings-storage-technical-details')).toHaveTextContent(receipt.receipt_path);
+    expect(bridgeMocks.restoreConversationProof).not.toHaveBeenCalled();
   });
 
   it('keeps every storage action single-flight through mutation and inventory refresh', async () => {
@@ -457,14 +455,14 @@ describe('StorageSettingsContent', () => {
     fireEvent.click(confirm);
 
     expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Review log cleanup' })).toBeDisabled();
+    expect(screen.getByTestId('storage-logs-execute')).toBeDisabled();
     expect(screen.getByTestId('storage-refresh')).toBeDisabled();
 
     mutation.resolve(receipt);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2));
 
     expect(screen.getByTestId('settings-storage-primary-action')).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Review log cleanup' }));
+    fireEvent.click(screen.getByTestId('storage-logs-execute'));
     fireEvent.click(screen.getByTestId('storage-refresh'));
     expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2);

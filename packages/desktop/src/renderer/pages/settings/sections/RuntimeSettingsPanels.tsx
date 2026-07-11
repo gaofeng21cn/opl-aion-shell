@@ -7,7 +7,7 @@
 import React from 'react';
 import { Tag, Typography } from '@arco-design/web-react';
 
-export type RuntimeSettingsTone = 'green' | 'orange';
+export type RuntimeSettingsTone = 'green' | 'orange' | 'gray';
 
 export type RuntimeReadinessCard = {
   key: string;
@@ -80,7 +80,13 @@ export function RuntimeHealthSummary({ items }: { items: RuntimeHealthSummaryIte
           </div>
           <div className='opl-settings-row__meta'>
             <span
-              className={`opl-settings-status ${item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+              className={`opl-settings-status ${
+                item.tone === 'green'
+                  ? 'opl-settings-status--ready'
+                  : item.tone === 'orange'
+                    ? 'opl-settings-status--attention'
+                    : ''
+              }`}
             >
               {item.value}
             </span>

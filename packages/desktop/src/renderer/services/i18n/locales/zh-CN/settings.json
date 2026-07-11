@@ -1465,6 +1465,7 @@
     "description": "确认本机项目和任务产物存放在哪里，以及 App 是否有权限访问。",
     "status": {
       "ready": "可用",
+      "writable": "工作目录可写",
       "needsAction": "需要处理"
     },
     "permission": {
@@ -1647,10 +1648,11 @@
       "silentDeleteBlocked": "需要先准备",
       "cleanupModes": {
         "safeWithoutExtraProof": "可直接清理",
-        "needsArchiveProof": "需先归档",
-        "needsPreview": "需先查看",
-        "needsReview": "需检查"
-      }
+        "needsArchiveProof": "归档后可清理",
+        "needsPreview": "可查看并清理",
+        "needsReview": "检查后可清理"
+      },
+      "noCleanupNeeded": "无需清理"
     },
     "overview": {
       "total": "共占用",
@@ -2184,9 +2186,9 @@
       }
     },
     "supporting": {
-      "title": "技能、工具与自定义助手",
-      "compactTitle": "技能、工具与自定义助手",
-      "description": "这些是支撑能力的详细配置，默认折叠；需要排查或调整时再打开。"
+      "title": "技能与外部工具",
+      "compactTitle": "技能与外部工具",
+      "description": "按需管理技能、外部工具和语音输入。"
     }
   },
   "oplEnvironmentPage": {
@@ -2324,7 +2326,8 @@
       "backgroundRuntimeCheck": "正在后台补充检查 Codex 和工作目录状态。"
     },
     "status": {
-      "unknown": "未知",
+      "unknown": "尚未检查",
+      "dirty": "有本地修改",
       "ready": "就绪",
       "current": "已是最新",
       "update_available": "有可用更新",
