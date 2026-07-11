@@ -81,8 +81,14 @@ function resolvePackagedApp(): { executablePath: string; cwd: string } | null {
       if (!fs.existsSync(macDir)) continue;
       const appBundle = fs.readdirSync(macDir).find((f) => f.endsWith('.app'));
       if (appBundle) {
-        const exe = path.join(macDir, appBundle, 'Contents', 'MacOS', 'AionUi');
-        if (fs.existsSync(exe)) return { executablePath: exe, cwd: macDir };
+        const executableDir = path.join(macDir, appBundle, 'Contents', 'MacOS');
+        const bundleExecutable = path.basename(appBundle, '.app');
+        const executableName = [bundleExecutable, 'AionUi'].find((name) =>
+          fs.existsSync(path.join(executableDir, name))
+        );
+        if (executableName) {
+          return { executablePath: path.join(executableDir, executableName), cwd: macDir };
+        }
       }
     }
   } else {
