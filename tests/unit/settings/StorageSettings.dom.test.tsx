@@ -16,13 +16,6 @@ const bridgeMocks = vi.hoisted(() => ({
   executeUpdaterCacheCleanup: vi.fn(),
 }));
 
-const openDetails = (details: HTMLDetailsElement | null) => {
-  expect(details).toBeTruthy();
-  if (!details) return;
-  details.open = true;
-  fireEvent(details, new Event('toggle'));
-};
-
 const deferred = <Value,>() => {
   let resolve!: (value: Value) => void;
   const promise = new Promise<Value>((next) => {
@@ -285,14 +278,12 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
-    for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
-      openDetails(screen.getByTestId(`storage-inventory-details-${id}`) as HTMLDetailsElement);
-    }
-
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('/tmp/runtime');
-    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
+    fireEvent.click(screen.getByText('Work data protection details'));
+    const diagnostics = screen.getByTestId('settings-storage-technical-details');
+    expect(diagnostics).toHaveTextContent('/tmp/updater-cache');
+    expect(diagnostics).toHaveTextContent('/tmp/conversations');
+    expect(diagnostics).toHaveTextContent('/tmp/runtime');
+    expect(diagnostics).toHaveTextContent('/tmp/logs');
   });
 
   it('hides the page cleanup action when only protected conversation data remains', async () => {
@@ -322,24 +313,24 @@ describe('StorageSettingsContent', () => {
     expect(lifecycle).not.toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
     expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
 
-    openDetails(screen.getByTestId('storage-research-lifecycle-details') as HTMLDetailsElement);
+    fireEvent.click(screen.getByText('Work data protection details'));
 
-    expect(lifecycle).toHaveTextContent('Work data protection rules');
-    expect(lifecycle).toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
-    expect(lifecycle).toHaveTextContent('Work data stages');
-    expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
-    expect(lifecycle).toHaveTextContent('Large file references');
-    expect(lifecycle).toHaveTextContent('clinical data bodies and artifact bodies stay outside the App view');
-    expect(lifecycle).toHaveTextContent('Many small files');
-    expect(lifecycle).toHaveTextContent('the App does not scan work directories');
-    expect(lifecycle).toHaveTextContent('Runtime cache cleanup preview');
-    expect(lifecycle).toHaveTextContent('runtime_compact_dry_run_refs');
-    expect(lifecycle).toHaveTextContent('Completed project archive');
-    expect(lifecycle).toHaveTextContent('completed_project_closeout_refs');
-    expect(lifecycle).toHaveTextContent('Generic cleanup blocked');
-    expect(lifecycle).toHaveTextContent('Cleanup without owner, preview, or closeout source context is forbidden');
-    expect(lifecycle.querySelectorAll('button')).toHaveLength(0);
-    expect(lifecycle.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
+    const diagnostics = screen.getByTestId('settings-storage-technical-details');
+    expect(diagnostics).toHaveTextContent('Work data protection rules');
+    expect(diagnostics).toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
+    expect(diagnostics).toHaveTextContent('Work data stages');
+    expect(diagnostics).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
+    expect(diagnostics).toHaveTextContent('Large file references');
+    expect(diagnostics).toHaveTextContent('clinical data bodies and artifact bodies stay outside the App view');
+    expect(diagnostics).toHaveTextContent('Many small files');
+    expect(diagnostics).toHaveTextContent('the App does not scan work directories');
+    expect(diagnostics).toHaveTextContent('Runtime cache cleanup preview');
+    expect(diagnostics).toHaveTextContent('runtime_compact_dry_run_refs');
+    expect(diagnostics).toHaveTextContent('Completed project archive');
+    expect(diagnostics).toHaveTextContent('completed_project_closeout_refs');
+    expect(diagnostics).toHaveTextContent('Generic cleanup blocked');
+    expect(diagnostics).toHaveTextContent('Cleanup without owner, preview, or closeout source context is forbidden');
+    expect(diagnostics.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });
 
   it('keeps delete and execute buttons disabled until receipt or dry-run plan exists', async () => {

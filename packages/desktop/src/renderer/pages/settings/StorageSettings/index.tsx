@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Alert, Button, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { CheckOne, Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -98,14 +98,11 @@ type StorageInventoryRowProps = {
   item: StorageInventorySectionViewModel;
   actions: React.ReactNode;
   status?: React.ReactNode;
-  technicalDetails?: React.ReactNode;
 };
 
-const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions, status, technicalDetails }) => {
+const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions, status }) => {
   const { t } = useTranslation();
-  const [detailsOpen, setDetailsOpen] = React.useState(false);
   const meta = SECTION_META[item.id];
-  const hasTechnicalDetails = Boolean(item.section || technicalDetails);
 
   return (
     <section
@@ -132,40 +129,6 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
         )}
         <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>
       </div>
-      {hasTechnicalDetails && (
-        <details
-          className='border-0 border-t border-solid border-border-1 px-16px py-12px'
-          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
-          data-testid={`storage-inventory-details-${item.id}`}
-        >
-          <summary className='cursor-pointer text-12px text-t-secondary'>
-            {t('settings.storagePage.inventory.details')}
-          </summary>
-          {detailsOpen && (
-            <div className='mt-6px flex flex-col gap-6px'>
-              {item.section?.roots.map((root) => (
-                <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
-                  <span>{root.path}</span>
-                  <span className='text-t-secondary'>
-                    {t('settings.storagePage.inventory.rootDetail', {
-                      exists: root.exists
-                        ? t('settings.storagePage.inventory.exists')
-                        : t('settings.storagePage.inventory.missing'),
-                      bytes: formatStorageBytes(root.bytes),
-                    })}
-                  </span>
-                </div>
-              ))}
-              {item.section?.roots.length === 0 && (
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.storagePage.inventory.noRoots')}
-                </Typography.Text>
-              )}
-              {technicalDetails}
-            </div>
-          )}
-        </details>
-      )}
     </section>
   );
 };
@@ -182,7 +145,7 @@ export const StorageSettingsContent: React.FC = () => {
   const [updaterPlan, setUpdaterPlan] = React.useState<LocalDataLifecycleUpdaterCachePlan | null>(null);
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
-  const [researchDetailsOpen, setResearchDetailsOpen] = React.useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const activeActionRef = React.useRef<AsyncAction | null>(null);
   const dangerConfirmationRef = React.useRef<HTMLDivElement>(null);
@@ -739,40 +702,64 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      <div data-testid='storage-research-lifecycle'>
-        <div data-testid='settings-storage-technical-details'>
-          <details
-            className='opl-settings-details'
-            onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
-            data-testid='storage-research-lifecycle-details'
-          >
-            <summary className='cursor-pointer text-13px text-t-secondary'>
-              {t('settings.storagePage.researchLifecycle.technicalDetails')}
-            </summary>
-            {researchDetailsOpen && (
-              <div className='mt-10px flex flex-col gap-12px'>
-                <div>
-                  <Typography.Text className='font-600 text-t-primary'>
-                    {t('settings.storagePage.researchLifecycle.title')}
-                  </Typography.Text>
-                  <div className='text-12px text-t-secondary mt-4px'>
-                    {t('settings.storagePage.researchLifecycle.detail')}
-                  </div>
-                </div>
-                <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                  {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-                  {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+      <div className='flex justify-end' data-testid='storage-research-lifecycle'>
+        <Button onClick={() => setDiagnosticsVisible(true)}>
+          {t('settings.storagePage.researchLifecycle.technicalDetails')}
+        </Button>
+      </div>
+      <Modal
+        visible={diagnosticsVisible}
+        title={t('settings.storagePage.researchLifecycle.technicalDetails')}
+        footer={null}
+        onCancel={() => setDiagnosticsVisible(false)}
+        unmountOnExit
+        style={{ width: 'min(860px, calc(100vw - 48px))' }}
+      >
+        <div className='max-h-[70vh] overflow-auto' data-testid='settings-storage-technical-details'>
+          <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
+            {viewModel.sections.map((item) => (
+              <div key={item.id} className='border-b border-solid border-[var(--border-base)] pb-10px'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t(SECTION_META[item.id].titleKey)}
+                </Typography.Text>
+                <div className='mt-6px flex flex-col gap-6px'>
+                  {item.section?.roots.map((root) => (
+                    <div key={root.path} className='flex flex-col gap-2px break-words text-12px'>
+                      <span>{root.path}</span>
+                      <span className='text-t-secondary'>
+                        {t('settings.storagePage.inventory.rootDetail', {
+                          exists: root.exists
+                            ? t('settings.storagePage.inventory.exists')
+                            : t('settings.storagePage.inventory.missing'),
+                          bytes: formatStorageBytes(root.bytes),
+                        })}
+                      </span>
+                    </div>
+                  ))}
+                  {categoryPresentation[item.id].technicalDetails}
                 </div>
               </div>
-            )}
-          </details>
+            ))}
+            <div>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('settings.storagePage.researchLifecycle.title')}
+              </Typography.Text>
+              <div className='text-12px text-t-secondary mt-4px'>
+                {t('settings.storagePage.researchLifecycle.detail')}
+              </div>
+            </div>
+            <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+              {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+              {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+              {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+              {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+              {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+              {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+            </div>
+          </div>
         </div>
-      </div>
+      </Modal>
 
       <section className='opl-settings-section' id='cleanup-history'>
         <div className='opl-settings-row'>

@@ -313,11 +313,9 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.docker.actions.settings_diagnose_docker_webui': '检查 WebUI 状态',
         'settings.resourcesPage.docker.actions.settings_open_docker_webui': '打开 WebUI',
         'settings.resourcesPage.connections.title': '云端与外部环境',
-        'settings.resourcesPage.connections.description':
-          '展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。',
+        'settings.resourcesPage.connections.description': '展示任务可以使用的云端、工作区和外部环境。',
         'settings.resourcesPage.connections.workspaceTitle': 'OPL Workspace',
-        'settings.resourcesPage.connections.workspaceDescription':
-          '确认任务使用的工作区、环境和存储入口；底层引用默认收起。',
+        'settings.resourcesPage.connections.workspaceDescription': '确认任务使用的工作区、环境和存储入口。',
         'settings.resourcesPage.connections.noWorkspaceSources': '当前没有上报 OPL Workspace 连接。',
         'settings.resourcesPage.connections.noSources': '当前没有上报云端或外部环境连接。',
         'settings.resourcesPage.connections.empty': '当前没有上报工作区或外部连接。',
@@ -393,7 +391,7 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('浏览器访问这台电脑')).toBeTruthy();
     expect(view.getByText('端口：25808')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
-    expect(view.getByTestId('settings-resources-technical-details')).not.toHaveAttribute('open');
+    expect(view.queryByTestId('settings-resources-technical-details')).toBeNull();
     expect(view.getByText('浏览器工作台')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace')).toHaveLength(1);
     expect(view.getByText('云端与外部环境')).toBeTruthy();
@@ -416,10 +414,8 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).toContain('OPL Cloud 托管计算');
     expect(document.body.textContent).toContain('有管理信息');
     expect(document.body.textContent).toContain('有环境配置');
-    expect(document.body.textContent).toContain('技术引用');
+    expect(document.body.textContent).not.toContain('技术引用');
     expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
-    expect(document.body.textContent).not.toContain('opl://environment/default');
-    expect(document.body.textContent).not.toContain('opl://storage/default');
 
     openDetailsFor(view.getByText('更多操作'));
     expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
@@ -432,8 +428,8 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('attention_needed');
 
-    view.getAllByText('技术引用').forEach((summary) => openDetailsFor(summary));
-
+    fireEvent.click(view.getByText('技术详情'));
+    expect(view.getByTestId('settings-resources-technical-details')).toBeTruthy();
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).toContain('opl://environment/default');
     expect(document.body.textContent).toContain('opl://storage/default');

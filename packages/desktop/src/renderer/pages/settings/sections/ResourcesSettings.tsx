@@ -198,6 +198,7 @@ export const ResourcesSettingsContent: React.FC = () => {
   const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [remoteSettingsVisible, setRemoteSettingsVisible] = useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [pendingDockerAction, setPendingDockerAction] = useState<DockerWebuiAction | null>(null);
   const [actionEvidence, setActionEvidence] = useState<DockerActionEvidence | null>(null);
@@ -486,9 +487,20 @@ export const ResourcesSettingsContent: React.FC = () => {
         </>
       )}
 
-      <details className='opl-settings-details' data-testid='settings-resources-technical-details'>
-        <summary>{t('common.technical_details')}</summary>
-        <div className='mt-10px grid grid-cols-1 gap-6px text-12px text-t-secondary'>
+      <div className='flex justify-end'>
+        <Button onClick={() => setDiagnosticsVisible(true)}>{t('common.technical_details')}</Button>
+      </div>
+      <Modal
+        visible={diagnosticsVisible}
+        title={t('common.technical_details')}
+        footer={null}
+        onCancel={() => setDiagnosticsVisible(false)}
+        unmountOnExit
+      >
+        <div
+          className='grid grid-cols-1 gap-10px text-12px text-t-secondary'
+          data-testid='settings-resources-technical-details'
+        >
           <Typography.Text className='break-words'>
             {t('settings.resourcesPage.docker.technicalState')}: {dockerWebui.status}
           </Typography.Text>
@@ -498,8 +510,30 @@ export const ResourcesSettingsContent: React.FC = () => {
           <Typography.Text className='break-words'>
             {t('settings.accessPage.remote.recoveryStatus', { status: dockerWebui.recoveryStatus })}
           </Typography.Text>
+          {dockerWebui.actions.map((action) => (
+            <div key={action.actionId} className='border-t border-solid border-[var(--border-base)] pt-8px'>
+              <DockerActionTechnicalDetails action={action} expanded />
+            </div>
+          ))}
+          {actionEvidence && (
+            <div className='border-t border-solid border-[var(--border-base)] pt-8px'>
+              <Typography.Text className='block break-words'>
+                {t('settings.resourcesPage.docker.technicalActionId')}: {actionEvidence.actionId}
+              </Typography.Text>
+              {actionEvidence.receiptRef && (
+                <Typography.Text className='block break-words'>{actionEvidence.receiptRef}</Typography.Text>
+              )}
+            </div>
+          )}
+          {resourceSources
+            .flatMap((source) => [...source.managementRefs, ...source.environmentRefs, ...source.refs])
+            .map((ref) => (
+              <Typography.Text key={ref} className='break-words'>
+                {ref}
+              </Typography.Text>
+            ))}
         </div>
-      </details>
+      </Modal>
 
       <Modal
         visible={remoteSettingsVisible}
@@ -585,7 +619,6 @@ const DockerMoreActions: React.FC<{
                     defaultValue: action.label,
                   })}
                 </Typography.Text>
-                <DockerActionTechnicalDetails action={action} />
               </div>
               <div className='opl-settings-row__meta flex flex-wrap items-center gap-8px'>
                 {action.payloadRequired && (
@@ -642,51 +675,35 @@ const DockerActionEvidencePanel: React.FC<{ evidence: DockerActionEvidence }> = 
               {t('settings.capabilitiesPage.refLabels.receipt')}: {evidence.receiptSummary}
             </Typography.Text>
           )}
-          <details className='mt-2px'>
-            <summary className='cursor-pointer text-12px text-t-secondary'>{t('common.technical_details')}</summary>
-            <div className='mt-6px grid grid-cols-1 gap-4px text-12px text-t-secondary'>
-              <Typography.Text className='break-words'>
-                {t('settings.resourcesPage.docker.technicalActionId')}: {evidence.actionId}
-              </Typography.Text>
-              {evidence.receiptRef && <Typography.Text className='break-words'>{evidence.receiptRef}</Typography.Text>}
-            </div>
-          </details>
         </div>
       }
     />
   );
 };
 
-const DockerActionTechnicalDetails: React.FC<{ action: DockerWebuiAction }> = ({ action }) => {
+const DockerActionTechnicalDetails: React.FC<{ action: DockerWebuiAction; expanded?: boolean }> = ({ action }) => {
   const { t } = useTranslation();
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   return (
-    <details className='mt-4px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
-      <summary className='cursor-pointer text-12px text-t-secondary'>
-        {t('settings.resourcesPage.docker.technicalDetails')}
-      </summary>
-      {detailsOpen && (
-        <div className='mt-6px grid grid-cols-1 gap-4px text-12px text-t-secondary'>
-          <Typography.Text className='break-words'>
-            {t('settings.resourcesPage.docker.technicalState')}: {action.state}
-          </Typography.Text>
-          <Typography.Text className='break-words'>
-            {t('settings.resourcesPage.docker.technicalActionId')}: {action.actionId}
-          </Typography.Text>
-          {action.route && (
-            <Typography.Text className='break-words'>
-              {t('settings.resourcesPage.docker.technicalCommand')}: {action.route}
-            </Typography.Text>
-          )}
-          {action.dryRunRoute && (
-            <Typography.Text className='break-words'>
-              {t('settings.resourcesPage.docker.technicalPreviewCommand')}: {action.dryRunRoute}
-            </Typography.Text>
-          )}
-        </div>
+    <div className='grid grid-cols-1 gap-4px text-12px text-t-secondary'>
+      <Typography.Text className='font-600 text-t-primary'>{action.label}</Typography.Text>
+      <Typography.Text className='break-words'>
+        {t('settings.resourcesPage.docker.technicalState')}: {action.state}
+      </Typography.Text>
+      <Typography.Text className='break-words'>
+        {t('settings.resourcesPage.docker.technicalActionId')}: {action.actionId}
+      </Typography.Text>
+      {action.route && (
+        <Typography.Text className='break-words'>
+          {t('settings.resourcesPage.docker.technicalCommand')}: {action.route}
+        </Typography.Text>
       )}
-    </details>
+      {action.dryRunRoute && (
+        <Typography.Text className='break-words'>
+          {t('settings.resourcesPage.docker.technicalPreviewCommand')}: {action.dryRunRoute}
+        </Typography.Text>
+      )}
+    </div>
   );
 };
 
@@ -714,7 +731,6 @@ const ResourceSources: React.FC<{
 
 const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection }> = ({ source }) => {
   const { t } = useTranslation();
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const refs = [...source.managementRefs, ...source.environmentRefs, ...source.refs];
   const readiness = resourceReadiness(source.status);
 
@@ -739,25 +755,10 @@ const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection }> = ({ sou
               <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
             )}
           </div>
-          {refs.length === 0 ? (
+          {refs.length === 0 && (
             <Typography.Text className='mt-4px block text-12px text-t-secondary'>
               {t('settings.resourcesPage.resourceSources.noRefs')}
             </Typography.Text>
-          ) : (
-            <details className='mt-4px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
-              <summary className='cursor-pointer text-12px text-t-secondary'>
-                {t('settings.resourcesPage.resourceSources.technicalRefs')}
-              </summary>
-              {detailsOpen && (
-                <div className='mt-6px grid grid-cols-1 gap-4px'>
-                  {refs.map((ref) => (
-                    <Typography.Text key={`${source.key}-${ref}`} className='break-words text-12px text-t-secondary'>
-                      {ref}
-                    </Typography.Text>
-                  ))}
-                </div>
-              )}
-            </details>
           )}
         </div>
         <div className='opl-settings-row__meta'>
