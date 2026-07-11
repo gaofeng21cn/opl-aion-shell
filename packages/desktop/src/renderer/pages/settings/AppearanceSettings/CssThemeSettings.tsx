@@ -373,21 +373,21 @@ const CssThemeSettings: React.FC = () => {
         </Button>
       </div>
 
-      {/* 主题色板列表 / Theme swatch list */}
+      {/* 主题预览列表 / Theme preview list */}
       <div
-        className='grid w-full gap-x-16px gap-y-8px'
+        className='grid w-full gap-12px'
         data-testid='css-theme-option-list'
-        data-layout='flat-swatch-list'
+        data-layout='theme-tile-grid'
         role='list'
         style={{
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))',
         }}
       >
         {displayThemes.map((theme) => {
           const previewPalette =
             themePreviewPalettes.get(theme.id) ||
             fallbackThemePreviewPaletteByMode[currentTheme === 'dark' ? 'dark' : 'light'];
-          const swatchStyle = theme.cover
+          const previewStyle = theme.cover
             ? {
                 backgroundImage: `url(${theme.cover})`,
                 backgroundSize: 'cover',
@@ -397,56 +397,78 @@ const CssThemeSettings: React.FC = () => {
               }
             : { backgroundColor: previewPalette.appBg };
           return (
-            <div key={theme.id} className='flex min-w-0 items-center gap-8px py-4px' role='listitem'>
+            <div key={theme.id} className='relative min-w-0' role='listitem'>
               <button
                 type='button'
-                className={`relative h-40px w-56px shrink-0 overflow-hidden rounded-8px border-2 border-solid transition-colors ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-border-2 hover:border-[var(--color-primary)]'}`}
-                style={swatchStyle}
+                className={`relative block min-w-160px w-full overflow-hidden rounded-8px border-2 border-solid text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-border-2 hover:border-[var(--color-primary)]'}`}
                 aria-label={theme.name}
                 aria-pressed={activeThemeId === theme.id}
                 title={theme.name}
                 data-testid='css-theme-option'
-                data-theme-option-surface='swatch'
+                data-theme-option-surface='tile'
                 onClick={() => handleSelectTheme(theme)}
               >
-                {theme.id === SYSTEM_THEME_ID ? (
-                  <>
-                    <span
-                      className='absolute inset-y-0 left-0 w-1/2'
-                      style={{ background: fallbackThemePreviewPaletteByMode.light.appBg }}
-                    />
-                    <span
-                      className='absolute inset-y-0 right-0 w-1/2'
-                      style={{ background: fallbackThemePreviewPaletteByMode.dark.appBg }}
-                    />
-                  </>
-                ) : (
-                  !theme.cover && (
+                <div
+                  className='relative h-104px overflow-hidden'
+                  data-testid='css-theme-option-preview'
+                  style={previewStyle}
+                >
+                  {theme.id === SYSTEM_THEME_ID ? (
                     <>
                       <span
-                        className='absolute inset-5px rounded-4px border border-solid'
-                        style={{ background: previewPalette.mainBg, borderColor: previewPalette.border }}
+                        className='absolute inset-y-0 left-0 w-1/2'
+                        style={{ background: fallbackThemePreviewPaletteByMode.light.appBg }}
                       />
                       <span
-                        className='absolute bottom-7px left-8px h-4px w-20px rounded-full'
-                        style={{ background: previewPalette.accent }}
+                        className='absolute inset-y-0 right-0 w-1/2'
+                        style={{ background: fallbackThemePreviewPaletteByMode.dark.appBg }}
                       />
                     </>
-                  )
-                )}
-                {activeThemeId === theme.id && (
-                  <span className='absolute right-3px top-3px'>
-                    <CheckOne theme='filled' size='14' fill='var(--color-primary)' />
-                  </span>
-                )}
+                  ) : (
+                    !theme.cover && (
+                      <>
+                        <span
+                          className='absolute inset-x-0 top-0 h-16px border-b border-solid'
+                          style={{ background: previewPalette.headerBg, borderColor: previewPalette.border }}
+                        />
+                        <span
+                          className='absolute bottom-0 left-0 top-16px w-42px border-r border-solid'
+                          style={{ background: previewPalette.sideBg, borderColor: previewPalette.border }}
+                        />
+                        <span
+                          className='absolute bottom-10px left-52px right-10px top-26px rounded-6px border border-solid'
+                          style={{ background: previewPalette.mainBg, borderColor: previewPalette.border }}
+                        />
+                        <span
+                          className='absolute left-62px top-36px h-4px w-48px rounded-full opacity-70'
+                          style={{ background: previewPalette.textMuted }}
+                        />
+                        <span
+                          className='absolute left-62px top-50px h-18px w-72px rounded-6px'
+                          style={{ background: previewPalette.aiBubble }}
+                        />
+                        <span
+                          className='absolute right-16px top-74px h-18px w-56px rounded-6px'
+                          style={{ background: previewPalette.userBubble }}
+                        />
+                      </>
+                    )
+                  )}
+                  {activeThemeId === theme.id && (
+                    <span className='absolute right-8px top-8px flex h-24px w-24px items-center justify-center rounded-full border border-solid border-[var(--border-base)] bg-[var(--bg-1)]'>
+                      <CheckOne theme='filled' size='14' fill='var(--color-primary)' />
+                    </span>
+                  )}
+                </div>
+                <div className='min-w-0 px-12px py-10px pr-40px'>
+                  <span className='block break-words text-13px text-t-primary leading-20px'>{theme.name}</span>
+                </div>
               </button>
-              <span className='min-w-0 flex-1 truncate text-13px text-t-primary' title={theme.name}>
-                {theme.name}
-              </span>
               {!theme.builtin && (
                 <Button
                   type='text'
                   size='mini'
+                  className='absolute bottom-6px right-6px'
                   icon={<EditTwo theme='outline' size='16' />}
                   aria-label={t('common.edit')}
                   title={t('common.edit')}

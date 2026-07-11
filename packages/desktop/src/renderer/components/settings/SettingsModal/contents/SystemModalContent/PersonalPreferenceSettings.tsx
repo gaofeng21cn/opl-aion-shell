@@ -226,7 +226,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     });
   }, []);
 
-  const behaviorPreferenceItems: PreferenceItem[] = [
+  const startupWindowPreferenceItems: PreferenceItem[] = [
     {
       key: 'startOnBoot',
       label: t('settings.startOnBoot'),
@@ -241,6 +241,9 @@ const PersonalPreferenceSettings: React.FC = () => {
       description: t('settings.closeToTrayDesc'),
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
+  ];
+
+  const performancePreferenceItems: PreferenceItem[] = [
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
@@ -275,20 +278,6 @@ const PersonalPreferenceSettings: React.FC = () => {
         ]
       : []),
     {
-      key: 'saveUploadToWorkspace',
-      label: t('settings.saveUploadToWorkspace'),
-      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
-    },
-    {
-      key: 'autoPreviewOfficeFiles',
-      label: t('settings.autoPreviewOfficeFiles'),
-      description: t('settings.autoPreviewOfficeFilesDesc'),
-      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
-    },
-  ];
-
-  const technicalPreferenceItems: PreferenceItem[] = [
-    {
       key: 'agentIdleTimeout',
       label: t('settings.agentIdleTimeout'),
       description: t('settings.agentIdleTimeoutDesc'),
@@ -306,23 +295,81 @@ const PersonalPreferenceSettings: React.FC = () => {
     },
   ];
 
+  const filePreferenceItems: PreferenceItem[] = [
+    {
+      key: 'saveUploadToWorkspace',
+      label: t('settings.saveUploadToWorkspace'),
+      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
+    },
+    {
+      key: 'autoPreviewOfficeFiles',
+      label: t('settings.autoPreviewOfficeFiles'),
+      description: t('settings.autoPreviewOfficeFilesDesc'),
+      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
+    },
+  ];
+
   return (
     <>
       {modalContextHolder}
 
-      <div data-testid='settings-preferences-primary'>
-        <section className='opl-settings-section' id='behavior' data-testid='appearance-behavior-section'>
+      <div className='space-y-12px' data-testid='settings-preferences-primary'>
+        <section className='opl-settings-section' id='startup-window' data-testid='preferences-startup-window-section'>
           <span id='app-behavior' aria-hidden='true' />
           <span id='tray' aria-hidden='true' />
-          <span id='hardware' aria-hidden='true' />
           <div className='opl-settings-section__header'>
-            <div className='text-14px font-medium text-t-primary leading-22px'>
-              {t('settings.appBehaviorPreferencesTitle')}
+            <div className='flex flex-wrap items-center gap-x-6px gap-y-2px text-14px font-medium text-t-primary leading-22px'>
+              <span>{t('settings.startOnBoot')}</span>
+              <span aria-hidden='true'>/</span>
+              <span>{t('settings.closeToTray')}</span>
             </div>
-            <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appBehaviorPreferencesDesc')}</div>
           </div>
           <div className='opl-settings-list'>
-            {behaviorPreferenceItems.map((item) => (
+            {startupWindowPreferenceItems.map((item) => (
+              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+                {item.component}
+              </PreferenceRow>
+            ))}
+          </div>
+        </section>
+
+        <section
+          className='opl-settings-section'
+          id='models-performance'
+          data-testid='preferences-models-performance-section'
+        >
+          <span id='hardware' aria-hidden='true' />
+          <div className='opl-settings-section__header'>
+            <div>
+              <div className='text-14px font-medium text-t-primary leading-22px'>
+                {t('settings.timeoutPreferencesTitle')}
+              </div>
+              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.timeoutPreferencesDesc')}</div>
+            </div>
+          </div>
+          <div className='opl-settings-list'>
+            {performancePreferenceItems.map((item) => (
+              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+                {item.component}
+              </PreferenceRow>
+            ))}
+          </div>
+        </section>
+
+        <section
+          className='opl-settings-section'
+          id='files-notifications'
+          data-testid='preferences-files-notifications-section'
+        >
+          <div className='opl-settings-section__header'>
+            <div className='flex flex-wrap items-center gap-x-6px gap-y-2px text-14px font-medium text-t-primary leading-22px'>
+              <span>{t('settings.saveUploadToWorkspace')}</span>
+              <span aria-hidden='true'>/</span>
+              <span>{t('settings.notification')}</span>
+            </div>
+          </div>
+          <div className='opl-settings-list'>
+            {filePreferenceItems.map((item) => (
               <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
                 {item.component}
               </PreferenceRow>
@@ -339,24 +386,6 @@ const PersonalPreferenceSettings: React.FC = () => {
             </PreferenceRow>
           </div>
         </section>
-      </div>
-
-      <div>
-        <div data-testid='settings-preferences-technical-details'>
-          <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
-            <summary className='cursor-pointer text-14px font-medium text-t-primary'>
-              {t('settings.advancedSettings')}
-            </summary>
-            <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
-            <div className='opl-settings-list mt-10px'>
-              {technicalPreferenceItems.map((item) => (
-                <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-                  {item.component}
-                </PreferenceRow>
-              ))}
-            </div>
-          </details>
-        </div>
       </div>
     </>
   );

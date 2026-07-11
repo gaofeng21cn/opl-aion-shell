@@ -97,7 +97,7 @@ vi.mock('react-i18next', () => ({
         'settings.autoPreviewOfficeFilesDesc': 'Open new Office files automatically.',
         'settings.notification': 'Notifications',
         'settings.cronNotificationEnabled': 'Background task completion',
-        'settings.advancedSettings': 'Advanced preferences',
+        'settings.timeoutPreferencesTitle': 'Responses and background activity',
         'settings.timeoutPreferencesDesc': 'Less common performance and background assistant settings.',
         'settings.promptTimeout': 'Model response timeout',
         'settings.promptTimeoutDesc': 'Stop waiting when a model does not respond.',
@@ -120,7 +120,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AppearanceModalContent', () => {
-  it('keeps ordinary preferences and themes visible while collapsing only low-level assistant cleanup', async () => {
+  it('orders preferences into startup, performance, files, display, and theme sections', async () => {
     bridgeMocks.getStartOnBootStatus.mockResolvedValue({
       success: true,
       data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
@@ -135,20 +135,27 @@ describe('AppearanceModalContent', () => {
 
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByTestId('appearance-scroll-area')).toHaveAttribute('data-disable-overflow', 'false');
-    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('App behavior');
-    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent(
-      'Keep running after closing the window'
-    );
-    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Model response timeout');
-    await waitFor(() =>
-      expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Hardware acceleration')
-    );
+    const page = screen.getByTestId('settings-page-preferences');
+    expect(Array.from(page.querySelectorAll('section')).map((section) => section.id)).toEqual([
+      'startup-window',
+      'models-performance',
+      'files-notifications',
+      'display',
+      'themes',
+    ]);
 
-    const advancedPreferences = screen.getByTestId('advanced-preferences');
-    expect(advancedPreferences).not.toHaveAttribute('open');
-    expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
-    expect(advancedPreferences).not.toHaveTextContent('Model response timeout');
-    expect(advancedPreferences).not.toHaveTextContent('Hardware acceleration');
+    const startupWindow = screen.getByTestId('preferences-startup-window-section');
+    expect(startupWindow).toHaveTextContent('Keep running after closing the window');
+    expect(startupWindow).not.toHaveTextContent('Model response timeout');
+
+    const modelsPerformance = screen.getByTestId('preferences-models-performance-section');
+    expect(modelsPerformance).toHaveTextContent('Model response timeout');
+    expect(modelsPerformance).toHaveTextContent('Release an idle background assistant after');
+    await waitFor(() => expect(modelsPerformance).toHaveTextContent('Hardware acceleration'));
+
+    const filesNotifications = screen.getByTestId('preferences-files-notifications-section');
+    expect(filesNotifications).toHaveTextContent('Save uploads to workspace');
+    expect(filesNotifications).toHaveTextContent('Notifications');
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');

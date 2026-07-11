@@ -34,9 +34,9 @@ const PreferenceRow: React.FC<{
   /** 控件元素 / Control element */
   children: React.ReactNode;
 }> = ({ label, children }) => (
-  <div className='opl-settings-row flex flex-col items-stretch gap-10px md:flex-row md:items-center md:justify-between md:gap-24px'>
-    <div className='opl-settings-row__main text-14px text-t-primary leading-22px'>{label}</div>
-    <div className='opl-settings-row__meta w-full flex md:flex-1 md:justify-end'>{children}</div>
+  <div className='opl-settings-row flex min-w-0 flex-col items-stretch gap-10px md:flex-row md:items-center md:justify-between md:gap-24px'>
+    <div className='opl-settings-row__main min-w-0 text-14px text-t-primary leading-22px'>{label}</div>
+    <div className='opl-settings-row__meta flex min-w-0 w-full md:flex-1 md:justify-end'>{children}</div>
   </div>
 );
 
