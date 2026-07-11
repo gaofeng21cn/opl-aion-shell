@@ -9,6 +9,7 @@ const snapshotApi = vi.hoisted(() => ({
   compare: vi.fn(),
 }));
 const workspaceEvents = vi.hoisted(() => ({ toggle: vi.fn() }));
+const previewContext = vi.hoisted(() => ({ openPreview: vi.fn() }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -26,6 +27,10 @@ vi.mock('@/renderer/utils/workspace/workspaceEvents', () => ({
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout/WorkspaceOpenButton', () => ({
   default: () => <button type='button'>Open terminal</button>,
+}));
+
+vi.mock('@/renderer/pages/conversation/Preview', () => ({
+  usePreviewContext: () => previewContext,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -49,6 +54,8 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.openFiles': 'Open files',
         'conversation.environment.filesOpen': 'Files open',
         'conversation.environment.moreRefs': `${options?.count ?? 0} more`,
+        'conversation.sidePanel.browserAddress': 'Web address',
+        'conversation.sidePanel.openBrowser': 'Open address',
       })[key] ?? key,
   }),
 }));
@@ -73,6 +80,7 @@ describe('ConversationEnvironmentPopover', () => {
       ],
     });
     workspaceEvents.toggle.mockReset();
+    previewContext.openPreview.mockReset();
   });
 
   it('reads live workspace facts and summarizes only task refs that actually exist', async () => {
@@ -139,5 +147,36 @@ describe('ConversationEnvironmentPopover', () => {
     expect(within(popover).queryByText('Branch')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Changes')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
+  it('opens an http browser preview from Environment without restoring the legacy Browser tab', async () => {
+    render(<ConversationEnvironmentPopover conversation={conversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    fireEvent.change(within(popover).getByRole('textbox', { name: 'Web address' }), {
+      target: { value: 'example.com' },
+    });
+    fireEvent.click(within(popover).getByRole('button', { name: 'Open address' }));
+
+    expect(previewContext.openPreview).toHaveBeenCalledWith(
+      'https://example.com/',
+      'url',
+      { title: 'https://example.com/' },
+      { replace: true }
+    );
+  });
+
+  it('keeps invalid browser input local and does not open a preview', async () => {
+    render(<ConversationEnvironmentPopover conversation={conversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const input = within(popover).getByRole('textbox', { name: 'Web address' });
+    fireEvent.change(input, { target: { value: 'http://' } });
+    fireEvent.click(within(popover).getByRole('button', { name: 'Open address' }));
+
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(previewContext.openPreview).not.toHaveBeenCalled();
   });
 });
