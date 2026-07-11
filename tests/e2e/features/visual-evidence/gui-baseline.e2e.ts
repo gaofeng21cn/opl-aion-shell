@@ -423,7 +423,10 @@ function buildTargets(conversationId: string): VisualTarget[] {
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('mobile_action_sheet', '[role="dialog"][aria-modal="true"]'),
-        anchor('mobile_attach_host_files', '[data-testid="mobile-action-sheet-attach-host-files"]'),
+        anchor(
+          'mobile_attach',
+          '[data-testid="mobile-action-sheet-attach"], [data-testid="mobile-action-sheet-attach-host-files"]'
+        ),
         anchor('mobile_permission', '[data-testid="mobile-action-sheet-permission"]'),
         anchor('mobile_reasoning', '[data-testid="mobile-action-sheet-reasoning"]'),
         anchor('mobile_model', '[data-testid="mobile-action-sheet-model"]'),
