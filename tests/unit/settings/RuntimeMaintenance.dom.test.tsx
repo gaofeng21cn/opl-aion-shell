@@ -235,35 +235,41 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: appState });
   });
 
-  it('keeps healthy rows quiet and moves technical actions out of the primary maintenance list', () => {
+  it('renders quiet status rows and explicit action surfaces while gating diagnostics in a modal', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('md:grid-cols-2');
+    expect(screen.getByTestId('opl-runtime-health-summary').closest('section')).toHaveClass(
+      'opl-settings-surface--status'
+    );
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).not.toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).not.toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
     );
+    for (const key of ['appUpdates', 'runtimeEnvironment', 'capabilitySurfaceSync', 'localServicesRepair']) {
+      expect(screen.getByTestId(`opl-maintenance-hub-${key}`)).toHaveClass('opl-settings-surface--action');
+    }
     expect(screen.queryByTestId('opl-maintenance-hub-storageCleanup')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-maintenance-hub-repairSuggestions')).not.toBeInTheDocument();
     expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
-    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
+    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+    expect(screen.getByTestId('settings-maintenance-technical-details')).toHaveClass(
+      'opl-settings-surface--diagnostic'
     );
-    expect(screen.getByTestId('opl-maintenance-advanced-details')).toBeInTheDocument();
   });
 
-  it('shows exactly one primary recommendation when maintenance needs attention', () => {
+  it('keeps one direct action on every maintenance object when attention is present', () => {
     maintenanceSnapshot.result = {
       stdout: '{}',
       parsed: actionableUpdateStatus,
@@ -271,9 +277,9 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toContainElement(
-      screen.getByTestId('settings-maintenance-recommended-action')
+    expect(screen.getAllByTestId(/opl-maintenance-action-/)).toHaveLength(4);
+    expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
   });
 
@@ -287,6 +293,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
+    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')
@@ -303,7 +310,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByTestId('opl-managed-update-confirmation')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-update-refresh')).toBeDisabled();
     expect(repairButton).toBeDisabled();
-    expect(screen.getByTestId('settings-maintenance-recommended-action')).toBeDisabled();
+    expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toBeDisabled();
 
     await act(async () => {
       mutation.resolve({ ok: true, stdout: '{}', parsed: actionableUpdateStatus });
@@ -313,7 +320,7 @@ describe('RuntimeSettings maintenance structure', () => {
     await waitFor(() => {
       expect(screen.getByTestId('opl-managed-update-refresh')).not.toBeDisabled();
       expect(screen.getByTestId('opl-managed-update-repair-capability_packages')).not.toBeDisabled();
-      expect(screen.getByTestId('settings-maintenance-recommended-action')).not.toBeDisabled();
+      expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).not.toBeDisabled();
     });
     expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);
   });

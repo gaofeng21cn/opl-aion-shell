@@ -65,7 +65,7 @@ describe('buildAccessProjection', () => {
       status: 'attention_required',
       tone: 'orange',
       statusLabel: 'settings.accessPage.cards.account.missing',
-      detail: 'settings.accessPage.cards.account.missing',
+      detail: '',
     });
     expect(JSON.stringify(projection)).not.toContain('127.0.0.1:7233');
     expect(JSON.stringify(projection)).not.toContain('temporal');

@@ -267,9 +267,9 @@ describe('StorageSettingsContent', () => {
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
     ).toHaveLength(4);
     expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Ready to clean');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('Ready to clean');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Clean after archiving');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('Clean after archiving');
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).not.toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).not.toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Older logs can be removed by retention rules.')).toBeInTheDocument();
@@ -277,6 +277,9 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('Review runtime cleanup');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Review log cleanup');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
+    for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
+      expect(screen.getByTestId(`storage-inventory-${id}`)).toHaveClass('opl-settings-surface--action');
+    }
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
     fireEvent.click(screen.getByText('Diagnostics'));

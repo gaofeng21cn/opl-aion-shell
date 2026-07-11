@@ -371,7 +371,7 @@ export function buildAccessProjection(
       title: t('settings.accessPage.cards.account.title'),
       status: !codexStateAvailable ? 'unknown' : modelAccessReady ? 'ready' : 'attention_required',
       statusLabel: accountStatus,
-      detail: compactAccessDetail([accountStatus, accountSourceLabel], accountStatus),
+      detail: accountSourceLabel ?? '',
       tone: !codexStateAvailable ? 'neutral' : modelAccessReady ? 'green' : 'orange',
     },
   ];

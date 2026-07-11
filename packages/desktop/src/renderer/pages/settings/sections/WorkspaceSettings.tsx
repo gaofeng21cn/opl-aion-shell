@@ -75,7 +75,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' });
   };
 
-  const readyModules = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
   const workspaceHealthState =
     !workspaceRootHealth || UNKNOWN_WORKSPACE_HEALTH.has(workspaceRootHealth)
       ? 'unknown'
@@ -155,7 +154,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
 
         <div data-testid='settings-workspace-primary'>
           <section
-            className={`opl-settings-section flex ${workspaceNeedsAction ? 'opl-settings-section--attention' : ''}`}
+            className={`opl-settings-section opl-settings-surface--configuration flex ${
+              workspaceNeedsAction ? 'opl-settings-section--attention' : ''
+            }`}
             id='current-workspace'
             data-testid='opl-workspace-settings-root'
           >
@@ -222,7 +223,11 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           onCancel={() => setDiagnosticsOpen(false)}
           unmountOnExit
         >
-          <div id='technical-paths' data-testid='settings-workspace-technical-details'>
+          <div
+            className='opl-settings-surface--diagnostic'
+            id='technical-paths'
+            data-testid='settings-workspace-technical-details'
+          >
             <Typography.Text className='block pb-10px text-12px text-t-secondary'>
               {t('settings.workspacePage.technical.description')}
             </Typography.Text>
@@ -260,21 +265,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                     <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
                       {t('settings.workspacePage.actions.openLogs')}
                     </Button>
-                  </div>
-                </div>
-                <div className='opl-settings-row'>
-                  <div className='opl-settings-row__main'>
-                    <Typography.Text className='font-500 text-t-primary'>
-                      {t('settings.workspacePage.cards.lastCheck')}
-                    </Typography.Text>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {appStateQuery.loadedAt ?? t('settings.oplEnvironmentPage.status.unknown')}
-                    </Typography.Text>
-                  </div>
-                  <div className='opl-settings-row__meta'>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.workspacePage.modules.description', { ready: readyModules, total: modules.length })}
-                    </Typography.Text>
                   </div>
                 </div>
               </div>

@@ -43,10 +43,6 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent
   default: () => <div data-testid='tools-detail'>Tools detail</div>,
 }));
 
-vi.mock('@/renderer/pages/settings/AssistantSettings', () => ({
-  default: () => <div data-testid='assistants-detail'>Assistants detail</div>,
-}));
-
 vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: () => null,
 }));
@@ -451,15 +447,12 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
         'settings.capabilitiesPage.entries.externalTools.description': 'Connect external tools and speech input.',
         'settings.capabilitiesPage.entries.externalTools.technical': 'Technical detail: MCP is the protocol.',
-        'settings.capabilitiesPage.entries.customAssistants.title': 'Custom assistants',
-        'settings.capabilitiesPage.entries.customAssistants.description': 'Use the Advanced assistant area.',
-        'settings.capabilitiesPage.supporting.title': 'Skills, tools, and custom assistants',
-        'settings.capabilitiesPage.supporting.compactTitle': 'Skills, tools, and assistants',
+        'settings.capabilitiesPage.supporting.title': 'Skills and tools',
+        'settings.capabilitiesPage.supporting.compactTitle': 'Skills and tools',
         'settings.capabilitiesPage.supporting.description':
           'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
-        'settings.capabilitiesTab.assistants': 'Custom assistants',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -645,7 +638,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
-    expect(screen.getByText('Skills, tools, and assistants')).toBeInTheDocument();
+    expect(screen.getByText('Skills and tools')).toBeInTheDocument();
     expect(screen.queryByText('Custom assistants')).not.toBeInTheDocument();
     expect(screen.queryByTestId('capability-entry-external-tools')).not.toBeInTheDocument();
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
@@ -660,7 +653,7 @@ describe('CapabilitiesSettingsContent', () => {
     await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
 
     expect(screen.queryByRole('tab', { name: 'Custom assistants' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('assistants-detail')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/custom assistants?/i);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');

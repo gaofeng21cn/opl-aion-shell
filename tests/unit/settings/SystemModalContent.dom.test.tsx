@@ -76,6 +76,7 @@ describe('SystemModalContent read-only Advanced page', () => {
 
     expect(screen.getByTestId('settings-page-advanced')).toBeInTheDocument();
     expect(screen.getByTestId('settings-advanced-primary')).toHaveAttribute('id', 'working-directories');
+    expect(screen.getByTestId('settings-advanced-primary')).toHaveClass('opl-settings-surface--diagnostic');
     expect(screen.queryByTestId('settings-advanced-technical-details')).not.toBeInTheDocument();
     expect(screen.getByText('Working directories')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('OPL Flow');

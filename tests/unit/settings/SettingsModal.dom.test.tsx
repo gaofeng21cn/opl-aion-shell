@@ -118,7 +118,6 @@ vi.mock('@/renderer/pages/settings/CapabilitiesSettings', () => ({
   CapabilitiesSettingsContent: ({ activeTab }: { activeTab: 'skills' | 'tools' }) => (
     <div data-testid='capabilities-content'>
       Agents & Capabilities embedded MAS MAG RCA OMA Skills Tools active:{activeTab}
-      <section id='custom-assistants'>Custom assistants target</section>
     </div>
   ),
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
@@ -414,7 +413,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
-  it('focuses compatibility and assistants anchors after modal redirects', async () => {
+  it('focuses compatibility anchors and keeps legacy assistants on capabilities skills', async () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='theme' />);
 
     await waitFor(() => expect(document.getElementById('themes')).toHaveFocus());
@@ -423,7 +422,8 @@ describe('SettingsModal OPL App navigation', () => {
     await waitFor(() => expect(document.getElementById('services')).toHaveFocus());
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
-    await waitFor(() => expect(document.getElementById('custom-assistants')).toHaveFocus());
+    await waitFor(() => expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:skills'));
+    expect(document.getElementById('custom-assistants')).toBeNull();
   });
 
   it('shows an empty state when no Settings route matches search', () => {
@@ -505,7 +505,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
 
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:assistants');
+    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:skills');
   });
 
   it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', async () => {

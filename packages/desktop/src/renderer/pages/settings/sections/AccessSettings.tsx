@@ -54,9 +54,7 @@ export const AccessSettingsContent: React.FC = () => {
       : modelAccessCard?.tone === 'orange'
         ? 'opl-settings-status--attention'
         : '';
-  const modelAccessSource = modelAccessCard
-    ? splitAccessDetail(modelAccessCard.detail).find((line) => line !== modelAccessStatus)
-    : null;
+  const modelAccessSource = modelAccessCard?.detail || null;
   const codexDetailLines = codexCard ? splitAccessDetail(codexCard.detail) : [];
 
   const handleConfigureCodex = async () => {
@@ -91,7 +89,9 @@ export const AccessSettingsContent: React.FC = () => {
 
       <div className='grid grid-cols-1 gap-14px md:grid-cols-2'>
         <section
-          className={`opl-settings-section ${modelAccessNeedsAttention ? 'opl-settings-section--attention' : ''}`}
+          className={`opl-settings-section opl-settings-surface--status ${
+            modelAccessNeedsAttention ? 'opl-settings-section--attention' : ''
+          }`}
           id='provider-source'
           data-testid='settings-access-primary'
         >
@@ -122,7 +122,11 @@ export const AccessSettingsContent: React.FC = () => {
           </div>
         </section>
 
-        <section className='opl-settings-section' id='codex-cli' data-testid='settings-access-codex-cli'>
+        <section
+          className='opl-settings-section opl-settings-surface--status'
+          id='codex-cli'
+          data-testid='settings-access-codex-cli'
+        >
           <span id='model' aria-hidden='true' />
           <div className='opl-settings-row h-full items-start'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
@@ -154,7 +158,11 @@ export const AccessSettingsContent: React.FC = () => {
         </section>
       </div>
 
-      <section className='opl-settings-section' id='authentication' data-testid='settings-access-gateway'>
+      <section
+        className='opl-settings-section opl-settings-surface--configuration'
+        id='authentication'
+        data-testid='settings-access-gateway'
+      >
         <span id='opl-gateway' aria-hidden='true' />
         <div className='opl-settings-row'>
           <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>

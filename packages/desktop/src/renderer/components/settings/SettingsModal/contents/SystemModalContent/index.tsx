@@ -70,7 +70,10 @@ const SystemModalContent: React.FC = () => {
   }, []);
 
   return (
-    <div className='opl-settings-page flex h-full w-full flex-col' data-testid='settings-page-advanced'>
+    <div
+      className='opl-settings-page opl-settings-surface--diagnostic-page flex h-full w-full flex-col'
+      data-testid='settings-page-advanced'
+    >
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-14px'>
           <div className='opl-settings-page-header'>
@@ -80,7 +83,11 @@ const SystemModalContent: React.FC = () => {
             </div>
           </div>
 
-          <section className='opl-settings-section' id='working-directories' data-testid='settings-advanced-primary'>
+          <section
+            className='opl-settings-section opl-settings-surface--diagnostic'
+            id='working-directories'
+            data-testid='settings-advanced-primary'
+          >
             <span id='resolved-paths' aria-hidden='true' />
             <div className='opl-settings-section__header'>
               <div className='min-w-0'>

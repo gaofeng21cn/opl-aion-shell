@@ -306,7 +306,8 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
         anchor('maintenance_primary', '[data-testid="settings-maintenance-primary"]'),
-        anchor('maintenance_technical_details', '[data-testid="settings-maintenance-technical-details"]'),
+        anchor('maintenance_diagnostics_action', '[data-testid="settings-maintenance-diagnostics-action"]'),
+        anchor('maintenance_technical_details', '[data-testid="settings-maintenance-technical-details"]', false),
       ],
     },
     {

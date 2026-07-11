@@ -75,18 +75,6 @@ const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = 
   logs: 'logs',
 };
 
-const CLEANUP_MODE_LABEL_KEYS: Record<string, string> = {
-  stale_installer_package_cleanup_allowed: 'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof',
-  archive_required_before_cleanup: 'settings.storagePage.inventory.cleanupModes.needsArchiveProof',
-  pointer_based_dry_run_required: 'settings.storagePage.inventory.cleanupModes.needsPreview',
-  bounded_rotation_dry_run_required: 'settings.storagePage.inventory.cleanupModes.needsPreview',
-};
-
-const cleanupModeLabelKey = (mode: string | null | undefined): string =>
-  mode
-    ? (CLEANUP_MODE_LABEL_KEYS[mode] ?? 'settings.storagePage.inventory.cleanupModes.needsReview')
-    : 'settings.storagePage.inventory.cleanupModes.needsReview';
-
 const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
   if (state === 'blocked') return 'red';
   if (state === 'attention') return 'orange';
@@ -106,7 +94,7 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
 
   return (
     <section
-      className='opl-settings-section flex'
+      className='opl-settings-section opl-settings-surface--action flex'
       id={SECTION_ANCHORS[item.id]}
       data-testid={`storage-inventory-${item.id}`}
     >
@@ -115,15 +103,13 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
           <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
           <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
         </div>
-        <div className='flex flex-wrap items-center justify-between gap-8px'>
-          <Typography.Text className='text-16px font-600 text-t-primary'>
-            {formatStorageBytes(item.bytes)}
-          </Typography.Text>
-          <Tag color={isEmpty || item.silentDeleteAllowed ? 'gray' : 'orange'}>
-            {isEmpty ? t('settings.storagePage.inventory.noCleanupNeeded') : t(cleanupModeLabelKey(item.cleanupMode))}
-          </Tag>
-        </div>
-        {!isEmpty && status && <div className='text-12px text-t-secondary'>{status}</div>}
+        <Typography.Text className='text-16px font-600 text-t-primary'>
+          {formatStorageBytes(item.bytes)}
+        </Typography.Text>
+        {isEmpty && (
+          <div className='opl-settings-action-result'>{t('settings.storagePage.inventory.noCleanupNeeded')}</div>
+        )}
+        {!isEmpty && status && <div className='opl-settings-action-result'>{status}</div>}
         {!item.section && (
           <Typography.Text className='block text-12px text-t-secondary'>
             {t('settings.storagePage.inventory.notLoaded')}
@@ -453,9 +439,7 @@ export const StorageSettingsContent: React.FC = () => {
           )}
         </>
       ),
-      status: viewModel.conversationProof.receiptPath
-        ? t('settings.storagePage.conversations.proofReady')
-        : t('settings.storagePage.conversations.receiptRequired'),
+      status: viewModel.conversationProof.receiptPath ? t('settings.storagePage.conversations.proofReady') : undefined,
       technicalDetails: viewModel.conversationProof.receiptPath ? (
         <Typography.Text className='text-12px break-words'>
           {t('settings.storagePage.conversations.technicalReceipt', {
@@ -673,7 +657,10 @@ export const StorageSettingsContent: React.FC = () => {
         unmountOnExit
         style={{ width: 'min(860px, calc(100vw - 48px))' }}
       >
-        <div className='max-h-[70vh] overflow-auto' data-testid='settings-storage-technical-details'>
+        <div
+          className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
+          data-testid='settings-storage-technical-details'
+        >
           <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
             {viewModel.sections.map((item) => (
               <div key={item.id} className='border-b border-solid border-[var(--border-base)] pb-10px'>
@@ -719,7 +706,7 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </Modal>
 
-      <section className='opl-settings-section' id='cleanup-history'>
+      <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
         <div className='opl-settings-row'>
           <div className='opl-settings-row__main'>
             <Typography.Text className='font-600 text-t-primary'>

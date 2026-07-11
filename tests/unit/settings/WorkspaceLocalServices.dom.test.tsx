@@ -209,7 +209,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('settings-workspace-technical-details')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
-    expect(screen.getByText('1 / 2 ready in technical paths.')).toBeInTheDocument();
+    expect(screen.queryByText('1 / 2 ready in technical paths.')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({

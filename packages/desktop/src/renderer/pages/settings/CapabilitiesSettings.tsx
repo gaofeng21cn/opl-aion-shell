@@ -670,7 +670,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       </header>
 
       <div className='flex flex-col gap-14px' data-testid='settings-capabilities-primary'>
-        <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
+        <section
+          className='opl-settings-section opl-settings-surface--configuration'
+          id='availability'
+          data-testid='agent-package-catalog'
+        >
           {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
           <span id='source' aria-hidden='true' />
           <span id='home-visibility' aria-hidden='true' />
@@ -838,7 +842,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 aria-modal={isMobile ? 'true' : undefined}
                 aria-labelledby='capability-details-heading capability-details-name'
                 tabIndex={-1}
-                className='flex flex-col gap-12px outline-none'
+                className='opl-settings-surface--diagnostic flex flex-col gap-12px outline-none'
                 data-testid={`capability-details-${selectedCapability.key}`}
               >
                 <div className='flex items-start justify-between gap-10px'>
@@ -1164,7 +1168,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 
       <details
         className='opl-settings-details'
-        id='custom-assistants'
+        id='capability-supporting-surfaces'
         open={supportingSurfaceOpen}
         onToggle={(event) => setSupportingSurfaceOpen(event.currentTarget.open)}
         data-testid='capability-supporting-surfaces'
@@ -1172,7 +1176,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         <summary className='cursor-pointer'>
           <Typography.Text className='font-600 text-t-primary'>
             {t('settings.capabilitiesPage.supporting.compactTitle', {
-              defaultValue: 'Skills, tools, and assistants',
+              defaultValue: 'Skills and tools',
             })}
           </Typography.Text>
         </summary>
