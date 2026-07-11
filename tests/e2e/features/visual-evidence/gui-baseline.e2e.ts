@@ -352,6 +352,7 @@ async function openConversationModelMenu(page: Page): Promise<void> {
 async function openEnvironmentPopover(page: Page): Promise<void> {
   await page.locator('.conversation-environment-trigger').click();
   await expect(page.locator('[data-testid="conversation-environment-popover"]')).toBeVisible();
+  await waitForSettledVisual(page, '[data-testid="conversation-environment-popover"]');
 }
 
 async function openMobileActionSheet(page: Page, triggerSelector: string): Promise<void> {
@@ -392,6 +393,34 @@ async function waitForSettledTransform(page: Page, selector: string): Promise<vo
       { timeout: 5_000, message: `Expected ${selector} entrance transform to settle` }
     )
     .toBeLessThan(0.5);
+}
+
+async function waitForSettledVisual(page: Page, selector: string): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page
+          .locator(selector)
+          .first()
+          .evaluate((element) => {
+            let current: HTMLElement | null = element as HTMLElement;
+            let minimumOpacity = 1;
+            let transformOffset = 0;
+            while (current && current !== document.body) {
+              const style = window.getComputedStyle(current);
+              const opacity = Number.parseFloat(style.opacity);
+              if (Number.isFinite(opacity)) minimumOpacity = Math.min(minimumOpacity, opacity);
+              if (style.transform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(style.transform);
+                transformOffset += Math.abs(matrix.m41) + Math.abs(matrix.m42);
+              }
+              current = current.parentElement;
+            }
+            return minimumOpacity >= 0.99 && transformOffset < 0.5;
+          }),
+      { timeout: 5_000, message: `Expected ${selector} entrance opacity and transform to settle` }
+    )
+    .toBe(true);
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
