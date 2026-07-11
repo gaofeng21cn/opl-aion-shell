@@ -192,8 +192,11 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
                 <div className='opl-settings-row flex items-center justify-between gap-16px' id='updates'>
-                  <span id='update-status' aria-hidden='true' />
-                  <div className='opl-settings-row__main min-w-0'>
+                  <div
+                    className='opl-settings-row__main min-w-0 flex-1 text-left'
+                    id='update-status'
+                    data-testid='about-update-copy'
+                  >
                     <div className='text-14px text-t-primary'>{t('settings.checkForUpdates')}</div>
                     <div className='mt-4px text-12px text-t-secondary' data-testid='about-update-status'>
                       {updateStatusLabel}
@@ -226,7 +229,7 @@ const AboutModalContent: React.FC = () => {
                   key={item.id}
                   type='text'
                   long
-                  className='opl-settings-row !h-auto !justify-between !px-0'
+                  className='opl-settings-row !h-auto !justify-start !px-16px'
                   onClick={() => {
                     if ('url' in item) {
                       void openLink(item.url);
@@ -236,9 +239,14 @@ const AboutModalContent: React.FC = () => {
                   }}
                   data-testid={`about-link-${item.id}`}
                 >
-                  <span className='opl-settings-row__main text-14px text-t-primary'>{item.title}</span>
-                  <span className='opl-settings-row__meta'>
-                    <Right theme='outline' size='16' />
+                  <span
+                    className='flex w-full min-w-0 items-center justify-between gap-16px text-left'
+                    data-testid={`about-link-${item.id}-content`}
+                  >
+                    <span className='opl-settings-row__main min-w-0 flex-1 text-14px text-t-primary'>{item.title}</span>
+                    <span className='opl-settings-row__meta shrink-0'>
+                      <Right theme='outline' size='16' />
+                    </span>
                   </span>
                 </Button>
               ))}

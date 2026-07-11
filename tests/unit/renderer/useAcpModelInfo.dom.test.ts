@@ -83,6 +83,16 @@ const buildModelInfo = (overrides: Partial<AcpModelInfo> = {}): AcpModelInfo => 
   ...overrides,
 });
 
+const CODEX_BASELINE_MODELS = [
+  { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+  { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+  { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+  { id: 'gpt-5.5', label: '5.5' },
+  { id: 'gpt-5.4', label: '5.4' },
+  { id: 'gpt-5.4-mini', label: '5.4 Mini' },
+  { id: 'gpt-5.2', label: '5.2' },
+] as const;
+
 const buildConfigOptions = (currentModelId = 'sonnet-4'): AcpConfigOptionDto[] => [
   {
     id: 'model',
@@ -516,19 +526,27 @@ describe('useAcpModelInfo', () => {
     expect(result.current.model_info).toMatchObject({
       current_model_id: 'gpt-5.6-sol',
       current_model_label: '5.6 Sol',
-      available_models: [
-        { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-        { id: 'gpt-5.6-terra', label: '5.6 Terra' },
-        { id: 'gpt-5.6-luna', label: '5.6 Luna' },
-        { id: 'gpt-5.5', label: '5.5' },
-        { id: 'gpt-5.4', label: '5.4' },
-        { id: 'gpt-5.4-mini', label: '5.4 Mini' },
-        { id: 'gpt-5.2', label: '5.2' },
-      ],
+      available_models: CODEX_BASELINE_MODELS,
     });
   });
 
-  it('does not invent App fallback models when ACP explicitly reports an empty model list', async () => {
+  it('exposes the App Codex baseline synchronously while runtime discovery is pending', () => {
+    fetchManagedAgentsMock.mockReturnValue(new Promise(() => {}));
+    getModelInvokeMock.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'pending-codex-conversation',
+      backend: 'codex',
+    });
+
+    expect(result.current.model_info).toMatchObject({
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
+      available_models: CODEX_BASELINE_MODELS,
+    });
+  });
+
+  it('keeps the App Codex baseline when the handshake reports an empty model list', async () => {
     fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
@@ -562,11 +580,15 @@ describe('useAcpModelInfo', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 20));
     });
 
-    expect(result.current.model_info).toBeNull();
-    expect(result.current.canSwitch).toBe(false);
+    expect(result.current.model_info).toMatchObject({
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
+      available_models: CODEX_BASELINE_MODELS,
+    });
+    expect(result.current.canSwitch).toBe(true);
   });
 
-  it('keeps an explicitly empty active Codex model list instead of restoring fallback models', async () => {
+  it('keeps the App Codex baseline when the active runtime list is empty', async () => {
     fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
@@ -595,12 +617,12 @@ describe('useAcpModelInfo', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 20));
     });
 
-    expect(result.current.model_info).toEqual({
-      current_model_id: null,
-      current_model_label: null,
-      available_models: [],
+    expect(result.current.model_info).toMatchObject({
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
+      available_models: CODEX_BASELINE_MODELS,
     });
-    expect(result.current.canSwitch).toBe(false);
+    expect(result.current.canSwitch).toBe(true);
   });
 
   it('orders active Codex model info while preserving current and future models', async () => {
@@ -628,13 +650,7 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
-        available_models: [
-          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
-          { id: 'gpt-5.5', label: '5.5' },
-          { id: 'gpt-5.4', label: '5.4' },
-          { id: 'gpt-6', label: 'GPT-6' },
-        ],
+        available_models: [...CODEX_BASELINE_MODELS, { id: 'gpt-6', label: 'GPT-6' }],
       });
     });
   });
@@ -721,13 +737,7 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
-        available_models: [
-          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
-          { id: 'gpt-5.5', label: '5.5' },
-          { id: 'gpt-5.4', label: '5.4' },
-          { id: 'gpt-6', label: 'GPT-6' },
-        ],
+        available_models: [...CODEX_BASELINE_MODELS, { id: 'gpt-6', label: 'GPT-6' }],
       });
     });
   });
@@ -753,7 +763,7 @@ describe('useAcpModelInfo', () => {
 
     await waitFor(() => {
       expect(responseStreamHandlerRef.current).toBeTypeOf('function');
-      expect(result.current.model_info?.available_models).toHaveLength(3);
+      expect(result.current.model_info?.available_models).toHaveLength(CODEX_BASELINE_MODELS.length);
     });
 
     act(() => {
@@ -768,11 +778,7 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.5',
         current_model_label: '5.5',
-        available_models: [
-          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.5', label: '5.5' },
-          { id: 'gpt-5.4', label: '5.4' },
-        ],
+        available_models: CODEX_BASELINE_MODELS,
       });
     });
   });
@@ -816,13 +822,7 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
-        available_models: [
-          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
-          { id: 'gpt-5.5', label: '5.5' },
-          { id: 'gpt-5.4', label: '5.4' },
-          { id: 'gpt-6', label: 'GPT-6' },
-        ],
+        available_models: [...CODEX_BASELINE_MODELS, { id: 'gpt-6', label: 'GPT-6' }],
       });
     });
   });
@@ -873,8 +873,8 @@ describe('useAcpModelInfo', () => {
     };
     const autoInfo: AcpModelInfo = {
       ...fiveFiveInfo,
-      current_model_id: 'gpt-5.6-terra',
-      current_model_label: 'GPT-5.6-Terra',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
     };
     configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.5' } });
     getModelInvokeMock.mockResolvedValueOnce({ model_info: fiveFiveInfo }).mockResolvedValue({ model_info: autoInfo });
@@ -896,7 +896,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'active-codex-conversation',
-        model_id: 'gpt-5.6-terra',
+        model_id: 'gpt-5.6-sol',
       });
     });
     await waitFor(() => {

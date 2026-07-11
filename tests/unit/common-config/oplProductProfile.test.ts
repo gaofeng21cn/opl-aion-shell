@@ -610,10 +610,26 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6',
-      current_model_label: 'gpt-5.6',
-      available_models: [{ id: 'gpt-5.6', label: 'gpt-5.6' }],
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+        { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+        { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.5', label: '5.5' },
+        { id: 'gpt-5.4', label: '5.4' },
+        { id: 'gpt-5.4-mini', label: '5.4 Mini' },
+        { id: 'gpt-5.2', label: '5.2' },
+        { id: 'gpt-5.6', label: 'gpt-5.6' },
+      ],
     });
+    expect(
+      buildCodexDefaultModelInfo({
+        current_model_id: null,
+        current_model_label: null,
+        available_models: [{ id: 'gpt-5.6-sol', label: 'Hidden by runtime', hidden: true }],
+      }).available_models
+    ).toContainEqual({ id: 'gpt-5.6-sol', label: '5.6 Sol' });
     expect(
       buildCodexDefaultModelInfo({
         current_model_id: null,
@@ -623,7 +639,15 @@ describe('OPL generated product profile', () => {
     ).toMatchObject({
       current_model_id: 'gpt-5.6-sol',
       current_model_label: '5.6 Sol',
-      available_models: [],
+      available_models: [
+        { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+        { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+        { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.5', label: '5.5' },
+        { id: 'gpt-5.4', label: '5.4' },
+        { id: 'gpt-5.4-mini', label: '5.4 Mini' },
+        { id: 'gpt-5.2', label: '5.2' },
+      ],
     });
     expect(
       buildCodexDefaultModelInfo({

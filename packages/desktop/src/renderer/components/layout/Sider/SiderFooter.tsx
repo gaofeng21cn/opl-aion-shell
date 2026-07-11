@@ -61,18 +61,25 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
           <Button
             type='text'
             className={classNames(
-              '!h-34px !text-t-primary !border-0',
+              '!h-34px !flex !items-center !gap-8px !overflow-hidden !text-t-primary !border-0',
               isSettingsRow ? '!flex-1 !justify-start !px-10px !bg-fill-3 hover:!bg-fill-3' : '!w-full',
               !isSettingsRow && (collapsed ? '!justify-center !px-0' : '!justify-start !px-10px'),
               !isSettings && '!bg-transparent hover:!bg-fill-3',
               isMobile && 'sider-footer-btn-mobile !h-44px !min-h-44px'
             )}
-            icon={<span className='size-22px flex-center shrink-0 text-t-secondary'>{settingsIcon}</span>}
             onClick={onSettingsClick}
             data-testid='sider-footer-settings'
             aria-label={settingsLabel}
           >
-            {!collapsed && <span className='text-14px font-[500] leading-24px truncate'>{settingsLabel}</span>}
+            <span
+              className={classNames('flex min-w-0 items-center', collapsed ? 'justify-center' : 'w-full gap-8px')}
+              data-testid='sider-footer-settings-content'
+            >
+              <span className='size-22px flex-center shrink-0 text-t-secondary'>{settingsIcon}</span>
+              {!collapsed && (
+                <span className='min-w-0 truncate text-14px font-[500] leading-24px'>{settingsLabel}</span>
+              )}
+            </span>
           </Button>
         </Tooltip>
         {showThemeToggle && (

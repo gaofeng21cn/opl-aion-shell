@@ -239,7 +239,8 @@ export const useAcpModelInfo = ({
     isLoading: isModelInfoLoading,
     mutate: mutateModelInfo,
   } = useSWR<AcpModelInfo | null>(enabled ? modelInfoKey : null, fetchAcpModelInfo, { revalidateOnMount: false });
-  const model_info = enabled ? normalizeAcpModelInfo(cachedModelInfo) : null;
+  const baselineCodexModelInfo = useMemo(() => (backend === 'codex' ? buildCodexDefaultModelInfo() : null), [backend]);
+  const model_info = enabled ? normalizeAcpModelInfo(cachedModelInfo ?? baselineCodexModelInfo) : null;
 
   useEffect(() => {
     modelInfoRef.current = model_info;

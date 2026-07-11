@@ -51,7 +51,9 @@ export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; descriptio
 
 type CodexModelOption = AcpAvailableModel | { id: string; label?: string | null; hidden?: boolean };
 
-function normalizeCodexCatalogOptions(availableModels: CodexModelOption[] | undefined | null): AcpAvailableModel[] {
+function normalizeRuntimeCodexCatalogOptions(
+  availableModels: CodexModelOption[] | undefined | null
+): AcpAvailableModel[] {
   const seen = new Set<string>();
   return (availableModels ?? []).flatMap((model) => {
     const id = model.id.trim();
@@ -61,6 +63,20 @@ function normalizeCodexCatalogOptions(availableModels: CodexModelOption[] | unde
     seen.add(id);
     return [{ ...model, id, label: model.label?.trim() || CODEX_MODEL_DISPLAY_LABELS.get(id) || id }];
   });
+}
+
+function mergeCodexCatalogOptions(availableModels: CodexModelOption[] | undefined | null): AcpAvailableModel[] {
+  const runtimeModels = normalizeRuntimeCodexCatalogOptions(availableModels);
+  const runtimeById = new Map(runtimeModels.map((model) => [model.id, model]));
+  const baselineIds = new Set(DEFAULT_CODEX_MODELS.map((model) => model.id));
+  const baselineModels = DEFAULT_CODEX_MODELS.map((model) => ({
+    ...runtimeById.get(model.id),
+    id: model.id,
+    label: model.label,
+    hidden: false,
+  }));
+  const incrementalModels = runtimeModels.filter((model) => !baselineIds.has(model.id));
+  return [...baselineModels, ...incrementalModels];
 }
 
 export function selectDefaultCodexModelId(
@@ -113,11 +129,12 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
 }
 
 export function normalizeCodexModelInfo(modelInfo: AcpModelInfo): AcpModelInfo {
-  const catalogModels = normalizeCodexCatalogOptions(modelInfo.catalog_models ?? modelInfo.available_models);
+  const catalogModels = mergeCodexCatalogOptions(modelInfo.catalog_models ?? modelInfo.available_models);
   const availableModels = normalizeCodexModelOptions(catalogModels);
+  const currentModelId = modelInfo.current_model_id ?? selectDefaultCodexModelId(availableModels);
   const currentModel =
-    availableModels.find((model) => model.id === modelInfo.current_model_id) ??
-    catalogModels.find((model) => model.id === modelInfo.current_model_id);
+    availableModels.find((model) => model.id === currentModelId) ??
+    catalogModels.find((model) => model.id === currentModelId);
   return {
     current_model_id: currentModel?.id ?? null,
     current_model_label: currentModel?.label ?? null,
@@ -132,7 +149,7 @@ export type CodexAutoSelection = {
 };
 
 export function resolveOplCodexAutoSelection(modelInfo?: AcpModelInfo | null): CodexAutoSelection {
-  const catalogModels = normalizeCodexCatalogOptions(modelInfo?.catalog_models ?? modelInfo?.available_models);
+  const catalogModels = mergeCodexCatalogOptions(modelInfo?.catalog_models ?? modelInfo?.available_models);
   const catalogDefault = catalogModels.find((model) => model.isDefault);
   const unknownCatalogDefault =
     ACCEPT_UNKNOWN_CATALOG_DEFAULT && catalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id)

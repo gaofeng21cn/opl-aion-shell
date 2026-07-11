@@ -56,5 +56,6 @@ describe('Sider navigation hierarchy', () => {
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sider-footer-settings-content')).toHaveClass('flex', 'items-center', 'w-full');
   });
 });

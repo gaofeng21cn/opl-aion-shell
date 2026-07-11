@@ -127,6 +127,13 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.getByTestId('about-link-help')).toHaveTextContent('Help documentation');
     expect(screen.getByTestId('about-link-releases')).toHaveTextContent('Release page');
     expect(screen.getByTestId('about-link-feedback')).toHaveTextContent('Feedback');
+    expect(screen.getByTestId('about-update-copy')).toHaveClass('flex-1');
+    expect(screen.getByTestId('about-link-help-content')).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-between',
+      'w-full'
+    );
     expect(screen.queryByText('settings.officialWebsite')).not.toBeInTheDocument();
     expect(screen.queryByText('settings.bugReport')).not.toBeInTheDocument();
     expect(screen.queryByText('settings.contactMe')).not.toBeInTheDocument();
