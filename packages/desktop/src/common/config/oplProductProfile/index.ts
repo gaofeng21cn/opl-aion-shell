@@ -10,6 +10,7 @@ import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/co
 export type OplCodexReasoningEffort = string;
 export type OplCodexAutoModelPolicy = {
   authority: 'one-person-lab-app';
+  configured_default: { model: string; reasoning_effort: OplCodexReasoningEffort };
   mode_default: 'auto';
   model_catalog_source: 'codex_cli_model_list';
   catalog_response_models_field: 'data';
@@ -708,6 +709,17 @@ function readOplCodexAutoModelPolicy(
   ) {
     throw new Error('Invalid OPL product profile: codex.auto_model_policy semantics are unsupported');
   }
+  const configuredDefault = value.configured_default;
+  if (
+    !isRecord(configuredDefault) ||
+    configuredDefault.model !== defaultModel ||
+    readRequiredReasoningEffort(
+      configuredDefault.reasoning_effort,
+      'codex.auto_model_policy.configured_default.reasoning_effort'
+    ) !== defaultReasoningEffort
+  ) {
+    throw new Error('Invalid OPL product profile: Codex configured default must match its generated projections');
+  }
   const frontierModelPreferenceOrder = readStringArray(
     value,
     'frontier_model_preference_order',
@@ -744,6 +756,7 @@ function readOplCodexAutoModelPolicy(
   }
   return {
     authority: 'one-person-lab-app',
+    configured_default: { model: defaultModel, reasoning_effort: defaultReasoningEffort },
     mode_default: 'auto',
     model_catalog_source: 'codex_cli_model_list',
     catalog_response_models_field: 'data',

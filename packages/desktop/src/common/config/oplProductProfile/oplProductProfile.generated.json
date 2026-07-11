@@ -738,6 +738,10 @@
     "default_reasoning_effort": "max",
     "auto_model_policy": {
       "authority": "one-person-lab-app",
+      "configured_default": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "max"
+      },
       "mode_default": "auto",
       "model_catalog_source": "codex_cli_model_list",
       "catalog_response_models_field": "data",

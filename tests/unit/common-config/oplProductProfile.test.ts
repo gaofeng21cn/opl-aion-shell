@@ -113,6 +113,7 @@ describe('OPL generated product profile', () => {
       [futureEffort]: { zh: '未来推理', en: 'Future reasoning' },
     });
     futureProfile.codex.default_reasoning_effort = futureEffort;
+    futureProfile.codex.auto_model_policy.configured_default.reasoning_effort = futureEffort;
     futureProfile.codex.auto_model_policy.known_model_reasoning_effort_overrides['gpt-5.6-sol'] = futureEffort;
     futureProfile.codex.auto_model_policy.catalog_unavailable_fallback.reasoning_effort = futureEffort;
 
@@ -165,6 +166,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplCodexAutoModelPolicy()).toMatchObject({
       mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
       model_catalog_source: 'codex_cli_model_list',
       catalog_response_models_field: 'data',
       catalog_default_model_field: 'isDefault',
