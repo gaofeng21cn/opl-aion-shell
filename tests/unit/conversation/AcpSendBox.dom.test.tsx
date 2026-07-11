@@ -375,7 +375,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
       'true'
     );
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-action-sheet-option-reasoning-max')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-option-reasoning-max')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();
   });
 

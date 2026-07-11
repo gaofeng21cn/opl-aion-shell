@@ -122,7 +122,7 @@ describe('GuidModelSelector Codex display', () => {
     );
 
     const selector = screen.getByTestId('guid-model-selector');
-    expect(selector).toHaveTextContent('5.6 Sol 超高');
+    expect(selector).toHaveTextContent('5.6 Sol 最大');
     expect(selector).not.toHaveTextContent('自动（推荐）');
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
@@ -136,14 +136,14 @@ describe('GuidModelSelector Codex display', () => {
     });
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();
-    expect(screen.getByText('当前 5.6 Sol · 推理超高 · 跟随最新最强')).toBeInTheDocument();
+    expect(screen.getByText('当前 5.6 Sol · 推理最大 · 跟随最新最强')).toBeInTheDocument();
     expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '低' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: '最大' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '最大' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
     expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
