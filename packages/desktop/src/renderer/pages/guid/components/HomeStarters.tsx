@@ -12,6 +12,7 @@ import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
+import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
 
 type HomeStartersProps = {
   assistants: Assistant[];
@@ -31,6 +32,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
   onClear,
 }) => {
   const { t } = useTranslation();
+  const shortcutPreferences = useOplHomeShortcutPreferences();
   const starters = useMemo(() => {
     const allowedIds = new Set(getOplHomePurposeAssistantIds());
     const available = assistants.filter((assistant) =>
@@ -41,7 +43,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
     return active
       ? [active, ...available.filter((assistant) => assistant !== active)].slice(0, MAX_HOME_STARTERS)
       : available.slice(0, MAX_HOME_STARTERS);
-  }, [activeCapabilityId, assistants]);
+  }, [activeCapabilityId, assistants, shortcutPreferences]);
 
   if (starters.length === 0) return null;
 

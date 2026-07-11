@@ -2089,7 +2089,8 @@
       "developer": "本地开发源",
       "managed": "OPL 托管包",
       "registry": "注册表安装",
-      "local": "本地安装"
+      "local": "本地安装",
+      "other": "其他受支持来源"
     },
     "candidateReports": {
       "title": "待审阅建议",
@@ -2133,9 +2134,9 @@
     },
     "packageManager": {
       "title": "能力目录",
-      "description": "列表显示用途、来源和可用状态；首页显示与管理操作放在详情中。",
+      "description": "列表显示用途、来源、可用状态和首页入口，并可直接进入管理。",
       "catalogTitle": "能力目录",
-      "catalogDescription": "需要调整首页显示、同步或修复时再打开详情。",
+      "catalogDescription": "可直接调整首页显示；更新、修复、启停和卸载集中在管理面板。",
       "management": "管理能力",
       "refreshRegistry": "检查新能力",
       "searchPlaceholder": "搜索能力、用途或标签",

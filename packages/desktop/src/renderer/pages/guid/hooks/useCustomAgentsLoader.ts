@@ -9,6 +9,7 @@ import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import { resolveOplHomeAssistants } from '../utils/oplHomeAssistants';
+import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
 
 type UseCustomAgentsLoaderResult = {
   /** OPL Home projection derived from the backend assistant catalog. */
@@ -29,7 +30,11 @@ export const useCustomAgentsLoader = (): UseCustomAgentsLoaderResult => {
     }
   });
   const catalogAssistants = assistantList ?? [];
-  const assistants = useMemo(() => resolveOplHomeAssistants(catalogAssistants), [catalogAssistants]);
+  const shortcutPreferences = useOplHomeShortcutPreferences();
+  const assistants = useMemo(
+    () => resolveOplHomeAssistants(catalogAssistants),
+    [catalogAssistants, shortcutPreferences]
+  );
   const customAgentAvatarMap = useMemo(
     () => new Map([...catalogAssistants, ...assistants].map((assistant) => [assistant.id, assistant.avatar])),
     [assistants, catalogAssistants]

@@ -23,7 +23,9 @@ import {
   isOplHomeShortcutVisible,
   type OplHomeShortcutPreferences,
   moveOplHomeShortcut,
+  replaceOplHomeShortcutPreferences,
   setOplHomeShortcutHidden,
+  useOplHomeShortcutPreferences,
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
@@ -120,7 +122,7 @@ function capabilitySourceLabel(
     return t('settings.capabilitiesPage.sourceLabels.registry');
   }
   if (['local', 'manual', 'filesystem'].includes(token)) return t('settings.capabilitiesPage.sourceLabels.local');
-  return raw;
+  return t('settings.capabilitiesPage.sourceLabels.other', { defaultValue: 'Other source' });
 }
 
 function isCapabilityDeveloperSource(item: CapabilityPurposeViewModel): boolean {
@@ -445,7 +447,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const [managementOpen, setManagementOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
   const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
-  const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
+  const shortcutPreferences = useOplHomeShortcutPreferences();
   const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
   const shortcutByPackageId = React.useMemo(
     () => new Map(orderedShortcuts.map((shortcut) => [shortcut.package_id, shortcut])),
@@ -505,7 +507,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 
   useEffect(() => {
     const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
-    if (appStatePreferences) setShortcutPreferences(appStatePreferences);
+    if (appStatePreferences) replaceOplHomeShortcutPreferences(appStatePreferences);
   }, [appStateQuery.appState]);
 
   useEffect(() => {
@@ -528,8 +530,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       }
       await appStateQuery.load('fast', { showRefreshing: true });
       Message.success(t('settings.capabilitiesPage.packageManager.actionQueued'));
+      return true;
     } catch (error) {
       Message.error(error instanceof Error ? error.message : String(error));
+      return false;
     } finally {
       if (packageActionTokenRef.current === actionToken) {
         packageActionTokenRef.current = null;
@@ -542,8 +546,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     item: CapabilityPurposeViewModel,
     actionId: string,
     payloadRefsOnlyJson: Record<string, unknown> = {}
-  ): Promise<void> => {
-    if (!item.packageId) return Promise.resolve();
+  ): Promise<boolean> => {
+    if (!item.packageId) return Promise.resolve(false);
     const packageSelection =
       actionId === 'agent_package_update'
         ? {
@@ -570,12 +574,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const executeShortcutPreferenceAction = async (
     shortcutId: string,
     preferences: OplHomeShortcutPreferences
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const shortcutOrder = getOplOrderedHomeAgentShortcuts();
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
-    if (!shortcut) return;
+    if (!shortcut) return false;
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
-    await executePackageAction('agent_package_preferences_set', {
+    return executePackageAction('agent_package_preferences_set', {
       package_id: shortcut.package_id,
       shortcut_id: shortcut.shortcut_id,
       visible: isOplHomeShortcutVisible(shortcut, preferences),
@@ -588,16 +592,20 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 
   const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
     if (!shortcutId || packageActionTokenRef.current) return;
+    const previousPreferences = getOplHomeShortcutPreferences();
     const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
-    setShortcutPreferences(nextPreferences);
-    void executeShortcutPreferenceAction(shortcutId, nextPreferences);
+    void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
+      if (!succeeded) replaceOplHomeShortcutPreferences(previousPreferences);
+    });
   };
 
   const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
     if (!shortcutId || packageActionTokenRef.current) return;
+    const previousPreferences = getOplHomeShortcutPreferences();
     const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
-    setShortcutPreferences(nextPreferences);
-    void executeShortcutPreferenceAction(shortcutId, nextPreferences);
+    void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
+      if (!succeeded) replaceOplHomeShortcutPreferences(previousPreferences);
+    });
   };
 
   const runCapabilityPrimaryAction = (item: CapabilityPurposeViewModel) => {
@@ -806,7 +814,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
                       data-testid={`capability-open-details-${item.key}`}
                     >
-                      {t('settings.capabilitiesPage.actions.openDetails')}
+                      {t('settings.capabilitiesPage.packageManager.management')}
                     </Button>
                   </div>
                 </div>
@@ -936,10 +944,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 
                 {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
 
-                <details data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
-                  <summary className='cursor-pointer text-12px text-t-secondary'>
-                    {t('settings.capabilitiesPage.packageManager.moreActions')}
-                  </summary>
+                <div data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
+                  <Typography.Text className='block text-13px font-600 text-t-primary'>
+                    {t('settings.capabilitiesPage.packageManager.management')}
+                  </Typography.Text>
                   <Space wrap size={6} className='mt-8px'>
                     <Button
                       size='mini'
@@ -1006,7 +1014,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
                     </Button>
                   </Space>
-                </details>
+                </div>
 
                 <Button
                   size='small'

@@ -779,6 +779,22 @@ describe('CapabilitiesSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 
+  it('rolls Home visibility back when the App action fails', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: false,
+      command: 'opl app action execute --action agent_package_preferences_set --json',
+      error: { message: 'preference update failed' },
+    });
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    const homeSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
+    expect(homeSwitch).toHaveClass('arco-switch-checked');
+    fireEvent.click(homeSwitch);
+
+    await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).not.toContain('research');
+  });
+
   it('routes package lifecycle management actions through App action refs', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 

@@ -2088,7 +2088,8 @@
       "developer": "Local developer source",
       "managed": "OPL managed package",
       "registry": "Registry install",
-      "local": "Local install"
+      "local": "Local install",
+      "other": "Other supported source"
     },
     "candidateReports": {
       "title": "Review suggestions",
@@ -2132,9 +2133,9 @@
     },
     "packageManager": {
       "title": "Capability directory",
-      "description": "The list shows purpose, source, and availability. Home visibility and management actions stay in details.",
+      "description": "The list shows purpose, source, availability, and Home visibility, with direct access to management.",
       "catalogTitle": "Capability directory",
-      "catalogDescription": "Open details only when you need to change Home visibility, sync, or repair a capability.",
+      "catalogDescription": "Change Home visibility inline; update, repair, enable, disable, and uninstall from Manage.",
       "management": "Manage capabilities",
       "refreshRegistry": "Check for new capabilities",
       "searchPlaceholder": "Search capability, purpose, or tag",

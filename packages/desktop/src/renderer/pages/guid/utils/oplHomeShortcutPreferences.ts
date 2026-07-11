@@ -1,4 +1,5 @@
 import { getOplHomeAgentShortcuts, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
+import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v1';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
@@ -14,6 +15,10 @@ const EMPTY_PREFERENCES: OplHomeShortcutPreferences = {
   visibleShortcutIds: [],
   orderedShortcutIds: [],
 };
+let currentPreferences: OplHomeShortcutPreferences | null = null;
+let observedStoredRaw: string | null = null;
+let observedAppStateRaw: string | null = null;
+const preferenceListeners = new Set<() => void>();
 
 function readStoredPreferences(): OplHomeShortcutPreferences {
   if (typeof localStorage === 'undefined') return EMPTY_PREFERENCES;
@@ -33,7 +38,15 @@ function readStoredPreferences(): OplHomeShortcutPreferences {
 
 function writeStoredPreferences(preferences: OplHomeShortcutPreferences): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  observedStoredRaw = JSON.stringify(preferences);
+  localStorage.setItem(STORAGE_KEY, observedStoredRaw);
+}
+
+function publishPreferences(preferences: OplHomeShortcutPreferences): OplHomeShortcutPreferences {
+  currentPreferences = preferences;
+  writeStoredPreferences(preferences);
+  preferenceListeners.forEach((listener) => listener());
+  return preferences;
 }
 
 function isString(value: unknown): value is string {
@@ -114,7 +127,32 @@ function sortShortcuts(shortcuts: OplHomeAgentShortcut[], orderedShortcutIds: st
 }
 
 export function getOplHomeShortcutPreferences(): OplHomeShortcutPreferences {
-  return readCachedAppStatePreferences() ?? readStoredPreferences();
+  if (typeof localStorage !== 'undefined') {
+    const storedRaw = localStorage.getItem(STORAGE_KEY);
+    const appStateRaw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
+    if (storedRaw !== observedStoredRaw || appStateRaw !== observedAppStateRaw) {
+      observedStoredRaw = storedRaw;
+      observedAppStateRaw = appStateRaw;
+      currentPreferences = readCachedAppStatePreferences() ?? readStoredPreferences();
+    }
+  }
+  currentPreferences ??= readCachedAppStatePreferences() ?? readStoredPreferences();
+  return currentPreferences;
+}
+
+export function replaceOplHomeShortcutPreferences(preferences: OplHomeShortcutPreferences): OplHomeShortcutPreferences {
+  return publishPreferences(preferences);
+}
+
+export function useOplHomeShortcutPreferences(): OplHomeShortcutPreferences {
+  return useSyncExternalStore(
+    (listener) => {
+      preferenceListeners.add(listener);
+      return () => preferenceListeners.delete(listener);
+    },
+    getOplHomeShortcutPreferences,
+    getOplHomeShortcutPreferences
+  );
 }
 
 export function getOplOrderedHomeAgentShortcuts(): OplHomeAgentShortcut[] {
@@ -155,8 +193,7 @@ export function setOplHomeShortcutHidden(shortcutId: string, hidden: boolean): O
     hiddenShortcutIds: [...hiddenIds],
     visibleShortcutIds: [...visibleIds],
   };
-  writeStoredPreferences(next);
-  return next;
+  return publishPreferences(next);
 }
 
 export function moveOplHomeShortcut(shortcutId: string, direction: -1 | 1): OplHomeShortcutPreferences {
@@ -170,6 +207,5 @@ export function moveOplHomeShortcut(shortcutId: string, direction: -1 | 1): OplH
     ...getOplHomeShortcutPreferences(),
     orderedShortcutIds: ids,
   };
-  writeStoredPreferences(next);
-  return next;
+  return publishPreferences(next);
 }
