@@ -22,13 +22,23 @@ import { emitter, type ReplyQuote, useAddEventListener } from '@/renderer/utils/
 import { mergeFileSelectionItems, type FileSelectionItem } from '@/renderer/utils/file/fileSelection';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 import { filterWorkspaceMentionItems } from '@/renderer/utils/file/workspaceMentions';
+import type { ConversationExportFormat } from '@/renderer/utils/chat/conversationExport';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/ui/focus';
-import { Button, Input, Message, Tag } from '@arco-design/web-react';
-import { ArrowUp, CloseSmall, Plus, Quote } from '@icon-park/react';
+import { Button, Input, Message, Radio, Tag } from '@arco-design/web-react';
+import { ArrowUp, CloseSmall, FolderOpen, Plus, Quote } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import { theme } from '@office-ai/platform';
-import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@renderer/hooks/chat/useCompositionInput';
 import { useConversationExport } from '@renderer/hooks/file/useConversationExport';
@@ -53,6 +63,126 @@ const constVoid = (): void => undefined;
 const MAX_SINGLE_LINE_CHARACTERS = 800;
 const BTW_COMMAND_RE = /^\/btw(?:\s+([\s\S]*))?$/i;
 const AT_FILE_HIGHLIGHT_COLOR = theme.Color.PrimaryColor;
+
+type ConversationExportFilePanelProps = {
+  t: (key: string) => string;
+  format: ConversationExportFormat;
+  filename: string;
+  directory: string;
+  pathPreview: string;
+  loading: boolean;
+  onFormatChange: (value: ConversationExportFormat) => void;
+  onFilenameChange: (value: string) => void;
+  onSelectDirectory: () => void | Promise<void>;
+  onCancel: () => void;
+  onBack: () => void;
+  onSave: () => void | Promise<void>;
+  onKeyDown: (event: React.KeyboardEvent) => boolean;
+};
+
+export const ConversationExportFilePanel = ({
+  t,
+  format,
+  filename,
+  directory,
+  pathPreview,
+  loading,
+  onFormatChange,
+  onFilenameChange,
+  onSelectDirectory,
+  onCancel,
+  onBack,
+  onSave,
+  onKeyDown,
+}: ConversationExportFilePanelProps) => {
+  const filenameInputId = useId();
+
+  return (
+    <div
+      className='rounded-8px border border-solid overflow-hidden p-12px flex flex-col gap-10px'
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          onKeyDown(event);
+        }
+      }}
+      style={{
+        borderColor: 'var(--color-border-2)',
+        background: 'color-mix(in srgb, var(--color-bg-1) 88%, transparent)',
+        backdropFilter: 'blur(14px) saturate(1.1)',
+        WebkitBackdropFilter: 'blur(14px) saturate(1.1)',
+      }}
+    >
+      <div className='flex flex-col gap-6px'>
+        <div className='text-13px font-semibold text-t-primary'>{t('messages.export.formatLabel')}</div>
+        <Radio.Group
+          type='button'
+          value={format}
+          disabled={loading}
+          aria-label={t('messages.export.formatLabel')}
+          onChange={(value) => onFormatChange(value as ConversationExportFormat)}
+        >
+          <Radio value='markdown'>{t('messages.export.markdownLabel')}</Radio>
+          <Radio value='json'>{t('messages.export.jsonLabel')}</Radio>
+        </Radio.Group>
+      </div>
+
+      <div className='flex flex-col gap-6px'>
+        <label htmlFor={filenameInputId} className='text-13px font-semibold text-t-primary'>
+          {t('messages.export.fileNameLabel')}
+        </label>
+        <Input
+          id={filenameInputId}
+          autoFocus
+          value={filename}
+          onChange={(value) => onFilenameChange(value)}
+          placeholder={t('messages.export.fileNamePlaceholder')}
+          disabled={loading}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') {
+              onKeyDown(event);
+            }
+          }}
+        />
+      </div>
+
+      <div className='flex flex-col gap-6px'>
+        <div className='flex items-center justify-between gap-8px'>
+          <div className='text-13px font-semibold text-t-primary'>{t('messages.export.directoryLabel')}</div>
+          <Button
+            size='small'
+            type='secondary'
+            icon={<FolderOpen size={14} />}
+            disabled={loading}
+            onClick={() => void onSelectDirectory()}
+          >
+            {t('messages.export.chooseDirectoryLabel')}
+          </Button>
+        </div>
+        <div className='text-12px text-t-secondary break-all'>
+          {directory || t('messages.export.directoryNotSelected')}
+        </div>
+      </div>
+
+      {pathPreview && (
+        <div className='text-12px text-t-secondary break-all'>
+          {t('messages.export.pathLabel')}: {pathPreview}
+        </div>
+      )}
+
+      <div className='flex items-center justify-end gap-8px'>
+        <Button size='small' type='secondary' disabled={loading} onClick={onCancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button size='small' type='secondary' disabled={loading} onClick={onBack}>
+          {t('common.back')}
+        </Button>
+        <Button size='small' type='primary' loading={loading} onClick={() => void onSave()}>
+          {t('common.save')}
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const getSelectedItemMatchKeys = (item: FileSelectionItem): string[] => {
   if (typeof item === 'string') {
@@ -604,67 +734,6 @@ const SendBox: React.FC<{
 
   const handleOverlayKeyDown = (event: React.KeyboardEvent) => {
     return conversationExport.handleKeyDown(event) || slashController.onKeyDown(event);
-  };
-
-  const renderExportFileNamePanel = () => {
-    return (
-      <div
-        className='rounded-14px border border-solid overflow-hidden p-12px flex flex-col gap-10px'
-        style={{
-          borderColor: 'var(--color-border-2)',
-          background: 'color-mix(in srgb, var(--color-bg-1) 88%, transparent)',
-          backdropFilter: 'blur(14px) saturate(1.1)',
-          WebkitBackdropFilter: 'blur(14px) saturate(1.1)',
-        }}
-      >
-        <div className='text-13px font-semibold text-t-primary'>{t('messages.export.fileNameLabel')}</div>
-        <Input
-          autoFocus
-          value={conversationExport.filename}
-          onChange={conversationExport.setFilename}
-          placeholder={t('messages.export.fileNamePlaceholder')}
-          disabled={conversationExport.loading}
-          onKeyDown={(event) => {
-            conversationExport.handleKeyDown(event);
-          }}
-        />
-        <div className='text-12px text-t-secondary break-all'>
-          {t('messages.export.pathLabel')}: {conversationExport.pathPreview}
-        </div>
-        <div className='flex items-center justify-end gap-8px'>
-          <Button
-            size='small'
-            type='secondary'
-            disabled={conversationExport.loading}
-            onClick={() => {
-              conversationExport.closeExportFlow();
-            }}
-          >
-            {t('common.cancel')}
-          </Button>
-          <Button
-            size='small'
-            type='secondary'
-            disabled={conversationExport.loading}
-            onClick={() => {
-              conversationExport.showMenu();
-            }}
-          >
-            {t('common.back')}
-          </Button>
-          <Button
-            size='small'
-            type='primary'
-            loading={conversationExport.loading}
-            onClick={() => {
-              void conversationExport.submitFilename();
-            }}
-          >
-            {t('common.save')}
-          </Button>
-        </div>
-      </div>
-    );
   };
 
   useEffect(() => {
@@ -1433,7 +1502,21 @@ const SendBox: React.FC<{
                 emptyText={t('messages.slash.empty', { defaultValue: 'No commands found' })}
               />
             ) : conversationExport.step === 'filename' ? (
-              renderExportFileNamePanel()
+              <ConversationExportFilePanel
+                t={t}
+                format={conversationExport.format}
+                filename={conversationExport.filename}
+                directory={conversationExport.directory}
+                pathPreview={conversationExport.pathPreview}
+                loading={conversationExport.loading}
+                onFormatChange={conversationExport.setFormat}
+                onFilenameChange={conversationExport.setFilename}
+                onSelectDirectory={conversationExport.selectDirectory}
+                onCancel={conversationExport.closeExportFlow}
+                onBack={conversationExport.showMenu}
+                onSave={conversationExport.submitFilename}
+                onKeyDown={conversationExport.handleKeyDown}
+              />
             ) : (
               <SlashCommandMenu
                 title={t('messages.slash.title', { defaultValue: 'Commands' })}

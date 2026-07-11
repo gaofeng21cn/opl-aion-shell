@@ -1,20 +1,20 @@
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chat/chatLib';
 import type { TChatConversation } from '@/common/config/storage';
-import { Button } from '@arco-design/web-react';
 import type { SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import {
+  type ConversationExportFormat,
   type ExportTranscriptLabels,
-  buildConversationExportText,
+  buildConversationExportContent,
   buildDefaultExportFileName,
+  fetchAllConversationMessages,
   getDefaultExportFileNameSource,
   joinFilePath,
   normalizeExportFileName,
-  resolveExportBaseDirectory,
 } from '@/renderer/utils/chat/conversationExport';
 import { copyText } from '@/renderer/utils/ui/clipboard';
-import React, {
+import {
   useCallback,
   useMemo,
   useRef,
@@ -37,10 +37,12 @@ type UseConversationExportOptions = {
   messageApi: MessageApi;
 };
 
-type UseConversationExportResult = {
+export type UseConversationExportResult = {
   step: ExportFlowStep;
   activeIndex: number;
+  format: ConversationExportFormat;
   filename: string;
+  directory: string;
   loading: boolean;
   menuItems: SlashCommandMenuItem[];
   isOpen: boolean;
@@ -48,7 +50,9 @@ type UseConversationExportResult = {
   openExportFlow: () => Promise<void>;
   closeExportFlow: () => void;
   showMenu: () => void;
+  setFormat: (value: ConversationExportFormat) => void;
   setFilename: (value: string) => void;
+  selectDirectory: () => Promise<void>;
   setActiveIndex: (value: number) => void;
   onSelectMenuItem: (key: string) => void;
   handleKeyDown: (event: ReactKeyboardEvent) => boolean;
@@ -59,22 +63,23 @@ export function useConversationExport(options: UseConversationExportOptions): Us
   const { conversation_id, workspace, t, messageApi } = options;
   const [step, setStep] = useState<ExportFlowStep>('closed');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [format, setFormatState] = useState<ConversationExportFormat>('markdown');
   const [filename, setFilename] = useState('');
+  const [directory, setDirectory] = useState('');
   const [loading, setLoading] = useState(false);
   const conversationRef = useRef<TChatConversation | null>(null);
-  const baseDirectoryRef = useRef('');
+  const directoryRef = useRef('');
   const messagesRef = useRef<TMessage[] | null>(null);
-  const transcriptRef = useRef<string | null>(null);
+  const exportedAtRef = useRef('');
+  const transcriptRef = useRef<Partial<Record<ConversationExportFormat, string>>>({});
   const transcriptLabels = useMemo<ExportTranscriptLabels>(
     () => ({
       conversation: t('messages.export.conversationLabel'),
-      conversation_id: t('messages.export.conversationIdLabel'),
       exportedAt: t('messages.export.exportedAtLabel'),
-      type: t('messages.export.typeLabel'),
       noMessages: t('messages.export.noMessages'),
+      redactionNotice: t('messages.export.redactionNotice'),
       user: t('messages.export.userLabel'),
       assistant: t('messages.export.assistantLabel'),
-      system: t('messages.export.systemLabel'),
     }),
     [t]
   );
@@ -90,6 +95,11 @@ export function useConversationExport(options: UseConversationExportOptions): Us
     setActiveIndex(0);
   }, []);
 
+  const setFormat = useCallback((value: ConversationExportFormat) => {
+    setFormatState(value);
+    setFilename((current) => normalizeExportFileName(current, value));
+  }, []);
+
   const loadConversation = useCallback(async (): Promise<TChatConversation | null> => {
     if (!conversation_id) {
       return null;
@@ -100,37 +110,60 @@ export function useConversationExport(options: UseConversationExportOptions): Us
 
     const conversation = await getConversationOrNull(conversation_id);
     conversationRef.current = conversation;
-    transcriptRef.current = null;
+    transcriptRef.current = {};
     return conversation;
   }, [conversation_id]);
 
-  const loadTranscript = useCallback(async (): Promise<string | null> => {
+  const loadMessages = useCallback(async (): Promise<TMessage[]> => {
     if (!conversation_id) {
-      return null;
+      return [];
     }
-    if (transcriptRef.current) {
-      return transcriptRef.current;
-    }
-
-    const conversation = await loadConversation();
-    if (!conversation) {
-      return null;
+    if (messagesRef.current) {
+      return messagesRef.current;
     }
 
-    const messages =
-      messagesRef.current ??
-      (
-        await ipcBridge.database.getConversationMessages.invoke({
-          conversation_id: conversation_id,
-          page: 0,
-          page_size: 10000,
-        })
-      ).items;
+    const messages = await fetchAllConversationMessages(({ page, page_size }) =>
+      ipcBridge.database.getConversationMessages.invoke({
+        conversation_id,
+        page,
+        page_size,
+        order: 'ASC',
+        content_mode: 'compact',
+      })
+    );
     messagesRef.current = messages;
-    const transcript = buildConversationExportText(conversation, messages, transcriptLabels);
-    transcriptRef.current = transcript;
-    return transcript;
-  }, [conversation_id, loadConversation, transcriptLabels]);
+    transcriptRef.current = {};
+    return messages;
+  }, [conversation_id]);
+
+  const loadTranscript = useCallback(
+    async (targetFormat: ConversationExportFormat): Promise<string | null> => {
+      if (!conversation_id) {
+        return null;
+      }
+      if (transcriptRef.current[targetFormat]) {
+        return transcriptRef.current[targetFormat] ?? null;
+      }
+
+      const conversation = await loadConversation();
+      if (!conversation) {
+        return null;
+      }
+      const messages = await loadMessages();
+      const exportedAt = exportedAtRef.current || new Date().toISOString();
+      exportedAtRef.current = exportedAt;
+      const transcript = buildConversationExportContent(
+        conversation,
+        messages,
+        targetFormat,
+        transcriptLabels,
+        exportedAt
+      );
+      transcriptRef.current[targetFormat] = transcript;
+      return transcript;
+    },
+    [conversation_id, loadConversation, loadMessages, transcriptLabels]
+  );
 
   const openExportFlow = useCallback(async () => {
     if (!conversation_id) {
@@ -138,50 +171,40 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       return;
     }
 
+    setStep('closed');
+    setLoading(true);
     try {
       conversationRef.current = null;
       messagesRef.current = null;
-      transcriptRef.current = null;
+      transcriptRef.current = {};
+      exportedAtRef.current = new Date().toISOString();
+      directoryRef.current = '';
+      setDirectory('');
+      setFormatState('markdown');
+
       const conversation = await loadConversation();
       if (!conversation) {
         messageApi.error?.(t('messages.export.unavailable'));
         return;
       }
-
-      let desktopPath = '';
-      if (!workspace?.trim()) {
-        try {
-          desktopPath = await ipcBridge.application.getPath.invoke({ name: 'desktop' });
-        } catch {
-          desktopPath = '';
-        }
-      }
-
-      baseDirectoryRef.current = resolveExportBaseDirectory(workspace, desktopPath);
-      const messagesResult = await ipcBridge.database.getConversationMessages.invoke({
-        conversation_id: conversation_id,
-        page: 0,
-        page_size: 10000,
-      });
-      messagesRef.current = messagesResult.items;
-      setFilename(
-        buildDefaultExportFileName(conversation.id, getDefaultExportFileNameSource(conversation, messagesResult.items))
-      );
+      const messages = await loadMessages();
+      setFilename(buildDefaultExportFileName(getDefaultExportFileNameSource(conversation, messages), 'markdown'));
       setActiveIndex(0);
       setStep('menu');
     } catch (error) {
       console.error('[useConversationExport] Failed to open export flow:', error);
       messageApi.error?.(t('messages.export.prepareFailed'));
+    } finally {
+      setLoading(false);
     }
-  }, [conversation_id, loadConversation, messageApi, t, workspace]);
+  }, [conversation_id, loadConversation, loadMessages, messageApi, t]);
 
   const handleCopy = useCallback(async () => {
     try {
       setLoading(true);
-      const transcript = await loadTranscript();
+      const transcript = await loadTranscript('markdown');
       if (!transcript) {
         messageApi.error?.(t('messages.export.unavailable'));
-        closeExportFlow();
         return;
       }
       await copyText(transcript);
@@ -195,18 +218,56 @@ export function useConversationExport(options: UseConversationExportOptions): Us
     }
   }, [closeExportFlow, loadTranscript, messageApi, t]);
 
+  const selectDirectory = useCallback(async () => {
+    if (loading) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let defaultPath = directoryRef.current || workspace?.trim() || '';
+      if (!defaultPath) {
+        try {
+          defaultPath = await ipcBridge.application.getPath.invoke({ name: 'desktop' });
+        } catch {
+          defaultPath = '';
+        }
+      }
+      const selectedDirectories = await ipcBridge.dialog.showOpen.invoke({
+        defaultPath: defaultPath || undefined,
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      const selectedDirectory = selectedDirectories?.[0]?.trim();
+      if (!selectedDirectory) {
+        messageApi.error?.(t('messages.export.directoryCancelled'));
+        return;
+      }
+      directoryRef.current = selectedDirectory;
+      setDirectory(selectedDirectory);
+    } catch (error) {
+      console.error('[useConversationExport] Failed to select export directory:', error);
+      messageApi.error?.(t('messages.export.directorySelectFailed'));
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, messageApi, t, workspace]);
+
   const handleSave = useCallback(async () => {
+    if (!directoryRef.current) {
+      messageApi.error?.(t('messages.export.directoryRequired'));
+      return;
+    }
+
     try {
       setLoading(true);
-      const transcript = await loadTranscript();
+      const transcript = await loadTranscript(format);
       if (!transcript) {
         messageApi.error?.(t('messages.export.unavailable'));
-        closeExportFlow();
         return;
       }
 
-      const normalizedFileName = normalizeExportFileName(filename);
-      const targetPath = joinFilePath(baseDirectoryRef.current, normalizedFileName);
+      const normalizedFileName = normalizeExportFileName(filename, format);
+      const targetPath = joinFilePath(directoryRef.current, normalizedFileName);
       const success = await ipcBridge.fs.writeFile.invoke({
         path: targetPath,
         data: transcript,
@@ -217,31 +278,7 @@ export function useConversationExport(options: UseConversationExportOptions): Us
         return;
       }
 
-      messageApi.success?.({
-        content: (
-          <div className='flex flex-col gap-8px'>
-            <div>{t('messages.export.saveSuccess', { path: targetPath })}</div>
-            <div className='flex justify-end'>
-              <Button
-                size='mini'
-                type='text'
-                onClick={() => {
-                  void copyText(targetPath)
-                    .then(() => {
-                      messageApi.success?.(t('common.copySuccess'));
-                    })
-                    .catch(() => {
-                      messageApi.error?.(t('common.copyFailed'));
-                    });
-                }}
-              >
-                {t('messages.copy')}
-              </Button>
-            </div>
-          </div>
-        ),
-        duration: 5000,
-      });
+      messageApi.success?.(t('messages.export.saveSuccess', { path: targetPath }));
       closeExportFlow();
     } catch (error) {
       console.error('[useConversationExport] Failed to save export:', error);
@@ -249,7 +286,7 @@ export function useConversationExport(options: UseConversationExportOptions): Us
     } finally {
       setLoading(false);
     }
-  }, [closeExportFlow, filename, loadTranscript, messageApi, t]);
+  }, [closeExportFlow, filename, format, loadTranscript, messageApi, t]);
 
   const onSelectMenuItem = useCallback(
     (key: string) => {
@@ -271,12 +308,8 @@ export function useConversationExport(options: UseConversationExportOptions): Us
     if (loading) {
       return;
     }
-    if (!baseDirectoryRef.current) {
-      messageApi.error?.(t('messages.export.unavailable'));
-      return;
-    }
     await handleSave();
-  }, [handleSave, loading, messageApi, t]);
+  }, [handleSave, loading]);
 
   const menuItems = useMemo<SlashCommandMenuItem[]>(
     () => [
@@ -346,17 +379,19 @@ export function useConversationExport(options: UseConversationExportOptions): Us
   return {
     step,
     activeIndex,
+    format,
     filename,
+    directory,
     loading,
     menuItems,
     isOpen: step !== 'closed',
-    pathPreview: baseDirectoryRef.current
-      ? joinFilePath(baseDirectoryRef.current, normalizeExportFileName(filename))
-      : normalizeExportFileName(filename),
+    pathPreview: directory ? joinFilePath(directory, normalizeExportFileName(filename, format)) : '',
     openExportFlow,
     closeExportFlow,
     showMenu,
+    setFormat,
     setFilename,
+    selectDirectory,
     setActiveIndex,
     onSelectMenuItem,
     handleKeyDown,
