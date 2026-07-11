@@ -8,14 +8,23 @@ import { test, expect } from '../fixtures';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { GUID_INPUT, goToGuid, goToSettings, expectUrlContains, takeScreenshot, type SettingsTab } from '../helpers';
+import {
+  GUID_INPUT,
+  goToGuid,
+  goToSettings,
+  expectUrlContains,
+  httpInvoke,
+  takeScreenshot,
+  type SettingsTab,
+} from '../helpers';
 
 const SETTINGS_SCREENSHOT_DIR = path.resolve(__dirname, '..', 'screenshots');
 const SETTINGS_VISUAL_MANIFEST = path.join(SETTINGS_SCREENSHOT_DIR, 'settings-control-center-manifest.json');
 const SETTINGS_VISUAL_VIEWPORTS = [
-  { name: 'desktop', size: { width: 1440, height: 960 } },
-  { name: 'mobile', size: { width: 390, height: 844 } },
-];
+  { name: 'desktop', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
+  { name: 'mobile', navigation: 'mobile', theme: 'light', size: { width: 390, height: 844 } },
+  { name: 'desktop-dark', navigation: 'desktop', theme: 'dark', size: { width: 1440, height: 960 } },
+] as const;
 
 type SettingsVisualAnchor = {
   id: string;
@@ -247,7 +256,8 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('access_page', '[data-testid="settings-page-access"]'),
         anchor('access_primary', '[data-testid="settings-access-primary"]'),
-        anchor('access_browser', '[data-testid="settings-access-browser-access"]'),
+        anchor('access_codex_cli', '[data-testid="settings-access-codex-cli"]'),
+        anchor('access_gateway', '[data-testid="settings-access-gateway"]'),
         anchor('access_technical_details', '[data-testid="settings-access-technical-details"]'),
       ],
     },
@@ -283,6 +293,7 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('resources_page', '[data-testid="settings-page-resources"]'),
         anchor('resources_primary', '[data-testid="settings-resources-primary"]'),
+        anchor('resources_browser', '[data-testid="settings-resources-browser-access"]'),
         anchor('resources_technical_details', '[data-testid="settings-resources-technical-details"]'),
       ],
     },
@@ -442,8 +453,8 @@ test.describe('Settings Pages', () => {
 
   test('settings search is unique and supports bilingual Enter navigation', async ({ page }) => {
     const searches = [
-      { viewport: SETTINGS_VISUAL_VIEWPORTS[0], query: 'package maintenance' },
-      { viewport: SETTINGS_VISUAL_VIEWPORTS[1], query: '能力包维护' },
+      { viewport: SETTINGS_VISUAL_VIEWPORTS[0], query: 'packages' },
+      { viewport: SETTINGS_VISUAL_VIEWPORTS[1], query: '能力包' },
     ];
 
     for (const { viewport, query } of searches) {
@@ -458,10 +469,10 @@ test.describe('Settings Pages', () => {
       await page.waitForFunction(
         () =>
           window.location.hash.includes('/settings/environment') &&
-          new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === 'packages',
+          new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === 'updates',
         { timeout: 10_000 }
       );
-      await expectSettingsAnchorLanding(page, 'packages');
+      await expectSettingsAnchorLanding(page, 'updates');
     }
   });
 
@@ -474,6 +485,7 @@ test.describe('Settings Pages', () => {
       level: SettingsVisualTarget['level'] | 'compatibility' | 'interaction-state';
       state: string;
       viewport: { name: string; width: number; height: number };
+      theme: 'light' | 'dark';
       route: string;
       screenshot_path: string;
       status_anchors: string[];
@@ -485,13 +497,23 @@ test.describe('Settings Pages', () => {
 
     for (const viewport of SETTINGS_VISUAL_VIEWPORTS) {
       await page.setViewportSize(viewport.size);
+      await goToSettings(page, 'general');
+      await httpInvoke(page, 'PUT', '/api/settings/client', {
+        'theme.activeId': viewport.theme === 'dark' ? 'dark' : 'default-theme',
+      });
+      await page.reload();
+      await page.waitForFunction(
+        (theme) => document.documentElement.getAttribute('data-theme') === theme,
+        viewport.theme,
+        { timeout: 10_000 }
+      );
       for (const { tab, level, anchors } of allVisualTargets) {
         await goToSettings(page, tab);
         await expectSelectedSettingsNavigationItem(
           page,
           tab,
-          viewport.name,
-          viewport.name === 'mobile' && level === 'secondary'
+          viewport.navigation,
+          viewport.navigation === 'mobile' && level === 'secondary'
         );
         await expectVisualAnchors(page, anchors);
         await resetSettingsScreenshotPointer(page, viewport.size);
@@ -507,6 +529,7 @@ test.describe('Settings Pages', () => {
             name: viewport.name,
             ...viewport.size,
           },
+          theme: viewport.theme,
           route: `/settings/${tab}`,
           screenshot_path: screenshotPath,
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
@@ -531,6 +554,7 @@ test.describe('Settings Pages', () => {
             name: viewport.name,
             ...viewport.size,
           },
+          theme: viewport.theme,
           route: `/settings/${target.route}`,
           screenshot_path: screenshotPath,
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
@@ -554,6 +578,7 @@ test.describe('Settings Pages', () => {
             name: viewport.name,
             ...viewport.size,
           },
+          theme: viewport.theme,
           route: `/settings/${target.source} -> /settings/${target.target}?section=${target.section}`,
           screenshot_path: screenshotPath,
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
@@ -587,6 +612,7 @@ test.describe('Settings Pages', () => {
               },
             ],
             viewports: SETTINGS_VISUAL_VIEWPORTS.map((viewport) => viewport.name),
+            color_schemes: [...new Set(SETTINGS_VISUAL_VIEWPORTS.map((viewport) => viewport.theme))],
           },
           release_readiness_claim: false,
           notes: [

@@ -515,6 +515,8 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
     expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
     expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
+    expect(view.getByTestId('settings-access-technical-details')).not.toHaveAttribute('open');
+    expect(document.querySelector('#model')).toBeTruthy();
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {

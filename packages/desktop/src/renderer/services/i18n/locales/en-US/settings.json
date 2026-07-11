@@ -1744,8 +1744,8 @@
     "receipt": "{{operation}} receipt: {{receipt}}"
   },
   "accessPage": {
-    "title": "Access",
-    "description": "Check model access, Codex CLI, and local browser access.",
+    "title": "Models & Access",
+    "description": "Check the model source, default model, Codex CLI, and access credential.",
     "modelAccessSection": {
       "title": "Model access and Codex",
       "description": "Confirm the active access source and default model first; open configuration only when you need to change them."

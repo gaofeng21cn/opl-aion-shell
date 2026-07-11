@@ -1745,8 +1745,8 @@
     "receipt": "{{operation}} 回执：{{receipt}}"
   },
   "accessPage": {
-    "title": "访问方式",
-    "description": "查看模型访问、Codex CLI 和本机浏览器访问。",
+    "title": "模型与访问",
+    "description": "查看模型来源、默认模型、Codex CLI 和访问密钥。",
     "modelAccessSection": {
       "title": "模型访问与 Codex",
       "description": "先确认当前访问来源和默认模型；只有需要更换方式时才打开配置。"

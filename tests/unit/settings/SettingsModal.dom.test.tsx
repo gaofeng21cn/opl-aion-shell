@@ -376,10 +376,10 @@ describe('SettingsModal OPL App navigation', () => {
   it('filters Settings navigation by user task keywords', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'package maintenance' } });
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'packages' } });
 
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Package maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Updates')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
   });

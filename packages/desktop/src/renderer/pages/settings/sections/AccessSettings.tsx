@@ -123,6 +123,7 @@ export const AccessSettingsContent: React.FC = () => {
         </section>
 
         <section className='opl-settings-section' id='codex-cli' data-testid='settings-access-codex-cli'>
+          <span id='model' aria-hidden='true' />
           <div className='opl-settings-row h-full items-start'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
@@ -208,6 +209,19 @@ export const AccessSettingsContent: React.FC = () => {
           )}
         </div>
       </section>
+
+      <details className='opl-settings-details' data-testid='settings-access-technical-details'>
+        <summary>{t('common.technical_details')}</summary>
+        <div className='mt-10px grid grid-cols-1 gap-6px text-12px text-t-secondary'>
+          <Typography.Text className='break-words'>{modelAccessStatus}</Typography.Text>
+          {modelAccessSource && <Typography.Text className='break-words'>{modelAccessSource}</Typography.Text>}
+          {codexDetailLines.map((line) => (
+            <Typography.Text key={line} className='break-words'>
+              {line}
+            </Typography.Text>
+          ))}
+        </div>
+      </details>
     </div>
   );
 };
