@@ -108,33 +108,33 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
   const hasTechnicalDetails = Boolean(item.section || technicalDetails);
 
   return (
-    <div
-      className='opl-settings-inventory-item'
+    <section
+      className='opl-settings-section'
       id={SECTION_ANCHORS[item.id]}
       data-testid={`storage-inventory-${item.id}`}
     >
-      <div className='opl-settings-row'>
-        <div className='opl-settings-row__main min-w-0'>
+      <div className='flex h-full flex-col gap-14px p-16px'>
+        <div className='min-w-0'>
           <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
           <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
-          <div className='mt-8px flex flex-wrap gap-x-16px gap-y-4px text-12px'>
-            <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
-          </div>
-          {status && <div className='mt-8px text-12px text-t-secondary'>{status}</div>}
-          {!item.section && (
-            <Typography.Text className='mt-8px block text-12px text-t-secondary'>
-              {t('settings.storagePage.inventory.notLoaded')}
-            </Typography.Text>
-          )}
         </div>
-        <div className='opl-settings-row__meta flex shrink-0 flex-col items-end gap-8px'>
+        <div className='flex flex-wrap items-center justify-between gap-8px'>
+          <Typography.Text className='text-16px font-600 text-t-primary'>
+            {formatStorageBytes(item.bytes)}
+          </Typography.Text>
           <Tag color={item.silentDeleteAllowed ? 'gray' : 'orange'}>{t(cleanupModeLabelKey(item.cleanupMode))}</Tag>
-          <div className='flex flex-wrap items-center justify-end gap-8px'>{actions}</div>
         </div>
+        {status && <div className='text-12px text-t-secondary'>{status}</div>}
+        {!item.section && (
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.storagePage.inventory.notLoaded')}
+          </Typography.Text>
+        )}
+        <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>
       </div>
       {hasTechnicalDetails && (
         <details
-          className='opl-settings-details mt-8px'
+          className='border-0 border-t border-solid border-border-1 px-16px py-12px'
           onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
           data-testid={`storage-inventory-details-${item.id}`}
         >
@@ -166,7 +166,7 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
           )}
         </details>
       )}
-    </div>
+    </section>
   );
 };
 
@@ -710,57 +710,68 @@ export const StorageSettingsContent: React.FC = () => {
       {lastReceipt && <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />}
 
       <div data-testid='settings-storage-primary'>
-        <section className='opl-settings-section' id='storage-categories' data-testid='storage-category-list'>
+        <section className='opl-settings-section' id='storage-categories' data-testid='storage-overview'>
           <span id='cleanup-preview' aria-hidden='true' />
-          <div className='opl-settings-section__header flex items-center justify-between gap-12px'>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.overview.categories')}
-            </Typography.Text>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
-            </Typography.Text>
-          </div>
-          <div className='opl-settings-list'>
-            {viewModel.sections.map((item) => (
-              <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
-            ))}
-          </div>
-
-          <div data-testid='storage-research-lifecycle'>
-            <div data-testid='settings-storage-technical-details'>
-              <details
-                className='opl-settings-details mt-12px'
-                onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
-                data-testid='storage-research-lifecycle-details'
-              >
-                <summary className='cursor-pointer text-13px text-t-secondary'>
-                  {t('settings.storagePage.researchLifecycle.technicalDetails')}
-                </summary>
-                {researchDetailsOpen && (
-                  <div className='mt-10px flex flex-col gap-12px'>
-                    <div>
-                      <Typography.Text className='font-600 text-t-primary'>
-                        {t('settings.storagePage.researchLifecycle.title')}
-                      </Typography.Text>
-                      <div className='text-12px text-t-secondary mt-4px'>
-                        {t('settings.storagePage.researchLifecycle.detail')}
-                      </div>
-                    </div>
-                    <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                      {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-                      {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-                      {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-                      {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-                      {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-                      {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
-                    </div>
-                  </div>
-                )}
-              </details>
+          <div className='flex flex-wrap items-center justify-between gap-12px p-16px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.storagePage.overview.categories')}
+              </Typography.Text>
+              <Typography.Text className='mt-4px block text-12px text-t-secondary'>
+                {t('settings.storagePage.description')}
+              </Typography.Text>
+            </div>
+            <div className='text-right'>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.storagePage.overview.total')}
+              </Typography.Text>
+              <Typography.Text className='block text-18px font-600 text-t-primary'>
+                {formatStorageBytes(totalBytes)}
+              </Typography.Text>
             </div>
           </div>
         </section>
+
+        <div className='mt-14px grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='storage-category-list'>
+          {viewModel.sections.map((item) => (
+            <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+          ))}
+        </div>
+      </div>
+
+      <div data-testid='storage-research-lifecycle'>
+        <div data-testid='settings-storage-technical-details'>
+          <details
+            className='opl-settings-details'
+            onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
+            data-testid='storage-research-lifecycle-details'
+          >
+            <summary className='cursor-pointer text-13px text-t-secondary'>
+              {t('settings.storagePage.researchLifecycle.technicalDetails')}
+            </summary>
+            {researchDetailsOpen && (
+              <div className='mt-10px flex flex-col gap-12px'>
+                <div>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('settings.storagePage.researchLifecycle.title')}
+                  </Typography.Text>
+                  <div className='text-12px text-t-secondary mt-4px'>
+                    {t('settings.storagePage.researchLifecycle.detail')}
+                  </div>
+                </div>
+                <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                  {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+                  {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+                </div>
+              </div>
+            )}
+          </details>
+        </div>
       </div>
 
       <section className='opl-settings-section' id='cleanup-history'>

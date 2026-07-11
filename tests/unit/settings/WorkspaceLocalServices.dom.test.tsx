@@ -189,7 +189,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-primary')).toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
+    expect(screen.getByTestId('opl-workspace-settings-permission')).toHaveClass('opl-settings-section');
     expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
@@ -227,7 +229,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByTestId('opl-workspace-settings-root')).toHaveClass('opl-settings-section--attention');
     expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
-    expect(screen.getByText('Needs setup')).toBeInTheDocument();
+    expect(screen.getAllByText('Needs setup')).toHaveLength(2);
     expect(screen.getByText('Permission needs attention')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Open Maintenance'));
 
@@ -247,7 +249,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByTestId('opl-workspace-settings-root')).not.toHaveClass('opl-settings-section--attention');
     expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
-    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getAllByText('Unknown')).toHaveLength(2);
     expect(screen.getByText('Not reported')).toBeInTheDocument();
     expect(screen.getByText('Open Maintenance')).toBeInTheDocument();
     expect(screen.queryByText('Permission: full_auto')).not.toBeInTheDocument();

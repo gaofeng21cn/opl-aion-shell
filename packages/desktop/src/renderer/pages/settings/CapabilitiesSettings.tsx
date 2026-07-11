@@ -614,6 +614,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     return !item.packageLockRef;
   };
   const hasCapabilityIssue = purposeCapabilities.some((item) => item.availabilityStatus !== 'ready');
+  const conversationReadyCount = purposeCapabilities.filter((item) => item.codexVisibility === 'visible').length;
+  const homeShortcutCount = purposeCapabilities.filter((item) => {
+    const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
+    return shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
+  }).length;
 
   const openAddCapability = () => {
     setManagementOpen(true);
@@ -658,7 +663,50 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         </div>
       </header>
 
-      <div data-testid='settings-capabilities-primary'>
+      <div className='flex flex-col gap-14px' data-testid='settings-capabilities-primary'>
+        <div className='grid grid-cols-1 gap-12px md:grid-cols-3' data-testid='capability-summary-grid'>
+          <section className='opl-settings-section p-16px' data-testid='capability-summary-catalog'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.packageManager.title')}
+            </Typography.Text>
+            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
+              {t('settings.capabilitiesPage.packageManager.packageCount', {
+                count: purposeCapabilities.length,
+                total: purposeCapabilities.length,
+              })}
+            </Typography.Text>
+            <span
+              className={`opl-settings-status mt-10px ${
+                hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+              }`}
+            >
+              {t(`settings.capabilitiesPage.status.${hasCapabilityIssue ? 'attention' : 'ready'}`)}
+            </span>
+          </section>
+          <section className='opl-settings-section p-16px' data-testid='capability-summary-conversation'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.visibility.conversation')}
+            </Typography.Text>
+            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
+              {conversationReadyCount} / {purposeCapabilities.length}
+            </Typography.Text>
+            <Typography.Text className='mt-10px block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.visibility.conversationAvailable')}
+            </Typography.Text>
+          </section>
+          <section className='opl-settings-section p-16px' data-testid='capability-summary-home'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.visibility.home')}
+            </Typography.Text>
+            <Typography.Text className='mt-4px block text-16px font-600 text-t-primary'>
+              {homeShortcutCount} / {purposeCapabilities.length}
+            </Typography.Text>
+            <Typography.Text className='mt-10px block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.packageManager.catalogDescription')}
+            </Typography.Text>
+          </section>
+        </div>
+
         <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
           {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
           <span id='source' aria-hidden='true' />
@@ -666,10 +714,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           <div className='opl-settings-section__header'>
             <div>
               <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.packageManager.title')}
+                {t('settings.capabilitiesPage.packageManager.catalogTitle')}
               </Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.description')}
+                {t('settings.capabilitiesPage.packageManager.catalogDescription')}
               </Typography.Text>
             </div>
             <Typography.Text className='text-12px text-t-secondary'>

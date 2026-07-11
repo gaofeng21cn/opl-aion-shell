@@ -505,11 +505,15 @@ describe('CapabilitiesSettingsContent', () => {
     renderCapabilities(<Harness />);
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Capability directory')).toBeInTheDocument();
+    expect(screen.getAllByText('Capability directory').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('settings-page-capabilities')).toHaveClass('opl-settings-page');
-    expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
-    expect(screen.getAllByText('Available in conversations')).toHaveLength(5);
-    expect(screen.getAllByText('Show on Home')).toHaveLength(5);
+    expect(screen.getByTestId('capability-summary-grid')).toHaveClass('md:grid-cols-3');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 5 / 5');
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('3 / 5');
+    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('4 / 5');
+    const catalog = screen.getByTestId('agent-package-catalog');
+    expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(5);
+    expect(within(catalog).getAllByText('Show on Home')).toHaveLength(5);
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));

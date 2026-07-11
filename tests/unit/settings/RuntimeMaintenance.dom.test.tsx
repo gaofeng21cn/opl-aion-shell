@@ -238,6 +238,7 @@ describe('RuntimeSettings maintenance structure', () => {
   it('keeps healthy rows quiet and moves technical actions out of the primary maintenance list', () => {
     render(<RuntimeSettings />);
 
+    expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );

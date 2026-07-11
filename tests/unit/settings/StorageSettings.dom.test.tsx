@@ -257,17 +257,17 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
   });
 
-  it('renders one actionable category list and keeps technical storage paths in details', async () => {
+  it('renders bounded storage category cards and keeps technical storage paths in details', async () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const categoryList = screen.getByTestId('storage-category-list');
-    expect(categoryList).toHaveTextContent('Total');
-    expect(categoryList).toHaveTextContent('100 B');
-    expect(categoryList).toHaveTextContent('Local data');
-    expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
+    expect(categoryList).toHaveClass('md:grid-cols-2');
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total');
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Local data');
     expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
     expect(
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
