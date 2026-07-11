@@ -289,7 +289,8 @@ async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): 
 
 async function openConversationModelMenu(page: Page): Promise<void> {
   await page.locator('[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn').first().click();
-  await expect(page.locator('.arco-trigger-popup:has(.arco-menu)').last()).toBeVisible();
+  await expect(page.getByText(/Auto \(recommended\)/i).last()).toBeVisible();
+  await expect(page.locator('.arco-menu:has-text("Auto")').last()).toBeVisible();
 }
 
 async function openEnvironmentPopover(page: Page): Promise<void> {
@@ -486,7 +487,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       anchors: [
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
         anchor('conversation_model_control', '[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn'),
-        anchor('conversation_model_menu', '.arco-trigger-popup:has(.arco-menu)'),
+        anchor('conversation_model_menu', '.arco-menu:has-text("Auto")'),
       ],
       coverageGaps: [],
       setup: async (page) => {
@@ -496,12 +497,8 @@ function buildTargets(conversationId: string): VisualTarget[] {
       },
       layoutChecks: async (page) => [
         ...(await conversationChecks(page)),
-        await viewportCheck(page, 'conversation_model_menu_within_viewport', '.arco-trigger-popup:has(.arco-menu)'),
-        await textOverflowCheck(
-          page,
-          'conversation_model_menu_text_does_not_overflow',
-          '.arco-trigger-popup:has(.arco-menu)'
-        ),
+        await viewportCheck(page, 'conversation_model_menu_within_viewport', '.arco-menu:has-text("Auto")'),
+        await textOverflowCheck(page, 'conversation_model_menu_text_does_not_overflow', '.arco-menu:has-text("Auto")'),
       ],
     },
     {
