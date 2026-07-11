@@ -24,7 +24,8 @@ vi.mock('@/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
+    t: (key: string, options?: Record<string, unknown>) =>
+      key === 'conversation.sidePanel.title' ? 'Files & Workspace' : String(options?.defaultValue ?? key),
     i18n: { language: 'zh-CN' },
   }),
 }));
@@ -55,17 +56,20 @@ vi.mock('@/renderer/pages/conversation/components/ChatLayout', () => ({
   default: ({
     environmentSlot,
     sider,
+    siderTitle,
     currentTaskSlot,
     children,
   }: {
     environmentSlot?: React.ReactNode;
     sider?: React.ReactNode;
+    siderTitle?: React.ReactNode;
     currentTaskSlot?: React.ReactNode;
     children: React.ReactNode;
   }) => (
     <div>
       <div data-testid='chat-environment'>{environmentSlot}</div>
       <div data-testid='chat-current-task'>{currentTaskSlot}</div>
+      <div data-testid='chat-side-title'>{siderTitle}</div>
       <div data-testid='chat-side-panel'>{sider}</div>
       {children}
     </div>
@@ -73,7 +77,11 @@ vi.mock('@/renderer/pages/conversation/components/ChatLayout', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatSlider.tsx', () => ({
-  default: ({ actionsSlot }: { actionsSlot?: React.ReactNode }) => <div data-testid='chat-slider'>{actionsSlot}</div>,
+  default: ({ actionsSlot }: { actionsSlot?: React.ReactNode }) => (
+    <div data-testid='chat-slider' data-has-actions={actionsSlot ? 'true' : 'false'}>
+      {actionsSlot}
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout/ConversationEnvironmentPopover', () => ({
@@ -159,33 +167,37 @@ const codexConversation = (): TChatConversation =>
     },
   }) as TChatConversation;
 
-describe('ChatConversation Codex model surface', () => {
+describe('ChatConversation composer and side-panel surface', () => {
   beforeEach(() => {
     runtimeView.stopActiveTurn.mockClear();
   });
 
-  it('shows the App-owned model selector for Codex ACP conversations', () => {
+  it('keeps Codex model and cron controls out of the side panel', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
 
     expect(screen.getByTestId('acp-chat')).toBeInTheDocument();
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'gpt-5.5');
+    expect(screen.getByTestId('chat-slider')).toHaveAttribute('data-has-actions', 'false');
+    expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cron-job-manager')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chat-side-title')).toHaveTextContent('Files & Workspace');
   });
 
-  it('uses the App-owned model selector for Codex conversations', () => {
+  it('keeps legacy Codex history free of conversation side actions', () => {
     render(<ChatConversation conversation={codexConversation()} />);
 
     expect(screen.getByTestId('legacy-read-only-conversation')).toBeInTheDocument();
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'gpt-5.5');
-    expect(screen.queryByTestId('google-model-selector')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chat-slider')).toHaveAttribute('data-has-actions', 'false');
+    expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cron-job-manager')).not.toBeInTheDocument();
   });
 
-  it('keeps the model selector for non-Codex ACP agents', () => {
+  it('keeps non-Codex ACP side panels free of model and cron actions', () => {
     render(<ChatConversation conversation={acpConversation('claude')} />);
 
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'claude');
-    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'claude-opus-4.5');
+    expect(screen.getByTestId('acp-chat')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-slider')).toHaveAttribute('data-has-actions', 'false');
+    expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cron-job-manager')).not.toBeInTheDocument();
   });
 
   it('does not pass AionUI Team MCP snapshots into ordinary ACP conversations', () => {

@@ -8,8 +8,6 @@ import { ipcBridge } from '@/common';
 import type { IConversationMcpStatus, IProvider, TChatConversation, TProviderWithModel } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/icons/add-chat.svg';
-import { CronJobManager } from '@/renderer/pages/cron';
-import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { usePresetAssistantInfo, resolveAssistantConfigId } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/styles/colors';
 import { Button, Dropdown, Menu, Message, Tooltip, Typography } from '@arco-design/web-react';
@@ -23,30 +21,17 @@ import AcpChat from '../platforms/acp/AcpChat';
 import ChatLayout from './ChatLayout';
 import ChatSlider from './ChatSlider.tsx';
 import ConversationEnvironmentPopover from './ChatLayout/ConversationEnvironmentPopover';
-import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import { saveAionrsDefaultModel } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
-import GoogleModelSelector from '../platforms/gemini/GoogleModelSelector';
 import AionrsChat from '../platforms/aionrs/AionrsChat';
-import AionrsModelSelector from '../platforms/aionrs/AionrsModelSelector';
 import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import LegacyReadOnlyConversation from '../platforms/legacy/LegacyReadOnlyConversation';
 import { useConversationRuntimeView } from '../runtime/useConversationRuntimeView';
 import CurrentTaskAwareness from '../runtime/CurrentTaskAwareness';
 import { isLegacyReadOnlyConversationType } from '../utils/conversationRuntime';
-import {
-  isOplCodexCliFixedExecutor,
-  sanitizeOplOrdinaryConversationExtra,
-  shouldShowOplConversationModelSelector,
-} from '@/common/config/oplProductProfile';
+import { sanitizeOplOrdinaryConversationExtra } from '@/common/config/oplProductProfile';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
-
-/** Check whether a specific skill is mounted on the conversation. */
-const hasLoadedSkill = (conversation: TChatConversation | undefined, skillName: string): boolean => {
-  const skills = (conversation?.extra as { skills?: string[] } | undefined)?.skills;
-  return skills?.includes(skillName) ?? false;
-};
 
 const getConversationBranch = (conversation: TChatConversation | undefined): string | undefined => {
   const extra = conversation?.extra as Record<string, unknown> | undefined;
@@ -55,6 +40,7 @@ const getConversationBranch = (conversation: TChatConversation | undefined): str
 };
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const { t } = useTranslation();
   const { data } = useSWR(['getAssociateConversation', conversation_id], () =>
     ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id })
   );
@@ -87,6 +73,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
     >
       <Button
         size='mini'
+        aria-label={t('conversation.history.title')}
         icon={
           <History
             theme='filled'
@@ -111,7 +98,8 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
     <Tooltip content={t('conversation.workspace.createNewConversation')}>
       <Button
         size='mini'
-        icon={<img src={addChatIcon} alt='Add chat' className='w-14px h-14px block m-auto' />}
+        aria-label={t('conversation.workspace.createNewConversation')}
+        icon={<img src={addChatIcon} alt='' aria-hidden='true' className='w-14px h-14px block m-auto' />}
         onClick={async () => {
           if (isCreatingRef.current) return;
           isCreatingRef.current = true;
@@ -183,30 +171,11 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
   });
   const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
   const aionrsAssistantId = resolveAssistantConfigId(conversation) ?? undefined;
-  const layout = useLayoutContext();
-  // Mobile: model selection moved into the sendbox `+` action sheet to free up
-  // header space; the dropdown stays available on desktop and tablets ≥768px.
-  const isMobile = Boolean(layout?.isMobile);
 
   const chatLayoutProps = {
     title: conversation.name,
     siderTitle: sliderTitle,
-    sider: (
-      <ChatSlider
-        conversation={conversation}
-        currentTask={runtimeView.currentTask}
-        actionsSlot={
-          <div className='flex items-center gap-8px'>
-            <CronJobManager
-              conversation_id={conversation.id}
-              cron_job_id={conversation.extra?.cron_job_id as string | undefined}
-              hasCronSkill={hasLoadedSkill(conversation, 'cron')}
-            />
-            {!isMobile && <AionrsModelSelector selection={modelSelection} />}
-          </div>
-        }
-      />
-    ),
+    sider: <ChatSlider conversation={conversation} currentTask={runtimeView.currentTask} />,
     environmentSlot: (
       <ConversationEnvironmentPopover conversation={conversation} currentTask={runtimeView.currentTask} />
     ),
@@ -255,8 +224,6 @@ const ChatConversation: React.FC<{
   hideSendBox?: boolean;
 }> = ({ conversation, hideSendBox }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = Boolean(layout?.isMobile);
 
   const isAionrsConversation = conversation?.type === 'aionrs';
   const isLegacyReadOnlyConversation = isLegacyReadOnlyConversationType(conversation?.type);
@@ -321,45 +288,6 @@ const ChatConversation: React.FC<{
     );
   }, [t]);
 
-  // ACP and Codex conversations expose the same model selector surface; Codex
-  // resolves its default through the App-owned auto-latest policy. Mobile model
-  // selection moves into the sendbox `+` action sheet, so the header selector is
-  // suppressed.
-  const modelSelector = useMemo(() => {
-    if (!conversation || isAionrsConversation) return undefined;
-    if (isMobile) return undefined;
-    if (isLegacyReadOnlyConversation && conversation.type !== 'codex') return undefined;
-    if (conversation.type === 'acp') {
-      const extra = conversation.extra as { backend?: string; current_model_id?: string };
-      if (extra.backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplConversationModelSelector()) {
-        return undefined;
-      }
-      return (
-        <AcpModelSelector
-          conversation_id={conversation.id}
-          backend={extra.backend}
-          initialModelId={extra.current_model_id}
-          waitForWarmup
-        />
-      );
-    }
-    if (conversation.type === 'codex' && isOplCodexCliFixedExecutor()) {
-      if (!shouldShowOplConversationModelSelector()) {
-        return undefined;
-      }
-      const extra = conversation.extra as { current_model_id?: string; codexModel?: string } | undefined;
-      return (
-        <AcpModelSelector
-          conversation_id={conversation.id}
-          backend='codex'
-          initialModelId={extra?.current_model_id ?? extra?.codexModel}
-          waitForWarmup
-        />
-      );
-    }
-    return <GoogleModelSelector disabled={true} />;
-  }, [conversation, isAionrsConversation, isMobile, isLegacyReadOnlyConversation]);
-
   if (conversation && conversation.type === 'aionrs') {
     return <AionrsConversationPanel key={conversation.id} conversation={conversation} sliderTitle={sliderTitle} />;
   }
@@ -390,28 +318,13 @@ const ChatConversation: React.FC<{
           agent_name: conversationAgentName,
         };
 
-  const actionsNode = (
-    <div className='flex items-center gap-8px'>
-      {conversation && (
-        <div className='shrink-0'>
-          <CronJobManager
-            conversation_id={conversation.id}
-            cron_job_id={conversation.extra?.cron_job_id as string | undefined}
-            hasCronSkill={hasLoadedSkill(conversation, 'cron')}
-          />
-        </div>
-      )}
-      {modelSelector && <div className='shrink-0'>{modelSelector}</div>}
-    </div>
-  );
-
   return (
     <ChatLayout
       title={conversation?.name}
       {...chatLayoutProps}
       environmentSlot={<ConversationEnvironmentPopover conversation={conversation} currentTask={currentTask} />}
       siderTitle={sliderTitle}
-      sider={<ChatSlider conversation={conversation} currentTask={currentTask} actionsSlot={actionsNode} />}
+      sider={<ChatSlider conversation={conversation} currentTask={currentTask} />}
       currentTaskSlot={
         <CurrentTaskAwareness
           task={currentTask}
