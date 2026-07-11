@@ -14,6 +14,7 @@ import { openExternalUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import OplConnectionsSection, { buildConnectionRegistry } from './OplConnectionsSection';
 import {
   buildAccessProjection,
   type DockerWebuiAction,
@@ -32,7 +33,6 @@ type DockerActionEvidence = {
   receiptSummary: string | null;
   receiptRef: string | null;
 };
-
 function assertOplCommandOk(result: OplCommandResult): void {
   if (result?.ok === false) {
     throw new Error(result.error?.message || result.error?.stderr || 'OPL command failed');
@@ -204,6 +204,7 @@ export const ResourcesSettingsContent: React.FC = () => {
   const [actionEvidence, setActionEvidence] = useState<DockerActionEvidence | null>(null);
   const actionInFlightRef = useRef(false);
   const { dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
+  const connectionRegistry = buildConnectionRegistry(appStateQuery.appState);
   const workspaceSources = resourceSources.filter((source) => source.category === 'oplWorkspace');
   const externalSources = resourceSources.filter((source) => source.category !== 'oplWorkspace');
   const dockerReadiness = dockerResourceReadiness(dockerWebui);
@@ -276,6 +277,33 @@ export const ResourcesSettingsContent: React.FC = () => {
       await appStateQuery.load('fast', { showRefreshing: true });
     } catch {
       Message.error(t('settings.resourcesPage.docker.actionExecuteFailed'));
+    } finally {
+      actionInFlightRef.current = false;
+      setRunningActionId(null);
+    }
+  };
+
+  const executeConnectionAction = async (
+    actionId: string,
+    payloadRefsOnlyJson: Record<string, unknown>
+  ): Promise<boolean> => {
+    if (actionInFlightRef.current) return false;
+    actionInFlightRef.current = true;
+    const actionToken = `${actionId}:${String(payloadRefsOnlyJson.connection_id ?? '')}`;
+    setRunningActionId(actionToken);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId,
+        dryRun: false,
+        payloadRefsOnlyJson,
+      });
+      assertOplCommandOk(result);
+      Message.success(t(`settings.resourcesPage.oplConnections.actions.${actionId}Success`));
+      await appStateQuery.load('fast', { showRefreshing: true });
+      return true;
+    } catch {
+      Message.error(t(`settings.resourcesPage.oplConnections.actions.${actionId}Failed`));
+      return false;
     } finally {
       actionInFlightRef.current = false;
       setRunningActionId(null);
@@ -445,8 +473,14 @@ export const ResourcesSettingsContent: React.FC = () => {
         </section>
       </div>
 
+      <OplConnectionsSection
+        registry={connectionRegistry}
+        runningActionId={runningActionId}
+        onAction={executeConnectionAction}
+      />
+
       {resourceSources.length === 0 ? (
-        <section className='opl-settings-section' id='external-resources'>
+        <section className='opl-settings-section' id='reported-resources'>
           <div className='opl-settings-row' data-testid='opl-settings-resource-sources-empty'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-center gap-10px'>
               <LinkCloud className='shrink-0 text-t-secondary' theme='outline' />
@@ -471,7 +505,7 @@ export const ResourcesSettingsContent: React.FC = () => {
             />
           </section>
 
-          <section className='flex flex-col gap-12px' id='external-resources'>
+          <section className='flex flex-col gap-12px' id='reported-resources'>
             <div>
               <Typography.Text className='block font-600 text-t-primary'>
                 {t('settings.resourcesPage.connections.title')}

@@ -1954,6 +1954,60 @@
       "addConnection": "Add connection",
       "addConnectionUnavailable": "This environment does not currently provide a connection setup entry point."
     },
+    "oplConnections": {
+      "title": "OPL connections",
+      "description": "Manage reusable service connections without storing credentials in the App.",
+      "add": "Add connection",
+      "empty": "No OPL connections yet. Add one to make a service endpoint available to OPL.",
+      "default": "Default",
+      "test": "Test",
+      "setDefault": "Set default",
+      "defaultDeleteHelp": "Select another default connection before deleting this one.",
+      "codexCredentialSummary": "Uses the current Codex access credential",
+      "envCredentialSummary": "Uses environment variable {{name}}",
+      "otherConnectionType": "Other service connection",
+      "deleteTitle": "Delete connection?",
+      "deleteDescription": "This removes the connection reference from OPL. It does not delete the referenced environment variable or provider credential.",
+      "status": {
+        "untested": "Not tested",
+        "ready": "Ready",
+        "attention_needed": "Needs attention",
+        "disabled": "Disabled"
+      },
+      "statusCode": {
+        "credential_env_missing": "The referenced environment variable is not configured.",
+        "codex_selected_provider_unavailable": "The current Codex access is not ready.",
+        "endpoint_invalid": "The service address is invalid.",
+        "endpoint_scheme_unsupported": "The service address must use HTTP or HTTPS.",
+        "generic": "Check this connection before using it."
+      },
+      "form": {
+        "createTitle": "Add OPL connection",
+        "editTitle": "Edit OPL connection",
+        "connectionId": "Connection ID",
+        "name": "Name",
+        "type": "Connection type",
+        "openAiCompatible": "OpenAI-compatible API",
+        "endpoint": "Endpoint",
+        "credential": "Credential reference",
+        "codexCredential": "Selected Codex provider",
+        "envCredential": "Environment variable",
+        "envName": "Environment variable name",
+        "disabled": "Disabled"
+      },
+      "actions": {
+        "connection_createSuccess": "Connection added.",
+        "connection_createFailed": "The connection could not be added.",
+        "connection_updateSuccess": "Connection updated.",
+        "connection_updateFailed": "The connection could not be updated.",
+        "connection_deleteSuccess": "Connection deleted.",
+        "connection_deleteFailed": "The connection could not be deleted.",
+        "connection_testSuccess": "Connection test completed.",
+        "connection_testFailed": "The connection test failed.",
+        "connection_set_defaultSuccess": "Default connection updated.",
+        "connection_set_defaultFailed": "The default connection could not be updated."
+      }
+    },
     "statusLabels": {
       "action_available": "Available",
       "available": "Available",

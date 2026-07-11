@@ -11,6 +11,7 @@ const resourcesSettingsMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openExternalUrl: vi.fn(),
   resourceSources: null as Record<string, unknown> | null,
+  connectionRegistry: null as Record<string, unknown> | null,
   payloadOnly: false,
 }));
 
@@ -118,21 +119,64 @@ vi.mock('@arco-design/web-react', () => {
     children,
     visible,
     title,
-    footer: _footer,
+    footer,
     onCancel: _onCancel,
+    unmountOnExit: _unmountOnExit,
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & {
     visible?: boolean;
     title?: React.ReactNode;
     footer?: React.ReactNode;
     onCancel?: () => void;
+    unmountOnExit?: boolean;
   }) =>
     visible ? (
       <div {...props}>
         <div>{title}</div>
         {children}
+        {footer}
       </div>
     ) : null;
+  const Input = ({
+    status: _status,
+    value,
+    onChange,
+    ...props
+  }: {
+    status?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+  } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) => (
+    <input {...props} value={value} onChange={(event) => onChange?.(event.target.value)} />
+  );
+  const Select = ({
+    value,
+    options = [],
+    onChange,
+    ...props
+  }: {
+    value?: string;
+    options?: Array<{ label: React.ReactNode; value: string }>;
+    onChange?: (value: string) => void;
+  } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'>) => (
+    <select {...props} value={value} onChange={(event) => onChange?.(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+  const Switch = ({
+    checked,
+    onChange,
+    ...props
+  }: {
+    checked?: boolean;
+    onChange?: (checked: boolean) => void;
+  } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) => (
+    <input {...props} type='checkbox' checked={checked} onChange={(event) => onChange?.(event.target.checked)} />
+  );
   const Tooltip = ({
     children,
     content: _content,
@@ -154,8 +198,11 @@ vi.mock('@arco-design/web-react', () => {
       success: vi.fn(message),
       error: vi.fn(message),
     },
+    Input,
     Modal,
+    Select,
     Space,
+    Switch,
     Tag,
     Tooltip,
     Typography: { Text, Title },
@@ -183,6 +230,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         },
       },
       settings_control_center: {
+        connection_registry: resourcesSettingsMocks.connectionRegistry,
         app_settings_read_model: {
           docker_webui: {
             ordinary_status: 'action_available',
@@ -321,6 +369,43 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.connections.empty': '当前没有上报工作区或外部连接。',
         'settings.resourcesPage.connections.addConnection': '添加连接',
         'settings.resourcesPage.connections.addConnectionUnavailable': '当前未上报可执行的连接配置入口。',
+        'settings.resourcesPage.oplConnections.title': 'OPL 连接',
+        'settings.resourcesPage.oplConnections.description': '管理可复用的服务连接。',
+        'settings.resourcesPage.oplConnections.add': '添加连接',
+        'settings.resourcesPage.oplConnections.empty': '尚未添加 OPL 连接。',
+        'settings.resourcesPage.oplConnections.default': '默认',
+        'settings.resourcesPage.oplConnections.test': '测试',
+        'settings.resourcesPage.oplConnections.setDefault': '设为默认',
+        'settings.resourcesPage.oplConnections.defaultDeleteHelp': '请先更换默认连接。',
+        'settings.resourcesPage.oplConnections.codexCredentialSummary': '使用当前 Codex 访问凭据',
+        'settings.resourcesPage.oplConnections.envCredentialSummary': `使用环境变量 ${options?.name ?? ''}`,
+        'settings.resourcesPage.oplConnections.status.untested': '未测试',
+        'settings.resourcesPage.oplConnections.status.ready': '已就绪',
+        'settings.resourcesPage.oplConnections.status.attention_needed': '需要处理',
+        'settings.resourcesPage.oplConnections.status.disabled': '已停用',
+        'settings.resourcesPage.oplConnections.statusCode.credential_env_missing': '对应环境变量尚未配置。',
+        'settings.resourcesPage.oplConnections.statusCode.generic': '连接需要检查后才能使用。',
+        'settings.resourcesPage.oplConnections.form.createTitle': '添加 OPL 连接',
+        'settings.resourcesPage.oplConnections.form.editTitle': '编辑 OPL 连接',
+        'settings.resourcesPage.oplConnections.form.connectionId': '连接 ID',
+        'settings.resourcesPage.oplConnections.form.name': '名称',
+        'settings.resourcesPage.oplConnections.form.type': '连接类型',
+        'settings.resourcesPage.oplConnections.form.openAiCompatible': 'OpenAI 兼容 API',
+        'settings.resourcesPage.oplConnections.form.endpoint': '服务地址',
+        'settings.resourcesPage.oplConnections.form.credential': '凭据引用',
+        'settings.resourcesPage.oplConnections.form.codexCredential': '当前 Codex Provider',
+        'settings.resourcesPage.oplConnections.form.envCredential': '环境变量',
+        'settings.resourcesPage.oplConnections.form.envName': '环境变量名称',
+        'settings.resourcesPage.oplConnections.form.disabled': '停用',
+        'settings.resourcesPage.oplConnections.deleteTitle': '删除连接？',
+        'settings.resourcesPage.oplConnections.deleteDescription': '移除连接引用。',
+        'settings.resourcesPage.oplConnections.actions.connection_createSuccess': '连接已添加。',
+        'settings.resourcesPage.oplConnections.actions.connection_testSuccess': '连接测试已完成。',
+        'settings.resourcesPage.oplConnections.actions.connection_set_defaultSuccess': '默认连接已更新。',
+        'settings.resourcesPage.oplConnections.actions.connection_deleteSuccess': '连接已删除。',
+        'common.cancel': '取消',
+        'common.save': '保存',
+        'common.delete': '删除',
         'settings.resourcesPage.statusLabels.action_available': '可用',
         'settings.resourcesPage.statusLabels.available': '可用',
         'settings.resourcesPage.statusLabels.attention_required': '需要检查',
@@ -367,6 +452,7 @@ describe('ResourcesSettingsContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getMocks().resourceSources = createResourceSources();
+    getMocks().connectionRegistry = null;
     getMocks().payloadOnly = false;
     getMocks().executeActionInvoke.mockResolvedValue({
       surface: 'app_action',
@@ -380,6 +466,85 @@ describe('ResourcesSettingsContent', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
+  });
+
+  it('renders handle-only OPL connections and routes management actions through the App action bridge', async () => {
+    const mocks = getMocks();
+    mocks.connectionRegistry = {
+      default_connection_id: 'primary',
+      connections: [
+        {
+          connection_id: 'primary',
+          name: 'Primary API',
+          connection_type: 'openai_compatible',
+          endpoint: 'https://api.example.test/v1',
+          credential_handle: 'env:PRIMARY_API_TOKEN',
+          status: 'attention_needed',
+          status_code: 'credential_env_missing',
+        },
+        {
+          connection_id: 'secondary',
+          name: 'Codex access',
+          connection_type: 'openai_compatible',
+          endpoint: '',
+          credential_handle: 'codex:selected_provider',
+          status: 'ready',
+        },
+      ],
+    };
+    mocks.executeActionInvoke.mockResolvedValue({ ok: true, parsed: {} });
+    const view = renderResources();
+
+    expect(view.getByTestId('opl-connections-section')).toBeTruthy();
+    expect(view.getByText('Primary API')).toBeTruthy();
+    expect(view.getByText('使用环境变量 PRIMARY_API_TOKEN')).toBeTruthy();
+    expect(view.getByText('对应环境变量尚未配置。')).toBeTruthy();
+    expect(view.getByTestId('opl-connection-delete-primary')).toBeDisabled();
+
+    fireEvent.click(view.getByTestId('opl-connection-test-secondary'));
+    await waitFor(() => {
+      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'connection_test',
+        dryRun: false,
+        payloadRefsOnlyJson: { connection_id: 'secondary' },
+      });
+    });
+    expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true });
+  });
+
+  it('creates a connection from a credential handle without accepting a secret body', async () => {
+    const mocks = getMocks();
+    mocks.executeActionInvoke.mockResolvedValue({ ok: true, parsed: {} });
+    const view = renderResources();
+
+    fireEvent.click(view.getByTestId('opl-settings-add-connection'));
+    fireEvent.change(view.getByTestId('opl-connection-field-id'), { target: { value: 'research-api' } });
+    fireEvent.change(view.getByTestId('opl-connection-field-name'), { target: { value: 'Research API' } });
+    fireEvent.change(view.getByTestId('opl-connection-field-endpoint'), {
+      target: { value: 'https://research.example.test/v1' },
+    });
+    fireEvent.change(view.getByTestId('opl-connection-field-credential-kind'), { target: { value: 'env' } });
+    fireEvent.change(view.getByTestId('opl-connection-field-env-name'), {
+      target: { value: 'RESEARCH_API_TOKEN' },
+    });
+    fireEvent.click(view.getByTestId('opl-connection-form-submit'));
+
+    await waitFor(() => {
+      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'connection_create',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          connection_id: 'research-api',
+          name: 'Research API',
+          connection_type: 'openai_compatible',
+          endpoint: 'https://research.example.test/v1',
+          credential_handle: 'env:RESEARCH_API_TOKEN',
+          disabled: false,
+        },
+      });
+    });
+    expect(JSON.stringify(mocks.executeActionInvoke.mock.calls)).not.toContain('api_key');
+    expect(JSON.stringify(mocks.executeActionInvoke.mock.calls)).not.toContain('password');
   });
 
   it('renders action-oriented resource groups without exposing raw control-plane details by default', () => {
@@ -580,7 +745,7 @@ describe('ResourcesSettingsContent', () => {
     expect(view.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
     expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
     expect(view.getByText('当前没有上报工作区或外部连接。')).toBeTruthy();
-    expect(view.queryByTestId('opl-settings-add-connection')).toBeNull();
+    expect(view.getByTestId('opl-settings-add-connection')).toBeTruthy();
     expect(view.queryAllByText('OPL Workspace')).toHaveLength(0);
   });
 

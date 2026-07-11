@@ -1955,6 +1955,60 @@
       "addConnection": "添加连接",
       "addConnectionUnavailable": "当前环境尚未提供可用的连接配置入口。"
     },
+    "oplConnections": {
+      "title": "OPL 连接",
+      "description": "管理可复用的服务连接，App 不保存凭据正文。",
+      "add": "添加连接",
+      "empty": "尚未添加 OPL 连接。添加后即可让 OPL 使用对应的服务入口。",
+      "default": "默认",
+      "test": "测试",
+      "setDefault": "设为默认",
+      "defaultDeleteHelp": "请先把其他连接设为默认，再删除这个连接。",
+      "codexCredentialSummary": "使用当前 Codex 访问凭据",
+      "envCredentialSummary": "使用环境变量 {{name}}",
+      "otherConnectionType": "其他服务连接",
+      "deleteTitle": "删除连接？",
+      "deleteDescription": "这会从 OPL 移除连接引用，不会删除对应的环境变量或 Provider 凭据。",
+      "status": {
+        "untested": "未测试",
+        "ready": "已就绪",
+        "attention_needed": "需要处理",
+        "disabled": "已停用"
+      },
+      "statusCode": {
+        "credential_env_missing": "对应环境变量尚未配置。",
+        "codex_selected_provider_unavailable": "当前 Codex 访问尚未就绪。",
+        "endpoint_invalid": "服务地址格式无效。",
+        "endpoint_scheme_unsupported": "服务地址必须使用 HTTP 或 HTTPS。",
+        "generic": "连接需要检查后才能使用。"
+      },
+      "form": {
+        "createTitle": "添加 OPL 连接",
+        "editTitle": "编辑 OPL 连接",
+        "connectionId": "连接 ID",
+        "name": "名称",
+        "type": "连接类型",
+        "openAiCompatible": "OpenAI 兼容 API",
+        "endpoint": "服务地址",
+        "credential": "凭据引用",
+        "codexCredential": "当前选择的 Codex Provider",
+        "envCredential": "环境变量",
+        "envName": "环境变量名称",
+        "disabled": "停用"
+      },
+      "actions": {
+        "connection_createSuccess": "连接已添加。",
+        "connection_createFailed": "无法添加连接。",
+        "connection_updateSuccess": "连接已更新。",
+        "connection_updateFailed": "无法更新连接。",
+        "connection_deleteSuccess": "连接已删除。",
+        "connection_deleteFailed": "无法删除连接。",
+        "connection_testSuccess": "连接测试已完成。",
+        "connection_testFailed": "连接测试失败。",
+        "connection_set_defaultSuccess": "默认连接已更新。",
+        "connection_set_defaultFailed": "无法更新默认连接。"
+      }
+    },
     "statusLabels": {
       "action_available": "可用",
       "available": "可用",
