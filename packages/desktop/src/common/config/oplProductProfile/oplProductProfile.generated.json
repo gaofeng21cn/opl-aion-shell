@@ -67,7 +67,26 @@
         "purpose_entries_visible": ["research", "grant", "ppt", "book"],
         "purpose_entry_placement": "home_starters_and_capabilities_not_persistent_composer_selector",
         "dynamic_question_title": true,
-        "starter_limit": 4,
+        "starter_limit": null,
+        "starter_visibility_policy": "all_user_visible_configured_shortcuts",
+        "starter_order_policy": "stable_configured_order",
+        "starter_layout_policy": "responsive_wrap",
+        "starter_truncation_allowed": false,
+        "workspace_selector_policy": {
+          "primary_scope": "active_workspace_only",
+          "inactive_recent_directories_visible": false,
+          "management_entry": "registered_directories_modal",
+          "management_scope": "registered_workspaces",
+          "unregister_effect": "remove_registration_only",
+          "filesystem_delete_allowed": false,
+          "active_conversation_change_on_unregister": false
+        },
+        "home_shortcut_mutation_policy": {
+          "pending_scope": "single_shortcut",
+          "pending_key": "shortcut_id",
+          "other_shortcuts_remain_interactive": true,
+          "readback_mode": "background_no_page_loading"
+        },
         "projectless_conversation_supported": true,
         "text_chat_without_workspace": "available",
         "workspace_session_rail_default_state": "visible_wide_drawer_narrow",
