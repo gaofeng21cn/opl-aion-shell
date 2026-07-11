@@ -24,7 +24,7 @@ vi.mock('react-i18next', () => ({
 const tooltipProps = { disabled: true, popupVisible: false };
 
 describe('Sider navigation hierarchy', () => {
-  it('orders primary actions before history utilities and keeps account/help/settings in the footer', () => {
+  it('orders primary actions before history utilities and keeps the footer compact', () => {
     render(
       <div>
         <SiderToolbar isMobile={false} collapsed={false} siderTooltipProps={tooltipProps} onNewChat={vi.fn()} />
@@ -43,8 +43,6 @@ describe('Sider navigation hierarchy', () => {
           theme='light'
           siderTooltipProps={tooltipProps}
           onSettingsClick={vi.fn()}
-          onAccountClick={vi.fn()}
-          onHelpClick={vi.fn()}
           onThemeToggle={vi.fn()}
         />
       </div>
@@ -54,18 +52,9 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Archived', 'Capabilities', 'Account', 'Help', 'Settings']);
+    expect(labels).toEqual(['New task', 'Archived', 'Capabilities', 'Settings']);
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
-    for (const testId of [
-      'sider-nav-archived',
-      'sider-nav-capabilities',
-      'sider-footer-account',
-      'sider-footer-help',
-      'sider-footer-settings',
-    ]) {
-      const button = screen.getByTestId(testId);
-      expect(button.querySelector('.arco-btn-icon')).toBeNull();
-      expect(button.querySelectorAll(':scope > span')).toHaveLength(2);
-    }
+    expect(screen.queryByText('Account')).not.toBeInTheDocument();
+    expect(screen.queryByText('Help')).not.toBeInTheDocument();
   });
 });

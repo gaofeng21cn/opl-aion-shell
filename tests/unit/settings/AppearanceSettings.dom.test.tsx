@@ -86,6 +86,9 @@ vi.mock('react-i18next', () => ({
         'settings.personalPreferencesDesc': 'Set interface behavior, display fonts, and theme appearance.',
         'settings.appBehaviorPreferencesTitle': 'App behavior',
         'settings.appBehaviorPreferencesDesc': 'Daily application behavior.',
+        'settings.startupWindowPreferencesTitle': 'Startup and window',
+        'settings.performancePreferencesTitle': 'Performance and background activity',
+        'settings.filesNotificationsPreferencesTitle': 'Files and notifications',
         'settings.language': 'Language',
         'settings.startOnBoot': 'Start on boot',
         'settings.startOnBootDesc': 'Launch after sign-in.',
@@ -97,6 +100,7 @@ vi.mock('react-i18next', () => ({
         'settings.autoPreviewOfficeFilesDesc': 'Open new Office files automatically.',
         'settings.notification': 'Notifications',
         'settings.cronNotificationEnabled': 'Background task completion',
+        'settings.advancedSettings': 'Advanced preferences',
         'settings.timeoutPreferencesTitle': 'Responses and background activity',
         'settings.timeoutPreferencesDesc': 'Less common performance and background assistant settings.',
         'settings.promptTimeout': 'Model response timeout',
@@ -145,15 +149,18 @@ describe('AppearanceModalContent', () => {
     ]);
 
     const startupWindow = screen.getByTestId('preferences-startup-window-section');
+    expect(startupWindow).toHaveTextContent('Startup and window');
     expect(startupWindow).toHaveTextContent('Keep running after closing the window');
     expect(startupWindow).not.toHaveTextContent('Model response timeout');
 
     const modelsPerformance = screen.getByTestId('preferences-models-performance-section');
+    expect(modelsPerformance).toHaveTextContent('Performance and background activity');
     expect(modelsPerformance).toHaveTextContent('Model response timeout');
-    expect(modelsPerformance).toHaveTextContent('Release an idle background assistant after');
+    expect(modelsPerformance).not.toHaveTextContent('Release an idle background assistant after');
     await waitFor(() => expect(modelsPerformance).toHaveTextContent('Hardware acceleration'));
 
     const filesNotifications = screen.getByTestId('preferences-files-notifications-section');
+    expect(filesNotifications).toHaveTextContent('Files and notifications');
     expect(filesNotifications).toHaveTextContent('Save uploads to workspace');
     expect(filesNotifications).toHaveTextContent('Notifications');
 
@@ -167,5 +174,9 @@ describe('AppearanceModalContent', () => {
     expect(screen.getByTestId('preferences-theme-section')).toHaveTextContent('Theme appearance');
     expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
+
+    const advancedPreferences = screen.getByTestId('advanced-preferences');
+    expect(advancedPreferences).not.toHaveAttribute('open');
+    expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
   });
 });

@@ -277,6 +277,9 @@ const PersonalPreferenceSettings: React.FC = () => {
           },
         ]
       : []),
+  ];
+
+  const technicalPreferenceItems: PreferenceItem[] = [
     {
       key: 'agentIdleTimeout',
       label: t('settings.agentIdleTimeout'),
@@ -318,10 +321,8 @@ const PersonalPreferenceSettings: React.FC = () => {
           <span id='app-behavior' aria-hidden='true' />
           <span id='tray' aria-hidden='true' />
           <div className='opl-settings-section__header'>
-            <div className='flex flex-wrap items-center gap-x-6px gap-y-2px text-14px font-medium text-t-primary leading-22px'>
-              <span>{t('settings.startOnBoot')}</span>
-              <span aria-hidden='true'>/</span>
-              <span>{t('settings.closeToTray')}</span>
+            <div className='text-14px font-medium text-t-primary leading-22px'>
+              {t('settings.startupWindowPreferencesTitle')}
             </div>
           </div>
           <div className='opl-settings-list'>
@@ -342,7 +343,7 @@ const PersonalPreferenceSettings: React.FC = () => {
           <div className='opl-settings-section__header'>
             <div>
               <div className='text-14px font-medium text-t-primary leading-22px'>
-                {t('settings.timeoutPreferencesTitle')}
+                {t('settings.performancePreferencesTitle')}
               </div>
               <div className='text-12px text-t-tertiary mt-4px'>{t('settings.timeoutPreferencesDesc')}</div>
             </div>
@@ -362,10 +363,8 @@ const PersonalPreferenceSettings: React.FC = () => {
           data-testid='preferences-files-notifications-section'
         >
           <div className='opl-settings-section__header'>
-            <div className='flex flex-wrap items-center gap-x-6px gap-y-2px text-14px font-medium text-t-primary leading-22px'>
-              <span>{t('settings.saveUploadToWorkspace')}</span>
-              <span aria-hidden='true'>/</span>
-              <span>{t('settings.notification')}</span>
+            <div className='text-14px font-medium text-t-primary leading-22px'>
+              {t('settings.filesNotificationsPreferencesTitle')}
             </div>
           </div>
           <div className='opl-settings-list'>
@@ -386,6 +385,22 @@ const PersonalPreferenceSettings: React.FC = () => {
             </PreferenceRow>
           </div>
         </section>
+      </div>
+
+      <div data-testid='settings-preferences-technical-details'>
+        <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
+          <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+            {t('settings.advancedSettings')}
+          </summary>
+          <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
+          <div className='opl-settings-list mt-10px'>
+            {technicalPreferenceItems.map((item) => (
+              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+                {item.component}
+              </PreferenceRow>
+            ))}
+          </div>
+        </details>
       </div>
     </>
   );
