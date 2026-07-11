@@ -119,7 +119,7 @@ const AppearanceModalContent: React.FC = () => {
 
             <section className='opl-settings-section xl:col-span-2' id='themes' data-testid='preferences-theme-section'>
               <SectionHeading icon={<SwitchThemes theme='outline' size='16' />} title={t('settings.theme')} />
-              <div className='border-t border-solid border-border-2 p-16px'>
+              <div className='border-t border-solid border-[var(--border-base)] p-16px'>
                 <CssThemeSettings />
               </div>
             </section>

@@ -106,7 +106,7 @@ const SystemModalContent: React.FC = () => {
               </div>
             </div>
             <div
-              className='grid min-w-0 border-t border-solid border-border-2 sm:grid-cols-2'
+              className='grid min-w-0 border-t border-solid border-[var(--border-base)] sm:grid-cols-2'
               data-layout='path-status-grid'
             >
               <div className='min-w-0 p-16px'>
@@ -119,7 +119,7 @@ const SystemModalContent: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className='min-w-0 border-t border-solid border-border-2 p-16px sm:border-l sm:border-t-0'>
+              <div className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'>
                 <div className='mb-10px text-13px font-medium text-t-primary'>{t('settings.logDir')}</div>
                 <div>
                   <span

@@ -1271,11 +1271,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 return (
                   <section
                     key={`maintenance-hub-${item.key}`}
-                    className='opl-settings-section'
+                    className='opl-settings-section flex'
                     id={anchors[item.key]}
                     data-testid={`opl-maintenance-hub-${item.key}`}
                   >
-                    <div className='flex h-full flex-col gap-14px p-16px'>
+                    <div className='flex min-w-0 flex-1 flex-col gap-14px p-16px'>
                       <div>
                         <Typography.Text className='block font-600 text-t-primary'>{item.title}</Typography.Text>
                         <Typography.Text className='mt-4px block text-12px text-t-secondary'>

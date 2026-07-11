@@ -267,8 +267,12 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
 
       <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='settings-overview-summary-grid'>
         {summaryCards.map((card) => (
-          <section className='opl-settings-section' key={card.key} data-testid={`settings-overview-card-${card.key}`}>
-            <div className='flex h-full min-w-0 flex-col gap-12px p-16px'>
+          <section
+            className='opl-settings-section flex'
+            key={card.key}
+            data-testid={`settings-overview-card-${card.key}`}
+          >
+            <div className='flex min-w-0 flex-1 flex-col gap-12px p-16px'>
               <div className='flex min-w-0 items-start justify-between gap-12px'>
                 <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
                   {card.icon}

@@ -140,6 +140,11 @@ const resetSettingsScreenshotPointer = async (
   page: import('@playwright/test').Page,
   viewport: { width: number; height: number }
 ) => {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
   await page.mouse.move(viewport.width - 4, 48);
   await expect(page.locator('.settings-sider__item:hover')).toHaveCount(0);
   await expect(page.locator('.settings-mobile-top-nav__item:hover')).toHaveCount(0);

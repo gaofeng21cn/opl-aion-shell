@@ -109,11 +109,11 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
 
   return (
     <section
-      className='opl-settings-section'
+      className='opl-settings-section flex'
       id={SECTION_ANCHORS[item.id]}
       data-testid={`storage-inventory-${item.id}`}
     >
-      <div className='flex h-full flex-col gap-14px p-16px'>
+      <div className='flex min-w-0 flex-1 flex-col gap-14px p-16px'>
         <div className='min-w-0'>
           <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
           <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>

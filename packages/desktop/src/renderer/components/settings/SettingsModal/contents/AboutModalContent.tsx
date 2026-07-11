@@ -191,7 +191,7 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className='grid min-w-0 border-t border-solid border-border-2 sm:grid-cols-2'>
+              <div className='grid min-w-0 border-t border-solid border-[var(--border-base)] sm:grid-cols-2'>
                 <div className='min-w-0 p-16px'>
                   <div className='text-12px text-t-tertiary'>{t('settings.aboutAppVersion')}</div>
                   <div className='mt-6px break-words text-16px font-medium text-t-primary'>
@@ -199,7 +199,7 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
                 <div
-                  className='min-w-0 border-t border-solid border-border-2 p-16px sm:border-l sm:border-t-0'
+                  className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
                   id='channel'
                 >
                   <div className='text-12px text-t-tertiary'>{t('settings.aboutReleaseChannel')}</div>
@@ -227,7 +227,7 @@ const AboutModalContent: React.FC = () => {
                 </div>
               </div>
               {isElectron && (
-                <div className='flex min-w-0 justify-start border-t border-solid border-border-2 px-16px py-14px'>
+                <div className='flex min-w-0 justify-start border-t border-solid border-[var(--border-base)] px-16px py-14px'>
                   <span data-testid='settings-about-primary-action'>
                     <Button
                       type='primary'

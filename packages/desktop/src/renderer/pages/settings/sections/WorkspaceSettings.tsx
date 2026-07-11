@@ -154,12 +154,12 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
 
         <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='settings-workspace-primary'>
           <section
-            className={`opl-settings-section ${workspaceNeedsAction ? 'opl-settings-section--attention' : ''}`}
+            className={`opl-settings-section flex ${workspaceNeedsAction ? 'opl-settings-section--attention' : ''}`}
             id='current-workspace'
             data-testid='opl-workspace-settings-root'
           >
             <span id='work-directory' aria-hidden='true' />
-            <div className='flex h-full flex-col gap-16px p-16px'>
+            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
               <div className='flex min-w-0 items-start gap-10px'>
                 <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
                   <FolderOpen theme='outline' />
@@ -205,12 +205,12 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           </section>
 
           <section
-            className={`opl-settings-section ${permissionState === 'needsAction' ? 'opl-settings-section--attention' : ''}`}
+            className={`opl-settings-section flex ${permissionState === 'needsAction' ? 'opl-settings-section--attention' : ''}`}
             id='permissions'
             data-testid='opl-workspace-settings-permission'
           >
             {permissionState !== 'ready' && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
-            <div className='flex h-full flex-col gap-16px p-16px'>
+            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
               <div>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t('settings.workspacePage.permission.title')}
