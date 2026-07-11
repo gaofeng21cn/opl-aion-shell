@@ -67,12 +67,13 @@ export function initSystemSettingsBridge(): void {
     // Broadcast to all renderers FIRST (desktop + WebUI) for real-time sync.
     // This must happen before the potentially slow main-process i18n switch.
     ipcBridge.systemSettings.languageChanged.emit({ language });
-    _languageChangeListener?.();
 
     // Update main process i18n (non-blocking – don't let a hang here block the provider)
-    changeLanguage(language).catch((error) => {
-      console.error('[SystemSettings] Main process changeLanguage failed:', error);
-    });
+    changeLanguage(language)
+      .then(() => _languageChangeListener?.())
+      .catch((error) => {
+        console.error('[SystemSettings] Main process changeLanguage failed:', error);
+      });
   });
 
   // Restore keep-awake state on startup

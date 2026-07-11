@@ -124,10 +124,16 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
       ref={layerRef}
       className='fixed inset-0 z-90'
       aria-hidden={rightSiderCollapsed}
+      data-testid='conversation-side-panel-layer'
       style={{ pointerEvents: rightSiderCollapsed ? 'none' : 'auto' }}
     >
       {!rightSiderCollapsed && (
-        <div className='absolute inset-0 bg-black/30' onClick={() => setRightSiderCollapsed(true)} aria-hidden='true' />
+        <div
+          className='absolute inset-0 bg-black/30'
+          onClick={() => setRightSiderCollapsed(true)}
+          aria-hidden='true'
+          data-testid='conversation-side-panel-backdrop'
+        />
       )}
       <div
         ref={panelRef}
@@ -137,6 +143,7 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
         aria-label={t('conversation.sidePanel.title')}
         aria-hidden={rightSiderCollapsed}
         tabIndex={-1}
+        data-testid='conversation-side-panel-surface'
         style={{
           position: 'absolute',
           right: 0,

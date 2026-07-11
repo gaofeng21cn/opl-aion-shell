@@ -17,6 +17,7 @@ import {
 import { parseError, resolveLocaleKey, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
+import ConversationComposerContextStrip from '@/renderer/components/chat/ConversationComposerContextStrip';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -144,8 +145,19 @@ const AcpSendBox: React.FC<{
   session_mode?: string;
   agent_name?: string;
   workspacePath?: string;
+  branch?: string;
+  activeCapabilityLabel?: string;
   messageState: UseAcpMessageReturn;
-}> = ({ conversation_id, backend, session_mode, agent_name, workspacePath, messageState }) => {
+}> = ({
+  conversation_id,
+  backend,
+  session_mode,
+  agent_name,
+  workspacePath,
+  branch,
+  activeCapabilityLabel,
+  messageState,
+}) => {
   const {
     running,
     hasHydratedRunningState,
@@ -882,6 +894,11 @@ Please check your local CLI tool authentication status`,
         onClear={clear}
       />
       <ThoughtDisplay running={isBusy} onStop={handleStop} />
+      <ConversationComposerContextStrip
+        workspacePath={workspacePath}
+        branch={branch}
+        activeCapabilityLabel={activeCapabilityLabel}
+      />
 
       <SendBox
         onMobilePlusClick={isMobile ? () => setIsMobileSheetOpen(true) : undefined}

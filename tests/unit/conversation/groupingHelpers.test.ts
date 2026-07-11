@@ -4,6 +4,7 @@ import {
   buildArchivedHistory,
   buildGroupedHistory,
 } from '@/renderer/pages/conversation/GroupedHistory/utils/groupingHelpers';
+import { buildVisibleConversationIds } from '@/renderer/pages/conversation/GroupedHistory/utils/visibleConversationOrder';
 
 const conversation = (id: string, extra: Record<string, unknown> = {}): TChatConversation =>
   ({
@@ -35,5 +36,26 @@ describe('conversation history archive grouping', () => {
 
     expect(result.timelineSections[0]?.items.map((item) => item.conversation?.id)).toEqual(['newer', 'older']);
     expect(result.pinnedConversations).toEqual([]);
+  });
+
+  it('orders only visible ordinary conversations for task navigation', () => {
+    const result = buildGroupedHistory(
+      [
+        conversation('ordinary'),
+        conversation('pinned', { pinned: true, pinned_at: 2 }),
+        conversation('archived', { archived: true }),
+        conversation('team', { team_id: 'team-1' }),
+        conversation('cron', { cron_job_id: 'cron-1' }),
+      ],
+      t
+    );
+
+    expect(
+      buildVisibleConversationIds({
+        ...result,
+        expandedWorkspaces: [],
+        siderCollapsed: false,
+      })
+    ).toEqual(['pinned', 'ordinary']);
   });
 });

@@ -86,6 +86,10 @@ const getMarkdownMessageRoleLabel = (message: TMessage): string => {
   }
 };
 
+const getShareableMessages = (messages: TMessage[]): TMessage[] => {
+  return messages.filter((message) => message.type === 'text' || message.type === 'tips');
+};
+
 export const buildConversationMarkdown = (conversation: TChatConversation, messages: TMessage[]): string => {
   const lines: string[] = [];
   lines.push(`# ${conversation.name || 'Conversation'}`);
@@ -97,7 +101,7 @@ export const buildConversationMarkdown = (conversation: TChatConversation, messa
   lines.push('## Messages');
   lines.push('');
 
-  messages.forEach((message, index) => {
+  getShareableMessages(messages).forEach((message, index) => {
     lines.push(`### ${index + 1}. ${getMarkdownMessageRoleLabel(message)} (${message.type})`);
     lines.push('');
     lines.push('```text');
@@ -114,8 +118,17 @@ export const buildConversationJson = (conversation: TChatConversation, messages:
     {
       version: 1,
       exportedAt: new Date().toISOString(),
-      conversation,
-      messages,
+      conversation: {
+        id: conversation.id,
+        name: conversation.name,
+        type: conversation.type,
+      },
+      messages: getShareableMessages(messages).map((message, index) => ({
+        index: index + 1,
+        role: getMessageRoleKey(message),
+        type: message.type,
+        content: readMessageContent(message),
+      })),
     },
     null,
     2

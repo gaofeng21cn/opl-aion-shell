@@ -5,9 +5,10 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { ProjectContextRef } from '@/common/config/configKeys';
 import { addRecentWorkspace, getRecentWorkspaces } from '@/renderer/components/workspace';
-import { Tooltip } from '@arco-design/web-react';
-import { Close, Down } from '@icon-park/react';
+import { Button, Tooltip } from '@arco-design/web-react';
+import { BranchOne, Close, CloseSmall, Down, FileText, FolderClose } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +21,8 @@ type GuidWorkspaceFootnoteProps = {
   accessDisabled?: boolean;
   accessDisabledReason?: string;
   activeCapabilityLabel?: string;
+  projectContextRefs?: ProjectContextRef[];
+  onRemoveProjectContextRef?: (path: string) => void;
 };
 
 const FolderIcon = ({ size = 12 }: { size?: number }) => (
@@ -57,15 +60,35 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   accessDisabled = false,
   accessDisabledReason,
   activeCapabilityLabel,
+  projectContextRefs = [],
+  onRemoveProjectContextRef,
 }) => {
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [branch, setBranch] = useState<string>();
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBranch(undefined);
+    if (!workspaceDir) return;
+
+    void ipcBridge.fileSnapshot.getInfo
+      .invoke({ workspace: workspaceDir })
+      .then((info) => {
+        if (!cancelled && info.branch) setBranch(info.branch);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceDir]);
 
   const handleBrowseWorkspace = useCallback(() => {
     setOpen(false);
@@ -306,6 +329,14 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
       <span className={styles.contextStripMeta} data-testid='guid-local-context'>
         {t('guid.home.localContext')}
       </span>
+      {branch && (
+        <span className={styles.contextStripMeta} data-testid='guid-branch-context'>
+          <span className='inline-flex items-center gap-4px'>
+            <BranchOne size={12} />
+            {branch}
+          </span>
+        </span>
+      )}
       {!workspaceDir && (
         <span className={styles.contextStripMeta} data-testid='guid-projectless-limit'>
           {t('guid.home.projectlessTextOnly')}
@@ -316,6 +347,22 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
           {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
         </span>
       )}
+      {projectContextRefs.map((ref) => (
+        <Tooltip key={ref.path} content={ref.path} position='top'>
+          <span className={styles.projectContextRef} data-testid='guid-project-context-ref'>
+            {ref.isFile ? <FileText size={12} /> : <FolderClose size={12} />}
+            <span className={styles.projectContextRefName}>{ref.relativePath || ref.name}</span>
+            <Button
+              type='text'
+              size='mini'
+              className={styles.projectContextRefRemove}
+              icon={<CloseSmall size={11} />}
+              aria-label={t('conversation.history.projectContext.remove', { name: ref.name })}
+              onClick={() => onRemoveProjectContextRef?.(ref.path)}
+            />
+          </span>
+        </Tooltip>
+      ))}
     </div>
   );
 };

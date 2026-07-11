@@ -53,15 +53,15 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
           <Button
             type='text'
             className={classNames(
-              '!h-34px !w-full !rd-8px !text-t-primary !justify-start !px-10px !border-0',
+              '!h-34px !w-full !flex !items-center !gap-8px !rd-8px !text-t-primary !justify-start !px-10px !border-0',
               isMobile && 'sider-action-btn-mobile',
               collapsed && '!justify-center !px-0',
               entry.active ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3 active:!bg-fill-4'
             )}
-            icon={<span className='size-22px flex-center shrink-0'>{entry.icon}</span>}
             onClick={entry.onClick}
             data-testid={`sider-nav-${entry.key}`}
           >
+            <span className='size-22px flex-center shrink-0'>{entry.icon}</span>
             {!collapsed && <span className='text-14px font-[500] leading-24px'>{entry.label}</span>}
           </Button>
         </Tooltip>

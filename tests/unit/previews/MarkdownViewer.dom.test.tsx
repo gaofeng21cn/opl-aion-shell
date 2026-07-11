@@ -8,6 +8,26 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 
+const streamdownMocks = vi.hoisted(() => ({
+  props: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock('streamdown', () => ({
+  Streamdown: (props: Record<string, unknown>) => {
+    streamdownMocks.props.push(props);
+    return <div data-testid='streamdown'>{props.children as React.ReactNode}</div>;
+  },
+  defaultRemarkPlugins: {
+    gfm: 'remark-gfm-plugin',
+    math: 'remark-math-plugin',
+  },
+  defaultRehypePlugins: {
+    raw: 'rehype-raw-plugin',
+    sanitize: 'rehype-sanitize-plugin',
+    katex: 'rehype-katex-plugin',
+  },
+}));
+
 vi.mock('@/common', () => ({
   ipcBridge: {
     fs: {
@@ -70,9 +90,18 @@ vi.mock('react-i18next', () => ({
 import MarkdownViewer from '@/renderer/pages/conversation/Preview/components/viewers/MarkdownViewer';
 
 describe('MarkdownViewer', () => {
+  it('configures Streamdown for Shiki, Mermaid, and KaTeX rendering', () => {
+    render(<MarkdownViewer content={'```mermaid\ngraph TD; A-->B\n```\n\n$E=mc^2$'} />);
+
+    const props = streamdownMocks.props.at(-1);
+    expect(props?.shikiTheme).toBeTruthy();
+    expect(props?.mermaid).toEqual({ config: { theme: expect.any(String) } });
+    expect(props?.rehypePlugins).toContain('rehype-katex-plugin');
+  });
+
   it('renders markdown content in preview mode', () => {
     render(<MarkdownViewer content='# Hello World' />);
-    expect(screen.getByText('Hello World')).toBeInTheDocument();
+    expect(screen.getByTestId('streamdown')).toHaveTextContent('# Hello World');
   });
 
   it('renders MarkdownEditor in source mode', () => {

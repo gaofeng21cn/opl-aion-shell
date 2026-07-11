@@ -11,6 +11,7 @@ import { ProcessConfig } from '@process/utils/initStorage';
 import { getZoomFactor, setZoomFactor } from '@process/utils/zoom';
 import { getCdpStatus, updateCdpConfig } from '@process/utils/configureChromium';
 import { getGpuStatus, setGpuUserOverride } from '@process/utils/gpuRecovery';
+import { updateApplicationMenuNavigationState } from '@process/utils/appMenu';
 import { initApplicationBridgeCore } from './applicationBridgeCore';
 import type { IStartOnBootStatus } from '@/common/adapter/ipcBridge';
 import { restartApplication } from './restartApplication';
@@ -167,6 +168,10 @@ export function initApplicationBridge(): void {
     } else {
       console.info(...args);
     }
+  });
+
+  ipcBridge.application.setDesktopNavigationState.provider(async (state) => {
+    updateApplicationMenuNavigationState(state);
   });
 
   // CDP status and configuration

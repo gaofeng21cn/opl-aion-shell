@@ -321,6 +321,8 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     fileAccessDisabled,
     workspaceAccessDisabled,
     fileContextEnabled,
+    projectContextRefs,
+    onRemoveProjectContextRef,
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
@@ -328,6 +330,8 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
     fileContextEnabled?: boolean;
+    projectContextRefs?: Array<{ path: string; name: string }>;
+    onRemoveProjectContextRef?: (path: string) => void;
   }) => (
     <div data-testid='guid-input-card'>
       <div data-testid='guid-placeholder'>{placeholder}</div>
@@ -336,6 +340,15 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
       {fileContextEnabled === false ? <div data-testid='opl-guid-projectless-file-context-disabled' /> : null}
+      {projectContextRefs?.map((ref) => (
+        <button
+          key={ref.path}
+          data-testid='guid-route-project-context-ref'
+          onClick={() => onRemoveProjectContextRef?.(ref.path)}
+        >
+          {ref.name}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -493,6 +506,39 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mag');
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
+  });
+
+  it('preloads visible removable project refs from the project route without turning them into attachments', async () => {
+    mocks.guidInput.dir = '/workspace/research';
+    mocks.locationState.value = {
+      workspace: '/workspace/research',
+      projectContextRefs: [
+        {
+          path: '/workspace/research/docs/protocol.md',
+          name: 'protocol.md',
+          relativePath: 'docs/protocol.md',
+          isFile: true,
+        },
+      ],
+    };
+
+    render(<GuidPage />);
+
+    expect(await screen.findByTestId('guid-route-project-context-ref')).toHaveTextContent('protocol.md');
+    expect(mocks.setFiles).toHaveBeenCalledWith([]);
+    expect(mocks.setFiles).not.toHaveBeenCalledWith(expect.arrayContaining(['/workspace/research/docs/protocol.md']));
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          projectContextRefs: [expect.objectContaining({ path: '/workspace/research/docs/protocol.md' })],
+        })
+      )
+    );
+
+    await userEvent.click(screen.getByTestId('guid-route-project-context-ref'));
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ projectContextRefs: [] }))
+    );
   });
 
   it('loads only App-packaged available skills on the OPL home path', async () => {

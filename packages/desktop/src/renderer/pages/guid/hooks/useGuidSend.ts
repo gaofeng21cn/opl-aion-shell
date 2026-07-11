@@ -16,6 +16,7 @@ import {
   getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
+import type { ProjectContextRef } from '@/common/config/configKeys';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
@@ -53,6 +54,7 @@ export type GuidSendDeps = {
   setInput: React.Dispatch<React.SetStateAction<string>>;
   files: string[];
   setFiles: React.Dispatch<React.SetStateAction<string[]>>;
+  projectContextRefs: ProjectContextRef[];
   dir: string;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -158,6 +160,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setInput,
     files,
     setFiles,
+    projectContextRefs,
     dir,
     setDir,
     setLoading,
@@ -195,6 +198,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
+    const initialFiles = Array.from(new Set([...projectContextRefs.map((ref) => ref.path), ...files]));
 
     const agentInfo = selectedAgentInfo;
     const is_preset = is_presetAgent;
@@ -280,7 +284,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: files.length > 0 ? files : undefined,
+          files: initialFiles.length > 0 ? initialFiles : undefined,
         };
         sessionStorage.setItem(`openclaw_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -330,7 +334,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: files.length > 0 ? files : undefined,
+          files: initialFiles.length > 0 ? initialFiles : undefined,
         };
         sessionStorage.setItem(`nanobot_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -388,7 +392,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: files.length > 0 ? files : undefined,
+          files: initialFiles.length > 0 ? initialFiles : undefined,
         };
         sessionStorage.setItem(`aionrs_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -488,7 +492,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: files.length > 0 ? files : undefined,
+          files: initialFiles.length > 0 ? initialFiles : undefined,
         };
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -501,6 +505,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   }, [
     input,
     files,
+    projectContextRefs,
     dir,
     selectedAgent,
     selectedAgentKey,

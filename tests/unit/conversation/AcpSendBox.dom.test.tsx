@@ -323,6 +323,25 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
+  it('shows the ordinary conversation project, local, branch, and active capability strip', () => {
+    render(
+      <AcpSendBox
+        conversation_id='codex-conversation'
+        backend='codex'
+        workspacePath='/workspace/research'
+        branch='codex/context'
+        activeCapabilityLabel='Research'
+        messageState={messageState()}
+      />
+    );
+
+    expect(screen.getByTestId('conversation-composer-context-strip')).toBeInTheDocument();
+    expect(screen.getByTestId('composer-project-context')).toHaveTextContent('research');
+    expect(screen.getByTestId('composer-local-context')).toHaveTextContent('conversation.environment.local');
+    expect(screen.getByTestId('composer-branch-context')).toHaveTextContent('codex/context');
+    expect(screen.getByTestId('composer-active-capability')).toHaveTextContent('guid.home.activeCapability');
+  });
+
   it('shows the mobile permission action for ordinary Codex conversations', () => {
     isMobileLayout = true;
 

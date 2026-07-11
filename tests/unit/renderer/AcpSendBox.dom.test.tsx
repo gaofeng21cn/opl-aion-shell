@@ -32,6 +32,11 @@ vi.mock('@/common', () => ({
         invoke: vi.fn().mockResolvedValue(undefined),
       },
     },
+    fileSnapshot: {
+      getInfo: {
+        invoke: vi.fn().mockResolvedValue({}),
+      },
+    },
   },
 }));
 
@@ -198,6 +203,7 @@ vi.mock('@arco-design/web-react', () => ({
     error: vi.fn(),
   },
   Tag: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  Tooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
 const makeMessageState = (): UseAcpMessageReturn => ({

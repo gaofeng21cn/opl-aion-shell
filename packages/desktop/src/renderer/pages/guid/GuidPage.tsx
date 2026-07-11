@@ -17,6 +17,7 @@ import {
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
+import type { ProjectContextRef } from '@/common/config/configKeys';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
@@ -42,6 +43,7 @@ import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
+import { sanitizeProjectContextRefs } from '@/renderer/utils/workspace/projectContext';
 import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +59,7 @@ type GuidNavigationState = {
   workspace?: string;
   postInstallSelfCheck?: boolean;
   selectedCapabilityId?: string;
+  projectContextRefs?: ProjectContextRef[];
 };
 
 const POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS: Record<'zh-CN' | 'en-US', string> = {
@@ -107,6 +110,7 @@ const GuidPage: React.FC = () => {
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
+  const [projectContextRefs, setProjectContextRefs] = useState<ProjectContextRef[]>([]);
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -334,6 +338,7 @@ const GuidPage: React.FC = () => {
     setInput: guidInput.setInput,
     files: guidInput.files,
     setFiles: guidInput.setFiles,
+    projectContextRefs,
     dir: guidInput.dir,
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
@@ -574,6 +579,9 @@ const GuidPage: React.FC = () => {
       guidInput.setInput('');
     }
     guidInput.setFiles([]);
+    setProjectContextRefs(
+      navState?.workspace ? sanitizeProjectContextRefs(navState.workspace, navState.projectContextRefs) : []
+    );
     guidInput.setLoading(false);
     if (!navState?.workspace) {
       guidInput.setDir('');
@@ -587,6 +595,7 @@ const GuidPage: React.FC = () => {
     localeKey,
     location.key,
     navState?.selectedCapabilityId,
+    navState?.projectContextRefs,
     navState?.workspace,
     postInstallSelfCheckRequested,
     t,
@@ -807,14 +816,22 @@ const GuidPage: React.FC = () => {
             actionRow={actionRowNode}
             slashCommandMenu={slashCommandMenuNode}
             workspaceDir={guidInput.dir}
-            onSelectWorkspace={(dir) => guidInput.setDir(dir)}
+            onSelectWorkspace={(dir) => {
+              guidInput.setDir(dir);
+              setProjectContextRefs([]);
+            }}
             onClearWorkspace={() => {
               guidInput.setDir('');
               guidInput.setFiles([]);
+              setProjectContextRefs([]);
             }}
             workspaceAccessDisabled={fileAccessBlocked}
             workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
             activeCapabilityLabel={activeCapabilityLabel}
+            projectContextRefs={projectContextRefs}
+            onRemoveProjectContextRef={(path) => {
+              setProjectContextRefs((current) => current.filter((ref) => ref.path !== path));
+            }}
             fileContextEnabled={!fileAccessBlocked && Boolean(guidInput.dir)}
           />
 

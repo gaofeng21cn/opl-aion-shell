@@ -70,6 +70,8 @@
     "exportDialogTitle": "Export Topics",
     "exportDialogSingleDescription": "Export current topic conversation records (JSON + Markdown) and project files into a ZIP package.",
     "exportDialogBatchDescription": "Export {{count}} selected topics' conversation records (JSON + Markdown) and project files into one ZIP package.",
+    "exportFileName": "ZIP File Name",
+    "exportFileNameRequired": "Please enter a ZIP file name",
     "exportTargetFolder": "Export To Folder",
     "exportSelectFolder": "Please select an export folder",
     "exportDialogHint": "Folder selection follows the same interaction as changing the project.",
@@ -93,6 +95,16 @@
     "removeProjectTitle": "Remove project",
     "removeProject": "Remove project",
     "removeProjectConfirm": "Remove project \"{{name}}\"? Its {{count}} conversation(s) will be removed too.",
+    "projectContext": {
+      "label": "Context",
+      "add": "Add context",
+      "addFile": "Add file",
+      "addDirectory": "Add folder",
+      "remove": "Remove {{name}} from project context",
+      "outsideWorkspace": "Project context must be inside this project's workspace.",
+      "selectFailed": "Failed to select project context.",
+      "saveFailed": "Failed to save project context."
+    },
     "newConversationInProject": "New chat in this project"
   },
   "historySearch": {

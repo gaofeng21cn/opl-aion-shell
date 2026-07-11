@@ -172,11 +172,16 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsModal OPL App navigation', () => {
   const scrollIntoView = vi.fn();
+  const scrollTo = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       value: scrollIntoView,
+      configurable: true,
+    });
+    Object.defineProperty(Element.prototype, 'scrollTo', {
+      value: scrollTo,
       configurable: true,
     });
   });
@@ -248,12 +253,8 @@ describe('SettingsModal OPL App navigation', () => {
     expect(activeEntry).toHaveAttribute('aria-current', 'page');
     activeEntry.focus();
     expect(activeEntry).toHaveFocus();
-    await waitFor(() =>
-      expect(scrollIntoView).toHaveBeenCalledWith({
-        block: 'nearest',
-        inline: 'center',
-      })
-    );
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ left: 0 }));
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('caps Settings modal surfaces at an 8px radius', () => {
