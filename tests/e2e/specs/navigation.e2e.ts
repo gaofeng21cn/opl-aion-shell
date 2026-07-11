@@ -121,10 +121,17 @@ const collectAnchorEvidence = async (
 const expectSelectedSettingsNavigationItem = async (
   page: import('@playwright/test').Page,
   tab: string,
-  viewport: 'desktop' | 'mobile'
+  viewport: 'desktop' | 'mobile',
+  allowUnlistedRoute = false
 ) => {
   const itemSelector = viewport === 'mobile' ? '.settings-mobile-top-nav__item' : '.settings-sider__item';
-  await expect(page.locator(`${itemSelector}[data-settings-path="${tab}"]`)).toHaveAttribute('aria-current', 'page');
+  const targetItem = page.locator(`${itemSelector}[data-settings-path="${tab}"]`);
+  if (allowUnlistedRoute) {
+    await expect(targetItem).toHaveCount(0);
+    await expect(page.locator(`${itemSelector}[aria-current="page"]`)).toHaveCount(0);
+    return;
+  }
+  await expect(targetItem).toHaveAttribute('aria-current', 'page');
   await expect(page.locator(`${itemSelector}[aria-current="page"]`)).toHaveCount(1);
 };
 
@@ -480,7 +487,12 @@ test.describe('Settings Pages', () => {
       await page.setViewportSize(viewport.size);
       for (const { tab, level, anchors } of allVisualTargets) {
         await goToSettings(page, tab);
-        await expectSelectedSettingsNavigationItem(page, tab, viewport.name);
+        await expectSelectedSettingsNavigationItem(
+          page,
+          tab,
+          viewport.name,
+          viewport.name === 'mobile' && level === 'secondary'
+        );
         await expectVisualAnchors(page, anchors);
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, anchors);
