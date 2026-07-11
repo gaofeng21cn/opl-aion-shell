@@ -946,8 +946,14 @@ export const fs = {
     }>,
     void
   >('/api/skills'),
-  listBuiltinAutoSkills: httpGet<Array<{ name: string; description: string; location: string }>, void>(
-    '/api/skills/builtin-auto'
+  listBuiltinAutoSkills: withResponseMap(
+    httpGet<Array<{ name: string; description: string; location: string; is_auto_inject: boolean }>, void>(
+      '/api/skills'
+    ),
+    (skills) =>
+      skills
+        .filter((skill) => skill.is_auto_inject === true)
+        .map(({ name, description, location }) => ({ name, description, location }))
   ),
   materializeSkillsForAgent: httpPost<
     { skills: Array<{ name: string; source_path: string }> },
