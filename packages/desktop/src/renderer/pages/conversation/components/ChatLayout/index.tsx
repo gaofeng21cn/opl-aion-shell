@@ -28,7 +28,7 @@ import MobileWorkspaceOverlay from './MobileWorkspaceOverlay';
 import WorkspacePanelHeader from './WorkspacePanelHeader';
 import './chat-layout.css';
 
-const COMPACT_INSPECTOR_MAX_PX = 1100;
+const WORKSPACE_OVERLAY_MAX_PX = 1100;
 
 const ChatLayout: React.FC<{
   children: React.ReactNode;
@@ -56,21 +56,30 @@ const ChatLayout: React.FC<{
   const navigationHistory = useNavigationHistory();
   const isMobile = Boolean(layout?.isMobile);
   const { containerRef, containerWidth } = useContainerWidth();
-  const usesInspectorOverlay = isMobile || (containerWidth > 0 && containerWidth <= COMPACT_INSPECTOR_MAX_PX);
-  const isDesktop = !usesInspectorOverlay;
-  const { isOpen: isPreviewOpen, openRequestId: previewOpenRequestId } = usePreviewContext();
+  const usesWorkspaceOverlay = isMobile || (containerWidth > 0 && containerWidth <= WORKSPACE_OVERLAY_MAX_PX);
+  const isDesktop = !usesWorkspaceOverlay;
+  const { isOpen: isPreviewOpen } = usePreviewContext();
   const { rightSiderCollapsed, setRightSiderCollapsed } = useWorkspaceCollapse({
     workspaceEnabled,
-    isMobile: usesInspectorOverlay,
+    isMobile: usesWorkspaceOverlay,
     conversation_id,
     preferenceKey: workspacePreferenceKey ?? conversation_id,
   });
-  const initialPreviewOpenRequestRef = useRef(previewOpenRequestId);
+  const workspacePanelRef = useRef<HTMLElement>(null);
+  const previousWorkspaceCollapsedRef = useRef(true);
+
   useEffect(() => {
-    if (previewOpenRequestId !== initialPreviewOpenRequestRef.current && isPreviewOpen && workspaceEnabled) {
-      setRightSiderCollapsed(false);
-    }
-  }, [isPreviewOpen, previewOpenRequestId, setRightSiderCollapsed, workspaceEnabled]);
+    const wasCollapsed = previousWorkspaceCollapsedRef.current;
+    previousWorkspaceCollapsedRef.current = rightSiderCollapsed;
+    if (!isDesktop || !wasCollapsed || rightSiderCollapsed) return undefined;
+
+    const frameId = requestAnimationFrame(() => {
+      const panel = workspacePanelRef.current;
+      const workspace = panel?.querySelector<HTMLElement>('.chat-workspace');
+      (workspace ?? panel)?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [isDesktop, rightSiderCollapsed]);
   const { editingTitle, setEditingTitle, titleDraft, setTitleDraft, renameLoading, canRenameTitle, submitTitleRename } =
     useTitleRename({
       title: props.title,
@@ -102,7 +111,7 @@ const ChatLayout: React.FC<{
     isDesktop,
     isPreviewOpen,
     rightSiderCollapsed,
-    isMobile: usesInspectorOverlay,
+    isMobile: usesWorkspaceOverlay,
   });
   const {
     splitRatio: chatSplitRatio,
@@ -122,7 +131,7 @@ const ChatLayout: React.FC<{
     isDesktop,
     isPreviewOpen,
     rightSiderCollapsed,
-    isMobile: usesInspectorOverlay,
+    isMobile: usesWorkspaceOverlay,
   });
   useLayoutConstraints({
     containerWidth,
@@ -162,6 +171,7 @@ const ChatLayout: React.FC<{
         icon={rightSiderCollapsed ? <ExpandLeft size={16} /> : <ExpandRight size={16} />}
         aria-label={rightSiderCollapsed ? t('conversation.sidePanel.open') : t('conversation.sidePanel.close')}
         aria-expanded={!rightSiderCollapsed}
+        aria-controls='conversation-workspace-panel'
         onClick={() => dispatchWorkspaceToggleEvent()}
         data-testid='conversation-side-panel-toggle'
       />
@@ -242,7 +252,7 @@ const ChatLayout: React.FC<{
           <div className='flex flex-1 min-h-0 relative'>
             <div
               className='flex flex-col relative min-w-0'
-              hidden={isPreviewOpen && usesInspectorOverlay}
+              hidden={isPreviewOpen && usesWorkspaceOverlay}
               style={{
                 flexGrow: isPreviewOpen && isDesktop ? 0 : 1,
                 flexShrink: 0,
@@ -264,7 +274,7 @@ const ChatLayout: React.FC<{
                   flexBasis: 0,
                   border: '1px solid var(--bg-3)',
                   minWidth: isDesktop ? '260px' : 0,
-                  width: usesInspectorOverlay ? 'calc(100% - 16px)' : undefined,
+                  width: usesWorkspaceOverlay ? 'calc(100% - 16px)' : undefined,
                   boxSizing: 'border-box',
                 }}
                 data-testid='conversation-preview-surface'
@@ -287,9 +297,13 @@ const ChatLayout: React.FC<{
 
         {workspaceEnabled && isDesktop && (
           <aside
+            ref={workspacePanelRef}
+            id='conversation-workspace-panel'
             className='chat-layout-right-sider layout-sider'
             hidden={rightSiderCollapsed}
             aria-hidden={rightSiderCollapsed}
+            aria-label={t('conversation.sidePanel.title')}
+            tabIndex={-1}
             data-testid='conversation-side-panel-surface'
             style={{
               flex: `0 0 ${Math.round(workspaceWidthPx)}px`,
@@ -317,7 +331,7 @@ const ChatLayout: React.FC<{
           </aside>
         )}
 
-        {workspaceEnabled && usesInspectorOverlay && (
+        {workspaceEnabled && usesWorkspaceOverlay && (
           <MobileWorkspaceOverlay
             rightSiderCollapsed={rightSiderCollapsed}
             setRightSiderCollapsed={setRightSiderCollapsed}

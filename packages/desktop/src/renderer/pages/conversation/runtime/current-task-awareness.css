@@ -20,13 +20,9 @@
   z-index: 8;
 }
 
-.current-task-awareness--compact:not(.current-task-awareness--pinned) .current-task-awareness__summary {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
 .current-task-awareness__summary {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(240px, 2.5fr) auto;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(320px, 2.5fr) auto;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -120,7 +116,7 @@
 
 @media (max-width: 960px) {
   .current-task-awareness__summary {
-    grid-template-columns: minmax(110px, 0.7fr) minmax(180px, 2fr) auto;
+    grid-template-columns: minmax(120px, 0.7fr) minmax(220px, 2fr) auto;
   }
 
   .current-task-awareness__summary-fields {

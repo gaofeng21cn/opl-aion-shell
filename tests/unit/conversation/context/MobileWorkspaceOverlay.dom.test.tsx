@@ -7,8 +7,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'conversation.sidePanel.close': 'Close tools',
-        'conversation.sidePanel.title': 'Tools',
+        'conversation.sidePanel.close': 'Close files',
+        'conversation.sidePanel.title': 'Files & changes',
       })[key] ?? key,
   }),
 }));
@@ -24,7 +24,7 @@ describe('MobileWorkspaceOverlay accessibility', () => {
     const background = document.createElement('main');
     background.dataset.testid = 'background';
     const opener = document.createElement('button');
-    opener.textContent = 'Open tools';
+    opener.textContent = 'Open files';
     background.appendChild(opener);
     document.body.appendChild(background);
     const rail = document.createElement('nav');
@@ -40,12 +40,12 @@ describe('MobileWorkspaceOverlay accessibility', () => {
       setRightSiderCollapsed: setCollapsed,
       workspaceWidthPx: 380,
       mobileWorkspaceHandleRight: 366,
-      siderTitle: 'Tools',
+      siderTitle: 'Files & changes',
       sider: <button type='button'>Inside tool</button>,
     };
     const { rerender } = render(<MobileWorkspaceOverlay {...props} />);
 
-    const dialog = screen.getByRole('dialog', { name: 'Tools' });
+    const dialog = screen.getByRole('dialog', { name: 'Files & changes' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(background).toHaveAttribute('inert');
     expect(background).toHaveAttribute('aria-hidden', 'true');
@@ -109,7 +109,7 @@ describe('MobileWorkspaceOverlay accessibility', () => {
       />
     );
 
-    const dialog = screen.getByRole('dialog', { name: 'Tools' });
+    const dialog = screen.getByRole('dialog', { name: 'Files & changes' });
     const visibleTool = within(dialog).getByRole('button', { name: 'Visible tool' });
     for (const button of dialog.querySelectorAll('button')) {
       if (button.textContent !== 'Visible tool' && button.textContent !== 'Hidden tool') button.disabled = true;
@@ -134,7 +134,7 @@ describe('MobileWorkspaceOverlay accessibility', () => {
       />
     );
 
-    const dialog = screen.getByRole('dialog', { name: 'Tools' });
+    const dialog = screen.getByRole('dialog', { name: 'Files & changes' });
     const buttons = within(dialog).getAllByRole('button');
     const first = buttons[0];
     const last = buttons[buttons.length - 1];
