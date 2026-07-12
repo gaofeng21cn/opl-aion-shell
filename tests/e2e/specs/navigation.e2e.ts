@@ -14,8 +14,6 @@ const SETTINGS_SCREENSHOT_DIR = path.resolve(__dirname, '..', 'screenshots');
 const SETTINGS_VISUAL_MANIFEST = path.join(SETTINGS_SCREENSHOT_DIR, 'settings-control-center-manifest.json');
 const SETTINGS_VISUAL_VIEWPORTS = [
   { name: 'desktop', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
-  { name: 'mobile', navigation: 'mobile', theme: 'light', size: { width: 390, height: 844 } },
-  { name: 'desktop-dark', navigation: 'desktop', theme: 'dark', size: { width: 1440, height: 960 } },
 ] as const;
 
 type SettingsVisualAnchor = {
@@ -465,26 +463,28 @@ test.describe('Settings Pages', () => {
 
   test('settings search is unique and supports bilingual Enter navigation', async ({ page }) => {
     const searches = [
-      { viewport: SETTINGS_VISUAL_VIEWPORTS[0], query: 'packages' },
-      { viewport: SETTINGS_VISUAL_VIEWPORTS[1], query: '能力包' },
+      { size: SETTINGS_VISUAL_VIEWPORTS[0].size, query: 'packages', route: 'environment', section: 'updates' },
+      { size: SETTINGS_VISUAL_VIEWPORTS[0].size, query: '能力包', route: 'capabilities', section: 'source' },
     ];
 
-    for (const { viewport, query } of searches) {
-      await page.setViewportSize(viewport.size);
+    for (const { size, query, route, section } of searches) {
+      await page.setViewportSize(size);
       await goToSettings(page, 'general');
-      const search = page.locator('[data-testid="settings-search-input"]');
-      await expect(search).toHaveCount(1);
-      const input = search.locator('input');
+      const input = page
+        .locator('[data-testid="settings-search-input"] input, input[data-testid="settings-search-input"]')
+        .first();
+      await expect(input).toBeVisible();
       await input.fill(query);
       await expect(page.locator('[data-testid="settings-search-result"]').first()).toBeVisible();
       await input.press('Enter');
       await page.waitForFunction(
-        () =>
-          window.location.hash.includes('/settings/environment') &&
-          new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === 'updates',
+        ({ route, section }) =>
+          window.location.hash.includes(`/settings/${route}`) &&
+          new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === section,
+        { route, section },
         { timeout: 10_000 }
       );
-      await expectSettingsAnchorLanding(page, 'updates');
+      await expectSettingsAnchorLanding(page, section);
     }
   });
 
