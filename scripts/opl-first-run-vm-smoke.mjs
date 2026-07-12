@@ -3090,16 +3090,36 @@ function homeAssistantRouteReadyExpression(target) {
     const activeCapability = document.querySelector('[data-testid="guid-active-capability"]');
     const modelSelector = document.querySelector('[data-testid="guid-model-selector"]');
     const permissionSelector = document.querySelector('[data-testid^="agent-mode-selector-"], [data-testid="agent-mode-selector"]');
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
     const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
       .flatMap((selector) => [...document.querySelectorAll(selector)])
       .filter(visible)
       .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
-    if (deniedVisible.length > 0) {
-      return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
-    }
-    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(activeCapability) || !visible(modelSelector) || !visible(permissionSelector)) return false;
+    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(activeCapability)) return false;
     if (card.getAttribute('aria-pressed') !== 'true') return false;
+    const semanticState = {
+      executor: composer?.getAttribute('data-opl-composer-executor') || null,
+      active_shortcut_id: composer?.getAttribute('data-opl-active-shortcut') || null,
+      model_reasoning_visible: composer?.getAttribute('data-opl-model-reasoning-visible') === 'true',
+      permission_access_visible: composer?.getAttribute('data-opl-permission-access-visible') === 'true',
+      executor_selector_visible: composer?.getAttribute('data-opl-executor-selector-visible') === 'true',
+    };
+    const missingControls = [];
+    if (!visible(modelSelector) || !semanticState.model_reasoning_visible) missingControls.push('model_reasoning');
+    if (!visible(permissionSelector) || !semanticState.permission_access_visible) missingControls.push('permission_access');
+    if (deniedVisible.length > 0 || semanticState.executor_selector_visible) missingControls.push('forbidden_executor_selector');
+    if (semanticState.executor !== 'codex') missingControls.push('codex_executor');
+    if (missingControls.length > 0) {
+      return {
+        status: 'failed',
+        reason: 'home_composer_contract_mismatch',
+        missing_controls: missingControls,
+        denied_visible: deniedVisible,
+        composer_state: semanticState,
+      };
+    }
     return {
+      status: 'ready',
       assistant_id: ${cdpString(target.id)},
       badge: ${cdpString(target.badge)},
       active_capability: activeCapability.textContent || '',
@@ -3107,6 +3127,8 @@ function homeAssistantRouteReadyExpression(target) {
       model_selector_visible: true,
       permission_selector_visible: true,
       executor_selectors_hidden: true,
+      missing_controls: [],
+      composer_state: semanticState,
     };
   })()`;
 }
@@ -3992,7 +4014,7 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
     }
     await sleep(500);
   }
-  throw new Error(
+  const failure = new Error(
     [
       failureMessage,
       lastError ? `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
@@ -4001,6 +4023,9 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
       .filter(Boolean)
       .join('\n')
   );
+  failure.lastState = lastValue;
+  failure.lastError = lastError instanceof Error ? lastError.message : lastError ? String(lastError) : null;
+  throw failure;
 }
 
 const SETTINGS_PAGE_SMOKE_TARGETS = [
@@ -4295,6 +4320,7 @@ function advancedPathsStatusExpression() {
 
 function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
   const verificationMode = options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate';
+  const lastState = error instanceof Error ? (error.lastState ?? null) : null;
   return {
     surface_id: 'opl_packaged_gui_assistant_route_smoke',
     status: 'failed',
@@ -4304,8 +4330,10 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
     failed_assistant: assistantTarget.id,
     assistants: results,
     error: error instanceof Error ? error.message : String(error),
-    last_state: error instanceof Error ? (error.lastState ?? null) : null,
+    last_state: lastState,
     last_error: error instanceof Error ? (error.lastError ?? null) : null,
+    missing_controls: Array.isArray(lastState?.missing_controls) ? lastState.missing_controls : [],
+    composer_state: lastState?.composer_state ?? null,
     required_contract: {
       purpose_entries: OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `home-starter-${item.id}`),
       standard_launch_gate:
@@ -4471,7 +4499,9 @@ async function runAssistantRouteSmoke(options, secret) {
           `Selected OPL built-in assistant did not expose the selected Home capability state and composer decision controls: ${assistantTarget.id}`
         );
         if (ready?.status === 'failed') {
-          throw new Error(`Selected OPL built-in assistant leaked selectors: ${JSON.stringify(ready)}`);
+          const error = new Error(`Selected OPL Home composer contract failed: ${JSON.stringify(ready)}`);
+          error.lastState = ready;
+          throw error;
         }
         await captureCdpScreenshot(
           client,

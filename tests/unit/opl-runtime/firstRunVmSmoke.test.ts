@@ -903,6 +903,11 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(readyExpression).toContain('model_selector_visible: true');
     expect(readyExpression).toContain('permission_selector_visible: true');
     expect(readyExpression).toContain('executor_selectors_hidden: true');
+    expect(readyExpression).toContain("missingControls.push('model_reasoning')");
+    expect(readyExpression).toContain("missingControls.push('permission_access')");
+    expect(readyExpression).toContain("missingControls.push('forbidden_executor_selector')");
+    expect(readyExpression).toContain("getAttribute('data-opl-composer-executor')");
+    expect(readyExpression).toContain("reason: 'home_composer_contract_mismatch'");
     expect(createExpression).toContain('/api/conversations');
     expect(createExpression).toContain("method: 'POST'");
     expect(createExpression).toContain('preset_assistant_id');
@@ -1282,9 +1287,16 @@ describe('packaged first-run VM smoke helpers', () => {
       lastError?: string | null;
     };
     error.lastState = {
-      target_pill_present: false,
-      selectors_hidden: false,
-      badge_visible: false,
+      status: 'failed',
+      reason: 'home_composer_contract_mismatch',
+      missing_controls: ['model_reasoning'],
+      composer_state: {
+        executor: 'codex',
+        active_shortcut_id: 'research',
+        model_reasoning_visible: false,
+        permission_access_visible: true,
+        executor_selector_visible: false,
+      },
     };
     error.lastError = null;
 
@@ -1312,11 +1324,26 @@ describe('packaged first-run VM smoke helpers', () => {
       assistants: [],
       error: 'Assistant route controls did not become ready for mas',
       last_state: {
-        target_pill_present: false,
-        selectors_hidden: false,
-        badge_visible: false,
+        status: 'failed',
+        reason: 'home_composer_contract_mismatch',
+        missing_controls: ['model_reasoning'],
+        composer_state: {
+          executor: 'codex',
+          active_shortcut_id: 'research',
+          model_reasoning_visible: false,
+          permission_access_visible: true,
+          executor_selector_visible: false,
+        },
       },
       last_error: null,
+      missing_controls: ['model_reasoning'],
+      composer_state: {
+        executor: 'codex',
+        active_shortcut_id: 'research',
+        model_reasoning_visible: false,
+        permission_access_visible: true,
+        executor_selector_visible: false,
+      },
       required_contract: {
         purpose_entries: ['home-starter-mas', 'home-starter-mag', 'home-starter-rca'],
         standard_launch_gate: {

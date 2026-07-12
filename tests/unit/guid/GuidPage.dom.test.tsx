@@ -107,6 +107,38 @@ const selectedAssistant: Assistant = {
   models: [],
 };
 
+const shortcutAssistants: Assistant[] = [
+  selectedAssistant,
+  {
+    ...selectedAssistant,
+    id: 'mag',
+    name: 'Med Auto Grant',
+    name_i18n: { 'zh-CN': 'Med Auto Grant', 'en-US': 'Med Auto Grant' },
+    avatar: 'MAG',
+  },
+  {
+    ...selectedAssistant,
+    id: 'rca',
+    name: 'RedCube AI',
+    name_i18n: { 'zh-CN': 'RedCube AI', 'en-US': 'RedCube AI' },
+    avatar: 'RCA',
+  },
+  {
+    ...selectedAssistant,
+    id: 'obf',
+    name: 'OPL Book Forge',
+    name_i18n: { 'zh-CN': 'OPL Book Forge', 'en-US': 'OPL Book Forge' },
+    avatar: 'OBF',
+  },
+  {
+    ...selectedAssistant,
+    id: 'oma',
+    name: 'OPL Meta Agent',
+    name_i18n: { 'zh-CN': 'OPL Meta Agent', 'en-US': 'OPL Meta Agent' },
+    avatar: 'OMA',
+  },
+];
+
 const selectedAgentInfo: AvailableAgent = {
   id: 'mas',
   custom_agent_id: 'mas',
@@ -192,6 +224,10 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState.value }),
 }));
 
+vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: mocks.appState.value }),
+}));
+
 vi.mock('@/renderer/utils/platform', () => ({
   openExternalUrl: vi.fn().mockResolvedValue(undefined),
   resolveExtensionAssetUrl: (value?: string) => value,
@@ -230,7 +266,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
     selectedAgentInfo: mocks.isPresetAgent.value ? selectedAgentInfo : undefined,
     is_presetAgent: mocks.isPresetAgent.value,
     availableAgents: [{ agent_type: 'codex', backend: 'codex', name: 'Codex' }],
-    assistants: [selectedAssistant],
+    assistants: shortcutAssistants,
     customAgents: [],
     selectedMode: 'default',
     setSelectedMode: vi.fn(),
@@ -293,7 +329,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
-  useGuidMention: () => ({
+  useGuidMention: (options: { selectedAgentLabelOverride?: string }) => ({
     mentionQuery: null,
     setMentionQuery: vi.fn(),
     mentionOpen: false,
@@ -309,7 +345,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
     selectMentionAgent: vi.fn(),
     mentionMenuRef: { current: null },
     mentionMatchRegex: /(?:^|\s)@([^\s@]*)$/,
-    selectedAgentLabel: mocks.isPresetAgent.value ? 'MAS' : 'Codex',
+    selectedAgentLabel: options.selectedAgentLabelOverride || (mocks.isPresetAgent.value ? 'MAS' : 'Codex'),
     mentionMenuSelectedKey: mocks.isPresetAgent.value ? 'custom:mas' : 'codex',
   }),
 }));
@@ -389,8 +425,8 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportMod
 describe('GuidPage selected purpose assistant surface', () => {
   beforeEach(() => {
     mocks.i18nLanguage.value = 'zh-CN';
-    mocks.locationState.value = null;
-    mocks.isPresetAgent.value = true;
+    mocks.locationState.value = { selectedCapabilityId: 'mas' };
+    mocks.isPresetAgent.value = false;
     mocks.isMobileLayout.value = false;
     mocks.navigate.mockClear();
     mocks.setInput.mockClear();
@@ -418,11 +454,11 @@ describe('GuidPage selected purpose assistant surface', () => {
       agent_packages: {
         status_index: {
           packages: {
-            'med-autoscience': {
-              package_id: 'med-autoscience',
-              operational_ready: true,
-              launch_allowed: true,
-            },
+            mas: { package_id: 'mas', operational_ready: true, launch_allowed: true },
+            mag: { package_id: 'mag', operational_ready: true, launch_allowed: true },
+            rca: { package_id: 'rca', operational_ready: true, launch_allowed: true },
+            obf: { package_id: 'obf', operational_ready: true, launch_allowed: true },
+            oma: { package_id: 'oma', operational_ready: true, launch_allowed: true },
           },
         },
       },
@@ -473,10 +509,15 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
     expect(screen.getAllByText('Med Auto Science')).toHaveLength(2);
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
+    expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(
-        expect.objectContaining({ guidEnabledSkills: ['med-autoscience'] })
+        expect.objectContaining({
+          activeShortcut: expect.objectContaining({ package_id: 'mas', shortcut_id: 'research' }),
+          guidEnabledSkills: ['med-autoscience'],
+          is_presetAgent: false,
+          selectedAgent: 'codex',
+        })
       );
     });
   });
@@ -505,6 +546,20 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
   });
 
+  it('migrates a persisted OPL preset into an active shortcut and restores the Codex executor', async () => {
+    mocks.locationState.value = null;
+    mocks.isPresetAgent.value = true;
+    render(<GuidPage />);
+
+    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('codex');
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ activeShortcut: expect.objectContaining({ package_id: 'mas' }) })
+      )
+    );
+    expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
+  });
+
   it('wires ordinary mobile Home to the bounded action sheet and shared Codex selection state', async () => {
     mocks.isPresetAgent.value = false;
     mocks.isMobileLayout.value = true;
@@ -525,6 +580,37 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setCodexModelSelection).toHaveBeenCalledWith(null, null);
   });
 
+  it.each(['mas', 'mag', 'rca', 'obf', 'oma'])(
+    'keeps desktop model, reasoning, and permission controls for shortcut %s',
+    (packageId) => {
+      mocks.locationState.value = { selectedCapabilityId: packageId };
+      render(<GuidPage />);
+
+      const entry = screen.getByTestId('opl-guid-entry');
+      expect(entry).toHaveAttribute('data-opl-composer-executor', 'codex');
+      expect(entry).toHaveAttribute('data-opl-model-reasoning-visible', 'true');
+      expect(entry).toHaveAttribute('data-opl-permission-access-visible', 'true');
+      expect(entry).toHaveAttribute('data-opl-executor-selector-visible', 'false');
+      expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
+      expect(screen.getByTestId('mode-selector')).toBeInTheDocument();
+    }
+  );
+
+  it.each(['mas', 'mag', 'rca', 'obf', 'oma'])(
+    'keeps mobile model, reasoning, and permission controls for shortcut %s',
+    async (packageId) => {
+      mocks.locationState.value = { selectedCapabilityId: packageId };
+      mocks.isMobileLayout.value = true;
+      render(<GuidPage />);
+      await userEvent.click(screen.getByRole('button', { name: 'More' }));
+
+      expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
+      expect(screen.queryByTestId('mobile-action-sheet-executor')).not.toBeInTheDocument();
+    }
+  );
+
   it('does not render the retired static inspector surface', () => {
     render(<GuidPage />);
 
@@ -533,13 +619,18 @@ describe('GuidPage selected purpose assistant surface', () => {
   });
 
   it('selects an active capability from a Home starter without exposing an agent selector', async () => {
-    mocks.isPresetAgent.value = false;
+    mocks.locationState.value = null;
     render(<GuidPage />);
     mocks.setSelectedAgentKey.mockClear();
 
     await userEvent.click(screen.getByTestId('home-starter-mas'));
 
-    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mas');
+    expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ activeShortcut: expect.objectContaining({ package_id: 'mas' }) })
+      )
+    );
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
   });
 
@@ -555,7 +646,10 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     await userEvent.click(screen.getByTestId('home-starter-mas'));
 
-    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('codex');
+    expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ activeShortcut: null }))
+    );
     expect(mocks.setInput).toHaveBeenCalledTimes(inputCalls);
     expect(mocks.setFiles).toHaveBeenCalledTimes(fileCalls);
     expect(mocks.setDir).toHaveBeenCalledTimes(dirCalls);
@@ -566,7 +660,10 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     render(<GuidPage />);
 
-    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mag');
+    expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
+    expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ activeShortcut: expect.objectContaining({ package_id: 'mag' }) })
+    );
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 

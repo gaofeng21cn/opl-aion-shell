@@ -9,11 +9,6 @@ import {
   canonicalizeOplProfessionalAgentId,
   filterOplOrdinaryMcpServers,
   filterOplOrdinarySkillNames,
-  getOplAgentPackageInvocationReceiptPolicy,
-  getOplBuiltinAssistantRouteReceiptPolicy,
-  getOplDefaultHomeAssistants,
-  getOplHomeAgentShortcuts,
-  getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import type { ProjectContextRef } from '@/common/config/configKeys';
@@ -31,24 +26,14 @@ import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
-
-type OplAssistantRouteReceipt = {
-  route_kind: string;
-  executor: string;
-  assistant_id: string;
-  assistant_short_name: string;
-  source: string;
-};
-
-type OplAgentPackageInvocationReceipt = {
-  route_kind: string;
-  executor: string;
-  package_id: string;
-  shortcut_id: string;
-  codex_visible_entry: string;
-  required_skill_ids: string[];
-  source: string;
-};
+import {
+  buildOplShortcutInvocationReceipt,
+  buildOplShortcutRouteReceipt,
+  resolveOplActiveShortcut,
+  type OplAgentPackageInvocationReceipt,
+  type OplActiveShortcut,
+  type OplAssistantRouteReceipt,
+} from '../utils/activeShortcut';
 
 export type GuidSendDeps = {
   // Input state
@@ -67,6 +52,7 @@ export type GuidSendDeps = {
   selectedAgentKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
   is_presetAgent: boolean;
+  activeShortcut: OplActiveShortcut | null;
   selectedMode: string;
   selectedAcpModel: string | null;
   selectedReasoningEffort: string | null;
@@ -92,7 +78,6 @@ export type GuidSendDeps = {
   availableMcpServers: IMcpServer[];
   selectedMcpServerIds: string[] | undefined;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
-  isGoogleAuth: boolean;
 
   // Mention state reset
   setMentionOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -112,45 +97,23 @@ export type GuidSendResult = {
   isButtonDisabled: boolean;
 };
 
-function buildOplAssistantRouteReceipt(
+function buildLegacyOplAssistantRouteReceipt(
   isPreset: boolean,
-  agentInfo: { custom_agent_id?: string; name?: string } | undefined
+  agentInfo: { custom_agent_id?: string } | undefined
 ): OplAssistantRouteReceipt | undefined {
   if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
   const assistantId = canonicalizeOplProfessionalAgentId(agentInfo.custom_agent_id);
-  const policy = getOplBuiltinAssistantRouteReceiptPolicy();
-  if (!policy.required_for_assistants.includes(assistantId)) return undefined;
-  const assistant = getOplDefaultHomeAssistants().find((entry) => entry.id === assistantId);
-  return {
-    route_kind: policy.route_kind,
-    executor: policy.executor,
-    assistant_id: assistantId,
-    assistant_short_name: assistant?.short_name ?? agentInfo.name ?? assistantId.toUpperCase(),
-    source: policy.source,
-  };
+  const shortcut = resolveOplActiveShortcut(assistantId);
+  if (shortcut) return buildOplShortcutRouteReceipt(shortcut);
+  return undefined;
 }
 
-function buildOplAgentPackageInvocationReceipt(
+function buildLegacyOplAgentPackageInvocationReceipt(
   isPreset: boolean,
   agentInfo: { custom_agent_id?: string } | undefined
 ): OplAgentPackageInvocationReceipt | undefined {
   if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
-  const packageId = canonicalizeOplProfessionalAgentId(agentInfo.custom_agent_id);
-  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === packageId && entry.default_visible);
-  if (!shortcut) return undefined;
-  const policy = getOplAgentPackageInvocationReceiptPolicy();
-  if (!policy.required_for_package_shortcuts.includes(shortcut.shortcut_id)) return undefined;
-  const agentPackage = getOplProfessionalAgentPackage(packageId);
-  if (!agentPackage) return undefined;
-  return {
-    route_kind: policy.route_kind,
-    executor: policy.executor,
-    package_id: agentPackage.package_id,
-    shortcut_id: shortcut.shortcut_id,
-    codex_visible_entry: agentPackage.codex_visible_entry,
-    required_skill_ids: [...agentPackage.required_skill_ids],
-    source: policy.source,
-  };
+  return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
 }
 
 /**
@@ -171,6 +134,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedAgentKey,
     selectedAgentInfo,
     is_presetAgent,
+    activeShortcut,
     selectedMode,
     selectedAcpModel,
     selectedReasoningEffort,
@@ -186,7 +150,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     availableMcpServers,
     selectedMcpServerIds,
     currentEffectiveAgentInfo: _currentEffectiveAgentInfo,
-    isGoogleAuth,
     setMentionOpen,
     setMentionQuery,
     setMentionSelectorOpen,
@@ -198,9 +161,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const sendingRef = useRef(false);
   const { appState } = useOplAppState('fast');
   const selectedPackageId =
-    is_presetAgent && selectedAgentInfo?.custom_agent_id
+    activeShortcut?.package_id ??
+    (is_presetAgent && selectedAgentInfo?.custom_agent_id
       ? canonicalizeOplProfessionalAgentId(selectedAgentInfo.custom_agent_id)
-      : null;
+      : null);
   const selectedPackageLaunchGate = selectedPackageId
     ? resolveOplPackageLaunchGate(appState, selectedPackageId)
     : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
@@ -240,8 +204,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         ? filteredGuidEnabledSkills
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
-    const oplAssistantRoute = buildOplAssistantRouteReceipt(is_preset, agentInfo);
-    const oplAgentPackageInvocation = buildOplAgentPackageInvocationReceipt(is_preset, agentInfo);
+    const oplAssistantRoute = activeShortcut
+      ? buildOplShortcutRouteReceipt(activeShortcut)
+      : buildLegacyOplAssistantRouteReceipt(is_preset, agentInfo);
+    const oplAgentPackageInvocation = activeShortcut
+      ? buildOplShortcutInvocationReceipt(activeShortcut)
+      : buildLegacyOplAgentPackageInvocationReceipt(is_preset, agentInfo);
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
     const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
     const selectedUserMcpServerIds = visibleMcpServers
@@ -530,6 +498,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedAgentKey,
     selectedAgentInfo,
     is_presetAgent,
+    activeShortcut,
     selectedMode,
     selectedAcpModel,
     currentAcpCachedModelInfo,

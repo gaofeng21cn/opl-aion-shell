@@ -13,8 +13,6 @@ import {
   getOplOrdinarySkillAllowlist,
   getOplOrdinaryCapabilitySelectorPolicy,
   getOplAssistantSkillProfile,
-  shouldShowOplCodexModelSelector,
-  shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
 import type { ProjectContextRef } from '@/common/config/configKeys';
@@ -36,6 +34,8 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
+import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/activeShortcut';
+import { resolveOplHomeComposerSurface } from './utils/composerSurface';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
 import SpeechInputButton from '@/renderer/components/chat/SpeechInputButton';
@@ -106,11 +106,15 @@ const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const navState = location.state as GuidNavigationState | null;
   const guidContainerRef = useRef<HTMLDivElement>(null);
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
   const [projectContextRefs, setProjectContextRefs] = useState<ProjectContextRef[]>([]);
+  const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(() =>
+    resolveOplActiveShortcut(navState?.selectedCapabilityId)
+  );
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -211,7 +215,6 @@ const GuidPage: React.FC = () => {
   const fileAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
   const handleFileAccessBlocked = useCallback(() => setSetupNoticeKind('workspace'), []);
 
-  const navState = location.state as GuidNavigationState | null;
   const resetAssistantRequested = navState?.resetAssistant === true;
   const preselectAgentKey = navState?.selectedAgentKey;
   const postInstallSelfCheckRequested = navState?.postInstallSelfCheck === true;
@@ -244,12 +247,24 @@ const GuidPage: React.FC = () => {
   });
 
   const selectedAssistantRecord = useMemo(() => {
-    if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return undefined;
-    const selectedId = agentSelection.selectedAgentInfo.custom_agent_id;
-    const strippedId = selectedId.replace(/^builtin-/, '');
-    const candidates = new Set([selectedId, `builtin-${strippedId}`, strippedId]);
-    return agentSelection.assistants.find((item) => candidates.has(item.id));
-  }, [agentSelection.assistants, agentSelection.is_presetAgent, agentSelection.selectedAgentInfo?.custom_agent_id]);
+    if (!activeShortcut) return undefined;
+    return agentSelection.assistants.find(
+      (item) => resolveOplActiveShortcut(item.id)?.package_id === activeShortcut.package_id
+    );
+  }, [activeShortcut, agentSelection.assistants]);
+
+  useLayoutEffect(() => {
+    if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return;
+    const legacyShortcut = resolveOplActiveShortcut(agentSelection.selectedAgentInfo.custom_agent_id);
+    if (!legacyShortcut) return;
+    setActiveShortcut((current) => current ?? legacyShortcut);
+    agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
+  }, [
+    agentSelection.defaultAgentKey,
+    agentSelection.is_presetAgent,
+    agentSelection.selectedAgentInfo?.custom_agent_id,
+    agentSelection.setSelectedAgentKey,
+  ]);
 
   const selectedAssistantLabel = useMemo(() => {
     if (!selectedAssistantRecord) return undefined;
@@ -349,6 +364,7 @@ const GuidPage: React.FC = () => {
     selectedAgentKey: agentSelection.selectedAgentKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     is_presetAgent: agentSelection.is_presetAgent,
+    activeShortcut,
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     selectedReasoningEffort: agentSelection.selectedReasoningEffort,
@@ -366,7 +382,6 @@ const GuidPage: React.FC = () => {
     availableMcpServers,
     selectedMcpServerIds: guidSelectedMcpServerIds,
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
-    isGoogleAuth: modelSelection.isGoogleAuth,
 
     // Mention state reset
     setMentionOpen: mention.setMentionOpen,
@@ -506,17 +521,16 @@ const GuidPage: React.FC = () => {
     [mention, guidInput.input, sendWithPrerequisiteCheck, slashController]
   );
 
-  const handleSelectAssistant = useCallback(
-    (assistantId: string) => {
-      agentSelection.setSelectedAgentKey(assistantId);
+  const handleSelectShortcut = useCallback(
+    (assistantId: string | null) => {
+      setActiveShortcut(resolveOplActiveShortcut(assistantId));
       mention.setMentionOpen(false);
       mention.setMentionQuery(null);
       mention.setMentionSelectorOpen(false);
-      mention.setMentionSelectorVisible(true);
+      mention.setMentionSelectorVisible(false);
       mention.setMentionActiveIndex(0);
     },
     [
-      agentSelection.setSelectedAgentKey,
       mention.setMentionOpen,
       mention.setMentionQuery,
       mention.setMentionSelectorOpen,
@@ -526,14 +540,14 @@ const GuidPage: React.FC = () => {
   );
 
   useEffect(() => {
-    mention.setMentionSelectorVisible(agentSelection.is_presetAgent);
-  }, [agentSelection.is_presetAgent, agentSelection.selectedAgentKey, mention.setMentionSelectorVisible]);
+    mention.setMentionSelectorVisible(false);
+  }, [activeShortcut, mention.setMentionSelectorVisible]);
 
   // Typewriter placeholder
   const defaultPlaceholder = t('conversation.welcome.placeholder');
   const oplPlaceholder = t('conversation.welcome.oplPlaceholder');
   const typewriterPlaceholder = useTypewriterPlaceholder(
-    agentSelection.is_presetAgent && selectedAssistantRecord
+    selectedAssistantRecord
       ? selectedAssistantRecord.description_i18n?.[localeKey] ||
           selectedAssistantRecord.description ||
           defaultPlaceholder
@@ -541,14 +555,14 @@ const GuidPage: React.FC = () => {
   );
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
-    if (agentSelection.is_presetAgent && selectedAssistantRecord) {
+    if (selectedAssistantRecord) {
       setGuidEnabledSkills(
         mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
       );
     } else {
       setGuidEnabledSkills(undefined);
     }
-  }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
+  }, [selectedAssistantRecord, selectedAssistantRequiredSkills]);
 
   const activeCapabilityLabel = useMemo(() => {
     return selectedAssistantRecord?.name_i18n?.[localeKey] || selectedAssistantRecord?.name;
@@ -563,12 +577,15 @@ const GuidPage: React.FC = () => {
   const selectedAssistantDescription = useMemo(() => {
     return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
   }, [selectedAssistantRecord, localeKey]);
+  const composerSurface = useMemo(() => resolveOplHomeComposerSurface(activeShortcut), [activeShortcut]);
 
   // Reset guid-local UI state before paint so same-route navigations do not
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
     if (navState?.selectedCapabilityId) {
-      agentSelection.setSelectedAgentKey(`custom:${navState.selectedCapabilityId}`);
+      setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId));
+    } else if (resetAssistantRequested) {
+      setActiveShortcut(null);
     }
     if (postInstallSelfCheckRequested) {
       guidInput.setInput(buildPostInstallSelfCheckPrompt(t, localeKey));
@@ -587,7 +604,6 @@ const GuidPage: React.FC = () => {
       guidInput.setDir('');
     }
   }, [
-    agentSelection.setSelectedAgentKey,
     guidInput.setDir,
     guidInput.setFiles,
     guidInput.setInput,
@@ -669,22 +685,21 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  const modelSelectorNode: React.ReactNode =
-    shouldShowOplCodexModelSelector() && !agentSelection.is_presetAgent ? (
-      <GuidModelSelector
-        isGeminiMode={isGeminiMode}
-        modelList={modelSelection.modelList}
-        current_model={modelSelection.current_model}
-        setCurrentModel={modelSelection.setCurrentModel}
-        currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
-        selectedAcpModel={agentSelection.selectedAcpModel}
-        setSelectedAcpModel={agentSelection.setSelectedAcpModel}
-        selectedReasoningEffort={agentSelection.selectedReasoningEffort}
-        setSelectedReasoningEffort={agentSelection.setSelectedReasoningEffort}
-        setCodexModelSelection={agentSelection.setCodexModelSelection}
-        backend={effectiveAgentType}
-      />
-    ) : null;
+  const modelSelectorNode: React.ReactNode = composerSurface.model_reasoning_visible ? (
+    <GuidModelSelector
+      isGeminiMode={isGeminiMode}
+      modelList={modelSelection.modelList}
+      current_model={modelSelection.current_model}
+      setCurrentModel={modelSelection.setCurrentModel}
+      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+      selectedAcpModel={agentSelection.selectedAcpModel}
+      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+      selectedReasoningEffort={agentSelection.selectedReasoningEffort}
+      setSelectedReasoningEffort={agentSelection.setSelectedReasoningEffort}
+      setCodexModelSelection={agentSelection.setCodexModelSelection}
+      backend={composerSurface.executor}
+    />
+  ) : null;
 
   const handleSpeechTranscript = useCallback(
     (transcript: string) => {
@@ -707,7 +722,7 @@ const GuidPage: React.FC = () => {
       }
       modelSelectorNode={modelSelectorNode}
       mobileCodexModelSelection={
-        effectiveAgentType === 'codex' && modelSelectorNode
+        composerSurface.executor === 'codex' && modelSelectorNode
           ? {
               modelInfo: agentSelection.currentAcpCachedModelInfo,
               selectedModelId: agentSelection.selectedAcpModel,
@@ -728,7 +743,7 @@ const GuidPage: React.FC = () => {
       onClosePresetTag={() => agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey)}
       agentLogo={effectiveAgentLogo}
       agentSwitcherItems={[]}
-      showModeSelector={shouldShowOplHomePermissionModeSelector()}
+      showModeSelector={composerSurface.permission_access_visible}
       allSkills={buildAssistantScopedSkillMenuItems(allSkills, selectedAssistantSkillProfile)}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
       enabledSkills={effectiveGuidEnabledSkills ?? []}
@@ -774,6 +789,11 @@ const GuidPage: React.FC = () => {
         className={styles.guidContainer}
         data-testid='opl-guid-entry'
         aria-label='opl-guid-entry'
+        data-opl-composer-executor={composerSurface.executor}
+        data-opl-active-shortcut={composerSurface.active_shortcut_id ?? ''}
+        data-opl-model-reasoning-visible={String(composerSurface.model_reasoning_visible)}
+        data-opl-permission-access-visible={String(composerSurface.permission_access_visible)}
+        data-opl-executor-selector-visible={String(composerSurface.executor_selector_visible)}
       >
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
@@ -782,7 +802,7 @@ const GuidPage: React.FC = () => {
             </div>
           </div>
 
-          {agentSelection.is_presetAgent && selectedAssistantDescription ? (
+          {selectedAssistantDescription ? (
             <p className='m-0 mb-12px text-center text-13px leading-20px text-t-secondary'>
               {selectedAssistantDescription}
             </p>
@@ -791,13 +811,13 @@ const GuidPage: React.FC = () => {
           <HomeStarters
             assistants={agentSelection.assistants}
             localeKey={localeKey}
-            activeCapabilityId={selectedAssistantRecord?.id}
+            activeCapabilityId={activeShortcut?.package_id}
             onSelect={(assistantId) => {
-              handleSelectAssistant(`custom:${assistantId}`);
+              handleSelectShortcut(assistantId);
               guidInput.handleTextareaFocus();
             }}
             onClear={() => {
-              handleSelectAssistant(agentSelection.defaultAgentKey);
+              handleSelectShortcut(null);
               guidInput.handleTextareaFocus();
             }}
           />
@@ -810,7 +830,7 @@ const GuidPage: React.FC = () => {
             onFocus={guidInput.handleTextareaFocus}
             onBlur={guidInput.handleTextareaBlur}
             placeholder={
-              agentSelection.is_presetAgent
+              selectedAssistantRecord
                 ? `${mention.selectedAgentLabel}, ${typewriterPlaceholder || defaultPlaceholder}`
                 : typewriterPlaceholder || oplPlaceholder
             }

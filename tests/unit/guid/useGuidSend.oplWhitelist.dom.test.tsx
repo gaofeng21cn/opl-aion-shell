@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GuidSendDeps } from '@/renderer/pages/guid/hooks/useGuidSend';
 import { useGuidSend } from '@/renderer/pages/guid/hooks/useGuidSend';
+import { resolveOplActiveShortcut } from '@/renderer/pages/guid/utils/activeShortcut';
 
 const mocks = vi.hoisted(() => ({
   createConversation: vi.fn(),
@@ -61,24 +62,6 @@ function buildMcpServer(id: string, name: string) {
   };
 }
 
-function readyMasAppState() {
-  return {
-    agent_packages: {
-      status_index: {
-        packages: {
-          mas: {
-            package_id: 'mas',
-            operational_ready: true,
-            launch_allowed: true,
-            launch_blocked_reason: null,
-            allowed_when_blocked: ['status', 'doctor', 'repair'],
-          },
-        },
-      },
-    },
-  };
-}
-
 function buildDeps(): GuidSendDeps {
   return {
     input: 'hello',
@@ -102,6 +85,7 @@ function buildDeps(): GuidSendDeps {
       avatar: 'MAS',
     },
     is_presetAgent: true,
+    activeShortcut: resolveOplActiveShortcut('mas'),
     selectedMode: 'default',
     selectedAcpModel: null,
     selectedReasoningEffort: null,
@@ -138,7 +122,6 @@ function buildDeps(): GuidSendDeps {
       originalType: 'codex',
       isAvailable: true,
     },
-    isGoogleAuth: false,
     setMentionOpen: vi.fn(),
     setMentionQuery: vi.fn(),
     setMentionSelectorOpen: vi.fn(),
@@ -210,6 +193,42 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       source: 'opl_app_home',
     });
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
+  });
+
+  it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {
+    mocks.appState = {
+      agent_packages: {
+        status_index: {
+          packages: {
+            oma: {
+              package_id: 'oma',
+              operational_ready: true,
+              launch_allowed: true,
+            },
+          },
+        },
+      },
+    };
+    const deps = buildDeps();
+    deps.activeShortcut = resolveOplActiveShortcut('oma');
+    deps.guidEnabledSkills = ['opl-meta-agent'];
+
+    const { result } = renderHook(() => useGuidSend(deps));
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    const payload = mocks.createConversation.mock.calls[0][0];
+    expect(payload.extra.opl_agent_package_invocation).toEqual({
+      route_kind: 'agent_package_shortcut',
+      executor: 'codex_cli',
+      package_id: 'oma',
+      shortcut_id: 'oma',
+      codex_visible_entry: 'opl-meta-agent',
+      required_skill_ids: ['opl-meta-agent'],
+      source: 'opl_app_home',
+    });
+    expect(payload.extra.opl_assistant_route).toBeUndefined();
   });
 
   it('blocks ordinary package launch when Framework reports package_not_installed', async () => {
