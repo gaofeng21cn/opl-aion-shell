@@ -94,6 +94,8 @@ export interface IConfigStorageRefer {
   'guid.lastSelectedAgent'?: string;
   // OPL Flow context: use CodexCont-backed local reasoning continuation mode
   'codex.oplFlowIntelligenceEnhancementMode'?: boolean;
+  'codex.oplAppSessionContextMode'?: 'automatic' | 'custom';
+  'codex.oplAppSessionContextCustom'?: string;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 任务完成时显示系统通知 / Show system notification when task completes

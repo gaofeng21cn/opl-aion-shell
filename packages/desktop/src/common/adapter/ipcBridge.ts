@@ -503,6 +503,7 @@ export type IOplRuntimeActionRequest = {
   actionId: string;
   dryRun: boolean;
   payloadRefsOnlyJson?: Record<string, unknown>;
+  payloadJson?: Record<string, unknown>;
 };
 
 export type IOplConfigureCodexRequest = {
@@ -1936,6 +1937,12 @@ export interface ICreateConversationParams {
       delivery: string;
       language: string;
       user_agents_policy: string;
+    };
+    opl_app_session_context?: {
+      owner: string;
+      source: string;
+      mode: 'automatic' | 'custom';
+      effect: string;
     };
     /** Transient: MCP server ids selected on the Guid page. Consumed by the
      *  backend create handler and snapshotted into conversation.extra. */

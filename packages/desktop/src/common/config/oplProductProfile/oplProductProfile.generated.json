@@ -586,6 +586,10 @@
         "home_shortcut_ids": ["research"],
         "required_skill_ids": ["med-autoscience"],
         "optional_skill_ids": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
+        "session_routing_summary_i18n": {
+          "zh-CN": "科研、论文、数据分析、审稿、返修和投稿",
+          "en-US": "research, papers, data analysis, peer review, revision, and submission"
+        },
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -602,6 +606,10 @@
         "home_shortcut_ids": ["grant"],
         "required_skill_ids": ["med-autogrant"],
         "optional_skill_ids": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
+        "session_routing_summary_i18n": {
+          "zh-CN": "基金选题、标书、申请书、预算说明和评审回复",
+          "en-US": "grant topics, proposals, applications, budget narratives, and reviewer responses"
+        },
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -618,6 +626,10 @@
         "home_shortcut_ids": ["ppt"],
         "required_skill_ids": ["redcube-ai"],
         "optional_skill_ids": ["officecli-pptx", "ui-ux-pro-max"],
+        "session_routing_summary_i18n": {
+          "zh-CN": "PPT、汇报、图表、视觉设计和演示材料",
+          "en-US": "slides, reports, charts, visual design, and presentation materials"
+        },
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -634,6 +646,10 @@
         "home_shortcut_ids": ["book"],
         "required_skill_ids": ["opl-bookforge"],
         "optional_skill_ids": ["officecli-docx", "pdf", "mineru-document-extractor"],
+        "session_routing_summary_i18n": {
+          "zh-CN": "写书、章节、插图表格、排版、审校和导出",
+          "en-US": "book writing, chapters, figures and tables, layout, editing, and export"
+        },
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -650,6 +666,10 @@
         "home_shortcut_ids": ["oma"],
         "required_skill_ids": ["opl-meta-agent"],
         "optional_skill_ids": [],
+        "session_routing_summary_i18n": {
+          "zh-CN": "创建、接管、检查和改进 OPL Foundry Agent",
+          "en-US": "create, take over, inspect, and improve OPL Foundry Agents"
+        },
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -846,75 +866,66 @@
       "flow_id": "opl-flow",
       "source": "opl-flow-package-policy",
       "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json",
-      "delivery": "package_installed_profile_and_session_context",
+      "delivery": "package_installed_user_profile_only",
       "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
       "language_policy": "follow_ui_locale_zh_only_when_ui_zh",
-      "app_role": "show_package_state_progress_and_user_overrides",
+      "app_role": "install_sync_diagnose_user_profile_only",
       "dependency_policy": "full_bundles_opl_flow_requires_and_recommends_closure",
       "migration_policy": "framework_executes_conflict_retirement_with_backup_receipt_and_rollback"
+    },
+    "opl_app_session_context": {
+      "owner": "one-person-lab-app",
+      "source": "gui.professional_agent_packages.session_routing_summary_i18n",
+      "delivery": "new_codex_conversation_preset_context",
+      "generation_policy": "profile_agent_routes",
+      "update_policy": "regenerated_when_app_product_profile_syncs",
+      "user_agents_policy": "codex_reads_user_and_repo_agents_independently",
+      "customization": {
+        "mode_key": "codex.oplAppSessionContextMode",
+        "custom_content_key": "codex.oplAppSessionContextCustom",
+        "modes": ["automatic", "custom"],
+        "default_mode": "automatic",
+        "effect": "next_new_conversation"
+      }
     },
     "default_visible_skills": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "skill_priority": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "session_context_lines": [
-      "## OPL App 默认会话规则",
+      "## OPL App 会话上下文",
       "",
-      "你正在 One Person Lab App 的 Codex 会话中工作。App 是普通用户/开发者工作台，负责使用入口、显式激活、状态投影和共享上下文；它不是 runtime truth owner。",
+      "你正在 One Person Lab App 启动的 Codex 会话中。",
       "",
-      "三层产品模型：",
-      "- 使用 One Person Lab：面向普通用户和开发者的工作台入口。",
-      "- 管理 Foundry Agents：MAS/MAG/RCA 等领域智能体持有领域事实、质量结论、运行入口和产物 authority。",
-      "- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。",
+      "当前可用的 OPL 智能体：",
+      "{{agent_routes}}",
       "",
-      "默认路由：",
-      "- OPL App 是 Codex CLI 驱动的内置智能体桌面 App：普通用户主路径不选择 executor，不选择 Aion CLI、Claude Code 或其他 backend。",
-      "- Codex CLI 是固定执行器；模型在首页显示为自动，精确模型和推理深度只进入技术细节或已连接状态。",
-      "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
-      "- 基金、标书、申请书：使用 MAG。",
-      "- PPT、演示、视觉交付物：使用 RCA。",
-      "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL Book Forge。",
-      "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
-      "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
+      "根据任务自动使用最匹配的智能体；用户明确指定时以用户选择为准。",
+      "未匹配时使用普通 Codex 路径。",
+      "遵循用户及仓库 AGENTS.md 和所选智能体技能说明，不改写用户配置。"
     ],
     "session_context_i18n": {
       "zh-CN": [
-        "## OPL App 默认会话规则",
+        "## OPL App 会话上下文",
         "",
-        "你正在 One Person Lab App 的 Codex 会话中工作。App 是普通用户/开发者工作台，负责使用入口、显式激活、状态投影和共享上下文；它不是 runtime truth owner。",
+        "你正在 One Person Lab App 启动的 Codex 会话中。",
         "",
-        "三层产品模型：",
-        "- 使用 One Person Lab：面向普通用户和开发者的工作台入口。",
-        "- 管理 Foundry Agents：MAS/MAG/RCA 等领域智能体持有领域事实、质量结论、运行入口和产物 authority。",
-        "- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。",
+        "当前可用的 OPL 智能体：",
+        "{{agent_routes}}",
         "",
-        "默认路由：",
-        "- OPL App 是 Codex CLI 驱动的内置智能体桌面 App：普通用户主路径不选择 executor，不选择 Aion CLI、Claude Code 或其他 backend。",
-        "- Codex CLI 是固定执行器；模型在首页显示为自动，精确模型和推理深度只进入技术细节或已连接状态。",
-        "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
-        "- 基金、标书、申请书：使用 MAG。",
-        "- PPT、演示、视觉交付物：使用 RCA。",
-        "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL Book Forge。",
-        "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
-        "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
+        "根据任务自动使用最匹配的智能体；用户明确指定时以用户选择为准。",
+        "未匹配时使用普通 Codex 路径。",
+        "遵循用户及仓库 AGENTS.md 和所选智能体技能说明，不改写用户配置。"
       ],
       "en-US": [
-        "## OPL App Default Session Rules",
+        "## OPL App Session Context",
         "",
-        "You are working inside a Codex session launched from One Person Lab App. The App is the user and developer workbench for entry points, explicit activation, status projection, and shared context; it is not the runtime truth owner.",
+        "You are in a Codex session launched by One Person Lab App.",
         "",
-        "Three-layer product model:",
-        "- Use One Person Lab: the workbench entry point for normal users and developers.",
-        "- Manage Foundry Agents: MAS, MAG, RCA, and other domain agents own domain truth, quality decisions, runtime entries, and artifact authority.",
-        "- Develop OPL Agents: OPL Framework provides the development and runtime framework, Codex-first executor integration, explicit activation, typed queue / provider-backed stage runtime, and shared capabilities.",
+        "Available OPL agents:",
+        "{{agent_routes}}",
         "",
-        "Default routing:",
-        "- OPL App is a Codex CLI driven desktop App for built-in agents. The normal user path does not choose an executor, Aion CLI, Claude Code, or another backend.",
-        "- Codex CLI is the fixed executor. The home model is displayed as Auto; exact model and reasoning details belong only in technical details or connected state.",
-        "- Use MAS for research, studies, papers, datasets, reviews, revisions, submissions, submission packages, and research progress.",
-        "- Use MAG for grants, proposals, and funding applications.",
-        "- Use RCA for PPT, presentations, and visual deliverables.",
-        "- For general One Person Lab usage, engineering collaboration, or OPL Agent development, keep the default Codex/OPL entry.",
-        "- If the user explicitly names a Foundry Agent or route, follow that request. Do not require the user to type @MAS/@MAG/@RCA.",
-        "- Book writing, manuscripts, chapters, figures, tables, layout, and export handoff: use OPL Book Forge."
+        "Use the best matching agent for the task; follow an explicit user selection.",
+        "Use the ordinary Codex path when no agent matches.",
+        "Follow user and repository AGENTS.md files plus the selected agent skill; do not rewrite user configuration."
       ]
     }
   },
@@ -1153,7 +1164,7 @@
         "target_state_checks": [
           "codex_cli_callable",
           "ui_language_policy",
-          "session_scoped_opl_flow_context",
+          "session_scoped_opl_app_context",
           "user_agents_md_respected_no_overwrite",
           "mas_mag_rca_routes_visible",
           "opl_meta_agent_capability_visible",
@@ -1636,6 +1647,42 @@
             "risk": "low",
             "confirmation_required": false,
             "editable_reason": "The user controls which local completion notifications are shown."
+          },
+          {
+            "stable_id": "settings.configuration.codex_user_instructions",
+            "configuration_id": "codex_user_instructions",
+            "owner_class": "framework",
+            "truth_owner": "user_codex_home",
+            "page_id": "preferences",
+            "anchor": "system-agents",
+            "lifecycle": "persistent_user_instruction_file",
+            "value_type": "markdown_text",
+            "sensitivity": "user_authored",
+            "current_value_source_ref": "app_state.codex_personalization.user_agents",
+            "write_route": "opl app action execute --action codex_user_instructions_set",
+            "persistence_target_ref": "$CODEX_HOME/AGENTS.md",
+            "verify_ref": "app_state.codex_personalization.user_agents.sha256",
+            "risk": "low_with_stale_write_guard",
+            "confirmation_required": false,
+            "editable_reason": "Codex reads this user-owned instruction file for every task; the App provides a safe editor without making OPL Flow the session prompt owner."
+          },
+          {
+            "stable_id": "settings.configuration.opl_app_session_context",
+            "configuration_id": "opl_app_session_context",
+            "owner_class": "app_local",
+            "truth_owner": "one-person-lab-app",
+            "page_id": "preferences",
+            "anchor": "opl-app-context",
+            "lifecycle": "persistent_new_conversation_configuration",
+            "value_type": "automatic_or_custom_markdown_text",
+            "sensitivity": "ordinary",
+            "current_value_source_ref": "app product profile agent routes + desktop client context override",
+            "write_route": "configService:codex.oplAppSessionContextMode + codex.oplAppSessionContextCustom",
+            "persistence_target_ref": "desktop_client_settings",
+            "verify_ref": "new conversation preset_context",
+            "risk": "low_next_conversation_only",
+            "confirmation_required": false,
+            "editable_reason": "This App-owned context explains available OPL agents and routing without duplicating user or repository AGENTS.md."
           },
           {
             "stable_id": "settings.configuration.display_preferences",
@@ -2636,7 +2683,7 @@
             "track": "user_task_ux",
             "goal": "Preferences explains timeout, tray, hardware acceleration, and themes in user language.",
             "evidence_required": [
-              "preferences anchors include behavior/tray/hardware/themes",
+              "preferences anchors include behavior/instructions-context/system-agents/opl-app-context/display-fonts/themes",
               "raw milliseconds and Electron flags stay collapsed",
               "Preferences has inline controls and no page-level primary action"
             ]
@@ -3387,10 +3434,18 @@
             "primary_information": [
               "application behavior including startup, close-window behavior, uploads, and reply waiting time",
               "notifications",
+              "system-level Codex user instructions from the user-owned AGENTS.md",
+              "OPL App new-conversation context with automatic agent routing or a local custom override",
               "language, display scale, chat, Markdown, and code font sizes",
               "theme and appearance including hardware acceleration where relevant"
             ],
-            "first_viewport_groups": ["app_behavior", "notifications", "display_and_fonts", "themes"],
+            "first_viewport_groups": [
+              "app_behavior",
+              "notifications",
+              "instructions_and_session_context",
+              "display_and_fonts",
+              "themes"
+            ],
             "primary_action": {
               "id": "none",
               "availability": "inline_controls_only",
@@ -3402,6 +3457,9 @@
               "always": [
                 "settings-page-preferences",
                 "settings-preferences-primary",
+                "settings-preferences-instructions",
+                "settings-system-agents-editor",
+                "settings-opl-app-context-editor",
                 "settings-preferences-technical-details"
               ],
               "conditional": [
@@ -3411,11 +3469,21 @@
                 }
               ]
             },
-            "required_anchors": ["behavior", "notifications", "display-fonts", "themes"],
+            "required_anchors": [
+              "behavior",
+              "notifications",
+              "instructions-context",
+              "system-agents",
+              "opl-app-context",
+              "display-fonts",
+              "themes"
+            ],
             "search_entry_ids": [
               "preferences.behavior",
               "preferences.notifications",
               "preferences.display_fonts",
+              "preferences.system_agents",
+              "preferences.opl_app_context",
               "preferences.themes"
             ]
           },
@@ -3751,6 +3819,24 @@
               "label_en": "Notifications",
               "keywords_zh": ["通知", "任务完成", "提醒"],
               "keywords_en": ["notification", "task complete", "alert"]
+            },
+            {
+              "id": "preferences.system_agents",
+              "page_id": "preferences",
+              "anchor": "system-agents",
+              "label_zh": "系统级 AGENTS.md",
+              "label_en": "System AGENTS.md",
+              "keywords_zh": ["指令", "系统提示", "AGENTS.md", "个性化"],
+              "keywords_en": ["instructions", "system prompt", "AGENTS.md", "personalization"]
+            },
+            {
+              "id": "preferences.opl_app_context",
+              "page_id": "preferences",
+              "anchor": "opl-app-context",
+              "label_zh": "OPL App 会话上下文",
+              "label_en": "OPL App session context",
+              "keywords_zh": ["会话上下文", "智能体路由", "新对话", "OPL"],
+              "keywords_en": ["session context", "agent routing", "new conversation", "OPL"]
             },
             {
               "id": "preferences.display_fonts",

@@ -65,6 +65,8 @@ export type ConfigKeyMap = {
   'upload.saveToWorkspace': boolean | undefined;
   'guid.lastSelectedAgent': string | undefined;
   'codex.oplFlowIntelligenceEnhancementMode': boolean | undefined;
+  'codex.oplAppSessionContextMode': 'automatic' | 'custom' | undefined;
+  'codex.oplAppSessionContextCustom': string | undefined;
   'system.closeToTray': boolean | undefined;
   'system.notificationEnabled': boolean | undefined;
   'system.cronNotificationEnabled': boolean | undefined;

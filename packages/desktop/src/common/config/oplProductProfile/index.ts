@@ -147,6 +147,7 @@ export type OplProfessionalAgentPackage = {
   home_shortcut_ids: string[];
   required_skill_ids: string[];
   optional_skill_ids: string[];
+  session_routing_summary_i18n: Record<'zh-CN' | 'en-US', string>;
   required_skill_policy: 'checked_locked';
   optional_skill_policy: 'unchecked_user_selectable';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
@@ -209,10 +210,10 @@ export type OplFlowContextPolicy = {
   flow_id: 'opl-flow';
   source: string;
   policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json';
-  delivery: 'package_installed_profile_and_session_context';
+  delivery: 'package_installed_user_profile_only';
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
-  app_role: 'show_package_state_progress_and_user_overrides';
+  app_role: 'install_sync_diagnose_user_profile_only';
   dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure';
   migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback';
   optional_user_modes?: {
@@ -233,6 +234,22 @@ export type OplFlowContextPolicy = {
       repair_action_id: 'intelligence_enhancement_repair';
       uninstall_action_id: 'intelligence_enhancement_uninstall';
     };
+  };
+};
+
+export type OplAppSessionContextPolicy = {
+  owner: 'one-person-lab-app';
+  source: 'gui.professional_agent_packages.session_routing_summary_i18n';
+  delivery: 'new_codex_conversation_preset_context';
+  generation_policy: 'profile_agent_routes';
+  update_policy: 'regenerated_when_app_product_profile_syncs';
+  user_agents_policy: 'codex_reads_user_and_repo_agents_independently';
+  customization: {
+    mode_key: 'codex.oplAppSessionContextMode';
+    custom_content_key: 'codex.oplAppSessionContextCustom';
+    modes: ['automatic', 'custom'];
+    default_mode: 'automatic';
+    effect: 'next_new_conversation';
   };
 };
 
@@ -492,6 +509,7 @@ type AppProductProfile = {
     default_reasoning_effort: OplCodexReasoningEffort | null;
     auto_model_policy: OplCodexAutoModelPolicy;
     opl_flow_context: OplFlowContextPolicy;
+    opl_app_session_context: OplAppSessionContextPolicy;
     default_visible_skills: string[];
     skill_priority: string[];
     session_context_lines: string[];
@@ -642,7 +660,7 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
   for (const required of [
     'codex_cli_callable',
     'ui_language_policy',
-    'session_scoped_opl_flow_context',
+    'session_scoped_opl_app_context',
     'user_agents_md_respected_no_overwrite',
     'mas_mag_rca_routes_visible',
     'opl_meta_agent_capability_visible',
@@ -1175,6 +1193,10 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
     const role = typeof entry.role === 'string' ? entry.role.trim() : '';
     const packageKind = typeof entry.package_kind === 'string' ? entry.package_kind.trim() : '';
     const codexVisibleEntry = typeof entry.codex_visible_entry === 'string' ? entry.codex_visible_entry.trim() : '';
+    const sessionRoutingSummaryI18n = readStringRecord(
+      entry.session_routing_summary_i18n,
+      `gui.professional_agent_packages.${packageId}.session_routing_summary_i18n`
+    );
     if (!packageId || !displayName || !shortName || !role || !packageKind || !codexVisibleEntry) {
       throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] has blank fields`);
     }
@@ -1202,6 +1224,10 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
       optional_skill_ids: readStringArray(entry, 'optional_skill_ids', `gui.professional_agent_packages.${packageId}`, {
         allowEmpty: true,
       }),
+      session_routing_summary_i18n: {
+        'zh-CN': sessionRoutingSummaryI18n['zh-CN'],
+        'en-US': sessionRoutingSummaryI18n['en-US'],
+      },
       required_skill_policy: 'checked_locked',
       optional_skill_policy: 'unchecked_user_selectable',
       skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
@@ -1569,10 +1595,10 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     value.flow_id !== 'opl-flow' ||
     !source ||
     value.policy_source_ref !== 'gaofeng21cn/opl-flow:contracts/workflow-policy.json' ||
-    value.delivery !== 'package_installed_profile_and_session_context' ||
+    value.delivery !== 'package_installed_user_profile_only' ||
     value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
     value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh' ||
-    value.app_role !== 'show_package_state_progress_and_user_overrides' ||
+    value.app_role !== 'install_sync_diagnose_user_profile_only' ||
     value.dependency_policy !== 'full_bundles_opl_flow_requires_and_recommends_closure' ||
     value.migration_policy !== 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback'
   ) {
@@ -1630,15 +1656,51 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     flow_id: 'opl-flow',
     source,
     policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
-    delivery: 'package_installed_profile_and_session_context',
+    delivery: 'package_installed_user_profile_only',
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-    app_role: 'show_package_state_progress_and_user_overrides',
+    app_role: 'install_sync_diagnose_user_profile_only',
     dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
     migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
     ...(parsedIntelligenceEnhancementMode
       ? { optional_user_modes: { intelligence_enhancement: parsedIntelligenceEnhancementMode } }
       : {}),
+  };
+}
+
+function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppSessionContextPolicy {
+  const value = codex.opl_app_session_context;
+  const customization = isRecord(value) && isRecord(value.customization) ? value.customization : null;
+  if (
+    !isRecord(value) ||
+    value.owner !== 'one-person-lab-app' ||
+    value.source !== 'gui.professional_agent_packages.session_routing_summary_i18n' ||
+    value.delivery !== 'new_codex_conversation_preset_context' ||
+    value.generation_policy !== 'profile_agent_routes' ||
+    value.update_policy !== 'regenerated_when_app_product_profile_syncs' ||
+    value.user_agents_policy !== 'codex_reads_user_and_repo_agents_independently' ||
+    customization?.mode_key !== 'codex.oplAppSessionContextMode' ||
+    customization.custom_content_key !== 'codex.oplAppSessionContextCustom' ||
+    JSON.stringify(customization.modes) !== JSON.stringify(['automatic', 'custom']) ||
+    customization.default_mode !== 'automatic' ||
+    customization.effect !== 'next_new_conversation'
+  ) {
+    throw new Error('Invalid OPL product profile: codex.opl_app_session_context is unsupported');
+  }
+  return {
+    owner: 'one-person-lab-app',
+    source: 'gui.professional_agent_packages.session_routing_summary_i18n',
+    delivery: 'new_codex_conversation_preset_context',
+    generation_policy: 'profile_agent_routes',
+    update_policy: 'regenerated_when_app_product_profile_syncs',
+    user_agents_policy: 'codex_reads_user_and_repo_agents_independently',
+    customization: {
+      mode_key: 'codex.oplAppSessionContextMode',
+      custom_content_key: 'codex.oplAppSessionContextCustom',
+      modes: ['automatic', 'custom'],
+      default_mode: 'automatic',
+      effect: 'next_new_conversation',
+    },
   };
 }
 
@@ -1884,6 +1946,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
+  const oplAppSessionContext = readOplAppSessionContextPolicy(codex);
   const sessionContextI18n = isRecord(codex.session_context_i18n)
     ? {
         'zh-CN': readStringArray(codex.session_context_i18n, 'zh-CN', 'codex.session_context_i18n', {
@@ -2074,6 +2137,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       default_reasoning_effort: codexReasoningEffort,
       auto_model_policy: codexAutoModelPolicy,
       opl_flow_context: oplFlowContext,
+      opl_app_session_context: oplAppSessionContext,
       default_visible_skills: defaultVisibleSkills,
       skill_priority: skillPriority,
       session_context_lines: readStringArray(codex, 'session_context_lines', 'codex', { allowBlank: true }),
@@ -2604,6 +2668,7 @@ export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[]
     home_shortcut_ids: [...agentPackage.home_shortcut_ids],
     required_skill_ids: [...agentPackage.required_skill_ids],
     optional_skill_ids: [...agentPackage.optional_skill_ids],
+    session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
   }));
 }
 
@@ -2618,6 +2683,7 @@ export function getOplProfessionalAgentPackage(packageId: string): OplProfession
     home_shortcut_ids: [...agentPackage.home_shortcut_ids],
     required_skill_ids: [...agentPackage.required_skill_ids],
     optional_skill_ids: [...agentPackage.optional_skill_ids],
+    session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
   };
 }
 
@@ -2801,6 +2867,16 @@ export function getOplFlowContextPolicy(): OplFlowContextPolicy {
   };
 }
 
+export function getOplAppSessionContextPolicy(): OplAppSessionContextPolicy {
+  return {
+    ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context,
+    customization: {
+      ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context.customization,
+      modes: [...OPL_PRODUCT_PROFILE.codex.opl_app_session_context.customization.modes],
+    },
+  };
+}
+
 export function getOplDefaultCodexSkills(): string[] {
   return [...OPL_PRODUCT_PROFILE.codex.default_visible_skills];
 }
@@ -2821,12 +2897,21 @@ export function getOplSkillPriority(): string[] {
 }
 
 export function getOplCodexSessionContext(): string {
-  return OPL_PRODUCT_PROFILE.codex.session_context_lines.join('\n').trim();
+  return getOplCodexSessionContextForLocale('zh-CN');
 }
 
 export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US'): string {
   const context = OPL_PRODUCT_PROFILE.codex.session_context_i18n?.[locale];
-  return (context ?? OPL_PRODUCT_PROFILE.codex.session_context_lines).join('\n').trim();
+  const routeLines = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.map((agentPackage) => {
+    const summary = agentPackage.session_routing_summary_i18n[locale];
+    return locale === 'en-US'
+      ? `- ${agentPackage.short_name} (${agentPackage.display_name}): ${summary}.`
+      : `- ${agentPackage.short_name}（${agentPackage.display_name}）：${summary}。`;
+  });
+  return (context ?? OPL_PRODUCT_PROFILE.codex.session_context_lines)
+    .flatMap((line) => (line === '{{agent_routes}}' ? routeLines : [line]))
+    .join('\n')
+    .trim();
 }
 
 export function getOplLegacyCodexSessionContexts(): string[] {

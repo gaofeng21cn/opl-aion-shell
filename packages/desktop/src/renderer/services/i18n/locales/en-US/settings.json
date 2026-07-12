@@ -2655,7 +2655,7 @@
     },
     "codexContext": {
       "title": "Codex session context diagnostics",
-      "description": "Read-only App-managed OPL Flow metadata for new Codex CLI sessions. It follows the UI language, respects user AGENTS.md files, and records the OPL App product profile as source."
+      "description": "OPL App capability-routing context used for new Codex CLI sessions. It follows the UI language, remains separate from user and repository AGENTS.md files, and is maintained by the OPL App product profile."
     },
     "developerSource": {
       "title": "Local development folders are protected",
@@ -2663,6 +2663,24 @@
       "dirtyImpact": "A local development folder has uncommitted changes. Automatic maintenance will skip related updates until you handle those changes.",
       "nextStep": "Open Advanced maintenance details when you need the exact folder."
     }
+  },
+  "personalization": {
+    "title": "Instructions and session context",
+    "description": "Manage persistent Codex user instructions and the OPL agent-routing context used for new App conversations.",
+    "systemAgentsTitle": "System AGENTS.md",
+    "systemAgentsDescription": "Codex reads these user-level instructions for every task. Saving checks for external changes and keeps a backup of the previous version.",
+    "systemAgentsPlaceholder": "Enter persistent instructions for Codex to follow in every task",
+    "systemAgentsTooLarge": "This file exceeds the App editing limit. Edit it externally, then reload.",
+    "sessionContextTitle": "OPL App session context",
+    "sessionContextDescription": "Automatic mode follows the OPL agent directory shipped with the App; Custom mode replaces the complete new-conversation context.",
+    "automatic": "Automatic",
+    "custom": "Custom",
+    "save": "Save",
+    "reload": "Reload",
+    "nextConversationEffect": "Changes apply to the next new Codex conversation.",
+    "systemAgentsSaved": "System AGENTS.md saved",
+    "sessionContextSaved": "OPL App session context saved",
+    "saveFailed": "Save failed"
   },
   "appearancePage": {
     "visualTheme": "Interface Theme",

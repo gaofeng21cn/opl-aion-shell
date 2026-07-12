@@ -26,6 +26,10 @@ vi.mock('@/common', () => ({
       getKeepAwake: { invoke: bridgeMocks.getKeepAwake },
       setKeepAwake: { invoke: bridgeMocks.setKeepAwake },
     },
+    oplRuntime: {
+      executeAction: { invoke: vi.fn() },
+      getAppState: { invoke: vi.fn() },
+    },
   },
 }));
 
@@ -44,8 +48,32 @@ vi.mock('@/common/config/configService', () => ({
       return defaults[key];
     }),
     set: vi.fn(() => Promise.resolve()),
+    setBatch: vi.fn(() => Promise.resolve()),
     setLocal: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
   },
+}));
+
+vi.mock('@/renderer/hooks/config/useConfig', () => ({
+  useConfig: (key: string) => [key.endsWith('Mode') ? 'automatic' : undefined, vi.fn()],
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  useOplAppState: () => ({
+    appState: {
+      codex_personalization: {
+        user_agents: {
+          status: 'available',
+          path: '/Users/example/.codex/AGENTS.md',
+          content: 'Always answer directly.\n',
+          sha256: 'sha-current',
+        },
+      },
+    },
+    refreshing: false,
+    load: vi.fn(),
+  }),
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -85,6 +113,7 @@ vi.mock('@renderer/hooks/context/ThemeContext', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'en-US' },
     t: (key: string) =>
       ({
         'settings.personalPreferencesTitle': 'Preferences',
@@ -127,12 +156,25 @@ vi.mock('react-i18next', () => ({
         'settings.scale': 'Scale',
         'settings.advancedThemeListTitle': 'Advanced themes',
         'settings.advancedThemeListDesc': 'Theme presets stay collapsed until needed.',
+        'settings.personalization.title': 'Instructions and session context',
+        'settings.personalization.description': 'Manage persistent instructions and OPL routing.',
+        'settings.personalization.systemAgentsTitle': 'System AGENTS.md',
+        'settings.personalization.systemAgentsDescription': 'Instructions for every task.',
+        'settings.personalization.systemAgentsPlaceholder': 'Persistent instructions',
+        'settings.personalization.systemAgentsTooLarge': 'Too large',
+        'settings.personalization.sessionContextTitle': 'OPL App session context',
+        'settings.personalization.sessionContextDescription': 'Context for new conversations.',
+        'settings.personalization.automatic': 'Automatic',
+        'settings.personalization.custom': 'Custom',
+        'settings.personalization.save': 'Save',
+        'settings.personalization.reload': 'Reload',
+        'settings.personalization.nextConversationEffect': 'Applies to the next conversation.',
       })[key] ?? key,
   }),
 }));
 
 describe('AppearanceModalContent', () => {
-  it('organizes preferences as two full-width behavior and display groups', async () => {
+  it('organizes preferences as full-width behavior, instructions, and display groups', async () => {
     bridgeMocks.getStartOnBootStatus.mockResolvedValue({
       success: true,
       data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
@@ -152,6 +194,7 @@ describe('AppearanceModalContent', () => {
     const page = screen.getByTestId('settings-page-preferences');
     expect(Array.from(page.querySelectorAll('section')).map((section) => section.id)).toEqual([
       'app-behavior',
+      'instructions-context',
       'display',
     ]);
     expect(screen.getByTestId('preferences-card-grid')).toHaveClass('flex', 'flex-col');
@@ -167,6 +210,13 @@ describe('AppearanceModalContent', () => {
 
     expect(appBehavior).toHaveTextContent('Notifications');
     expect(appBehavior).toHaveTextContent('Background task completion');
+
+    const instructions = screen.getByTestId('settings-preferences-instructions');
+    expect(instructions).toHaveTextContent('System AGENTS.md');
+    expect(instructions).toHaveTextContent('/Users/example/.codex/AGENTS.md');
+    expect(instructions).toHaveTextContent('OPL App session context');
+    expect(screen.getByTestId('settings-system-agents-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-opl-app-context-editor')).toBeInTheDocument();
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');

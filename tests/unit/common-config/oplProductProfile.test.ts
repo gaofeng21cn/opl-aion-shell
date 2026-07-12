@@ -563,10 +563,10 @@ describe('OPL generated product profile', () => {
       flow_id: 'opl-flow',
       source: 'opl-flow-package-policy',
       policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
-      delivery: 'package_installed_profile_and_session_context',
+      delivery: 'package_installed_user_profile_only',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-      app_role: 'show_package_state_progress_and_user_overrides',
+      app_role: 'install_sync_diagnose_user_profile_only',
       dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
       migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
     });
@@ -789,9 +789,10 @@ describe('OPL generated product profile', () => {
   it('exposes the Codex session context without embedded secrets', () => {
     const context = getOplCodexSessionContext();
 
-    expect(context).toContain('OPL App 默认会话规则');
-    expect(context).toContain('Codex CLI 是固定执行器');
-    expect(context).toContain('普通用户主路径不选择 executor');
+    expect(context).toContain('OPL App 会话上下文');
+    expect(context).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
+    expect(context).toContain('OMA（OPL Meta Agent）：创建、接管、检查和改进 OPL Foundry Agent');
+    expect(context).toContain('遵循用户及仓库 AGENTS.md');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
   });

@@ -251,14 +251,29 @@ function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSp
 
 function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {
   const args = ['app', 'action', 'execute', '--action', assertActionId(request.actionId)];
+  if (request.payloadRefsOnlyJson && request.payloadJson) {
+    throw new Error('OPL runtime action accepts only one payload source.');
+  }
   if (request.dryRun) {
     args.push('--dry-run');
   }
   if (request.payloadRefsOnlyJson && Object.keys(request.payloadRefsOnlyJson).length > 0) {
     args.push('--payload', JSON.stringify(request.payloadRefsOnlyJson));
   }
+  if (request.payloadJson && Object.keys(request.payloadJson).length > 0) {
+    args.push('--payload-stdin');
+  }
   args.push('--json');
-  return { surface: 'app_action', args };
+  return {
+    surface: 'app_action',
+    args,
+    ...(request.payloadJson
+      ? {
+          stdin: JSON.stringify(request.payloadJson),
+          redactedCommand: `opl app action execute --action ${assertActionId(request.actionId)} --payload-stdin --json`,
+        }
+      : {}),
+  };
 }
 
 function buildInitializeCommand(): RuntimeCommandSpec {

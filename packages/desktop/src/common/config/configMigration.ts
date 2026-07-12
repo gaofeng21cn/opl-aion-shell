@@ -47,6 +47,8 @@ const ALL_LEGACY_KEYS: ConfigKey[] = [
   'upload.saveToWorkspace',
   'guid.lastSelectedAgent',
   'codex.oplFlowIntelligenceEnhancementMode',
+  'codex.oplAppSessionContextMode',
+  'codex.oplAppSessionContextCustom',
   'skillsMarket.enabled',
   'pet.enabled',
   'pet.size',

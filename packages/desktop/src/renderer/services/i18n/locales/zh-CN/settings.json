@@ -2656,7 +2656,7 @@
     },
     "codexContext": {
       "title": "Codex 会话上下文诊断",
-      "description": "新建 Codex CLI 会话使用的 App 管理 OPL Flow 元数据。它跟随界面语言、尊重用户 AGENTS.md 文件，并记录 OPL App 产品规则作为来源。"
+      "description": "新建 Codex CLI 会话使用的 OPL App 能力路由上下文。它跟随界面语言，独立于用户和仓库 AGENTS.md，并由 OPL App 产品配置维护。"
     },
     "developerSource": {
       "title": "本机开发目录受保护",
@@ -2664,6 +2664,24 @@
       "dirtyImpact": "检测到本机开发目录有未提交改动；自动维护会跳过相关更新，直到你处理这些改动。",
       "nextStep": "需要查看具体目录时，打开下方高级维护详情。"
     }
+  },
+  "personalization": {
+    "title": "指令与会话上下文",
+    "description": "管理 Codex 长期遵循的用户指令，以及 OPL App 新对话使用的智能体路由说明。",
+    "systemAgentsTitle": "系统级 AGENTS.md",
+    "systemAgentsDescription": "Codex 会在所有任务中读取这份用户级指令。保存时会校验文件是否被其他程序修改，并保留上一版备份。",
+    "systemAgentsPlaceholder": "输入希望 Codex 在所有任务中遵循的长期指令",
+    "systemAgentsTooLarge": "文件超过 App 的安全编辑上限，请使用外部编辑器处理后再重新加载。",
+    "sessionContextTitle": "OPL App 会话上下文",
+    "sessionContextDescription": "自动模式随 App 中的 OPL 智能体目录更新；自定义模式允许完整替换这段新对话上下文。",
+    "automatic": "自动生成",
+    "custom": "自定义",
+    "save": "保存",
+    "reload": "重新加载",
+    "nextConversationEffect": "保存后从下一次新建 Codex 对话开始生效。",
+    "systemAgentsSaved": "系统级 AGENTS.md 已保存",
+    "sessionContextSaved": "OPL App 会话上下文已保存",
+    "saveFailed": "保存失败"
   },
   "appearancePage": {
     "visualTheme": "界面主题",

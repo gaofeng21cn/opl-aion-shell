@@ -19,7 +19,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     configService.reset();
   });
 
-  it('adds App-managed OPL flow metadata and prepends the localized flow context without replacing preset context', () => {
+  it('adds App-owned context metadata and prepends localized agent routes without replacing preset context', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'Research plan',
@@ -34,17 +34,24 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'en-US',
     });
 
-    expect(params.extra.preset_context).toContain('## OPL App Default Session Rules');
-    expect(params.extra.preset_context).toContain('Use MAS for research, studies, papers');
+    expect(params.extra.preset_context).toContain('## OPL App Session Context');
+    expect(params.extra.preset_context).toContain('MAS (Med Auto Science): research, papers, data analysis');
+    expect(params.extra.preset_context).toContain('OMA (OPL Meta Agent): create, take over, inspect');
     expect(params.extra.preset_context).not.toContain('你正在 One Person Lab App');
     expect(params.extra.preset_context).toContain('Existing assistant rule.');
-    expect(params.extra.preset_context).toMatch(/Use MAS for research[\s\S]+Existing assistant rule\./);
+    expect(params.extra.preset_context).toMatch(/MAS \(Med Auto Science\)[\s\S]+Existing assistant rule\./);
     expect(params.extra.opl_flow_context).toEqual({
       flow_id: 'opl-flow',
       source: 'opl-flow-package-policy',
-      delivery: 'package_installed_profile_and_session_context',
+      delivery: 'package_installed_user_profile_only',
       language: 'follow_ui_locale_zh_only_when_ui_zh',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+    });
+    expect(params.extra.opl_app_session_context).toEqual({
+      owner: 'one-person-lab-app',
+      source: 'gui.professional_agent_packages.session_routing_summary_i18n',
+      mode: 'automatic',
+      effect: 'next_new_conversation',
     });
   });
 
@@ -83,10 +90,26 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'zh-CN',
     });
 
-    expect(params.extra.preset_context).toContain('## OPL App 默认会话规则');
+    expect(params.extra.preset_context).toContain('## OPL App 会话上下文');
     expect(params.extra.preset_context).toContain('你正在 One Person Lab App');
     expect(params.extra.preset_context).toContain('已有智能体规则。');
-    expect(params.extra.preset_context).not.toContain('## OPL App Default Session Rules');
+    expect(params.extra.preset_context).not.toContain('## OPL App Session Context');
+  });
+
+  it('uses a saved custom OPL App context for the next new conversation', () => {
+    configService.setLocal('codex.oplAppSessionContextMode', 'custom');
+    configService.setLocal('codex.oplAppSessionContextCustom', 'Custom OPL routing context.');
+
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Custom context',
+      workspace: '/Users/example/workspace',
+      model,
+      language: 'en-US',
+    });
+
+    expect(params.extra.preset_context).toBe('Custom OPL routing context.');
+    expect(params.extra.opl_app_session_context?.mode).toBe('custom');
   });
 
   it('does not inject prompt text for the intelligence enhancement setting', () => {

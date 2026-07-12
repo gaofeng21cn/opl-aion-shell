@@ -165,6 +165,21 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
+  it('sends user-authored action payloads over stdin with a redacted command', () => {
+    expect(
+      __oplRuntimeBridgeTest.buildActionCommand({
+        actionId: 'codex_user_instructions_set',
+        dryRun: false,
+        payloadJson: { content: 'Private user instruction.', expected_sha256: null },
+      })
+    ).toEqual({
+      surface: 'app_action',
+      args: ['app', 'action', 'execute', '--action', 'codex_user_instructions_set', '--payload-stdin', '--json'],
+      stdin: '{"content":"Private user instruction.","expected_sha256":null}',
+      redactedCommand: 'opl app action execute --action codex_user_instructions_set --payload-stdin --json',
+    });
+  });
+
   it('builds the first-run command surface without allowing arbitrary shell commands', () => {
     expect(__oplRuntimeBridgeTest.buildInitializeCommand()).toEqual({
       surface: 'system_initialize',
