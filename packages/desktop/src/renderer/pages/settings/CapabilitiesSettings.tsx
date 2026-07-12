@@ -808,13 +808,16 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
                 </Typography.Text>
               </div>
-              <Switch
-                checked={developerSafeMaintenance}
-                loading={busyAction === 'developer_supervisor'}
-                disabled={packageMutationBusy}
-                onChange={(checked) => void updateDeveloperMaintenance(checked)}
-                data-testid='opl-developer-profile-maintenance'
-              />
+              <div className='opl-settings-row__meta'>
+                <Switch
+                  size='small'
+                  checked={developerSafeMaintenance}
+                  loading={busyAction === 'developer_supervisor'}
+                  disabled={packageMutationBusy}
+                  onChange={(checked) => void updateDeveloperMaintenance(checked)}
+                  data-testid='opl-developer-profile-maintenance'
+                />
+              </div>
             </div>
           </div>
           <div className='flex flex-wrap gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'>

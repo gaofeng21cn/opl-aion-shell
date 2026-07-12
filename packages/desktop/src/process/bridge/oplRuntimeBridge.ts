@@ -629,7 +629,7 @@ function detectDeveloperModeGithubIdentity(env: NodeJS.ProcessEnv): DeveloperMod
 
 function developerModePrefersLocalCheckout(env: NodeJS.ProcessEnv): boolean {
   const config = readOplDeveloperSupervisorConfig(env);
-  if (config.mode !== 'developer_apply_safe' || config.enabled === 'off') {
+  if (config.enabled === 'off') {
     return false;
   }
   if (config.enabled === 'on') {

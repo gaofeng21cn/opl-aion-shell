@@ -550,7 +550,7 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(stateDir, { recursive: true });
     fs.writeFileSync(
       path.join(stateDir, 'developer-supervisor.json'),
-      JSON.stringify({ enabled: 'auto', mode: 'developer_apply_safe', auto_enable_github_login: 'gaofeng21cn' }),
+      JSON.stringify({ enabled: 'auto', mode: 'external_observe', auto_enable_github_login: 'gaofeng21cn' }),
       'utf8'
     );
     fs.writeFileSync(

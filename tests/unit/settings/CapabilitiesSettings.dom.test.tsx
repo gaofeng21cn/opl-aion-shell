@@ -704,6 +704,7 @@ describe('CapabilitiesSettingsContent', () => {
     const profile = screen.getByTestId('opl-developer-profile-control');
     expect(profile).toHaveTextContent('/Users/test/workspace');
     expect(profile).toHaveTextContent('7 / 7');
+    expect(within(profile).getByTestId('opl-developer-profile-maintenance')).toHaveClass('arco-switch-small');
 
     fireEvent.click(within(profile).getByText('Managed'));
     await waitFor(() =>
@@ -713,6 +714,18 @@ describe('CapabilitiesSettingsContent', () => {
         payloadRefsOnlyJson: {
           developerSupervisorEnabled: 'off',
           developerSupervisorMode: 'developer_apply_safe',
+        },
+      })
+    );
+
+    bridgeMocks.executeActionInvoke.mockClear();
+    fireEvent.click(within(profile).getByTestId('opl-developer-profile-maintenance'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'developer_supervisor',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          developerSupervisorMode: 'external_observe',
         },
       })
     );

@@ -1262,6 +1262,7 @@
       "settings_page": "settings_capabilities",
       "global_control": "managed_automatic_developer_segmented_control",
       "safe_maintenance_control": "switch",
+      "safe_maintenance_independent_from_source_selection": true,
       "package_source_control": "auto_managed_developer_segmented_control_in_package_details",
       "fallback_policy": "developer_checkout_missing_falls_back_to_managed_with_visible_reason",
       "capability_axes": [
