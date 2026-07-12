@@ -41,8 +41,8 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).toMatch(/Use MAS for research[\s\S]+Existing assistant rule\./);
     expect(params.extra.opl_flow_context).toEqual({
       flow_id: 'opl-flow',
-      source: 'one-person-lab-app',
-      delivery: 'session_scoped_preset_context',
+      source: 'opl-flow-package-policy',
+      delivery: 'package_installed_profile_and_session_context',
       language: 'follow_ui_locale_zh_only_when_ui_zh',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     });

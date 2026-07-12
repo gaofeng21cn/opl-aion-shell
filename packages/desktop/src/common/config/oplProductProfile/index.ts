@@ -208,9 +208,13 @@ export type OplOrdinaryForbiddenCapabilityPolicy = {
 export type OplFlowContextPolicy = {
   flow_id: 'opl-flow';
   source: string;
-  delivery: 'session_scoped_preset_context';
+  policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json';
+  delivery: 'package_installed_profile_and_session_context';
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
+  app_role: 'show_package_state_progress_and_user_overrides';
+  dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure';
+  migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback';
   optional_user_modes?: {
     intelligence_enhancement: {
       id: 'intelligence_enhancement';
@@ -244,7 +248,7 @@ export type OplCodexModelDisplayModel = {
 };
 
 export type OplCodexModelDisplayOptions = {
-  display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus';
+  display_policy: 'friendly_model_name_primary_reasoning_primary_model_secondary_menu';
   button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix';
   raw_model_id_visible_in_ordinary_ui: false;
   reasoning_effort_visible_for_every_option: false;
@@ -256,8 +260,6 @@ export type OplCodexModelDisplayOptions = {
   default_reasoning_effort: OplCodexReasoningEffort;
   auto_option_current_resolution_visible: true;
   model_menu_policy: 'current_model_secondary_submenu';
-  intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions';
-  intelligence_enhancement_default_enabled: false;
   auto_option: {
     id: '__auto';
     label_zh: string;
@@ -464,7 +466,7 @@ type AppProductProfile = {
       conversation_permission_mode_selector_visible: true;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
-      codex_precise_model_display_policy: 'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus';
+      codex_precise_model_display_policy: 'friendly_model_primary_reasoning_primary_model_secondary_menu';
       codex_auto_model_selection: {
         policy_source_ref: 'contracts/app-product-profile.json#codex.auto_model_policy';
         user_can_override_model: boolean;
@@ -823,7 +825,7 @@ function readCodexModelDisplayOptions(
     throw new Error('Invalid OPL product profile: gui.home.codex_model_display_options must be declared');
   }
   if (
-    value.display_policy !== 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus' ||
+    value.display_policy !== 'friendly_model_name_primary_reasoning_primary_model_secondary_menu' ||
     value.button_label_policy !== 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix' ||
     value.raw_model_id_visible_in_ordinary_ui !== false ||
     value.reasoning_effort_visible_for_every_option !== false ||
@@ -834,8 +836,6 @@ function readCodexModelDisplayOptions(
     value.reasoning_effort_options_source !== 'acp_codex_config_options_enum' ||
     value.auto_option_current_resolution_visible !== true ||
     value.model_menu_policy !== 'current_model_secondary_submenu' ||
-    value.intelligence_enhancement_menu_policy !== 'default_off_secondary_submenu_with_enable_disable_actions' ||
-    value.intelligence_enhancement_default_enabled !== false ||
     value.fixed_model_description_zh !== '固定此模型' ||
     value.fixed_model_description_en !== 'Use this model'
   ) {
@@ -930,7 +930,7 @@ function readCodexModelDisplayOptions(
   }
 
   return {
-    display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
+    display_policy: 'friendly_model_name_primary_reasoning_primary_model_secondary_menu',
     button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
     raw_model_id_visible_in_ordinary_ui: false,
     reasoning_effort_visible_for_every_option: false,
@@ -942,8 +942,6 @@ function readCodexModelDisplayOptions(
     default_reasoning_effort: displayDefaultReasoningEffort,
     auto_option_current_resolution_visible: true,
     model_menu_policy: 'current_model_secondary_submenu',
-    intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions',
-    intelligence_enhancement_default_enabled: false,
     auto_option: {
       id: '__auto',
       label_zh: '自动（推荐）',
@@ -1570,9 +1568,13 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
   if (
     value.flow_id !== 'opl-flow' ||
     !source ||
-    value.delivery !== 'session_scoped_preset_context' ||
+    value.policy_source_ref !== 'gaofeng21cn/opl-flow:contracts/workflow-policy.json' ||
+    value.delivery !== 'package_installed_profile_and_session_context' ||
     value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
-    value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh'
+    value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh' ||
+    value.app_role !== 'show_package_state_progress_and_user_overrides' ||
+    value.dependency_policy !== 'full_bundles_opl_flow_requires_and_recommends_closure' ||
+    value.migration_policy !== 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback'
   ) {
     throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
   }
@@ -1627,9 +1629,13 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
   return {
     flow_id: 'opl-flow',
     source,
-    delivery: 'session_scoped_preset_context',
+    policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
+    delivery: 'package_installed_profile_and_session_context',
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+    app_role: 'show_package_state_progress_and_user_overrides',
+    dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
+    migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
     ...(parsedIntelligenceEnhancementMode
       ? { optional_user_modes: { intelligence_enhancement: parsedIntelligenceEnhancementMode } }
       : {}),
@@ -1824,8 +1830,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.conversation_backend_selector_visible !== false ||
     guiHome.conversation_model_selector_visible !== true ||
     guiHome.conversation_permission_mode_selector_visible !== true ||
-    guiHome.codex_precise_model_display_policy !==
-      'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus'
+    guiHome.codex_precise_model_display_policy !== 'friendly_model_primary_reasoning_primary_model_secondary_menu'
   ) {
     throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
@@ -2041,8 +2046,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         conversation_permission_mode_selector_visible: true,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
-        codex_precise_model_display_policy:
-          'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus',
+        codex_precise_model_display_policy: 'friendly_model_primary_reasoning_primary_model_secondary_menu',
         codex_auto_model_selection: {
           policy_source_ref: 'contracts/app-product-profile.json#codex.auto_model_policy',
           user_can_override_model: true,

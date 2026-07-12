@@ -158,7 +158,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_latest_strongest_model_selector_visible');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('gpt-5.6-sol');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
-      'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus'
+      'friendly_model_primary_reasoning_primary_model_secondary_menu'
     );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.policy_source_ref).toBe(
       'contracts/app-product-profile.json#codex.auto_model_policy'
@@ -186,7 +186,7 @@ describe('OPL generated product profile', () => {
       },
     });
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
-      display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
+      display_policy: 'friendly_model_name_primary_reasoning_primary_model_secondary_menu',
       button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
       raw_model_id_visible_in_ordinary_ui: false,
       reasoning_effort_visible_for_every_option: false,
@@ -197,8 +197,6 @@ describe('OPL generated product profile', () => {
       reasoning_effort_options_source: 'acp_codex_config_options_enum',
       auto_option_current_resolution_visible: true,
       model_menu_policy: 'current_model_secondary_submenu',
-      intelligence_enhancement_menu_policy: 'default_off_secondary_submenu_with_enable_disable_actions',
-      intelligence_enhancement_default_enabled: false,
       auto_option: {
         label_zh: '自动（推荐）',
         description_zh: '跟随 Codex CLI 当前默认模型与 App 推理策略',
@@ -563,36 +561,19 @@ describe('OPL generated product profile', () => {
 
     expect(policy).toEqual({
       flow_id: 'opl-flow',
-      source: 'one-person-lab-app',
-      delivery: 'session_scoped_preset_context',
+      source: 'opl-flow-package-policy',
+      policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
+      delivery: 'package_installed_profile_and_session_context',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-      optional_user_modes: {
-        intelligence_enhancement: {
-          id: 'intelligence_enhancement',
-          settings_key: 'codex.oplFlowIntelligenceEnhancementMode',
-          label_key: 'settings.oplFlowIntelligenceEnhancementMode',
-          description_key: 'settings.oplFlowIntelligenceEnhancementModeDesc',
-          provider: 'codexcont',
-          local_proxy_base_url: 'http://127.0.0.1:8787/v1',
-          upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy',
-          behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action',
-          service_policy:
-            'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair',
-          default_enabled: false,
-          status_action_id: 'intelligence_enhancement_status',
-          enable_action_id: 'intelligence_enhancement_enable',
-          disable_action_id: 'intelligence_enhancement_disable',
-          repair_action_id: 'intelligence_enhancement_repair',
-          uninstall_action_id: 'intelligence_enhancement_uninstall',
-        },
-      },
+      app_role: 'show_package_state_progress_and_user_overrides',
+      dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
+      migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
     });
 
     policy.source = 'caller-local-source';
-    expect(getOplFlowContextPolicy().source).toBe('one-person-lab-app');
-    (policy.optional_user_modes!.intelligence_enhancement as { provider: string }).provider = 'caller-local-provider';
-    expect(getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement.provider).toBe('codexcont');
+    expect(getOplFlowContextPolicy().source).toBe('opl-flow-package-policy');
+    expect(getOplFlowContextPolicy().optional_user_modes).toBeUndefined();
   });
 
   it('uses the App preference order without treating it as a fixed-model allowlist', () => {

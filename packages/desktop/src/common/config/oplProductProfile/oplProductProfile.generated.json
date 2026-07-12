@@ -57,7 +57,7 @@
       "conversation_permission_mode_selector_visible": true,
       "codex_home_model_status_label": "5.6 Sol",
       "codex_home_model_status_label_en": "5.6 Sol",
-      "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus",
+      "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_secondary_menu",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
         "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
@@ -109,7 +109,7 @@
         "selection_persists_into_conversation": true
       },
       "codex_model_display_options": {
-        "display_policy": "friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus",
+        "display_policy": "friendly_model_name_primary_reasoning_primary_model_secondary_menu",
         "button_label_policy": "resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix",
         "raw_model_id_visible_in_ordinary_ui": false,
         "reasoning_effort_visible_for_every_option": false,
@@ -121,8 +121,6 @@
         "default_reasoning_effort": "max",
         "auto_option_current_resolution_visible": true,
         "model_menu_policy": "current_model_secondary_submenu",
-        "intelligence_enhancement_menu_policy": "default_off_secondary_submenu_with_enable_disable_actions",
-        "intelligence_enhancement_default_enabled": false,
         "auto_option": {
           "id": "__auto",
           "label_zh": "自动（推荐）",
@@ -797,6 +795,9 @@
     "default_reasoning_effort": "max",
     "auto_model_policy": {
       "authority": "one-person-lab-app",
+      "recommendation_authority": "opl-flow",
+      "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json#codex_model_policy",
+      "app_role": "display_live_catalog_and_submit_user_override",
       "configured_default": {
         "model": "gpt-5.6-sol",
         "reasoning_effort": "max"
@@ -843,68 +844,14 @@
     },
     "opl_flow_context": {
       "flow_id": "opl-flow",
-      "source": "one-person-lab-app",
-      "delivery": "session_scoped_preset_context",
+      "source": "opl-flow-package-policy",
+      "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json",
+      "delivery": "package_installed_profile_and_session_context",
       "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
       "language_policy": "follow_ui_locale_zh_only_when_ui_zh",
-      "ponytail_mode_routing": {
-        "default_mode": "lite",
-        "development_task_mode": "full",
-        "deletion_slimming_mode": "ultra",
-        "development_task_triggers": [
-          "feature_implementation",
-          "bug_fix",
-          "refactor",
-          "config_change",
-          "script_change",
-          "test_change",
-          "pr_or_diff_review",
-          "worktree_lane_absorption"
-        ],
-        "deletion_slimming_triggers": [
-          "delete",
-          "slimming",
-          "over_engineering_audit",
-          "remove_wrapper",
-          "historical_residue_cleanup",
-          "yagni_audit",
-          "ponytail-audit"
-        ],
-        "ultra_execution_policy": "candidate_list_and_risk_order_first_execute_only_when_explicit",
-        "non_override_guards": [
-          "codex-ops-kit",
-          "debugger",
-          "verifier",
-          "fresh evidence",
-          "owner route",
-          "completion audit",
-          "runtime/readiness/currentness evidence"
-        ]
-      },
-      "optional_user_modes": {
-        "intelligence_enhancement": {
-          "id": "intelligence_enhancement",
-          "settings_key": "codex.oplFlowIntelligenceEnhancementMode",
-          "label_key": "settings.oplFlowIntelligenceEnhancementMode",
-          "description_key": "settings.oplFlowIntelligenceEnhancementModeDesc",
-          "provider": "codexcont",
-          "local_proxy_base_url": "http://127.0.0.1:8787/v1",
-          "upstream_policy": "preserve_current_codex_provider_via_local_responses_proxy",
-          "behavior_policy": "local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action",
-          "service_policy": "opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair",
-          "required_opl_package_id": "opl-flow",
-          "required_opl_package_kind": "workflow_plugin_package",
-          "required_opl_package_preflight_actions": ["status", "enable", "repair"],
-          "required_opl_package_install_command": "python3 scripts/install_local_plugin.py",
-          "profile_mutation_policy": "semantic_merge_packet_only_no_silent_overwrite",
-          "default_enabled": false,
-          "status_action_id": "intelligence_enhancement_status",
-          "enable_action_id": "intelligence_enhancement_enable",
-          "disable_action_id": "intelligence_enhancement_disable",
-          "repair_action_id": "intelligence_enhancement_repair",
-          "uninstall_action_id": "intelligence_enhancement_uninstall"
-        }
-      }
+      "app_role": "show_package_state_progress_and_user_overrides",
+      "dependency_policy": "full_bundles_opl_flow_requires_and_recommends_closure",
+      "migration_policy": "framework_executes_conflict_retirement_with_backup_receipt_and_rollback"
     },
     "default_visible_skills": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "skill_priority": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
@@ -2298,7 +2245,16 @@
               "normalization_policy": "shell must prefer canonical agent_packages projection and only fall back to modules.items when older runtime payloads or partial projections are still in circulation",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
-                "axes": ["install_state", "update_state", "source_state", "trust_state", "codex_surface_state"],
+                "axes": [
+                  "install_state",
+                  "update_state",
+                  "source_state",
+                  "trust_state",
+                  "codex_surface_state",
+                  "dependency_readiness",
+                  "operational_ready",
+                  "launch_allowed"
+                ],
                 "developer_source_policy": "developer checkout semantics must surface explicitly and must not collapse into a generic repair bucket",
                 "must_not_collapse": ["developer_checkout", "dirty_checkout", "git_behind", "unknown", "needs_sync"]
               },
@@ -2308,13 +2264,21 @@
                   "receipt_refs",
                   "rollback_ref",
                   "action_receipt_ref",
+                  "dependency_readiness",
+                  "operational_ready",
+                  "launch_allowed",
+                  "launch_blocked_reason",
+                  "allowed_when_blocked",
+                  "repair_action",
+                  "dependent_guard",
+                  "dependency_closure",
                   "physical_surface",
                   "workflow_refs",
                   "connector_readiness_refs",
                   "resource_source_refs",
                   "environment_refs"
                 ],
-                "first_screen_policy": "receipt_refs_physical_surface_and_workflow_connector_resource_refs_are_detail_only_not_primary_row_density",
+                "first_screen_policy": "dependency_readiness_operational_ready_launch_gate_and_dependent_guard_are_normal_detail_fields_while_receipts_dependency_closure_digests_physical_surface_and_workflow_connector_resource_refs_are_advanced_only_not_primary_row_density",
                 "rollback_display_policy": "rollback_ref_is_diagnostic_recovery_reference_not_an_app_owned_rollback_button_or_runtime_truth"
               },
               "completion_boundary": "this control-plane contract requires canonical agent_packages projection and allows modules.items fallback only as rollout compatibility"
@@ -3909,31 +3873,9 @@
       "exposure": "automation_page_and_task_routing"
     },
     "default_packaged_codex_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
-    "packaged_not_default_visible_codex_skill_ids": [
-      "opl-meta-agent",
-      "officecli",
-      "officecli-docx",
-      "officecli-pptx",
-      "officecli-xlsx",
-      "officecli-academic-paper",
-      "officecli-data-dashboard",
-      "officecli-financial-model",
-      "officecli-pitch-deck",
-      "mineru-document-extractor",
-      "ui-ux-pro-max"
-    ],
-    "companion_skill_sync_default_ids": [
-      "officecli",
-      "officecli-docx",
-      "officecli-pptx",
-      "officecli-xlsx",
-      "officecli-academic-paper",
-      "officecli-data-dashboard",
-      "officecli-financial-model",
-      "officecli-pitch-deck",
-      "mineru-document-extractor",
-      "ui-ux-pro-max"
-    ],
+    "additional_package_skill_ids": ["opl-meta-agent"],
+    "opl_flow_dependency_policy_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json#requires+recommends",
+    "full_dependency_closure_policy": "bundle_requires_and_recommends_with_offline_bundle_full",
     "domain_plugin_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "domain_exposure": [
@@ -3970,7 +3912,32 @@
     ],
     "class": "opl_base_integrations",
     "opl_packages_projection_ref": "contracts/app-install-exposure-policy.json#exposure_classes.codex_surface",
-    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_agent_pack_distribution"
+    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_agent_pack_distribution",
+    "packaged_not_default_visible_codex_skill_ids": [
+      "opl-meta-agent",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ],
+    "companion_skill_sync_default_ids": [
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ]
   },
   "boundary": {
     "app_owns": [

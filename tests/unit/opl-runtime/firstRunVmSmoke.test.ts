@@ -436,8 +436,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="guid-input"]');
     expect(expression).toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).toContain('[data-testid="opl-first-run-window"]');
-    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
-    expect(expression).toContain('preset-pill-${assistantId}');
+    expect(expression).toContain('preset-pill-med-autoscience');
+    expect(expression).toContain('preset-pill-research');
+    expect(expression).toContain('querySelectorAll');
     expect(expression).toContain("entryKind: 'assistant_home'");
   });
 
@@ -451,8 +452,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("navigatedBy: 'ready_entry'");
     expect(expression).toContain("navigatedBy: 'deferred_entry'");
     expect(expression).toContain("navigatedBy: 'usable_assistant_home'");
-    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
-    expect(expression).toContain('preset-pill-${assistantId}');
+    expect(expression).toContain('preset-pill-med-autoscience');
+    expect(expression).toContain('preset-pill-research');
+    expect(expression).toContain('querySelectorAll');
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
 
@@ -487,8 +489,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="opl-guid-entry"]');
     expect(expression).toContain('[data-testid="guid-input"]');
     expect(expression).toContain('[data-testid="guid-send-btn"]');
-    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
-    expect(expression).toContain('preset-pill-${assistantId}');
+    expect(expression).toContain('preset-pill-med-autoscience');
+    expect(expression).toContain('preset-pill-research');
+    expect(expression).toContain('querySelectorAll');
   });
 
   it('captures a beginner screenshot only when the beginner layout was observed', () => {
@@ -856,6 +859,11 @@ describe('packaged first-run VM smoke helpers', () => {
     const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
 
     expect(selectionExpression).toContain('preset-pill-med-autoscience');
+    expect(selectionExpression).toContain('preset-pill-research');
+    expect(selectionExpression).toContain('home-starter-med-autoscience');
+    expect(selectionExpression).toContain('home-starter-research');
+    expect(selectionExpression).toContain('querySelectorAll');
+    expect(selectionExpression).toContain('.find(visible)');
     expect(readyExpression).toContain('@科研');
     expect(readyExpression).toContain('@MAS');
     for (const hiddenSelector of [
@@ -900,6 +908,19 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
+  it('checks Standard Home assistants as visible blocked launch gates without creating route receipts', () => {
+    const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const expression = __test.homeAssistantBlockedReadinessExpression(masTarget);
+
+    expect(expression).toContain('home-starter-med-autoscience');
+    expect(expression).toContain('home-starter-research');
+    expect(expression).toContain("getAttribute('disabled')");
+    expect(expression).toContain("getAttribute('title')");
+    expect(expression).toContain("includes('repair')");
+    expect(expression).toContain('launch_allowed: false');
+    expect(expression).not.toContain('/api/conversations');
+  });
+
   it('builds a deterministic Codex functional check receipt without requiring LLM credentials', () => {
     const receipt = __test.buildCodexFunctionalCheckReceipt({
       codexApiKey: null,
@@ -910,6 +931,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(receipt).toMatchObject({
       schema: 'opl_codex_functional_check_receipt.v1',
       status: 'diagnostic_skipped',
+      runtime_profile: 'full',
       ui_language: 'zh-CN',
       opl_flow_context_expected: {
         status: 'passed',
@@ -945,6 +967,36 @@ describe('packaged first-run VM smoke helpers', () => {
       future_codex_invocation: {
         status: 'diagnostic_skipped',
         reason: 'missing_codex_credentials',
+      },
+    });
+  });
+
+  it('records Standard launch gates without claiming Full assistant route receipts', () => {
+    const assistantRouteSmoke = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => ({
+      id: target.id,
+      verification_mode: 'launch_gate',
+      launch_gate: { disabled: true, launch_allowed: false },
+    }));
+    const receipt = __test.buildCodexFunctionalCheckReceipt({
+      runtimeProfile: 'standard',
+      codexApiKey: null,
+      codexCliProbe: { detected: true, command: 'codex', version: 'codex-cli' },
+      assistantRouteSmoke,
+    });
+
+    expect(receipt).toMatchObject({
+      status: 'diagnostic_skipped',
+      runtime_profile: 'standard',
+      assistant_route_receipts_checked: {
+        status: 'not_applicable_standard',
+        checked: [],
+      },
+      assistant_launch_gates_checked: {
+        status: 'passed',
+        checked: ['med-autoscience', 'med-autogrant', 'redcube-ai'],
+      },
+      blocking_release_gate: {
+        deterministic_fields_passed: true,
       },
     });
   });
@@ -1211,7 +1263,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(
       __test.buildAssistantRouteSmokeFailureSummary(
-        { cdpPort: 9230 },
+        { cdpPort: 9230, runtimeProfile: 'standard' },
         {
           id: 'med-autoscience',
           badge: '@科研',
@@ -1227,6 +1279,8 @@ describe('packaged first-run VM smoke helpers', () => {
       surface_id: 'opl_packaged_gui_assistant_route_smoke',
       status: 'failed',
       cdp_port: 9230,
+      runtime_profile: 'standard',
+      verification_mode: 'launch_gate',
       failed_assistant: 'med-autoscience',
       assistants: [],
       error: 'Assistant route controls did not become ready for med-autoscience',
@@ -1237,13 +1291,15 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       last_error: null,
       required_contract: {
-        purpose_entries: ['preset-pill-med-autoscience', 'preset-pill-med-autogrant', 'preset-pill-redcube-ai'],
-        selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
-        route_receipt: {
-          route_kind: 'builtin_capability',
-          executor: 'codex_cli',
-          source: 'opl_app_home',
+        purpose_entries: ['home-starter-med-autoscience', 'home-starter-med-autogrant', 'home-starter-redcube-ai'],
+        standard_launch_gate: {
+          visible: true,
+          disabled: true,
+          launch_allowed: false,
+          readiness_hint: 'repair',
         },
+        selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
+        route_receipt: null,
       },
     });
   });

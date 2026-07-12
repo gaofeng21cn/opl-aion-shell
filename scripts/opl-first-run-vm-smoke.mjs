@@ -181,8 +181,8 @@ Options:
                          secondary release smokes.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
-                         Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
-                         and verify each conversation stores the Codex route receipt.
+                         Verify MAS/MAG/RCA Home launch gates for Standard. For Full,
+                         click each entry and verify its receipt-only Codex route.
   --codex-functional-check
                          Write codex-functional-check-summary.json with deterministic
                          post-install Codex behavior fields. This does not call an LLM.
@@ -1442,10 +1442,21 @@ function assistantRouteIds(assistantRouteSmoke) {
 
 function buildCodexFunctionalCheckReceipt(input = {}) {
   const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
+  const runtimeProfile = input.runtimeProfile ?? 'full';
   const requiredAssistantRoutes = OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id);
   const checkedAssistantRoutes = assistantRouteIds(input.assistantRouteSmoke);
-  const assistantRoutesPassed = requiredAssistantRoutes.every((id) => checkedAssistantRoutes.includes(id));
-  const deterministicFieldsPassed = assistantRoutesPassed;
+  const assistantTargetsPresent = requiredAssistantRoutes.every((id) => checkedAssistantRoutes.includes(id));
+  const standardLaunchGatesPassed =
+    runtimeProfile === 'standard' &&
+    assistantTargetsPresent &&
+    input.assistantRouteSmoke.every(
+      (assistant) =>
+        assistant?.verification_mode === 'launch_gate' &&
+        assistant?.launch_gate?.disabled === true &&
+        assistant?.launch_gate?.launch_allowed === false
+    );
+  const assistantRoutesPassed = runtimeProfile === 'full' && assistantTargetsPresent;
+  const deterministicFieldsPassed = runtimeProfile === 'standard' ? standardLaunchGatesPassed : assistantRoutesPassed;
   const hasCredentials = Boolean(input.codexApiKey);
   const status = hasCredentials
     ? deterministicFieldsPassed
@@ -1458,6 +1469,7 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
   return {
     schema: 'opl_codex_functional_check_receipt.v1',
     status,
+    runtime_profile: runtimeProfile,
     ui_language: 'zh-CN',
     opl_flow_context_expected: {
       status: 'passed',
@@ -1478,9 +1490,15 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
       deterministic: true,
     },
     assistant_route_receipts_checked: {
-      status: assistantRoutesPassed ? 'passed' : 'failed',
+      status: runtimeProfile === 'full' ? (assistantRoutesPassed ? 'passed' : 'failed') : 'not_applicable_standard',
       required: requiredAssistantRoutes,
-      checked: checkedAssistantRoutes,
+      checked: runtimeProfile === 'full' ? checkedAssistantRoutes : [],
+      deterministic: true,
+    },
+    assistant_launch_gates_checked: {
+      status: runtimeProfile === 'standard' ? (standardLaunchGatesPassed ? 'passed' : 'failed') : 'not_applicable_full',
+      required: requiredAssistantRoutes,
+      checked: runtimeProfile === 'standard' ? checkedAssistantRoutes : [],
       deterministic: true,
     },
     skills_or_plugins_policy_checked: {
@@ -2890,9 +2908,9 @@ function guidEntryReadinessExpression() {
         hasGuidSendButton: true,
       };
     }
-    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
-      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
-      .filter(visible);
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => visibleHomeAssistantControlSelector(target)))}
+      .map((selector) => [...document.querySelectorAll(selector)].find(visible))
+      .filter(Boolean);
     return assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible
       ? {
           hash: window.location.hash,
@@ -2948,9 +2966,9 @@ function guidEntryNavigationExpression() {
         navigatedBy: 'ready_entry',
       };
     }
-    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
-      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
-      .filter(visible);
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => visibleHomeAssistantControlSelector(target)))}
+      .map((selector) => [...document.querySelectorAll(selector)].find(visible))
+      .filter(Boolean);
     if (assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible) {
       return {
         hash: window.location.hash,
@@ -2986,8 +3004,40 @@ function guidEntryNavigationExpression() {
   })()`;
 }
 
-function visibleHomeAssistantControlSelector(assistantId) {
-  return `[data-testid="preset-pill-${assistantId}"]`;
+function visibleHomeAssistantControlSelector(target) {
+  return [target.id, target.shortcutId]
+    .filter(Boolean)
+    .flatMap((id) => [`[data-testid="home-starter-${id}"]`, `[data-testid="preset-pill-${id}"]`])
+    .join(', ');
+}
+
+function homeAssistantBlockedReadinessExpression(target) {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
+    if (!card) return false;
+    const control = card.closest('button') || card;
+    const disabled = control.disabled === true
+      || control.getAttribute('disabled') !== null
+      || control.getAttribute('aria-disabled') === 'true'
+      || String(control.className || '').includes('disabled');
+    const readinessHint = control.getAttribute('title') || control.getAttribute('aria-description') || '';
+    if (!disabled || !readinessHint.trim() || !readinessHint.toLowerCase().includes('repair')) return false;
+    return {
+      assistant_id: ${cdpString(target.id)},
+      control_testid: card.getAttribute('data-testid'),
+      visible: true,
+      disabled: true,
+      launch_allowed: false,
+      readiness_hint: readinessHint,
+      repair_hint_visible: true,
+    };
+  })()`;
 }
 
 function homeAssistantDeniedSelectorParts() {
@@ -3018,7 +3068,7 @@ function homeAssistantRouteSelectionExpression(target) {
       window.location.hash = '#/guid';
       return false;
     }
-    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     if (!visible(card) || !visible(input) || !visible(sendButton)) return false;
@@ -3039,7 +3089,7 @@ function homeAssistantRouteReadyExpression(target) {
     const text = document.body?.innerText || '';
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
-    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
     const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
       .flatMap((selector) => [...document.querySelectorAll(selector)])
       .filter(visible)
@@ -3241,9 +3291,9 @@ function firstRunBeginnerUxExpression() {
         guidSendButtonVisible: true,
       };
     }
-    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
-      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
-      .filter(visible);
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => visibleHomeAssistantControlSelector(target)))}
+      .map((selector) => [...document.querySelectorAll(selector)].find(visible))
+      .filter(Boolean);
     if (assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !windowNode && !appLoaderVisible) {
       return {
         status: 'skipped_by_usable_entry',
@@ -4219,23 +4269,38 @@ function advancedPathsStatusExpression() {
 }
 
 function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
+  const verificationMode = options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate';
   return {
     surface_id: 'opl_packaged_gui_assistant_route_smoke',
     status: 'failed',
     cdp_port: options.cdpPort,
+    runtime_profile: options.runtimeProfile,
+    verification_mode: verificationMode,
     failed_assistant: assistantTarget.id,
     assistants: results,
     error: error instanceof Error ? error.message : String(error),
     last_state: error instanceof Error ? (error.lastState ?? null) : null,
     last_error: error instanceof Error ? (error.lastError ?? null) : null,
     required_contract: {
-      purpose_entries: OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `preset-pill-${item.id}`),
+      purpose_entries: OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `home-starter-${item.id}`),
+      standard_launch_gate:
+        verificationMode === 'launch_gate'
+          ? {
+              visible: true,
+              disabled: true,
+              launch_allowed: false,
+              readiness_hint: 'repair',
+            }
+          : null,
       selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
-      route_receipt: {
-        route_kind: 'builtin_capability',
-        executor: 'codex_cli',
-        source: 'opl_app_home',
-      },
+      route_receipt:
+        verificationMode === 'route_receipt'
+          ? {
+              route_kind: 'builtin_capability',
+              executor: 'codex_cli',
+              source: 'opl_app_home',
+            }
+          : null,
     },
   };
 }
@@ -4344,6 +4409,25 @@ async function runAssistantRouteSmoke(options, secret) {
           30_000,
           `Guid page did not become ready before assistant route smoke: ${assistantTarget.id}`
         );
+        if (options.runtimeProfile !== 'full') {
+          const launchGate = await waitForCdpPredicate(
+            client,
+            homeAssistantBlockedReadinessExpression(assistantTarget),
+            30_000,
+            `Standard Home assistant did not expose a blocked readiness gate: ${assistantTarget.id}`
+          );
+          await captureCdpScreenshot(
+            client,
+            path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
+          );
+          results.push({
+            id: assistantTarget.id,
+            badge: assistantTarget.badge,
+            verification_mode: 'launch_gate',
+            launch_gate: launchGate,
+          });
+          continue;
+        }
         const selected = await waitForCdpPredicate(
           client,
           homeAssistantRouteSelectionExpression(assistantTarget),
@@ -4381,6 +4465,7 @@ async function runAssistantRouteSmoke(options, secret) {
         results.push({
           id: assistantTarget.id,
           badge: assistantTarget.badge,
+          verification_mode: 'route_receipt',
           selected,
           ready,
           created,
@@ -4398,6 +4483,8 @@ async function runAssistantRouteSmoke(options, secret) {
     surface_id: 'opl_packaged_gui_assistant_route_smoke',
     status: 'passed',
     cdp_port: options.cdpPort,
+    runtime_profile: options.runtimeProfile,
+    verification_mode: options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate',
     assistants: results,
   };
   writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
@@ -5459,6 +5546,7 @@ async function main() {
           () => {
             const receipt = buildCodexFunctionalCheckReceipt({
               codexApiKey,
+              runtimeProfile: options.runtimeProfile,
               assistantRouteSmoke,
             });
             assertCodexFunctionalCheckReceipt(receipt);
@@ -5768,6 +5856,7 @@ export const __test =
         isGuideScreenshotEntryReady,
         guideScreenshotSources,
         visibleHomeAssistantControlSelector,
+        homeAssistantBlockedReadinessExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
         homeAssistantRouteSendExpression,
