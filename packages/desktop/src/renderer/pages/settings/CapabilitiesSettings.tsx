@@ -896,7 +896,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
               return (
                 <div
-                  className={`opl-settings-row ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
+                  className={`opl-settings-row opl-settings-capability-row ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
                   data-testid={`capability-purpose-${item.key}`}
                   data-selected={selectedCapabilityKey === item.key ? 'true' : 'false'}
                   aria-current={selectedCapabilityKey === item.key ? 'true' : undefined}

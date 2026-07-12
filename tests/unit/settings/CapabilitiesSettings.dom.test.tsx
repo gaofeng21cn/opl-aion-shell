@@ -705,6 +705,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(profile).toHaveTextContent('/Users/test/workspace');
     expect(profile).toHaveTextContent('7 / 7');
     expect(within(profile).getByTestId('opl-developer-profile-maintenance')).toHaveClass('arco-switch-small');
+    expect(screen.getByTestId('capability-purpose-mas')).toHaveClass('opl-settings-capability-row');
 
     fireEvent.click(within(profile).getByText('Managed'));
     await waitFor(() =>
