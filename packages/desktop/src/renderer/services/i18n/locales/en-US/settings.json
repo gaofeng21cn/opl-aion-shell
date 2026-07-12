@@ -1055,8 +1055,6 @@
   },
   "oplFlowContext": "OPL Flow Context",
   "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
-  "oplFlowIntelligenceEnhancementMode": "Intelligence enhancement mode",
-  "oplFlowIntelligenceEnhancementModeDesc": "Use the local CodexCont proxy for reasoning continuation without injecting prompts or sending quick messages.",
   "oplDeveloperProfileStates": {
     "contributor": "Contributor",
     "maintainer": "Maintainer",

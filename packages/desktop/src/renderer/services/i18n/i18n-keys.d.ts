@@ -2972,8 +2972,6 @@ export type I18nKey =
   | 'settings.oplFirstLaunch.wizardTitle'
   | 'settings.oplFlowContext'
   | 'settings.oplFlowContextDesc'
-  | 'settings.oplFlowIntelligenceEnhancementMode'
-  | 'settings.oplFlowIntelligenceEnhancementModeDesc'
   | 'settings.overview'
   | 'settings.overviewPage.accessDescription'
   | 'settings.overviewPage.accessTitle'

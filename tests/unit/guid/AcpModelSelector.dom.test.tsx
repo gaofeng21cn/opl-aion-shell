@@ -15,16 +15,12 @@ const mocks = vi.hoisted(() => ({
   conversationUpdate: vi.fn(),
   writeRendererLog: vi.fn(),
   responseStreamOn: vi.fn(),
-  executeAction: vi.fn(),
   agentsData: [] as unknown[],
   acpModelInfo: null as AcpModelInfo | null,
   mutateModelInfo: vi.fn(),
   clientConfigGet: vi.fn(),
   clientConfigSet: vi.fn(),
-  clientConfigSetLocal: vi.fn(),
-  clientConfigSubscribe: vi.fn(),
   clientConfigStore: {} as Record<string, unknown>,
-  clientConfigSubscribers: new Set<() => void>(),
 }));
 
 vi.mock('@/common', () => ({
@@ -41,9 +37,6 @@ vi.mock('@/common', () => ({
     },
     application: {
       writeRendererLog: { invoke: mocks.writeRendererLog },
-    },
-    oplRuntime: {
-      executeAction: { invoke: mocks.executeAction },
     },
   },
 }));
@@ -63,8 +56,6 @@ vi.mock('@/common/config/configService', () => ({
   configService: {
     get: mocks.clientConfigGet,
     set: mocks.clientConfigSet,
-    setLocal: mocks.clientConfigSetLocal,
-    subscribe: mocks.clientConfigSubscribe,
   },
 }));
 
@@ -135,27 +126,14 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.conversationUpdate.mockReset();
     mocks.writeRendererLog.mockReset();
     mocks.responseStreamOn.mockReset();
-    mocks.executeAction.mockReset();
     mocks.mutateModelInfo.mockReset();
     mocks.clientConfigGet.mockReset();
     mocks.clientConfigSet.mockReset();
-    mocks.clientConfigSetLocal.mockReset();
-    mocks.clientConfigSubscribe.mockReset();
-    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': false };
-    mocks.clientConfigSubscribers = new Set();
+    mocks.clientConfigStore = {};
     mocks.clientConfigGet.mockImplementation((key: string) => mocks.clientConfigStore[key]);
     mocks.clientConfigSet.mockImplementation((key: string, value: unknown) => {
       mocks.clientConfigStore[key] = value;
-      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
       return Promise.resolve();
-    });
-    mocks.clientConfigSetLocal.mockImplementation((key: string, value: unknown) => {
-      mocks.clientConfigStore[key] = value;
-      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
-    });
-    mocks.clientConfigSubscribe.mockImplementation((_key: string, subscriber: () => void) => {
-      mocks.clientConfigSubscribers.add(subscriber);
-      return () => mocks.clientConfigSubscribers.delete(subscriber);
     });
     mocks.getModel.mockRejectedValue(new Error('session not ready'));
     mocks.setModel.mockResolvedValue(undefined);
@@ -201,7 +179,6 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.conversationUpdate.mockResolvedValue(true);
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
-    mocks.executeAction.mockResolvedValue(undefined);
     mocks.acpModelInfo = {
       current_model_id: 'gpt-5.6-sol',
       current_model_label: 'GPT-5.6-Sol',
@@ -258,7 +235,6 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(screen.queryByText('智力增强')).not.toBeInTheDocument();
     expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
-    expect(mocks.executeAction).not.toHaveBeenCalled();
 
     expect(mocks.setModel).not.toHaveBeenCalled();
   });

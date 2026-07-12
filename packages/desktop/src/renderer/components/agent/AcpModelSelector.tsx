@@ -5,7 +5,6 @@
  */
 
 import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
-import { ipcBridge } from '@/common';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
@@ -13,13 +12,11 @@ import { iconColors } from '@/renderer/styles/colors';
 import {
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
-  getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
-import { configService } from '@/common/config/configService';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexCompactModelLabel,
@@ -27,14 +24,11 @@ import {
   formatOplCodexReasoningMenuLabel,
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
-import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Brain, Check, Down } from '@icon-park/react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
-
-const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
 
 const configErrorMessageKey = (error: unknown) => {
   if (error instanceof Error) {
@@ -44,20 +38,6 @@ const configErrorMessageKey = (error: unknown) => {
   }
   return 'agent.config.failed';
 };
-
-function oplRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
-  const parsed = oplRecord(value);
-  const execution = oplRecord(parsed.app_action_execution);
-  const result = oplRecord(execution.result);
-  const directStatus = oplRecord(result.opl_flow_intelligence_enhancement);
-  const actionStatus = oplRecord(oplRecord(result.opl_flow_intelligence_enhancement_action).status_readback);
-  const enabled = typeof directStatus.enabled === 'boolean' ? directStatus.enabled : actionStatus.enabled;
-  return typeof enabled === 'boolean' ? enabled : null;
-}
 
 /**
  * Model selector for ACP-based agents. Renders three states:
@@ -78,10 +58,6 @@ const AcpModelSelector: React.FC<{
   waitForWarmup?: boolean;
 }> = ({ conversation_id, backend, initialModelId, waitForWarmup = false }) => {
   const { t, i18n } = useTranslation();
-  const [intelligenceEnhancementMode, setIntelligenceEnhancementMode] = useConfig(
-    'codex.oplFlowIntelligenceEnhancementMode'
-  );
-  const [isSettingIntelligenceEnhancementMode, setIsSettingIntelligenceEnhancementMode] = useState(false);
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
@@ -106,27 +82,6 @@ const AcpModelSelector: React.FC<{
     runtimeReasoningEffort && oplReasoningEfforts.includes(runtimeReasoningEffort)
       ? runtimeReasoningEffort
       : defaultCodexReasoningEffort;
-  const intelligenceEnhancementTitle = t(
-    OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
-    {
-      defaultValue: localeKey === 'en-US' ? 'Intelligence enhancement mode' : '智力增强模式',
-    }
-  )
-    .replace(/\s+mode$/i, '')
-    .replace(/模式$/, '');
-  const intelligenceEnhancementOnLabel =
-    localeKey === 'en-US'
-      ? t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: 'Enable' })
-      : t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: '启用' }).replace(
-          /^启用$/,
-          '开启'
-        );
-  const intelligenceEnhancementOffLabel =
-    localeKey === 'en-US'
-      ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
-      : t('common.close', { defaultValue: '关闭' });
-  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? false;
-
   const defaultModelLabel = t('common.defaultModel');
   const rawDisplayLabel =
     (model_info?.current_model_id &&
@@ -181,48 +136,6 @@ const AcpModelSelector: React.FC<{
     if (!model_info || isSettingReasoning) return;
     void selectAutoModel().catch(() => {});
   }, [isSettingReasoning, model_info, selectAutoModel]);
-  const handleIntelligenceEnhancementSelect = useCallback(
-    async (enabled: boolean) => {
-      const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
-      if (!mode || enabled === intelligenceEnhancementEnabled || isSettingIntelligenceEnhancementMode) return;
-      const previous = intelligenceEnhancementEnabled;
-      setIsSettingIntelligenceEnhancementMode(true);
-      try {
-        const result = await ipcBridge.oplRuntime.executeAction.invoke({
-          actionId: enabled ? mode.enable_action_id : mode.disable_action_id,
-          dryRun: false,
-        });
-        if (result.ok === false) {
-          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
-        }
-        const readbackEnabled = readIntelligenceEnhancementEnabled(result.parsed) ?? enabled;
-        await setIntelligenceEnhancementMode(readbackEnabled);
-      } catch (error) {
-        configService.setLocal(mode.settings_key, previous);
-        Message.error(t(configErrorMessageKey(error)));
-      } finally {
-        setIsSettingIntelligenceEnhancementMode(false);
-      }
-    },
-    [intelligenceEnhancementEnabled, isSettingIntelligenceEnhancementMode, setIntelligenceEnhancementMode, t]
-  );
-  const refreshIntelligenceEnhancementStatus = useCallback(async () => {
-    const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
-    if (!mode || !useOplCodexModelDisplay) return;
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: mode.status_action_id,
-        dryRun: false,
-      });
-      if (result.ok === false) return;
-      const enabled = readIntelligenceEnhancementEnabled(result.parsed);
-      if (enabled === null) return;
-      configService.setLocal(mode.settings_key, enabled);
-    } catch {
-      // The menu can still use the cached preference when runtime status is unavailable.
-    }
-  }, [useOplCodexModelDisplay]);
-
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
   const reasoningOptions =
     useOplCodexModelDisplay && thoughtLevel
@@ -312,9 +225,6 @@ const AcpModelSelector: React.FC<{
   return (
     <Dropdown
       trigger='click'
-      onVisibleChange={(visible) => {
-        if (visible) void refreshIntelligenceEnhancementStatus();
-      }}
       // Mobile: portal the popup to <body> so it escapes the titlebar slot.
       // Desktop: leave default container so click events reach Menu.Item normally.
       {...(isMobileHeaderCompact ? { getPopupContainer: () => document.body } : {})}
@@ -369,39 +279,6 @@ const AcpModelSelector: React.FC<{
               );
             })}
           </Menu.SubMenu>
-          {useOplCodexModelDisplay && OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE && (
-            <Menu.SubMenu
-              key='__intelligence_enhancement'
-              title={<span className='text-12px text-t-secondary'>{intelligenceEnhancementTitle}</span>}
-            >
-              <Menu.Item
-                key='intelligence_enhancement:on'
-                className={intelligenceEnhancementEnabled ? 'bg-2!' : ''}
-                disabled={isSettingIntelligenceEnhancementMode}
-                onClick={() => handleIntelligenceEnhancementSelect(true)}
-              >
-                <div className='flex items-center justify-between gap-16px w-full'>
-                  <span>{intelligenceEnhancementOnLabel}</span>
-                  {intelligenceEnhancementEnabled && (
-                    <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-                  )}
-                </div>
-              </Menu.Item>
-              <Menu.Item
-                key='intelligence_enhancement:off'
-                className={!intelligenceEnhancementEnabled ? 'bg-2!' : ''}
-                disabled={isSettingIntelligenceEnhancementMode}
-                onClick={() => handleIntelligenceEnhancementSelect(false)}
-              >
-                <div className='flex items-center justify-between gap-16px w-full'>
-                  <span>{intelligenceEnhancementOffLabel}</span>
-                  {!intelligenceEnhancementEnabled && (
-                    <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-                  )}
-                </div>
-              </Menu.Item>
-            </Menu.SubMenu>
-          )}
         </Menu>
       }
     >

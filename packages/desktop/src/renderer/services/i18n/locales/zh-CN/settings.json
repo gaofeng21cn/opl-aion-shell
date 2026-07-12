@@ -1056,8 +1056,6 @@
   },
   "oplFlowContext": "OPL Flow 上下文",
   "oplFlowContextDesc": "App 管理的会话上下文跟随界面语言、尊重用户 AGENTS.md 文件，并记录来源，不改写用户文件。",
-  "oplFlowIntelligenceEnhancementMode": "智力增强模式",
-  "oplFlowIntelligenceEnhancementModeDesc": "通过本机 CodexCont 代理延续 reasoning；不向对话注入额外提示，也不发送快捷消息。",
   "oplDeveloperProfileStates": {
     "contributor": "贡献者",
     "maintainer": "维护者",

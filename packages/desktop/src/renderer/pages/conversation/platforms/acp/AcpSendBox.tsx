@@ -2,12 +2,10 @@ import { ipcBridge } from '@/common';
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
-import { configService } from '@/common/config/configService';
 import {
   filterOplOrdinaryMcpStatuses,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
-  getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
   shouldShowOplConversationModelSelector,
   shouldShowOplConversationPermissionModeSelector,
@@ -78,7 +76,6 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
 
 const configErrorMessageKey = (error: unknown) => {
   if (error instanceof Error) {
@@ -88,25 +85,6 @@ const configErrorMessageKey = (error: unknown) => {
   }
   return 'agent.config.failed';
 };
-
-function oplRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
-  const parsed = oplRecord(value);
-  const execution = oplRecord(parsed.app_action_execution);
-  const result = oplRecord(execution.result);
-  const directStatus = oplRecord(result.opl_flow_intelligence_enhancement);
-  const actionStatus = oplRecord(oplRecord(result.opl_flow_intelligence_enhancement_action).status_readback);
-  const enabled = typeof directStatus.enabled === 'boolean' ? directStatus.enabled : actionStatus.enabled;
-  return typeof enabled === 'boolean' ? enabled : null;
-}
-
-function readIntelligenceEnhancementPreference(): boolean {
-  if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return false;
-  return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false;
-}
 
 const useSendBoxDraft = (conversation_id: string) => {
   const { data, mutate } = useAcpSendBoxDraft(conversation_id);
@@ -217,41 +195,6 @@ const AcpSendBox: React.FC<{
     onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
   });
   const availableAgentModes = useAgentModesForBackend(backend);
-  const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(
-    readIntelligenceEnhancementPreference
-  );
-  const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
-  const refreshOplFlowIntelligenceEnhancementStatus = useCallback(async () => {
-    const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
-    if (!mode || !useOplCodexModelDisplay) return;
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: mode.status_action_id,
-        dryRun: false,
-      });
-      if (result.ok === false) return;
-      const enabled = readIntelligenceEnhancementEnabled(result.parsed);
-      if (enabled === null) return;
-      setOplFlowIntelligenceEnhancementMode(enabled);
-      configService.setLocal(mode.settings_key, enabled);
-    } catch {
-      // The sheet can still use the cached preference when runtime status is unavailable.
-    }
-  }, [useOplCodexModelDisplay]);
-
-  useEffect(() => {
-    if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
-    setOplFlowIntelligenceEnhancementMode(readIntelligenceEnhancementPreference());
-    return configService.subscribe(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, (value) => {
-      setOplFlowIntelligenceEnhancementMode(value === false ? false : true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile || !isMobileSheetOpen) return;
-    void refreshOplFlowIntelligenceEnhancementStatus();
-  }, [isMobile, isMobileSheetOpen, refreshOplFlowIntelligenceEnhancementStatus]);
-
   // Mirror AgentModeSelector's getMode sync so the sheet shows the live mode label.
   useEffect(() => {
     if (!isMobile || !isMobileSheetOpen) return;
@@ -318,37 +261,6 @@ const AcpSendBox: React.FC<{
     if (!model_info || isSettingReasoning) return;
     void selectAutoModel().catch(() => {});
   }, [isSettingReasoning, model_info, selectAutoModel]);
-
-  const handleSheetIntelligenceEnhancementSelect = useCallback(
-    async (key: string) => {
-      const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
-      if (!mode || oplFlowIntelligenceEnhancementApplying) return;
-      const checked = key === 'enable';
-      if (checked === oplFlowIntelligenceEnhancementMode) return;
-      const previous = oplFlowIntelligenceEnhancementMode;
-      setOplFlowIntelligenceEnhancementMode(checked);
-      setOplFlowIntelligenceEnhancementApplying(true);
-      try {
-        const result = await ipcBridge.oplRuntime.executeAction.invoke({
-          actionId: checked ? mode.enable_action_id : mode.disable_action_id,
-          dryRun: false,
-        });
-        if (result.ok === false) {
-          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
-        }
-        const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
-        setOplFlowIntelligenceEnhancementMode(enabled);
-        await configService.set(mode.settings_key, enabled);
-      } catch (caughtError) {
-        setOplFlowIntelligenceEnhancementMode(previous);
-        configService.setLocal(mode.settings_key, previous);
-        Message.error(caughtError instanceof Error ? caughtError.message : String(caughtError));
-      } finally {
-        setOplFlowIntelligenceEnhancementApplying(false);
-      }
-    },
-    [oplFlowIntelligenceEnhancementApplying, oplFlowIntelligenceEnhancementMode]
-  );
 
   // In team mode, warmup the agent then fetch slash commands
   useEffect(() => {
@@ -657,24 +569,6 @@ Please check your local CLI tool authentication status`,
         : formatOplCodexReasoningMenuLabel(currentCodexReasoningEffort, modelDisplayLocale);
     const currentModeLabel =
       modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
-    const intelligenceEnhancementLabel = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE
-      ? t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.label_key, {
-          defaultValue: modelDisplayLocale === 'en-US' ? 'Intelligence enhancement mode' : '智力增强模式',
-        })
-          .replace(/\s+mode$/i, '')
-          .replace(/模式$/, '')
-      : '';
-    const intelligenceEnhancementOnLabel =
-      modelDisplayLocale === 'en-US'
-        ? t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: 'Enable' })
-        : t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: '启用' }).replace(
-            /^启用$/,
-            '开启'
-          );
-    const intelligenceEnhancementOffLabel =
-      modelDisplayLocale === 'en-US'
-        ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
-        : t('common.close', { defaultValue: '关闭' });
 
     const entries: MobileActionSheetEntry[] = [];
 
@@ -745,32 +639,6 @@ Please check your local CLI tool authentication status`,
       });
     }
 
-    if (useOplCodexModelDisplay && OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
-      entries.push({
-        key: 'intelligence-enhancement',
-        icon: <MagicHat theme='outline' size='16' />,
-        label: intelligenceEnhancementLabel,
-        meta: oplFlowIntelligenceEnhancementMode ? intelligenceEnhancementOnLabel : intelligenceEnhancementOffLabel,
-        disabled: oplFlowIntelligenceEnhancementApplying,
-        submenu: {
-          title: intelligenceEnhancementLabel,
-          options: [
-            {
-              key: 'enable',
-              label: intelligenceEnhancementOnLabel,
-              active: oplFlowIntelligenceEnhancementMode,
-            },
-            {
-              key: 'disable',
-              label: intelligenceEnhancementOffLabel,
-              active: !oplFlowIntelligenceEnhancementMode,
-            },
-          ],
-          onSelect: (key) => void handleSheetIntelligenceEnhancementSelect(key),
-        },
-      });
-    }
-
     if (activeCapabilityLabel) {
       entries.push({
         key: 'active-capability',
@@ -791,14 +659,11 @@ Please check your local CLI tool authentication status`,
     currentCodexReasoningEffort,
     handleSheetModeChange,
     handleSheetAutoSelect,
-    handleSheetIntelligenceEnhancementSelect,
     handleSheetReasoningSelect,
     isMobile,
     isSettingReasoning,
     modelDisplayLocale,
     model_info,
-    oplFlowIntelligenceEnhancementApplying,
-    oplFlowIntelligenceEnhancementMode,
     selectModel,
     showModeSelector,
     showCodexAutoOption,

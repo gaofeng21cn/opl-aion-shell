@@ -50,7 +50,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.opl_app_session_context).toEqual({
       owner: 'one-person-lab-app',
       source: 'gui.professional_agent_packages.session_routing_summary_i18n',
-      mode: 'automatic',
+      additional_instructions: false,
       effect: 'next_new_conversation',
     });
   });
@@ -96,40 +96,21 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).not.toContain('## OPL App Session Context');
   });
 
-  it('uses a saved custom OPL App context for the next new conversation', () => {
-    configService.setLocal('codex.oplAppSessionContextMode', 'custom');
-    configService.setLocal('codex.oplAppSessionContextCustom', 'Custom OPL routing context.');
+  it('appends saved OPL App instructions without replacing the generated agent directory', () => {
+    configService.setLocal('codex.oplAppSessionContextAdditional', 'Prefer concise progress summaries.');
 
     const params = buildAgentConversationParams({
       backend: 'codex',
-      name: 'Custom context',
+      name: 'Additional context',
       workspace: '/Users/example/workspace',
       model,
       language: 'en-US',
     });
 
-    expect(params.extra.preset_context).toBe('Custom OPL routing context.');
-    expect(params.extra.opl_app_session_context?.mode).toBe('custom');
-  });
-
-  it('does not inject prompt text for the intelligence enhancement setting', () => {
-    configService.setLocal('codex.oplFlowIntelligenceEnhancementMode', true);
-
-    const params = buildAgentConversationParams({
-      backend: 'codex',
-      name: '科研计划',
-      workspace: '/Users/example/workspace',
-      model,
-      is_preset: true,
-      preset_agent_type: 'codex',
-      preset_resources: {
-        rules: '已有智能体规则。',
-      },
-      language: 'zh-CN',
-    });
-
-    expect(params.extra.preset_context).toMatch(/你正在 One Person Lab App[\s\S]+已有智能体规则。/);
-    expect(params.extra.preset_context).not.toContain('DO NOT send optional commentary');
+    expect(params.extra.preset_context).toContain('MAS (Med Auto Science)');
+    expect(params.extra.preset_context).toContain('## Additional User Instructions');
+    expect(params.extra.preset_context).toContain('Prefer concise progress summaries.');
+    expect(params.extra.opl_app_session_context?.additional_instructions).toBe(true);
   });
 
   it('sets the App-generated Codex reasoning default while preserving user overrides', () => {

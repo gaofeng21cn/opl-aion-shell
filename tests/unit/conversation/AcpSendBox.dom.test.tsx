@@ -10,7 +10,6 @@ const acpModelInfoMocks = vi.hoisted(() => ({
   selectModel: vi.fn(),
   selectAutoModel: vi.fn(),
   setConfigOption: vi.fn(),
-  executeAction: vi.fn(),
   configSet: vi.fn(),
   configSetLocal: vi.fn(),
 }));
@@ -33,9 +32,6 @@ vi.mock('@/common', () => ({
       getConfigOptions: { invoke: vi.fn().mockResolvedValue({ config_options: [] }) },
       setConfigOption: { invoke: vi.fn().mockResolvedValue({ confirmation: 'observed', config_options: [] }) },
       responseStream: { on: vi.fn(() => vi.fn()) },
-    },
-    oplRuntime: {
-      executeAction: { invoke: acpModelInfoMocks.executeAction },
     },
   },
 }));
@@ -311,7 +307,6 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     isMobileLayout = false;
     acpModelInfoMocks.selectAutoModel.mockResolvedValue(undefined);
     acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
-    acpModelInfoMocks.executeAction.mockResolvedValue(undefined);
     acpModelInfoMocks.configSet.mockResolvedValue(undefined);
   });
 
@@ -407,7 +402,6 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-max')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();
-    expect(acpModelInfoMocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('delegates latest model and reasoning resolution to the shared Auto action', () => {

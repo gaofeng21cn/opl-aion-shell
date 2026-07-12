@@ -93,7 +93,6 @@ export interface IConfigStorageRefer {
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
   // OPL Flow context: use CodexCont-backed local reasoning continuation mode
-  'codex.oplFlowIntelligenceEnhancementMode'?: boolean;
   'codex.oplAppSessionContextMode'?: 'automatic' | 'custom';
   'codex.oplAppSessionContextCustom'?: string;
   'codex.oplAppSessionContextAdditional'?: string;

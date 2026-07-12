@@ -46,7 +46,6 @@ const ALL_LEGACY_KEYS: ConfigKey[] = [
   'workspace.pasteConfirm',
   'upload.saveToWorkspace',
   'guid.lastSelectedAgent',
-  'codex.oplFlowIntelligenceEnhancementMode',
   'codex.oplAppSessionContextMode',
   'codex.oplAppSessionContextCustom',
   'codex.oplAppSessionContextAdditional',

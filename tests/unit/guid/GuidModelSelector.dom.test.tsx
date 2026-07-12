@@ -1,39 +1,15 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GuidModelSelector from '@/renderer/pages/guid/components/GuidModelSelector';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  executeAction: vi.fn(),
-  clientConfigGet: vi.fn(),
-  clientConfigSet: vi.fn(),
-  clientConfigSetLocal: vi.fn(),
-  clientConfigSubscribe: vi.fn(),
-  clientConfigStore: {} as Record<string, unknown>,
-  clientConfigSubscribers: new Set<() => void>(),
-}));
-
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    oplRuntime: {
-      executeAction: { invoke: mocks.executeAction },
-    },
-  },
 }));
 
 vi.mock('@/renderer/hooks/agent/useModelProviderList', () => ({
   useProvidersQuery: () => ({ data: [] }),
-}));
-
-vi.mock('@/common/config/configService', () => ({
-  configService: {
-    get: mocks.clientConfigGet,
-    set: mocks.clientConfigSet,
-    setLocal: mocks.clientConfigSetLocal,
-    subscribe: mocks.clientConfigSubscribe,
-  },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -56,28 +32,6 @@ vi.mock('react-router-dom', () => ({
 describe('GuidModelSelector Codex display', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
-    mocks.executeAction.mockReset();
-    mocks.clientConfigGet.mockReset();
-    mocks.clientConfigSet.mockReset();
-    mocks.clientConfigSetLocal.mockReset();
-    mocks.clientConfigSubscribe.mockReset();
-    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': false };
-    mocks.clientConfigSubscribers = new Set();
-    mocks.clientConfigGet.mockImplementation((key: string) => mocks.clientConfigStore[key]);
-    mocks.clientConfigSet.mockImplementation((key: string, value: unknown) => {
-      mocks.clientConfigStore[key] = value;
-      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
-      return Promise.resolve();
-    });
-    mocks.clientConfigSetLocal.mockImplementation((key: string, value: unknown) => {
-      mocks.clientConfigStore[key] = value;
-      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
-    });
-    mocks.clientConfigSubscribe.mockImplementation((_key: string, subscriber: () => void) => {
-      mocks.clientConfigSubscribers.add(subscriber);
-      return () => mocks.clientConfigSubscribers.delete(subscriber);
-    });
-    mocks.executeAction.mockResolvedValue(undefined);
   });
 
   it('keeps model and reasoning controls in one menu without repeating reasoning on ordinary Home', async () => {
@@ -137,7 +91,6 @@ describe('GuidModelSelector Codex display', () => {
     expect(setCodexModelSelection).toHaveBeenCalledWith('gpt-5.6-sol', 'high');
     expect(setSelectedAcpModel).not.toHaveBeenCalled();
     expect(setSelectedReasoningEffort).not.toHaveBeenCalled();
-    expect(mocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('shows the highest advertised reasoning effort for an unknown future Auto model', () => {
