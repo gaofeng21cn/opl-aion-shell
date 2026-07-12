@@ -490,12 +490,20 @@ function isLegacyManagedUpdatePassthroughError(spec: RuntimeCommandSpec, error: 
   );
 }
 
+function isManagedCarrierDependencyError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /(?:ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find package|Cannot find module)/i.test(error.message)
+  );
+}
+
 function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error: unknown): boolean {
   return (
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
     (error instanceof Error &&
       error.message === 'The Framework-managed OPL base carrier is missing.' &&
       shouldAutoBootstrapOplCommand(spec)) ||
+    (isManagedCarrierDependencyError(error) && shouldAutoBootstrapOplCommand(spec)) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
 }

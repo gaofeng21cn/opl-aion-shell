@@ -329,6 +329,21 @@ describe('OPL runtime bridge command whitelist', () => {
         new Error('The Framework-managed OPL base carrier is missing.')
       )
     ).toBe(true);
+    const missingManagedDependency = new Error(
+      "OPL runtime command failed (1): Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@temporalio/common'"
+    );
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildInitializeCommand(),
+        missingManagedDependency
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        missingManagedDependency
+      )
+    ).toBe(false);
   });
 
   it('detects older OPL runtimes that do not support initialize event streaming', () => {
