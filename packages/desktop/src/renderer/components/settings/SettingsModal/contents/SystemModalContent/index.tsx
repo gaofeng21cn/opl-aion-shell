@@ -94,7 +94,6 @@ const SystemModalContent: React.FC = () => {
                 <div className='text-14px font-medium text-t-primary leading-22px'>
                   {t('settings.advancedPathsTitle')}
                 </div>
-                <div className='mt-2px text-12px text-t-tertiary leading-18px'>{t('settings.advancedPathsDesc')}</div>
               </div>
             </div>
             <div className='opl-settings-list border-t border-solid border-[var(--border-base)]'>
