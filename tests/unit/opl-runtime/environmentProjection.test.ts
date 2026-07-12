@@ -230,4 +230,30 @@ describe('buildRuntimeEnvironmentProjection', () => {
       component: agentPackages,
     });
   });
+
+  it('does not count a clean developer override as a local change', () => {
+    const plane: ManagedUpdatePlane = {
+      packageManualRequiredTargetCount: 3,
+      components: [],
+    };
+
+    const projection = buildRuntimeEnvironmentProjection({
+      appState: {
+        modules: {
+          items: [
+            { module_id: 'medautoscience', status: 'dirty', git: { dirty: true } },
+            { module_id: 'medautogrant', status: 'dirty', git: { dirty: true } },
+            { module_id: 'redcube', status: 'dirty', git: { dirty: true } },
+            { module_id: 'oplmetaagent', status: 'ready', install_origin: 'env_override', git: { dirty: false } },
+          ],
+        },
+      },
+      managedUpdatePlane: plane,
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+
+    expect(projection.moduleInstalledCount).toBe(4);
+    expect(projection.moduleManualMaintenanceCount).toBe(3);
+  });
 });

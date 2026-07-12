@@ -63,6 +63,7 @@ export type ManagedUpdatePlane = {
   lockStatus?: string;
   summary?: string;
   reloadGuidance?: string;
+  packageManualRequiredTargetCount?: number;
   components: ManagedUpdateComponent[];
 };
 
@@ -107,6 +108,27 @@ function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((entry) => firstOplString(entry)).filter((entry): entry is string => Boolean(entry))
     : [];
+}
+
+function nonNegativeNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const numberValue = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+    if (Number.isFinite(numberValue) && numberValue >= 0) return numberValue;
+  }
+  return undefined;
+}
+
+function readManualRequiredTargetCount(component: Record<string, unknown> | undefined): number | undefined {
+  if (!component) return undefined;
+  const receipt = oplRecord(component.receipt ?? component.receipts);
+  const statusDetail = oplRecord(component.status_detail ?? component.statusDetail);
+  const receiptStatusDetail = oplRecord(receipt.status_detail ?? receipt.statusDetail);
+  return nonNegativeNumber(
+    statusDetail.manual_required_targets_count,
+    statusDetail.manualRequiredTargetsCount,
+    receiptStatusDetail.manual_required_targets_count,
+    receiptStatusDetail.manualRequiredTargetsCount
+  );
 }
 
 export function canonicalManagedUpdateComponentId(value: unknown): ManagedUpdateComponentId | null {
@@ -222,8 +244,9 @@ function readVersionDetail(component: Record<string, unknown>): {
 
 export function readManagedUpdatePlane(parsed: unknown, appState: Record<string, unknown>): ManagedUpdatePlane {
   const root = managedUpdateRoot(parsed, appState);
+  const rawComponents = managedUpdateComponentRecords(root);
   const byId = new Map<string, Record<string, unknown>>();
-  for (const component of managedUpdateComponentRecords(root)) {
+  for (const component of rawComponents) {
     const sourceId = firstOplString(component.component_id, component.componentId, component.id);
     const id = canonicalManagedUpdateComponentId(sourceId);
     if (id && !byId.has(id)) byId.set(id, component);
@@ -349,6 +372,12 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
     lockStatus: firstOplString(oplRecord(root.idempotency_lock).status, oplRecord(root.lock).status),
     summary: firstOplString(oplRecord(root.summary).message, root.summary),
     reloadGuidance: firstOplString(root.reload_guidance),
+    packageManualRequiredTargetCount: readManualRequiredTargetCount(
+      rawComponents.find((component) => {
+        const id = firstOplString(component.component_id, component.componentId, component.id);
+        return id === 'opl_packages' || id === 'capability_packages';
+      })
+    ),
     components,
   };
 }

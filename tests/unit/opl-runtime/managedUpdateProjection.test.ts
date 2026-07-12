@@ -91,4 +91,23 @@ describe('managed update projection public lifecycle ids', () => {
       rollbackAllowed: false,
     });
   });
+  it('reads the package manual target count without reviving a legacy public component id', () => {
+    const plane = readManagedUpdatePlane(
+      {
+        managed_update: {
+          components: [
+            {
+              component_id: 'capability_packages',
+              state: 'skipped_manual_required',
+              status_detail: { manual_required_targets_count: 3 },
+            },
+          ],
+        },
+      },
+      {}
+    );
+
+    expect(plane.packageManualRequiredTargetCount).toBe(3);
+    expect(plane.components.map((component) => component.id)).toEqual(['opl_base', 'opl_app', 'opl_packages']);
+  });
 });

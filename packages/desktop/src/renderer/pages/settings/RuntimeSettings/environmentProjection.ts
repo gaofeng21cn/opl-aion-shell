@@ -11,9 +11,9 @@ import type { ManagedUpdateComponent, ManagedUpdatePlane } from '@/renderer/serv
 import {
   formatStatus,
   isReadyStatus,
-  moduleInstalled,
+  moduleHasLocalChanges,
   moduleId,
-  moduleNeedsManualHandling,
+  moduleInstalled,
   moduleRecords,
   normalizeModule,
   oplPathString,
@@ -232,7 +232,9 @@ export function buildRuntimeEnvironmentProjection({
     oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
   const modules = buildRuntimeModules(modulesPayload);
   const moduleInstalledCount = modules.filter(moduleInstalled).length;
-  const moduleManualMaintenanceCount = modules.filter(moduleNeedsManualHandling).length;
+  const componentById = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
+  const moduleManualMaintenanceCount =
+    managedUpdatePlane.packageManualRequiredTargetCount ?? modules.filter(moduleHasLocalChanges).length;
   const moduleValue = t('settings.oplEnvironmentPage.modulesInstalledCount', {
     installed: moduleInstalledCount,
     total: modules.length,
@@ -327,8 +329,6 @@ export function buildRuntimeEnvironmentProjection({
       tone: moduleInstalledCount >= modules.length && moduleManualMaintenanceCount === 0 ? 'green' : 'orange',
     },
   ];
-  const componentById = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
-
   return {
     familyWorkspaceRoot,
     workspaceRoot,

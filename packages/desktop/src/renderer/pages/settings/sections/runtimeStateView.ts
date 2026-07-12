@@ -127,6 +127,17 @@ export function moduleNeedsManualHandling(module: RuntimeModuleItem): boolean {
   );
 }
 
+export function moduleHasLocalChanges(module: RuntimeModuleItem): boolean {
+  const status = moduleStatus(module);
+  const git = oplRecord(module.git);
+  return (
+    status === 'dirty' ||
+    isTruthyFlag(module.checkout_dirty) ||
+    isTruthyFlag(module.working_tree_dirty) ||
+    isTruthyFlag(git.dirty)
+  );
+}
+
 export function isReadyStatus(status: string): boolean {
   return status === 'ready' || status === 'compatible' || status === 'ok' || status === 'installed';
 }
@@ -195,15 +206,8 @@ export function formatModuleAction(action: string, t: Translate): string {
 }
 
 export function moduleManualHandlingLabel(module: RuntimeModuleItem, t: Translate): string {
-  const status = moduleStatus(module);
   const source = moduleSource(module);
-  const git = oplRecord(module.git);
-  if (
-    status === 'dirty' ||
-    isTruthyFlag(module.checkout_dirty) ||
-    isTruthyFlag(module.working_tree_dirty) ||
-    isTruthyFlag(git.dirty)
-  ) {
+  if (moduleHasLocalChanges(module)) {
     return t('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');
   }
   if (source && DEVELOPER_MODULE_SOURCES.has(source)) {

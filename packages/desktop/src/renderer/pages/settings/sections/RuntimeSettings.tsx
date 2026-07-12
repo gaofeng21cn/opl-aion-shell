@@ -230,12 +230,14 @@ function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; 
 
 function AgentModuleMaintenancePanel({
   modules,
+  manualModuleCount,
   maintenance,
   maintenanceOperationBusy,
   onCheck,
   t,
 }: {
   modules: RuntimeModuleItem[];
+  manualModuleCount: number;
   maintenance: ManagedUpdateMaintenanceSnapshot;
   maintenanceOperationBusy: boolean;
   onCheck: () => void;
@@ -243,7 +245,6 @@ function AgentModuleMaintenancePanel({
 }) {
   const checking = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
   const installedModules = modules.filter(moduleInstalled).length;
-  const manualModules = modules.filter(moduleNeedsManualHandling);
 
   return (
     <div className='opl-settings-technical-group' data-testid='opl-module-maintenance'>
@@ -263,10 +264,10 @@ function AgentModuleMaintenancePanel({
                   total: modules.length,
                 })}
               </Tag>
-              {manualModules.length > 0 && (
+              {manualModuleCount > 0 && (
                 <Tag color='orange'>
                   {t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceCount', {
-                    count: manualModules.length,
+                    count: manualModuleCount,
                   })}
                 </Tag>
               )}
@@ -1060,6 +1061,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       modulesSourceMode,
       modulesRoot,
       modules,
+      moduleManualMaintenanceCount,
       healthSummaryItems,
       runtimeCards,
     },
@@ -1264,6 +1266,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Typography.Text>
                 <AgentModuleMaintenancePanel
                   modules={modules}
+                  manualModuleCount={moduleManualMaintenanceCount}
                   maintenance={managedUpdateMaintenance}
                   maintenanceOperationBusy={maintenanceOperationBusy}
                   onCheck={() => void runManagedUpdateRead('check')}
