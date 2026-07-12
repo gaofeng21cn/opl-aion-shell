@@ -151,16 +151,27 @@ describe('OverviewSettings', () => {
 
     expect(screen.getByTestId('settings-page-overview')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-primary')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-technical-details')).not.toHaveAttribute('open');
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
     expect(screen.queryByTestId('settings-overview-primary-action')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('settings-overview-card-model-access')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-card-workspace')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-card-background')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-card-capabilities')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-card-updates')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-card-background')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-card-capabilities')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-card-updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Common settings')).not.toBeInTheDocument();
+  });
+
+  it('keeps raw status details behind an explicit read-only diagnostics action', async () => {
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-overview-diagnostics-action'));
+
+    expect(await screen.findByTestId('settings-overview-technical-details')).toHaveTextContent(
+      '/Users/example/OPL Workspace'
+    );
   });
 
   it('shows only the highest-priority next action when the workspace is missing', () => {
@@ -172,6 +183,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('2 item(s)');
+    expect(screen.getByTestId('settings-overview-attention-list').children).toHaveLength(2);
     fireEvent.click(screen.getByText('Change or Verify'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
     expect(screen.getByTestId('settings-overview-exception')).toBeInTheDocument();

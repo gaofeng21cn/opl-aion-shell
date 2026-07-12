@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
@@ -20,7 +19,8 @@ import {
   resolveLogRetentionPlan,
   resolveRuntimePointerPrunePlan,
   resolveUpdaterCacheCleanupDryRunPlan,
-  type ConversationArchiveReceipt,
+  restoreConversationArchiveArtifacts,
+  verifyConversationArchiveReceipt,
 } from '../services/localDataLifecycle';
 
 const RETAIN_DAYS = 30;
@@ -77,14 +77,6 @@ function receiptPathFromRequest(value: string): string {
   return normalized;
 }
 
-function readArchiveReceipt(receiptPath: string): ConversationArchiveReceipt {
-  const parsed = JSON.parse(fs.readFileSync(receiptPathFromRequest(receiptPath), 'utf8')) as ConversationArchiveReceipt;
-  if (parsed.schema !== 'opl_conversation_archive_receipt.v1') {
-    throw new Error('Conversation archive receipt is invalid.');
-  }
-  return parsed;
-}
-
 export function initLocalDataLifecycleBridge(): void {
   ipcBridge.localDataLifecycle.getInventory.provider(() =>
     Promise.resolve(
@@ -109,13 +101,27 @@ export function initLocalDataLifecycleBridge(): void {
     )
   );
 
-  ipcBridge.localDataLifecycle.restoreConversationProof.provider(({ receiptPath }) => {
-    const receipt = readArchiveReceipt(receiptPath);
-    if (!fs.existsSync(receipt.manifest_path) || !fs.existsSync(receipt.restore_probe_path)) {
-      throw new Error('Conversation archive restore proof is missing.');
-    }
-    return Promise.resolve(receipt);
-  });
+  ipcBridge.localDataLifecycle.restoreConversationProof.provider(({ receiptPath }) =>
+    Promise.resolve(
+      verifyConversationArchiveReceipt({
+        archiveReceiptPath: receiptPathFromRequest(receiptPath),
+        archiveRoot: archiveRoot(),
+        receiptRoot: receiptRoot(),
+        allowedSourcePaths: [conversationRoot()],
+      })
+    )
+  );
+
+  ipcBridge.localDataLifecycle.restoreConversationArchive.provider(({ receiptPath }) =>
+    Promise.resolve(
+      restoreConversationArchiveArtifacts({
+        archiveReceiptPath: receiptPathFromRequest(receiptPath),
+        archiveRoot: archiveRoot(),
+        receiptRoot: receiptRoot(),
+        allowedSourcePaths: [conversationRoot()],
+      })
+    )
+  );
 
   ipcBridge.localDataLifecycle.deleteConversationArtifacts.provider(({ receiptPath, confirmation }) =>
     Promise.resolve(

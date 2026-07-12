@@ -150,6 +150,18 @@ const appStateResult = {
           },
         ],
       },
+      settings_control_center: {
+        configuration_catalog: {
+          items: [
+            {
+              configuration_id: 'update_channel',
+              current_value: 'stable',
+              action_id: 'update_channel',
+              allowed_values: ['stable', 'preview'],
+            },
+          ],
+        },
+      },
       actions: [],
     },
   },
@@ -414,24 +426,44 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-update-channel')).toBeInTheDocument();
   });
 
-  it('mounts module and update diagnostics only after the user opens technical details', async () => {
+  it('keeps maintenance mutations in management and diagnostics read-only', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-management-details')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
 
-    expect(await screen.findByTestId('settings-maintenance-technical-details')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
+    expect(await screen.findByTestId('settings-maintenance-management-details')).toBeInTheDocument();
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('Med Auto Science');
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('OPL Book Forge');
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
-    expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
-    expect(screen.queryByText('opl-meta-agent')).not.toBeInTheDocument();
-    expect(screen.queryByText('opl-flow')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+
+    const diagnostics = await screen.findByTestId('settings-maintenance-technical-details');
+    expect(within(diagnostics).getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
+    expect(within(diagnostics).queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
+    expect(within(diagnostics).queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
+  });
+
+  it('persists the update channel through the Framework configuration catalog action', async () => {
+    render(<RuntimeSettings />);
+
+    const select = await screen.findByTestId('settings-maintenance-update-channel-select');
+    fireEvent.click(within(select).getAllByRole('radio')[1]);
+
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'update_channel',
+        dryRun: false,
+        payloadRefsOnlyJson: { channel: 'preview' },
+      })
+    );
   });
 
   it('renders TaskRunProjection v2 task list and selected task refs from fast app state', async () => {

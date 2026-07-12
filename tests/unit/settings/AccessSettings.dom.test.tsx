@@ -7,6 +7,8 @@ import { AccessSettingsContent } from '@/renderer/pages/settings/sections/Access
 type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
   executeActionInvoke: ReturnType<typeof vi.fn>;
+  configGet: ReturnType<typeof vi.fn>;
+  configSet: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
   codexDefaultModel: string | null;
   codexModel: string | null;
@@ -19,6 +21,8 @@ type AccessSettingsTestMocks = {
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
+  configGet: vi.fn(),
+  configSet: vi.fn(),
   load: vi.fn(),
   codexDefaultModel: 'gpt-5.5',
   codexModel: null,
@@ -158,6 +162,24 @@ vi.mock('@arco-design/web-react', () => {
       }}
     />
   );
+  const Select = ({
+    options = [],
+    onChange,
+    loading: _loading,
+    ...props
+  }: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & {
+    options?: Array<{ label: string; value: string }>;
+    loading?: boolean;
+    onChange?: (value: string) => void;
+  }) => (
+    <select {...props} onChange={(event) => onChange?.(event.currentTarget.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
 
   return {
     Button,
@@ -168,6 +190,7 @@ vi.mock('@arco-design/web-react', () => {
       error: vi.fn(message),
     },
     Modal,
+    Select,
     Space,
     Tag,
     Tooltip,
@@ -182,6 +205,32 @@ vi.mock('@/common', () => ({
       executeAction: { invoke: accessSettingsMocks.executeActionInvoke },
     },
   },
+}));
+
+vi.mock('@/common/config/configService', () => ({
+  configService: {
+    get: accessSettingsMocks.configGet,
+    set: accessSettingsMocks.configSet,
+    setLocal: vi.fn(),
+    whenReady: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn(() => () => {}),
+  },
+}));
+
+vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplCodexModelDisplayOptions: () => ({
+    auto_option: { id: '__auto', label_zh: '自动（推荐）', label_en: 'Auto (recommended)' },
+    default_reasoning_effort: 'max',
+    visible_models: [
+      { id: 'gpt-5.6-sol', label_zh: '5.6 Sol', label_en: '5.6 Sol' },
+      { id: 'gpt-5.5', label_zh: '5.5', label_en: '5.5' },
+    ],
+    user_reasoning_effort_options: ['high', 'max'],
+    reasoning_labels: {
+      high: { zh: '推理高', en: 'High reasoning' },
+      max: { zh: '推理最大', en: 'Maximum reasoning' },
+    },
+  }),
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -456,6 +505,8 @@ describe('AccessSettingsContent', () => {
       stdout: '{}',
       parsed: {},
     });
+    mocks.configGet.mockReturnValue({ codex: {} });
+    mocks.configSet.mockResolvedValue(undefined);
     mocks.load.mockResolvedValue(undefined);
   });
 
@@ -515,8 +566,48 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
     expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
     expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
+    expect(view.getByTestId('settings-access-model-preference')).toBeTruthy();
+    expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto');
+    expect(view.getByTestId('settings-access-preferred-reasoning')).toBeDisabled();
     expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
     expect(document.querySelector('#model')).toBeTruthy();
+  });
+
+  it('persists a fixed built-in model and reasoning preference for new conversations', async () => {
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.change(view.getByTestId('settings-access-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
+    await waitFor(() =>
+      expect(getMocks().configSet).toHaveBeenCalledWith('acp.config', {
+        codex: { preferredModelId: 'gpt-5.6-sol', preferredReasoningEffort: 'max' },
+      })
+    );
+
+    fireEvent.change(view.getByTestId('settings-access-preferred-reasoning'), { target: { value: 'high' } });
+    await waitFor(() =>
+      expect(getMocks().configSet).toHaveBeenLastCalledWith('acp.config', {
+        codex: { preferredModelId: 'gpt-5.6-sol', preferredReasoningEffort: 'high' },
+      })
+    );
+  });
+
+  it('restores the previous model selection when persistence fails', async () => {
+    getMocks().configSet.mockRejectedValueOnce(new Error('write failed'));
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.change(view.getByTestId('settings-access-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
+
+    await waitFor(() => expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto'));
+    expect(document.body.textContent).toContain('Could not save model preference.');
+  });
+
+  it('keeps raw Codex fields behind the diagnostics modal', async () => {
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
+    fireEvent.click(view.getByTestId('settings-access-diagnostics-action'));
+
+    expect(await view.findByTestId('settings-access-technical-details')).toHaveTextContent('/usr/local/bin/codex');
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {

@@ -62,6 +62,7 @@ describe('OPL runtime IPC channel contract', () => {
         'local-data-lifecycle.get-inventory',
         'local-data-lifecycle.archive-conversations',
         'local-data-lifecycle.restore-conversation-proof',
+        'local-data-lifecycle.restore-conversation-archive',
         'local-data-lifecycle.delete-conversation-artifacts',
         'local-data-lifecycle.plan-runtime-prune',
         'local-data-lifecycle.execute-runtime-prune',

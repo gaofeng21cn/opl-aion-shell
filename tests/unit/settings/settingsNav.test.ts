@@ -152,6 +152,10 @@ const { controlPlane } = vi.hoisted(() => ({
       pet: 'appearance',
       about: 'advanced',
     },
+    extension_tab_policy: {
+      default_visibility: 'hidden_until_app_classified',
+      mount_allowlist: ['skills-extension', 'tools-extension'],
+    },
     slot_registry: {
       settings_general: { component_key: 'OverviewSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_access: { component_key: 'AccessSettingsContent', wrapper_policy: 'host_provides_wrapper' },
@@ -381,7 +385,7 @@ describe('settingsNav App-owned tabs', () => {
     ]);
   });
 
-  it('appends unanchored extension settings after ordinary App entries in page and modal hosts', () => {
+  it('hides unclassified extension settings from page and modal hosts', () => {
     const extensionTabs: IExtensionSettingsTab[] = [
       {
         id: 'unanchored-extension',
@@ -413,7 +417,6 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
-      'unanchored-extension',
     ]);
     expect(modalIds).toEqual(navIds);
   });

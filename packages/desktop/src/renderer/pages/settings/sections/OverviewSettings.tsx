@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Button, Typography } from '@arco-design/web-react';
-import { CheckOne, FolderOpen, Lightning, Toolkit, UpdateRotation } from '@icon-park/react';
+import React, { useState } from 'react';
+import { Button, Modal, Typography } from '@arco-design/web-react';
+import { CheckOne, FolderOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -30,9 +30,17 @@ type OverviewSettingsProps = {
   withWrapper?: boolean;
 };
 
+type AttentionItem = {
+  title: string;
+  description: string;
+  label: string;
+  route: string;
+};
+
 const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const core = oplRecord(appState.core);
@@ -91,40 +99,46 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     Number(modulesNeedAction);
   const overviewNeedsAction = attentionCount > 0;
 
-  const nextAction = workspaceNeedsAction
-    ? {
-        title: t('settings.overviewPage.attention.workspaceTitle'),
-        description: t('settings.overviewPage.workspace.notConfigured'),
-        label: t('settings.overviewPage.workspace.changeOrVerify'),
-        route: '/settings/workspace',
-      }
-    : modelAccessNeedsAction
+  const attentionItems = [
+    workspaceNeedsAction
+      ? {
+          title: t('settings.overviewPage.attention.workspaceTitle'),
+          description: t('settings.overviewPage.workspace.notConfigured'),
+          label: t('settings.overviewPage.workspace.changeOrVerify'),
+          route: '/settings/workspace',
+        }
+      : null,
+    modelAccessNeedsAction
       ? {
           title: t('settings.overviewPage.quickEntries.modelAccount.title'),
           description: t('settings.overviewPage.quickEntries.modelAccount.description'),
           label: t('common.open'),
           route: '/settings/access',
         }
-      : temporalNeedsAction
-        ? {
-            title: t('settings.overviewPage.quickEntries.localServices.title'),
-            description: t('settings.overviewPage.quickEntries.localServices.description'),
-            label: t('settings.overviewPage.actions.openRuntimeSettings'),
-            route: '/settings/environment',
-          }
-        : modulesNeedAction
-          ? {
-              title: t('settings.overviewPage.attention.capabilitiesTitle'),
-              description: t('settings.oplEnvironmentPage.modulesReadyCount', {
-                ready: readyModules,
-                total: totalModules,
-              }),
-              label: t('settings.overviewPage.actions.openRuntimeSettings'),
-              route: '/settings/environment?section=packages',
-            }
-          : null;
+      : null,
+    temporalNeedsAction
+      ? {
+          title: t('settings.overviewPage.quickEntries.localServices.title'),
+          description: t('settings.overviewPage.quickEntries.localServices.description'),
+          label: t('settings.overviewPage.actions.openRuntimeSettings'),
+          route: '/settings/environment',
+        }
+      : null,
+    modulesNeedAction
+      ? {
+          title: t('settings.overviewPage.attention.capabilitiesTitle'),
+          description: t('settings.oplEnvironmentPage.modulesReadyCount', {
+            ready: readyModules,
+            total: totalModules,
+          }),
+          label: t('settings.overviewPage.actions.openRuntimeSettings'),
+          route: '/settings/environment?section=packages',
+        }
+      : null,
+  ].filter((item): item is AttentionItem => item !== null);
+  const nextAction = attentionItems[0] ?? null;
 
-  const summaryCards = [
+  const contextualEntries = [
     {
       key: 'model-access',
       title: t('settings.overviewPage.quickEntries.modelAccount.title'),
@@ -156,39 +170,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       statusClass: workspaceNeedsAction ? 'opl-settings-status--attention' : 'opl-settings-status--ready',
       icon: <FolderOpen theme='outline' />,
       route: '/settings/workspace',
-    },
-    {
-      key: 'background',
-      title: t('settings.overviewPage.quickEntries.localServices.title'),
-      description: t('settings.overviewPage.quickEntries.localServices.description'),
-      status: temporalStatus
-        ? t(`settings.oplEnvironmentPage.status.${temporalStatus}`, { status: temporalStatus })
-        : t('settings.accessPage.statusLabels.unknown'),
-      statusClass: temporalNeedsAction
-        ? 'opl-settings-status--attention'
-        : temporalStatus
-          ? 'opl-settings-status--ready'
-          : '',
-      icon: <Toolkit theme='outline' />,
-      route: '/settings/environment',
-    },
-    {
-      key: 'capabilities',
-      title: t('settings.overviewPage.quickEntries.capabilities.title'),
-      description: t('settings.overviewPage.quickEntries.capabilities.description'),
-      status: t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules }),
-      statusClass: modulesNeedAction ? 'opl-settings-status--attention' : 'opl-settings-status--ready',
-      icon: <Lightning theme='outline' />,
-      route: '/settings/capabilities',
-    },
-    {
-      key: 'updates',
-      title: t('settings.oplEnvironmentPage.updates.title'),
-      description: t('settings.overviewPage.quickEntries.maintenance.description'),
-      status: null,
-      statusClass: '',
-      icon: <UpdateRotation theme='outline' />,
-      route: '/settings/environment?section=updates',
     },
   ];
 
@@ -247,26 +228,32 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
               </Typography.Text>
             </div>
           </div>
-          <div className='opl-settings-row'>
-            <div className='opl-settings-row__main'>
-              <Typography.Text className='font-500 text-t-primary'>{nextAction.title}</Typography.Text>
-              <Typography.Text className='text-12px text-t-secondary'>{nextAction.description}</Typography.Text>
-            </div>
-            <div className='opl-settings-row__meta'>
-              <Button
-                type='primary'
-                onClick={() => navigate(nextAction.route)}
-                data-testid='settings-overview-primary-action'
-              >
-                {nextAction.label}
-              </Button>
-            </div>
+          <div className='opl-settings-list' data-testid='settings-overview-attention-list'>
+            {attentionItems.map((item, index) => (
+              <div className='opl-settings-row' key={item.route}>
+                <div className='opl-settings-row__main'>
+                  <Typography.Text className='font-500 text-t-primary'>{item.title}</Typography.Text>
+                  <Typography.Text className='text-12px text-t-secondary'>{item.description}</Typography.Text>
+                </div>
+                {index === 0 && (
+                  <div className='opl-settings-row__meta'>
+                    <Button
+                      type='primary'
+                      onClick={() => navigate(item.route)}
+                      data-testid='settings-overview-primary-action'
+                    >
+                      {item.label}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       )}
 
       <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='settings-overview-summary-grid'>
-        {summaryCards.map((card) => (
+        {contextualEntries.map((card) => (
           <section
             className='opl-settings-section flex'
             key={card.key}
@@ -293,9 +280,23 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         ))}
       </div>
 
-      <details className='opl-settings-details' data-testid='settings-overview-technical-details'>
-        <summary>{t('common.technical_details')}</summary>
-        <div className='mt-12px space-y-6px text-12px text-t-secondary'>
+      <div className='flex justify-end'>
+        <Button data-testid='settings-overview-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
+          {t('common.technical_details')}
+        </Button>
+      </div>
+      <Modal
+        visible={diagnosticsVisible}
+        title={t('common.technical_details')}
+        footer={null}
+        onCancel={() => setDiagnosticsVisible(false)}
+        unmountOnExit
+        style={{ width: 'min(680px, calc(100vw - 48px))' }}
+      >
+        <div
+          className='opl-settings-surface--diagnostic space-y-6px text-12px text-t-secondary'
+          data-testid='settings-overview-technical-details'
+        >
           <div className='break-all'>
             {workspaceRoot
               ? t('settings.overviewPage.workspace.currentPath', { path: workspaceRoot })
@@ -307,8 +308,9 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
             })}
           </div>
           <div>{t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules })}</div>
+          <div>{temporalStatus ?? t('settings.accessPage.statusLabels.unknown')}</div>
         </div>
-      </details>
+      </Modal>
     </div>
   );
 

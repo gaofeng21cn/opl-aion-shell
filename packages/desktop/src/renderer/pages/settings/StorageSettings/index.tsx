@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
+import { Delete, FolderSearch, Refresh, Repair, Undo, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -30,6 +30,7 @@ type AsyncAction =
   | 'inventory'
   | 'cleanup-preview'
   | 'archive'
+  | 'restore-conversations'
   | 'delete-conversations'
   | 'runtime-plan'
   | 'runtime-execute'
@@ -38,7 +39,13 @@ type AsyncAction =
   | 'updater-plan'
   | 'updater-execute';
 
-type PendingDangerAction = 'delete-conversations' | 'runtime-execute' | 'logs-execute' | 'updater-execute' | null;
+type PendingDangerAction =
+  | 'restore-conversations'
+  | 'delete-conversations'
+  | 'runtime-execute'
+  | 'logs-execute'
+  | 'updater-execute'
+  | null;
 
 type StorageSettingsProps = {
   withWrapper?: boolean;
@@ -111,10 +118,16 @@ const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
 type StorageInventoryRowProps = {
   item: StorageInventorySectionViewModel;
   actions: React.ReactNode;
+  actionsWhenEmpty?: boolean;
   status?: React.ReactNode;
 };
 
-const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions, status }) => {
+const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
+  item,
+  actions,
+  actionsWhenEmpty = false,
+  status,
+}) => {
   const { t } = useTranslation();
   const meta = SECTION_META[item.id];
   const isEmpty = item.bytes <= 0;
@@ -142,7 +155,7 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
             {t('settings.storagePage.inventory.notLoaded')}
           </Typography.Text>
         )}
-        {!isEmpty && <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>}
+        {(!isEmpty || actionsWhenEmpty) && <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>}
       </div>
     </section>
   );
@@ -180,6 +193,9 @@ export const StorageSettingsContent: React.FC = () => {
   const cleanupCandidatesAvailable = viewModel.sections.some(
     (section) => section.id !== 'user_data_artifacts' && section.bytes > 0
   );
+  const conversationFilesAvailable =
+    (viewModel.sections.find((section) => section.id === 'user_data_artifacts')?.bytes ?? 0) > 0;
+  const conversationArchiveCanRestore = Boolean(viewModel.conversationProof.receiptPath) && !conversationFilesAvailable;
   const interactionLocked = loading !== null || pendingDangerAction !== null;
 
   const refreshInventory = React.useCallback(async () => {
@@ -260,6 +276,19 @@ export const StorageSettingsContent: React.FC = () => {
           receiptPath: id,
           confirmation: `delete:${viewModel.conversationProof.conversationId ?? ''}`,
         }),
+      async (receipt) => {
+        setLastReceipt(receipt);
+        await refreshInventory();
+      }
+    );
+  };
+
+  const restoreConversationArchive = () => {
+    const receiptPath = viewModel.conversationProof.receiptPath;
+    if (!receiptPath) return;
+    void runAction(
+      'restore-conversations',
+      () => ipcBridge.localDataLifecycle.restoreConversationArchive.invoke({ receiptPath }),
       async (receipt) => {
         setLastReceipt(receipt);
         await refreshInventory();
@@ -370,6 +399,10 @@ export const StorageSettingsContent: React.FC = () => {
   const confirmDangerAction = () => {
     const action = pendingDangerAction;
     setPendingDangerAction(null);
+    if (action === 'restore-conversations') {
+      restoreConversationArchive();
+      return;
+    }
     if (action === 'delete-conversations') {
       deleteConversationArtifacts();
       return;
@@ -388,6 +421,11 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const dangerActionSummary = () => {
+    if (pendingDangerAction === 'restore-conversations') {
+      return t('settings.storagePage.conversations.restoreConfirmation', {
+        defaultValue: 'Restore the archived conversation files to their original location without overwriting files.',
+      });
+    }
     if (pendingDangerAction === 'delete-conversations') {
       return viewModel.conversationProof.receiptPath
         ? t('settings.storagePage.conversations.deleteConfirmation')
@@ -415,6 +453,7 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const dangerActionLabel = () => {
+    if (pendingDangerAction === 'restore-conversations') return t('common.runtime.archiveTask.restore');
     if (pendingDangerAction === 'delete-conversations') return t('settings.storagePage.actions.deleteWithReceipt');
     if (pendingDangerAction === 'runtime-execute') return t('settings.storagePage.actions.executeRuntime');
     if (pendingDangerAction === 'logs-execute') return t('settings.storagePage.actions.executeLogs');
@@ -445,7 +484,12 @@ export const StorageSettingsContent: React.FC = () => {
 
   const categoryPresentation: Record<
     StorageInventorySectionViewModel['id'],
-    { actions: React.ReactNode; status?: React.ReactNode; technicalDetails?: React.ReactNode }
+    {
+      actions: React.ReactNode;
+      actionsWhenEmpty?: boolean;
+      status?: React.ReactNode;
+      technicalDetails?: React.ReactNode;
+    }
   > = {
     user_data_artifacts: {
       actions: (
@@ -461,7 +505,19 @@ export const StorageSettingsContent: React.FC = () => {
               {t('settings.storagePage.actions.archive')}
             </Button>
           )}
-          {viewModel.conversationProof.receiptPath && (
+          {conversationArchiveCanRestore && (
+            <Button
+              htmlType='button'
+              icon={<Undo />}
+              disabled={interactionLocked}
+              loading={loading === 'restore-conversations'}
+              onClick={() => requestDangerAction('restore-conversations')}
+              data-testid='storage-conversation-restore'
+            >
+              {t('common.runtime.archiveTask.restore')}
+            </Button>
+          )}
+          {viewModel.conversationProof.receiptPath && conversationFilesAvailable && (
             <Button
               htmlType='button'
               status='danger'
@@ -476,6 +532,7 @@ export const StorageSettingsContent: React.FC = () => {
           )}
         </>
       ),
+      actionsWhenEmpty: conversationArchiveCanRestore,
       status: viewModel.conversationProof.receiptPath ? t('settings.storagePage.conversations.proofReady') : undefined,
       technicalDetails: viewModel.conversationProof.receiptPath ? (
         <Typography.Text className='text-12px break-words'>
@@ -642,7 +699,7 @@ export const StorageSettingsContent: React.FC = () => {
           data-testid='storage-action-confirmation'
         >
           <Alert
-            type='warning'
+            type={pendingDangerAction === 'restore-conversations' ? 'info' : 'warning'}
             title={t('settings.updateConfirm')}
             content={
               <div className='flex flex-col gap-8px'>
@@ -655,7 +712,7 @@ export const StorageSettingsContent: React.FC = () => {
                     htmlType='button'
                     size='small'
                     type='primary'
-                    status='danger'
+                    status={pendingDangerAction === 'restore-conversations' ? undefined : 'danger'}
                     disabled={loading !== null}
                     loading={loading === pendingDangerAction}
                     onClick={confirmDangerAction}

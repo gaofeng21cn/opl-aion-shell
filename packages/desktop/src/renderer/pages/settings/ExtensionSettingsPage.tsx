@@ -13,6 +13,7 @@ import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSe
 import WebviewHost from '@/renderer/components/media/WebviewHost';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import { isOplExtensionSettingsTabMountable } from './registry/settingsRegistry';
 
 const isExternalSettingsUrl = (url?: string): boolean => /^https?:\/\//i.test(url || '');
 
@@ -37,7 +38,7 @@ const ExtensionSettingsPage: React.FC = () => {
     if (extensionTabs.length === 0) {
       return { tab: null, error: null };
     }
-    const found = extensionTabs.find((t) => t.id === tabId);
+    const found = extensionTabs.find((t) => t.id === tabId && isOplExtensionSettingsTabMountable(t.id));
     if (found) {
       return { tab: found, error: null };
     }

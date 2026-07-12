@@ -5,10 +5,12 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Input, Message, Typography } from '@arco-design/web-react';
+import { Button, Input, Message, Modal, Select, Typography } from '@arco-design/web-react';
 import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { configService } from '@/common/config/configService';
+import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection } from '../accessProjection';
@@ -28,12 +30,24 @@ function splitAccessDetail(detail: string): string[] {
 }
 
 export const AccessSettingsContent: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const appStateQuery = useOplAppState('fast');
+  const modelOptions = getOplCodexModelDisplayOptions();
+  const codexPreference = configService.get('acp.config')?.codex;
+  const [preferredModel, setPreferredModel] = useState(
+    codexPreference?.preferredModelId?.trim() || modelOptions.auto_option.id
+  );
+  const [preferredReasoning, setPreferredReasoning] = useState(
+    codexPreference?.preferredReasoningEffort?.trim() || modelOptions.default_reasoning_effort
+  );
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [codexApiKey, setCodexApiKey] = useState('');
   const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
+  const appStateCore = oplRecord(appStateQuery.appState.core);
+  const codexState = oplRecord(appStateCore.codex);
   const modelAccessCard = cards.find((card) => card.key === 'account');
   const codexCard = cards.find((card) => card.key === 'model');
   const modelAccessNeedsAttention = modelAccessCard?.tone === 'orange';
@@ -56,6 +70,67 @@ export const AccessSettingsContent: React.FC = () => {
         : '';
   const modelAccessSource = modelAccessCard?.detail || null;
   const codexDetailLines = codexCard ? splitAccessDetail(codexCard.detail) : [];
+  const isZh = i18n?.resolvedLanguage?.toLowerCase().startsWith('zh') ?? false;
+  const preferredModelOptions = [
+    {
+      label: isZh ? modelOptions.auto_option.label_zh : modelOptions.auto_option.label_en,
+      value: modelOptions.auto_option.id,
+    },
+    ...modelOptions.visible_models.map((model) => ({
+      label: isZh ? model.label_zh : model.label_en,
+      value: model.id,
+    })),
+  ];
+  const preferredReasoningOptions = modelOptions.user_reasoning_effort_options.map((effort) => ({
+    label: isZh ? modelOptions.reasoning_labels[effort].zh : modelOptions.reasoning_labels[effort].en,
+    value: effort,
+  }));
+
+  const persistPreference = async (modelId: string, reasoningEffort: string): Promise<boolean> => {
+    setPreferenceSaving(true);
+    try {
+      const config = configService.get('acp.config') ?? {};
+      const backendConfig = config.codex ?? {};
+      const nextCodex = { ...backendConfig };
+      if (modelId === modelOptions.auto_option.id) {
+        delete nextCodex.preferredModelId;
+        delete nextCodex.preferredReasoningEffort;
+      } else {
+        nextCodex.preferredModelId = modelId;
+        nextCodex.preferredReasoningEffort = reasoningEffort;
+      }
+      await configService.set('acp.config', { ...config, codex: nextCodex });
+      Message.success(
+        t('settings.accessPage.modelPreference.saved', { defaultValue: 'Default model preference saved.' })
+      );
+      return true;
+    } catch {
+      Message.error(
+        t('settings.accessPage.modelPreference.saveFailed', { defaultValue: 'Could not save model preference.' })
+      );
+      return false;
+    } finally {
+      setPreferenceSaving(false);
+    }
+  };
+
+  const handlePreferredModelChange = (value: string) => {
+    if (preferenceSaving) return;
+    const previous = preferredModel;
+    setPreferredModel(value);
+    void persistPreference(value, preferredReasoning).then((saved) => {
+      if (!saved) setPreferredModel(previous);
+    });
+  };
+
+  const handlePreferredReasoningChange = (value: string) => {
+    if (preferenceSaving) return;
+    const previous = preferredReasoning;
+    setPreferredReasoning(value);
+    void persistPreference(preferredModel, value).then((saved) => {
+      if (!saved) setPreferredReasoning(previous);
+    });
+  };
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -217,6 +292,95 @@ export const AccessSettingsContent: React.FC = () => {
           )}
         </div>
       </section>
+
+      <section
+        className='opl-settings-section opl-settings-surface--configuration'
+        id='model-preference'
+        data-testid='settings-access-model-preference'
+      >
+        <div className='opl-settings-section__header'>
+          <div>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.accessPage.modelPreference.title', { defaultValue: 'New conversation defaults' })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.accessPage.modelPreference.description', {
+                defaultValue:
+                  'Choose the default model and reasoning effort used when a new Codex conversation starts.',
+              })}
+            </Typography.Text>
+          </div>
+        </div>
+        <div className='opl-settings-list'>
+          <div className='opl-settings-row'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-500 text-t-primary'>
+                {t('settings.accessPage.modelPreference.modelLabel', { defaultValue: 'Default model' })}
+              </Typography.Text>
+            </div>
+            <div className='opl-settings-row__meta min-w-220px'>
+              <Select
+                value={preferredModel}
+                options={preferredModelOptions}
+                loading={preferenceSaving}
+                disabled={preferenceSaving}
+                onChange={(value) => handlePreferredModelChange(String(value))}
+                data-testid='settings-access-preferred-model'
+              />
+            </div>
+          </div>
+          <div className='opl-settings-row'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-500 text-t-primary'>
+                {t('settings.accessPage.modelPreference.reasoningLabel', { defaultValue: 'Reasoning effort' })}
+              </Typography.Text>
+              {preferredModel === modelOptions.auto_option.id && (
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.accessPage.modelPreference.autoReasoning', {
+                    defaultValue: 'Auto uses the App reasoning policy for the selected model.',
+                  })}
+                </Typography.Text>
+              )}
+            </div>
+            <div className='opl-settings-row__meta min-w-220px'>
+              <Select
+                value={preferredReasoning}
+                options={preferredReasoningOptions}
+                disabled={preferenceSaving || preferredModel === modelOptions.auto_option.id}
+                loading={preferenceSaving}
+                onChange={(value) => handlePreferredReasoningChange(String(value))}
+                data-testid='settings-access-preferred-reasoning'
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className='flex justify-end'>
+        <Button data-testid='settings-access-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
+          {t('common.technical_details')}
+        </Button>
+      </div>
+      <Modal
+        visible={diagnosticsVisible}
+        title={t('common.technical_details')}
+        footer={null}
+        onCancel={() => setDiagnosticsVisible(false)}
+        unmountOnExit
+        style={{ width: 'min(680px, calc(100vw - 48px))' }}
+      >
+        <div
+          className='opl-settings-surface--diagnostic flex flex-col gap-8px text-12px text-t-secondary'
+          data-testid='settings-access-technical-details'
+        >
+          <span className='break-all'>
+            {oplString(codexState.binary_path) ??
+              t('settings.accessPage.modelPreference.notReported', { defaultValue: 'Codex path not reported' })}
+          </span>
+          <span>{oplString(codexState.model_access_source) ?? modelAccessStatus}</span>
+          <span>{oplString(codexState.status) ?? t('settings.accessPage.statusLabels.unknown')}</span>
+        </div>
+      </Modal>
     </div>
   );
 };

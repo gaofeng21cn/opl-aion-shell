@@ -702,6 +702,7 @@ export type LocalDataLifecycleInventory = {
 export type LocalDataLifecycleReceipt =
   | LocalDataLifecycleConversationArchiveReceipt
   | LocalDataLifecycleConversationDeleteReceipt
+  | LocalDataLifecycleConversationRestoreReceipt
   | LocalDataLifecycleRuntimePruneReceipt
   | LocalDataLifecycleLogRotationReceipt
   | LocalDataLifecycleUpdaterCacheReceipt;
@@ -724,6 +725,16 @@ export type LocalDataLifecycleConversationDeleteReceipt = {
   deleted_paths: string[];
   archive_receipt_path: string;
   confirmed_at: string;
+  receipt_path: string;
+  created_at: string;
+};
+
+export type LocalDataLifecycleConversationRestoreReceipt = {
+  schema: 'opl_conversation_restore_receipt.v1';
+  conversation_id: string;
+  restored_paths: string[];
+  archive_receipt_path: string;
+  archive_sha256: string;
   receipt_path: string;
   created_at: string;
 };
@@ -815,6 +826,10 @@ export const localDataLifecycle = {
   restoreConversationProof: bridge.buildProvider<LocalDataLifecycleConversationArchiveReceipt, { receiptPath: string }>(
     'local-data-lifecycle.restore-conversation-proof'
   ),
+  restoreConversationArchive: bridge.buildProvider<
+    LocalDataLifecycleConversationRestoreReceipt,
+    { receiptPath: string }
+  >('local-data-lifecycle.restore-conversation-archive'),
   deleteConversationArtifacts: bridge.buildProvider<
     LocalDataLifecycleConversationDeleteReceipt,
     { receiptPath: string; confirmation: string }

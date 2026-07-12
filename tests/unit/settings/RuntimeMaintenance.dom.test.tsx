@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 
@@ -262,8 +262,13 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
-    expect(screen.getByTestId('settings-maintenance-technical-details')).toHaveClass(
-      'opl-settings-surface--diagnostic'
+    const diagnostics = screen.getByTestId('settings-maintenance-technical-details');
+    expect(diagnostics).toHaveClass('opl-settings-surface--diagnostic');
+    expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
+    expect(screen.getByTestId('settings-maintenance-management-details')).toHaveClass(
+      'opl-settings-surface--configuration'
     );
     expect(screen.getByTestId('opl-managed-update-opl_base')).toBeVisible();
     expect(screen.getByTestId('opl-managed-update-opl_app')).toBeVisible();
@@ -380,7 +385,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-opl_base'));
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')

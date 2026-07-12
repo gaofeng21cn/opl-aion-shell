@@ -7,6 +7,7 @@ const bridgeMocks = vi.hoisted(() => ({
   getInventory: vi.fn(),
   archiveConversations: vi.fn(),
   restoreConversationProof: vi.fn(),
+  restoreConversationArchive: vi.fn(),
   deleteConversationArtifacts: vi.fn(),
   planRuntimePrune: vi.fn(),
   executeRuntimePrune: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@/common', () => ({
       getInventory: { invoke: bridgeMocks.getInventory },
       archiveConversations: { invoke: bridgeMocks.archiveConversations },
       restoreConversationProof: { invoke: bridgeMocks.restoreConversationProof },
+      restoreConversationArchive: { invoke: bridgeMocks.restoreConversationArchive },
       deleteConversationArtifacts: { invoke: bridgeMocks.deleteConversationArtifacts },
       planRuntimePrune: { invoke: bridgeMocks.planRuntimePrune },
       executeRuntimePrune: { invoke: bridgeMocks.executeRuntimePrune },
@@ -128,6 +130,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.plans.updater.required': 'Preview required before installer cache cleanup can run.',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
+    'common.runtime.archiveTask.restore': 'Restore',
     'settings.updateConfirm': 'Confirm Changes',
     'common.cancel': 'Cancel',
   };
@@ -191,6 +194,16 @@ const receipt = {
   created_at: '2026-06-18T12:00:00.000Z',
 };
 
+const restoreReceipt = {
+  schema: 'opl_conversation_restore_receipt.v1',
+  conversation_id: 'conversation-1',
+  restored_paths: ['/tmp/conversations/paper.md'],
+  archive_receipt_path: receipt.receipt_path,
+  archive_sha256: receipt.archive_sha256,
+  receipt_path: 'receipt://conversation/restore',
+  created_at: '2026-06-18T12:02:00.000Z',
+};
+
 const runtimePlan = {
   schema: 'opl_runtime_pointer_prune_plan.v1',
   mode: 'dry_run',
@@ -244,6 +257,7 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.getInventory.mockResolvedValue(inventory);
     bridgeMocks.archiveConversations.mockResolvedValue(receipt);
     bridgeMocks.restoreConversationProof.mockResolvedValue(receipt);
+    bridgeMocks.restoreConversationArchive.mockResolvedValue(restoreReceipt);
     bridgeMocks.deleteConversationArtifacts.mockResolvedValue(receipt);
     bridgeMocks.planRuntimePrune.mockResolvedValue(runtimePlan);
     bridgeMocks.executeRuntimePrune.mockResolvedValue(receipt);
@@ -462,6 +476,57 @@ describe('StorageSettingsContent', () => {
     fireEvent.click(screen.getByText('Diagnostics'));
     expect(screen.getByTestId('settings-storage-technical-details')).toHaveTextContent(receipt.receipt_path);
     expect(bridgeMocks.restoreConversationProof).not.toHaveBeenCalled();
+  });
+
+  it('offers one restore action when an archive is valid and local conversation files are absent', async () => {
+    const emptyConversationInventory = {
+      ...inventory,
+      total_bytes: 80,
+      sections: inventory.sections.map((section) =>
+        section.id === 'user_data_artifacts' ? { ...section, bytes: 0, roots: [] } : section
+      ),
+    };
+    localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', receipt.receipt_path);
+    bridgeMocks.getInventory.mockResolvedValueOnce(emptyConversationInventory);
+    const mutation = deferred<typeof restoreReceipt>();
+    bridgeMocks.restoreConversationArchive.mockReturnValueOnce(mutation.promise);
+
+    render(<StorageSettingsContent />);
+    const restoreButton = await screen.findByTestId('storage-conversation-restore');
+    fireEvent.click(restoreButton);
+    fireEvent.click(restoreButton);
+
+    expect(bridgeMocks.restoreConversationArchive).not.toHaveBeenCalled();
+    expect(screen.getByTestId('storage-action-confirmation')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+
+    expect(bridgeMocks.restoreConversationArchive).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.restoreConversationArchive).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path });
+    mutation.resolve(restoreReceipt);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId('storage-conversation-restore')).not.toBeInTheDocument();
+  });
+
+  it('shows a restore collision error and keeps the archive available for retry', async () => {
+    const emptyConversationInventory = {
+      ...inventory,
+      total_bytes: 80,
+      sections: inventory.sections.map((section) =>
+        section.id === 'user_data_artifacts' ? { ...section, bytes: 0, roots: [] } : section
+      ),
+    };
+    localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', receipt.receipt_path);
+    bridgeMocks.getInventory.mockResolvedValue(emptyConversationInventory);
+    bridgeMocks.restoreConversationArchive.mockRejectedValueOnce(
+      new Error('Restore stopped because the target already exists. Existing files were not changed.')
+    );
+
+    render(<StorageSettingsContent />);
+    fireEvent.click(await screen.findByTestId('storage-conversation-restore'));
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+
+    expect(await screen.findByTestId('settings-storage-exception')).toHaveTextContent('target already exists');
+    expect(screen.getByTestId('storage-conversation-restore')).toBeEnabled();
   });
 
   it('keeps every storage action single-flight through mutation and inventory refresh', async () => {

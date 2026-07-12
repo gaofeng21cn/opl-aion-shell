@@ -58,6 +58,16 @@ export type ConversationDeleteReceipt = {
   created_at: string;
 };
 
+export type ConversationRestoreReceipt = {
+  schema: 'opl_conversation_restore_receipt.v1';
+  conversation_id: string;
+  restored_paths: string[];
+  archive_receipt_path: string;
+  archive_sha256: string;
+  receipt_path: string;
+  created_at: string;
+};
+
 export type LogRetentionCandidate = {
   path: string;
   bytes: number;
@@ -180,6 +190,17 @@ type DeleteArchivedConversationArtifactsInput = {
   now?: Date;
 };
 
+type VerifyConversationArchiveReceiptInput = {
+  archiveReceiptPath: string;
+  archiveRoot: string;
+  receiptRoot: string;
+  allowedSourcePaths: string[];
+};
+
+type RestoreConversationArchiveArtifactsInput = VerifyConversationArchiveReceiptInput & {
+  now?: Date;
+};
+
 type ExecuteRuntimePointerPrunePlanInput = {
   plan: RuntimePointerPrunePlan;
   receiptRoot: string;
@@ -275,6 +296,23 @@ function sha256File(filePath: string): string {
 function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function writeJsonAtomic(filePath: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.${crypto.randomUUID()}.tmp`;
+  let linked = false;
+  try {
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    fs.linkSync(temporaryPath, filePath);
+    linked = true;
+    fs.unlinkSync(temporaryPath);
+  } catch (error) {
+    if (linked) fs.rmSync(filePath, { force: true });
+    throw error;
+  } finally {
+    fs.rmSync(temporaryPath, { force: true });
+  }
 }
 
 function receiptFile(root: string, prefix: string, id: string): string {
@@ -397,6 +435,304 @@ function archiveEntry(sourceRoot: string, filePath: string, archiveContentsRoot:
     bytes: fs.statSync(filePath).size,
     sha256: sha256File(filePath),
   };
+}
+
+type ConversationArchiveManifestEntry = {
+  source_path: string;
+  relative_path: string;
+  bytes: number;
+  sha256: string;
+};
+
+type VerifiedConversationArchiveEntry = ConversationArchiveManifestEntry & {
+  archive_file_path: string;
+  target_path: string;
+  relative_target_path: string;
+};
+
+type VerifiedConversationArchive = {
+  receipt: ConversationArchiveReceipt;
+  entries: VerifiedConversationArchiveEntry[];
+};
+
+function pathEntryExists(filePath: string): boolean {
+  try {
+    fs.lstatSync(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function requireString(record: Record<string, unknown>, key: string, label: string): string {
+  const value = record[key];
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is invalid.`);
+  return value;
+}
+
+function requireStringArray(record: Record<string, unknown>, key: string, label: string): string[] {
+  const value = record[key];
+  if (!Array.isArray(value) || value.length === 0 || value.some((entry) => typeof entry !== 'string' || !entry)) {
+    throw new Error(`${label} is invalid.`);
+  }
+  return value as string[];
+}
+
+function requireRegularFile(filePath: string, label: string): void {
+  try {
+    const stat = fs.lstatSync(filePath);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${label} is invalid.`);
+  } catch (error) {
+    if (error instanceof Error && error.message === `${label} is invalid.`) throw error;
+    throw new Error(`${label} is missing or unreadable.`, { cause: error });
+  }
+}
+
+function requireAbsolutePath(record: Record<string, unknown>, key: string, label: string): string {
+  const value = requireString(record, key, label);
+  if (!path.isAbsolute(value)) throw new Error(`${label} must be absolute.`);
+  return path.normalize(value);
+}
+
+function samePaths(left: string[], right: string[]): boolean {
+  const normalizedLeft = uniquePaths(left);
+  const normalizedRight = uniquePaths(right);
+  return (
+    normalizedLeft.length === left.length &&
+    normalizedRight.length === right.length &&
+    normalizedLeft.length === normalizedRight.length &&
+    normalizedLeft.every((entry, index) => entry === normalizedRight[index])
+  );
+}
+
+function validateManifestEntry(
+  rawEntry: unknown,
+  sourcePaths: string[],
+  archiveContentsRoot: string
+): VerifiedConversationArchiveEntry {
+  if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) {
+    throw new Error('Archive manifest contains an invalid entry.');
+  }
+  const record = rawEntry as Record<string, unknown>;
+  const sourcePath = requireAbsolutePath(record, 'source_path', 'Archive entry source path');
+  if (!sourcePaths.includes(sourcePath)) throw new Error('Archive entry source path is not declared by the receipt.');
+
+  const relativePath = requireString(record, 'relative_path', 'Archive entry relative path');
+  const normalizedRelativePath = path.normalize(relativePath);
+  if (
+    path.isAbsolute(relativePath) ||
+    normalizedRelativePath !== relativePath ||
+    normalizedRelativePath === '..' ||
+    normalizedRelativePath.startsWith(`..${path.sep}`)
+  ) {
+    throw new Error('Archive entry relative path escapes the archive contents root.');
+  }
+
+  const sourceBaseName = path.basename(sourcePath);
+  const relativeTargetPath = path.relative(sourceBaseName, normalizedRelativePath);
+  if (
+    !sourceBaseName ||
+    relativeTargetPath === '..' ||
+    relativeTargetPath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTargetPath)
+  ) {
+    throw new Error('Archive entry does not map to its declared source path.');
+  }
+
+  const bytes = record.bytes;
+  const sha256 = record.sha256;
+  if (!Number.isSafeInteger(bytes) || (bytes as number) < 0) throw new Error('Archive entry byte count is invalid.');
+  if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(sha256)) {
+    throw new Error('Archive entry hash is invalid.');
+  }
+
+  const archiveFilePath = path.resolve(archiveContentsRoot, normalizedRelativePath);
+  if (!isSameOrInside(archiveContentsRoot, archiveFilePath)) {
+    throw new Error('Archive entry escapes the archive contents root.');
+  }
+  requireRegularFile(archiveFilePath, 'Archived file');
+  const archivedFileSize = fs.statSync(archiveFilePath).size;
+  if (archivedFileSize !== bytes || sha256File(archiveFilePath) !== sha256) {
+    throw new Error(`Archived file integrity check failed: ${archiveFilePath}`);
+  }
+
+  const targetPath = relativeTargetPath ? path.join(sourcePath, relativeTargetPath) : sourcePath;
+  if (!isSameOrInside(sourcePath, targetPath)) throw new Error('Archive entry target escapes its source path.');
+  return {
+    source_path: sourcePath,
+    relative_path: normalizedRelativePath,
+    bytes,
+    sha256,
+    archive_file_path: archiveFilePath,
+    target_path: targetPath,
+    relative_target_path: relativeTargetPath,
+  };
+}
+
+function verifyConversationArchive(input: VerifyConversationArchiveReceiptInput): VerifiedConversationArchive {
+  const archiveReceiptPath = path.resolve(input.archiveReceiptPath);
+  const normalizedReceiptRoot = path.resolve(input.receiptRoot);
+  const normalizedArchiveRoot = path.resolve(input.archiveRoot);
+  if (!isSameOrInside(normalizedReceiptRoot, archiveReceiptPath) || archiveReceiptPath === normalizedReceiptRoot) {
+    throw new Error('Archive receipt is outside the local data lifecycle receipt directory.');
+  }
+  requireRegularFile(archiveReceiptPath, 'Archive receipt');
+
+  const receiptRecord = readJsonRecord(archiveReceiptPath);
+  if (receiptRecord?.schema !== 'opl_conversation_archive_receipt.v1') throw new Error('Archive receipt is invalid.');
+  const receiptPath = requireAbsolutePath(receiptRecord, 'receipt_path', 'Archive receipt path');
+  const archivePath = requireAbsolutePath(receiptRecord, 'archive_path', 'Archive path');
+  const manifestPath = requireAbsolutePath(receiptRecord, 'manifest_path', 'Archive manifest path');
+  const restoreProbePath = requireAbsolutePath(receiptRecord, 'restore_probe_path', 'Archive restore probe path');
+  const archiveSha256 = requireString(receiptRecord, 'archive_sha256', 'Archive manifest hash');
+  const conversationId = requireString(receiptRecord, 'conversation_id', 'Archive conversation id');
+  const createdAt = requireString(receiptRecord, 'created_at', 'Archive receipt timestamp');
+  const receiptSourcePaths = requireStringArray(receiptRecord, 'source_paths', 'Archive receipt source paths');
+  if (receiptSourcePaths.some((entry) => !path.isAbsolute(entry))) {
+    throw new Error('Archive receipt source paths must be absolute.');
+  }
+  if (receiptPath !== archiveReceiptPath) throw new Error('Archive receipt path does not match the requested receipt.');
+  if (!isSameOrInside(normalizedArchiveRoot, archivePath) || archivePath === normalizedArchiveRoot) {
+    throw new Error('Archive path is outside the local data lifecycle archive directory.');
+  }
+  if (manifestPath !== path.join(archivePath, 'manifest.json')) {
+    throw new Error('Archive manifest path does not match the archive receipt.');
+  }
+  if (restoreProbePath !== path.join(archivePath, 'restore-probe.json')) {
+    throw new Error('Archive restore probe path does not match the archive receipt.');
+  }
+  if (!/^[a-f0-9]{64}$/.test(archiveSha256)) throw new Error('Archive manifest hash is invalid.');
+  if (uniquePaths(receiptSourcePaths).length !== receiptSourcePaths.length) {
+    throw new Error('Archive receipt source paths are invalid.');
+  }
+  const allowedSourcePaths = uniquePaths(input.allowedSourcePaths);
+  if (allowedSourcePaths.length === 0 || !samePaths(receiptSourcePaths, allowedSourcePaths)) {
+    throw new Error('Archive receipt source paths do not match the current conversation data roots.');
+  }
+
+  requireRegularFile(manifestPath, 'Archive manifest');
+  if (sha256File(manifestPath) !== archiveSha256) throw new Error('Archive manifest hash does not match its receipt.');
+  const manifest = readJsonRecord(manifestPath);
+  if (manifest?.schema !== 'opl_conversation_archive_manifest.v1') throw new Error('Archive manifest is invalid.');
+  if (requireString(manifest, 'conversation_id', 'Archive manifest conversation id') !== conversationId) {
+    throw new Error('Archive manifest conversation id does not match its receipt.');
+  }
+  if (requireString(manifest, 'created_at', 'Archive manifest timestamp') !== createdAt) {
+    throw new Error('Archive manifest timestamp does not match its receipt.');
+  }
+  const manifestSourcePaths = requireStringArray(manifest, 'source_paths', 'Archive manifest source paths');
+  if (manifestSourcePaths.some((entry) => !path.isAbsolute(entry))) {
+    throw new Error('Archive manifest source paths must be absolute.');
+  }
+  if (!samePaths(receiptSourcePaths, manifestSourcePaths)) {
+    throw new Error('Archive manifest source paths do not match its receipt.');
+  }
+  if (!Array.isArray(manifest.entries) || manifest.entries.length === 0) {
+    throw new Error('Archive manifest has no restorable file entries.');
+  }
+
+  requireRegularFile(restoreProbePath, 'Archive restore probe');
+  const restoreProbe = readJsonRecord(restoreProbePath);
+  if (restoreProbe?.schema !== 'opl_conversation_restore_probe.v1')
+    throw new Error('Archive restore probe is invalid.');
+  if (
+    requireString(restoreProbe, 'conversation_id', 'Archive restore probe conversation id') !== conversationId ||
+    requireString(restoreProbe, 'archive_sha256', 'Archive restore probe hash') !== archiveSha256 ||
+    requireString(restoreProbe, 'checked_at', 'Archive restore probe timestamp') !== createdAt ||
+    restoreProbe.entry_count !== manifest.entries.length
+  ) {
+    throw new Error('Archive restore probe does not match the receipt and manifest.');
+  }
+
+  const archiveContentsRoot = path.join(archivePath, 'contents');
+  const entries = manifest.entries.map((entry) =>
+    validateManifestEntry(entry, uniquePaths(receiptSourcePaths), archiveContentsRoot)
+  );
+  const targetPaths = entries.map((entry) => path.resolve(entry.target_path));
+  const archiveFilePaths = entries.map((entry) => path.resolve(entry.archive_file_path));
+  if (new Set(targetPaths).size !== targetPaths.length || new Set(archiveFilePaths).size !== archiveFilePaths.length) {
+    throw new Error('Archive manifest contains duplicate file entries.');
+  }
+
+  return {
+    receipt: {
+      schema: 'opl_conversation_archive_receipt.v1',
+      conversation_id: conversationId,
+      source_paths: uniquePaths(receiptSourcePaths),
+      archive_path: archivePath,
+      archive_sha256: archiveSha256,
+      manifest_path: manifestPath,
+      restore_probe_path: restoreProbePath,
+      receipt_path: receiptPath,
+      created_at: createdAt,
+    },
+    entries,
+  };
+}
+
+function requireAvailableTarget(targetPath: string): void {
+  if (pathEntryExists(targetPath)) {
+    throw new Error(
+      `Restore stopped because the target already exists: ${targetPath}. Existing files were not changed.`
+    );
+  }
+  let currentPath = path.dirname(targetPath);
+  while (!pathEntryExists(currentPath)) {
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) throw new Error(`Restore target parent is unavailable: ${targetPath}`);
+    currentPath = parentPath;
+  }
+  const stat = fs.lstatSync(currentPath);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(`Restore stopped because a target parent is not a directory: ${currentPath}`);
+  }
+}
+
+function ensureTargetDirectory(directoryPath: string, createdDirectories: string[]): void {
+  const missingDirectories: string[] = [];
+  let currentPath = directoryPath;
+  while (!pathEntryExists(currentPath)) {
+    missingDirectories.push(currentPath);
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) throw new Error(`Restore target directory is unavailable: ${directoryPath}`);
+    currentPath = parentPath;
+  }
+  const stat = fs.lstatSync(currentPath);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(`Restore target parent is not a directory: ${currentPath}`);
+  }
+  for (const missingDirectory of missingDirectories.toReversed()) {
+    fs.mkdirSync(missingDirectory);
+    createdDirectories.push(missingDirectory);
+  }
+}
+
+function nearestExistingDirectory(targetPath: string): string {
+  let currentPath = path.dirname(targetPath);
+  while (!pathEntryExists(currentPath)) {
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) throw new Error(`Restore staging directory is unavailable for: ${targetPath}`);
+    currentPath = parentPath;
+  }
+  const stat = fs.lstatSync(currentPath);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(`Restore staging parent is not a directory: ${currentPath}`);
+  }
+  return currentPath;
+}
+
+function commitStagedFileWithoutOverwrite(stagedPath: string, targetPath: string): void {
+  try {
+    fs.linkSync(stagedPath, targetPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new Error(
+        `Restore stopped because the target already exists: ${targetPath}. Existing files were not changed.`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
 }
 
 function runtimePlanPayload(plan: RuntimePointerPrunePlan) {
@@ -548,6 +884,97 @@ export function archiveConversationArtifacts(input: ArchiveConversationArtifacts
   };
   writeJson(receiptPath, receipt);
   return receipt;
+}
+
+export function verifyConversationArchiveReceipt(
+  input: VerifyConversationArchiveReceiptInput
+): ConversationArchiveReceipt {
+  return verifyConversationArchive(input).receipt;
+}
+
+export function restoreConversationArchiveArtifacts(
+  input: RestoreConversationArchiveArtifactsInput
+): ConversationRestoreReceipt {
+  const verifiedArchive = verifyConversationArchive(input);
+  for (const entry of verifiedArchive.entries) requireAvailableTarget(entry.target_path);
+
+  const restoreId = crypto.randomUUID();
+  const stagingRoots = new Map<string, string>();
+  const stagedEntries: Array<VerifiedConversationArchiveEntry & { staged_path: string }> = [];
+  const committedPaths: string[] = [];
+  const createdDirectories: string[] = [];
+
+  try {
+    for (const entry of verifiedArchive.entries) {
+      let stagingRoot = stagingRoots.get(entry.source_path);
+      if (!stagingRoot) {
+        const stagingParent = nearestExistingDirectory(entry.source_path);
+        stagingRoot = fs.mkdtempSync(
+          path.join(stagingParent, `.${path.basename(entry.source_path)}.opl-restore-${restoreId}-`)
+        );
+        stagingRoots.set(entry.source_path, stagingRoot);
+      }
+      const stagedPath = path.join(stagingRoot, entry.relative_target_path || '__opl_root_file__');
+      fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
+      fs.copyFileSync(entry.archive_file_path, stagedPath, fs.constants.COPYFILE_EXCL);
+      if (fs.statSync(stagedPath).size !== entry.bytes || sha256File(stagedPath) !== entry.sha256) {
+        throw new Error(`Restore staging integrity check failed: ${entry.target_path}`);
+      }
+      stagedEntries.push({ ...entry, staged_path: stagedPath });
+    }
+
+    for (const entry of stagedEntries) {
+      requireAvailableTarget(entry.target_path);
+      ensureTargetDirectory(path.dirname(entry.target_path), createdDirectories);
+      requireAvailableTarget(entry.target_path);
+      commitStagedFileWithoutOverwrite(entry.staged_path, entry.target_path);
+      committedPaths.push(entry.target_path);
+      fs.unlinkSync(entry.staged_path);
+    }
+
+    const createdAt = (input.now ?? new Date()).toISOString();
+    const receiptPath = receiptFile(input.receiptRoot, 'conversation-restore', restoreId);
+    const receipt: ConversationRestoreReceipt = {
+      schema: 'opl_conversation_restore_receipt.v1',
+      conversation_id: verifiedArchive.receipt.conversation_id,
+      restored_paths: [...committedPaths],
+      archive_receipt_path: verifiedArchive.receipt.receipt_path,
+      archive_sha256: verifiedArchive.receipt.archive_sha256,
+      receipt_path: receiptPath,
+      created_at: createdAt,
+    };
+    writeJsonAtomic(receiptPath, receipt);
+    return receipt;
+  } catch (error) {
+    const rollbackErrors: string[] = [];
+    for (const committedPath of committedPaths.toReversed()) {
+      try {
+        fs.rmSync(committedPath, { force: false });
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+      }
+    }
+    for (const createdDirectory of createdDirectories.toReversed()) {
+      try {
+        fs.rmdirSync(createdDirectory);
+      } catch (rollbackError) {
+        if (pathEntryExists(createdDirectory)) {
+          rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+        }
+      }
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    if (rollbackErrors.length > 0) {
+      throw new Error(`Restore failed and rollback was incomplete: ${message}. ${rollbackErrors.join(' ')}`, {
+        cause: error,
+      });
+    }
+    throw new Error(`Restore failed; archived files were rolled back: ${message}`, { cause: error });
+  } finally {
+    for (const stagingRoot of stagingRoots.values()) {
+      fs.rmSync(stagingRoot, { recursive: true, force: true });
+    }
+  }
 }
 
 export function deleteArchivedConversationArtifacts(

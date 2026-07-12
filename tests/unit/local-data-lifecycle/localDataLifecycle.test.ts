@@ -10,6 +10,7 @@ import {
   executeLogRetentionPlan,
   executeRuntimePointerPrunePlan,
   executeUpdaterCacheCleanupPlan,
+  restoreConversationArchiveArtifacts,
   resolveLogRetentionPlan,
   resolveRuntimePointerPrunePlan,
   resolveUpdaterCacheCleanupDryRunPlan,
@@ -209,6 +210,194 @@ describe('local data lifecycle service', () => {
     expect(exists(conversationRoot)).toBe(false);
     expect(exists(archiveReceipt.archive_path)).toBe(true);
   });
+
+  it('restores archived conversation files and writes a restore receipt', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'conversation-restore');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const paperPath = path.join(conversationRoot, 'paper.md');
+    const summaryPath = path.join(conversationRoot, 'results', 'summary.json');
+    writeFile(paperPath, 'paper');
+    writeFile(summaryPath, '{"ok":true}');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'conversation-restore',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+      now: new Date('2026-06-18T12:00:00Z'),
+    });
+    fs.rmSync(conversationRoot, { recursive: true });
+
+    const restoreReceipt = restoreConversationArchiveArtifacts({
+      archiveReceiptPath: archiveReceipt.receipt_path,
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+      allowedSourcePaths: [conversationRoot],
+      now: new Date('2026-06-18T12:02:00Z'),
+    });
+
+    expect(restoreReceipt).toMatchObject({
+      schema: 'opl_conversation_restore_receipt.v1',
+      conversation_id: 'conversation-restore',
+      archive_receipt_path: archiveReceipt.receipt_path,
+      archive_sha256: archiveReceipt.archive_sha256,
+    });
+    expect(restoreReceipt.restored_paths.toSorted()).toEqual([paperPath, summaryPath].toSorted());
+    expect(fs.readFileSync(paperPath, 'utf8')).toBe('paper');
+    expect(fs.readFileSync(summaryPath, 'utf8')).toBe('{"ok":true}');
+    expect(exists(restoreReceipt.receipt_path)).toBe(true);
+    expect(fs.readdirSync(path.dirname(conversationRoot)).some((entry) => entry.includes('.opl-restore-'))).toBe(false);
+  });
+
+  it('rejects a changed receipt, manifest, restore probe, or archived file before restoring targets', () => {
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const cases = ['receipt', 'manifest', 'probe', 'contents'] as const;
+
+    for (const failure of cases) {
+      const conversationRoot = path.join(tempRoot, 'conversations', failure);
+      const sourceFile = path.join(conversationRoot, 'paper.md');
+      writeFile(sourceFile, `paper-${failure}`);
+      const archiveReceipt = archiveConversationArtifacts({
+        conversationId: `conversation-${failure}`,
+        sourcePaths: [conversationRoot],
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+      });
+      fs.rmSync(conversationRoot, { recursive: true });
+
+      if (failure === 'receipt') {
+        const receipt = JSON.parse(fs.readFileSync(archiveReceipt.receipt_path, 'utf8')) as Record<string, unknown>;
+        writeFile(
+          archiveReceipt.receipt_path,
+          `${JSON.stringify({ ...receipt, receipt_path: path.join(receiptsRoot, 'different.json') }, null, 2)}\n`
+        );
+      }
+      if (failure === 'manifest') fs.appendFileSync(archiveReceipt.manifest_path, ' ');
+      if (failure === 'probe') {
+        const probe = JSON.parse(fs.readFileSync(archiveReceipt.restore_probe_path, 'utf8')) as Record<string, unknown>;
+        writeFile(archiveReceipt.restore_probe_path, `${JSON.stringify({ ...probe, entry_count: 99 }, null, 2)}\n`);
+      }
+      if (failure === 'contents') {
+        writeFile(
+          path.join(archiveReceipt.archive_path, 'contents', path.basename(conversationRoot), 'paper.md'),
+          'changed'
+        );
+      }
+
+      expect(() =>
+        restoreConversationArchiveArtifacts({
+          archiveReceiptPath: archiveReceipt.receipt_path,
+          archiveRoot,
+          receiptRoot: receiptsRoot,
+          allowedSourcePaths: [conversationRoot],
+        })
+      ).toThrow(
+        failure === 'receipt'
+          ? /receipt path/i
+          : failure === 'manifest'
+            ? /manifest hash/i
+            : failure === 'probe'
+              ? /restore probe/i
+              : /integrity/i
+      );
+      expect(exists(sourceFile)).toBe(false);
+    }
+  });
+
+  it('fails closed on a restore target collision without writing other archived files', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'conversation-collision');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const existingTarget = path.join(conversationRoot, 'paper.md');
+    const missingTarget = path.join(conversationRoot, 'results', 'summary.json');
+    writeFile(existingTarget, 'archived-paper');
+    writeFile(missingTarget, '{"archived":true}');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'conversation-collision',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+    fs.rmSync(conversationRoot, { recursive: true });
+    writeFile(existingTarget, 'newer-local-paper');
+
+    expect(() =>
+      restoreConversationArchiveArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [conversationRoot],
+      })
+    ).toThrow(/target already exists.*existing files were not changed/i);
+    expect(fs.readFileSync(existingTarget, 'utf8')).toBe('newer-local-paper');
+    expect(exists(missingTarget)).toBe(false);
+  });
+
+  it('refuses to restore an archive outside the current conversation data roots', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'conversation-boundary');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const sourceFile = path.join(conversationRoot, 'paper.md');
+    writeFile(sourceFile, 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'conversation-boundary',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+    fs.rmSync(conversationRoot, { recursive: true });
+
+    expect(() =>
+      restoreConversationArchiveArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [path.join(tempRoot, 'different-conversation-root')],
+      })
+    ).toThrow(/current conversation data roots/i);
+    expect(exists(sourceFile)).toBe(false);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'rolls back committed files when the restore receipt cannot be committed',
+    () => {
+      const conversationRoot = path.join(tempRoot, 'conversations', 'conversation-rollback');
+      const archiveRoot = path.join(tempRoot, 'archives');
+      const receiptsRoot = path.join(tempRoot, 'receipts');
+      const firstTarget = path.join(conversationRoot, 'paper.md');
+      const secondTarget = path.join(conversationRoot, 'results', 'summary.json');
+      writeFile(firstTarget, 'paper');
+      writeFile(secondTarget, '{"ok":true}');
+      const archiveReceipt = archiveConversationArtifacts({
+        conversationId: 'conversation-rollback',
+        sourcePaths: [conversationRoot],
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+      });
+      fs.rmSync(conversationRoot, { recursive: true });
+
+      fs.chmodSync(receiptsRoot, 0o500);
+      try {
+        expect(() =>
+          restoreConversationArchiveArtifacts({
+            archiveReceiptPath: archiveReceipt.receipt_path,
+            archiveRoot,
+            receiptRoot: receiptsRoot,
+            allowedSourcePaths: [conversationRoot],
+          })
+        ).toThrow(/rolled back/i);
+      } finally {
+        fs.chmodSync(receiptsRoot, 0o700);
+      }
+      expect(exists(firstTarget)).toBe(false);
+      expect(exists(secondTarget)).toBe(false);
+      expect(exists(conversationRoot)).toBe(false);
+      expect(fs.readdirSync(path.dirname(conversationRoot)).some((entry) => entry.includes('.opl-restore-'))).toBe(
+        false
+      );
+    }
+  );
 
   it('executes runtime pointer pruning only from the dry-run plan and writes a receipt', () => {
     const runtimeRoot = path.join(tempRoot, 'runtime');

@@ -5,7 +5,18 @@
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
-import { Alert, Button, Collapse, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import {
+  Alert,
+  Button,
+  Collapse,
+  Message,
+  Modal,
+  Radio,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from '@arco-design/web-react';
 import { Copy, FolderSearch, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -801,7 +812,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   );
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
+  const [managementVisible, setManagementVisible] = React.useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
+  const [updateChannelSaving, setUpdateChannelSaving] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
@@ -828,6 +841,22 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, [message, t]);
 
   const appState = appStateQuery.appState;
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const configurationCatalog = oplRecord(settingsControlCenter.configuration_catalog);
+  const configurationItems = oplRecordList(configurationCatalog.items);
+  const updateChannelConfiguration = configurationItems.find(
+    (item) => oplString(item.configuration_id) === 'update_channel'
+  );
+  const updateChannelActionId = oplString(updateChannelConfiguration?.action_id);
+  const updateChannelValue = oplString(updateChannelConfiguration?.current_value) ?? 'stable';
+  const updateChannelOptions = Array.isArray(updateChannelConfiguration?.allowed_values)
+    ? updateChannelConfiguration.allowed_values
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        .map((value) => ({
+          value,
+          label: t(`settings.oplEnvironmentPage.updateChannel.values.${value}`, { defaultValue: value }),
+        }))
+    : [];
   const managedUpdatePlane = useMemo(
     () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appState),
     [appState, managedUpdateMaintenance.result]
@@ -864,6 +893,37 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       }
     },
     [beginMaintenanceOperation, finishMaintenanceOperation]
+  );
+
+  const updateUpdateChannel = useCallback(
+    async (channel: string) => {
+      if (!updateChannelActionId || channel === updateChannelValue) return;
+      setUpdateChannelSaving(true);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: updateChannelActionId,
+          dryRun: false,
+          payloadRefsOnlyJson: { channel },
+        });
+        if (!bridgeResultSucceeded(result)) {
+          messageRef.current.error(
+            result?.error?.message || tRef.current('settings.oplEnvironmentPage.messages.commandFailed')
+          );
+          return;
+        }
+        await appStateQuery.load('fast', { showRefreshing: true });
+        messageRef.current.success(
+          tRef.current('settings.oplEnvironmentPage.updateChannel.saved', {
+            defaultValue: 'Update channel saved.',
+          })
+        );
+      } catch {
+        messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      } finally {
+        setUpdateChannelSaving(false);
+      }
+    },
+    [appStateQuery, updateChannelActionId, updateChannelValue]
   );
 
   const runMaintenanceHubCheck = useCallback(
@@ -1222,10 +1282,91 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           )}
         </div>
 
-        <div className='flex justify-end'>
+        {updateChannelActionId && updateChannelOptions.length > 0 && (
+          <section
+            className='opl-settings-section opl-settings-surface--configuration'
+            data-testid='settings-maintenance-update-channel'
+          >
+            <div className='opl-settings-row'>
+              <div className='opl-settings-row__main'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.oplEnvironmentPage.updateChannel.title', { defaultValue: 'Update channel' })}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.oplEnvironmentPage.updateChannel.description', {
+                    defaultValue: 'Choose which OPL App and package updates this computer follows.',
+                  })}
+                </Typography.Text>
+              </div>
+              <div className='opl-settings-row__meta'>
+                <Radio.Group
+                  type='button'
+                  value={updateChannelValue}
+                  disabled={updateChannelSaving}
+                  onChange={(value) => void updateUpdateChannel(String(value))}
+                  data-testid='settings-maintenance-update-channel-select'
+                >
+                  {updateChannelOptions.map((option) => (
+                    <Radio value={option.value} key={option.value}>
+                      {option.label}
+                    </Radio>
+                  ))}
+                </Radio.Group>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <div className='flex justify-end gap-8px'>
+          <Button data-testid='settings-maintenance-management-action' onClick={() => setManagementVisible(true)}>
+            {t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
+          </Button>
           <Button data-testid='settings-maintenance-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
             {t('settings.oplEnvironmentPage.advancedDetails.title')}
           </Button>
+          <Modal
+            visible={managementVisible}
+            title={t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
+            footer={null}
+            onCancel={() => setManagementVisible(false)}
+            unmountOnExit
+            style={{ width: 'min(900px, calc(100vw - 48px))' }}
+          >
+            <div
+              className='opl-settings-surface--configuration max-h-[70vh] overflow-auto'
+              data-testid='settings-maintenance-management-details'
+            >
+              <Typography.Text className='block text-12px text-t-secondary mt-6px'>
+                {t('settings.oplEnvironmentPage.management.description', {
+                  defaultValue: 'Check, apply, repair, or roll back OPL packages and managed updates.',
+                })}
+              </Typography.Text>
+              <div className='mt-14px flex flex-col gap-16px'>
+                <AgentModuleMaintenancePanel
+                  modules={modules}
+                  manualModuleCount={moduleManualMaintenanceCount}
+                  maintenance={managedUpdateMaintenance}
+                  maintenanceOperationBusy={maintenanceOperationBusy}
+                  onCheck={() => void runManagedUpdateRead('check')}
+                  t={t}
+                />
+                <ManagedUpdatesPanel
+                  plane={managedUpdatePlane}
+                  maintenance={managedUpdateMaintenance}
+                  maintenanceOperationBusy={maintenanceOperationBusy}
+                  activeReadOperation={activeReadOperation}
+                  pendingAction={pendingUpdateAction}
+                  onRefresh={() => void runManagedUpdateRead('status')}
+                  onCheck={() => void runManagedUpdateRead('check')}
+                  onPlan={() => void runManagedUpdateRead('plan')}
+                  onRequestAction={requestManagedUpdateAction}
+                  onCancelAction={cancelManagedUpdateAction}
+                  onConfirmAction={confirmManagedUpdateAction}
+                  t={t}
+                />
+              </div>
+            </div>
+          </Modal>
           <Modal
             visible={diagnosticsVisible}
             title={t('settings.oplEnvironmentPage.advancedDetails.title')}
@@ -1261,36 +1402,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   {t('settings.oplEnvironmentPage.sections.required')}
                 </Typography.Text>
                 <RuntimeReadinessGrid cards={runtimeCards} t={t} />
-
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.sections.agentPackages')}
-                </Typography.Text>
-                <AgentModuleMaintenancePanel
-                  modules={modules}
-                  manualModuleCount={moduleManualMaintenanceCount}
-                  maintenance={managedUpdateMaintenance}
-                  maintenanceOperationBusy={maintenanceOperationBusy}
-                  onCheck={() => void runManagedUpdateRead('check')}
-                  t={t}
-                />
-
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.sections.maintenance')}
-                </Typography.Text>
-                <ManagedUpdatesPanel
-                  plane={managedUpdatePlane}
-                  maintenance={managedUpdateMaintenance}
-                  maintenanceOperationBusy={maintenanceOperationBusy}
-                  activeReadOperation={activeReadOperation}
-                  pendingAction={pendingUpdateAction}
-                  onRefresh={() => void runManagedUpdateRead('status')}
-                  onCheck={() => void runManagedUpdateRead('check')}
-                  onPlan={() => void runManagedUpdateRead('plan')}
-                  onRequestAction={requestManagedUpdateAction}
-                  onCancelAction={cancelManagedUpdateAction}
-                  onConfirmAction={confirmManagedUpdateAction}
-                  t={t}
-                />
 
                 <Collapse bordered={false}>
                   <Collapse.Item

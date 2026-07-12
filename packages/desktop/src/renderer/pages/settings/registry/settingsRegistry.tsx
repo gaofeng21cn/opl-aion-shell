@@ -39,6 +39,17 @@ export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
 export type AppSettingsTopLevelTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
 
 const settingsControlPlane = getOplGuiSettingsControlPlane();
+const extensionTabMountAllowlist = new Set(
+  Array.isArray(settingsControlPlane.extension_tab_policy.mount_allowlist)
+    ? settingsControlPlane.extension_tab_policy.mount_allowlist.filter(
+        (tabId): tabId is string => typeof tabId === 'string' && tabId.length > 0
+      )
+    : []
+);
+
+export function isOplExtensionSettingsTabMountable(tabId: string): boolean {
+  return extensionTabMountAllowlist.has(tabId);
+}
 const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
 const ordinaryRoutes = settingsControlPlane?.ordinary_routes ?? [];
@@ -369,12 +380,13 @@ export function buildSettingsItemsWithExtensions<Item extends RegistryItem>({
   toExtensionItem,
 }: BuildSettingsItemsOptions<Item>): Item[] {
   const result = [...builtinItems];
+  const classifiedExtensionTabs = extensionTabs.filter((tab) => isOplExtensionSettingsTabMountable(tab.id));
   const builtinIds = new Set(result.map((item) => item.id));
   const beforeMap = new Map<string, IExtensionSettingsTab[]>();
   const afterMap = new Map<string, IExtensionSettingsTab[]>();
   const unanchored: IExtensionSettingsTab[] = [];
 
-  for (const tab of extensionTabs) {
+  for (const tab of classifiedExtensionTabs) {
     const rawAnchor = tab.position?.relativeTo;
     const anchor = rawAnchor ? resolveLegacySettingsAnchor(rawAnchor) : undefined;
     if (!anchor || !builtinIds.has(anchor)) {

@@ -13,6 +13,7 @@ import {
   getSettingsSearchEntries,
   getSettingsTabIcon,
   getSettingsRenderSlot,
+  isOplExtensionSettingsTabMountable,
   normalizeSearchText,
   resolveSettingsRenderTarget,
   focusSettingsAnchor,
@@ -86,7 +87,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   const extensionTabMap = useMemo(() => {
     const map = new Map<string, IExtensionSettingsTab>();
     for (const tab of extensionTabs) {
-      map.set(tab.id, tab);
+      if (isOplExtensionSettingsTabMountable(tab.id)) map.set(tab.id, tab);
     }
     return map;
   }, [extensionTabs]);
