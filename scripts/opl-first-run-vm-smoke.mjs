@@ -3063,8 +3063,13 @@ function homeAssistantRouteSelectionExpression(target) {
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
-    if (!visible(card) || !visible(input) || !visible(sendButton)) return false;
-    card.click();
+    const control = card?.closest('button') || card;
+    const disabled = control?.disabled === true
+      || control?.getAttribute('disabled') !== null
+      || control?.getAttribute('aria-disabled') === 'true'
+      || String(control?.className || '').includes('disabled');
+    if (!visible(card) || !visible(input) || !visible(sendButton) || disabled) return false;
+    control.click();
     return { clickedAssistantId: ${cdpString(target.id)}, cardText: card.textContent || '' };
   })()`;
 }

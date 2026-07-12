@@ -864,6 +864,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain('home-starter-research');
     expect(selectionExpression).toContain('querySelectorAll');
     expect(selectionExpression).toContain('.find(visible)');
+    expect(selectionExpression).toContain("getAttribute('disabled')");
+    expect(selectionExpression).toContain("getAttribute('aria-disabled')");
+    expect(selectionExpression).toContain('|| disabled');
     expect(readyExpression).toContain('guid-active-capability');
     expect(readyExpression).toContain("getAttribute('aria-pressed') !== 'true'");
     expect(readyExpression).toContain('guid-model-selector');
