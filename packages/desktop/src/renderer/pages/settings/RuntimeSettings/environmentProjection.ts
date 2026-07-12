@@ -11,7 +11,9 @@ import type { ManagedUpdateComponent, ManagedUpdatePlane } from '@/renderer/serv
 import {
   formatStatus,
   isReadyStatus,
+  moduleInstalled,
   moduleId,
+  moduleNeedsManualHandling,
   moduleRecords,
   moduleStatus,
   normalizeModule,
@@ -63,7 +65,8 @@ export type RuntimeEnvironmentProjection = {
   modulesSourceMode: string | null;
   modulesRoot: string | null;
   modules: RuntimeModuleItem[];
-  moduleReady: number;
+  moduleInstalledCount: number;
+  moduleManualMaintenanceCount: number;
   appVersion: string;
   guiVersion: string;
   releaseChannel: string;
@@ -239,9 +242,10 @@ export function buildRuntimeEnvironmentProjection({
   const modulesRoot =
     oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
   const modules = buildRuntimeModules(modulesPayload);
-  const moduleReady = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
-  const moduleValue = t('settings.oplEnvironmentPage.modulesReadyCount', {
-    ready: moduleReady,
+  const moduleInstalledCount = modules.filter(moduleInstalled).length;
+  const moduleManualMaintenanceCount = modules.filter(moduleNeedsManualHandling).length;
+  const moduleValue = t('settings.oplEnvironmentPage.modulesInstalledCount', {
+    installed: moduleInstalledCount,
     total: modules.length,
   });
   const codexStatus = oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : 'unknown');
@@ -254,7 +258,7 @@ export function buildRuntimeEnvironmentProjection({
     workspaceStatus !== 'ready',
     !isReadyStatus(codexStatus),
     !isReadyStatus(temporalStatus),
-    moduleReady < modules.length,
+    moduleInstalledCount < modules.length || moduleManualMaintenanceCount > 0,
   ].filter(Boolean).length;
   const componentsNeedingMaintenance = managedUpdatePlane.components.filter(
     (component) => !componentIsHealthy(component) || component.needsReload || component.needsRestart
@@ -326,8 +330,12 @@ export function buildRuntimeEnvironmentProjection({
       title: t('settings.oplEnvironmentPage.modulesTitle'),
       value: moduleValue,
       detail: t('settings.oplEnvironmentPage.summary.impacts.modules'),
-      nextAction: runtimeCardActionKey('modules', moduleReady >= modules.length ? 'ready' : 'attention_required', t),
-      tone: moduleReady >= modules.length ? 'green' : 'orange',
+      nextAction: runtimeCardActionKey(
+        'modules',
+        moduleInstalledCount >= modules.length && moduleManualMaintenanceCount === 0 ? 'ready' : 'attention_required',
+        t
+      ),
+      tone: moduleInstalledCount >= modules.length && moduleManualMaintenanceCount === 0 ? 'green' : 'orange',
     },
   ];
   const componentById = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
@@ -339,7 +347,8 @@ export function buildRuntimeEnvironmentProjection({
     modulesSourceMode,
     modulesRoot,
     modules,
-    moduleReady,
+    moduleInstalledCount,
+    moduleManualMaintenanceCount,
     appVersion: localAppVersion(),
     guiVersion: __SHELL_VERSION__,
     releaseChannel,

@@ -287,7 +287,6 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     fireEvent.click(screen.getByTestId('opl-maintenance-action-capabilitySurfaceSync'));
-    fireEvent.click(screen.getByTestId('opl-capability-sync-confirm'));
 
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -295,7 +294,71 @@ describe('RuntimeSettings maintenance structure', () => {
         dryRun: false,
       })
     );
+    expect(screen.queryByTestId('opl-capability-sync-confirmation')).not.toBeInTheDocument();
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it('keeps capability sync single-flight and reports protected local changes', async () => {
+    const sync = deferred<{
+      ok: boolean;
+      stdout: string;
+      parsed: {
+        app_action_execution: {
+          result: {
+            managed_update: {
+              components: Array<{
+                component_id: string;
+                state: string;
+                status_detail: { manual_required_targets_count: number };
+              }>;
+            };
+          };
+        };
+      };
+    }>();
+    bridgeMocks.executeActionInvoke.mockReturnValue(sync.promise);
+
+    render(<RuntimeSettings />);
+
+    const syncButton = screen.getByTestId('opl-maintenance-action-capabilitySurfaceSync');
+    act(() => {
+      syncButton.click();
+      syncButton.click();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+    expect(syncButton).toBeDisabled();
+
+    await act(async () => {
+      sync.resolve({
+        ok: true,
+        stdout: '{}',
+        parsed: {
+          app_action_execution: {
+            result: {
+              managed_update: {
+                components: [
+                  {
+                    component_id: 'capability_packages',
+                    state: 'skipped_manual_required',
+                    status_detail: { manual_required_targets_count: 3 },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+      await sync.promise;
+    });
+
+    await waitFor(() => {
+      expect(syncButton).not.toBeDisabled();
+      expect(
+        screen.getByText('settings.oplEnvironmentPage.updates.messages.capabilitySyncManualRequired')
+      ).toBeVisible();
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
   });
 
   it('serializes maintenance mutations before React state commits and restores actions after completion', async () => {

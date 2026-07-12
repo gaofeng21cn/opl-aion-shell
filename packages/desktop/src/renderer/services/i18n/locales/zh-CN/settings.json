@@ -2254,6 +2254,7 @@
     "localAssistantTitle": "语言运行时",
     "localServiceTitle": "回执",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
+    "modulesInstalledCount": "已安装 {{installed}} / {{total}}",
     "healthSummary": {
       "title": "当前状态",
       "description": "正常项保持安静；只有需要处理时才显示操作。",
@@ -2462,6 +2463,8 @@
       "title": "能力包维护",
       "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 能力包，以及 App/Codex 中能看到的 Codex Surface。这里不会绕过 OPL 托管更新内核。",
       "moduleCount": "{{ready}} / {{total}} 个能力包就绪",
+      "manualMaintenanceCount": "{{count}} 个有本地改动",
+      "manualMaintenanceSummary": "{{count}} 个能力包有本地改动，自动同步已保护并跳过。",
       "modulesTitle": "已安装能力包",
       "actionsTitle": "能力包维护动作",
       "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管能力包和 Codex Surface 变更，不绕过内核。",
@@ -2603,7 +2606,9 @@
       },
       "messages": {
         "readComplete": "更新状态已刷新",
-        "actionComplete": "更新动作已完成"
+        "actionComplete": "更新动作已完成",
+        "capabilitySyncComplete": "能力包已同步并重新检查",
+        "capabilitySyncManualRequired": "已同步可安全更新的能力包；本地修改项已保护并跳过"
       },
       "background": {
         "lastRunAt": "上次运行：{{value}}",

@@ -142,7 +142,8 @@ describe('RuntimeSettings view model adapter', () => {
 
     expect(model.environment.workspaceRoot).toBe('/Users/example/workspace');
     expect(model.environment.modulesRoot).toBe('/Users/example/workspace/modules');
-    expect(model.environment.moduleReady).toBe(4);
+    expect(model.environment.moduleInstalledCount).toBe(4);
+    expect(model.environment.moduleManualMaintenanceCount).toBe(0);
     expect(model.environment.modules.length).toBeGreaterThanOrEqual(4);
     expect(model.releaseChannelLabel).toBe('settings.runtimePage.releaseChannels.nightly nightly');
     expect(model.maintenanceHubItems.map((item) => item.key)).toEqual([

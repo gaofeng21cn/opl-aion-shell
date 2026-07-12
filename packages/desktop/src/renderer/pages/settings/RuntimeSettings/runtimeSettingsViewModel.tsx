@@ -62,12 +62,14 @@ export function buildRuntimeSettingsViewModel({
     capabilityPackagesComponent,
     codexSurfaceComponent,
     attentionCount,
-    moduleReady,
+    moduleInstalledCount,
+    moduleManualMaintenanceCount,
     modules,
   } = environment;
   const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
   const capabilityPacksHealthy =
-    moduleReady >= modules.length &&
+    moduleInstalledCount >= modules.length &&
+    moduleManualMaintenanceCount === 0 &&
     (!capabilityPackagesComponent || componentStatusTone(capabilityPackagesComponent) === 'green') &&
     (!codexSurfaceComponent || componentStatusTone(codexSurfaceComponent) === 'green');
   const capabilityPacksChecked =
@@ -106,6 +108,11 @@ export function buildRuntimeSettingsViewModel({
       detail:
         capabilityPackagesComponent || codexSurfaceComponent
           ? [
+              moduleManualMaintenanceCount > 0
+                ? t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceSummary', {
+                    count: moduleManualMaintenanceCount,
+                  })
+                : null,
               capabilityPackagesComponent ? componentUserSummary(capabilityPackagesComponent, t) : null,
               codexSurfaceComponent ? componentUserSummary(codexSurfaceComponent, t) : null,
             ]
@@ -113,8 +120,8 @@ export function buildRuntimeSettingsViewModel({
               .join(' ')
           : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
       status: capabilityPacksChecked
-        ? t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
-            ready: moduleReady,
+        ? t('settings.oplEnvironmentPage.modulesInstalledCount', {
+            installed: moduleInstalledCount,
             total: modules.length,
           })
         : formatStatus('unknown', t),

@@ -131,6 +131,22 @@ export function isReadyStatus(status: string): boolean {
   return status === 'ready' || status === 'compatible' || status === 'ok' || status === 'installed';
 }
 
+export function moduleInstalled(module: RuntimeModuleItem): boolean {
+  if (module.installed === false) return false;
+  if (module.installed === true) return true;
+  return [
+    'ready',
+    'current',
+    'dirty',
+    'update_available',
+    'manual_required',
+    'skipped_manual_required',
+    'compatible',
+    'ok',
+    'installed',
+  ].includes(moduleStatus(module));
+}
+
 export function modulePath(module: RuntimeModuleItem): string {
   return (
     oplString(module.path) ??

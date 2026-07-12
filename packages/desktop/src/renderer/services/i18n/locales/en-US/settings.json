@@ -2253,6 +2253,7 @@
     "localAssistantTitle": "Language Runtimes",
     "localServiceTitle": "Receipts",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
+    "modulesInstalledCount": "{{installed}} / {{total}} installed",
     "healthSummary": {
       "title": "Current status",
       "description": "Healthy items stay quiet; actions appear only when something needs attention.",
@@ -2461,6 +2462,8 @@
       "title": "Capability package maintenance",
       "description": "Maintain OPL capability packages for MAS, MAG, RCA, BookForge, and the Codex Surface visible in the app. This never bypasses the OPL managed update kernel.",
       "moduleCount": "{{ready}} / {{total}} capability packages ready",
+      "manualMaintenanceCount": "{{count}} with local changes",
+      "manualMaintenanceSummary": "{{count}} capability package(s) have local changes and were protected and skipped by automatic sync.",
       "modulesTitle": "Installed capability packages",
       "actionsTitle": "Capability package actions",
       "actionsDescription": "Check, apply, repair, or roll back managed capability package and Codex Surface changes without bypassing OPL.",
@@ -2602,7 +2605,9 @@
       },
       "messages": {
         "readComplete": "Update status refreshed",
-        "actionComplete": "Update action completed"
+        "actionComplete": "Update action completed",
+        "capabilitySyncComplete": "Capability packages synced and checked again",
+        "capabilitySyncManualRequired": "Safe capability package updates were synced; local changes were protected and skipped"
       },
       "background": {
         "lastRunAt": "Last run: {{value}}",

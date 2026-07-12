@@ -27,7 +27,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 }));
 
 const t = (key: string, options?: Record<string, string | number>) => {
-  if (key === 'settings.oplEnvironmentPage.modulesReadyCount') return `${options?.ready}/${options?.total} modules`;
+  if (key === 'settings.oplEnvironmentPage.modulesInstalledCount')
+    return `${options?.installed}/${options?.total} installed`;
   if (key === 'settings.oplEnvironmentPage.healthSummary.values.count') return `${options?.count} items`;
   if (key.startsWith('settings.oplEnvironmentPage.status.'))
     return key.replace('settings.oplEnvironmentPage.status.', '');
@@ -148,7 +149,8 @@ describe('buildRuntimeEnvironmentProjection', () => {
       'oplbookforge',
       'oplmetaagent',
     ]);
-    expect(projection.moduleReady).toBe(1);
+    expect(projection.moduleInstalledCount).toBe(2);
+    expect(projection.moduleManualMaintenanceCount).toBe(1);
     expect(projection.attentionCount).toBe(2);
     expect(projection.componentsNeedingMaintenance).toBe(2);
     expect(projection.runtimeCards.find((card) => card.key === 'temporal')).toMatchObject({

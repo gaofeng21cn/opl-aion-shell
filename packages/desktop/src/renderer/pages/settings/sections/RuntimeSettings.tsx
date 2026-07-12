@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplCodexSessionContext, getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
   executeManagedUpdateRead,
@@ -32,6 +32,7 @@ import {
   isTruthyFlag,
   moduleDisplayLabel,
   moduleId,
+  moduleInstalled,
   moduleManualHandlingLabel,
   moduleNeedsManualHandling,
   modulePath,
@@ -139,6 +140,25 @@ function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefin
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
 }
 
+function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): boolean {
+  const parsed = oplRecord(result.parsed);
+  const execution = oplRecord(parsed.app_action_execution);
+  const actionResult = oplRecord(execution.result);
+  const managedUpdate = oplRecord(actionResult.managed_update);
+  const capabilityPackages = oplRecordList(managedUpdate.components).find(
+    (component) => oplString(component.component_id) === 'capability_packages'
+  );
+  if (!capabilityPackages) return false;
+  const state = oplString(capabilityPackages.state);
+  const statusDetail = oplRecord(capabilityPackages.status_detail);
+  const receiptStatusDetail = oplRecord(oplRecord(capabilityPackages.receipt).status_detail);
+  return (
+    state === 'manual_required' ||
+    state === 'skipped_manual_required' ||
+    Number(statusDetail.manual_required_targets_count ?? receiptStatusDetail.manual_required_targets_count ?? 0) > 0
+  );
+}
+
 function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; t: Translate }) {
   if (component.id !== 'installation_carrier') return null;
   const routeLines = [
@@ -238,7 +258,7 @@ function AgentModuleMaintenancePanel({
   const moduleMaintenanceComponents = plane.components.filter((component) =>
     MODULE_MAINTENANCE_COMPONENT_IDS.has(component.id)
   );
-  const readyModules = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
+  const installedModules = modules.filter(moduleInstalled).length;
   const manualModules = modules.filter(moduleNeedsManualHandling);
 
   return (
@@ -253,14 +273,18 @@ function AgentModuleMaintenancePanel({
               {t('settings.oplEnvironmentPage.moduleMaintenance.description')}
             </Typography.Text>
             <Space wrap size='mini' className='mt-8px'>
-              <Tag color={readyModules === modules.length ? 'gray' : 'orange'}>
-                {t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
-                  ready: readyModules,
+              <Tag color={installedModules === modules.length ? 'gray' : 'orange'}>
+                {t('settings.oplEnvironmentPage.modulesInstalledCount', {
+                  installed: installedModules,
                   total: modules.length,
                 })}
               </Tag>
               {manualModules.length > 0 && (
-                <Tag color='orange'>{t('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired')}</Tag>
+                <Tag color='orange'>
+                  {t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceCount', {
+                    count: manualModules.length,
+                  })}
+                </Tag>
               )}
             </Space>
           </div>
@@ -923,7 +947,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   >(null);
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
-  const [capabilitySyncConfirmationOpen, setCapabilitySyncConfirmationOpen] = React.useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
@@ -993,7 +1016,35 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     async (target: 'runtimeSubstrate' | 'capabilityPacks') => {
       if (maintenanceOperationLockRef.current || managedUpdateRunningRef.current) return;
       if (target === 'capabilityPacks') {
-        setCapabilitySyncConfirmationOpen(true);
+        if (!beginMaintenanceOperation()) return;
+        setMaintenanceHubCheckTarget('capabilityPacks');
+        try {
+          const result = await ipcBridge.oplRuntime.executeAction.invoke({
+            actionId: 'settings_sync_capabilities',
+            dryRun: false,
+          });
+          if (!bridgeResultSucceeded(result)) {
+            messageRef.current.error(
+              result?.error?.message || tRef.current('settings.oplEnvironmentPage.messages.commandFailed')
+            );
+            return;
+          }
+          await appStateQuery.load('fast', { showRefreshing: true });
+          if (capabilitySyncNeedsManualHandling(result)) {
+            messageRef.current.warning(
+              tRef.current('settings.oplEnvironmentPage.updates.messages.capabilitySyncManualRequired')
+            );
+          } else {
+            messageRef.current.success(
+              tRef.current('settings.oplEnvironmentPage.updates.messages.capabilitySyncComplete')
+            );
+          }
+        } catch {
+          messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+        } finally {
+          setMaintenanceHubCheckTarget(null);
+          finishMaintenanceOperation();
+        }
         return;
       }
       setMaintenanceHubCheckTarget(target);
@@ -1003,31 +1054,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         setMaintenanceHubCheckTarget(null);
       }
     },
-    [runManagedUpdateRead]
+    [appStateQuery.load, beginMaintenanceOperation, finishMaintenanceOperation, runManagedUpdateRead]
   );
-
-  const confirmCapabilitySync = useCallback(async () => {
-    if (!beginMaintenanceOperation()) return;
-    setCapabilitySyncConfirmationOpen(false);
-    setMaintenanceHubCheckTarget('capabilityPacks');
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: 'settings_sync_capabilities',
-        dryRun: false,
-      });
-      if (!bridgeResultSucceeded(result)) {
-        messageRef.current.error(
-          result?.error?.message || tRef.current('settings.oplEnvironmentPage.messages.commandFailed')
-        );
-        return;
-      }
-      await appStateQuery.load('fast', { showRefreshing: true });
-      messageRef.current.success(tRef.current('settings.oplEnvironmentPage.updates.messages.actionComplete'));
-    } finally {
-      setMaintenanceHubCheckTarget(null);
-      finishMaintenanceOperation();
-    }
-  }, [appStateQuery.load, beginMaintenanceOperation, finishMaintenanceOperation]);
 
   const runManagedUpdateMutation = useCallback(
     async (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => {
@@ -1335,33 +1363,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                         {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction')}
                       </Button>
                     </span>
-                  </Space>
-                </div>
-              }
-            />
-          )}
-          {capabilitySyncConfirmationOpen && (
-            <Alert
-              type='warning'
-              title={t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks')}
-              data-testid='opl-capability-sync-confirmation'
-              content={
-                <div className='flex flex-col gap-8px'>
-                  <span className='break-words'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.actionHelp')}
-                  </span>
-                  <Space wrap size='small'>
-                    <Button size='small' onClick={() => setCapabilitySyncConfirmationOpen(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                    <Button
-                      size='small'
-                      type='primary'
-                      onClick={() => void confirmCapabilitySync()}
-                      data-testid='opl-capability-sync-confirm'
-                    >
-                      {t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks')}
-                    </Button>
                   </Space>
                 </div>
               }
