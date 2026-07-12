@@ -52,7 +52,15 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
       typeof entry.package_id === 'string' &&
       canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
   );
-  if (!status) return { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+  if (!status) {
+    return getOplProfessionalAgentPackage(canonicalPackageId)
+      ? {
+          launchAllowed: false,
+          launchBlockedReason: 'package_not_installed',
+          allowedWhenBlocked: [...BLOCKED_PACKAGE_ACTIONS],
+        }
+      : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+  }
   const operationalReady = typeof status.operational_ready === 'boolean' ? status.operational_ready : null;
   const projectedLaunchAllowed = typeof status.launch_allowed === 'boolean' ? status.launch_allowed : null;
   const launchBlockedReason =

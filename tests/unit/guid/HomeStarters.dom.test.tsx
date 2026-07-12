@@ -5,28 +5,40 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import HomeStarters from '@/renderer/pages/guid/components/HomeStarters';
 
-const mocks = vi.hoisted(() => ({ blockedPackageId: null as string | null }));
-
-vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', () => ({
-  getOplHomePurposeAssistantIds: () => [
-    'med-autoscience',
-    'med-autogrant',
-    'redcube-ai',
-    'opl-bookforge',
-    'opl-meta-agent',
-  ],
-  resolveOplPackageLaunchGate: (_appState: unknown, packageId: string) =>
-    packageId === mocks.blockedPackageId
-      ? {
-          launchAllowed: false,
-          launchBlockedReason: 'required_export_missing',
-          allowedWhenBlocked: ['status', 'doctor', 'repair'],
-        }
-      : { launchAllowed: true, launchBlockedReason: null, allowedWhenBlocked: [] },
+const mocks = vi.hoisted(() => ({
+  appState: {} as Record<string, unknown>,
+  packageIds: ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent'],
 }));
 
+const readyAppState = () => ({
+  agent_packages: {
+    status_index: {
+      packages: Object.fromEntries(
+        mocks.packageIds.map((packageId) => [
+          packageId,
+          {
+            package_id: packageId,
+            operational_ready: true,
+            launch_allowed: true,
+            launch_blocked_reason: null,
+            allowed_when_blocked: ['status', 'doctor', 'repair'],
+          },
+        ])
+      ),
+    },
+  },
+});
+
+vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/renderer/pages/guid/utils/oplHomeAssistants')>();
+  return {
+    ...actual,
+    getOplHomePurposeAssistantIds: () => mocks.packageIds,
+  };
+});
+
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
-  useOplAppState: () => ({ appState: {} }),
+  useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -56,7 +68,7 @@ const assistant = (id: string): Assistant => ({
 
 describe('HomeStarters', () => {
   beforeEach(() => {
-    mocks.blockedPackageId = null;
+    mocks.appState = readyAppState();
   });
   it('shows every user-visible App-owned starter and selects one capability', async () => {
     const onSelect = vi.fn();
@@ -102,7 +114,15 @@ describe('HomeStarters', () => {
   });
 
   it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {
-    mocks.blockedPackageId = 'med-autogrant';
+    const appState = readyAppState();
+    appState.agent_packages.status_index.packages['med-autogrant'] = {
+      package_id: 'med-autogrant',
+      operational_ready: false,
+      launch_allowed: false,
+      launch_blocked_reason: 'required_export_missing',
+      allowed_when_blocked: ['status', 'doctor', 'repair'],
+    };
+    mocks.appState = appState;
     const onSelect = vi.fn();
     render(
       <HomeStarters
@@ -115,6 +135,26 @@ describe('HomeStarters', () => {
     const blockedStarter = screen.getByTestId('home-starter-med-autogrant');
     expect(blockedStarter).toBeDisabled();
     expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('required_export_missing'));
+    await userEvent.click(blockedStarter);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('disables a canonical Home shortcut when its package status entry is missing', async () => {
+    const appState = readyAppState();
+    delete appState.agent_packages.status_index.packages['med-autogrant'];
+    mocks.appState = appState;
+    const onSelect = vi.fn();
+    render(
+      <HomeStarters
+        assistants={['med-autoscience', 'med-autogrant'].map(assistant)}
+        localeKey='en-US'
+        onSelect={onSelect}
+      />
+    );
+
+    const blockedStarter = screen.getByTestId('home-starter-med-autogrant');
+    expect(blockedStarter).toBeDisabled();
+    expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('package_not_installed'));
     await userEvent.click(blockedStarter);
     expect(onSelect).not.toHaveBeenCalled();
   });

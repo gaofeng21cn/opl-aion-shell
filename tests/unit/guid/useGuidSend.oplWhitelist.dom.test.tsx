@@ -61,6 +61,24 @@ function buildMcpServer(id: string, name: string) {
   };
 }
 
+function readyMasAppState() {
+  return {
+    agent_packages: {
+      status_index: {
+        packages: {
+          'med-autoscience': {
+            package_id: 'med-autoscience',
+            operational_ready: true,
+            launch_allowed: true,
+            launch_blocked_reason: null,
+            allowed_when_blocked: ['status', 'doctor', 'repair'],
+          },
+        },
+      },
+    },
+  };
+}
+
 function buildDeps(): GuidSendDeps {
   return {
     input: 'hello',
@@ -137,7 +155,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     mocks.createConversation.mockReset();
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
     mocks.navigate.mockReset();
-    mocks.appState = {};
+    mocks.appState = readyMasAppState();
     mocks.messageError.mockReset();
     sessionStorage.clear();
   });
@@ -198,6 +216,20 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
         },
       },
     };
+    const deps = buildDeps();
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+    expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
+    expect(mocks.messageError).toHaveBeenCalledWith(expect.stringContaining('package_not_installed'));
+  });
+
+  it('blocks ordinary canonical package launch when its Framework status entry is missing', async () => {
+    mocks.appState = { agent_packages: { status_index: { packages: {} } } };
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
 

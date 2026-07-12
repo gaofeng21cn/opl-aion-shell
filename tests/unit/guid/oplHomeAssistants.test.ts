@@ -154,6 +154,19 @@ describe('OPL home assistants', () => {
     });
   });
 
+  it('treats a missing canonical package status as not installed without blocking unknown assistants', () => {
+    expect(resolveOplPackageLaunchGate({ agent_packages: { status_index: { packages: {} } } }, 'mas')).toEqual({
+      launchAllowed: false,
+      launchBlockedReason: 'package_not_installed',
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+    });
+    expect(resolveOplPackageLaunchGate({}, 'third-party-assistant')).toEqual({
+      launchAllowed: null,
+      launchBlockedReason: null,
+      allowedWhenBlocked: [],
+    });
+  });
+
   it('blocks ordinary launch when operational readiness is false even if launch_allowed is true', () => {
     const gate = resolveOplPackageLaunchGate(
       {
