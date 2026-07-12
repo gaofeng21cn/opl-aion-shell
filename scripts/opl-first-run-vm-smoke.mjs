@@ -4201,25 +4201,20 @@ async function captureRuntimeActionEvidence(client, options, secret) {
   return actionEvidence;
 }
 
-function developerProfileStatusExpression() {
+function advancedPathsStatusExpression() {
   return `(() => {
-      const row = document.querySelector('[data-testid="opl-developer-profile-row"]');
-      const status = document.querySelector('[data-testid="opl-developer-profile-status"]');
+      const section = document.querySelector('[data-testid="settings-advanced-primary"]');
       const text = document.body?.innerText || '';
-      if (!row || !status || !/OPL Developer Profile|OPL 开发者配置/.test(text)) return false;
-      const rowText = row.textContent || '';
-      const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
-      if (machineStatusPattern.test(rowText)) {
-        throw new Error(\`OPL Developer Profile row exposed machine status: \${rowText.slice(0, 220)}\`);
-      }
-      const statusText = (status.textContent || '').trim();
-      return statusText.length > 0
-        ? {
-            developerProfileVisible: true,
-            statusText,
-            rowText,
-          }
-        : false;
+      if (!section || !/Advanced paths|高级路径/.test(text)) return false;
+      if (!/Work directory|工作目录/.test(text) || !/Logs directory|日志目录/.test(text)) return false;
+      return {
+        advancedPathsVisible: true,
+        workingDirectoriesAnchorVisible: Boolean(document.querySelector('#working-directories')),
+        resolvedPathsAnchorVisible: Boolean(document.querySelector('#resolved-paths')),
+        developerProfileHidden: !document.querySelector(
+          '[data-testid="opl-developer-profile-row"], [data-testid="opl-developer-profile-status"]'
+        ),
+      };
     })()`;
 }
 
@@ -4245,12 +4240,12 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
   };
 }
 
-async function assertDeveloperProfileStatus(client) {
+async function assertAdvancedPathsStatus(client) {
   return await waitForCdpPredicate(
     client,
-    developerProfileStatusExpression(),
+    advancedPathsStatusExpression(),
     30_000,
-    'Advanced Settings did not expose the OPL Developer Profile status'
+    'Advanced Settings did not expose working and log directory status'
   );
 }
 
@@ -4274,9 +4269,7 @@ async function runSettingsSmoke(options, secret) {
         );
       }
       if (pageTarget.id === 'advanced') {
-        interactions.developerProfile = await (hooks.assertDeveloperProfileStatus ?? assertDeveloperProfileStatus)(
-          client
-        );
+        interactions.advancedPaths = await (hooks.assertAdvancedPathsStatus ?? assertAdvancedPathsStatus)(client);
       }
       results.push({ ...pageState, interactions });
     }
@@ -5753,7 +5746,7 @@ export const __test =
         SETTINGS_PAGE_SMOKE_TARGETS,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         pageReadinessExpression,
-        developerProfileStatusExpression,
+        advancedPathsStatusExpression,
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
