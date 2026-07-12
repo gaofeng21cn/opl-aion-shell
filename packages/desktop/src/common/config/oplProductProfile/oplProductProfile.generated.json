@@ -872,7 +872,6 @@
         ],
         "ultra_execution_policy": "candidate_list_and_risk_order_first_execute_only_when_explicit",
         "non_override_guards": [
-          "risk-based-development-flow",
           "codex-ops-kit",
           "debugger",
           "verifier",
