@@ -347,10 +347,10 @@ export const ResourcesSettingsContent: React.FC = () => {
         </div>
       </header>
 
-      <div className='grid grid-cols-1 gap-14px lg:grid-cols-2' data-testid='settings-resources-primary'>
+      <div className='flex flex-col gap-14px' data-testid='settings-resources-primary'>
         <section className='opl-settings-section' id='browser-access' data-testid='settings-resources-browser-access'>
           <span id='web-remote' aria-hidden='true' />
-          <div className='opl-settings-row h-full items-start'>
+          <div className='opl-settings-row items-start'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
                 <Earth theme='outline' />
