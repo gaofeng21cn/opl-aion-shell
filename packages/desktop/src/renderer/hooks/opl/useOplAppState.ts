@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import type { IOplAppStateProfile, IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
+import { useRef } from 'react';
 import useSWR from 'swr';
 
 type JsonRecord = Record<string, unknown>;
@@ -43,10 +44,28 @@ export function readOplRecord(record: unknown, key: string): JsonRecord | null {
   return isRecord(value) ? value : null;
 }
 
+export function shouldRefreshOplPackageState(result: IOplRuntimeCommandResult | null | undefined): boolean {
+  const appState = readOplAppState(result);
+  const agentPackages = readOplRecord(appState, 'agent_packages');
+  const statusIndex = readOplRecord(agentPackages, 'status_index');
+  const packages = statusIndex?.packages;
+  const statuses = Array.isArray(packages) ? packages : Object.values(isRecord(packages) ? packages : {});
+  return statuses.some((status) => readOplString(status, 'launch_blocked_reason') === 'package_not_installed');
+}
+
 export function useOplAppState(profile: IOplAppStateProfile = 'fast') {
+  const blockedRefreshCount = useRef(0);
   const swr = useSWR(['opl-app-state', profile], () => ipcBridge.oplRuntime.getAppState.invoke({ profile }), {
     revalidateOnFocus: false,
     dedupingInterval: 5000,
+    refreshInterval: (latest) => (shouldRefreshOplPackageState(latest) && blockedRefreshCount.current < 30 ? 2000 : 0),
+    onSuccess: (latest) => {
+      if (shouldRefreshOplPackageState(latest)) {
+        blockedRefreshCount.current += 1;
+      } else {
+        blockedRefreshCount.current = 0;
+      }
+    },
   });
 
   return {

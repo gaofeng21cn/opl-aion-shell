@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { useOplAppState } from '@/renderer/hooks/opl/useOplAppState';
 
 type HomeStartersProps = {
   assistants: Assistant[];

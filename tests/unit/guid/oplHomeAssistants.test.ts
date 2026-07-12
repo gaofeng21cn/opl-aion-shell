@@ -8,6 +8,7 @@ import {
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
 import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
+import { shouldRefreshOplPackageState } from '@/renderer/hooks/opl/useOplAppState';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -134,6 +135,33 @@ describe('OPL home assistants', () => {
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
     });
+  });
+
+  it('refreshes a transient package install snapshot until launch readiness changes', () => {
+    const runtimeResult = (launchBlockedReason: string | null) => ({
+      surface: 'app_state_fast' as const,
+      command: 'opl app state --profile fast --json',
+      stdout: '',
+      ok: true as const,
+      parsed: {
+        app_state: {
+          schema_version: 'opl_app_state.v1',
+          agent_packages: {
+            status_index: {
+              packages: {
+                'med-autoscience': {
+                  package_id: 'med-autoscience',
+                  launch_blocked_reason: launchBlockedReason,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(shouldRefreshOplPackageState(runtimeResult('package_not_installed'))).toBe(true);
+    expect(shouldRefreshOplPackageState(runtimeResult(null))).toBe(false);
   });
 
   it('fails closed when a known professional package is absent from the runtime status index', () => {

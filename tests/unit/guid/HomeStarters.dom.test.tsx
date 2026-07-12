@@ -37,7 +37,7 @@ vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', async (importOriginal) 
   };
 });
 
-vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
