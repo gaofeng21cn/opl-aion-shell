@@ -184,3 +184,11 @@ For pull request creation, see the `oss-pr` skill (`.claude/skills/oss-pr/SKILL.
 | **pr-automation** | PR automation orchestrator: poll PRs, review, fix, and merge via label state machine  | Invoked by daemon script (`pr-automation.sh`), `/pr-automation`                            |
 
 > Skills are located in `.claude/skills/` and contain project conventions that apply to **all** agents and contributors.
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+- 本仓库使用本地 `.codegraph/` 索引；该目录不得纳入 Git。
+- 定义、调用、影响范围和代码路径等结构检索优先使用 CodeGraph；字面文本检索使用 `rg`。
+- 索引缺失或过期时运行 `codegraph init .` 或 `codegraph sync .`。
+<!-- CODEGRAPH_END -->
