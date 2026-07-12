@@ -465,11 +465,15 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
   const disableAutoUpdater =
     process.env.AIONUI_DISABLE_AUTO_UPDATE === '1' || process.env.AIONUI_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
-    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge')])
-      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }]) => {
+    Promise.all([
+      import('./process/services/autoUpdaterService'),
+      import('./process/bridge/updateBridge'),
+      import('./process/bridge/oplRuntimeBridge'),
+    ])
+      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { runOplFlowPostAppUpdateReconcile }]) => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
-        autoUpdaterService.initialize(statusBroadcast);
+        autoUpdaterService.initialize(statusBroadcast, runOplFlowPostAppUpdateReconcile);
         // Check for updates after 3 seconds delay
         // 3秒后检查更新
         setTimeout(() => {

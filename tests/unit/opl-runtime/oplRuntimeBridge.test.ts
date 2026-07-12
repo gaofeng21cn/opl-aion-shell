@@ -96,6 +96,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl update repair [--receipt <receipt_id>] --json',
         'opl update rollback --json',
         'opl packages update --package-id <package_id> --json',
+        'opl packages optimize opl-flow --json',
         'opl packages repair --package-id <package_id> --json',
         'opl packages rollback --package-id <package_id> --json',
       ],
@@ -206,6 +207,11 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'update_plan',
       args: ['update', 'plan', '--json'],
       timeoutMs: MANAGED_UPDATE_READ_TIMEOUT_MS,
+    });
+    expect(__oplRuntimeBridgeTest.buildOplFlowOptimizeCommand()).toEqual({
+      surface: 'update_apply',
+      args: ['packages', 'optimize', 'opl-flow', '--json'],
+      timeoutMs: 900_000,
     });
     expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_base' })).toEqual({
       surface: 'update_apply',

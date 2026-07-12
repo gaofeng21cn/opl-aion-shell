@@ -128,6 +128,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl update repair [--receipt <receipt_id>] --json',
     'opl update rollback --json',
     'opl packages update --package-id <package_id> --json',
+    'opl packages optimize opl-flow --json',
     'opl packages repair --package-id <package_id> --json',
     'opl packages rollback --package-id <package_id> --json',
   ],
@@ -327,6 +328,14 @@ function buildUpdatePlanCommand(): RuntimeCommandSpec {
     surface: 'update_plan',
     args: ['update', 'plan', '--json'],
     timeoutMs: OPL_MANAGED_UPDATE_READ_TIMEOUT_MS,
+  };
+}
+
+function buildOplFlowOptimizeCommand(): RuntimeCommandSpec {
+  return {
+    surface: 'update_apply',
+    args: ['packages', 'optimize', 'opl-flow', '--json'],
+    timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
   };
 }
 
@@ -1366,6 +1375,10 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
   }
 }
 
+export function runOplFlowPostAppUpdateReconcile(): Promise<IOplRuntimeCommandResult> {
+  return runOplCommand(buildOplFlowOptimizeCommand());
+}
+
 export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
   ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
@@ -1398,6 +1411,7 @@ export const __oplRuntimeBridgeTest = {
   buildInitializeFallbackCommand,
   buildInitializeCommand,
   buildInstallPrepCommand,
+  buildOplFlowOptimizeCommand,
   buildReconcileModulesCommand,
   buildUpdateApplyCommand,
   buildUpdateCheckCommand,

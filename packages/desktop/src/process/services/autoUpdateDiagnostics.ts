@@ -16,12 +16,24 @@ export type AutoUpdateDiagnosticEvent = {
   at: string;
   currentVersion?: string;
   error?: string;
+  mergePacketPath?: string;
+  profileStatus?: string;
   progressPercent?: number;
   reason?: string;
-  status: AutoUpdateStatus['status'] | 'quit-and-install' | 'install-not-applied';
+  receiptPath?: string;
+  status:
+    | AutoUpdateStatus['status']
+    | 'quit-and-install'
+    | 'install-not-applied'
+    | 'running_version_switched'
+    | 'opl_flow_optimize_started'
+    | 'opl_flow_optimize_completed'
+    | 'opl_flow_optimize_attention_required'
+    | 'opl_flow_optimize_failed';
   total?: number;
   transferred?: number;
   version?: string;
+  workflowStatus?: string;
 };
 
 export type AutoUpdateDiagnostics = {
@@ -38,6 +50,24 @@ type AutoUpdateDiagnosticOptions = {
 };
 
 type InstallNotAppliedOptions = {
+  currentAppVersion: string;
+  now?: () => Date;
+};
+
+export type OplFlowPostAppUpdateReconcileClaim = {
+  currentVersion: string;
+  targetVersion: string;
+};
+
+export type OplFlowOptimizeCommandResult = {
+  error?: {
+    message: string;
+  };
+  ok?: boolean;
+  parsed?: unknown;
+};
+
+type PostAppUpdateReconcileOptions = {
   currentAppVersion: string;
   now?: () => Date;
 };
@@ -94,6 +124,139 @@ function normalizeVersion(version: string | undefined): string | null {
 function findLastDownloadedVersion(events: AutoUpdateDiagnosticEvent[]): string | undefined {
   return events.toReversed().find((event) => event.status === 'downloaded' && typeof event.version === 'string')
     ?.version;
+}
+
+function findAppliedUpdateTarget(events: AutoUpdateDiagnosticEvent[]): string | undefined {
+  const downloadedIndex = events.findLastIndex(
+    (event) => event.status === 'downloaded' && typeof event.version === 'string'
+  );
+  if (downloadedIndex < 0) return undefined;
+  const quitAndInstallObserved = events.slice(downloadedIndex + 1).some((event) => event.status === 'quit-and-install');
+  return quitAndInstallObserved ? events[downloadedIndex]?.version : undefined;
+}
+
+function isSameNormalizedVersion(left: string | undefined, right: string): boolean {
+  const normalizedLeft = normalizeVersion(left);
+  const normalizedRight = normalizeVersion(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function hasOplFlowReconcileAttempt(events: AutoUpdateDiagnosticEvent[], targetVersion: string): boolean {
+  return events.some(
+    (event) =>
+      [
+        'opl_flow_optimize_started',
+        'opl_flow_optimize_completed',
+        'opl_flow_optimize_attention_required',
+        'opl_flow_optimize_failed',
+      ].includes(event.status) && isSameNormalizedVersion(event.version, targetVersion)
+  );
+}
+
+export function appendPostAppUpdateReconcileStartedIfNeeded(
+  state: AutoUpdateDiagnostics,
+  options: PostAppUpdateReconcileOptions
+): { claim?: OplFlowPostAppUpdateReconcileClaim; state: AutoUpdateDiagnostics } {
+  const targetVersion = findAppliedUpdateTarget(state.events);
+  const normalizedTarget = normalizeVersion(targetVersion);
+  const normalizedCurrent = normalizeVersion(options.currentAppVersion);
+  const currentState = {
+    ...state,
+    currentAppVersion: options.currentAppVersion,
+  };
+  if (
+    !targetVersion ||
+    !normalizedTarget ||
+    !normalizedCurrent ||
+    semver.lt(normalizedCurrent, normalizedTarget) ||
+    hasOplFlowReconcileAttempt(state.events, targetVersion)
+  ) {
+    return { state: currentState };
+  }
+
+  const at = (options.now ?? (() => new Date()))().toISOString();
+  const claim = {
+    currentVersion: options.currentAppVersion,
+    targetVersion,
+  };
+  const switched = appendAutoUpdateDiagnosticEvent(currentState, {
+    at,
+    currentVersion: options.currentAppVersion,
+    status: 'running_version_switched',
+    version: targetVersion,
+  });
+  return {
+    claim,
+    state: appendAutoUpdateDiagnosticEvent(switched, {
+      at,
+      currentVersion: options.currentAppVersion,
+      status: 'opl_flow_optimize_started',
+      version: targetVersion,
+    }),
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function eventFromOplFlowOptimizeResult(
+  claim: OplFlowPostAppUpdateReconcileClaim,
+  result: OplFlowOptimizeCommandResult,
+  at: string
+): AutoUpdateDiagnosticEvent {
+  const parsed = asRecord(result.parsed);
+  const workflowPackage = asRecord(parsed?.workflow_package);
+  const profile = asRecord(workflowPackage?.profile);
+  const workflowStatus = optionalString(workflowPackage?.status);
+  const base = {
+    at,
+    currentVersion: claim.currentVersion,
+    mergePacketPath: optionalString(profile?.merge_packet),
+    profileStatus: optionalString(profile?.status),
+    receiptPath: optionalString(workflowPackage?.receipt_path),
+    version: claim.targetVersion,
+    workflowStatus,
+  };
+  if (result.ok === true && workflowStatus === 'completed') {
+    return {
+      ...base,
+      status: 'opl_flow_optimize_completed',
+    };
+  }
+  if (result.ok === true && workflowStatus === 'profile_merge_required') {
+    return {
+      ...base,
+      reason: 'profile_merge_required',
+      status: 'opl_flow_optimize_attention_required',
+    };
+  }
+  return {
+    ...base,
+    error: result.error?.message,
+    reason: result.ok === true ? 'framework_receipt_missing_or_invalid' : 'framework_command_failed',
+    status: 'opl_flow_optimize_failed',
+  };
+}
+
+export function appendPostAppUpdateReconcileResult(
+  state: AutoUpdateDiagnostics,
+  claim: OplFlowPostAppUpdateReconcileClaim,
+  result: OplFlowOptimizeCommandResult,
+  options: { now?: () => Date } = {}
+): AutoUpdateDiagnostics {
+  const at = (options.now ?? (() => new Date()))().toISOString();
+  return appendAutoUpdateDiagnosticEvent(
+    {
+      ...state,
+      currentAppVersion: claim.currentVersion,
+    },
+    eventFromOplFlowOptimizeResult(claim, result, at)
+  );
 }
 
 export function appendInstallNotAppliedDiagnosticIfNeeded(
@@ -184,6 +347,33 @@ export function recordAutoUpdateInstallNotAppliedIfNeeded(options: AutoUpdateDia
       now: options.now,
     })
   );
+}
+
+export function claimAutoUpdateOplFlowReconcileIfNeeded(
+  options: AutoUpdateDiagnosticOptions
+): OplFlowPostAppUpdateReconcileClaim | undefined {
+  const filePath = getAutoUpdateDiagnosticsPath(options.userDataPath);
+  const previous = readDiagnosticsFile(filePath);
+  if (!previous) return undefined;
+  const next = appendPostAppUpdateReconcileStartedIfNeeded(previous, {
+    currentAppVersion: options.currentAppVersion,
+    now: options.now,
+  });
+  writeDiagnosticsFile(filePath, next.state);
+  return next.claim;
+}
+
+export function recordAutoUpdateOplFlowReconcileResult(
+  claim: OplFlowPostAppUpdateReconcileClaim,
+  result: OplFlowOptimizeCommandResult,
+  options: Pick<AutoUpdateDiagnosticOptions, 'now' | 'userDataPath'>
+): AutoUpdateDiagnosticEvent | undefined {
+  const filePath = getAutoUpdateDiagnosticsPath(options.userDataPath);
+  const previous = readDiagnosticsFile(filePath);
+  if (!previous) return undefined;
+  const next = appendPostAppUpdateReconcileResult(previous, claim, result, { now: options.now });
+  writeDiagnosticsFile(filePath, next);
+  return next.lastEvent;
 }
 
 export function readAutoUpdateDiagnostics(userDataPath: string): AutoUpdateDiagnostics | undefined {
