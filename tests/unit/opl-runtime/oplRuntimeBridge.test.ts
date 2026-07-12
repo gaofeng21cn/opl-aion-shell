@@ -17,6 +17,7 @@ function makeFrameworkCarrier(packageRoot: string, version = '26.6.27', apiVersi
   fs.mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'dist', 'entrypoints'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'contracts', 'opl-framework'), { recursive: true });
+  fs.mkdirSync(path.join(packageRoot, 'node_modules', '@temporalio', 'common'), { recursive: true });
   fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ name: 'opl-framework', version }), 'utf8');
   fs.writeFileSync(path.join(packageRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
   fs.writeFileSync(path.join(packageRoot, 'dist', 'entrypoints', 'cli.js'), 'console.log("opl")\n', 'utf8');
@@ -519,6 +520,7 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'dist', 'entrypoints'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'contracts', 'opl-framework'), { recursive: true });
+    fs.mkdirSync(path.join(compatibleRoot, 'node_modules', '@temporalio', 'common'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'), 'console.log("old")\n', 'utf8');
     fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
@@ -660,6 +662,7 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(linkedRoot, 'src', 'entrypoints'), { recursive: true });
     fs.mkdirSync(path.join(linkedRoot, 'dist'), { recursive: true });
     fs.mkdirSync(path.join(linkedRoot, 'contracts', 'opl-framework'), { recursive: true });
+    fs.mkdirSync(path.join(linkedRoot, 'node_modules', '@temporalio', 'common'), { recursive: true });
     fs.writeFileSync(path.join(linkedRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(linkedRoot, 'src', 'entrypoints', 'cli.ts'), 'console.log("current")\n', 'utf8');
     fs.writeFileSync(path.join(linkedRoot, 'dist', 'cli.js'), 'console.log("stale")\n', 'utf8');
@@ -814,6 +817,28 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(selection.receipt.selected_carrier).toBe('framework_managed_install');
     expect(selection.receipt.active_framework_count).toBe(1);
     expect(selection.packageRoot).toBe(privateRoot);
+  });
+
+  it('treats a managed carrier with an empty dependency tree as missing so app state can bootstrap it', () => {
+    const homeDir = makeTempRoot('opl-incomplete-managed-carrier-home');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(privateRoot);
+    fs.rmSync(path.join(privateRoot, 'node_modules'), { recursive: true, force: true });
+    fs.mkdirSync(path.join(privateRoot, 'node_modules'));
+
+    expect(() =>
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier({
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      })
+    ).toThrow('The Framework-managed OPL base carrier is missing.');
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        new Error('The Framework-managed OPL base carrier is missing.')
+      )
+    ).toBe(true);
   });
 
   it('rejects a selected carrier whose Framework API is outside the App-required range', () => {

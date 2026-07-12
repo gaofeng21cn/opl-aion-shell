@@ -502,7 +502,7 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
     (error instanceof Error &&
       error.message === 'The Framework-managed OPL base carrier is missing.' &&
-      shouldAutoBootstrapOplCommand(spec)) ||
+      (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     (isManagedCarrierDependencyError(error) &&
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
@@ -869,7 +869,13 @@ function resolveDeveloperModeCheckoutRoot(env: NodeJS.ProcessEnv): string | null
 function resolveManagedInstallCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
   const installDir =
     normalizeOptionalString(env.OPL_INSTALL_DIR) ?? path.join(resolveHomeDir(env), '.opl', 'one-person-lab');
-  return hasOplCliEntrypoint(installDir) ? installDir : null;
+  let dependencyEntries: string[];
+  try {
+    dependencyEntries = fs.readdirSync(path.join(installDir, 'node_modules'));
+  } catch {
+    return null;
+  }
+  return hasOplCliEntrypoint(installDir) && dependencyEntries.length > 0 ? installDir : null;
 }
 
 function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string; frameworkApiVersion: string } {
