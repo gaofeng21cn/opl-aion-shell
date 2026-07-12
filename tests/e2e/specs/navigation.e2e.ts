@@ -332,8 +332,20 @@ test.describe('Settings Pages', () => {
         anchor('preferences_page', '[data-testid="settings-page-preferences"]'),
         anchor('preferences_primary', '[data-testid="settings-preferences-primary"]'),
         anchor('preferences_performance', '[data-testid="preferences-performance-section"]'),
-        anchor('preferences_instructions', '[data-testid="settings-preferences-instructions"]'),
         anchor('preferences_display', '[data-testid="preferences-display-section"]'),
+      ],
+    },
+    {
+      tab: 'personalization',
+      name: 'Personalization Settings',
+      level: 'top-level',
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('personalization_page', '[data-testid="settings-page-personalization"]'),
+        anchor('personalization_primary', '[data-testid="settings-personalization-primary"]'),
+        anchor('personalization_instructions', '[data-testid="settings-personalization-instructions"]'),
+        anchor('personalization_system_agents', '[data-testid="settings-system-agents-editor"]'),
+        anchor('personalization_app_context', '[data-testid="settings-opl-app-context-editor"]'),
       ],
     },
   ];

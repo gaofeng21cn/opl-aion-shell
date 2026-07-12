@@ -20,6 +20,7 @@ export const ROUTES = {
     environment: '#/settings/environment',
     storage: '#/settings/storage',
     appearance: '#/settings/appearance',
+    personalization: '#/settings/personalization',
     advanced: '#/settings/advanced',
     about: '#/settings/about',
     update: '#/settings/update',

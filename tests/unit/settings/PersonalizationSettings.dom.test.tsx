@@ -80,6 +80,8 @@ vi.mock('react-i18next', () => ({
         'settings.personalization.sessionContextTitle': 'OPL App session context',
         'settings.personalization.sessionContextDescription': 'Context for new conversations.',
         'settings.personalization.generatedContextLabel': 'Generated base context',
+        'settings.personalization.generatedContextHelp': 'Read-only and updated automatically.',
+        'settings.personalization.viewGeneratedContext': 'View',
         'settings.personalization.additionalContextLabel': 'Additional user instructions',
         'settings.personalization.additionalContextPlaceholder': 'Additional instructions',
         'settings.personalization.restoreDefault': 'Restore default',
@@ -107,10 +109,11 @@ describe('PersonalizationSettings', () => {
       'Installed OPL Flow default version: 0.1.16'
     );
     const contextEditors = screen.getByTestId('settings-opl-app-context-editor').querySelectorAll('textarea');
-    expect(contextEditors).toHaveLength(2);
-    expect(contextEditors[0]).toHaveAttribute('readonly');
-    expect(contextEditors[0]?.value).toContain('MAS (Med Auto Science)');
-    expect(contextEditors[1]).not.toHaveAttribute('readonly');
+    expect(contextEditors).toHaveLength(1);
+    expect(contextEditors[0]).not.toHaveAttribute('readonly');
+    expect(screen.queryByTestId('settings-generated-context-preview')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-generated-context-action'));
+    expect(await screen.findByTestId('settings-generated-context-preview')).toHaveTextContent('MAS (Med Auto Science)');
     expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore OPL Flow default' }));

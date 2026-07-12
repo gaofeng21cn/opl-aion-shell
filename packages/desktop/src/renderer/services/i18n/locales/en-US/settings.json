@@ -2729,6 +2729,8 @@
     "sessionContextTitle": "OPL App session context",
     "sessionContextDescription": "OPL App generates the base context from the current agent directory and keeps it read-only. You can append instructions that apply only to new OPL App conversations.",
     "generatedContextLabel": "Generated base context",
+    "generatedContextHelp": "Generated from the current OPL agent directory; read-only and updated automatically.",
+    "viewGeneratedContext": "View",
     "additionalContextLabel": "Additional user instructions",
     "additionalContextPlaceholder": "Add instructions for new OPL App conversations; leave blank to use only the generated base context",
     "restoreDefault": "Restore default",

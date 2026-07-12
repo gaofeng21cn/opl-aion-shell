@@ -2730,6 +2730,8 @@
     "sessionContextTitle": "OPL App 会话上下文",
     "sessionContextDescription": "基础上下文由 OPL App 根据当前智能体目录生成且不可覆盖；你可以追加只对 OPL App 新对话生效的说明。",
     "generatedContextLabel": "动态生成的基础上下文",
+    "generatedContextHelp": "由当前 OPL 智能体目录生成，只读且自动更新。",
+    "viewGeneratedContext": "查看",
     "additionalContextLabel": "用户附加说明",
     "additionalContextPlaceholder": "输入需要追加到 OPL App 新对话的说明；留空则只使用动态基础上下文",
     "restoreDefault": "恢复默认",

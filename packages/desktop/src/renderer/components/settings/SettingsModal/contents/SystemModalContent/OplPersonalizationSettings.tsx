@@ -4,7 +4,7 @@ import { getOplCodexSessionContextForLocale } from '@/common/config/oplProductPr
 import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Input, Message, Modal } from '@arco-design/web-react';
-import { EditTwo, MessageOne, Refresh } from '@icon-park/react';
+import { EditTwo, MessageOne, PreviewOpen, Refresh } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -34,6 +34,7 @@ const OplPersonalizationSettings: React.FC = () => {
   const [instructionsRestoring, setInstructionsRestoring] = useState(false);
   const [additionalContextDraft, setAdditionalContextDraft] = useState(savedAdditionalContext ?? '');
   const [contextSaving, setContextSaving] = useState(false);
+  const [generatedContextVisible, setGeneratedContextVisible] = useState(false);
 
   useEffect(() => {
     setInstructionsDraft(loadedInstructions);
@@ -210,10 +211,24 @@ const OplPersonalizationSettings: React.FC = () => {
           </div>
         </div>
         <div className='border-t border-solid border-[var(--border-base)] p-16px'>
-          <div className='text-12px font-medium text-t-secondary'>
-            {t('settings.personalization.generatedContextLabel')}
+          <div className='flex items-center justify-between gap-12px rd-6px bg-fill-1 px-12px py-10px'>
+            <div className='min-w-0'>
+              <div className='text-12px font-medium text-t-secondary'>
+                {t('settings.personalization.generatedContextLabel')}
+              </div>
+              <div className='mt-2px text-12px text-t-tertiary'>
+                {t('settings.personalization.generatedContextHelp')}
+              </div>
+            </div>
+            <Button
+              size='small'
+              icon={<PreviewOpen theme='outline' />}
+              onClick={() => setGeneratedContextVisible(true)}
+              data-testid='settings-generated-context-action'
+            >
+              {t('settings.personalization.viewGeneratedContext')}
+            </Button>
           </div>
-          <Input.TextArea className='mt-6px' value={generatedContext} readOnly autoSize={{ minRows: 7, maxRows: 14 }} />
           <div className='mt-12px text-12px font-medium text-t-secondary'>
             {t('settings.personalization.additionalContextLabel')}
           </div>
@@ -248,6 +263,20 @@ const OplPersonalizationSettings: React.FC = () => {
             </div>
           </div>
         </div>
+        <Modal
+          visible={generatedContextVisible}
+          title={t('settings.personalization.generatedContextLabel')}
+          footer={null}
+          onCancel={() => setGeneratedContextVisible(false)}
+          unmountOnExit
+        >
+          <pre
+            className='m-0 max-h-520px overflow-auto whitespace-pre-wrap break-words rd-6px bg-fill-2 p-12px text-12px text-t-primary'
+            data-testid='settings-generated-context-preview'
+          >
+            {generatedContext}
+          </pre>
+        </Modal>
       </section>
     </div>
   );
