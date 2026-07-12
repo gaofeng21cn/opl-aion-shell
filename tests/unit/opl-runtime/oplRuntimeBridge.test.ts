@@ -510,12 +510,12 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('resolves managed update commands through the selected private Framework instead of packaged runtime wrappers', () => {
+  it('uses the packaged Full runtime for App state while keeping updates on the managed carrier', () => {
     const homeDir = makeTempRoot('opl-update-bridge-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const compatibleRoot = path.join(homeDir, '.opl', 'one-person-lab');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints'), { recursive: true });
+    makeFrameworkCarrier(path.join(runtimeHome, 'opl'));
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'dist', 'entrypoints'), { recursive: true });
@@ -563,14 +563,44 @@ describe('OPL runtime bridge command whitelist', () => {
       env
     );
     expect(appStateCommand.args).toEqual([
-      path.join(compatibleRoot, 'dist', 'entrypoints', 'cli.js'),
+      path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'),
       'app',
       'state',
       '--profile',
       'fast',
       '--json',
     ]);
+    expect(appStateCommand.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('packaged_full_runtime');
     expect(appStateCommand.timeoutMs).toBeUndefined();
+  });
+
+  it('does not let an incomplete Standard carrier preempt a packaged Full runtime', () => {
+    const homeDir = makeTempRoot('opl-full-runtime-incomplete-standard-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const incompleteStandardRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(path.join(runtimeHome, 'opl'));
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.mkdirSync(path.join(incompleteStandardRoot, 'one-person-lab-main'), { recursive: true });
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+      env
+    );
+
+    expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('packaged_full_runtime');
+    expect(command.args[0]).toBe(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'));
   });
 
   it('prefers the explicit local framework checkout when Developer Mode auto-matches the developer identity', () => {

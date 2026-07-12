@@ -162,7 +162,11 @@ type ResolvedOplCli = {
 };
 
 type OplFrameworkCarrierReceipt = {
-  selected_carrier: 'developer_checkout' | 'system_homebrew_formula' | 'framework_managed_install';
+  selected_carrier:
+    | 'developer_checkout'
+    | 'packaged_full_runtime'
+    | 'system_homebrew_formula'
+    | 'framework_managed_install';
   framework_version: string;
   framework_api_version: string;
   app_required_api_range: string;
@@ -878,6 +882,15 @@ function resolveManagedInstallCheckoutRoot(env: NodeJS.ProcessEnv): string | nul
   return hasOplCliEntrypoint(installDir) && dependencyEntries.length > 0 ? installDir : null;
 }
 
+function resolvePackagedFullRuntimeRoot(env: NodeJS.ProcessEnv): string | null {
+  const runtimeHome = resolveDefaultFullRuntimeHome(env);
+  if (!runtimeHome || !pathExistsFile(path.join(runtimeHome, 'bin', 'opl'))) {
+    return null;
+  }
+  const packageRoot = path.join(runtimeHome, 'opl');
+  return hasOplCliEntrypoint(packageRoot) ? packageRoot : null;
+}
+
 function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string; frameworkApiVersion: string } {
   // The Framework does not yet expose a stable live version command; bind activation to its installed package identity.
   const packageManifest = readJsonRecordFile(path.join(packageRoot, 'package.json'));
@@ -956,10 +969,17 @@ function hasHomebrewCaskReceipt(env: NodeJS.ProcessEnv): boolean {
   );
 }
 
-function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv): ResolvedOplFrameworkCarrier {
+function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeCommandSpec): ResolvedOplFrameworkCarrier {
   const developerCheckout = resolveDeveloperModeCheckoutRoot(env);
   if (developerCheckout) {
     return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout');
+  }
+
+  if (spec && !spec.surface.startsWith('update_')) {
+    const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
+    if (packagedFullRuntime) {
+      return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime');
+    }
   }
 
   const explicitInstallOrigin = normalizeOptionalString(env.OPL_APP_INSTALL_ORIGIN);
@@ -997,7 +1017,7 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv): ResolvedOplFramewor
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
-  const selection = resolveOplFrameworkCarrier(env);
+  const selection = resolveOplFrameworkCarrier(env, spec);
   if (!packageSupportsCommand(selection.packageRoot, spec)) {
     throw new Error(`Selected OPL Framework carrier does not support ${spec.surface}.`);
   }
@@ -1458,6 +1478,7 @@ export const __oplRuntimeBridgeTest = {
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
   resolveDefaultFullRuntimeHome,
+  resolvePackagedFullRuntimeRoot,
   commandFailureResult,
   developerModePrefersLocalCheckout,
   readInitializeCompletePayload,
