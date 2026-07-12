@@ -118,4 +118,26 @@ describe('HomeStarters', () => {
     await userEvent.click(blockedStarter);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('keeps an active but blocked package disabled instead of reopening its launch path', async () => {
+    mocks.blockedPackageId = 'med-autoscience';
+    const onSelect = vi.fn();
+    const onClear = vi.fn();
+    render(
+      <HomeStarters
+        assistants={[assistant('med-autoscience')]}
+        localeKey='en-US'
+        activeCapabilityId='med-autoscience'
+        onSelect={onSelect}
+        onClear={onClear}
+      />
+    );
+
+    const blockedStarter = screen.getByTestId('home-starter-med-autoscience');
+    expect(blockedStarter).toBeDisabled();
+    expect(blockedStarter).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(blockedStarter);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onClear).not.toHaveBeenCalled();
+  });
 });

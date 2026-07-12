@@ -395,6 +395,17 @@ describe('GuidPage selected purpose assistant surface', () => {
           health_status: 'ready',
         },
       },
+      agent_packages: {
+        status_index: {
+          packages: {
+            'med-autoscience': {
+              package_id: 'med-autoscience',
+              operational_ready: true,
+              launch_allowed: true,
+            },
+          },
+        },
+      },
     };
     mocks.guidInput.input = '';
     mocks.guidInput.files = [];

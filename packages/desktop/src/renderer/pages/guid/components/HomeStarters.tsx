@@ -66,7 +66,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 active ? '!bg-fill-2 !text-t-primary' : '!bg-transparent !text-t-secondary hover:!bg-fill-2'
               }`}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
-              disabled={launchBlocked && !active}
+              disabled={launchBlocked}
               title={blockedTitle}
               aria-pressed={active}
               data-testid={`home-starter-${assistant.id}`}
