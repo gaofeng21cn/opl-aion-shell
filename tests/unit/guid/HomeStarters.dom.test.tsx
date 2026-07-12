@@ -140,7 +140,15 @@ describe('HomeStarters', () => {
   });
 
   it('keeps an active but blocked package disabled instead of reopening its launch path', async () => {
-    mocks.blockedPackageId = 'med-autoscience';
+    const appState = readyAppState();
+    appState.agent_packages.status_index.packages['med-autoscience'] = {
+      package_id: 'med-autoscience',
+      operational_ready: false,
+      launch_allowed: false,
+      launch_blocked_reason: 'scope_materialization_missing',
+      allowed_when_blocked: ['status', 'doctor', 'repair'],
+    };
+    mocks.appState = appState;
     const onSelect = vi.fn();
     const onClear = vi.fn();
     render(
