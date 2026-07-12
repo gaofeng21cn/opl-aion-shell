@@ -2166,6 +2166,9 @@
       "dependencyReadiness": "依赖就绪状态",
       "dependencyReadinessCount": "已就绪依赖",
       "operationalReady": "可正常运行",
+      "launchAllowed": "可以开始工作",
+      "launchBlockedReason": "启动受阻",
+      "allowedWhenBlocked": "仍可使用的维护动作",
       "dependencyFailures": "依赖问题",
       "requiredByPackages": "被以下已安装包依赖",
       "disableDisabledReason": "无法停用",
@@ -2197,7 +2200,8 @@
       "required_export_missing": "缺少必要的能力导出",
       "version_incompatible": "已安装的依赖版本不兼容",
       "required_by_installed_package": "被其他已安装包依赖",
-      "dependency_closure_not_ready": "依赖闭包尚未就绪"
+      "dependency_closure_not_ready": "依赖闭包尚未就绪",
+      "package_not_installed": "该包尚未安装"
     },
     "sourceLabels": {
       "developer": "本地开发源",

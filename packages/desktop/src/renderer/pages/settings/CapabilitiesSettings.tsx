@@ -229,6 +229,29 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
+    item.launchAllowed !== null
+      ? {
+          key: 'launchAllowed',
+          label: t('settings.capabilitiesPage.detailLabels.launchAllowed'),
+          value: item.launchAllowed
+            ? t('settings.capabilitiesPage.detailValues.yes')
+            : t('settings.capabilitiesPage.detailValues.no'),
+        }
+      : null,
+    item.launchAllowed === false && item.launchBlockedReason
+      ? {
+          key: 'launchBlockedReason',
+          label: t('settings.capabilitiesPage.detailLabels.launchBlockedReason'),
+          value: capabilityReasonLabel(item.launchBlockedReason, t),
+        }
+      : null,
+    item.launchAllowed === false && item.allowedWhenBlocked.length > 0
+      ? {
+          key: 'allowedWhenBlocked',
+          label: t('settings.capabilitiesPage.detailLabels.allowedWhenBlocked'),
+          value: item.allowedWhenBlocked.join(', '),
+        }
+      : null,
     dependencyFailures.length > 0
       ? {
           key: 'dependencyFailures',

@@ -29,6 +29,8 @@ import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 
 type OplAssistantRouteReceipt = {
   route_kind: string;
@@ -194,8 +196,25 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     language,
   } = deps;
   const sendingRef = useRef(false);
+  const { appState } = useOplAppState('fast');
+  const selectedPackageId =
+    is_presetAgent && selectedAgentInfo?.custom_agent_id
+      ? canonicalizeOplProfessionalAgentId(selectedAgentInfo.custom_agent_id)
+      : null;
+  const selectedPackageLaunchGate = selectedPackageId
+    ? resolveOplPackageLaunchGate(appState, selectedPackageId)
+    : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+  const launchBlockedMessage = () =>
+    t('guid.home.launchBlocked', {
+      reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
+      actions: selectedPackageLaunchGate.allowedWhenBlocked.join(', '),
+    });
 
   const handleSend = useCallback(async () => {
+    if (selectedPackageLaunchGate.launchAllowed === false) {
+      Message.error(launchBlockedMessage());
+      return;
+    }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
     const initialFiles = Array.from(new Set([...projectContextRefs.map((ref) => ref.path), ...files]));
@@ -527,10 +546,17 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     navigate,
     t,
     language,
+    selectedPackageLaunchGate.launchAllowed,
+    selectedPackageLaunchGate.launchBlockedReason,
+    selectedPackageLaunchGate.allowedWhenBlocked,
   ]);
 
   const sendMessageHandler = useCallback(() => {
     if (loading || sendingRef.current) return;
+    if (selectedPackageLaunchGate.launchAllowed === false) {
+      Message.error(launchBlockedMessage());
+      return;
+    }
     sendingRef.current = true;
     setLoading(true);
     handleSend()
@@ -563,6 +589,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setFiles,
     setDir,
     t,
+    selectedPackageLaunchGate.launchAllowed,
+    selectedPackageLaunchGate.launchBlockedReason,
+    selectedPackageLaunchGate.allowedWhenBlocked,
   ]);
 
   // Calculate button disabled state

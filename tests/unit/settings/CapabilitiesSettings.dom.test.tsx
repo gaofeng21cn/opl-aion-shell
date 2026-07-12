@@ -86,6 +86,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               status: 'ready',
               package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
               operational_ready: false,
+              launch_allowed: false,
+              launch_blocked_reason: 'required_export_missing',
+              allowed_when_blocked: ['status', 'doctor', 'repair'],
               dependency_readiness: {
                 status: 'repair_required',
                 required_count: 1,
@@ -436,6 +439,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.dependencyReadiness': 'Dependency readiness',
         'settings.capabilitiesPage.detailLabels.dependencyReadinessCount': 'Ready dependencies',
         'settings.capabilitiesPage.detailLabels.operationalReady': 'Operationally ready',
+        'settings.capabilitiesPage.detailLabels.launchAllowed': 'Can start work',
+        'settings.capabilitiesPage.detailLabels.launchBlockedReason': 'Start blocked',
+        'settings.capabilitiesPage.detailLabels.allowedWhenBlocked': 'Available maintenance actions',
         'settings.capabilitiesPage.detailLabels.dependencyFailures': 'Dependency issues',
         'settings.capabilitiesPage.detailLabels.requiredByPackages': 'Required by installed packages',
         'settings.capabilitiesPage.detailLabels.disableDisabledReason': 'Cannot disable',
@@ -1039,9 +1045,10 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(screen.getByTestId('capability-open-details-example'));
     const readiness = screen.getByTestId('capability-readiness-example');
     expect(within(readiness).getByText('Repair required')).toBeInTheDocument();
-    expect(within(readiness).getByText('A required capability export is missing')).toBeInTheDocument();
+    expect(within(readiness).getAllByText('A required capability export is missing')).toHaveLength(2);
     expect(within(readiness).getByText('consumer-agent')).toBeInTheDocument();
     expect(within(readiness).getAllByText('Required by another installed package')).toHaveLength(2);
+    expect(within(readiness).getByText('status, doctor, repair')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-enabled-toggle-example')).toBeDisabled();
     expect(screen.getByTestId('agent-package-uninstall-example')).toBeDisabled();
     expect(screen.queryByText('sha256:example-current')).not.toBeInTheDocument();

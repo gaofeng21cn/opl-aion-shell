@@ -2165,6 +2165,9 @@
       "dependencyReadiness": "Dependency readiness",
       "dependencyReadinessCount": "Ready dependencies",
       "operationalReady": "Operationally ready",
+      "launchAllowed": "Can start work",
+      "launchBlockedReason": "Start blocked",
+      "allowedWhenBlocked": "Available maintenance actions",
       "dependencyFailures": "Dependency issues",
       "requiredByPackages": "Required by installed packages",
       "disableDisabledReason": "Cannot disable",
@@ -2196,7 +2199,8 @@
       "required_export_missing": "A required capability export is missing",
       "version_incompatible": "An installed dependency version is incompatible",
       "required_by_installed_package": "Required by another installed package",
-      "dependency_closure_not_ready": "The dependency closure is not ready"
+      "dependency_closure_not_ready": "The dependency closure is not ready",
+      "package_not_installed": "The package is not installed"
     },
     "sourceLabels": {
       "developer": "Local developer source",

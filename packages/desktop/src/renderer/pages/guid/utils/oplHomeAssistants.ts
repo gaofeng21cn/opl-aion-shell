@@ -21,6 +21,58 @@ type OplHomePackageProfile = {
   prompts_i18n: Record<string, string[]>;
 };
 
+export type OplPackageLaunchGate = {
+  launchAllowed: boolean | null;
+  launchBlockedReason: string | null;
+  allowedWhenBlocked: string[];
+};
+
+const BLOCKED_PACKAGE_ACTIONS = new Set(['status', 'doctor', 'repair']);
+
+function appStateRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function packageStatusRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.map(appStateRecord).filter((entry) => Object.keys(entry).length > 0);
+  return Object.entries(appStateRecord(value)).map(([packageId, entry]) => ({
+    ...appStateRecord(entry),
+    package_id: appStateRecord(entry).package_id ?? packageId,
+  }));
+}
+
+export function resolveOplPackageLaunchGate(appState: unknown, packageId: string): OplPackageLaunchGate {
+  const payload = appStateRecord(appState);
+  const state = appStateRecord(payload.app_state ?? payload);
+  const packages = appStateRecord(state.agent_packages);
+  const statusIndex = appStateRecord(packages.status_index);
+  const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
+  const status = packageStatusRecords(statusIndex.packages).find(
+    (entry) =>
+      typeof entry.package_id === 'string' &&
+      canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+  );
+  if (!status) return { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+  const operationalReady = typeof status.operational_ready === 'boolean' ? status.operational_ready : null;
+  const projectedLaunchAllowed = typeof status.launch_allowed === 'boolean' ? status.launch_allowed : null;
+  const launchBlockedReason =
+    typeof status.launch_blocked_reason === 'string' && status.launch_blocked_reason.trim()
+      ? status.launch_blocked_reason.trim()
+      : operationalReady === false
+        ? 'operational_not_ready'
+        : null;
+  return {
+    launchAllowed:
+      operationalReady === false || launchBlockedReason === 'package_not_installed' ? false : projectedLaunchAllowed,
+    launchBlockedReason,
+    allowedWhenBlocked: Array.isArray(status.allowed_when_blocked)
+      ? status.allowed_when_blocked.filter(
+          (action): action is string => typeof action === 'string' && BLOCKED_PACKAGE_ACTIONS.has(action)
+        )
+      : [],
+  };
+}
+
 export function resolveOplHomePurposePresentation(id: string, fallbackName: string, fallbackAvatar: string) {
   const canonicalId = canonicalizeOplProfessionalAgentId(id);
   const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === canonicalId);

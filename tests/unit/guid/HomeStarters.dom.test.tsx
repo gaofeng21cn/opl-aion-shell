@@ -1,9 +1,11 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import HomeStarters from '@/renderer/pages/guid/components/HomeStarters';
+
+const mocks = vi.hoisted(() => ({ blockedPackageId: null as string | null }));
 
 vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', () => ({
   getOplHomePurposeAssistantIds: () => [
@@ -13,10 +15,25 @@ vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', () => ({
     'opl-bookforge',
     'opl-meta-agent',
   ],
+  resolveOplPackageLaunchGate: (_appState: unknown, packageId: string) =>
+    packageId === mocks.blockedPackageId
+      ? {
+          launchAllowed: false,
+          launchBlockedReason: 'required_export_missing',
+          allowedWhenBlocked: ['status', 'doctor', 'repair'],
+        }
+      : { launchAllowed: true, launchBlockedReason: null, allowedWhenBlocked: [] },
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: {} }),
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, string>) =>
+      key === 'guid.home.launchBlocked' ? `${options?.reason}: ${options?.actions}` : key,
+  }),
 }));
 
 const assistant = (id: string): Assistant => ({
@@ -38,6 +55,9 @@ const assistant = (id: string): Assistant => ({
 });
 
 describe('HomeStarters', () => {
+  beforeEach(() => {
+    mocks.blockedPackageId = null;
+  });
   it('shows every user-visible App-owned starter and selects one capability', async () => {
     const onSelect = vi.fn();
     render(
@@ -78,6 +98,24 @@ describe('HomeStarters', () => {
 
     await userEvent.click(activeStarter);
     expect(onClear).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {
+    mocks.blockedPackageId = 'med-autogrant';
+    const onSelect = vi.fn();
+    render(
+      <HomeStarters
+        assistants={['med-autoscience', 'med-autogrant'].map(assistant)}
+        localeKey='en-US'
+        onSelect={onSelect}
+      />
+    );
+
+    const blockedStarter = screen.getByTestId('home-starter-med-autogrant');
+    expect(blockedStarter).toBeDisabled();
+    expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('required_export_missing'));
+    await userEvent.click(blockedStarter);
     expect(onSelect).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ import {
   isGuidSkillChecked,
   mergeRequiredSkills,
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
-import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
@@ -125,6 +125,56 @@ describe('OPL home assistants', () => {
 
     expect(resolved.every((item) => item.agent_id === '8e1acf31')).toBe(true);
     expect(resolved.some((item) => item.agent_id === 'codex')).toBe(false);
+  });
+
+  it('fails closed for package_not_installed and keeps only maintenance actions', () => {
+    const gate = resolveOplPackageLaunchGate(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              'example-agent': {
+                package_id: 'example-agent',
+                operational_ready: true,
+                launch_allowed: true,
+                launch_blocked_reason: 'package_not_installed',
+                allowed_when_blocked: ['status', 'doctor', 'repair', 'launch', 'uninstall'],
+              },
+            },
+          },
+        },
+      },
+      'example-agent'
+    );
+
+    expect(gate).toEqual({
+      launchAllowed: false,
+      launchBlockedReason: 'package_not_installed',
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+    });
+  });
+
+  it('blocks ordinary launch when operational readiness is false even if launch_allowed is true', () => {
+    const gate = resolveOplPackageLaunchGate(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              'future-agent': {
+                package_id: 'future-agent',
+                operational_ready: false,
+                launch_allowed: true,
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
+              },
+            },
+          },
+        },
+      },
+      'future-agent'
+    );
+
+    expect(gate.launchAllowed).toBe(false);
+    expect(gate.allowedWhenBlocked).toEqual(['status', 'doctor', 'repair']);
   });
 
   it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {

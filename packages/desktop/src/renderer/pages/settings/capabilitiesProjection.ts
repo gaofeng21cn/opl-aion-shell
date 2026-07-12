@@ -83,6 +83,9 @@ export type CapabilityPurposeViewModel = {
   physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
   dependencyReadiness: CapabilityDependencyReadinessViewModel | null;
   operationalReady: boolean | null;
+  launchAllowed: boolean | null;
+  launchBlockedReason: string | null;
+  allowedWhenBlocked: string[];
   repairAction: CapabilityRepairActionViewModel | null;
   dependentGuard: CapabilityDependentGuardViewModel | null;
   dependencyClosure: CapabilityDependencyClosureViewModel | null;
@@ -136,6 +139,9 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'physicalSurface'
   | 'dependencyReadiness'
   | 'operationalReady'
+  | 'launchAllowed'
+  | 'launchBlockedReason'
+  | 'allowedWhenBlocked'
   | 'repairAction'
   | 'dependentGuard'
   | 'dependencyClosure'
@@ -1102,6 +1108,9 @@ function buildCapabilityPurpose(
     | 'physicalSurface'
     | 'dependencyReadiness'
     | 'operationalReady'
+    | 'launchAllowed'
+    | 'launchBlockedReason'
+    | 'allowedWhenBlocked'
     | 'repairAction'
     | 'dependentGuard'
     | 'dependencyClosure'
@@ -1179,6 +1188,14 @@ function buildCapabilityPurpose(
     physicalSurface: capabilityPhysicalSurface(packageState, module),
     dependencyReadiness: capabilityDependencyReadiness(packageState),
     operationalReady: nullableBool(packageState?.operational_ready),
+    launchAllowed:
+      packageState?.operational_ready === false || packageState?.launch_blocked_reason === 'package_not_installed'
+        ? false
+        : nullableBool(packageState?.launch_allowed),
+    launchBlockedReason: firstString(packageState?.launch_blocked_reason),
+    allowedWhenBlocked: listValues(packageState?.allowed_when_blocked)
+      .map(oplString)
+      .filter((action): action is string => Boolean(action)),
     repairAction: capabilityRepairAction(packageState),
     dependentGuard: capabilityDependentGuard(packageState),
     dependencyClosure: capabilityDependencyClosure(packageState),

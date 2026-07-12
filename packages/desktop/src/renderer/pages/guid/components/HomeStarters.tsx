@@ -12,7 +12,9 @@ import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
+import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type HomeStartersProps = {
   assistants: Assistant[];
@@ -31,6 +33,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
 }) => {
   const { t } = useTranslation();
   const shortcutPreferences = useOplHomeShortcutPreferences();
+  const { appState } = useOplAppState('fast');
   const starters = useMemo(() => {
     const allowedIds = new Set(getOplHomePurposeAssistantIds());
     const available = assistants.filter((assistant) =>
@@ -47,6 +50,14 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
         {starters.map((assistant) => {
           const label = assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
+          const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
+          const launchBlocked = launchGate.launchAllowed === false;
+          const blockedTitle = launchBlocked
+            ? t('guid.home.launchBlocked', {
+                reason: launchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
+                actions: launchGate.allowedWhenBlocked.join(', '),
+              })
+            : undefined;
           return (
             <Button
               key={assistant.id}
@@ -55,6 +66,8 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 active ? '!bg-fill-2 !text-t-primary' : '!bg-transparent !text-t-secondary hover:!bg-fill-2'
               }`}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
+              disabled={launchBlocked && !active}
+              title={blockedTitle}
               aria-pressed={active}
               data-testid={`home-starter-${assistant.id}`}
             >

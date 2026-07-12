@@ -7,6 +7,8 @@ import { useGuidSend } from '@/renderer/pages/guid/hooks/useGuidSend';
 const mocks = vi.hoisted(() => ({
   createConversation: vi.fn(),
   navigate: vi.fn(),
+  appState: {} as Record<string, unknown>,
+  messageError: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -16,6 +18,13 @@ vi.mock('@/common', () => ({
         invoke: mocks.createConversation,
       },
     },
+  },
+}));
+
+vi.mock('@arco-design/web-react', () => ({
+  Message: {
+    error: mocks.messageError,
+    warning: vi.fn(),
   },
 }));
 
@@ -31,6 +40,10 @@ vi.mock('@/renderer/utils/file/messageFiles', () => ({
 
 vi.mock('@/renderer/utils/workspace/workspaceHistory', () => ({
   updateWorkspaceTime: vi.fn(),
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
 function buildMcpServer(id: string, name: string) {
@@ -113,7 +126,8 @@ function buildDeps(): GuidSendDeps {
     setMentionSelectorOpen: vi.fn(),
     setMentionActiveIndex: vi.fn(),
     navigate: mocks.navigate,
-    t: ((key: string) => key) as GuidSendDeps['t'],
+    t: ((key: string, options?: Record<string, string>) =>
+      key === 'guid.home.launchBlocked' ? `${options?.reason}: ${options?.actions}` : key) as GuidSendDeps['t'],
     language: 'zh-CN',
   };
 }
@@ -123,6 +137,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     mocks.createConversation.mockReset();
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
     mocks.navigate.mockReset();
+    mocks.appState = {};
+    mocks.messageError.mockReset();
     sessionStorage.clear();
   });
 
@@ -164,6 +180,34 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       source: 'opl_app_home',
     });
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
+  });
+
+  it('blocks ordinary package launch when Framework reports package_not_installed', async () => {
+    mocks.appState = {
+      agent_packages: {
+        status_index: {
+          packages: {
+            'med-autoscience': {
+              package_id: 'med-autoscience',
+              operational_ready: true,
+              launch_allowed: true,
+              launch_blocked_reason: 'package_not_installed',
+              allowed_when_blocked: ['status', 'doctor', 'repair'],
+            },
+          },
+        },
+      },
+    };
+    const deps = buildDeps();
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+    expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
+    expect(mocks.messageError).toHaveBeenCalledWith(expect.stringContaining('package_not_installed'));
   });
 
   it('sends an unknown future Auto model with its highest advertised reasoning effort', async () => {

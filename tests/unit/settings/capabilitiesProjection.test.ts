@@ -272,6 +272,9 @@ describe('buildCapabilitiesViewModel', () => {
                 package_id: 'example-agent',
                 status: 'ready',
                 operational_ready: false,
+                launch_allowed: false,
+                launch_blocked_reason: 'required_export_missing',
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
                 dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
                 repair_action: {
                   action_id: 'repair_dependency_closure',
@@ -303,6 +306,11 @@ describe('buildCapabilitiesViewModel', () => {
     ).find((item) => item.packageId === 'example-agent')!;
 
     expect(capability.repairAction).toMatchObject({ actionId: 'repair_dependency_closure', enabled: true });
+    expect(capability).toMatchObject({
+      launchAllowed: false,
+      launchBlockedReason: 'required_export_missing',
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+    });
     expect(capability.dependentGuard).toMatchObject({
       requiredByPackageIds: ['consumer-agent'],
       uninstallAllowed: false,

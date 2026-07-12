@@ -6,7 +6,9 @@
     "projectRequiredForAttachments": "Choose a project before adding files",
     "localContext": "Local",
     "projectlessTextOnly": "Projectless · text only",
-    "activeCapability": "Capability: {{capability}}"
+    "activeCapability": "Capability: {{capability}}",
+    "launchBlocked": "This capability cannot start work yet ({{reason}}). Available maintenance actions: {{actions}}.",
+    "operationalNotReady": "operational readiness is blocked"
   },
   "capabilities": {
     "title": "Capabilities",
