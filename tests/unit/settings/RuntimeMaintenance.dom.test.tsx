@@ -283,6 +283,21 @@ describe('RuntimeSettings maintenance structure', () => {
     );
   });
 
+  it('routes capability sync through the canonical App action instead of update check', async () => {
+    render(<RuntimeSettings />);
+
+    fireEvent.click(screen.getByTestId('opl-maintenance-action-capabilitySurfaceSync'));
+    fireEvent.click(screen.getByTestId('opl-capability-sync-confirm'));
+
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_sync_capabilities',
+        dryRun: false,
+      })
+    );
+    expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
   it('serializes maintenance mutations before React state commits and restores actions after completion', async () => {
     maintenanceSnapshot.result = {
       stdout: '{}',

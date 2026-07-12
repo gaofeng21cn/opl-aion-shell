@@ -327,6 +327,17 @@ describe('RuntimeSettings app state bridge usage', () => {
                     current_control_state_running_provider_attempt_summary_policy:
                       'refs_only_liveness_projection_no_domain_ready_publication_ready_or_artifact_ready',
                   },
+                  runtime_workbench: {
+                    archived_attempts: [
+                      {
+                        stage_attempt_id: 'sat_archived_oma',
+                        domain_id: 'opl-meta-agent',
+                        stage_id: 'intent-intake',
+                        status: 'failed',
+                        archived_at: '2026-07-11T04:30:00.000Z',
+                      },
+                    ],
+                  },
                   current_control_state: {
                     summary: {
                       running_provider_attempt_count: 2,
@@ -1207,7 +1218,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');
     expect(defaultViewText).not.toContain('common.runtime.scopeInferredHint');
     expect(defaultViewText).not.toContain('common.runtime.metricHints.');
-    expect(defaultViewText).not.toContain('common.runtime.moduleDirty');
+    expect(defaultViewText).toContain('common.runtime.moduleDirty');
     expect(defaultViewText).not.toContain('bookforge-1.0.0');
     expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
     expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
@@ -1255,6 +1266,26 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(dm002Details).toHaveTextContent('Fabric resource');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.diagnostics');
     expect(dm002Details).not.toHaveTextContent('paper_autonomy/repair-recheck');
+    const dm003Row = screen
+      .getAllByTestId('runtime-task-row')
+      .find((row) => row.textContent?.includes('DM003 paper line'));
+    if (!dm003Row) throw new Error('DM003 task row should be visible');
+    fireEvent.click(within(dm003Row).getByText('common.runtime.taskDetails.open'));
+    const dm003Details = await screen.findByTestId(
+      'runtime-task-detail-medautoscience:study:003-dpcc-primary-care-phenotype-treatment-gap'
+    );
+    fireEvent.click(within(dm003Details).getByText('common.runtime.archiveTask.confirm'));
+    fireEvent.click(await screen.findByTestId('runtime-archive-confirm'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'runtime_archive_attempt',
+        payloadRefsOnlyJson: {
+          stage_attempt_id: 'sat_bf58a3caafa6ab7d654a3f5c',
+          reason: 'user_archived_from_runtime_overview',
+        },
+        dryRun: false,
+      })
+    );
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() =>
@@ -1264,6 +1295,20 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain('common.runtime.scopeSourceLabel');
     expect(document.body.textContent).toContain('common.runtime.moduleDirty');
     expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
+    expect(screen.getByTestId('runtime-archived-attempts')).toHaveTextContent('OPL Meta Agent');
+    fireEvent.click(
+      within(screen.getByTestId('runtime-archived-attempts')).getByText('common.runtime.archiveTask.restore')
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'runtime_restore_attempt',
+        payloadRefsOnlyJson: {
+          stage_attempt_id: 'sat_archived_oma',
+          reason: 'user_restored_from_runtime_overview',
+        },
+        dryRun: false,
+      })
+    );
   });
 
   it('keeps explicit full-detail workbench tasks in diagnostics after full detail load', async () => {

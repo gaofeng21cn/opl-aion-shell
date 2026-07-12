@@ -10,7 +10,6 @@ vi.mock('react-i18next', () => ({
       ({
         'conversation.welcome.newTask': 'New task',
         'conversation.history.archivedTitle': 'Archived',
-        'guid.capabilities.title': 'Capabilities',
         'common.runtime.sidebarEntry': 'Runtime',
         'common.primaryNavigation': 'Primary navigation',
         'common.account': 'Account',
@@ -37,7 +36,6 @@ describe('Sider navigation hierarchy', () => {
           siderTooltipProps={tooltipProps}
           onRuntimeClick={onRuntimeClick}
           onArchivedClick={vi.fn()}
-          onCapabilitiesClick={vi.fn()}
         />
         <div>Conversation history</div>
         <SiderFooter
@@ -55,7 +53,7 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Capabilities', 'Settings']);
+    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Settings']);
     fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
     expect(onRuntimeClick).toHaveBeenCalledOnce();
     expect(screen.getByText('Conversation history')).toBeInTheDocument();

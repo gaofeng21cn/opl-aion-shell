@@ -5,7 +5,7 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { ActivitySource, AllApplication, Inbox } from '@icon-park/react';
+import { ActivitySource, Inbox } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,6 @@ type SiderPrimaryNavProps = {
   siderTooltipProps: SiderTooltipProps;
   onRuntimeClick: () => void;
   onArchivedClick: () => void;
-  onCapabilitiesClick: () => void;
 };
 
 const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
@@ -28,7 +27,6 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
   siderTooltipProps,
   onRuntimeClick,
   onArchivedClick,
-  onCapabilitiesClick,
 }) => {
   const { t } = useTranslation();
   const entries = [
@@ -45,13 +43,6 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
       active: pathname === '/archived',
       icon: <Inbox theme='outline' size='16' fill='currentColor' />,
       onClick: onArchivedClick,
-    },
-    {
-      key: 'capabilities',
-      label: t('guid.capabilities.title'),
-      active: pathname === '/capabilities',
-      icon: <AllApplication theme='outline' size='16' fill='currentColor' />,
-      onClick: onCapabilitiesClick,
     },
   ];
 

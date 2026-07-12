@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Collapse, Message, Select, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Collapse, Message, Modal, Select, Space, Tag, Typography } from '@arco-design/web-react';
 import {
   Attention,
   BookOpen,
@@ -238,6 +238,7 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
     },
     runtime_workbench: {
       summary_cards: recordList(record(drilldown.runtime_workbench).summary_cards).slice(0, 8),
+      archived_attempts: recordList(record(drilldown.runtime_workbench).archived_attempts).slice(0, 25),
       activity_center: {
         active_projects: recordList(record(record(drilldown.runtime_workbench).activity_center).active_projects).slice(
           0,
@@ -637,6 +638,15 @@ const MODULE_ATTENTION_STATES = new Set([
   'attention_needed',
   'attention_required',
 ]);
+const ARCHIVABLE_TASK_STATES = new Set(['completed', 'failed', 'dead_lettered']);
+
+function isArchivableTask(task: RuntimeTaskDrilldown): boolean {
+  return (
+    task.runtimeCloseoutObserved === true ||
+    ARCHIVABLE_TASK_STATES.has(task.state ?? '') ||
+    ARCHIVABLE_TASK_STATES.has(task.status ?? '')
+  );
+}
 
 function humanLabelKey(value: string | null | undefined): string | null {
   const key = value?.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -947,7 +957,11 @@ function parseModuleStatusItems(
       statusLabel: dirty
         ? t('common.runtime.projectStates.needsAttention')
         : (translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status),
-      detail: dirty ? t('common.runtime.moduleDirty') : (oplString(item.version) ?? null),
+      detail: dirty
+        ? t('common.runtime.moduleDirty')
+        : status === 'missing'
+          ? t('common.runtime.moduleMissing')
+          : (oplString(item.version) ?? null),
       activeTaskCount: stats.activeTaskCount,
       automationRunningCount: stats.automationRunningCount,
       latestActivityAt: stats.latestActivityAt,
@@ -1738,6 +1752,7 @@ const RuntimePage: React.FC = () => {
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
   const [selectedSavedViewId, setSelectedSavedViewId] = useState<RuntimeSavedViewId>('all');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [pendingArchiveItem, setPendingArchiveItem] = useState<RuntimeOverviewTaskItem | null>(null);
   const runtimeLanguage = i18n.resolvedLanguage ?? i18n.language;
 
   useEffect(() => {
@@ -1874,6 +1889,10 @@ const RuntimePage: React.FC = () => {
       ),
     [appStateQuery.appState, overview.sections, t]
   );
+  const archivedAttempts = useMemo(
+    () => recordList(record(displayDrilldown?.runtime_workbench).archived_attempts),
+    [displayDrilldown]
+  );
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
   const advancedTaskRefs = useMemo(
     () =>
@@ -1984,6 +2003,60 @@ const RuntimePage: React.FC = () => {
       setRunningActionId(null);
     }
   }, []);
+
+  const confirmArchiveTask = useCallback(async () => {
+    if (!pendingArchiveItem) return;
+    const item = pendingArchiveItem;
+    const stageAttemptId = item.task.stageAttemptIds[0] ?? item.task.taskId;
+    setRunningActionId(`archive:${stageAttemptId}`);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'runtime_archive_attempt',
+        payloadRefsOnlyJson: {
+          stage_attempt_id: stageAttemptId,
+          reason: 'user_archived_from_runtime_overview',
+        },
+        dryRun: false,
+      });
+      if (result.ok === false) {
+        messageRef.current.error(result.error?.message ?? t('common.runtime.archiveTask.failed'));
+        return;
+      }
+      setPendingArchiveItem(null);
+      if (expandedTaskId === item.task.taskId) setExpandedTaskId(null);
+      await refreshAppState(true);
+      messageRef.current.success(t('common.runtime.archiveTask.success'));
+    } finally {
+      setRunningActionId(null);
+    }
+  }, [expandedTaskId, pendingArchiveItem, refreshAppState, t]);
+
+  const restoreArchivedAttempt = useCallback(
+    async (attempt: RuntimeSnapshot) => {
+      const stageAttemptId = stringValue(attempt.stage_attempt_id);
+      if (!stageAttemptId) return;
+      setRunningActionId(`restore:${stageAttemptId}`);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: 'runtime_restore_attempt',
+          payloadRefsOnlyJson: {
+            stage_attempt_id: stageAttemptId,
+            reason: 'user_restored_from_runtime_overview',
+          },
+          dryRun: false,
+        });
+        if (result.ok === false) {
+          messageRef.current.error(result.error?.message ?? t('common.runtime.archiveTask.restoreFailed'));
+          return;
+        }
+        await refreshAppState(true);
+        messageRef.current.success(t('common.runtime.archiveTask.restoreSuccess'));
+      } finally {
+        setRunningActionId(null);
+      }
+    },
+    [refreshAppState, t]
+  );
 
   const renderTaskRefCards = useCallback(
     (cards: RuntimeTaskDrilldown['evidenceCards']) =>
@@ -2118,6 +2191,13 @@ const RuntimePage: React.FC = () => {
                 {renderTaskRefCards(section.cards)}
               </div>
             ))}
+            {isArchivableTask(item.task) && (
+              <div className='flex justify-end'>
+                <Button status='warning' onClick={() => setPendingArchiveItem(item)}>
+                  {t('common.runtime.archiveTask.confirm')}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -2291,6 +2371,30 @@ const RuntimePage: React.FC = () => {
   return (
     <div className='w-full h-full overflow-auto box-border' style={{ background: '#f6f8fb', padding: '24px 32px' }}>
       {contextHolder}
+      <Modal
+        visible={Boolean(pendingArchiveItem)}
+        title={t('common.runtime.archiveTask.title')}
+        onCancel={() => setPendingArchiveItem(null)}
+        footer={
+          <div className='flex justify-end gap-8px'>
+            <Button onClick={() => setPendingArchiveItem(null)}>{t('common.cancel')}</Button>
+            <Button
+              type='primary'
+              status='warning'
+              loading={Boolean(runningActionId?.startsWith('archive:'))}
+              onClick={() => void confirmArchiveTask()}
+              data-testid='runtime-archive-confirm'
+            >
+              {t('common.runtime.archiveTask.confirm')}
+            </Button>
+          </div>
+        }
+        unmountOnExit
+      >
+        {pendingArchiveItem
+          ? t('common.runtime.archiveTask.description', { task: pendingArchiveItem.projectLabel })
+          : null}
+      </Modal>
       <div style={{ maxWidth: 1360, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className='flex flex-col gap-12px xl:flex-row xl:items-end xl:justify-between'>
           <div>
@@ -2515,17 +2619,24 @@ const RuntimePage: React.FC = () => {
                                   </Tag>
                                 )}
                               </div>
-                              <Typography.Text className='block mt-6px text-12px text-t-secondary'>
-                                {t('common.runtime.moduleWorkloadText', {
-                                  automation: item.automationRunningCount,
-                                  total: item.activeTaskCount,
-                                })}
-                              </Typography.Text>
-                              <Typography.Text className='block mt-2px text-12px text-t-secondary'>
-                                {item.latestActivityAt
-                                  ? formatRecentActivityHint(item.latestActivityAt, t)
-                                  : t('common.runtime.noRecentActivity')}
-                              </Typography.Text>
+                              {item.detail && (
+                                <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
+                                  {item.detail}
+                                </Typography.Text>
+                              )}
+                              {(item.activeTaskCount > 0 || item.automationRunningCount > 0) && (
+                                <Typography.Text className='block mt-4px text-12px text-t-secondary'>
+                                  {t('common.runtime.moduleWorkloadText', {
+                                    automation: item.automationRunningCount,
+                                    total: item.activeTaskCount,
+                                  })}
+                                </Typography.Text>
+                              )}
+                              {item.latestActivityAt && (
+                                <Typography.Text className='block mt-2px text-12px text-t-secondary'>
+                                  {formatRecentActivityHint(item.latestActivityAt, t)}
+                                </Typography.Text>
+                              )}
                             </div>
                           </div>
                         );
@@ -2582,6 +2693,50 @@ const RuntimePage: React.FC = () => {
                                     </Typography.Text>
                                   </div>
                                 ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {archivedAttempts.length > 0 && (
+                          <div className='flex flex-col gap-8px' data-testid='runtime-archived-attempts'>
+                            <Typography.Text className='font-600 text-t-primary'>
+                              {t('common.runtime.archiveTask.archivedTitle')}
+                            </Typography.Text>
+                            <Typography.Text className='text-12px text-t-secondary'>
+                              {t('common.runtime.archiveTask.archivedDescription')}
+                            </Typography.Text>
+                            <div className='flex flex-col divide-y divide-border-1'>
+                              {archivedAttempts.map((attempt) => {
+                                const stageAttemptId = stringValue(attempt.stage_attempt_id) ?? 'archived-attempt';
+                                const domainLabel =
+                                  humanizeRuntimeActor(stringValue(attempt.domain_id)) ??
+                                  t('common.runtime.unknownDomain');
+                                const stageLabel =
+                                  runtimeStageLabel(stringValue(attempt.stage_id), runtimeLanguage) ??
+                                  t('common.runtime.noCurrentStage');
+                                return (
+                                  <div
+                                    key={stageAttemptId}
+                                    className='flex items-center justify-between gap-12px py-8px'
+                                  >
+                                    <div className='min-w-0'>
+                                      <Typography.Text className='block text-13px text-t-primary'>
+                                        {domainLabel} · {stageLabel}
+                                      </Typography.Text>
+                                      <Typography.Text className='block mt-2px text-12px text-t-secondary'>
+                                        {stringValue(attempt.archived_at) ?? stageAttemptId}
+                                      </Typography.Text>
+                                    </div>
+                                    <Button
+                                      size='small'
+                                      loading={runningActionId === `restore:${stageAttemptId}`}
+                                      onClick={() => void restoreArchivedAttempt(attempt)}
+                                    >
+                                      {t('common.runtime.archiveTask.restore')}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
