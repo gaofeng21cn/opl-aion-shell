@@ -754,6 +754,11 @@ describe('RuntimeSettings app state bridge usage', () => {
                 module_id: 'oplbookforge',
                 status: 'ready',
               },
+              {
+                module_id: 'scholarskills',
+                health_status: 'missing',
+                git: null,
+              },
             ],
           },
           operator: {
@@ -1132,6 +1137,14 @@ describe('RuntimeSettings app state bridge usage', () => {
                   active_stage_id: 'module_runtime',
                   blocker_ref_count: 1,
                 },
+                {
+                  task_id: 'scholarskills',
+                  domain_id: 'scholarskills',
+                  title: 'scholarskills',
+                  state: 'missing',
+                  active_stage_id: 'module_runtime',
+                  blocker_ref_count: 1,
+                },
               ],
             },
           },
@@ -1169,6 +1182,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(screen.getByTestId('runtime-module-status-medautogrant')).toHaveTextContent(
       'common.runtime.projectStates.ready'
+    );
+    expect(screen.getByTestId('runtime-module-status-scholarskills')).toHaveTextContent('common.runtime.moduleMissing');
+    expect(screen.getByTestId('runtime-module-status-scholarskills')).not.toHaveTextContent(
+      'common.runtime.moduleDirty'
     );
     expect(screen.getAllByTestId('runtime-task-row').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('Publication evaluation');

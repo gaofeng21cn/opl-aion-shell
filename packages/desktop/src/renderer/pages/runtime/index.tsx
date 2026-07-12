@@ -944,7 +944,7 @@ function parseModuleStatusItems(
       latestActivityAt: null,
     };
   oplRecordList(oplRecord(appState.modules).items).forEach((item, index) => {
-    const status = oplString(item.status);
+    const status = oplString(item.status) ?? oplString(item.health_status);
     const moduleId = oplString(item.module_id);
     const title = humanizeModuleTitle(moduleId, oplString(item.display_name), `module-${index + 1}`);
     const dirty = oplRecord(item.git).dirty === true;
@@ -987,7 +987,10 @@ function parseModuleStatusItems(
       title,
       statusRaw: status,
       statusLabel: translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? existing?.statusLabel ?? status,
-      detail: needsAttention ? t('common.runtime.moduleDirty') : (existing?.detail ?? null),
+      detail:
+        status === 'missing'
+          ? t('common.runtime.moduleMissing')
+          : (existing?.detail ?? (status === 'dirty' ? t('common.runtime.moduleDirty') : null)),
       activeTaskCount: stats.activeTaskCount,
       automationRunningCount: stats.automationRunningCount,
       latestActivityAt: stats.latestActivityAt,
