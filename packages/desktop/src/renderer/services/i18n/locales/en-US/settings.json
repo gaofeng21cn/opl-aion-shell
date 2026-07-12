@@ -203,6 +203,7 @@
   "resources": "Resources & Connections",
   "maintenance": "Maintenance",
   "preferences": "Preferences",
+  "personalizationNav": "Personalization",
   "aboutMaintenanceMoved": "Updates and maintenance now live under Maintenance; this page keeps version and project links only.",
   "advancedSettings": "Advanced Settings",
   "addModel": "Add Model",
@@ -1922,6 +1923,7 @@
       "payloadRequiredHelp": "Choose a file or fill in the required configuration before running this action.",
       "confirmationRequired": "Confirms before changes",
       "moreActions": "More actions",
+      "availableActions": "Available actions",
       "technicalDetails": "Advanced details",
       "technicalState": "Raw status",
       "technicalActionId": "Action ID",
@@ -1950,6 +1952,29 @@
         "settings_run_webui_startup_maintenance": "Repair WebUI startup materials",
         "settings_diagnose_docker_webui": "Check WebUI status",
         "settings_open_docker_webui": "Open WebUI"
+      },
+      "actionButtons": {
+        "settings_install_docker_webui": "Install",
+        "settings_configure_webui_api_key": "Configure model access",
+        "settings_select_webui_seed": "Choose",
+        "settings_run_webui_startup_maintenance": "Check and repair",
+        "settings_diagnose_docker_webui": "Check status",
+        "settings_open_docker_webui": "Open"
+      },
+      "actionDescriptions": {
+        "settings_install_docker_webui": "Prepare the local or server components required by the browser workbench.",
+        "settings_configure_webui_api_key": "Open Models & Access to configure the credential used by the workbench.",
+        "settings_select_webui_seed": "Choose an image manifest and local template directory, then review before applying.",
+        "settings_run_webui_startup_maintenance": "Check startup materials and repair issues that are safe to handle.",
+        "settings_diagnose_docker_webui": "Refresh runtime status without changing the current configuration.",
+        "settings_open_docker_webui": "Open the ready workbench in a browser."
+      },
+      "seedForm": {
+        "title": "Choose WebUI image or template",
+        "manifestPath": "Image manifest path",
+        "seedDirectory": "Local template directory",
+        "help": "The next step only runs a precheck and shows the impact. Nothing is applied until you confirm.",
+        "review": "Review configuration"
       }
     },
     "connections": {
@@ -1997,12 +2022,14 @@
         "name": "Name",
         "type": "Connection type",
         "openAiCompatible": "OpenAI-compatible API",
+        "openAiCompatibleHelp": "OPL actions can use this connection. Test it after saving to verify that the endpoint and credential reference are reachable.",
         "endpoint": "Endpoint",
         "credential": "Credential reference",
         "codexCredential": "Selected Codex provider",
         "envCredential": "Environment variable",
         "envName": "Environment variable name",
-        "disabled": "Disabled"
+        "enabled": "Enable this connection",
+        "enabledHelp": "When off, the configuration is kept but OPL will not use or test this connection."
       },
       "actions": {
         "connection_createSuccess": "Connection added.",
@@ -2416,12 +2443,13 @@
       "saved": "Update channel saved.",
       "values": {
         "stable": "Stable",
+        "preview": "Preview",
         "nightly": "Nightly"
       }
     },
     "advancedDetails": {
       "title": "Advanced maintenance details",
-      "description": "Component state, module paths, maintenance receipts, and Codex session context are for troubleshooting or manual handling."
+      "description": "Component state, module paths, and maintenance receipts are for troubleshooting or manual handling."
     },
     "summary": {
       "nextAction": "Next step: {{action}}",
@@ -2676,10 +2704,6 @@
         "noFailure": "None"
       }
     },
-    "codexContext": {
-      "title": "Codex session context diagnostics",
-      "description": "OPL App capability-routing context used for new Codex CLI sessions. It follows the UI language, remains separate from user and repository AGENTS.md files, and is maintained by the OPL App product profile."
-    },
     "developerSource": {
       "title": "Local development folders are protected",
       "impact": "Automatic maintenance will still check status, but it will not overwrite local development folders.",
@@ -2688,6 +2712,8 @@
     }
   },
   "personalization": {
+    "pageTitle": "Personalization",
+    "pageDescription": "Manage persistent Codex instructions and the context used for new OPL App conversations.",
     "title": "Instructions and session context",
     "description": "Manage persistent Codex user instructions and the OPL agent-routing context used for new App conversations.",
     "systemAgentsTitle": "System AGENTS.md",

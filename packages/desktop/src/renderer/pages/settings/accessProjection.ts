@@ -23,6 +23,7 @@ export type DockerWebuiAction = {
   route: string;
   dryRunRoute: string;
   payloadRequired: boolean;
+  payloadFields: string[];
   confirmationRequired: boolean;
   dangerLevel: string;
 };
@@ -71,6 +72,9 @@ function readDockerAction(value: Record<string, unknown>): DockerWebuiAction | n
     route: oplString(value.route) ?? '',
     dryRunRoute: oplString(value.dry_run_route) ?? '',
     payloadRequired: value.payload_required === true,
+    payloadFields: Array.isArray(value.payload_fields)
+      ? value.payload_fields.filter((field): field is string => typeof field === 'string')
+      : [],
     confirmationRequired: value.confirmation_required === true,
     dangerLevel: oplString(value.danger_level) ?? 'unknown',
   };

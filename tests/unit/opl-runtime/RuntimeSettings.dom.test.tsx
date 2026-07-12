@@ -54,6 +54,8 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery':
           'The next recommendation remains visible.',
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run recommended repair',
+        'settings.oplEnvironmentPage.updateChannel.values.stable': '稳定版',
+        'settings.oplEnvironmentPage.updateChannel.values.preview': '预览版',
         'settings.oplEnvironmentPage.updates.components.unknown': 'OPL component',
         'settings.oplEnvironmentPage.updates.actions.previewChanges': 'Preview changes',
         'settings.runtimePage.taskRuns.artifactContext.ledgerRecord': 'Ledger record',
@@ -475,12 +477,15 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(within(diagnostics).getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
     expect(within(diagnostics).queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
+    expect(within(diagnostics).queryByText('settings.oplEnvironmentPage.codexContext.title')).not.toBeInTheDocument();
   });
 
   it('persists the update channel through the Framework configuration catalog action', async () => {
     render(<RuntimeSettings />);
 
     const select = await screen.findByTestId('settings-maintenance-update-channel-select');
+    expect(within(select).getByText('稳定版')).toBeInTheDocument();
+    expect(within(select).getByText('预览版')).toBeInTheDocument();
     fireEvent.click(within(select).getAllByRole('radio')[1]);
 
     await waitFor(() =>

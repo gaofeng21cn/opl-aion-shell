@@ -203,7 +203,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AppearanceModalContent', () => {
-  it('organizes preferences as full-width behavior, instructions, and display groups', async () => {
+  it('organizes preferences as full-width behavior, performance, and display groups', async () => {
     bridgeMocks.getStartOnBootStatus.mockResolvedValue({
       success: true,
       data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
@@ -229,7 +229,6 @@ describe('AppearanceModalContent', () => {
     expect(Array.from(page.querySelectorAll('section')).map((section) => section.id)).toEqual([
       'app-behavior',
       'models-performance',
-      'instructions-context',
       'display',
     ]);
     expect(screen.getByTestId('preferences-card-grid')).toHaveClass('flex', 'flex-col');
@@ -250,37 +249,7 @@ describe('AppearanceModalContent', () => {
     expect(performancePreferences).toHaveTextContent('Release an idle background assistant after');
     await waitFor(() => expect(performancePreferences).toHaveTextContent('Hardware acceleration'));
 
-    const instructions = screen.getByTestId('settings-preferences-instructions');
-    expect(instructions).toHaveTextContent('System AGENTS.md');
-    expect(instructions).toHaveTextContent('/Users/example/.codex/AGENTS.md');
-    expect(instructions).toHaveTextContent('Installed OPL Flow default version: 0.1.16');
-    expect(screen.getByRole('button', { name: 'Restore OPL Flow default' })).toBeEnabled();
-    expect(instructions).toHaveTextContent('OPL App session context');
-    expect(instructions).toHaveTextContent('Generated base context');
-    expect(instructions).toHaveTextContent('Additional user instructions');
-    expect(screen.getByTestId('settings-system-agents-editor')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-opl-app-context-editor')).toBeInTheDocument();
-    const contextEditors = screen.getByTestId('settings-opl-app-context-editor').querySelectorAll('textarea');
-    expect(contextEditors).toHaveLength(2);
-    expect(contextEditors[0]).toHaveAttribute('readonly');
-    expect(contextEditors[0]?.value).toContain('MAS (Med Auto Science)');
-    expect(contextEditors[1]).not.toHaveAttribute('readonly');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Restore OPL Flow default' }));
-    expect(bridgeMocks.confirmModal).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Restore system AGENTS.md?',
-        content: 'Replace with the installed OPL Flow default.',
-        okText: 'Restore OPL Flow default',
-      })
-    );
-    await waitFor(() =>
-      expect(bridgeMocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'codex_user_instructions_restore_opl_flow_default',
-        dryRun: false,
-        payloadJson: { expected_sha256: 'sha-current' },
-      })
-    );
+    expect(screen.queryByTestId('settings-personalization-instructions')).not.toBeInTheDocument();
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');

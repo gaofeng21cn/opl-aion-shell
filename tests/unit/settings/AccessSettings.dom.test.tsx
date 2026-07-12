@@ -601,13 +601,12 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).toContain('Could not save model preference.');
   });
 
-  it('keeps raw Codex fields behind the diagnostics modal', async () => {
+  it('does not repeat already visible access facts in a diagnostics modal', async () => {
     const view = render(<AccessSettingsContent />);
 
     expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
-    fireEvent.click(view.getByTestId('settings-access-diagnostics-action'));
-
-    expect(await view.findByTestId('settings-access-technical-details')).toHaveTextContent('/usr/local/bin/codex');
+    expect(view.queryByTestId('settings-access-diagnostics-action')).toBeNull();
+    expect(view.getByTestId('settings-access-codex-cli')).toHaveTextContent('gpt-5.5');
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {

@@ -85,6 +85,13 @@ const { controlPlane } = vi.hoisted(() => ({
         default_label_en: 'Preferences',
         slot_id: 'settings_theme',
       },
+      {
+        id: 'personalization',
+        path: '/settings/personalization',
+        label_key: 'settings.personalizationNav',
+        default_label_en: 'Personalization',
+        slot_id: 'settings_personalization',
+      },
     ],
     secondary_pages: [
       {
@@ -168,6 +175,10 @@ const { controlPlane } = vi.hoisted(() => ({
       settings_environment: { component_key: 'RuntimeSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_storage: { component_key: 'StorageSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_theme: { component_key: 'AppearanceModalContent', wrapper_policy: 'host_provides_wrapper' },
+      settings_personalization: {
+        component_key: 'PersonalizationSettingsContent',
+        wrapper_policy: 'host_provides_wrapper',
+      },
       settings_advanced: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
       settings_resources: { component_key: 'ResourcesSettingsContent', wrapper_policy: 'host_provides_wrapper' },
       about: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
@@ -206,6 +217,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'environment',
     'storage',
     'appearance',
+    'personalization',
   ],
   getOplGuiSettingsSecondaryPageIds: () => ['advanced', 'about'],
 }));
@@ -223,6 +235,7 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
+      'personalization',
     ]);
     expect(SETTINGS_DEFAULT_ROUTE).toBe('/settings/general');
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
@@ -234,6 +247,7 @@ describe('settingsNav App-owned tabs', () => {
       'Maintenance & Updates',
       'Data & Storage',
       'Preferences',
+      'Personalization',
     ]);
   });
 
@@ -266,6 +280,7 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
+      'personalization',
       'advanced',
       'about',
     ]);
@@ -382,6 +397,7 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
+      'personalization',
     ]);
   });
 
@@ -417,6 +433,7 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
+      'personalization',
     ]);
     expect(modalIds).toEqual(navIds);
   });

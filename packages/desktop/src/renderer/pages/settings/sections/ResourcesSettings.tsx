@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Alert, Button, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Input, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Earth, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
@@ -33,6 +33,7 @@ type DockerActionEvidence = {
   receiptSummary: string | null;
   receiptRef: string | null;
 };
+type DockerActionPayload = Record<string, string>;
 function assertOplCommandOk(result: OplCommandResult): void {
   if (result?.ok === false) {
     throw new Error(result.error?.message || result.error?.stderr || 'OPL command failed');
@@ -171,6 +172,9 @@ function dockerActionCtaLabel(
   action: DockerWebuiAction,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
+  const actionLabelKey = `settings.resourcesPage.docker.actionButtons.${action.actionId}`;
+  const translatedActionLabel = t(actionLabelKey, { defaultValue: '' });
+  if (translatedActionLabel) return translatedActionLabel;
   const kind = dockerActionKind(action);
   if (kind === 'open') return t('settings.resourcesPage.docker.openResource');
   if (kind === 'check') return t('settings.resourcesPage.docker.recheck');
@@ -201,6 +205,9 @@ export const ResourcesSettingsContent: React.FC = () => {
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [pendingDockerAction, setPendingDockerAction] = useState<DockerWebuiAction | null>(null);
+  const [pendingDockerPayload, setPendingDockerPayload] = useState<DockerActionPayload | null>(null);
+  const [seedAction, setSeedAction] = useState<DockerWebuiAction | null>(null);
+  const [seedForm, setSeedForm] = useState({ imageManifestPath: '', imageSeedDir: '' });
   const [actionEvidence, setActionEvidence] = useState<DockerActionEvidence | null>(null);
   const actionInFlightRef = useRef(false);
   const { dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
@@ -212,20 +219,24 @@ export const ResourcesSettingsContent: React.FC = () => {
   const nextDockerAction = primaryDockerAction ?? dockerWebui.actions[0] ?? null;
   const secondaryDockerActions = dockerWebui.actions.filter((action) => action !== primaryDockerAction);
 
-  const handleDockerAction = async (action: DockerWebuiAction) => {
+  const handleDockerAction = async (action: DockerWebuiAction, payload?: DockerActionPayload) => {
     if (actionInFlightRef.current) return;
     const kind = dockerActionKind(action);
     if (kind === 'modelAccess') {
       void navigate('/settings/access?section=opl-gateway');
       return;
     }
-    if (action.payloadRequired) return;
+    if (action.payloadRequired && !payload) {
+      if (action.actionId === 'settings_select_webui_seed') setSeedAction(action);
+      return;
+    }
     actionInFlightRef.current = true;
     setRunningActionId(action.actionId);
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId: action.actionId,
         dryRun: kind !== 'open' && kind !== 'check',
+        ...(payload ? { payloadRefsOnlyJson: payload } : {}),
       });
       assertOplCommandOk(result);
       if (kind === 'open') {
@@ -239,6 +250,7 @@ export const ResourcesSettingsContent: React.FC = () => {
       } else {
         setActionEvidence(dockerActionEvidence(result, action, 'precheck', t));
         setPendingDockerAction(action);
+        setPendingDockerPayload(payload ?? null);
         Message.success(t('settings.resourcesPage.docker.actionDryRunSuccess'));
       }
       if (kind === 'open' || kind === 'check') {
@@ -269,10 +281,12 @@ export const ResourcesSettingsContent: React.FC = () => {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId: action.actionId,
         dryRun: false,
+        ...(pendingDockerPayload ? { payloadRefsOnlyJson: pendingDockerPayload } : {}),
       });
       assertOplCommandOk(result);
       setActionEvidence(dockerActionEvidence(result, action, 'execute', t));
       setPendingDockerAction(null);
+      setPendingDockerPayload(null);
       Message.success(t('settings.resourcesPage.docker.actionExecuteSuccess'));
       await appStateQuery.load('fast', { showRefreshing: true });
     } catch {
@@ -281,6 +295,17 @@ export const ResourcesSettingsContent: React.FC = () => {
       actionInFlightRef.current = false;
       setRunningActionId(null);
     }
+  };
+
+  const submitSeedForm = () => {
+    if (!seedAction || !seedForm.imageManifestPath.trim() || !seedForm.imageSeedDir.trim()) return;
+    const action = seedAction;
+    const payload = {
+      image_manifest_path: seedForm.imageManifestPath.trim(),
+      image_seed_dir: seedForm.imageSeedDir.trim(),
+    };
+    setSeedAction(null);
+    void handleDockerAction(action, payload);
   };
 
   const executeConnectionAction = async (
@@ -439,7 +464,10 @@ export const ResourcesSettingsContent: React.FC = () => {
                     <Button
                       size='small'
                       disabled={runningActionId !== null}
-                      onClick={() => setPendingDockerAction(null)}
+                      onClick={() => {
+                        setPendingDockerAction(null);
+                        setPendingDockerPayload(null);
+                      }}
                     >
                       {t('common.cancel')}
                     </Button>
@@ -470,6 +498,54 @@ export const ResourcesSettingsContent: React.FC = () => {
               onAction={handleDockerAction}
             />
           )}
+
+          <Modal
+            visible={seedAction !== null}
+            title={t('settings.resourcesPage.docker.seedForm.title')}
+            footer={
+              <Space>
+                <Button onClick={() => setSeedAction(null)}>{t('common.cancel')}</Button>
+                <Button
+                  type='primary'
+                  disabled={!seedForm.imageManifestPath.trim() || !seedForm.imageSeedDir.trim()}
+                  onClick={submitSeedForm}
+                  data-testid='opl-settings-webui-seed-submit'
+                >
+                  {t('settings.resourcesPage.docker.seedForm.review')}
+                </Button>
+              </Space>
+            }
+            onCancel={() => setSeedAction(null)}
+            unmountOnExit
+          >
+            <div className='flex flex-col gap-14px' data-testid='opl-settings-webui-seed-form'>
+              <label className='flex flex-col gap-6px'>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.resourcesPage.docker.seedForm.manifestPath')}
+                </Typography.Text>
+                <Input
+                  value={seedForm.imageManifestPath}
+                  placeholder='/path/to/image-manifest.json'
+                  onChange={(imageManifestPath) => setSeedForm((current) => ({ ...current, imageManifestPath }))}
+                  data-testid='opl-settings-webui-seed-manifest'
+                />
+              </label>
+              <label className='flex flex-col gap-6px'>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.resourcesPage.docker.seedForm.seedDirectory')}
+                </Typography.Text>
+                <Input
+                  value={seedForm.imageSeedDir}
+                  placeholder='/path/to/webui-seed'
+                  onChange={(imageSeedDir) => setSeedForm((current) => ({ ...current, imageSeedDir }))}
+                  data-testid='opl-settings-webui-seed-directory'
+                />
+              </label>
+              <Typography.Text className='text-12px text-t-tertiary'>
+                {t('settings.resourcesPage.docker.seedForm.help')}
+              </Typography.Text>
+            </div>
+          </Modal>
         </section>
       </div>
 
@@ -591,7 +667,6 @@ const DockerActionButton: React.FC<{
   size?: 'mini' | 'small';
 }> = ({ action, loading, singleFlight, onAction, primary = false, size }) => {
   const { t } = useTranslation();
-  const needsUnavailableInput = action.payloadRequired && dockerActionKind(action) !== 'modelAccess';
   const actionButton = (
     <Button
       data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
@@ -599,18 +674,14 @@ const DockerActionButton: React.FC<{
       size={size}
       icon={<Open theme='outline' />}
       loading={loading}
-      disabled={needsUnavailableInput || singleFlight}
+      disabled={singleFlight}
       onClick={() => void onAction(action)}
     >
-      {needsUnavailableInput ? t('settings.resourcesPage.docker.payloadRequired') : dockerActionCtaLabel(action, t)}
+      {dockerActionCtaLabel(action, t)}
     </Button>
   );
 
-  return needsUnavailableInput ? (
-    <Tooltip content={t('settings.resourcesPage.docker.payloadRequiredHelp')}>{actionButton}</Tooltip>
-  ) : (
-    actionButton
-  );
+  return actionButton;
 };
 
 const DockerMoreActions: React.FC<{
@@ -619,52 +690,46 @@ const DockerMoreActions: React.FC<{
   onAction: (action: DockerWebuiAction) => void;
 }> = ({ actions, runningActionId, onAction }) => {
   const { t } = useTranslation();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-
   return (
-    <details
-      className='opl-settings-details'
-      data-testid='opl-settings-docker-webui-more-actions'
-      onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
-    >
-      <summary className='cursor-pointer text-12px text-t-secondary'>
-        {t('settings.resourcesPage.docker.moreActions')}
-      </summary>
-      {detailsOpen && (
-        <div className='opl-settings-list mt-10px'>
-          {actions.map((action) => (
-            <div
-              key={action.actionId}
-              className='opl-settings-row'
-              data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
-            >
-              <div className='opl-settings-row__main min-w-0'>
-                <Typography.Text className='block break-words font-600 text-t-primary'>
-                  {t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
-                    defaultValue: action.label,
-                  })}
-                </Typography.Text>
-              </div>
-              <div className='opl-settings-row__meta flex flex-wrap items-center gap-8px'>
-                {action.payloadRequired && (
-                  <Tag color='orange'>{t('settings.resourcesPage.docker.payloadRequired')}</Tag>
-                )}
-                {action.confirmationRequired && (
-                  <Tag color='gray'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>
-                )}
-                <DockerActionButton
-                  action={action}
-                  loading={runningActionId === action.actionId}
-                  singleFlight={runningActionId !== null}
-                  size='small'
-                  onAction={onAction}
-                />
-              </div>
+    <div className='border-t border-solid border-[var(--border-base)]' data-testid='opl-settings-docker-webui-actions'>
+      <div className='px-16px pt-14px text-12px font-600 text-t-secondary'>
+        {t('settings.resourcesPage.docker.availableActions')}
+      </div>
+      <div className='opl-settings-list mt-6px'>
+        {actions.map((action) => (
+          <div
+            key={action.actionId}
+            className='opl-settings-row'
+            data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
+          >
+            <div className='opl-settings-row__main min-w-0'>
+              <Typography.Text className='block break-words font-600 text-t-primary'>
+                {t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
+                  defaultValue: action.label,
+                })}
+              </Typography.Text>
+              <Typography.Text className='block break-words text-12px text-t-secondary'>
+                {t(`settings.resourcesPage.docker.actionDescriptions.${action.actionId}`, {
+                  defaultValue: action.label,
+                })}
+              </Typography.Text>
             </div>
-          ))}
-        </div>
-      )}
-    </details>
+            <div className='opl-settings-row__meta flex flex-wrap items-center gap-8px'>
+              {action.confirmationRequired && (
+                <Tag color='gray'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>
+              )}
+              <DockerActionButton
+                action={action}
+                loading={runningActionId === action.actionId}
+                singleFlight={runningActionId !== null}
+                size='small'
+                onAction={onAction}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 

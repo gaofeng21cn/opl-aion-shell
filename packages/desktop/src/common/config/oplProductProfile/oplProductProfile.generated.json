@@ -1211,7 +1211,8 @@
       "resources",
       "environment",
       "storage",
-      "appearance"
+      "appearance",
+      "personalization"
     ],
     "legacy_route_redirects": {
       "overview": "general",
@@ -1295,7 +1296,7 @@
         "id": "control_center",
         "label_zh": "控制中心",
         "label_en": "Control Center",
-        "positioning": "single App-owned OPL Control Center for overview, access, workspace, capabilities, resources and connections, maintenance and updates, data and storage, and preferences; advanced diagnostics stay secondary"
+        "positioning": "single App-owned OPL Control Center for overview, access, workspace, capabilities, resources and connections, maintenance and updates, data and storage, preferences, and personalization; advanced diagnostics stay secondary"
       },
       "ordinary_groups": [
         {
@@ -1357,6 +1358,19 @@
           "label_en": "Preferences",
           "role": "user_preferences_not_runtime_health",
           "ordinary_entries": ["settings_theme", "appearance", "language", "startup", "tray"]
+        },
+        {
+          "id": "personalization",
+          "label_zh": "个性化",
+          "label_en": "Personalization",
+          "role": "persistent_user_instructions_and_new_conversation_context",
+          "ordinary_entries": ["system-agents", "opl-app-context"],
+          "owns": [
+            "user_codex_agents_file",
+            "opl_flow_default_restore",
+            "opl_app_generated_context",
+            "additional_conversation_instructions"
+          ]
         },
         {
           "id": "advanced",
@@ -1433,6 +1447,14 @@
           "ia_group": "preferences",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
+        "personalization": {
+          "label_zh": "个性化",
+          "label_en": "Personalization",
+          "role": "persistent_user_instructions_and_new_conversation_context",
+          "primary_question": "What should Codex remember for every task, and what context should new OPL App conversations receive?",
+          "ia_group": "personalization",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
         "advanced": {
           "label_zh": "高级",
           "label_en": "Advanced",
@@ -1452,7 +1474,7 @@
       },
       "secondary_page_ids": ["advanced", "about"],
       "task_entry_policy": {
-        "ordinary_entry_model": "user_task_first_sections_inside_the_eight_OPL_Control_Center_entries",
+        "ordinary_entry_model": "user_task_first_sections_inside_the_nine_OPL_Control_Center_entries",
         "top_level_tab_policy": "do_not_add_new_shell_route_tabs_for_model_updates_web_tools_developer_profile_or_advanced_diagnostics; workspace_and_resources_are_user_visible_top_level_entries",
         "p0_entries": [
           "model_access",
@@ -1679,7 +1701,7 @@
             "configuration_id": "codex_user_instructions",
             "owner_class": "framework",
             "truth_owner": "user_codex_home",
-            "page_id": "preferences",
+            "page_id": "personalization",
             "anchor": "system-agents",
             "lifecycle": "persistent_user_instruction_file",
             "value_type": "markdown_text",
@@ -1699,7 +1721,7 @@
             "configuration_id": "opl_app_session_context",
             "owner_class": "app_local",
             "truth_owner": "one-person-lab-app",
-            "page_id": "preferences",
+            "page_id": "personalization",
             "anchor": "opl-app-context",
             "lifecycle": "persistent_new_conversation_configuration",
             "value_type": "generated_markdown_plus_optional_additional_text",
@@ -1891,7 +1913,8 @@
         "resources",
         "environment",
         "storage",
-        "appearance"
+        "appearance",
+        "personalization"
       ],
       "default_route": "/settings/general",
       "route_identity_policy": "keep_current_shell_route_ids_distinct_from_user_facing_ia_groups",
@@ -2047,6 +2070,25 @@
           "product_page_id": "preferences",
           "page_state_id": "settings_theme",
           "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.preferences"
+        },
+        {
+          "id": "personalization",
+          "path": "/settings/personalization",
+          "label_key": "settings.personalizationNav",
+          "default_label_en": "Personalization",
+          "default_label_zh": "个性化",
+          "icon_token": "personalization",
+          "ia_group": "personalization",
+          "slot_id": "settings_personalization",
+          "state_source": "opl app state --profile fast --json#codex_personalization + App local conversation context settings",
+          "refresh_source": "opl app state --profile fast --json",
+          "scope": "user",
+          "intent": "configure",
+          "risk": "reversible_with_stale_write_guard",
+          "frequency": "occasional",
+          "product_page_id": "personalization",
+          "page_state_id": "settings_personalization",
+          "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.personalization"
         }
       ],
       "secondary_pages": [
@@ -2144,6 +2186,10 @@
         },
         "settings_theme": {
           "component_key": "AppearanceModalContent",
+          "wrapper_policy": "host_provides_wrapper"
+        },
+        "settings_personalization": {
+          "component_key": "PersonalizationSettingsContent",
           "wrapper_policy": "host_provides_wrapper"
         },
         "settings_advanced": {
@@ -2386,7 +2432,8 @@
           "/settings/resources",
           "/settings/environment",
           "/settings/storage",
-          "/settings/appearance"
+          "/settings/appearance",
+          "/settings/personalization"
         ],
         "required_secondary_routes": ["/settings/advanced", "/settings/about"],
         "required_status_anchors": [
@@ -2595,11 +2642,11 @@
             ]
           },
           {
-            "id": "eight_entry_ia",
+            "id": "nine_entry_ia",
             "track": "ia_routes",
-            "goal": "The ordinary Settings IA has exactly eight product pages.",
+            "goal": "The ordinary Settings IA has exactly nine product pages.",
             "evidence_required": [
-              "top_level_entries contains overview/access/workspace/capabilities/resources/maintenance/storage/preferences",
+              "top_level_entries contains overview/access/workspace/capabilities/resources/maintenance/storage/preferences/personalization",
               "ordinary carrier routes map one-to-one to those product pages",
               "Advanced is not an ordinary route"
             ]
@@ -2744,7 +2791,7 @@
             "track": "user_task_ux",
             "goal": "Preferences explains timeout, tray, hardware acceleration, and themes in user language.",
             "evidence_required": [
-              "preferences anchors include behavior/instructions-context/system-agents/opl-app-context/display-fonts/themes",
+              "preferences anchors include behavior/notifications/models-performance/display-fonts/themes; personalization anchors include system-agents/opl-app-context",
               "raw milliseconds and Electron flags stay collapsed",
               "Preferences has inline controls and no page-level primary action"
             ]
@@ -2845,7 +2892,7 @@
       },
       "validation_policy": {
         "contract_checks": [
-          "ordinary carrier routes map to exactly eight product pages",
+          "ordinary carrier routes map to exactly nine product pages",
           "secondary_pages contains only advanced and about",
           "compatibility redirects resolve update, theme, and local-services to owner routes and anchors",
           "legacy redirects never redirect about to advanced",
@@ -3211,14 +3258,9 @@
               "label_en": "Configure model access"
             },
             "exception_state": "highlight missing, expired, or unreachable model access and the one corrective action",
-            "technical_details_boundary": "base URL, environment variables, token paths, candidate binaries, and raw provider ids appear only in a read-only diagnostic modal; displayed model and CLI facts are not repeated",
+            "technical_details_boundary": "no dedicated diagnostic disclosure; model, source, CLI version, authentication state, and corrective action are already shown on the owner surface",
             "required_dom": {
-              "always": [
-                "settings-page-access",
-                "settings-access-primary",
-                "settings-access-model-preference",
-                "settings-access-diagnostics-action"
-              ],
+              "always": ["settings-page-access", "settings-access-primary", "settings-access-model-preference"],
               "conditional": [
                 {
                   "testid": "settings-access-exception",
@@ -3227,10 +3269,6 @@
                 {
                   "testid": "settings-access-primary-action",
                   "when": "missing_or_user_requested_change"
-                },
-                {
-                  "testid": "settings-access-technical-details",
-                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -3262,12 +3300,7 @@
                 }
               ],
               "action": [],
-              "diagnostic": [
-                {
-                  "id": "access_technical_details",
-                  "owner": "access"
-                }
-              ]
+              "diagnostic": []
             }
           },
           "workspace": {
@@ -3739,15 +3772,12 @@
             "primary_information": [
               "application behavior including startup, close-window behavior, uploads, and reply waiting time",
               "notifications",
-              "system-level Codex user instructions from the user-owned AGENTS.md",
-              "OPL App new-conversation context with generated agent routing and optional additional instructions",
               "language, display scale, chat, Markdown, and code font sizes",
               "theme and appearance including hardware acceleration where relevant"
             ],
             "first_viewport_groups": [
               "application_behavior_and_notifications",
               "performance_and_waiting",
-              "instructions_and_session_context",
               "display_and_themes"
             ],
             "primary_action": {
@@ -3761,9 +3791,6 @@
               "always": [
                 "settings-page-preferences",
                 "settings-preferences-primary",
-                "settings-preferences-instructions",
-                "settings-system-agents-editor",
-                "settings-opl-app-context-editor",
                 "preferences-performance-section"
               ],
               "conditional": [
@@ -3773,37 +3800,18 @@
                 }
               ]
             },
-            "required_anchors": [
-              "behavior",
-              "notifications",
-              "models-performance",
-              "instructions-context",
-              "system-agents",
-              "opl-app-context",
-              "display-fonts",
-              "themes"
-            ],
+            "required_anchors": ["behavior", "notifications", "models-performance", "display-fonts", "themes"],
             "search_entry_ids": [
               "preferences.behavior",
               "preferences.notifications",
               "preferences.performance",
               "preferences.display_fonts",
-              "preferences.system_agents",
-              "preferences.opl_app_context",
               "preferences.themes"
             ],
             "surface_inventory": {
               "configuration": [
                 {
                   "id": "application_behavior_and_notifications",
-                  "owner": "preferences"
-                },
-                {
-                  "id": "codex_user_instructions",
-                  "owner": "preferences"
-                },
-                {
-                  "id": "opl_app_session_context",
                   "owner": "preferences"
                 },
                 {
@@ -3825,13 +3833,84 @@
               "diagnostic": []
             },
             "surface_rules": {
-              "full_width_group_count": 4,
+              "full_width_group_count": 3,
               "two_plus_one_grid_allowed": false,
               "builtin_theme_ids": ["light", "dark", "codex"],
               "extension_themes_default_visible": false,
               "custom_theme_management": "preserved",
               "interactive_controls_inside_diagnostic_surface_allowed": false,
               "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure"
+            }
+          },
+          "personalization": {
+            "product_page_id": "personalization",
+            "route_id": "personalization",
+            "matrix_page_id": "settings_personalization",
+            "label_zh": "个性化",
+            "label_en": "Personalization",
+            "primary_information": [
+              "system-level Codex user instructions from the user-owned AGENTS.md with stale-write protection and backup",
+              "restore the installed OPL Flow default instructions only after explicit confirmation",
+              "read-only OPL App generated base context for new conversations",
+              "editable additional instructions that apply to new OPL App conversations"
+            ],
+            "first_viewport_groups": ["system_agents", "opl_app_context"],
+            "primary_action": {
+              "id": "none",
+              "availability": "inline_controls_only",
+              "max_visible": 1
+            },
+            "exception_state": "show stale-write, oversized file, or unavailable OPL Flow default beside the affected editor only",
+            "technical_details_boundary": "no diagnostic disclosure; the editable user file path and installed OPL Flow default version may appear as supporting context",
+            "required_dom": {
+              "always": [
+                "settings-page-personalization",
+                "settings-personalization-primary",
+                "settings-personalization-instructions",
+                "settings-system-agents-editor",
+                "settings-opl-app-context-editor"
+              ],
+              "conditional": [
+                {
+                  "testid": "settings-personalization-exception",
+                  "when": "attention_required"
+                }
+              ]
+            },
+            "required_anchors": ["system-agents", "opl-app-context"],
+            "search_entry_ids": ["personalization.system_agents", "personalization.opl_app_context"],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "codex_user_instructions",
+                  "owner": "personalization"
+                },
+                {
+                  "id": "opl_app_session_context",
+                  "owner": "personalization"
+                }
+              ],
+              "status": [
+                {
+                  "id": "opl_flow_default_availability",
+                  "owner": "personalization"
+                }
+              ],
+              "action": [
+                {
+                  "id": "restore_opl_flow_default",
+                  "owner": "personalization"
+                }
+              ],
+              "diagnostic": []
+            },
+            "surface_rules": {
+              "full_width_group_count": 2,
+              "generated_base_context_editable": false,
+              "additional_instructions_editable": true,
+              "restore_default_confirmation_required": true,
+              "changes_apply_to": "next_new_conversation",
+              "workspace_scope_must_not_merge_here": true
             }
           },
           "advanced": {
@@ -4231,8 +4310,8 @@
               "keywords_en": ["display", "font", "scale", "hardware acceleration", "language"]
             },
             {
-              "id": "preferences.system_agents",
-              "page_id": "preferences",
+              "id": "personalization.system_agents",
+              "page_id": "personalization",
               "anchor": "system-agents",
               "label_zh": "系统级 AGENTS.md",
               "label_en": "System AGENTS.md",
@@ -4240,8 +4319,8 @@
               "keywords_en": ["instructions", "system prompt", "AGENTS.md", "personalization"]
             },
             {
-              "id": "preferences.opl_app_context",
-              "page_id": "preferences",
+              "id": "personalization.opl_app_context",
+              "page_id": "personalization",
               "anchor": "opl-app-context",
               "label_zh": "OPL App 会话上下文",
               "label_en": "OPL App session context",

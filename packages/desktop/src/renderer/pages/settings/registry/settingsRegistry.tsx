@@ -2,6 +2,7 @@ import {
   Communication,
   Computer,
   Dashboard,
+  EditTwo,
   Earth,
   FolderOpen,
   Lightning,
@@ -34,6 +35,7 @@ export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'environment',
   'storage',
   'appearance',
+  'personalization',
 ] as const;
 
 export type AppSettingsTopLevelTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
@@ -220,6 +222,7 @@ const SETTINGS_ICON_COLORS: Record<string, string> = {
   environment: 'rgb(var(--orange-6))',
   storage: 'rgb(var(--cyan-6))',
   appearance: 'rgb(var(--magenta-6))',
+  personalization: 'rgb(var(--purple-6))',
   advanced: 'rgb(var(--gray-6))',
   about: 'rgb(var(--blue-6))',
 };
@@ -277,6 +280,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
       capabilities: <Lightning theme='outline' size='20' fill={iconColor} />,
       access: <Earth theme='outline' size='20' fill={iconColor} />,
       appearance: <SwitchThemes theme='outline' size='20' fill={iconColor} />,
+      personalization: <EditTwo theme='outline' size='20' fill={iconColor} />,
       advanced: <SettingConfig theme='outline' size='20' fill={iconColor} />,
     };
     return modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColor} />;
@@ -296,6 +300,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
     environment: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
     storage: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
     appearance: <SwitchThemes fill={iconColor} style={{ color: iconColor }} />,
+    personalization: <EditTwo fill={iconColor} style={{ color: iconColor }} />,
     advanced: <System fill={iconColor} style={{ color: iconColor }} />,
   };
   return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle fill={iconColor} style={{ color: iconColor }} />;
@@ -566,6 +571,7 @@ type SettingsRouteComponentKey =
   | 'RuntimeSettings'
   | 'StorageSettings'
   | 'AppearanceModalContent'
+  | 'PersonalizationSettingsContent'
   | 'AboutModalContent'
   | 'SystemModalContent';
 
@@ -581,6 +587,7 @@ const ROUTE_COMPONENT_KEYS = new Set<string>([
   'RuntimeSettings',
   'StorageSettings',
   'AppearanceModalContent',
+  'PersonalizationSettingsContent',
   'AboutModalContent',
   'SystemModalContent',
 ]);

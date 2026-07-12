@@ -4,7 +4,7 @@ import { getOplCodexSessionContextForLocale } from '@/common/config/oplProductPr
 import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Input, Message, Modal } from '@arco-design/web-react';
-import { EditTwo, Refresh } from '@icon-park/react';
+import { EditTwo, MessageOne, Refresh } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -122,48 +122,33 @@ const OplPersonalizationSettings: React.FC = () => {
   const instructionsAlreadyDefault = defaultInstructionsAvailable && loadedSha256 === defaultInstructionsSha256;
 
   return (
-    <section className='opl-settings-section' id='instructions-context' data-testid='settings-preferences-instructions'>
-      <span id='system-agents' aria-hidden='true' />
-      <div className='opl-settings-section__header'>
-        <div className='flex min-w-0 items-start gap-12px'>
-          <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
-            <EditTwo theme='outline' size='16' />
-          </span>
-          <div className='min-w-0'>
-            <div className='text-14px font-medium text-t-primary leading-22px'>
-              {t('settings.personalization.title')}
-            </div>
-            <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-              {t('settings.personalization.description')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className='border-t border-solid border-[var(--border-base)] p-16px'
-        data-testid='settings-system-agents-editor'
-      >
-        <div className='flex min-w-0 flex-wrap items-start justify-between gap-12px'>
-          <div className='min-w-0'>
-            <div className='text-14px font-medium text-t-primary'>
-              {t('settings.personalization.systemAgentsTitle')}
-            </div>
-            <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-              {t('settings.personalization.systemAgentsDescription')}
-            </div>
-            {instructionsPath && <div className='mt-4px break-all text-11px text-t-tertiary'>{instructionsPath}</div>}
-            {defaultInstructionsAvailable ? (
-              <div className='mt-2px text-11px text-t-tertiary'>
-                {t('settings.personalization.oplFlowDefaultVersion', { version: defaultInstructionsVersion })}
+    <div className='flex flex-col gap-14px' data-testid='settings-personalization-instructions'>
+      <section className='opl-settings-section' id='system-agents' data-testid='settings-system-agents-editor'>
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-12px'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+              <EditTwo theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
+              <div className='text-14px font-medium text-t-primary'>
+                {t('settings.personalization.systemAgentsTitle')}
               </div>
-            ) : (
-              defaultInstructionsStatus && (
-                <div className='mt-2px text-11px text-warning'>
-                  {t('settings.personalization.oplFlowDefaultUnavailable')}
+              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                {t('settings.personalization.systemAgentsDescription')}
+              </div>
+              {instructionsPath && <div className='mt-4px break-all text-11px text-t-tertiary'>{instructionsPath}</div>}
+              {defaultInstructionsAvailable ? (
+                <div className='mt-2px text-11px text-t-tertiary'>
+                  {t('settings.personalization.oplFlowDefaultVersion', { version: defaultInstructionsVersion })}
                 </div>
-              )
-            )}
+              ) : (
+                defaultInstructionsStatus && (
+                  <div className='mt-2px text-11px text-warning'>
+                    {t('settings.personalization.oplFlowDefaultUnavailable')}
+                  </div>
+                )
+              )}
+            </div>
           </div>
           <div className='flex shrink-0 flex-wrap items-center justify-end gap-8px'>
             <Button
@@ -193,72 +178,78 @@ const OplPersonalizationSettings: React.FC = () => {
             </Button>
           </div>
         </div>
-        {instructionsUnavailable ? (
-          <div className='mt-12px text-12px text-danger'>{t('settings.personalization.systemAgentsTooLarge')}</div>
-        ) : (
-          <Input.TextArea
-            className='mt-12px'
-            value={instructionsDraft}
-            maxLength={256 * 1024}
-            autoSize={{ minRows: 7, maxRows: 14 }}
-            placeholder={t('settings.personalization.systemAgentsPlaceholder')}
-            onChange={setInstructionsDraft}
-          />
-        )}
-      </div>
+        <div className='border-t border-solid border-[var(--border-base)] p-16px'>
+          {instructionsUnavailable ? (
+            <div className='text-12px text-danger'>{t('settings.personalization.systemAgentsTooLarge')}</div>
+          ) : (
+            <Input.TextArea
+              value={instructionsDraft}
+              maxLength={256 * 1024}
+              autoSize={{ minRows: 7, maxRows: 14 }}
+              placeholder={t('settings.personalization.systemAgentsPlaceholder')}
+              onChange={setInstructionsDraft}
+            />
+          )}
+        </div>
+      </section>
 
-      <div
-        className='border-t border-solid border-[var(--border-base)] p-16px'
-        id='opl-app-context'
-        data-testid='settings-opl-app-context-editor'
-      >
-        <div className='min-w-0'>
-          <div className='text-14px font-medium text-t-primary'>
-            {t('settings.personalization.sessionContextTitle')}
-          </div>
-          <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-            {t('settings.personalization.sessionContextDescription')}
-          </div>
-        </div>
-        <div className='mt-12px text-12px font-medium text-t-secondary'>
-          {t('settings.personalization.generatedContextLabel')}
-        </div>
-        <Input.TextArea className='mt-6px' value={generatedContext} readOnly autoSize={{ minRows: 9, maxRows: 16 }} />
-        <div className='mt-12px text-12px font-medium text-t-secondary'>
-          {t('settings.personalization.additionalContextLabel')}
-        </div>
-        <Input.TextArea
-          className='mt-6px'
-          value={additionalContextDraft}
-          maxLength={64 * 1024}
-          placeholder={t('settings.personalization.additionalContextPlaceholder')}
-          autoSize={{ minRows: 4, maxRows: 10 }}
-          onChange={setAdditionalContextDraft}
-        />
-        <div className='mt-10px flex items-center justify-between gap-12px'>
-          <div className='text-12px text-t-tertiary'>{t('settings.personalization.nextConversationEffect')}</div>
-          <div className='flex shrink-0 items-center gap-8px'>
-            <Button
-              size='small'
-              loading={contextSaving}
-              disabled={!additionalContextDraft && !savedAdditionalContext}
-              onClick={() => void restoreSessionContextDefault()}
-            >
-              {t('settings.personalization.restoreDefault')}
-            </Button>
-            <Button
-              size='small'
-              type='primary'
-              loading={contextSaving}
-              disabled={!contextChanged}
-              onClick={() => void saveSessionContext()}
-            >
-              {t('settings.personalization.save')}
-            </Button>
+      <section className='opl-settings-section' id='opl-app-context' data-testid='settings-opl-app-context-editor'>
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-12px'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+              <MessageOne theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
+              <div className='text-14px font-medium text-t-primary'>
+                {t('settings.personalization.sessionContextTitle')}
+              </div>
+              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                {t('settings.personalization.sessionContextDescription')}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+        <div className='border-t border-solid border-[var(--border-base)] p-16px'>
+          <div className='text-12px font-medium text-t-secondary'>
+            {t('settings.personalization.generatedContextLabel')}
+          </div>
+          <Input.TextArea className='mt-6px' value={generatedContext} readOnly autoSize={{ minRows: 7, maxRows: 14 }} />
+          <div className='mt-12px text-12px font-medium text-t-secondary'>
+            {t('settings.personalization.additionalContextLabel')}
+          </div>
+          <Input.TextArea
+            className='mt-6px'
+            value={additionalContextDraft}
+            maxLength={64 * 1024}
+            placeholder={t('settings.personalization.additionalContextPlaceholder')}
+            autoSize={{ minRows: 4, maxRows: 10 }}
+            onChange={setAdditionalContextDraft}
+          />
+          <div className='mt-10px flex flex-wrap items-center justify-between gap-12px'>
+            <div className='text-12px text-t-tertiary'>{t('settings.personalization.nextConversationEffect')}</div>
+            <div className='flex shrink-0 items-center gap-8px'>
+              <Button
+                size='small'
+                loading={contextSaving}
+                disabled={!additionalContextDraft && !savedAdditionalContext}
+                onClick={() => void restoreSessionContextDefault()}
+              >
+                {t('settings.personalization.restoreDefault')}
+              </Button>
+              <Button
+                size='small'
+                type='primary'
+                loading={contextSaving}
+                disabled={!contextChanged}
+                onClick={() => void saveSessionContext()}
+              >
+                {t('settings.personalization.save')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 };
 

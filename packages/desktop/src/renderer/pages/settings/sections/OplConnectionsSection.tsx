@@ -40,6 +40,15 @@ const EMPTY_CONNECTION_FORM: ConnectionFormValue = {
 };
 const ENV_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
+function isHttpEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function buildConnectionRegistry(appState: Record<string, unknown>): ConnectionRegistry {
   const controlCenter = oplRecord(appState.settings_control_center);
   const registry = oplRecord(controlCenter.connection_registry);
@@ -111,6 +120,7 @@ const OplConnectionsSection: React.FC<{
   const busy = runningActionId !== null;
   const formValid =
     Boolean(formValue.connectionId.trim() && formValue.name.trim() && formValue.connectionType.trim()) &&
+    isHttpEndpoint(formValue.endpoint) &&
     (formValue.credentialKind === 'codex' || ENV_NAME_PATTERN.test(formValue.envName.trim()));
 
   const submitForm = async () => {
@@ -313,11 +323,16 @@ const OplConnectionsSection: React.FC<{
               }
               data-testid='opl-connection-field-type'
             />
+            <Typography.Text className='text-12px text-t-tertiary'>
+              {t('settings.resourcesPage.oplConnections.form.openAiCompatibleHelp')}
+            </Typography.Text>
           </ConnectionField>
           <ConnectionField label={t('settings.resourcesPage.oplConnections.form.endpoint')}>
             <Input
               value={formValue.endpoint}
+              status={formValue.endpoint && !isHttpEndpoint(formValue.endpoint) ? 'error' : undefined}
               onChange={(endpoint) => setFormValue((current) => ({ ...current, endpoint }))}
+              placeholder='https://api.example.com/v1'
               data-testid='opl-connection-field-endpoint'
             />
           </ConnectionField>
@@ -345,13 +360,24 @@ const OplConnectionsSection: React.FC<{
               />
             </ConnectionField>
           )}
-          <ConnectionField label={t('settings.resourcesPage.oplConnections.form.disabled')}>
-            <Switch
-              checked={formValue.disabled}
-              onChange={(disabled) => setFormValue((current) => ({ ...current, disabled }))}
-              data-testid='opl-connection-field-disabled'
-            />
-          </ConnectionField>
+          {formMode === 'edit' && (
+            <div className='flex items-center justify-between gap-12px'>
+              <div className='min-w-0'>
+                <Typography.Text className='block text-13px text-t-primary'>
+                  {t('settings.resourcesPage.oplConnections.form.enabled')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-tertiary'>
+                  {t('settings.resourcesPage.oplConnections.form.enabledHelp')}
+                </Typography.Text>
+              </div>
+              <Switch
+                size='small'
+                checked={!formValue.disabled}
+                onChange={(enabled) => setFormValue((current) => ({ ...current, disabled: !enabled }))}
+                data-testid='opl-connection-field-enabled'
+              />
+            </div>
+          )}
         </div>
       </Modal>
 

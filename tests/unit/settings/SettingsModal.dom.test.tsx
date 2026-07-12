@@ -110,6 +110,11 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalCo
   ),
 }));
 
+vi.mock('@/renderer/pages/settings/sections/PersonalizationSettings', () => ({
+  PersonalizationSettingsContent: () => <div data-testid='personalization-content'>Personalization content</div>,
+  default: () => <div data-testid='personalization-content'>Personalization content</div>,
+}));
+
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
   default: () => <div data-testid='skills-content'>Skills</div>,
 }));
@@ -158,6 +163,7 @@ vi.mock('react-i18next', () => ({
         'settings.onboarding': 'Access',
         'settings.resources': 'Resources & Connections',
         'settings.preferences': 'Preferences',
+        'settings.personalizationNav': 'Personalization',
         'settings.advanced': 'Advanced',
         'settings.about': 'About',
         'settings.model': 'Model',
@@ -214,6 +220,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByText('Personalization')).toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
@@ -239,6 +246,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByText('Personalization')).toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();

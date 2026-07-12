@@ -203,6 +203,7 @@
   "resources": "资源与连接",
   "maintenance": "维护",
   "preferences": "偏好",
+  "personalizationNav": "个性化",
   "aboutMaintenanceMoved": "更新与维护已移到“维护”页；本页只保留版本和项目链接。",
   "advancedSettings": "高级设置",
   "addModel": "添加模型",
@@ -1923,6 +1924,7 @@
       "payloadRequiredHelp": "这个操作需要先选择文件或填写配置。",
       "confirmationRequired": "变更前确认",
       "moreActions": "更多操作",
+      "availableActions": "可用操作",
       "technicalDetails": "高级详情",
       "technicalState": "原始状态",
       "technicalActionId": "动作 ID",
@@ -1951,6 +1953,29 @@
         "settings_run_webui_startup_maintenance": "修复 WebUI 启动材料",
         "settings_diagnose_docker_webui": "检查 WebUI 状态",
         "settings_open_docker_webui": "打开 WebUI"
+      },
+      "actionButtons": {
+        "settings_install_docker_webui": "安装",
+        "settings_configure_webui_api_key": "配置模型访问",
+        "settings_select_webui_seed": "选择",
+        "settings_run_webui_startup_maintenance": "检查并修复",
+        "settings_diagnose_docker_webui": "检查状态",
+        "settings_open_docker_webui": "打开"
+      },
+      "actionDescriptions": {
+        "settings_install_docker_webui": "准备运行浏览器工作台所需的本机或服务器组件。",
+        "settings_configure_webui_api_key": "前往模型与访问，配置工作台调用模型所需的凭据。",
+        "settings_select_webui_seed": "指定镜像清单和本地模板目录，先预检再应用。",
+        "settings_run_webui_startup_maintenance": "检查启动材料并修复可安全处理的问题。",
+        "settings_diagnose_docker_webui": "重新读取运行状态，不修改现有配置。",
+        "settings_open_docker_webui": "在浏览器中打开已经就绪的工作台。"
+      },
+      "seedForm": {
+        "title": "选择 WebUI 镜像或模板",
+        "manifestPath": "镜像清单路径",
+        "seedDirectory": "本地模板目录",
+        "help": "下一步只执行预检并展示影响；确认后才会应用这组路径。",
+        "review": "检查配置"
       }
     },
     "connections": {
@@ -1998,12 +2023,14 @@
         "name": "名称",
         "type": "连接类型",
         "openAiCompatible": "OpenAI 兼容 API",
+        "openAiCompatibleHelp": "连接可供 OPL action 使用；保存后请执行一次测试，确认服务地址和凭据引用真实可达。",
         "endpoint": "服务地址",
         "credential": "凭据引用",
         "codexCredential": "当前选择的 Codex Provider",
         "envCredential": "环境变量",
         "envName": "环境变量名称",
-        "disabled": "停用"
+        "enabled": "启用此连接",
+        "enabledHelp": "关闭后保留配置，但 OPL 不会使用或测试此连接。"
       },
       "actions": {
         "connection_createSuccess": "连接已添加。",
@@ -2417,12 +2444,13 @@
       "saved": "更新通道已保存。",
       "values": {
         "stable": "稳定版",
+        "preview": "预览版",
         "nightly": "每夜构建"
       }
     },
     "advancedDetails": {
       "title": "高级维护详情",
-      "description": "组件状态、模块路径、维护回执和 Codex 会话上下文只在排查或手动处理时查看。"
+      "description": "组件状态、模块路径和维护回执只在排查或手动处理时查看。"
     },
     "summary": {
       "nextAction": "下一步：{{action}}",
@@ -2677,10 +2705,6 @@
         "noFailure": "无"
       }
     },
-    "codexContext": {
-      "title": "Codex 会话上下文诊断",
-      "description": "新建 Codex CLI 会话使用的 OPL App 能力路由上下文。它跟随界面语言，独立于用户和仓库 AGENTS.md，并由 OPL App 产品配置维护。"
-    },
     "developerSource": {
       "title": "本机开发目录受保护",
       "impact": "自动维护会继续检查状态，但不会覆盖本机开发目录。",
@@ -2689,6 +2713,8 @@
     }
   },
   "personalization": {
+    "pageTitle": "个性化",
+    "pageDescription": "管理 Codex 的长期指令，以及新建 OPL App 对话时使用的上下文。",
     "title": "指令与会话上下文",
     "description": "管理 Codex 长期遵循的用户指令，以及 OPL App 新对话使用的智能体路由说明。",
     "systemAgentsTitle": "系统级 AGENTS.md",

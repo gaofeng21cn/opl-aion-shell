@@ -58,14 +58,6 @@ const createResourceSources = () => ({
   },
 });
 
-const openDetailsFor = (summary: HTMLElement) => {
-  const details = summary.closest('details') as HTMLDetailsElement | null;
-  expect(details).toBeTruthy();
-  if (!details) return;
-  details.open = true;
-  fireEvent(details, new Event('toggle'));
-};
-
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -338,6 +330,7 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.docker.payloadRequiredHelp': '这个操作需要先选择文件或填写配置。',
         'settings.resourcesPage.docker.confirmationRequired': '变更前确认',
         'settings.resourcesPage.docker.moreActions': '更多操作',
+        'settings.resourcesPage.docker.availableActions': '可用操作',
         'settings.resourcesPage.docker.technicalDetails': '高级详情',
         'settings.resourcesPage.docker.technicalState': '原始状态',
         'settings.resourcesPage.docker.technicalActionId': '动作 ID',
@@ -360,6 +353,21 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.docker.actions.settings_select_webui_seed': '选择 WebUI 镜像或模板',
         'settings.resourcesPage.docker.actions.settings_diagnose_docker_webui': '检查 WebUI 状态',
         'settings.resourcesPage.docker.actions.settings_open_docker_webui': '打开 WebUI',
+        'settings.resourcesPage.docker.actionButtons.settings_install_docker_webui': '安装',
+        'settings.resourcesPage.docker.actionButtons.settings_configure_webui_api_key': '配置模型访问',
+        'settings.resourcesPage.docker.actionButtons.settings_select_webui_seed': '选择',
+        'settings.resourcesPage.docker.actionButtons.settings_diagnose_docker_webui': '检查状态',
+        'settings.resourcesPage.docker.actionButtons.settings_open_docker_webui': '打开',
+        'settings.resourcesPage.docker.actionDescriptions.settings_install_docker_webui': '准备工作台运行组件。',
+        'settings.resourcesPage.docker.actionDescriptions.settings_configure_webui_api_key': '配置模型访问。',
+        'settings.resourcesPage.docker.actionDescriptions.settings_select_webui_seed': '指定镜像和模板路径。',
+        'settings.resourcesPage.docker.actionDescriptions.settings_diagnose_docker_webui': '读取工作台状态。',
+        'settings.resourcesPage.docker.actionDescriptions.settings_open_docker_webui': '打开已就绪的工作台。',
+        'settings.resourcesPage.docker.seedForm.title': '选择 WebUI 镜像或模板',
+        'settings.resourcesPage.docker.seedForm.manifestPath': '镜像清单路径',
+        'settings.resourcesPage.docker.seedForm.seedDirectory': '本地模板目录',
+        'settings.resourcesPage.docker.seedForm.help': '先检查，再确认。',
+        'settings.resourcesPage.docker.seedForm.review': '检查配置',
         'settings.resourcesPage.connections.title': '云端与外部环境',
         'settings.resourcesPage.connections.description': '展示任务可以使用的云端、工作区和外部环境。',
         'settings.resourcesPage.connections.workspaceTitle': 'OPL Workspace',
@@ -518,6 +526,7 @@ describe('ResourcesSettingsContent', () => {
     const view = renderResources();
 
     fireEvent.click(view.getByTestId('opl-settings-add-connection'));
+    expect(view.queryByTestId('opl-connection-field-enabled')).toBeNull();
     fireEvent.change(view.getByTestId('opl-connection-field-id'), { target: { value: 'research-api' } });
     fireEvent.change(view.getByTestId('opl-connection-field-name'), { target: { value: 'Research API' } });
     fireEvent.change(view.getByTestId('opl-connection-field-endpoint'), {
@@ -562,13 +571,13 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getAllByText('OPL Workspace')).toHaveLength(1);
     expect(view.getByText('云端与外部环境')).toBeTruthy();
     expect(view.getAllByText('未验证').length).toBeGreaterThan(0);
-    expect(view.getByText('重新检查')).toBeTruthy();
+    expect(view.getByText('检查状态')).toBeTruthy();
     expect(view.queryByText('可用')).toBeNull();
-    expect(view.queryByText('打开 WebUI')).toBeNull();
-    expect(view.queryByText('准备服务器/托管 WebUI')).toBeNull();
-    expect(view.queryByText('配置 WebUI 模型访问')).toBeNull();
-    expect(view.queryByText('选择 WebUI 镜像或模板')).toBeNull();
-    expect(view.getByText('更多操作')).toBeTruthy();
+    expect(view.getByText('打开 WebUI')).toBeTruthy();
+    expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
+    expect(view.getByText('配置 WebUI 模型访问')).toBeTruthy();
+    expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
+    expect(view.getByText('可用操作')).toBeTruthy();
     expect(view.getByTestId('opl-settings-workspace-resource-sources')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
@@ -583,13 +592,7 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('技术引用');
     expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
 
-    openDetailsFor(view.getByText('更多操作'));
-    expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
-    expect(view.getByText('配置 WebUI 模型访问')).toBeTruthy();
-    expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
-    expect(view.getByText('打开 WebUI')).toBeTruthy();
-    expect(view.getAllByText('需要填写信息').length).toBeGreaterThan(0);
-    expect(view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed')).toBeDisabled();
+    expect(view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed')).toBeEnabled();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('attention_needed');
@@ -690,7 +693,6 @@ describe('ResourcesSettingsContent', () => {
     });
     const view = renderResources();
 
-    openDetailsFor(view.getByText('更多操作'));
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_open_docker_webui'));
 
     await waitFor(() =>
@@ -706,7 +708,6 @@ describe('ResourcesSettingsContent', () => {
   it('routes model access setup to the Access page anchor without executing an action', () => {
     const view = renderResources();
 
-    openDetailsFor(view.getByText('更多操作'));
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_configure_webui_api_key'));
 
     expect(getMocks().navigate).toHaveBeenCalledWith('/settings/access?section=opl-gateway');
@@ -747,17 +748,38 @@ describe('ResourcesSettingsContent', () => {
     expect(view.queryAllByText('OPL Workspace')).toHaveLength(0);
   });
 
-  it('shows a blocked next step when every projected action requires an input flow', () => {
+  it('passes WebUI seed paths through precheck before confirmation', async () => {
     getMocks().payloadOnly = true;
+    getMocks().executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: { app_action_execution: { result: { settings_control_center_action: { status: 'precheck_passed' } } } },
+    });
     const view = renderResources();
 
-    expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
-    expect(view.getByText('需要填写信息')).toBeTruthy();
+    expect(view.getAllByText('选择 WebUI 镜像或模板').length).toBeGreaterThan(0);
     expect(view.queryByText('settings.resourcesPage.docker.noActions')).toBeNull();
     expect(view.queryByTestId('settings-resources-primary-action')).toBeNull();
-    openDetailsFor(view.getByText('更多操作'));
-    expect(view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed')).toBeDisabled();
-    expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed'));
+    expect(view.getByTestId('opl-settings-webui-seed-form')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-webui-seed-submit')).toBeDisabled();
+    fireEvent.change(view.getByTestId('opl-settings-webui-seed-manifest'), {
+      target: { value: '/opt/opl/webui/image-manifest.json' },
+    });
+    fireEvent.change(view.getByTestId('opl-settings-webui-seed-directory'), {
+      target: { value: '/opt/opl/webui/seed' },
+    });
+    fireEvent.click(view.getByTestId('opl-settings-webui-seed-submit'));
+    await waitFor(() =>
+      expect(getMocks().executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_select_webui_seed',
+        dryRun: true,
+        payloadRefsOnlyJson: {
+          image_manifest_path: '/opt/opl/webui/image-manifest.json',
+          image_seed_dir: '/opt/opl/webui/seed',
+        },
+      })
+    );
+    expect(view.getByTestId('opl-settings-docker-webui-confirmation')).toBeTruthy();
   });
 
   it('requires a successful precheck and explicit confirmation before a deployment action executes', async () => {
@@ -778,7 +800,6 @@ describe('ResourcesSettingsContent', () => {
     mocks.executeActionInvoke.mockReturnValueOnce(executeDeferred.promise);
     const view = renderResources();
 
-    openDetailsFor(view.getByText('更多操作'));
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
 
     await waitFor(() =>

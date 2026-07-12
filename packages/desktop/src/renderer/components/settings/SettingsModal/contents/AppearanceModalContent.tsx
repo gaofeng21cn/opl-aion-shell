@@ -16,7 +16,6 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { FONT_SIZE_KEYS, FONT_SIZE_SPECS, FONT_SIZE_STEP, type FontSizeKey } from '@/common/config/fontSizes';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import PersonalPreferenceSettings from './SystemModalContent/PersonalPreferenceSettings';
-import OplPersonalizationSettings from './SystemModalContent/OplPersonalizationSettings';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Map each configurable font-size region to its row label i18n key. */
@@ -88,7 +87,6 @@ const AppearanceModalContent: React.FC = () => {
 
           <div className='flex min-w-0 flex-col gap-12px' data-testid='preferences-card-grid'>
             <PersonalPreferenceSettings />
-            <OplPersonalizationSettings />
 
             <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
               <span id='display-fonts' aria-hidden='true' />

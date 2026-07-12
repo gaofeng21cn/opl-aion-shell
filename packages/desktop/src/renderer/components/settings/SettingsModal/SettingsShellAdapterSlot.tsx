@@ -16,6 +16,7 @@ import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServi
 import StorageSettings from '@/renderer/pages/settings/StorageSettings';
 import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
 import { ResourcesSettingsContent } from '@/renderer/pages/settings/sections/ResourcesSettings';
+import { PersonalizationSettingsContent } from '@/renderer/pages/settings/sections/PersonalizationSettings';
 import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 
 export type SettingsShellAdapterSlotProps = {
@@ -39,6 +40,7 @@ const settingsSlotRenderers: Record<string, SettingsSlotRenderer> = {
   AccessSettingsContent: () => <AccessSettingsContent />,
   ResourcesSettingsContent: () => <ResourcesSettingsContent />,
   AppearanceModalContent: () => <AppearanceModalContent />,
+  PersonalizationSettingsContent: () => <PersonalizationSettingsContent />,
   AboutModalContent: () => <AboutModalContent />,
   SystemModalContent: () => <SystemModalContent />,
   StorageSettings: () => <StorageSettings withWrapper={false} />,

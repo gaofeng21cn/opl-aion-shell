@@ -21,7 +21,7 @@ import { Copy, FolderSearch, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { getOplCodexSessionContext, getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
+import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
@@ -1153,8 +1153,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     void ipcBridge.shell.openFolderWith.invoke({ folder_path: logsRoot, tool: 'explorer' });
   }, [logsRoot]);
 
-  const codexSessionContext = useMemo(() => getOplCodexSessionContext(), []);
-
   const content = (
     <>
       {contextHolder}
@@ -1503,16 +1501,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                           })}
                         </div>
                       </div>
-                    </div>
-                  </Collapse.Item>
-                  <Collapse.Item header={t('settings.oplEnvironmentPage.codexContext.title')} name='codex-context'>
-                    <div className='flex flex-col gap-8px'>
-                      <Typography.Text className='text-12px text-t-secondary'>
-                        {t('settings.oplEnvironmentPage.codexContext.description')}
-                      </Typography.Text>
-                      <pre className='m-0 p-12px rd-8px bg-fill-2 text-12px text-t-primary whitespace-pre-wrap break-words max-h-280px overflow-auto'>
-                        {codexSessionContext}
-                      </pre>
                     </div>
                   </Collapse.Item>
                 </Collapse>

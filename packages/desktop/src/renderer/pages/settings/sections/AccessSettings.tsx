@@ -5,12 +5,12 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Input, Message, Modal, Select, Typography } from '@arco-design/web-react';
+import { Button, Input, Message, Select, Typography } from '@arco-design/web-react';
 import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection } from '../accessProjection';
@@ -41,13 +41,10 @@ export const AccessSettingsContent: React.FC = () => {
     codexPreference?.preferredReasoningEffort?.trim() || modelOptions.default_reasoning_effort
   );
   const [preferenceSaving, setPreferenceSaving] = useState(false);
-  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [codexApiKey, setCodexApiKey] = useState('');
   const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
-  const appStateCore = oplRecord(appStateQuery.appState.core);
-  const codexState = oplRecord(appStateCore.codex);
   const modelAccessCard = cards.find((card) => card.key === 'account');
   const codexCard = cards.find((card) => card.key === 'model');
   const modelAccessNeedsAttention = modelAccessCard?.tone === 'orange';
@@ -355,32 +352,6 @@ export const AccessSettingsContent: React.FC = () => {
           </div>
         </div>
       </section>
-
-      <div className='flex justify-end'>
-        <Button data-testid='settings-access-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
-          {t('common.technical_details')}
-        </Button>
-      </div>
-      <Modal
-        visible={diagnosticsVisible}
-        title={t('common.technical_details')}
-        footer={null}
-        onCancel={() => setDiagnosticsVisible(false)}
-        unmountOnExit
-        style={{ width: 'min(680px, calc(100vw - 48px))' }}
-      >
-        <div
-          className='opl-settings-surface--diagnostic flex flex-col gap-8px text-12px text-t-secondary'
-          data-testid='settings-access-technical-details'
-        >
-          <span className='break-all'>
-            {oplString(codexState.binary_path) ??
-              t('settings.accessPage.modelPreference.notReported', { defaultValue: 'Codex path not reported' })}
-          </span>
-          <span>{oplString(codexState.model_access_source) ?? modelAccessStatus}</span>
-          <span>{oplString(codexState.status) ?? t('settings.accessPage.statusLabels.unknown')}</span>
-        </div>
-      </Modal>
     </div>
   );
 };
