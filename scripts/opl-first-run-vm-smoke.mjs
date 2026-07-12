@@ -33,6 +33,7 @@ const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runt
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
 const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
+const FULL_ASSISTANT_READINESS_TIMEOUT_MS = 180_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
@@ -4457,7 +4458,7 @@ async function runAssistantRouteSmoke(options, secret) {
         const selected = await waitForCdpPredicate(
           client,
           homeAssistantRouteSelectionExpression(assistantTarget),
-          30_000,
+          Math.min(options.timeoutMs, FULL_ASSISTANT_READINESS_TIMEOUT_MS),
           `Could not select OPL built-in assistant: ${assistantTarget.id}`
         );
         if (selected?.status === 'failed') {
@@ -5862,6 +5863,7 @@ export const __test =
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
+        FULL_ASSISTANT_READINESS_TIMEOUT_MS,
         pageReadinessExpression,
         advancedPathsStatusExpression,
         runtimeActionEvidenceExpression,

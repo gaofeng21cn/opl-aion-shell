@@ -885,6 +885,7 @@ describe('packaged first-run VM smoke helpers', () => {
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
     const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
 
+    expect(__test.FULL_ASSISTANT_READINESS_TIMEOUT_MS).toBe(180_000);
     expect(selectionExpression).toContain('preset-pill-med-autoscience');
     expect(selectionExpression).toContain('preset-pill-research');
     expect(selectionExpression).toContain('home-starter-med-autoscience');

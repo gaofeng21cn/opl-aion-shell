@@ -8,7 +8,12 @@ import {
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
 import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
-import { shouldRefreshOplPackageState } from '@/renderer/hooks/opl/useOplAppState';
+import {
+  OPL_PACKAGE_STATE_MAX_REFRESHES,
+  OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS,
+  resolveOplPackageStateRefreshInterval,
+  shouldRefreshOplPackageState,
+} from '@/renderer/hooks/opl/useOplAppState';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -162,6 +167,16 @@ describe('OPL home assistants', () => {
 
     expect(shouldRefreshOplPackageState(runtimeResult('package_not_installed'))).toBe(true);
     expect(shouldRefreshOplPackageState(runtimeResult(null))).toBe(false);
+    expect(resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), 0)).toBe(
+      OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS
+    );
+    expect(
+      resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), OPL_PACKAGE_STATE_MAX_REFRESHES - 1)
+    ).toBe(OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS);
+    expect(
+      resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), OPL_PACKAGE_STATE_MAX_REFRESHES)
+    ).toBe(0);
+    expect(resolveOplPackageStateRefreshInterval(runtimeResult(null), 0)).toBe(0);
   });
 
   it('fails closed when a known professional package is absent from the runtime status index', () => {

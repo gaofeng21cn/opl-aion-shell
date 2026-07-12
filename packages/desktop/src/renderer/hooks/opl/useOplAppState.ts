@@ -5,6 +5,9 @@ import useSWR from 'swr';
 
 type JsonRecord = Record<string, unknown>;
 
+export const OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS = 2000;
+export const OPL_PACKAGE_STATE_MAX_REFRESHES = 150;
+
 export type OplAppState = {
   schema_version?: string;
   surface_kind?: string;
@@ -53,12 +56,21 @@ export function shouldRefreshOplPackageState(result: IOplRuntimeCommandResult | 
   return statuses.some((status) => readOplString(status, 'launch_blocked_reason') === 'package_not_installed');
 }
 
+export function resolveOplPackageStateRefreshInterval(
+  result: IOplRuntimeCommandResult | null | undefined,
+  refreshCount: number
+): number {
+  return shouldRefreshOplPackageState(result) && refreshCount < OPL_PACKAGE_STATE_MAX_REFRESHES
+    ? OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS
+    : 0;
+}
+
 export function useOplAppState(profile: IOplAppStateProfile = 'fast') {
   const blockedRefreshCount = useRef(0);
   const swr = useSWR(['opl-app-state', profile], () => ipcBridge.oplRuntime.getAppState.invoke({ profile }), {
     revalidateOnFocus: false,
     dedupingInterval: 5000,
-    refreshInterval: (latest) => (shouldRefreshOplPackageState(latest) && blockedRefreshCount.current < 30 ? 2000 : 0),
+    refreshInterval: (latest) => resolveOplPackageStateRefreshInterval(latest, blockedRefreshCount.current),
     onSuccess: (latest) => {
       if (shouldRefreshOplPackageState(latest)) {
         blockedRefreshCount.current += 1;
