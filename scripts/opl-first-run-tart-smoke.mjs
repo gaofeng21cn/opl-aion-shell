@@ -15,7 +15,7 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGTERM', 143],
 ]);
 const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
-const REQUIRED_ASSISTANT_ROUTE_IDS = ['med-autoscience', 'med-autogrant', 'redcube-ai'];
+const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];
 const SMOKE_PROFILES = new Map([
   [
     'full-gate',

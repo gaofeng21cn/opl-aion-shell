@@ -74,28 +74,28 @@ const FULL_RUNTIME_MODULES = [
 ];
 const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   {
-    id: 'med-autoscience',
+    id: 'mas',
     badge: '@科研',
     shortName: 'MAS',
     shortcutId: 'research',
-    codexVisibleEntry: 'mas',
-    requiredSkillIds: ['mas'],
+    codexVisibleEntry: 'med-autoscience',
+    requiredSkillIds: ['med-autoscience'],
   },
   {
-    id: 'med-autogrant',
+    id: 'mag',
     badge: '@基金',
     shortName: 'MAG',
     shortcutId: 'grant',
-    codexVisibleEntry: 'mag',
-    requiredSkillIds: ['mag'],
+    codexVisibleEntry: 'med-autogrant',
+    requiredSkillIds: ['med-autogrant'],
   },
   {
-    id: 'redcube-ai',
+    id: 'rca',
     badge: '@演示',
     shortName: 'RCA',
     shortcutId: 'ppt',
-    codexVisibleEntry: 'rca',
-    requiredSkillIds: ['rca'],
+    codexVisibleEntry: 'redcube-ai',
+    requiredSkillIds: ['redcube-ai'],
   },
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
