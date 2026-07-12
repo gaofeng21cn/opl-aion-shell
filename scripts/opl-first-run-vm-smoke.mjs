@@ -3070,7 +3070,6 @@ function homeAssistantRouteSelectionExpression(target) {
 }
 
 function homeAssistantRouteReadyExpression(target) {
-  const acceptedBadges = Array.from(new Set([target.badge, `@${target.shortName}`, target.shortName]));
   return `(() => {
     const visible = (node) => {
       if (!node) return false;
@@ -3078,10 +3077,10 @@ function homeAssistantRouteReadyExpression(target) {
       const style = window.getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
-    const text = document.body?.innerText || '';
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
+    const activeCapability = document.querySelector('[data-testid="guid-active-capability"]');
     const modelSelector = document.querySelector('[data-testid="acp-model-selector"]');
     const permissionSelector = document.querySelector('[data-testid^="agent-mode-selector-"], [data-testid="agent-mode-selector"]');
     const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
@@ -3091,14 +3090,12 @@ function homeAssistantRouteReadyExpression(target) {
     if (deniedVisible.length > 0) {
       return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
     }
-    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(modelSelector) || !visible(permissionSelector)) return false;
-    const acceptedBadges = ${JSON.stringify(acceptedBadges)};
-    const matchedBadge = acceptedBadges.find((badge) => text.includes(badge));
-    if (!matchedBadge) return false;
+    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(activeCapability) || !visible(modelSelector) || !visible(permissionSelector)) return false;
+    if (card.getAttribute('aria-pressed') !== 'true') return false;
     return {
       assistant_id: ${cdpString(target.id)},
       badge: ${cdpString(target.badge)},
-      matched_badge: matchedBadge,
+      active_capability: activeCapability.textContent || '',
       selected_card_text: card.textContent || '',
       model_selector_visible: true,
       permission_selector_visible: true,

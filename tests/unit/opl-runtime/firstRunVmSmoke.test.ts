@@ -864,8 +864,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain('home-starter-research');
     expect(selectionExpression).toContain('querySelectorAll');
     expect(selectionExpression).toContain('.find(visible)');
-    expect(readyExpression).toContain('@科研');
-    expect(readyExpression).toContain('@MAS');
+    expect(readyExpression).toContain('guid-active-capability');
+    expect(readyExpression).toContain("getAttribute('aria-pressed') !== 'true'");
     expect(readyExpression).toContain('acp-model-selector');
     expect(readyExpression).toContain('agent-mode-selector-');
     expect(readyExpression).toContain('agent-pill-');
