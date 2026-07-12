@@ -5,7 +5,6 @@ import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
 let isMobileLayout = false;
-let intelligencePreference: boolean | undefined;
 
 const acpModelInfoMocks = vi.hoisted(() => ({
   selectModel: vi.fn(),
@@ -43,10 +42,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('@/common/config/configService', () => ({
   configService: {
-    get: vi.fn((key: string) => {
-      if (key === 'codex.oplFlowIntelligenceEnhancementMode') return intelligencePreference;
-      return undefined;
-    }),
+    get: vi.fn(() => undefined),
     set: acpModelInfoMocks.configSet,
     setLocal: acpModelInfoMocks.configSetLocal,
     subscribe: vi.fn(() => vi.fn()),
@@ -309,27 +305,13 @@ const messageState = (): UseAcpMessageReturn =>
     fetchSlashCommands: vi.fn(),
   }) as unknown as UseAcpMessageReturn;
 
-const intelligenceStatusResult = (enabled: boolean) => ({
-  ok: true,
-  parsed: {
-    app_action_execution: {
-      result: {
-        opl_flow_intelligence_enhancement: { enabled },
-      },
-    },
-  },
-});
-
 describe('AcpSendBox OPL fixed Codex mode surface', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isMobileLayout = false;
-    intelligencePreference = undefined;
     acpModelInfoMocks.selectAutoModel.mockResolvedValue(undefined);
     acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
-    acpModelInfoMocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
-      Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
-    );
+    acpModelInfoMocks.executeAction.mockResolvedValue(undefined);
     acpModelInfoMocks.configSet.mockResolvedValue(undefined);
   });
 
@@ -419,44 +401,13 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.getByTestId('mobile-action-sheet-auto')).toHaveTextContent('Auto (recommended)');
     expect(screen.getByTestId('mobile-action-sheet-reasoning')).toHaveTextContent('Reasoning');
     expect(screen.getByTestId('mobile-action-sheet-model')).toHaveTextContent('Model');
-    expect(screen.getByTestId('mobile-action-sheet-intelligence-enhancement')).toHaveTextContent(
-      'Intelligence enhancement'
-    );
-    expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-enable')).toHaveAttribute(
-      'data-active',
-      'false'
-    );
-    expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).toHaveAttribute(
-      'data-active',
-      'true'
-    );
+    expect(screen.queryByTestId('mobile-action-sheet-intelligence-enhancement')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-option-intelligence-enhancement-enable')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-max')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();
-  });
-
-  it('refreshes intelligence enhancement status when opening the mobile action sheet', async () => {
-    isMobileLayout = true;
-    intelligencePreference = true;
-    acpModelInfoMocks.executeAction.mockResolvedValueOnce(intelligenceStatusResult(false));
-
-    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
-
-    fireEvent.click(screen.getByTestId('mobile-plus-button'));
-
-    await waitFor(() => {
-      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      });
-      expect(acpModelInfoMocks.configSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
-    });
-    await waitFor(() =>
-      expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).toHaveAttribute(
-        'data-active',
-        'true'
-      )
-    );
+    expect(acpModelInfoMocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('delegates latest model and reasoning resolution to the shared Auto action', () => {
@@ -470,32 +421,6 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
     expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
     expect(acpModelInfoMocks.setConfigOption).not.toHaveBeenCalled();
-  });
-
-  it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {
-    isMobileLayout = true;
-    intelligencePreference = false;
-
-    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
-
-    fireEvent.click(screen.getByTestId('mobile-plus-button'));
-    await waitFor(() =>
-      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      })
-    );
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-enable'));
-
-    await waitFor(() =>
-      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_enable',
-        dryRun: false,
-      })
-    );
-    await waitFor(() =>
-      expect(acpModelInfoMocks.configSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true)
-    );
   });
 
   it('keeps a visible elapsed-time thinking indicator while an ACP request is pending', () => {

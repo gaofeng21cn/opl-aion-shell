@@ -53,17 +53,6 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-const intelligenceStatusResult = (enabled: boolean) => ({
-  ok: true,
-  parsed: {
-    app_action_execution: {
-      result: {
-        opl_flow_intelligence_enhancement: { enabled },
-      },
-    },
-  },
-});
-
 describe('GuidModelSelector Codex display', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
@@ -88,9 +77,7 @@ describe('GuidModelSelector Codex display', () => {
       mocks.clientConfigSubscribers.add(subscriber);
       return () => mocks.clientConfigSubscribers.delete(subscriber);
     });
-    mocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
-      Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
-    );
+    mocks.executeAction.mockResolvedValue(undefined);
   });
 
   it('keeps model and reasoning controls in one menu without repeating reasoning on ordinary Home', async () => {
@@ -127,13 +114,6 @@ describe('GuidModelSelector Codex display', () => {
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(selector);
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      });
-      expect(mocks.clientConfigSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
-    });
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();
     expect(screen.getByText('当前 5.6 Sol · 推理最大 · 跟随最新最强')).toBeInTheDocument();
@@ -147,7 +127,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
     expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
-    expect(screen.getByText('智力增强').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.queryByText('智力增强')).not.toBeInTheDocument();
     expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.5')).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.3-codex')).not.toBeInTheDocument();
@@ -157,43 +137,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(setCodexModelSelection).toHaveBeenCalledWith('gpt-5.6-sol', 'high');
     expect(setSelectedAcpModel).not.toHaveBeenCalled();
     expect(setSelectedReasoningEffort).not.toHaveBeenCalled();
-    expect(mocks.executeAction).toHaveBeenCalledTimes(1);
-  });
-
-  it('refreshes OPL Flow intelligence enhancement status when opening the Home selector menu', async () => {
-    const setSelectedAcpModel = vi.fn();
-    const setSelectedReasoningEffort = vi.fn();
-    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': true };
-    mocks.executeAction.mockResolvedValueOnce(intelligenceStatusResult(false));
-
-    render(
-      <GuidModelSelector
-        backend='codex'
-        isGeminiMode={false}
-        modelList={[]}
-        current_model={undefined}
-        setCurrentModel={vi.fn()}
-        currentAcpCachedModelInfo={{
-          current_model_id: 'gpt-5.5',
-          current_model_label: 'GPT-5.5（超高）',
-          available_models: [{ id: 'gpt-5.5', label: 'GPT-5.5（超高）' }],
-        }}
-        selectedAcpModel={null}
-        setSelectedAcpModel={setSelectedAcpModel}
-        selectedReasoningEffort={null}
-        setSelectedReasoningEffort={setSelectedReasoningEffort}
-      />
-    );
-
-    await userEvent.click(screen.getByTestId('guid-model-selector'));
-
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      });
-      expect(mocks.clientConfigSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
-    });
+    expect(mocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('shows the highest advertised reasoning effort for an unknown future Auto model', () => {

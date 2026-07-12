@@ -431,8 +431,10 @@ describe('FirstRun readiness page', () => {
       'id',
       'opl-first-run-setup-title'
     );
-    expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
-      'settings.firstRun.beginner.summaryReady'
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
+        'settings.firstRun.beginner.summaryReady'
+      )
     );
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.stepProgress 3 3');
     expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('%');

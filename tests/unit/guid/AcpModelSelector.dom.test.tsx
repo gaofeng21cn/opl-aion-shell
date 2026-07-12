@@ -110,17 +110,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const intelligenceStatusResult = (enabled: boolean) => ({
-  ok: true,
-  parsed: {
-    app_action_execution: {
-      result: {
-        opl_flow_intelligence_enhancement: { enabled },
-      },
-    },
-  },
-});
-
 describe('AcpModelSelector Codex model switching', () => {
   beforeEach(() => {
     mocks.getModel.mockReset();
@@ -212,9 +201,7 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.conversationUpdate.mockResolvedValue(true);
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
-    mocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
-      Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
-    );
+    mocks.executeAction.mockResolvedValue(undefined);
     mocks.acpModelInfo = {
       current_model_id: 'gpt-5.6-sol',
       current_model_label: 'GPT-5.6-Sol',
@@ -269,8 +256,9 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
     expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
-    expect(screen.getByText('智力增强').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.queryByText('智力增强')).not.toBeInTheDocument();
     expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
+    expect(mocks.executeAction).not.toHaveBeenCalled();
 
     expect(mocks.setModel).not.toHaveBeenCalled();
   });
@@ -342,23 +330,6 @@ describe('AcpModelSelector Codex model switching', () => {
     });
   });
 
-  it('refreshes OPL Flow intelligence enhancement status when opening the selector menu', async () => {
-    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': true };
-    mocks.executeAction.mockResolvedValueOnce(intelligenceStatusResult(false));
-
-    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
-
-    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 最大/ }));
-
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      });
-      expect(mocks.clientConfigSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
-    });
-  });
-
   it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
@@ -378,28 +349,6 @@ describe('AcpModelSelector Codex model switching', () => {
         option_id: 'reasoning_effort',
         value: 'high',
       });
-    });
-  });
-
-  it('runs the OPL Flow intelligence enhancement action from the submenu', async () => {
-    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
-
-    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 最大/ }));
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_status',
-        dryRun: false,
-      });
-    });
-    fireEvent.mouseEnter(screen.getByText('智力增强'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: '开启' }));
-
-    await waitFor(() => {
-      expect(mocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'intelligence_enhancement_enable',
-        dryRun: false,
-      });
-      expect(mocks.clientConfigSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true);
     });
   });
 
