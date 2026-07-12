@@ -38,12 +38,7 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
@@ -58,10 +53,10 @@ describe('OPL home assistants', () => {
       expect.arrayContaining(['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Meta Agent'])
     );
     expect(Object.fromEntries(resolved.map((item) => [item.id, item.enabled_skills]))).toEqual({
-      'med-autoscience': ['med-autoscience'],
-      'med-autogrant': ['med-autogrant'],
-      'redcube-ai': ['redcube-ai'],
-      'opl-bookforge': ['opl-bookforge'],
+      mas: ['med-autoscience'],
+      mag: ['med-autogrant'],
+      rca: ['redcube-ai'],
+      obf: ['opl-bookforge'],
     });
   });
 
@@ -70,12 +65,7 @@ describe('OPL home assistants', () => {
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
@@ -83,12 +73,7 @@ describe('OPL home assistants', () => {
       'RedCube AI',
       'OPL Book Forge',
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(resolved.map((item) => item.enabled_skills)).toEqual([
       ['med-autoscience'],
       ['med-autogrant'],
@@ -106,10 +91,7 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.find((item) => item.id === 'med-autogrant')?.enabled_skills).toEqual([
-      'med-autogrant',
-      'officecli-docx',
-    ]);
+    expect(resolved.find((item) => item.id === 'mag')?.enabled_skills).toEqual(['med-autogrant', 'officecli-docx']);
   });
 
   it('binds synthetic OPL entries to the generated default assistant runtime id', () => {
