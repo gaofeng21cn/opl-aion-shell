@@ -81,6 +81,38 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               manifest_url: 'https://example.test/mag.json',
               package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
             },
+            {
+              package_id: 'example-agent',
+              status: 'ready',
+              package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
+              operational_ready: false,
+              dependency_readiness: {
+                status: 'repair_required',
+                required_count: 1,
+                ready_count: 0,
+                checks: [
+                  { package_id: 'example-provider', ready: false, failure_reasons: ['required_export_missing'] },
+                ],
+                closure: {
+                  transaction_id: 'tx-example-1',
+                  generation_id: 'generation-example-1',
+                  closure_digest: 'sha256:example-current',
+                  last_known_good_generation_id: 'generation-example-0',
+                  last_known_good_closure_digest: 'sha256:example-previous',
+                },
+              },
+              repair_action: {
+                action_id: 'repair_dependency_closure',
+                command_ref: 'opl packages repair example-agent --json',
+                enabled: true,
+                reason_code: 'required_export_missing',
+              },
+              dependent_guard: {
+                required_by_package_ids: ['consumer-agent'],
+                disable: { allowed: false, reason_code: 'required_by_installed_package' },
+                uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
+              },
+            },
           ],
         },
       },
@@ -307,6 +339,15 @@ vi.mock('@/common/config/oplProductProfile', () => {
       required_skill_ids: ['opl-meta-agent'],
       optional_skill_ids: [],
     },
+    {
+      package_id: 'example-agent',
+      display_name: 'Example Agent',
+      short_name: 'EXAMPLE',
+      codex_visible_entry: 'example-agent',
+      default_home_visible: false,
+      required_skill_ids: [],
+      optional_skill_ids: [],
+    },
   ];
   return {
     canonicalizeOplProfessionalAgentId: (id: string) => id,
@@ -392,6 +433,26 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
         'settings.capabilitiesPage.detailLabels.failureReason': 'Failure reason',
+        'settings.capabilitiesPage.detailLabels.dependencyReadiness': 'Dependency readiness',
+        'settings.capabilitiesPage.detailLabels.dependencyReadinessCount': 'Ready dependencies',
+        'settings.capabilitiesPage.detailLabels.operationalReady': 'Operationally ready',
+        'settings.capabilitiesPage.detailLabels.dependencyFailures': 'Dependency issues',
+        'settings.capabilitiesPage.detailLabels.requiredByPackages': 'Required by installed packages',
+        'settings.capabilitiesPage.detailLabels.disableDisabledReason': 'Cannot disable',
+        'settings.capabilitiesPage.detailLabels.uninstallDisabledReason': 'Cannot uninstall',
+        'settings.capabilitiesPage.detailLabels.repairCommandRef': 'Repair command reference',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureTransactionId': 'Closure transaction',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureGenerationId': 'Closure generation',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureDigest': 'Closure digest',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodGenerationId':
+          'Last known good generation',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodDigest': 'Last known good closure digest',
+        'settings.capabilitiesPage.dependencyReadiness.ready': 'Ready',
+        'settings.capabilitiesPage.dependencyReadiness.repair_required': 'Repair required',
+        'settings.capabilitiesPage.dependencyReadiness.blocked': 'Blocked',
+        'settings.capabilitiesPage.reasonCodes.required_export_missing': 'A required capability export is missing',
+        'settings.capabilitiesPage.reasonCodes.required_by_installed_package': 'Required by another installed package',
+        'settings.capabilitiesPage.detailValues.readinessCount': `${options?.ready ?? ''} of ${options?.required ?? ''}`,
         'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness',
         'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflows',
         'settings.capabilitiesPage.detailLabels.resourceContextRefs': 'Environment and resource context',
@@ -540,12 +601,12 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByTestId('settings-page-capabilities')).toHaveClass('opl-settings-page');
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 5 / 5');
-    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('3 / 5');
-    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('4 / 5');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('3 / 6');
+    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('4 / 6');
     const catalog = screen.getByTestId('agent-package-catalog');
-    expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(5);
-    expect(within(catalog).getAllByText('Show on Home')).toHaveLength(5);
+    expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(6);
+    expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
@@ -970,6 +1031,33 @@ describe('CapabilitiesSettingsContent', () => {
         payloadRefsOnlyJson: { package_id: 'med-autogrant' },
       })
     );
+  });
+
+  it('renders generic dependency repair and dependent guards without exposing closure diagnostics by default', async () => {
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    const readiness = screen.getByTestId('capability-readiness-example');
+    expect(within(readiness).getByText('Repair required')).toBeInTheDocument();
+    expect(within(readiness).getByText('A required capability export is missing')).toBeInTheDocument();
+    expect(within(readiness).getByText('consumer-agent')).toBeInTheDocument();
+    expect(within(readiness).getAllByText('Required by another installed package')).toHaveLength(2);
+    expect(screen.getByTestId('agent-package-enabled-toggle-example')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-uninstall-example')).toBeDisabled();
+    expect(screen.queryByText('sha256:example-current')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('agent-package-repair-example'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'repair_dependency_closure',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'example-agent' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
+    expect(screen.getByText('sha256:example-current')).toBeInTheDocument();
+    expect(screen.getByText('sha256:example-previous')).toBeInTheDocument();
   });
 
   it('serializes package state writes until the active action finishes', async () => {

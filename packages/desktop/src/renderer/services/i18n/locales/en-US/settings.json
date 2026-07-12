@@ -2162,6 +2162,19 @@
       "source": "Source",
       "lastSync": "Last sync",
       "failureReason": "Failure reason",
+      "dependencyReadiness": "Dependency readiness",
+      "dependencyReadinessCount": "Ready dependencies",
+      "operationalReady": "Operationally ready",
+      "dependencyFailures": "Dependency issues",
+      "requiredByPackages": "Required by installed packages",
+      "disableDisabledReason": "Cannot disable",
+      "uninstallDisabledReason": "Cannot uninstall",
+      "repairCommandRef": "Repair command reference",
+      "dependencyClosureTransactionId": "Closure transaction",
+      "dependencyClosureGenerationId": "Closure generation",
+      "dependencyClosureDigest": "Closure digest",
+      "dependencyClosureLastKnownGoodGenerationId": "Last known good generation",
+      "dependencyClosureLastKnownGoodDigest": "Last known good closure digest",
       "connectorReadinessRefs": "Connector readiness",
       "workflowRefs": "Reusable workflows",
       "resourceContextRefs": "Environment and resource context",
@@ -2171,7 +2184,19 @@
       "notReported": "Not reported",
       "none": "None",
       "yes": "Yes",
-      "no": "No"
+      "no": "No",
+      "readinessCount": "{{ready}} of {{required}}"
+    },
+    "dependencyReadiness": {
+      "ready": "Ready",
+      "repair_required": "Repair required",
+      "blocked": "Blocked"
+    },
+    "reasonCodes": {
+      "required_export_missing": "A required capability export is missing",
+      "version_incompatible": "An installed dependency version is incompatible",
+      "required_by_installed_package": "Required by another installed package",
+      "dependency_closure_not_ready": "The dependency closure is not ready"
     },
     "sourceLabels": {
       "developer": "Local developer source",

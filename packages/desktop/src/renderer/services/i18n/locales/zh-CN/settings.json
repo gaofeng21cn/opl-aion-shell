@@ -2163,6 +2163,19 @@
       "source": "来源",
       "lastSync": "最后同步",
       "failureReason": "失败原因",
+      "dependencyReadiness": "依赖就绪状态",
+      "dependencyReadinessCount": "已就绪依赖",
+      "operationalReady": "可正常运行",
+      "dependencyFailures": "依赖问题",
+      "requiredByPackages": "被以下已安装包依赖",
+      "disableDisabledReason": "无法停用",
+      "uninstallDisabledReason": "无法卸载",
+      "repairCommandRef": "修复命令引用",
+      "dependencyClosureTransactionId": "闭包事务",
+      "dependencyClosureGenerationId": "闭包代次",
+      "dependencyClosureDigest": "闭包摘要",
+      "dependencyClosureLastKnownGoodGenerationId": "最近正常代次",
+      "dependencyClosureLastKnownGoodDigest": "最近正常闭包摘要",
       "connectorReadinessRefs": "连接器就绪情况",
       "workflowRefs": "可复用工作流",
       "resourceContextRefs": "环境与资源上下文",
@@ -2172,7 +2185,19 @@
       "notReported": "未报告",
       "none": "无",
       "yes": "是",
-      "no": "否"
+      "no": "否",
+      "readinessCount": "{{ready}} / {{required}}"
+    },
+    "dependencyReadiness": {
+      "ready": "已就绪",
+      "repair_required": "需要修复",
+      "blocked": "已阻塞"
+    },
+    "reasonCodes": {
+      "required_export_missing": "缺少必要的能力导出",
+      "version_incompatible": "已安装的依赖版本不兼容",
+      "required_by_installed_package": "被其他已安装包依赖",
+      "dependency_closure_not_ready": "依赖闭包尚未就绪"
     },
     "sourceLabels": {
       "developer": "本地开发源",

@@ -21,6 +21,42 @@ export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' |
 
 export type CapabilityPrimaryAction = 'view' | 'configure' | 'maintenance';
 
+export type CapabilityDependencyCheckViewModel = {
+  packageId: string;
+  ready: boolean | null;
+  failureReasons: string[];
+};
+
+export type CapabilityDependencyReadinessViewModel = {
+  status: 'ready' | 'repair_required' | 'blocked' | null;
+  requiredCount: number | null;
+  readyCount: number | null;
+  checks: CapabilityDependencyCheckViewModel[];
+};
+
+export type CapabilityRepairActionViewModel = {
+  actionId: string | null;
+  commandRef: string | null;
+  enabled: boolean | null;
+  reasonCode: string | null;
+};
+
+export type CapabilityDependentGuardViewModel = {
+  requiredByPackageIds: string[];
+  disableAllowed: boolean | null;
+  disableReasonCode: string | null;
+  uninstallAllowed: boolean | null;
+  uninstallReasonCode: string | null;
+};
+
+export type CapabilityDependencyClosureViewModel = {
+  transactionId: string | null;
+  generationId: string | null;
+  closureDigest: string | null;
+  lastKnownGoodGenerationId: string | null;
+  lastKnownGoodClosureDigest: string | null;
+};
+
 export type CapabilityPurposeViewModel = {
   key: string;
   title: string;
@@ -45,6 +81,11 @@ export type CapabilityPurposeViewModel = {
   manifestUrl: string | null;
   registryUrl: string | null;
   physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
+  dependencyReadiness: CapabilityDependencyReadinessViewModel | null;
+  operationalReady: boolean | null;
+  repairAction: CapabilityRepairActionViewModel | null;
+  dependentGuard: CapabilityDependentGuardViewModel | null;
+  dependencyClosure: CapabilityDependencyClosureViewModel | null;
   enabled: boolean | null;
   hidden: boolean | null;
   status: CapabilityStatus;
@@ -93,6 +134,11 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'manifestUrl'
   | 'registryUrl'
   | 'physicalSurface'
+  | 'dependencyReadiness'
+  | 'operationalReady'
+  | 'repairAction'
+  | 'dependentGuard'
+  | 'dependencyClosure'
   | 'enabled'
   | 'hidden'
   | 'workflowRefs'
@@ -613,6 +659,10 @@ function mapCapabilityStatus(
   );
   const developerCheckout = isDeveloperCheckout(packageState, module);
   if (!packageState && !module) return 'missing';
+  const dependencyReadiness = normalizeStatusToken(firstString(oplRecord(packageState?.dependency_readiness).status));
+  if (packageState?.operational_ready === false || ['repairrequired', 'blocked'].includes(dependencyReadiness ?? '')) {
+    return 'repair';
+  }
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
   if (
     ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
@@ -668,6 +718,7 @@ function capabilityCodexVisibility(
   status: CapabilityStatus
 ): CapabilityCodexVisibility {
   if (!packageState && !module) return 'notVisible';
+  if (packageState?.operational_ready === false) return 'notVisible';
   const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
   const codexVisible =
     packageState?.codex_visible ??
@@ -701,9 +752,9 @@ function capabilityVersion(
     oplString(packageState?.version) ??
     oplString(packageState?.package_version) ??
     oplString(packageState?.installed_version) ??
-    oplString(module.version) ??
-    oplString(module.package_version) ??
-    oplString(module.installed_version) ??
+    oplString(module?.version) ??
+    oplString(module?.package_version) ??
+    oplString(module?.installed_version) ??
     oplString(git.short_sha)
   );
 }
@@ -718,9 +769,9 @@ function capabilitySource(
     oplString(packageState?.source) ??
     oplString(packageState?.install_origin) ??
     oplString(packageState?.checkout_source) ??
-    oplString(module.source) ??
-    oplString(module.install_origin) ??
-    oplString(module.checkout_source) ??
+    oplString(module?.source) ??
+    oplString(module?.install_origin) ??
+    oplString(module?.checkout_source) ??
     oplString(sourcePolicy.source) ??
     oplString(sourcePolicy.mode)
   );
@@ -736,9 +787,9 @@ function capabilityLastSync(
     oplString(packageState?.last_sync_at) ??
     oplString(packageState?.synced_at) ??
     oplString(packageState?.updated_at) ??
-    oplString(module.last_sync_at) ??
-    oplString(module.synced_at) ??
-    oplString(module.updated_at) ??
+    oplString(module?.last_sync_at) ??
+    oplString(module?.synced_at) ??
+    oplString(module?.updated_at) ??
     oplString(exposure.last_sync_at) ??
     oplString(exposure.synced_at)
   );
@@ -751,17 +802,94 @@ function capabilityFailureReason(
   if (!packageState && !module) return null;
   const error = firstRecord(packageState?.error, module?.error);
   const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
+  const dependencyReadiness = firstRecord(packageState?.dependency_readiness);
+  const dependencyChecks = oplRecordList(dependencyReadiness.checks);
+  const dependencyFailure = dependencyChecks
+    .flatMap((check) => listValues(check.failure_reasons))
+    .map(oplString)
+    .find((reason): reason is string => Boolean(reason));
+  const repairAction = firstRecord(packageState?.repair_action);
   return (
     oplString(packageState?.failure_reason) ??
     oplString(packageState?.last_failure) ??
     oplString(packageState?.reason) ??
-    oplString(module.failure_reason) ??
-    oplString(module.last_failure) ??
-    oplString(module.reason) ??
+    oplString(module?.failure_reason) ??
+    oplString(module?.last_failure) ??
+    oplString(module?.reason) ??
     oplString(error.message) ??
     oplString(exposure.failure_reason) ??
-    oplString(exposure.last_failure)
+    oplString(exposure.last_failure) ??
+    dependencyFailure ??
+    (packageState?.operational_ready === false
+      ? firstString(repairAction.reason_code, dependencyReadiness.status)
+      : null)
   );
+}
+
+function capabilityDependencyReadiness(
+  packageState: RuntimePackageStateItem | undefined
+): CapabilityDependencyReadinessViewModel | null {
+  const readiness = oplRecord(packageState?.dependency_readiness);
+  if (Object.keys(readiness).length === 0) return null;
+  const status = firstString(readiness.status);
+  return {
+    status: status === 'ready' || status === 'repair_required' || status === 'blocked' ? status : null,
+    requiredCount: typeof readiness.required_count === 'number' ? readiness.required_count : null,
+    readyCount: typeof readiness.ready_count === 'number' ? readiness.ready_count : null,
+    checks: oplRecordList(readiness.checks).map((check) => ({
+      packageId: firstString(check.package_id, check.id) ?? '',
+      ready: nullableBool(check.ready),
+      failureReasons: listValues(check.failure_reasons)
+        .map(oplString)
+        .filter((reason): reason is string => Boolean(reason)),
+    })),
+  };
+}
+
+function capabilityRepairAction(
+  packageState: RuntimePackageStateItem | undefined
+): CapabilityRepairActionViewModel | null {
+  const action = oplRecord(packageState?.repair_action);
+  if (Object.keys(action).length === 0) return null;
+  return {
+    actionId: firstString(action.action_id),
+    commandRef: firstString(action.command_ref),
+    enabled: nullableBool(action.enabled),
+    reasonCode: firstString(action.reason_code),
+  };
+}
+
+function capabilityDependentGuard(
+  packageState: RuntimePackageStateItem | undefined
+): CapabilityDependentGuardViewModel | null {
+  const guard = oplRecord(packageState?.dependent_guard);
+  if (Object.keys(guard).length === 0) return null;
+  const disable = oplRecord(guard.disable);
+  const uninstall = oplRecord(guard.uninstall);
+  return {
+    requiredByPackageIds: listValues(guard.required_by_package_ids)
+      .map(oplString)
+      .filter((id): id is string => Boolean(id)),
+    disableAllowed: nullableBool(disable.allowed),
+    disableReasonCode: firstString(disable.reason_code),
+    uninstallAllowed: nullableBool(uninstall.allowed),
+    uninstallReasonCode: firstString(uninstall.reason_code),
+  };
+}
+
+function capabilityDependencyClosure(
+  packageState: RuntimePackageStateItem | undefined
+): CapabilityDependencyClosureViewModel | null {
+  const readiness = oplRecord(packageState?.dependency_readiness);
+  const closure = firstRecord(readiness.closure, packageState?.dependency_closure);
+  if (Object.keys(closure).length === 0) return null;
+  return {
+    transactionId: firstString(closure.transaction_id),
+    generationId: firstString(closure.generation_id),
+    closureDigest: firstString(closure.closure_digest),
+    lastKnownGoodGenerationId: firstString(closure.last_known_good_generation_id),
+    lastKnownGoodClosureDigest: firstString(closure.last_known_good_closure_digest),
+  };
 }
 
 function capabilitySourceKind(
@@ -839,8 +967,8 @@ function capabilityRollbackRef(
   return (
     refValue(packageState?.rollback_ref) ??
     refValue(packageState?.rollback_receipt_ref) ??
-    refValue(module.rollback_ref) ??
-    refValue(module.rollback_receipt_ref) ??
+    refValue(module?.rollback_ref) ??
+    refValue(module?.rollback_receipt_ref) ??
     refValue(rollback) ??
     firstString(rollback.ref, rollback.receipt_id)
   );
@@ -972,6 +1100,11 @@ function buildCapabilityPurpose(
     | 'manifestUrl'
     | 'registryUrl'
     | 'physicalSurface'
+    | 'dependencyReadiness'
+    | 'operationalReady'
+    | 'repairAction'
+    | 'dependentGuard'
+    | 'dependencyClosure'
     | 'enabled'
     | 'hidden'
     | 'workflowRefs'
@@ -1044,6 +1177,11 @@ function buildCapabilityPurpose(
     manifestUrl: capabilityManifestUrl(packageState, module),
     registryUrl: capabilityRegistryUrl(packageState, module),
     physicalSurface: capabilityPhysicalSurface(packageState, module),
+    dependencyReadiness: capabilityDependencyReadiness(packageState),
+    operationalReady: nullableBool(packageState?.operational_ready),
+    repairAction: capabilityRepairAction(packageState),
+    dependentGuard: capabilityDependentGuard(packageState),
+    dependencyClosure: capabilityDependencyClosure(packageState),
     enabled: capabilityPackageEnabled(packageState, module),
     hidden: capabilityPackageHidden(packageState, module),
     status,
@@ -1103,6 +1241,7 @@ export function buildCapabilitiesViewModel(
   ];
   for (const root of packageRoots) {
     for (const candidate of [
+      root.installed_packages,
       root.items,
       root.packages,
       root.statuses,

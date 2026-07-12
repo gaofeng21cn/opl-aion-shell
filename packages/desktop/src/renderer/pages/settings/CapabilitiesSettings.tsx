@@ -115,6 +115,10 @@ type CapabilityDetailRow = {
 
 const hasTextValue = (value: string | null | undefined): value is string => Boolean(value && value.trim());
 
+function capabilityReasonLabel(reason: string, t: (key: string, options?: Record<string, string>) => string): string {
+  return t(`settings.capabilitiesPage.reasonCodes.${reason}`, { defaultValue: reason });
+}
+
 function capabilitySourceLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
@@ -192,6 +196,70 @@ function capabilityUserDetailRows(
   ].filter((row): row is CapabilityDetailRow => Boolean(row));
 }
 
+function capabilityReadinessDetailRows(
+  item: CapabilityPurposeViewModel,
+  t: (key: string, options?: Record<string, string>) => string
+): CapabilityDetailRow[] {
+  const readiness = item.dependencyReadiness;
+  const dependencyFailures = readiness?.checks.flatMap((check) => check.failureReasons) ?? [];
+  return [
+    readiness?.status
+      ? {
+          key: 'dependencyReadiness',
+          label: t('settings.capabilitiesPage.detailLabels.dependencyReadiness'),
+          value: t(`settings.capabilitiesPage.dependencyReadiness.${readiness.status}`),
+        }
+      : null,
+    readiness && readiness.requiredCount !== null && readiness.readyCount !== null
+      ? {
+          key: 'dependencyReadinessCount',
+          label: t('settings.capabilitiesPage.detailLabels.dependencyReadinessCount'),
+          value: t('settings.capabilitiesPage.detailValues.readinessCount', {
+            ready: String(readiness.readyCount),
+            required: String(readiness.requiredCount),
+          }),
+        }
+      : null,
+    item.operationalReady !== null
+      ? {
+          key: 'operationalReady',
+          label: t('settings.capabilitiesPage.detailLabels.operationalReady'),
+          value: item.operationalReady
+            ? t('settings.capabilitiesPage.detailValues.yes')
+            : t('settings.capabilitiesPage.detailValues.no'),
+        }
+      : null,
+    dependencyFailures.length > 0
+      ? {
+          key: 'dependencyFailures',
+          label: t('settings.capabilitiesPage.detailLabels.dependencyFailures'),
+          value: dependencyFailures.map((reason) => capabilityReasonLabel(reason, t)).join(', '),
+        }
+      : null,
+    item.dependentGuard && item.dependentGuard.requiredByPackageIds.length > 0
+      ? {
+          key: 'requiredByPackages',
+          label: t('settings.capabilitiesPage.detailLabels.requiredByPackages'),
+          value: item.dependentGuard.requiredByPackageIds.join(', '),
+        }
+      : null,
+    item.dependentGuard?.disableAllowed === false && item.dependentGuard.disableReasonCode
+      ? {
+          key: 'disableDisabledReason',
+          label: t('settings.capabilitiesPage.detailLabels.disableDisabledReason'),
+          value: capabilityReasonLabel(item.dependentGuard.disableReasonCode, t),
+        }
+      : null,
+    item.dependentGuard?.uninstallAllowed === false && item.dependentGuard.uninstallReasonCode
+      ? {
+          key: 'uninstallDisabledReason',
+          label: t('settings.capabilitiesPage.detailLabels.uninstallDisabledReason'),
+          value: capabilityReasonLabel(item.dependentGuard.uninstallReasonCode, t),
+        }
+      : null,
+  ].filter((row): row is CapabilityDetailRow => Boolean(row));
+}
+
 function capabilityDiagnosticRows(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
@@ -245,6 +313,36 @@ function capabilityDiagnosticRows(
       key: 'rollbackRef',
       label: t('settings.capabilitiesPage.detailLabels.rollbackRef'),
       value: item.rollbackRef,
+    },
+    {
+      key: 'repairCommandRef',
+      label: t('settings.capabilitiesPage.detailLabels.repairCommandRef'),
+      value: item.repairAction?.commandRef,
+    },
+    {
+      key: 'dependencyClosureTransactionId',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureTransactionId'),
+      value: item.dependencyClosure?.transactionId,
+    },
+    {
+      key: 'dependencyClosureGenerationId',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureGenerationId'),
+      value: item.dependencyClosure?.generationId,
+    },
+    {
+      key: 'dependencyClosureDigest',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureDigest'),
+      value: item.dependencyClosure?.closureDigest,
+    },
+    {
+      key: 'dependencyClosureLastKnownGoodGenerationId',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodGenerationId'),
+      value: item.dependencyClosure?.lastKnownGoodGenerationId,
+    },
+    {
+      key: 'dependencyClosureLastKnownGoodDigest',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodDigest'),
+      value: item.dependencyClosure?.lastKnownGoodClosureDigest,
     },
     {
       key: 'manifestUrl',
@@ -537,6 +635,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           order: String(selectedShortcutIndex + 1),
         });
   const selectedUserDetailRows = selectedCapability ? capabilityUserDetailRows(selectedCapability, t) : [];
+  const selectedReadinessDetailRows = selectedCapability ? capabilityReadinessDetailRows(selectedCapability, t) : [];
   const selectedDiagnosticRows = selectedCapability ? capabilityDiagnosticRows(selectedCapability, t) : [];
   const selectedUngroupedConnectorRefs = selectedCapability
     ? ungroupedCapabilityRefs(selectedCapability.connectorReadinessRefs, selectedCapability.connectorReadinessGroups)
@@ -718,6 +817,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const packageLifecycleDisabled = (item: CapabilityPurposeViewModel, actionId: string) => {
     if (!item.packageId || isCapabilityDeveloperSource(item)) return true;
     if (actionId === 'agent_package_update') return !item.manifestUrl && !item.registryUrl;
+    if (actionId === 'repair_dependency_closure') {
+      return !item.repairAction?.actionId || item.repairAction.enabled !== true;
+    }
+    if (actionId === 'agent_package_uninstall' && item.dependentGuard?.uninstallAllowed === false) return true;
     return !item.packageLockRef;
   };
   const hasCapabilityIssue = purposeCapabilities.some((item) => item.availabilityStatus !== 'ready');
@@ -1060,6 +1163,20 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   </Typography.Text>
                 </div>
 
+                {selectedReadinessDetailRows.length > 0 && (
+                  <div
+                    className='grid grid-cols-1 gap-4px text-12px'
+                    data-testid={`capability-readiness-${selectedCapability.key}`}
+                  >
+                    {selectedReadinessDetailRows.map((row) => (
+                      <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
+                        <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                        <Typography.Text className='break-words text-t-primary'>{row.value}</Typography.Text>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {selectedCapability.moduleId && (
                   <div
                     className='opl-settings-section opl-settings-surface--configuration flex flex-col gap-10px'
@@ -1181,11 +1298,22 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     </Button>
                     <Button
                       size='mini'
-                      loading={busyAction === 'agent_package_repair'}
+                      loading={busyAction === (selectedCapability.repairAction?.actionId ?? 'agent_package_repair')}
                       disabled={
-                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_repair')
+                        packageMutationBusy ||
+                        packageLifecycleDisabled(
+                          selectedCapability,
+                          selectedCapability.repairAction?.actionId ??
+                            (selectedCapability.repairAction ? 'repair_dependency_closure' : 'agent_package_repair')
+                        )
                       }
-                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
+                      onClick={() =>
+                        void executeLifecycleAction(
+                          selectedCapability,
+                          selectedCapability.repairAction?.actionId ??
+                            (selectedCapability.repairAction ? 'repair_dependency_closure' : 'agent_package_repair')
+                        )
+                      }
                       data-testid={`agent-package-repair-${selectedCapability.key}`}
                     >
                       {t('settings.capabilitiesPage.packageManager.actions.repair')}
@@ -1193,7 +1321,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Button
                       size='mini'
                       loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageMutationBusy || !selectedCapability.packageLockRef}
+                      disabled={
+                        packageMutationBusy ||
+                        !selectedCapability.packageLockRef ||
+                        (selectedCapability.enabled !== false &&
+                          selectedCapability.dependentGuard?.disableAllowed === false)
+                      }
                       onClick={() =>
                         void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
                           exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
