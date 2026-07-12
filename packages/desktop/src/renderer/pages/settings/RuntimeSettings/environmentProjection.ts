@@ -15,6 +15,7 @@ import {
   moduleId,
   moduleInstalled,
   moduleRecords,
+  moduleStatus,
   normalizeModule,
   oplPathString,
   type RuntimeModuleItem,
@@ -67,6 +68,8 @@ export type RuntimeEnvironmentProjection = {
   modules: RuntimeModuleItem[];
   moduleInstalledCount: number;
   moduleManualMaintenanceCount: number;
+  packageStatusAvailable: boolean;
+  packagesOperationalReady: boolean;
   appVersion: string;
   guiVersion: string;
   releaseChannel: string;
@@ -202,6 +205,60 @@ export function buildRuntimeModules(modulesPayload: Record<string, unknown>): Ru
   return orderedModules;
 }
 
+export function buildRuntimePackages(appState: Record<string, unknown>): {
+  modules: RuntimeModuleItem[];
+  installedCount: number;
+  statusAvailable: boolean;
+} {
+  const agentPackages = oplRecord(appState.agent_packages);
+  const statusIndex = oplRecord(agentPackages.status_index);
+  const statusAvailable = oplString(statusIndex.status) === 'available' || 'packages' in statusIndex;
+  if (!statusAvailable) {
+    const legacyModules = buildRuntimeModules(oplRecord(appState.modules));
+    return {
+      modules: legacyModules,
+      installedCount: legacyModules.filter(moduleInstalled).length,
+      statusAvailable: false,
+    };
+  }
+
+  const directory = oplRecord(agentPackages.directory);
+  const locksById = new Map(
+    moduleRecords(directory.installed_packages).map((lock) => [oplString(lock.package_id) ?? moduleId(lock), lock])
+  );
+  const runtimeSourceCarriers = oplRecord(appState.runtime_source_carriers);
+  const carriersById = new Map(
+    moduleRecords(runtimeSourceCarriers.items).map((carrier) => [
+      oplString(carrier.package_id) ?? moduleId(carrier),
+      carrier,
+    ])
+  );
+  const modules = moduleRecords(statusIndex.packages).map((status) => {
+    const packageId = oplString(status.package_id) ?? moduleId(status);
+    const lock = locksById.get(packageId) ?? {};
+    const carrier = carriersById.get(packageId) ?? {};
+    const operationalReady = status.operational_ready === true;
+    return normalizeModule({
+      ...carrier,
+      ...lock,
+      ...status,
+      module_id: packageId,
+      display_name: oplString(carrier.label) ?? oplString(lock.display_name) ?? packageId,
+      installed: true,
+      status: operationalReady ? 'ready' : (oplString(status.status) ?? 'attention_needed'),
+      source: oplString(carrier.source_origin) ?? oplString(lock.source),
+      path: oplString(carrier.source_path) ?? oplString(lock.path),
+      checkout_dirty: oplRecord(carrier.git).dirty === true,
+    });
+  });
+  return {
+    modules,
+    installedCount:
+      typeof statusIndex.installed_package_count === 'number' ? statusIndex.installed_package_count : modules.length,
+    statusAvailable: true,
+  };
+}
+
 export function buildRuntimeEnvironmentProjection({
   appState,
   managedUpdatePlane,
@@ -220,25 +277,33 @@ export function buildRuntimeEnvironmentProjection({
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
   const paths = oplRecord(appState.paths);
-  const modulesPayload = oplRecord(appState.modules);
-  const modulesSourcePayload = oplRecord(modulesPayload.source);
+  const runtimeSourceCarriers = oplRecord(appState.runtime_source_carriers);
+  const modulesSourcePayload = oplRecord(runtimeSourceCarriers.source);
   const release = oplRecord(appState.release);
   const familyWorkspaceRoot = oplPathString(paths.family_workspace_root);
   const workspaceRoot =
     oplString(paths.workspace_root_path) ?? oplPathString(paths.workspace_root) ?? familyWorkspaceRoot;
   const logsRoot = oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir);
-  const modulesSourceMode = oplString(modulesSourcePayload.mode) ?? oplString(modulesPayload.source);
+  const modulesSourceMode = oplString(modulesSourcePayload.mode);
   const modulesRoot =
-    oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
-  const modules = buildRuntimeModules(modulesPayload);
-  const moduleInstalledCount = modules.filter(moduleInstalled).length;
+    oplString(modulesSourcePayload.runtime_sources_root) ??
+    oplString(paths.runtime_sources_root) ??
+    familyWorkspaceRoot;
+  const packageProjection = buildRuntimePackages(appState);
+  const modules = packageProjection.modules;
+  const moduleInstalledCount = packageProjection.installedCount;
   const componentById = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
   const moduleManualMaintenanceCount =
     managedUpdatePlane.packageManualRequiredTargetCount ?? modules.filter(moduleHasLocalChanges).length;
-  const moduleValue = t('settings.oplEnvironmentPage.modulesInstalledCount', {
-    installed: moduleInstalledCount,
-    total: modules.length,
-  });
+  const packagesOperationalReady =
+    modules.every((module) => isReadyStatus(moduleStatus(module))) && moduleManualMaintenanceCount === 0;
+  const moduleValue =
+    modules.length === 0
+      ? t('settings.oplEnvironmentPage.noInstalledPackages')
+      : t('settings.oplEnvironmentPage.modulesInstalledCount', {
+          installed: moduleInstalledCount,
+          total: modules.length,
+        });
   const codexStatus = oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : 'unknown');
   const temporalStatus =
     oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status) ?? 'unknown';
@@ -249,7 +314,7 @@ export function buildRuntimeEnvironmentProjection({
     workspaceStatus !== 'ready',
     !isReadyStatus(codexStatus),
     !isReadyStatus(temporalStatus),
-    moduleInstalledCount < modules.length || moduleManualMaintenanceCount > 0,
+    !packagesOperationalReady,
   ].filter(Boolean).length;
   const componentsNeedingMaintenance = managedUpdatePlane.components.filter(
     (component) => !componentIsHealthy(component) || component.needsReload || component.needsRestart
@@ -321,12 +386,8 @@ export function buildRuntimeEnvironmentProjection({
       title: t('settings.oplEnvironmentPage.modulesTitle'),
       value: moduleValue,
       detail: t('settings.oplEnvironmentPage.summary.impacts.modules'),
-      nextAction: runtimeCardActionKey(
-        'modules',
-        moduleInstalledCount >= modules.length && moduleManualMaintenanceCount === 0 ? 'ready' : 'attention_required',
-        t
-      ),
-      tone: moduleInstalledCount >= modules.length && moduleManualMaintenanceCount === 0 ? 'green' : 'orange',
+      nextAction: runtimeCardActionKey('modules', packagesOperationalReady ? 'ready' : 'attention_required', t),
+      tone: packagesOperationalReady ? 'green' : 'orange',
     },
   ];
   return {
@@ -338,6 +399,8 @@ export function buildRuntimeEnvironmentProjection({
     modules,
     moduleInstalledCount,
     moduleManualMaintenanceCount,
+    packageStatusAvailable: packageProjection.statusAvailable,
+    packagesOperationalReady,
     appVersion: localAppVersion(),
     guiVersion: __SHELL_VERSION__,
     releaseChannel,

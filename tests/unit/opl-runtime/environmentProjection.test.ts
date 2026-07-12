@@ -138,15 +138,34 @@ describe('buildRuntimeEnvironmentProjection', () => {
         paths: {
           family_workspace_root: { selected_path: '/Users/example/workspace' },
         },
-        modules: {
+        runtime_source_carriers: {
           source: {
             mode: 'sibling_workspace',
-            modules_root: '/Users/example/workspace',
+            runtime_sources_root: '/Users/example/workspace',
           },
           items: [
-            { module_id: 'medautoscience', display_name: 'MAS', status: 'ready' },
-            { module_id: 'oplbookforge', display_name: 'BookForge', status: 'dirty' },
+            { package_id: 'mas', label: 'MAS', source_origin: 'sibling_workspace', source_health_status: 'ready' },
+            {
+              package_id: 'obf',
+              label: 'BookForge',
+              source_origin: 'sibling_workspace',
+              source_health_status: 'dirty',
+              git: { dirty: true },
+            },
           ],
+        },
+        agent_packages: {
+          directory: {
+            installed_packages: [{ package_id: 'mas' }, { package_id: 'obf' }],
+          },
+          status_index: {
+            status: 'available',
+            installed_package_count: 2,
+            packages: {
+              mas: { package_id: 'mas', operational_ready: true, status: 'available' },
+              obf: { package_id: 'obf', operational_ready: false, status: 'attention_needed' },
+            },
+          },
         },
         release: {
           channel: 'stable',
@@ -160,11 +179,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
     });
 
     expect(projection.workspaceRoot).toBe('/Users/example/workspace');
-    expect(projection.modules.map((module) => module.module_id)).toEqual([
-      'medautoscience',
-      'oplbookforge',
-      'oplmetaagent',
-    ]);
+    expect(projection.modules.map((module) => module.module_id)).toEqual(['mas', 'obf']);
     expect(projection.moduleInstalledCount).toBe(2);
     expect(projection.moduleManualMaintenanceCount).toBe(1);
     expect(projection.attentionCount).toBe(2);
@@ -239,13 +254,48 @@ describe('buildRuntimeEnvironmentProjection', () => {
 
     const projection = buildRuntimeEnvironmentProjection({
       appState: {
-        modules: {
+        runtime_source_carriers: {
           items: [
-            { module_id: 'medautoscience', status: 'dirty', git: { dirty: true } },
-            { module_id: 'medautogrant', status: 'dirty', git: { dirty: true } },
-            { module_id: 'redcube', status: 'dirty', git: { dirty: true } },
-            { module_id: 'oplmetaagent', status: 'ready', install_origin: 'env_override', git: { dirty: false } },
+            {
+              package_id: 'mas',
+              source_origin: 'sibling_workspace',
+              source_health_status: 'dirty',
+              git: { dirty: true },
+            },
+            {
+              package_id: 'mag',
+              source_origin: 'sibling_workspace',
+              source_health_status: 'dirty',
+              git: { dirty: true },
+            },
+            {
+              package_id: 'rca',
+              source_origin: 'sibling_workspace',
+              source_health_status: 'dirty',
+              git: { dirty: true },
+            },
+            { package_id: 'oma', source_origin: 'env_override', source_health_status: 'ready', git: { dirty: false } },
           ],
+        },
+        agent_packages: {
+          directory: {
+            installed_packages: [
+              { package_id: 'mas' },
+              { package_id: 'mag' },
+              { package_id: 'rca' },
+              { package_id: 'oma' },
+            ],
+          },
+          status_index: {
+            status: 'available',
+            installed_package_count: 4,
+            packages: Object.fromEntries(
+              ['mas', 'mag', 'rca', 'oma'].map((packageId) => [
+                packageId,
+                { package_id: packageId, operational_ready: true, status: 'available' },
+              ])
+            ),
+          },
         },
       },
       managedUpdatePlane: plane,
@@ -255,5 +305,35 @@ describe('buildRuntimeEnvironmentProjection', () => {
 
     expect(projection.moduleInstalledCount).toBe(4);
     expect(projection.moduleManualMaintenanceCount).toBe(3);
+  });
+
+  it('treats an available empty package index as a valid no-packages state', () => {
+    const projection = buildRuntimeEnvironmentProjection({
+      appState: {
+        core: { codex: { status: 'ready' } },
+        provider: { temporal: { status: 'ready' } },
+        paths: { workspace_root_path: '/Users/example/workspace' },
+        agent_packages: {
+          directory: { installed_packages: [] },
+          status_index: { status: 'available', installed_package_count: 0, packages: {} },
+        },
+        runtime_source_carriers: {
+          items: [{ package_id: 'mas', source_present: true, source_health_status: 'ready' }],
+        },
+      },
+      managedUpdatePlane: { components: [] },
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+
+    expect(projection.modules).toEqual([]);
+    expect(projection.moduleInstalledCount).toBe(0);
+    expect(projection.packageStatusAvailable).toBe(true);
+    expect(projection.packagesOperationalReady).toBe(true);
+    expect(projection.attentionCount).toBe(0);
+    expect(projection.runtimeCards.find((card) => card.key === 'modules')).toMatchObject({
+      value: 'settings.oplEnvironmentPage.noInstalledPackages',
+      tone: 'green',
+    });
   });
 });

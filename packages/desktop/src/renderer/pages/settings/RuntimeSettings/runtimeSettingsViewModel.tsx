@@ -64,13 +64,13 @@ export function buildRuntimeSettingsViewModel({
     moduleInstalledCount,
     moduleManualMaintenanceCount,
     modules,
+    packageStatusAvailable,
+    packagesOperationalReady,
   } = environment;
   const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
   const oplPackagesHealthy =
-    moduleInstalledCount >= modules.length &&
-    moduleManualMaintenanceCount === 0 &&
-    (!oplPackagesComponent || componentStatusTone(oplPackagesComponent) === 'green');
-  const oplPackagesChecked = modules.length > 0 || Boolean(oplPackagesComponent);
+    packagesOperationalReady && (!oplPackagesComponent || componentStatusTone(oplPackagesComponent) === 'green');
+  const oplPackagesChecked = packageStatusAvailable || Boolean(oplPackagesComponent);
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
     {
       key: 'appUpdates',
@@ -115,10 +115,12 @@ export function buildRuntimeSettingsViewModel({
             .join(' ')
         : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
       status: oplPackagesChecked
-        ? t('settings.oplEnvironmentPage.modulesInstalledCount', {
-            installed: moduleInstalledCount,
-            total: modules.length,
-          })
+        ? modules.length === 0
+          ? t('settings.oplEnvironmentPage.noInstalledPackages')
+          : t('settings.oplEnvironmentPage.modulesInstalledCount', {
+              installed: moduleInstalledCount,
+              total: modules.length,
+            })
         : formatStatus('unknown', t),
       tone: oplPackagesChecked ? (oplPackagesHealthy ? 'green' : 'orange') : 'gray',
       icon: <Repair theme='outline' />,

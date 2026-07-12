@@ -111,42 +111,68 @@ const appStateResult = {
           selected_path: '/Users/example/workspace',
         },
       },
-      modules: {
-        summary: { default_modules_count: 4, healthy_default_modules_count: 4 },
+      runtime_source_carriers: {
         source: {
           mode: 'sibling_workspace',
-          modules_root: '/Users/example/workspace',
+          runtime_sources_root: '/Users/example/workspace',
         },
         items: [
           {
-            module_id: 'medautoscience',
-            display_name: 'Med Auto Science',
-            status: 'dirty',
-            path: '/Users/example/workspace/med-autoscience',
+            package_id: 'mas',
+            label: 'Med Auto Science',
+            source_origin: 'sibling_workspace',
+            source_health_status: 'dirty',
+            source_path: '/Users/example/workspace/med-autoscience',
             git: { dirty: true },
           },
           {
-            module_id: 'oplbookforge',
-            display_name: 'BookForge',
-            status: 'ready',
-            version: 'bookforge-1.0.0',
-            install_origin: 'managed_root',
-            path: '/Users/example/workspace/modules/bookforge',
+            package_id: 'obf',
+            label: 'OPL Book Forge',
+            source_origin: 'managed_root',
+            source_health_status: 'ready',
+            source_path: '/Users/example/workspace/modules/bookforge',
+          },
+        ],
+      },
+      agent_packages: {
+        directory: {
+          installed_packages: [
+            {
+              package_id: 'mas',
+              version: 'mas-1.0.0',
+            },
+            {
+              package_id: 'obf',
+              version: 'bookforge-1.0.0',
+            },
+          ],
+        },
+        status_index: {
+          status: 'available',
+          installed_package_count: 2,
+          packages: {
+            mas: {
+              package_id: 'mas',
+              status: 'attention_needed',
+              operational_ready: false,
+              launch_blocked_reason: 'runtime_source_dirty',
+            },
+            obf: {
+              package_id: 'obf',
+              status: 'available',
+              operational_ready: true,
+              launch_blocked_reason: null,
+            },
+          },
+        },
+      },
+      opl_agent_packages: {
+        installed_packages: [
+          {
+            package_id: 'mas',
           },
           {
-            module_id: 'mas',
-            display_name: 'med-autoscience',
-            status: 'ready',
-          },
-          {
-            module_id: 'oma',
-            display_name: 'opl-meta-agent',
-            status: 'ready',
-          },
-          {
-            module_id: 'opl-flow',
-            display_name: 'opl-flow',
-            status: 'ready',
+            package_id: 'obf',
           },
         ],
       },

@@ -2325,6 +2325,7 @@
     "localServiceTitle": "Receipts",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
     "modulesInstalledCount": "{{installed}} / {{total}} installed",
+    "noInstalledPackages": "No OPL Packages installed",
     "healthSummary": {
       "title": "Current status",
       "description": "Healthy items stay quiet; actions appear only when something needs attention.",

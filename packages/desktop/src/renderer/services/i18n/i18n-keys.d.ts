@@ -2794,6 +2794,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.modulesInstalledCount'
   | 'settings.oplEnvironmentPage.modulesReadyCount'
   | 'settings.oplEnvironmentPage.modulesTitle'
+  | 'settings.oplEnvironmentPage.noInstalledPackages'
   | 'settings.oplEnvironmentPage.recommendedActions.description'
   | 'settings.oplEnvironmentPage.recommendedActions.title'
   | 'settings.oplEnvironmentPage.sections.agentPackages'

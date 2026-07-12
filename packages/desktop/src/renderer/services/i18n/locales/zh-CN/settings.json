@@ -2326,6 +2326,7 @@
     "localServiceTitle": "回执",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
     "modulesInstalledCount": "已安装 {{installed}} / {{total}}",
+    "noInstalledPackages": "尚未安装 OPL Packages",
     "healthSummary": {
       "title": "当前状态",
       "description": "正常项保持安静；只有需要处理时才显示操作。",
