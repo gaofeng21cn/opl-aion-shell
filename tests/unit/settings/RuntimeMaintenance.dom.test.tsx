@@ -78,24 +78,22 @@ const updateStatus = {
     update_channel: 'stable',
     components: [
       {
-        component_id: 'installation_carrier',
-        display_group: 'Installation carrier',
+        component_id: 'opl_app',
+        display_group: 'OPL App',
         state: 'current',
       },
       {
-        component_id: 'runtime_substrate',
-        display_group: 'OPL Runtime Fabric',
+        component_id: 'opl_base',
+        display_group: 'OPL Base',
         state: 'current',
       },
       {
-        component_id: 'capability_packages',
-        display_group: 'OPL capability packages',
+        component_id: 'opl_packages',
+        display_group: 'OPL Packages',
+        package_id: 'oma',
         state: 'current',
-      },
-      {
-        component_id: 'codex_surface',
-        display_group: 'Codex Surface',
-        state: 'current',
+        projection_status: 'current',
+        profile_migration_status: 'current',
       },
     ],
   },
@@ -105,10 +103,10 @@ const actionableUpdateStatus = {
   managed_update: {
     ...updateStatus.managed_update,
     components: updateStatus.managed_update.components.map((component) => {
-      if (component.component_id === 'runtime_substrate') {
+      if (component.component_id === 'opl_base') {
         return { ...component, state: 'update_available', safe_to_apply: true };
       }
-      if (component.component_id === 'capability_packages') {
+      if (component.component_id === 'opl_packages') {
         return {
           ...component,
           state: 'failed_with_repair',
@@ -267,6 +265,17 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getByTestId('settings-maintenance-technical-details')).toHaveClass(
       'opl-settings-surface--diagnostic'
     );
+    expect(screen.getByTestId('opl-managed-update-opl_base')).toBeVisible();
+    expect(screen.getByTestId('opl-managed-update-opl_app')).toBeVisible();
+    expect(screen.getByTestId('opl-managed-update-opl_packages')).toBeVisible();
+    expect(screen.queryByTestId('opl-managed-update-codex_surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-workflow_profile')).not.toBeInTheDocument();
+    const packageDiagnostics = screen
+      .getByTestId('opl-managed-update-opl_packages')
+      .querySelector('.arco-collapse-item-header') as HTMLElement;
+    fireEvent.click(packageDiagnostics);
+    expect(screen.getByTestId('opl-managed-update-substatus-projection_status')).toBeVisible();
+    expect(screen.getByTestId('opl-managed-update-substatus-profile_migration_status')).toBeVisible();
   });
 
   it('keeps one direct action on every maintenance object when attention is present', () => {
@@ -339,7 +348,7 @@ describe('RuntimeSettings maintenance structure', () => {
               managed_update: {
                 components: [
                   {
-                    component_id: 'capability_packages',
+                    component_id: 'opl_packages',
                     state: 'skipped_manual_required',
                     status_detail: { manual_required_targets_count: 3 },
                   },
@@ -372,11 +381,11 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-opl_base'));
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')
       .querySelector('.arco-btn-primary') as HTMLButtonElement;
-    const repairButton = screen.getByTestId('opl-managed-update-repair-capability_packages');
+    const repairButton = screen.getByTestId('opl-managed-update-repair-opl_packages');
 
     act(() => {
       confirmButton.click();
@@ -397,7 +406,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('opl-managed-update-refresh')).not.toBeDisabled();
-      expect(screen.getByTestId('opl-managed-update-repair-capability_packages')).not.toBeDisabled();
+      expect(screen.getByTestId('opl-managed-update-repair-opl_packages')).not.toBeDisabled();
       expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).not.toBeDisabled();
     });
     expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);

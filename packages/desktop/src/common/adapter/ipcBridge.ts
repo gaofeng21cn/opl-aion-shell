@@ -509,12 +509,16 @@ export type IOplConfigureCodexRequest = {
   apiKey: string;
 };
 
+export type IOplManagedUpdateLifecycleId = 'opl_base' | 'opl_app' | 'opl_packages';
+
 export type IOplUpdateComponentRequest = {
-  componentId: string;
+  componentId: IOplManagedUpdateLifecycleId;
+  packageId?: string;
 };
 
 export type IOplUpdateRepairRequest = {
-  componentId?: string;
+  componentId: IOplManagedUpdateLifecycleId;
+  packageId?: string;
   receiptId?: string;
 };
 

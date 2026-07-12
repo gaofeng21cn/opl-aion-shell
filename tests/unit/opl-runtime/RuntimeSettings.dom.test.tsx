@@ -167,8 +167,8 @@ const managedUpdateStatusResult = {
       idempotency_lock: { status: 'free' },
       components: [
         {
-          component_id: 'installation_carrier',
-          display_group: 'Installation carrier',
+          component_id: 'opl_app',
+          display_group: 'OPL App',
           state: 'host_executor_required',
           host_executor_required: true,
           host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
@@ -188,11 +188,11 @@ const managedUpdateStatusResult = {
               message: 'Docker/WebUI image replacement cannot be applied from inside opl update apply.',
             },
           ],
-          receipt: { last_receipt_ref: 'receipt://installation_carrier/current' },
+          receipt: { last_receipt_ref: 'receipt://opl_app/current' },
         },
         {
-          component_id: 'runtime_substrate',
-          display_group: 'OPL Runtime Fabric',
+          component_id: 'opl_base',
+          display_group: 'OPL Base',
           state: 'update_available',
           safe_to_apply: true,
           conditions: [
@@ -204,16 +204,17 @@ const managedUpdateStatusResult = {
             },
           ],
           receipt: {
-            last_receipt_ref: 'receipt://runtime_substrate/latest',
-            rollback_ref: 'rollback://runtime_substrate/previous',
-            repair_action: 'runtime_substrate_repair_only',
+            last_receipt_ref: 'receipt://opl_base/latest',
+            rollback_ref: 'rollback://opl_base/previous',
+            repair_action: 'opl_base_repair_only',
           },
           needs_restart: true,
           reload_guidance: 'Restart the app after apply.',
         },
         {
-          component_id: 'capability_packages',
-          display_group: 'OPL capability packages',
+          component_id: 'opl_packages',
+          display_group: 'OPL Packages',
+          package_id: 'oma',
           state: 'update_available',
           safe_to_apply: true,
           repair_allowed: true,
@@ -226,48 +227,26 @@ const managedUpdateStatusResult = {
             },
           ],
           receipt: {
-            last_receipt_ref: 'receipt://capability_packages/failed-sync',
+            last_receipt_ref: 'receipt://opl_packages/failed-sync',
             repair_action: 'agent_package_reconcile_and_skill_sync_only',
           },
           needs_reload: true,
           reload_guidance: 'Reload Codex plugin cache after repair.',
-        },
-        {
-          component_id: 'codex_surface',
-          display_group: 'Codex Surface',
-          state: 'needs_reload',
-          conditions: [
-            {
-              type: 'Visible',
-              status: 'Unknown',
-              reason: 'CacheStale',
-              message: 'Codex Surface cache is stale',
-            },
-          ],
-          receipt: { last_receipt_ref: 'receipt://codex_surface/cache' },
-          needs_reload: true,
-          reload_guidance: 'Reload the app to refresh visible capabilities.',
-        },
-        {
-          component_id: 'workflow_profile',
-          display_group: 'Workflow profile',
-          state: 'current',
-          conditions: [
-            {
-              type: 'SemanticMergeRequired',
-              status: 'True',
-              reason: 'NoSilentProfileOverwrite',
-              message: 'Existing Codex profile files require semantic merge instead of updater apply.',
-            },
-          ],
-          receipt: { last_receipt_ref: 'receipt://workflow_profile/current' },
+          projection_status: {
+            state: 'needs_reload',
+            summary: 'Codex projection cache is stale.',
+          },
+          profile_migration_status: {
+            state: 'manual_required',
+            summary: 'Existing Codex profile files require semantic merge.',
+          },
         },
       ],
       repair_actions: [
         {
-          component_id: 'capability_packages',
-          receipt_ref: 'receipt://capability_packages/failed-sync',
-          action_ref: 'repair://capability_packages/sync',
+          component_id: 'opl_packages',
+          receipt_ref: 'receipt://opl_packages/failed-sync',
+          action_ref: 'repair://opl_packages/sync',
         },
       ],
       reload_guidance: 'Restart or reload only when a component reports it.',
@@ -291,17 +270,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     bridgeMocks.applyUpdateComponentInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_apply',
-      command: 'opl update apply --component runtime_substrate --json',
+      command: 'opl update apply --json',
     });
     bridgeMocks.repairUpdateInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_repair',
-      command: 'opl update repair --receipt receipt://capability_packages/failed-sync --json',
+      command: 'opl packages repair --package-id oma --json',
     });
     bridgeMocks.rollbackUpdateComponentInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_rollback',
-      command: 'opl update rollback --component runtime_substrate --json',
+      command: 'opl update rollback --json',
     });
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve(

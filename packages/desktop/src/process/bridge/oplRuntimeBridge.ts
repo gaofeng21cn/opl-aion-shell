@@ -61,15 +61,8 @@ let cachedDeveloperModeGithubIdentity: {
   key: string;
   value: DeveloperModeGithubIdentity;
 } | null = null;
-const MANAGED_UPDATE_COMPONENT_IDS = new Set([
-  'installation_carrier',
-  'runtime_substrate',
-  'capability_packages',
-  'companion_tools',
-  'codex_surface',
-  'workflow_profile',
-]);
-const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
+const MANAGED_UPDATE_COMPONENT_IDS = new Set(['opl_base', 'opl_app', 'opl_packages']);
+const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['opl_base', 'opl_packages']);
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   adapterId: 'aionui',
@@ -124,10 +117,12 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl update status --json',
     'opl update check --json',
     'opl update plan --json',
-    'opl update apply --component <component_id> --json',
-    'opl update repair --receipt <receipt_id> --json',
-    'opl update repair --component <component_id> --json',
-    'opl update rollback --component <component_id> --json',
+    'opl update apply --json',
+    'opl update repair [--receipt <receipt_id>] --json',
+    'opl update rollback --json',
+    'opl packages update --package-id <package_id> --json',
+    'opl packages repair --package-id <package_id> --json',
+    'opl packages rollback --package-id <package_id> --json',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
@@ -194,7 +189,7 @@ function assertUpdateComponentId(componentId: string): string {
     throw new Error('Invalid OPL update component id');
   }
   if (!MANAGED_UPDATE_COMPONENT_IDS.has(normalized)) {
-    throw new Error('OPL update component id must be an App canonical component id');
+    throw new Error('OPL managed update lifecycle id must be opl_base, opl_app, or opl_packages');
   }
   return normalized;
 }
@@ -202,7 +197,7 @@ function assertUpdateComponentId(componentId: string): string {
 function assertApplyUpdateComponentId(componentId: string): string {
   const normalized = assertUpdateComponentId(componentId);
   if (!APPLY_ALLOWED_UPDATE_COMPONENT_IDS.has(normalized)) {
-    throw new Error('OPL update apply is limited to managed kernel components');
+    throw new Error('opl_app updates must use the host or carrier updater');
   }
   return normalized;
 }
@@ -211,6 +206,14 @@ function assertUpdateReceiptId(receiptId: string): string {
   const normalized = receiptId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
     throw new Error('Invalid OPL update receipt id');
+  }
+  return normalized;
+}
+
+function assertPackageId(packageId: string | undefined): string {
+  const normalized = packageId?.trim() ?? '';
+  if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
+    throw new Error('Invalid OPL package id');
   }
   return normalized;
 }
@@ -321,32 +324,46 @@ function buildUpdatePlanCommand(): RuntimeCommandSpec {
 }
 
 function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
+  const componentId = assertApplyUpdateComponentId(request.componentId);
+  if (componentId === 'opl_packages') {
+    return {
+      surface: 'update_apply',
+      args: ['packages', 'update', '--package-id', assertPackageId(request.packageId), '--json'],
+    };
+  }
   return {
     surface: 'update_apply',
-    args: ['update', 'apply', '--component', assertApplyUpdateComponentId(request.componentId), '--json'],
+    args: ['update', 'apply', '--json'],
   };
 }
 
 function buildUpdateRepairCommand(request: IOplUpdateRepairRequest): RuntimeCommandSpec {
-  if (request.receiptId) {
+  const componentId = assertApplyUpdateComponentId(request.componentId);
+  if (componentId === 'opl_packages') {
     return {
       surface: 'update_repair',
-      args: ['update', 'repair', '--receipt', assertUpdateReceiptId(request.receiptId), '--json'],
+      args: ['packages', 'repair', '--package-id', assertPackageId(request.packageId), '--json'],
     };
   }
-  if (request.componentId) {
-    return {
-      surface: 'update_repair',
-      args: ['update', 'repair', '--component', assertUpdateComponentId(request.componentId), '--json'],
-    };
-  }
-  throw new Error('OPL update repair requires a receipt or component id.');
+  return {
+    surface: 'update_repair',
+    args: request.receiptId
+      ? ['update', 'repair', '--receipt', assertUpdateReceiptId(request.receiptId), '--json']
+      : ['update', 'repair', '--json'],
+  };
 }
 
 function buildUpdateRollbackCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
+  const componentId = assertApplyUpdateComponentId(request.componentId);
+  if (componentId === 'opl_packages') {
+    return {
+      surface: 'update_rollback',
+      args: ['packages', 'rollback', '--package-id', assertPackageId(request.packageId), '--json'],
+    };
+  }
   return {
     surface: 'update_rollback',
-    args: ['update', 'rollback', '--component', assertUpdateComponentId(request.componentId), '--json'],
+    args: ['update', 'rollback', '--json'],
   };
 }
 

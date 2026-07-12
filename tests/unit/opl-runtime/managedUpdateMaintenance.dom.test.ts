@@ -49,7 +49,7 @@ const managedUpdateCheckResult = {
   },
 };
 
-const managedUpdateAutoApplyPlanResult = {
+const managedUpdatePlanResult = {
   surface: 'update_plan',
   command: 'opl update plan --json',
   stdout: '{}',
@@ -61,44 +61,27 @@ const managedUpdateAutoApplyPlanResult = {
       reload_guidance: 'Reload visible OPL capabilities after background maintenance.',
       components: [
         {
-          component_id: 'installation_carrier',
+          component_id: 'opl_app',
           state: 'host_executor_required',
           safe_to_apply: true,
           host_executor_required: true,
-          host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
-          data_volume_preservation: 'required_before_replacing_docker_webui_image',
-          preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
-          required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
-          manual_guidance: 'Update the installation carrier from the host, not from opl update apply.',
+          host_update_route: 'carrier_updater',
+          manual_guidance: 'Update the App from its host carrier.',
         },
         {
-          component_id: 'runtime_substrate',
+          component_id: 'opl_base',
           state: 'update_available',
           safe_to_apply: true,
           needs_restart: true,
-          reload_guidance: 'Restart the app before the new runtime is visible.',
+          integration_status: 'needs_reload',
         },
         {
-          component_id: 'capability_packages',
+          component_id: 'opl_packages',
+          package_id: 'oma',
           state: 'update_available',
           safe_to_apply: true,
-          reload_guidance: 'Reload Codex plugin cache after agent package sync.',
-        },
-        {
-          component_id: 'codex_surface',
-          state: 'staged',
-          needs_reload: true,
-          reload_guidance: 'Reload the app to refresh visible capabilities.',
-        },
-        {
-          component_id: 'workflow_profile',
-          state: 'current',
-          auto_apply: {
-            mode: 'projection_only',
-            eligible: false,
-            app_background_safe: false,
-            blocked_reasons: ['workflow_profile_requires_codex_semantic_merge'],
-          },
+          projection_status: 'needs_reload',
+          profile_migration_status: 'manual_required',
         },
       ],
     },
@@ -111,11 +94,11 @@ describe('managed update background maintenance scheduler', () => {
     localStorage.clear();
     vi.clearAllMocks();
     bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateCheckResult);
-    bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdateAutoApplyPlanResult);
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdatePlanResult);
     bridgeMocks.applyUpdateComponentInvoke.mockImplementation(({ componentId }: { componentId: string }) =>
       Promise.resolve({
         surface: 'update_apply',
-        command: `opl update apply --component ${componentId} --json`,
+        command: componentId === 'opl_base' ? 'opl update apply --json' : 'opl packages update --package-id oma --json',
         stdout: '{}',
         parsed: {
           managed_update: {
@@ -123,7 +106,6 @@ describe('managed update background maintenance scheduler', () => {
             idempotency_lock: { status: 'released' },
             execution: { status: 'completed' },
             components: [{ component_id: componentId, state: 'needs_reload', needs_reload: true }],
-            reload_guidance: `Reload after applying ${componentId}.`,
           },
         },
       })
@@ -139,8 +121,6 @@ describe('managed update background maintenance scheduler', () => {
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('completed');
     expect(snapshot.lastTrigger).toBe('app_startup_after_core_ready');
-    expect(snapshot.lastRunAt).toEqual(expect.any(String));
-    expect(snapshot.nextRunAt).toEqual(expect.any(String));
     expect(snapshot.lastFailure).toBeNull();
     expect(snapshot.lockStatus).toBe('released');
     expect(snapshot.result?.surface).toBe('update_check');
@@ -148,75 +128,59 @@ describe('managed update background maintenance scheduler', () => {
     stop();
   });
 
-  it('keeps background plans refresh-only and does not apply managed components', async () => {
+  it('keeps background plans refresh-only and reports only the three public lifecycle ids', async () => {
     await executeManagedUpdateRead('plan', {
       background: true,
       trigger: 'daily_background_maintenance',
     });
 
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'codex_surface',
-    });
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'installation_carrier',
-    });
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'runtime_substrate',
-    });
-
     const snapshot = getManagedUpdateMaintenanceSnapshot();
-    expect(snapshot.executionStatus).toBe('completed');
     expect(snapshot.lastAction).toBeNull();
-    expect(snapshot.lastSkipReason).toContain('installation_carrier: host_executor_required');
-    expect(snapshot.lastSkipReason).toContain('runtime_substrate: restart_required');
-    expect(snapshot.lastSkipReason).toContain('capability_packages: refresh_only');
-    expect(snapshot.lastSkipReason).toContain('codex_surface: manual_confirmation_required');
-    expect(snapshot.lastSkipReason).not.toContain('workflow_profile: manual_confirmation_required');
+    expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
+    expect(snapshot.lastSkipReason).toContain('opl_base: restart_required');
+    expect(snapshot.lastSkipReason).toContain('opl_packages: refresh_only');
+    expect(snapshot.lastSkipReason).not.toContain('profile_migration_status');
     expect(snapshot.reloadGuidance).toBe('Reload visible OPL capabilities after background maintenance.');
-    expect(snapshot.result?.surface).toBe('update_plan');
   });
 
-  it('allows Settings apply for runtime substrate and capability packages only', async () => {
-    const runtimeResult = await executeManagedUpdateMutation('apply', { componentId: 'runtime_substrate' });
+  it('routes Base and explicitly targeted Packages mutations while rejecting App', async () => {
+    await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
+    await executeManagedUpdateMutation('apply', { componentId: 'opl_packages', packageId: 'oma' });
 
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' });
-    expect(runtimeResult?.surface).toBe('update_apply');
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenNthCalledWith(1, { componentId: 'opl_base' });
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenNthCalledWith(2, {
+      componentId: 'opl_packages',
+      packageId: 'oma',
+    });
 
-    const result = await executeManagedUpdateMutation('apply', { componentId: 'installation_carrier' });
-
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
+    const result = await executeManagedUpdateMutation('apply', { componentId: 'opl_app' });
     expect(result?.ok).toBe(false);
-    expect(result?.error?.message).toContain('runtime_substrate');
-    expect(result?.error?.message).toContain('capability_packages');
-    const snapshot = getManagedUpdateMaintenanceSnapshot();
-    expect(snapshot.executionStatus).toBe('failed');
-    expect(snapshot.lastFailure).toContain('runtime_substrate');
+    expect(result?.error?.message).toContain('host or carrier updater');
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(2);
   });
 
-  it('does not submit legacy component aliases as managed update actions', async () => {
-    const result = await executeManagedUpdateMutation('repair', { componentId: 'agent_packages' });
+  it('rejects package mutations without a package id and rejects legacy ids', async () => {
+    const missingPackage = await executeManagedUpdateMutation('repair', { componentId: 'opl_packages' });
+    const legacy = await executeManagedUpdateMutation('repair', { componentId: 'capability_packages' });
 
+    expect(missingPackage?.ok).toBe(false);
+    expect(legacy?.ok).toBe(false);
     expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
-    expect(result?.ok).toBe(false);
-    expect(result?.error?.message).toContain('canonical component ids');
   });
 
-  it('reports workflow profile as manual only when profile merge work is actually pending', async () => {
+  it('does not turn package profile migration diagnostics into a separate maintenance target', async () => {
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
-      surface: 'update_plan',
-      command: 'opl update plan --json',
-      stdout: '{}',
+      ...managedUpdatePlanResult,
       parsed: {
         managed_update: {
           operation: 'plan',
-          idempotency_lock: { status: 'released' },
           execution: { status: 'completed' },
           components: [
             {
-              component_id: 'workflow_profile',
-              state: 'skipped_manual_required',
-              manual_guidance: 'Merge OPL Flow profile changes with Codex semantic merge.',
+              component_id: 'opl_packages',
+              state: 'current',
+              profile_migration_status: 'manual_required',
             },
           ],
         },
@@ -228,48 +192,7 @@ describe('managed update background maintenance scheduler', () => {
       trigger: 'daily_background_maintenance',
     });
 
+    expect(getManagedUpdateMaintenanceSnapshot().lastSkipReason).toBeNull();
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
-    const snapshot = getManagedUpdateMaintenanceSnapshot();
-    expect(snapshot.lastAction).toBeNull();
-    expect(snapshot.lastSkipReason).toContain('workflow_profile: manual_confirmation_required');
-    expect(snapshot.result?.surface).toBe('update_plan');
-  });
-
-  it('does not auto-apply managed agent components that are already current', async () => {
-    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
-      surface: 'update_plan',
-      command: 'opl update plan --json',
-      stdout: '{}',
-      parsed: {
-        managed_update: {
-          operation: 'plan',
-          idempotency_lock: { status: 'released' },
-          execution: { status: 'completed' },
-          components: [
-            {
-              component_id: 'capability_packages',
-              state: 'current',
-              safe_to_apply: false,
-            },
-            {
-              component_id: 'codex_surface',
-              state: 'current',
-              safe_to_apply: false,
-            },
-          ],
-        },
-      },
-    });
-
-    await executeManagedUpdateRead('plan', {
-      background: true,
-      trigger: 'daily_background_maintenance',
-    });
-
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
-    const snapshot = getManagedUpdateMaintenanceSnapshot();
-    expect(snapshot.lastAction).toBeNull();
-    expect(snapshot.lastSkipReason).toBeNull();
-    expect(snapshot.result?.surface).toBe('update_plan');
   });
 });

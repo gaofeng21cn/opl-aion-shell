@@ -15,7 +15,6 @@ import {
   moduleId,
   moduleNeedsManualHandling,
   moduleRecords,
-  moduleStatus,
   normalizeModule,
   oplPathString,
   type RuntimeModuleItem,
@@ -31,7 +30,8 @@ const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
 };
 
 const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
-const MAKE_USABLE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
+const MAKE_USABLE_COMPONENT_IDS = new Set(['opl_base', 'opl_packages']);
+const HEALTHY_MANAGED_UPDATE_STATES = new Set(['current', 'ready', 'ok', 'compatible', 'installed']);
 
 const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
   .map((assistant) => {
@@ -75,11 +75,9 @@ export type RuntimeEnvironmentProjection = {
   componentsNeedingMaintenance: number;
   healthSummaryItems: EnvironmentHealthSummaryItem[];
   runtimeCards: EnvironmentReadinessCard[];
-  installationCarrierComponent?: ManagedUpdateComponent;
-  runtimeSubstrateComponent?: ManagedUpdateComponent;
-  capabilityPackagesComponent?: ManagedUpdateComponent;
-  companionToolsComponent?: ManagedUpdateComponent;
-  codexSurfaceComponent?: ManagedUpdateComponent;
+  oplBaseComponent?: ManagedUpdateComponent;
+  oplAppComponent?: ManagedUpdateComponent;
+  oplPackagesComponent?: ManagedUpdateComponent;
 };
 
 export function localAppVersion(): string {
@@ -95,7 +93,10 @@ export function formatReleaseChannel(
 }
 
 export function componentIsHealthy(component: ManagedUpdateComponent): boolean {
-  return ['current', 'ready', 'ok', 'compatible', 'installed'].includes(component.state);
+  return (
+    HEALTHY_MANAGED_UPDATE_STATES.has(component.state) &&
+    component.substatuses.every((substatus) => HEALTHY_MANAGED_UPDATE_STATES.has(substatus.state))
+  );
 }
 
 export function componentStatusTone(component: ManagedUpdateComponent): RuntimeStatusTone {
@@ -118,12 +119,6 @@ export function runtimeCardActionKey(key: string, status: string, t: Translate):
 }
 
 export function componentUserSummary(component: ManagedUpdateComponent, t: Translate): string {
-  if (component.id === 'workflow_profile') {
-    return t('settings.oplEnvironmentPage.updates.userSummaries.workflowProfile');
-  }
-  if (component.id === 'codex_surface') {
-    return t('settings.oplEnvironmentPage.updates.userSummaries.codexSurface');
-  }
   if (component.dirtyCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
   if (component.developerCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.developerCheckout');
   if (component.hostExecutorRequired)
@@ -138,14 +133,8 @@ export function componentUserSummary(component: ManagedUpdateComponent, t: Trans
 }
 
 export function updateComponentUserAction(component: ManagedUpdateComponent, t: Translate): string {
-  if (component.id === 'workflow_profile') {
-    return t('settings.oplEnvironmentPage.updates.nextActions.semanticMerge');
-  }
-  if (component.id === 'installation_carrier' && (component.hostUpdateRoute || component.hostExecutorRequired)) {
+  if (component.id === 'opl_app' && (component.hostUpdateRoute || component.hostExecutorRequired)) {
     return t('settings.oplEnvironmentPage.updates.nextActions.hostRoute');
-  }
-  if (component.id === 'codex_surface') {
-    return t('settings.oplEnvironmentPage.updates.nextActions.projectionOnly');
   }
   if (component.manualRequired || component.developerCheckout || component.dirtyCheckout) {
     return componentUserSummary(component, t);
@@ -357,10 +346,8 @@ export function buildRuntimeEnvironmentProjection({
     componentsNeedingMaintenance,
     healthSummaryItems,
     runtimeCards,
-    installationCarrierComponent: componentById.get('installation_carrier'),
-    runtimeSubstrateComponent: componentById.get('runtime_substrate'),
-    capabilityPackagesComponent: componentById.get('capability_packages'),
-    companionToolsComponent: componentById.get('companion_tools'),
-    codexSurfaceComponent: componentById.get('codex_surface'),
+    oplBaseComponent: componentById.get('opl_base'),
+    oplAppComponent: componentById.get('opl_app'),
+    oplPackagesComponent: componentById.get('opl_packages'),
   };
 }

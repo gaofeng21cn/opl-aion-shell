@@ -20,4 +20,26 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
       'Unsupported OPL runtime route: shell'
     );
   });
+
+  it('routes only the three public update lifecycle ids to their owning CLI surfaces', () => {
+    expect(__oplRuntimeProxyTest.buildCommandFromRequest('update-apply', { componentId: 'opl_base' })).toMatchObject({
+      surface: 'update_apply',
+      args: ['update', 'apply', '--json'],
+    });
+    expect(
+      __oplRuntimeProxyTest.buildCommandFromRequest('update-repair', {
+        componentId: 'opl_packages',
+        packageId: 'oma',
+      })
+    ).toMatchObject({
+      surface: 'update_repair',
+      args: ['packages', 'repair', '--package-id', 'oma', '--json'],
+    });
+    expect(() => __oplRuntimeProxyTest.buildCommandFromRequest('update-apply', { componentId: 'opl_app' })).toThrow(
+      /host or carrier updater/
+    );
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('update-apply', { componentId: 'runtime_substrate' })
+    ).toThrow(/managed update lifecycle id/);
+  });
 });

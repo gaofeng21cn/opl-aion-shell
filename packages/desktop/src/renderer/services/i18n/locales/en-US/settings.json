@@ -2287,11 +2287,11 @@
     },
     "maintenanceHub": {
       "title": "Maintenance items",
-      "description": "Review App updates, the local environment, capability packages, and background services by object.",
+      "description": "Review OPL App, OPL Base, and OPL Packages maintenance alongside local service health.",
       "lastChecked": "Last checked: {{value}}",
       "actions": {
-        "repairRuntimeEnvironment": "Repair runtime environment",
-        "syncCapabilityPacks": "Sync capability packs",
+        "repairRuntimeEnvironment": "Repair OPL Base",
+        "syncCapabilityPacks": "Sync OPL Packages",
         "checkBackgroundServices": "Check background services"
       },
       "linkOuts": {
@@ -2317,18 +2317,18 @@
       },
       "items": {
         "appUpdates": {
-          "title": "App updates",
-          "description": "Check the App carrier and host update route."
+          "title": "OPL App",
+          "description": "Check the installed App and its host or carrier update route."
         },
         "runtimeEnvironment": {
-          "title": "Runtime environment",
+          "title": "OPL Base",
           "description": "Repair language runtimes, package and environment resolver, isolated prefix, and receipts.",
           "actionHelp": "Runs the existing safe maintenance path. It does not overwrite local developer checkouts or delete user data."
         },
         "capabilitySurfaceSync": {
-          "title": "Capability packs and Codex Surface sync",
-          "description": "Check OPL capability packages and Codex Surface visibility.",
-          "actionHelp": "Runs the existing managed update check for capability packages and Codex Surface visibility."
+          "title": "OPL Packages",
+          "description": "Check installed OPL Packages and their Codex projection.",
+          "actionHelp": "Syncs safe OPL Package updates and refreshes their internal Codex projection status."
         },
         "localServicesRepair": {
           "title": "Local services and repair",
@@ -2460,25 +2460,11 @@
     },
     "moduleMaintenance": {
       "title": "Capability package maintenance",
-      "description": "Maintain OPL capability packages for MAS, MAG, RCA, BookForge, and the Codex Surface visible in the app. This never bypasses the OPL managed update kernel.",
+      "description": "Review installed OPL Packages and local changes. Codex projection and profile migration remain package diagnostics, not separate update targets.",
       "moduleCount": "{{ready}} / {{total}} capability packages ready",
       "manualMaintenanceCount": "{{count}} with local changes",
       "manualMaintenanceSummary": "{{count}} capability package(s) have local changes and were protected and skipped by automatic sync.",
-      "modulesTitle": "Installed capability packages",
-      "actionsTitle": "Capability package actions",
-      "actionsDescription": "Check, apply, repair, or roll back managed capability package and Codex Surface changes without bypassing OPL.",
-      "components": {
-        "capability_packages": "OPL capability packages",
-        "codex_surface": "Codex Surface",
-        "agent_package_channel": "OPL capability packages",
-        "capability_exposure": "Codex Surface"
-      },
-      "componentDescriptions": {
-        "capability_packages": "Updates packaged skills and module packages managed by OPL.",
-        "codex_surface": "Shows Framework-managed Codex plugin surface sync and reload proof.",
-        "agent_package_channel": "Updates packaged skills and module packages managed by OPL.",
-        "capability_exposure": "Shows Framework-managed Codex plugin surface sync and reload proof."
-      },
+      "modulesTitle": "Installed OPL Packages",
       "status": {
         "manualRequired": "Manual handling required",
         "notSilent": "This state requires manual handling and will not be silently auto-updated."
@@ -2489,15 +2475,12 @@
         "manualRequired": "Manual confirmation is required. Check the diagnostics below or handle the module in its checkout."
       },
       "actions": {
-        "check": "Check module updates",
-        "apply": "Apply update",
-        "repair": "Repair",
-        "rollback": "Restore previous version"
+        "check": "Check package updates"
       }
     },
     "updates": {
-      "title": "OPL System Bridge",
-      "description": "Check whether the Installation carrier, OPL Runtime Fabric, companion tools, and OPL capability packages need updates. The default view shows impact and next step; receipts, locks, and internal modes stay in diagnostics.",
+      "title": "Updates and installation",
+      "description": "Manage OPL Base, OPL App, and OPL Packages. Dependency, integration, Codex projection, and profile migration details stay inside their owning object diagnostics.",
       "channel": "Channel: {{channel}}",
       "lockStatus": "Lock: {{status}}",
       "operationMode": "Mode: {{mode}}",
@@ -2515,17 +2498,16 @@
       "requiredPreservationEvidence": "Required preservation evidence: {{value}}",
       "hostManualRouteTitle": "Host/manual route",
       "components": {
-        "installation_carrier": "Installation carrier",
-        "runtime_substrate": "OPL Runtime Fabric",
-        "capability_packages": "OPL capability packages",
-        "companion_tools": "Companion tools",
-        "codex_surface": "Codex Surface",
-        "workflow_profile": "Workflow profile",
-        "app_binary": "Installation carrier",
-        "runtime_toolchain": "OPL Runtime Fabric",
-        "agent_package_channel": "OPL capability packages",
-        "capability_exposure": "Codex Surface",
-        "unknown": "OPL component"
+        "opl_base": "OPL Base",
+        "opl_app": "OPL App",
+        "opl_packages": "OPL Packages",
+        "unknown": "OPL update object"
+      },
+      "substatuses": {
+        "dependency_status": "Dependencies",
+        "integration_status": "Integrations",
+        "projection_status": "Codex projection",
+        "profile_migration_status": "Profile migration"
       },
       "actions": {
         "refreshStatus": "Refresh status",
@@ -2534,15 +2516,11 @@
         "recommendedCheck": "Check updates",
         "recommendedApply": "Apply recommended update",
         "recommendedRepair": "Repair recommended item",
-        "applySelected": "Apply update",
         "repair": "Repair",
         "rollback": "Restore previous version",
         "autoApply": "Background sync",
         "applyUpdate": "Apply update",
-        "previewChanges": "Preview changes",
-        "reviewRuntimeToolchain": "Check OPL Runtime Fabric",
-        "reviewCapabilityPacks": "Check capability packs",
-        "semanticMerge": "View semantic merge guidance"
+        "previewChanges": "Preview changes"
       },
       "actionHelp": {
         "status": "Reads the current status only. It does not look for newer versions or create a change plan.",
@@ -2559,9 +2537,7 @@
         "manualRequired": "Manual confirmation is required; the app will not handle this silently.",
         "developerCheckout": "Local developer checkout detected. Handle it in that checkout or switch back to managed packages.",
         "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
-        "checkDetails": "Check diagnostics before deciding what to do.",
-        "codexSurface": "Codex Surface shows whether OPL capability packages are visible and need reload; it is not a separate updater.",
-        "workflowProfile": "Workflow profile changes require Codex semantic merge; the app will not apply them silently."
+        "checkDetails": "Check diagnostics before deciding what to do."
       },
       "nextStep": "Next step: {{action}}",
       "nextActions": {
@@ -2571,9 +2547,7 @@
         "restart": "Restart the app.",
         "reload": "Reload the app or Codex capabilities.",
         "hostRoute": "Use the host/manual route shown on this card.",
-        "projectionOnly": "Review the reported status; no app-side apply action is available.",
-        "review": "Open diagnostics and review the detail.",
-        "semanticMerge": "Review the semantic merge guidance."
+        "review": "Open diagnostics and review the detail."
       },
       "advancedActions": "Advanced update actions",
       "diagnostics": {

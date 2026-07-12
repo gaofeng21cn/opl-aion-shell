@@ -126,6 +126,22 @@ function assertSafeIdentifier(value: unknown, label: string): string {
   return value.trim();
 }
 
+function assertManagedUpdateLifecycleId(value: unknown): 'opl_base' | 'opl_app' | 'opl_packages' {
+  const lifecycleId = assertSafeIdentifier(value, 'managed update lifecycle id');
+  if (lifecycleId !== 'opl_base' && lifecycleId !== 'opl_app' && lifecycleId !== 'opl_packages') {
+    throw new Error('OPL managed update lifecycle id must be opl_base, opl_app, or opl_packages');
+  }
+  return lifecycleId;
+}
+
+function assertManagedUpdateTarget(body: JsonRecord): 'opl_base' | 'opl_packages' {
+  const lifecycleId = assertManagedUpdateLifecycleId(body.componentId);
+  if (lifecycleId === 'opl_app') {
+    throw new Error('opl_app updates must use the host or carrier updater');
+  }
+  return lifecycleId;
+}
+
 function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeCommandSpec {
   switch (route) {
     case 'app-state': {
@@ -193,50 +209,58 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
       return { surface: 'update_check', args: ['update', 'check', '--json'], timeoutMs: MAINTENANCE_TIMEOUT_MS };
     case 'update-plan':
       return { surface: 'update_plan', args: ['update', 'plan', '--json'] };
-    case 'update-apply':
-      return {
-        surface: 'update_apply',
-        args: [
-          'update',
-          'apply',
-          '--component',
-          assertSafeIdentifier(body.componentId, 'update component id'),
-          '--json',
-        ],
-        timeoutMs: MAINTENANCE_TIMEOUT_MS,
-      };
+    case 'update-apply': {
+      const lifecycleId = assertManagedUpdateTarget(body);
+      return lifecycleId === 'opl_packages'
+        ? {
+            surface: 'update_apply',
+            args: ['packages', 'update', '--package-id', assertSafeIdentifier(body.packageId, 'package id'), '--json'],
+            timeoutMs: MAINTENANCE_TIMEOUT_MS,
+          }
+        : {
+            surface: 'update_apply',
+            args: ['update', 'apply', '--json'],
+            timeoutMs: MAINTENANCE_TIMEOUT_MS,
+          };
+    }
     case 'update-repair': {
-      if (typeof body.receiptId === 'string' && body.receiptId.trim()) {
+      const lifecycleId = assertManagedUpdateTarget(body);
+      if (lifecycleId === 'opl_packages') {
         return {
           surface: 'update_repair',
-          args: ['update', 'repair', '--receipt', assertSafeIdentifier(body.receiptId, 'update receipt id'), '--json'],
+          args: ['packages', 'repair', '--package-id', assertSafeIdentifier(body.packageId, 'package id'), '--json'],
           timeoutMs: MAINTENANCE_TIMEOUT_MS,
         };
       }
       return {
         surface: 'update_repair',
-        args: [
-          'update',
-          'repair',
-          '--component',
-          assertSafeIdentifier(body.componentId, 'update component id'),
-          '--json',
-        ],
+        args:
+          typeof body.receiptId === 'string' && body.receiptId.trim()
+            ? ['update', 'repair', '--receipt', assertSafeIdentifier(body.receiptId, 'update receipt id'), '--json']
+            : ['update', 'repair', '--json'],
         timeoutMs: MAINTENANCE_TIMEOUT_MS,
       };
     }
-    case 'update-rollback':
-      return {
-        surface: 'update_rollback',
-        args: [
-          'update',
-          'rollback',
-          '--component',
-          assertSafeIdentifier(body.componentId, 'update component id'),
-          '--json',
-        ],
-        timeoutMs: MAINTENANCE_TIMEOUT_MS,
-      };
+    case 'update-rollback': {
+      const lifecycleId = assertManagedUpdateTarget(body);
+      return lifecycleId === 'opl_packages'
+        ? {
+            surface: 'update_rollback',
+            args: [
+              'packages',
+              'rollback',
+              '--package-id',
+              assertSafeIdentifier(body.packageId, 'package id'),
+              '--json',
+            ],
+            timeoutMs: MAINTENANCE_TIMEOUT_MS,
+          }
+        : {
+            surface: 'update_rollback',
+            args: ['update', 'rollback', '--json'],
+            timeoutMs: MAINTENANCE_TIMEOUT_MS,
+          };
+    }
     default:
       throw new Error(`Unsupported OPL runtime route: ${route}`);
   }

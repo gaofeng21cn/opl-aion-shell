@@ -2288,11 +2288,11 @@
     },
     "maintenanceHub": {
       "title": "维护项目",
-      "description": "按对象查看 App 更新、本机环境、能力包和后台服务。",
+      "description": "查看 OPL App、OPL Base、OPL Packages 的维护状态，以及本机服务健康情况。",
       "lastChecked": "最近检查：{{value}}",
       "actions": {
-        "repairRuntimeEnvironment": "修复运行环境",
-        "syncCapabilityPacks": "同步能力包",
+        "repairRuntimeEnvironment": "修复 OPL Base",
+        "syncCapabilityPacks": "同步 OPL Packages",
         "checkBackgroundServices": "检查后台服务"
       },
       "linkOuts": {
@@ -2318,18 +2318,18 @@
       },
       "items": {
         "appUpdates": {
-          "title": "应用更新",
-          "description": "检查 App 安装载体和主机更新路径。"
+          "title": "OPL App",
+          "description": "检查已安装 App 及其主机或载体更新路径。"
         },
         "runtimeEnvironment": {
-          "title": "运行环境",
+          "title": "OPL Base",
           "description": "修复语言运行时、包与环境解析器、隔离前缀和回执可用性。",
           "actionHelp": "运行现有安全维护流程；不会覆盖本机开发目录或删除用户数据。"
         },
         "capabilitySurfaceSync": {
-          "title": "能力包与 Codex Surface 同步",
-          "description": "检查 OPL 能力包和 Codex Surface 可见性。",
-          "actionHelp": "通过现有托管更新检查能力包和 Codex Surface 可见性。"
+          "title": "OPL Packages",
+          "description": "检查已安装的 OPL Packages 及其 Codex 投影。",
+          "actionHelp": "同步安全的 OPL Package 更新，并刷新其内部 Codex 投影状态。"
         },
         "localServicesRepair": {
           "title": "本机服务与修复",
@@ -2461,25 +2461,11 @@
     },
     "moduleMaintenance": {
       "title": "能力包维护",
-      "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 能力包，以及 App/Codex 中能看到的 Codex Surface。这里不会绕过 OPL 托管更新内核。",
+      "description": "查看已安装的 OPL Packages 和本地修改。Codex 投影与 Profile 迁移只作为包内诊断，不是独立更新对象。",
       "moduleCount": "{{ready}} / {{total}} 个能力包就绪",
       "manualMaintenanceCount": "{{count}} 个有本地改动",
       "manualMaintenanceSummary": "{{count}} 个能力包有本地改动，自动同步已保护并跳过。",
-      "modulesTitle": "已安装能力包",
-      "actionsTitle": "能力包维护动作",
-      "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管能力包和 Codex Surface 变更，不绕过内核。",
-      "components": {
-        "capability_packages": "OPL 能力包",
-        "codex_surface": "Codex Surface",
-        "agent_package_channel": "OPL 能力包",
-        "capability_exposure": "Codex Surface"
-      },
-      "componentDescriptions": {
-        "capability_packages": "更新由 OPL 管理的技能和模块包。",
-        "codex_surface": "展示由 Framework 管理的 Codex 插件入口同步和重载证明。",
-        "agent_package_channel": "更新由 OPL 管理的技能和模块包。",
-        "capability_exposure": "展示由 Framework 管理的 Codex 插件入口同步和重载证明。"
-      },
+      "modulesTitle": "已安装 OPL Packages",
       "status": {
         "manualRequired": "需要人工处理",
         "notSilent": "该状态需要人工处理，不会静默自动更新。"
@@ -2490,15 +2476,12 @@
         "manualRequired": "该模块需要你手动确认；请查看下方诊断详情或在对应模块仓库处理。"
       },
       "actions": {
-        "check": "检查模块更新",
-        "apply": "应用更新",
-        "repair": "修复",
-        "rollback": "恢复上一版本"
+        "check": "检查包更新"
       }
     },
     "updates": {
-      "title": "OPL 系统桥接",
-      "description": "查看安装载体、OPL Runtime Fabric、辅助工具和 OPL 能力包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
+      "title": "更新与安装",
+      "description": "管理 OPL Base、OPL App 和 OPL Packages。依赖、集成、Codex 投影和 Profile 迁移只在所属对象的诊断中显示。",
       "channel": "通道：{{channel}}",
       "lockStatus": "锁：{{status}}",
       "operationMode": "模式：{{mode}}",
@@ -2516,17 +2499,16 @@
       "requiredPreservationEvidence": "所需保留证明：{{value}}",
       "hostManualRouteTitle": "主机/手动更新路径",
       "components": {
-        "installation_carrier": "安装载体",
-        "runtime_substrate": "OPL Runtime Fabric",
-        "capability_packages": "OPL 能力包",
-        "companion_tools": "辅助工具",
-        "codex_surface": "Codex Surface",
-        "workflow_profile": "工作流 Profile",
-        "app_binary": "安装载体",
-        "runtime_toolchain": "OPL Runtime Fabric",
-        "agent_package_channel": "OPL 能力包",
-        "capability_exposure": "Codex Surface",
-        "unknown": "OPL 组件"
+        "opl_base": "OPL Base",
+        "opl_app": "OPL App",
+        "opl_packages": "OPL Packages",
+        "unknown": "OPL 更新对象"
+      },
+      "substatuses": {
+        "dependency_status": "依赖状态",
+        "integration_status": "集成状态",
+        "projection_status": "Codex 投影",
+        "profile_migration_status": "Profile 迁移"
       },
       "actions": {
         "refreshStatus": "刷新状态",
@@ -2535,15 +2517,11 @@
         "recommendedCheck": "检查更新",
         "recommendedApply": "应用推荐更新",
         "recommendedRepair": "修复推荐项",
-        "applySelected": "应用更新",
         "repair": "修复",
         "rollback": "恢复上一版本",
         "autoApply": "后台同步",
         "applyUpdate": "应用更新",
-        "previewChanges": "预览变更",
-        "reviewRuntimeToolchain": "检查 OPL Runtime Fabric",
-        "reviewCapabilityPacks": "检查能力包",
-        "semanticMerge": "查看语义合并指引"
+        "previewChanges": "预览变更"
       },
       "actionHelp": {
         "status": "只重新读取当前状态，不查找新版本，也不生成变更计划。",
@@ -2560,9 +2538,7 @@
         "manualRequired": "需要你手动确认，App 不会静默自动处理。",
         "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
         "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",
-        "checkDetails": "状态需要查看诊断详情后再决定。",
-        "codexSurface": "Codex Surface 只展示 OPL 能力包是否可见、是否需要重载，不是单独的更新器。",
-        "workflowProfile": "工作流 Profile 变更必须由 Codex 做语义合并，App 不会静默应用。"
+        "checkDetails": "状态需要查看诊断详情后再决定。"
       },
       "nextStep": "下一步：{{action}}",
       "nextActions": {
@@ -2572,9 +2548,7 @@
         "restart": "重启 App。",
         "reload": "重新加载 App 或 Codex 能力。",
         "hostRoute": "使用此卡片显示的主机/手动更新路径。",
-        "projectionOnly": "查看报告状态；此项没有 App 侧应用按钮。",
-        "review": "打开诊断详情后再判断。",
-        "semanticMerge": "查看语义合并指引。"
+        "review": "打开诊断详情后再判断。"
       },
       "advancedActions": "高级更新动作",
       "diagnostics": {

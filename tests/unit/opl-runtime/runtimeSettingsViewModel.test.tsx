@@ -72,27 +72,23 @@ const managedUpdateResult = {
     update_channel: 'stable',
     components: [
       {
-        component_id: 'installation_carrier',
-        display_group: 'Installation carrier',
+        component_id: 'opl_app',
+        display_group: 'OPL App',
         state: 'current',
       },
       {
-        component_id: 'runtime_substrate',
-        display_group: 'OPL Runtime Fabric',
+        component_id: 'opl_base',
+        display_group: 'OPL Base',
         state: 'update_available',
         safe_to_apply: true,
         needs_restart: true,
       },
       {
-        component_id: 'capability_packages',
-        display_group: 'OPL capability packages',
+        component_id: 'opl_packages',
+        display_group: 'OPL Packages',
+        package_id: 'oma',
         state: 'failed_with_repair',
         repair_action: 'agent_package_reconcile_and_skill_sync_only',
-      },
-      {
-        component_id: 'codex_surface',
-        display_group: 'Codex Surface',
-        state: 'current',
       },
     ],
   },
@@ -128,7 +124,7 @@ describe('RuntimeSettings view model adapter', () => {
       managedUpdatePlane: readManagedUpdatePlane(managedUpdateResult, appState),
       loadedAt: '10:00:00',
       activeReadOperation: 'plan',
-      maintenanceHubCheckTarget: 'capabilityPacks',
+      maintenanceHubCheckTarget: 'oplPackages',
       makeUsableRunning: true,
       actions: {
         openStorageSettings: vi.fn(),
@@ -167,7 +163,7 @@ describe('RuntimeSettings view model adapter', () => {
     model.maintenanceHubItems.find((item) => item.key === 'localServicesRepair')?.onAction?.();
 
     expect(openUpdateModal).toHaveBeenCalledTimes(1);
-    expect(runMaintenanceHubCheck).toHaveBeenCalledWith('capabilityPacks');
+    expect(runMaintenanceHubCheck).toHaveBeenCalledWith('oplPackages');
     expect(runServiceCheck).toHaveBeenCalledTimes(1);
   });
 });

@@ -52,7 +52,6 @@ import {
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
 import { RuntimeHealthSummary, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
-const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
 const DEVELOPER_SOURCE_MODES = new Set([
   'developer_checkout',
   'developer_mode',
@@ -69,7 +68,6 @@ type RuntimeSettingsProps = {
 type PendingUpdateAction = {
   kind: 'apply' | 'repair' | 'rollback';
   component: ManagedUpdateComponent;
-  source: 'managed-updates' | 'module-maintenance';
 } | null;
 
 type SettingsAppActionId = 'doctor' | 'repair';
@@ -133,7 +131,7 @@ function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate):
 }
 
 function componentApplyAllowed(component: ManagedUpdateComponent): boolean {
-  return (component.id === 'runtime_substrate' || component.id === 'capability_packages') && component.safeToApply;
+  return (component.id === 'opl_base' || component.id === 'opl_packages') && component.safeToApply;
 }
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
@@ -146,7 +144,7 @@ function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): bo
   const actionResult = oplRecord(execution.result);
   const managedUpdate = oplRecord(actionResult.managed_update);
   const capabilityPackages = oplRecordList(managedUpdate.components).find(
-    (component) => oplString(component.component_id) === 'capability_packages'
+    (component) => oplString(component.component_id) === 'opl_packages'
   );
   if (!capabilityPackages) return false;
   const state = oplString(capabilityPackages.state);
@@ -160,7 +158,7 @@ function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): bo
 }
 
 function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; t: Translate }) {
-  if (component.id !== 'installation_carrier') return null;
+  if (component.id !== 'opl_app') return null;
   const routeLines = [
     component.hostUpdateRoute
       ? t('settings.oplEnvironmentPage.updates.hostUpdateRoute', { route: component.hostUpdateRoute })
@@ -232,32 +230,18 @@ function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; 
 
 function AgentModuleMaintenancePanel({
   modules,
-  plane,
   maintenance,
   maintenanceOperationBusy,
   onCheck,
-  pendingAction,
-  onRequestAction,
-  onCancelAction,
-  onConfirmAction,
   t,
 }: {
   modules: RuntimeModuleItem[];
-  plane: ManagedUpdatePlane;
   maintenance: ManagedUpdateMaintenanceSnapshot;
   maintenanceOperationBusy: boolean;
   onCheck: () => void;
-  pendingAction: PendingUpdateAction;
-  onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
-  onCancelAction: () => void;
-  onConfirmAction: () => void;
   t: Translate;
 }) {
   const checking = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
-  const busyAction = maintenance.busyAction;
-  const moduleMaintenanceComponents = plane.components.filter((component) =>
-    MODULE_MAINTENANCE_COMPONENT_IDS.has(component.id)
-  );
   const installedModules = modules.filter(moduleInstalled).length;
   const manualModules = modules.filter(moduleNeedsManualHandling);
 
@@ -299,165 +283,36 @@ function AgentModuleMaintenancePanel({
           </Button>
         </div>
 
-        {pendingAction && pendingAction.source === 'module-maintenance' && (
-          <Alert
-            type={pendingAction.kind === 'apply' ? 'warning' : 'info'}
-            data-testid='opl-module-maintenance-confirmation'
-            title={t('settings.updateConfirm')}
-            content={
-              <div className='flex flex-col gap-8px'>
-                <span className='break-words'>
-                  {mutationKindLabel(pendingAction.kind, t)} · {pendingAction.component.label}
-                </span>
-                <span className='break-words'>
-                  {t('settings.oplEnvironmentPage.updates.confirmation.willChange', {
-                    detail: mutationWillChange(pendingAction.kind, pendingAction.component, t),
-                  })}
-                </span>
-                <span className='break-words'>
-                  {t('settings.oplEnvironmentPage.updates.confirmation.willNotChange', {
-                    detail: mutationWillNotChange(pendingAction.kind, t),
-                  })}
-                </span>
-                <span className='break-words'>{rollbackOrReceiptText(pendingAction.component, t)}</span>
-                <Space wrap size='small'>
-                  <Button size='small' onClick={onCancelAction}>
-                    {t('common.cancel')}
-                  </Button>
-                  <Button
-                    size='small'
-                    type='primary'
-                    status={pendingAction.kind === 'rollback' ? 'danger' : undefined}
-                    loading={busyAction === `${pendingAction.kind}:${pendingAction.component.id}`}
-                    disabled={maintenanceOperationBusy}
-                    onClick={onConfirmAction}
-                  >
-                    {pendingAction.kind === 'repair'
-                      ? t('settings.oplEnvironmentPage.moduleMaintenance.actions.repair')
-                      : pendingAction.kind === 'rollback'
-                        ? t('settings.oplEnvironmentPage.moduleMaintenance.actions.rollback')
-                        : t('settings.oplEnvironmentPage.moduleMaintenance.actions.apply')}
-                  </Button>
-                </Space>
-              </div>
-            }
-          />
-        )}
-
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-12px'>
-          <div className='opl-settings-technical-subgroup'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.oplEnvironmentPage.moduleMaintenance.modulesTitle')}
-            </Typography.Text>
-            <div className='mt-10px flex flex-col divide-y divide-border-1'>
-              {modules.map((module, index) => {
-                const id = moduleId(module) || `module-${index + 1}`;
-                const status = moduleStatus(module);
-                const needsManualHandling = moduleNeedsManualHandling(module);
-                return (
-                  <div key={`module-maintenance-${id}`} className='py-10px min-w-0'>
-                    <div className='flex items-center justify-between gap-10px'>
-                      <Typography.Text className='font-600 text-t-primary break-words'>
-                        {moduleDisplayLabel(module)}
-                      </Typography.Text>
-                      <Tag color={isReadyStatus(status) && !needsManualHandling ? 'gray' : 'orange'}>
-                        {formatStatus(status, t)}
-                      </Tag>
-                    </div>
-                    <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {moduleVersionDetail(module, t)}
+        <div className='opl-settings-technical-subgroup'>
+          <Typography.Text className='block font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.moduleMaintenance.modulesTitle')}
+          </Typography.Text>
+          <div className='mt-10px flex flex-col divide-y divide-border-1'>
+            {modules.map((module, index) => {
+              const id = moduleId(module) || `module-${index + 1}`;
+              const status = moduleStatus(module);
+              const needsManualHandling = moduleNeedsManualHandling(module);
+              return (
+                <div key={`module-maintenance-${id}`} className='py-10px min-w-0'>
+                  <div className='flex items-center justify-between gap-10px'>
+                    <Typography.Text className='font-600 text-t-primary break-words'>
+                      {moduleDisplayLabel(module)}
                     </Typography.Text>
-                    {needsManualHandling && (
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {moduleManualHandlingLabel(module, t)}
-                      </Typography.Text>
-                    )}
+                    <Tag color={isReadyStatus(status) && !needsManualHandling ? 'gray' : 'orange'}>
+                      {formatStatus(status, t)}
+                    </Tag>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className='opl-settings-technical-subgroup'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.oplEnvironmentPage.moduleMaintenance.actionsTitle')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('settings.oplEnvironmentPage.moduleMaintenance.actionsDescription')}
-            </Typography.Text>
-            <div className='mt-10px flex flex-col gap-10px'>
-              {moduleMaintenanceComponents.map((component) => {
-                const manualHandling =
-                  component.manualRequired || component.developerCheckout || component.dirtyCheckout;
-                return (
-                  <div
-                    key={`module-maintenance-component-${component.id}`}
-                    className='opl-settings-technical-row'
-                    data-testid={`opl-module-maintenance-component-${component.id}`}
-                  >
-                    <div className='flex items-center justify-between gap-10px'>
-                      <Typography.Text className='font-600 text-t-primary break-words'>
-                        {t(`settings.oplEnvironmentPage.moduleMaintenance.components.${component.id}`, {
-                          defaultValue: component.label,
-                        })}
-                      </Typography.Text>
-                      <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
-                    </div>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {moduleVersionDetail(module, t)}
+                  </Typography.Text>
+                  {needsManualHandling && (
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {t(`settings.oplEnvironmentPage.moduleMaintenance.componentDescriptions.${component.id}`, {
-                        defaultValue: component.label,
-                      })}
+                      {moduleManualHandlingLabel(module, t)}
                     </Typography.Text>
-                    {component.manualGuidance && (
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {component.manualGuidance}
-                      </Typography.Text>
-                    )}
-                    {manualHandling && (
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {componentUserSummary(component, t)}
-                      </Typography.Text>
-                    )}
-                    <Space wrap size='small' className='mt-8px'>
-                      {!manualHandling && componentApplyAllowed(component) && (
-                        <Button
-                          data-testid={`opl-module-maintenance-apply-${component.id}`}
-                          size='small'
-                          type='primary'
-                          loading={busyAction === `apply:${component.id}`}
-                          disabled={maintenanceOperationBusy}
-                          onClick={() => onRequestAction('apply', component)}
-                        >
-                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.apply')}
-                        </Button>
-                      )}
-                      {!manualHandling && component.repairAllowed && (
-                        <Button
-                          data-testid={`opl-module-maintenance-repair-${component.id}`}
-                          size='small'
-                          loading={busyAction === `repair:${component.id}`}
-                          disabled={maintenanceOperationBusy}
-                          onClick={() => onRequestAction('repair', component)}
-                        >
-                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.repair')}
-                        </Button>
-                      )}
-                      {!manualHandling && component.rollbackAllowed && (
-                        <Button
-                          data-testid={`opl-module-maintenance-rollback-${component.id}`}
-                          size='small'
-                          loading={busyAction === `rollback:${component.id}`}
-                          disabled={maintenanceOperationBusy}
-                          onClick={() => onRequestAction('rollback', component)}
-                        >
-                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.rollback')}
-                        </Button>
-                      )}
-                    </Space>
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -636,7 +491,7 @@ function ManagedUpdatesPanel({
         {plane.summary && <Alert type='info' content={plane.summary} />}
         {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}
 
-        {pendingAction && pendingAction.source === 'managed-updates' && (
+        {pendingAction && (
           <Alert
             type={pendingAction.kind === 'apply' ? 'warning' : 'info'}
             data-testid='opl-managed-update-confirmation'
@@ -705,19 +560,6 @@ function ManagedUpdatesPanel({
                 </Typography.Text>
 
                 <Space wrap size='small'>
-                  {component.id === 'workflow_profile' && (
-                    <Button
-                      data-testid='opl-managed-update-semantic-merge-workflow_profile'
-                      size='small'
-                      loading={planLoading}
-                      disabled={
-                        maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'plan')
-                      }
-                      onClick={onPlan}
-                    >
-                      {t('settings.oplEnvironmentPage.updates.actions.semanticMerge')}
-                    </Button>
-                  )}
                   {componentApplyAllowed(component) && (
                     <Button
                       data-testid={`opl-managed-update-apply-${component.id}`}
@@ -755,6 +597,7 @@ function ManagedUpdatesPanel({
                 </Space>
                 <HostRouteDetail component={component} t={t} />
                 {(component.conditions.length > 0 ||
+                  component.substatuses.length > 0 ||
                   component.receiptRef ||
                   component.repairAction ||
                   component.rollbackRef ||
@@ -770,6 +613,15 @@ function ManagedUpdatesPanel({
                       name={`component-${component.id}`}
                     >
                       <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
+                        {component.substatuses.map((substatus) => (
+                          <div key={substatus.id} data-testid={`opl-managed-update-substatus-${substatus.id}`}>
+                            <Tag size='small'>{formatStatus(substatus.state, t)}</Tag>
+                            <span className='ml-6px font-500 text-t-primary'>
+                              {t(`settings.oplEnvironmentPage.updates.substatuses.${substatus.id}`)}
+                            </span>
+                            {substatus.summary && <span className='ml-6px'>{substatus.summary}</span>}
+                          </div>
+                        ))}
                         {component.conditions.map((condition) => (
                           <div key={condition.id}>
                             <Tag size='small'>{condition.status}</Tag>
@@ -942,9 +794,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const messageRef = useRef(message);
   const tRef = useRef(t);
   const [activeReadOperation, setActiveReadOperation] = React.useState<'status' | 'check' | 'plan' | null>(null);
-  const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<
-    'runtimeSubstrate' | 'capabilityPacks' | null
-  >(null);
+  const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<'oplBase' | 'oplPackages' | null>(
+    null
+  );
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
@@ -1013,11 +865,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   );
 
   const runMaintenanceHubCheck = useCallback(
-    async (target: 'runtimeSubstrate' | 'capabilityPacks') => {
+    async (target: 'oplBase' | 'oplPackages') => {
       if (maintenanceOperationLockRef.current || managedUpdateRunningRef.current) return;
-      if (target === 'capabilityPacks') {
+      if (target === 'oplPackages') {
         if (!beginMaintenanceOperation()) return;
-        setMaintenanceHubCheckTarget('capabilityPacks');
+        setMaintenanceHubCheckTarget('oplPackages');
         try {
           const result = await ipcBridge.oplRuntime.executeAction.invoke({
             actionId: 'settings_sync_capabilities',
@@ -1064,6 +916,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         const translate = tRef.current;
         const result = await executeManagedUpdateMutation(kind, {
           componentId: component.id,
+          packageId: component.packageId,
           receiptId: component.repairReceiptId,
         });
         if (!bridgeResultSucceeded(result)) {
@@ -1117,13 +970,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, []);
 
   const requestManagedUpdateAction = useCallback(
-    (
-      kind: 'apply' | 'repair' | 'rollback',
-      component: ManagedUpdateComponent,
-      source: 'managed-updates' | 'module-maintenance'
-    ) => {
+    (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => {
       if (maintenanceOperationLockRef.current || managedUpdateRunningRef.current) return;
-      setPendingUpdateAction({ kind, component, source });
+      setPendingUpdateAction({ kind, component });
     },
     []
   );
@@ -1415,16 +1264,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Typography.Text>
                 <AgentModuleMaintenancePanel
                   modules={modules}
-                  plane={managedUpdatePlane}
                   maintenance={managedUpdateMaintenance}
                   maintenanceOperationBusy={maintenanceOperationBusy}
                   onCheck={() => void runManagedUpdateRead('check')}
-                  pendingAction={pendingUpdateAction}
-                  onRequestAction={(kind, component) =>
-                    requestManagedUpdateAction(kind, component, 'module-maintenance')
-                  }
-                  onCancelAction={cancelManagedUpdateAction}
-                  onConfirmAction={confirmManagedUpdateAction}
                   t={t}
                 />
 
@@ -1440,7 +1282,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   onRefresh={() => void runManagedUpdateRead('status')}
                   onCheck={() => void runManagedUpdateRead('check')}
                   onPlan={() => void runManagedUpdateRead('plan')}
-                  onRequestAction={(kind, component) => requestManagedUpdateAction(kind, component, 'managed-updates')}
+                  onRequestAction={requestManagedUpdateAction}
                   onCancelAction={cancelManagedUpdateAction}
                   onConfirmAction={confirmManagedUpdateAction}
                   t={t}

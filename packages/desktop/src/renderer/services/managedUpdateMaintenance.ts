@@ -30,7 +30,7 @@ export type ManagedUpdateMutationKind = 'apply' | 'repair' | 'rollback';
 
 export type ManagedUpdateMaintenanceAction = {
   kind: ManagedUpdateMutationKind | 'auto_apply';
-  componentId: string;
+  componentId: ManagedUpdateComponentId;
   status: 'completed' | 'failed' | 'skipped';
   at: string;
   receiptRef?: string;
@@ -57,14 +57,7 @@ const DAILY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
-const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['runtime_substrate', 'capability_packages']);
-const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
-  'installation_carrier',
-  'runtime_substrate',
-  'companion_tools',
-  'codex_surface',
-  'workflow_profile',
-]);
+const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base', 'opl_packages']);
 const ACTIONABLE_BACKGROUND_STATES = new Set(['update_available', 'staged', 'needs_reload']);
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',
@@ -224,7 +217,7 @@ function summarizeResultStatus(
 
 function managedUpdateAction(input: {
   kind: ManagedUpdateMaintenanceAction['kind'];
-  componentId: string;
+  componentId: ManagedUpdateComponentId;
   status: ManagedUpdateMaintenanceAction['status'];
   at: string;
   receiptRef?: string | null;
@@ -243,12 +236,14 @@ function managedUpdateAction(input: {
 function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | null {
   if (!isRecord(value)) return null;
   const kind = stringValue(value.kind);
-  const componentId = stringValue(value.componentId);
+  const rawComponentId = stringValue(value.componentId);
+  const componentId = canonicalManagedUpdateComponentId(rawComponentId);
   const status = stringValue(value.status);
   const at = stringValue(value.at);
   if (
     !kind ||
     !componentId ||
+    componentId !== rawComponentId ||
     !at ||
     !['apply', 'repair', 'rollback', 'auto_apply'].includes(kind) ||
     !['completed', 'failed', 'skipped'].includes(status ?? '')
@@ -371,11 +366,11 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   const applyRequested = explicitAutoApply
     ? explicitAutoApply.eligible || actionableState || safeToApply || manualRequired
     : actionableState || safeToApply || manualRequired;
-  if (CONSERVATIVE_COMPONENT_IDS.has(componentId) && applyRequested) {
-    if (componentId === 'installation_carrier' && state === 'host_executor_required') {
+  if (componentId === 'opl_app' && applyRequested) {
+    if (state === 'host_executor_required') {
       return `${componentId}: host_executor_required`;
     }
-    if (componentId === 'installation_carrier' && manualRequired) {
+    if (manualRequired) {
       return `${componentId}: manual_required`;
     }
     return `${componentId}: ${needsRestart ? 'restart_required' : 'manual_confirmation_required'}`;
@@ -392,10 +387,10 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   if (manualRequired) {
     return `${componentId}: manual_required`;
   }
-  if (componentId === 'capability_packages') {
+  if (componentId === 'opl_packages') {
     return `${componentId}: refresh_only`;
   }
-  if (componentId !== 'runtime_substrate') {
+  if (componentId !== 'opl_base') {
     return `${componentId}: unsupported_component`;
   }
   if (explicitAutoApply) {
@@ -432,14 +427,19 @@ function backgroundRefreshSkipReasons(result: IOplRuntimeCommandResult): string[
 }
 
 function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
-  const message =
-    kind === 'apply'
-      ? 'OPL Settings can only apply runtime_substrate and capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.'
-      : 'OPL Settings managed update actions require App canonical component ids.';
+  const message = `OPL Settings ${kind} accepts only opl_base and explicitly targeted opl_packages. opl_app uses its host or carrier updater.`;
+  const command =
+    componentId === 'opl_base'
+      ? `opl update ${kind} --json`
+      : componentId === 'opl_packages'
+        ? `opl packages ${kind === 'apply' ? 'update' : kind} --package-id <package_id> --json`
+        : componentId === 'opl_app'
+          ? 'host or carrier updater'
+          : `unsupported managed update lifecycle id: ${componentId}`;
   return {
     ok: false,
     surface: `update_${kind}`,
-    command: `opl update ${kind} --component ${componentId} --json`,
+    command,
     stdout: '',
     parsed: null,
     error: {
@@ -546,6 +546,7 @@ export async function executeManagedUpdateMutation(
   kind: ManagedUpdateMutationKind,
   input: {
     componentId: string;
+    packageId?: string;
     receiptId?: string;
   }
 ): Promise<IOplRuntimeCommandResult | null> {
@@ -553,7 +554,9 @@ export async function executeManagedUpdateMutation(
   if (
     !componentId ||
     componentId !== input.componentId ||
-    (kind === 'apply' && !USER_APPLY_COMPONENT_IDS.has(componentId))
+    (kind === 'apply' && !USER_APPLY_COMPONENT_IDS.has(componentId)) ||
+    componentId === 'opl_app' ||
+    (componentId === 'opl_packages' && !input.packageId)
   ) {
     const result = mutationForbiddenResult(kind, input.componentId);
     emit({
@@ -588,9 +591,13 @@ export async function executeManagedUpdateMutation(
     lastFailure: null,
   });
 
-  const request: IOplUpdateComponentRequest = { componentId: input.componentId };
+  const request: IOplUpdateComponentRequest = {
+    componentId,
+    ...(input.packageId ? { packageId: input.packageId } : {}),
+  };
   const repairRequest: IOplUpdateRepairRequest = {
-    componentId: input.componentId,
+    componentId,
+    ...(input.packageId ? { packageId: input.packageId } : {}),
     receiptId: input.receiptId,
   };
 
@@ -615,10 +622,10 @@ export async function executeManagedUpdateMutation(
         lastFailure,
         lastAction: managedUpdateAction({
           kind,
-          componentId: input.componentId,
+          componentId,
           status: summarizeResultStatus(result),
           at: actionAt,
-          receiptRef: readReceiptRef(result, input.componentId) ?? input.receiptId,
+          receiptRef: readReceiptRef(result, componentId) ?? input.receiptId,
           reloadGuidance,
         }),
         lockStatus: readLockStatus(result),

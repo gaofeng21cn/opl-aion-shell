@@ -19,7 +19,7 @@ import { formatStatus, type Translate } from '../sections/runtimeStateView';
 
 export type RuntimeSettingsActions = {
   openUpdateModal: () => void;
-  runMaintenanceHubCheck: (target: 'runtimeSubstrate' | 'capabilityPacks') => void;
+  runMaintenanceHubCheck: (target: 'oplBase' | 'oplPackages') => void;
   runMakeOplUsable: () => void;
   runServiceCheck: () => void;
 };
@@ -30,7 +30,7 @@ export type RuntimeSettingsViewModelInput = {
   managedUpdateMaintenance: ManagedUpdateMaintenanceSnapshot;
   managedUpdatePlane: ManagedUpdatePlane;
   activeReadOperation: 'status' | 'check' | 'plan' | null;
-  maintenanceHubCheckTarget: 'runtimeSubstrate' | 'capabilityPacks' | null;
+  maintenanceHubCheckTarget: 'oplBase' | 'oplPackages' | null;
   makeUsableRunning: boolean;
   actions: RuntimeSettingsActions;
   t: Translate;
@@ -57,32 +57,29 @@ export function buildRuntimeSettingsViewModel({
     t,
   });
   const {
-    installationCarrierComponent,
-    runtimeSubstrateComponent,
-    capabilityPackagesComponent,
-    codexSurfaceComponent,
+    oplBaseComponent,
+    oplAppComponent,
+    oplPackagesComponent,
     attentionCount,
     moduleInstalledCount,
     moduleManualMaintenanceCount,
     modules,
   } = environment;
   const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
-  const capabilityPacksHealthy =
+  const oplPackagesHealthy =
     moduleInstalledCount >= modules.length &&
     moduleManualMaintenanceCount === 0 &&
-    (!capabilityPackagesComponent || componentStatusTone(capabilityPackagesComponent) === 'green') &&
-    (!codexSurfaceComponent || componentStatusTone(codexSurfaceComponent) === 'green');
-  const capabilityPacksChecked =
-    modules.length > 0 || Boolean(capabilityPackagesComponent) || Boolean(codexSurfaceComponent);
+    (!oplPackagesComponent || componentStatusTone(oplPackagesComponent) === 'green');
+  const oplPackagesChecked = modules.length > 0 || Boolean(oplPackagesComponent);
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
     {
       key: 'appUpdates',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'),
-      detail: installationCarrierComponent
-        ? componentUserSummary(installationCarrierComponent, t)
+      detail: oplAppComponent
+        ? componentUserSummary(oplAppComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
-      status: formatStatus(installationCarrierComponent?.state ?? 'unknown', t),
-      tone: installationCarrierComponent ? componentStatusTone(installationCarrierComponent) : 'gray',
+      status: formatStatus(oplAppComponent?.state ?? 'unknown', t),
+      tone: oplAppComponent ? componentStatusTone(oplAppComponent) : 'gray',
       icon: <UpdateRotation theme='outline' />,
       actionLabel: t('settings.checkForUpdates'),
       onAction: actions.openUpdateModal,
@@ -90,11 +87,11 @@ export function buildRuntimeSettingsViewModel({
     {
       key: 'runtimeEnvironment',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.title'),
-      detail: runtimeSubstrateComponent
-        ? componentUserSummary(runtimeSubstrateComponent, t)
+      detail: oplBaseComponent
+        ? componentUserSummary(oplBaseComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.description'),
-      status: formatStatus(runtimeSubstrateComponent?.state ?? 'unknown', t),
-      tone: runtimeSubstrateComponent ? componentStatusTone(runtimeSubstrateComponent) : 'gray',
+      status: formatStatus(oplBaseComponent?.state ?? 'unknown', t),
+      tone: oplBaseComponent ? componentStatusTone(oplBaseComponent) : 'gray',
       icon: <Repair theme='outline' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'),
@@ -105,33 +102,31 @@ export function buildRuntimeSettingsViewModel({
     {
       key: 'capabilitySurfaceSync',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'),
-      detail:
-        capabilityPackagesComponent || codexSurfaceComponent
-          ? [
-              moduleManualMaintenanceCount > 0
-                ? t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceSummary', {
-                    count: moduleManualMaintenanceCount,
-                  })
-                : null,
-              capabilityPackagesComponent ? componentUserSummary(capabilityPackagesComponent, t) : null,
-              codexSurfaceComponent ? componentUserSummary(codexSurfaceComponent, t) : null,
-            ]
-              .filter((value): value is string => Boolean(value))
-              .join(' ')
-          : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
-      status: capabilityPacksChecked
+      detail: oplPackagesComponent
+        ? [
+            moduleManualMaintenanceCount > 0
+              ? t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceSummary', {
+                  count: moduleManualMaintenanceCount,
+                })
+              : null,
+            componentUserSummary(oplPackagesComponent, t),
+          ]
+            .filter((value): value is string => Boolean(value))
+            .join(' ')
+        : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
+      status: oplPackagesChecked
         ? t('settings.oplEnvironmentPage.modulesInstalledCount', {
             installed: moduleInstalledCount,
             total: modules.length,
           })
         : formatStatus('unknown', t),
-      tone: capabilityPacksChecked ? (capabilityPacksHealthy ? 'green' : 'orange') : 'gray',
+      tone: oplPackagesChecked ? (oplPackagesHealthy ? 'green' : 'orange') : 'gray',
       icon: <Repair theme='outline' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.actionHelp'),
-      actionLoading: maintenanceHubCheckTarget === 'capabilityPacks',
+      actionLoading: maintenanceHubCheckTarget === 'oplPackages',
       actionDisabled: updateReadDisabled,
-      onAction: () => actions.runMaintenanceHubCheck('capabilityPacks'),
+      onAction: () => actions.runMaintenanceHubCheck('oplPackages'),
     },
     {
       key: 'localServicesRepair',
