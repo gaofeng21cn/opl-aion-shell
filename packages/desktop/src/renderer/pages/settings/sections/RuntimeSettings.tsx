@@ -143,9 +143,10 @@ function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): bo
   const execution = oplRecord(parsed.app_action_execution);
   const actionResult = oplRecord(execution.result);
   const managedUpdate = oplRecord(actionResult.managed_update);
-  const capabilityPackages = oplRecordList(managedUpdate.components).find(
-    (component) => oplString(component.component_id) === 'opl_packages'
-  );
+  const capabilityPackages = oplRecordList(managedUpdate.components).find((component) => {
+    const componentId = oplString(component.component_id);
+    return componentId === 'opl_packages' || componentId === 'capability_packages';
+  });
   if (!capabilityPackages) return false;
   const state = oplString(capabilityPackages.state);
   const statusDetail = oplRecord(capabilityPackages.status_detail);

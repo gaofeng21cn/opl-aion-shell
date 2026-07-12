@@ -348,7 +348,7 @@ describe('RuntimeSettings maintenance structure', () => {
               managed_update: {
                 components: [
                   {
-                    component_id: 'opl_packages',
+                    component_id: 'capability_packages',
                     state: 'skipped_manual_required',
                     status_detail: { manual_required_targets_count: 3 },
                   },
