@@ -346,10 +346,10 @@ function buildUpdatePlanCommand(): RuntimeCommandSpec {
   };
 }
 
-function buildOplFlowOptimizeCommand(): RuntimeCommandSpec {
+function buildOplFlowPostAppUpdateReconcileCommand(): RuntimeCommandSpec {
   return {
     surface: 'update_apply',
-    args: ['packages', 'optimize', 'opl-flow', '--json'],
+    args: ['packages', 'update', 'opl-flow', '--json'],
     timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
   };
 }
@@ -1391,7 +1391,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
 }
 
 export function runOplFlowPostAppUpdateReconcile(): Promise<IOplRuntimeCommandResult> {
-  return runOplCommand(buildOplFlowOptimizeCommand());
+  return runOplCommand(buildOplFlowPostAppUpdateReconcileCommand());
 }
 
 export function initOplRuntimeBridge(): void {
@@ -1426,7 +1426,7 @@ export const __oplRuntimeBridgeTest = {
   buildInitializeFallbackCommand,
   buildInitializeCommand,
   buildInstallPrepCommand,
-  buildOplFlowOptimizeCommand,
+  buildOplFlowPostAppUpdateReconcileCommand,
   buildReconcileModulesCommand,
   buildUpdateApplyCommand,
   buildUpdateCheckCommand,
