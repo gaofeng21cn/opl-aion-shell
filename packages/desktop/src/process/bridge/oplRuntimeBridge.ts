@@ -56,6 +56,13 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
 const OPL_APP_REQUIRED_FRAMEWORK_API_RANGE = 'p19.stage-runtime';
+const OPL_MODULE_PATH_ENV_KEYS = [
+  'OPL_MODULE_PATH_MEDAUTOSCIENCE',
+  'OPL_MODULE_PATH_MEDAUTOGRANT',
+  'OPL_MODULE_PATH_REDCUBE',
+  'OPL_MODULE_PATH_OPLMETAAGENT',
+  'OPL_MODULE_PATH_OPLBOOKFORGE',
+] as const;
 let standardBootstrapCompleted = false;
 let cachedDeveloperModeGithubIdentity: {
   key: string;
@@ -1051,11 +1058,22 @@ function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.
     return standardEnv;
   }
 
-  return {
+  const mergedEnv: NodeJS.ProcessEnv = {
     ...standardEnv,
     ...fullRuntimeEnv,
     PATH: normalizePathEntries([fullRuntimeEnv.PATH, standardEnv.PATH]),
   };
+  if (developerModePrefersLocalCheckout(standardEnv)) {
+    for (const key of OPL_MODULE_PATH_ENV_KEYS) {
+      const explicitPath = normalizeOptionalString(standardEnv[key]);
+      if (explicitPath) {
+        mergedEnv[key] = explicitPath;
+      } else {
+        delete mergedEnv[key];
+      }
+    }
+  }
+  return mergedEnv;
 }
 
 function resolvePackagedStandardInstaller(resourcesPath?: string): string | null {

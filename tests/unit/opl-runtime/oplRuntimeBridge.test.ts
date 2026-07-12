@@ -584,6 +584,7 @@ describe('OPL runtime bridge command whitelist', () => {
         OPL_FULL_RUNTIME_HOME: runtimeHome,
         OPL_WORKSPACE_ROOT: workspaceRoot,
         OPL_DEVELOPER_MODE_GH_FIXTURE: JSON.stringify({ user: { login: 'gaofeng21cn' } }),
+        OPL_MODULE_PATH_REDCUBE: '/explicit/redcube',
       },
       platform: 'darwin',
       arch: 'arm64',
@@ -591,6 +592,11 @@ describe('OPL runtime bridge command whitelist', () => {
 
     expect(__oplRuntimeBridgeTest.developerModePrefersLocalCheckout(env)).toBe(true);
     expect(__oplRuntimeBridgeTest.resolveDeveloperModeCheckoutRoot(env)).toBe(developerCheckout);
+    expect(env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBeUndefined();
+    expect(env.OPL_MODULE_PATH_MEDAUTOGRANT).toBeUndefined();
+    expect(env.OPL_MODULE_PATH_REDCUBE).toBe('/explicit/redcube');
+    expect(env.OPL_MODULE_PATH_OPLMETAAGENT).toBeUndefined();
+    expect(env.OPL_MODULE_PATH_OPLBOOKFORGE).toBeUndefined();
 
     const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
       __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
