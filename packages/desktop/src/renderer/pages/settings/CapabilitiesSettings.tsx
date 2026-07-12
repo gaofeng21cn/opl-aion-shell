@@ -119,7 +119,7 @@ function capabilitySourceLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string | null {
-  const raw = item.sourceKind ?? item.source;
+  const raw = item.actualSource ?? item.sourceKind ?? item.source;
   if (!raw) return null;
   const token = raw.replace(/[^a-z0-9]/gi, '').toLowerCase();
   if (
@@ -155,7 +155,7 @@ function capabilitySourceLabel(
 }
 
 function isCapabilityDeveloperSource(item: CapabilityPurposeViewModel): boolean {
-  const sourceTokens = [item.sourceKind, item.source]
+  const sourceTokens = [item.actualSource, item.sourceKind, item.source]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
   return sourceTokens.some((token) =>
@@ -513,8 +513,15 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const developerSafeMaintenance = oplString(developerMode.mode) === 'developer_apply_safe';
   const developerWorkspacePath = oplString(developerWorkspace.selected_path);
   const developerIdentityLogin = oplString(developerIdentity.login);
+  const developerIdentityStatus = oplString(developerIdentity.status);
+  const developerAuthorityStatus = oplString(developerAuthority.status);
   const directWriteRepoCount = Number(developerAuthority.direct_write_repo_count ?? 0);
   const requiredRepoCount = Number(developerAuthority.required_repo_count ?? 0);
+  const showDeveloperIdentity = developerIdentityStatus === 'ready' && Boolean(developerIdentityLogin);
+  const showDeveloperAuthority =
+    Boolean(developerAuthorityStatus) &&
+    !['not_checked', 'skipped'].includes(developerAuthorityStatus) &&
+    requiredRepoCount > 0;
   const selectedCapability = React.useMemo(
     () => purposeCapabilities.find((item) => item.key === selectedCapabilityKey) ?? null,
     [purposeCapabilities, selectedCapabilityKey]
@@ -815,13 +822,16 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
               {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
               {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
             </span>
-            <span>
-              {t('settings.capabilitiesPage.developerSource.identity')}:{' '}
-              {developerIdentityLogin ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </span>
-            <span>
-              {t('settings.capabilitiesPage.developerSource.authority')}: {directWriteRepoCount} / {requiredRepoCount}
-            </span>
+            {showDeveloperIdentity && (
+              <span>
+                {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
+              </span>
+            )}
+            {showDeveloperAuthority && (
+              <span>
+                {t('settings.capabilitiesPage.developerSource.authority')}: {directWriteRepoCount} / {requiredRepoCount}
+              </span>
+            )}
           </div>
         </section>
 

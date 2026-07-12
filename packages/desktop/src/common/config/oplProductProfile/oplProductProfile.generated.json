@@ -1285,7 +1285,7 @@
         "github_authority": {
           "standard_default": "read_only_or_user_confirmed",
           "developer_opt_in": "repo_checkout_and_remote_intent_visible",
-          "display_policy": "show_repo_authority_without_hiding_user_confirmation"
+          "display_policy": "show_repo_authority_after_full_inspection_without_fast_profile_placeholders_or_hidden_user_confirmation"
         },
         "agent_automation": {
           "standard_default": "automatic_clean_managed_agent_package_updates",

@@ -72,6 +72,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               package_id: 'med-autoscience',
               enabled: true,
               hidden: false,
+              source_kind: 'registry',
             },
             {
               package_id: 'med-autogrant',
