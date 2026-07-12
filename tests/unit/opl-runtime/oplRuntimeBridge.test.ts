@@ -343,7 +343,7 @@ describe('OPL runtime bridge command whitelist', () => {
         __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
         missingManagedDependency
       )
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('detects older OPL runtimes that do not support initialize event streaming', () => {

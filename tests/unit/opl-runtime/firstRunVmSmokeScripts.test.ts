@@ -514,12 +514,18 @@ describe('OPL first-run VM smoke scripts', () => {
     if (process.platform === 'win32') {
       expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/c/Users/tester/runtime/current'");
       expect(prefix).toContain(
+        "export OPL_PREFILLED_NODE_MODULES_DIR='/c/Users/tester/runtime/current/opl/node_modules'"
+      );
+      expect(prefix).toContain(
         "export PATH='/c/Users/tester/runtime/current/bin:/c/Users/tester/runtime/current/node/bin"
       );
       expect(prefix).not.toContain('runtime\\current');
       expect(prefix).not.toContain('current/bin;/c/');
     } else {
       expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='C:\\Users\\tester\\runtime\\current'");
+      expect(prefix).toContain(
+        "export OPL_PREFILLED_NODE_MODULES_DIR='C:\\Users\\tester\\runtime\\current/opl/node_modules'"
+      );
       expect(prefix).toContain('current/bin');
     }
   });

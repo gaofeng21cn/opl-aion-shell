@@ -1272,6 +1272,7 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     .join(runtimePathDelimiter());
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHomeForShell)}`,
+    `export OPL_PREFILLED_NODE_MODULES_DIR=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'opl', 'node_modules')))}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'skills')))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mas')))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mag')))}`,

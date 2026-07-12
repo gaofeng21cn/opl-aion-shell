@@ -503,7 +503,8 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
     (error instanceof Error &&
       error.message === 'The Framework-managed OPL base carrier is missing.' &&
       shouldAutoBootstrapOplCommand(spec)) ||
-    (isManagedCarrierDependencyError(error) && shouldAutoBootstrapOplCommand(spec)) ||
+    (isManagedCarrierDependencyError(error) &&
+      (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
 }
