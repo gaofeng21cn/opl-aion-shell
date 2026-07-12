@@ -24,10 +24,10 @@ import {
 } from '../sections/runtimeStateView';
 
 const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
-  'med-autoscience': 'medautoscience',
-  'med-autogrant': 'medautogrant',
-  'redcube-ai': 'redcube',
-  'opl-bookforge': 'oplbookforge',
+  mas: 'medautoscience',
+  mag: 'medautogrant',
+  rca: 'redcube',
+  obf: 'oplbookforge',
 };
 
 const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];

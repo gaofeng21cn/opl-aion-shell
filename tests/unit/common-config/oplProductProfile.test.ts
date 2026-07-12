@@ -386,12 +386,7 @@ describe('OPL generated product profile', () => {
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {
     const assistants = getOplDefaultHomeAssistants();
 
-    expect(assistants.map((assistant) => assistant.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(assistants.map((assistant) => assistant.display_name)).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
@@ -407,10 +402,10 @@ describe('OPL generated product profile', () => {
       'book',
     ]);
     expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.target_assistant_id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
+      'mas',
+      'mag',
+      'rca',
+      'obf',
     ]);
     expect(
       OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
@@ -423,20 +418,20 @@ describe('OPL generated product profile', () => {
       'oma',
     ]);
     expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.package_id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'opl-meta-agent',
+      'mas',
+      'mag',
+      'rca',
+      'obf',
+      'oma',
     ]);
     expect(getOplHomeAgentShortcuts().every((shortcut) => shortcut.user_configurable)).toBe(true);
     expect(getOplHomeAgentShortcuts().find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(false);
     expect(getOplProfessionalAgentPackages().map((agentPackage) => agentPackage.package_id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'opl-meta-agent',
+      'mas',
+      'mag',
+      'rca',
+      'obf',
+      'oma',
     ]);
     expect(
       Object.fromEntries(
@@ -446,17 +441,17 @@ describe('OPL generated product profile', () => {
         ])
       )
     ).toMatchObject({
-      'med-autoscience': 'med-autoscience',
-      'med-autogrant': 'med-autogrant',
-      'redcube-ai': 'redcube-ai',
-      'opl-bookforge': 'opl-bookforge',
-      'opl-meta-agent': 'opl-meta-agent',
+      mas: 'med-autoscience',
+      mag: 'med-autogrant',
+      rca: 'redcube-ai',
+      obf: 'opl-bookforge',
+      oma: 'opl-meta-agent',
     });
     expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
     expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
-    expect(assistants.map((assistant) => assistant.id)).not.toContain('opl-meta-agent');
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['opl-meta-agent']);
+    expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(false);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
     expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).toContain(
@@ -467,28 +462,18 @@ describe('OPL generated product profile', () => {
     );
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
-    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
   });
 
   it('exposes assistant-scoped home skill profiles from the App contract', () => {
     const profiles = getOplAssistantSkillProfiles();
 
-    expect(profiles.map((profile) => profile.assistant_id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
-      'med-autoscience': ['med-autoscience'],
-      'med-autogrant': ['med-autogrant'],
-      'redcube-ai': ['redcube-ai'],
-      'opl-bookforge': ['opl-bookforge'],
+      mas: ['med-autoscience'],
+      mag: ['med-autogrant'],
+      rca: ['redcube-ai'],
+      obf: ['opl-bookforge'],
     });
     expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
     expect(getOplAssistantSkillProfile('mag')?.required_skills).toEqual(['med-autogrant']);
@@ -536,7 +521,7 @@ describe('OPL generated product profile', () => {
     const policy = getOplBuiltinAssistantRouteReceiptPolicy();
 
     expect(policy.migration_alias_for).toBe('agent_package_invocation_receipt_policy');
-    expect(policy.required_for_assistants).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
+    expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(policy.route_kind).toBe('builtin_capability');
     expect(policy.executor).toBe('codex_cli');
     expect(policy.source).toBe('opl_app_home');
@@ -549,12 +534,7 @@ describe('OPL generated product profile', () => {
     ]);
 
     policy.required_for_assistants.push('caller-local-assistant');
-    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual(['mas', 'mag', 'rca', 'obf']);
   });
 
   it('exposes App-managed OPL Flow context policy without allowing caller mutation', () => {
