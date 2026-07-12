@@ -7,7 +7,7 @@ import HomeStarters from '@/renderer/pages/guid/components/HomeStarters';
 
 const mocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
-  packageIds: ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent'],
+  packageIds: ['mas', 'mag', 'rca', 'obf', 'oma'],
 }));
 
 const readyAppState = () => ({
@@ -74,19 +74,17 @@ describe('HomeStarters', () => {
     const onSelect = vi.fn();
     render(
       <HomeStarters
-        assistants={['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent'].map(
-          assistant
-        )}
+        assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
         localeKey='en-US'
         onSelect={onSelect}
       />
     );
 
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
-    expect(screen.getByTestId('home-starter-opl-meta-agent')).toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId('home-starter-med-autogrant'));
-    expect(onSelect).toHaveBeenCalledWith('med-autogrant');
+    await userEvent.click(screen.getByTestId('home-starter-mag'));
+    expect(onSelect).toHaveBeenCalledWith('mag');
   });
 
   it('keeps an active capability visible and clears it from the same starter without selecting another', async () => {
@@ -94,18 +92,16 @@ describe('HomeStarters', () => {
     const onClear = vi.fn();
     render(
       <HomeStarters
-        assistants={['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent'].map(
-          assistant
-        )}
+        assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
         localeKey='en-US'
-        activeCapabilityId='opl-meta-agent'
+        activeCapabilityId='oma'
         onSelect={onSelect}
         onClear={onClear}
       />
     );
 
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
-    const activeStarter = screen.getByTestId('home-starter-opl-meta-agent');
+    const activeStarter = screen.getByTestId('home-starter-oma');
     expect(activeStarter).toHaveAttribute('aria-pressed', 'true');
 
     await userEvent.click(activeStarter);
@@ -115,8 +111,8 @@ describe('HomeStarters', () => {
 
   it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {
     const appState = readyAppState();
-    appState.agent_packages.status_index.packages['med-autogrant'] = {
-      package_id: 'med-autogrant',
+    appState.agent_packages.status_index.packages.mag = {
+      package_id: 'mag',
       operational_ready: false,
       launch_allowed: false,
       launch_blocked_reason: 'required_export_missing',
@@ -124,15 +120,9 @@ describe('HomeStarters', () => {
     };
     mocks.appState = appState;
     const onSelect = vi.fn();
-    render(
-      <HomeStarters
-        assistants={['med-autoscience', 'med-autogrant'].map(assistant)}
-        localeKey='en-US'
-        onSelect={onSelect}
-      />
-    );
+    render(<HomeStarters assistants={['mas', 'mag'].map(assistant)} localeKey='en-US' onSelect={onSelect} />);
 
-    const blockedStarter = screen.getByTestId('home-starter-med-autogrant');
+    const blockedStarter = screen.getByTestId('home-starter-mag');
     expect(blockedStarter).toBeDisabled();
     expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('required_export_missing'));
     await userEvent.click(blockedStarter);
@@ -141,8 +131,8 @@ describe('HomeStarters', () => {
 
   it('keeps an active but blocked package disabled instead of reopening its launch path', async () => {
     const appState = readyAppState();
-    appState.agent_packages.status_index.packages['med-autoscience'] = {
-      package_id: 'med-autoscience',
+    appState.agent_packages.status_index.packages.mas = {
+      package_id: 'mas',
       operational_ready: false,
       launch_allowed: false,
       launch_blocked_reason: 'scope_materialization_missing',
@@ -153,15 +143,15 @@ describe('HomeStarters', () => {
     const onClear = vi.fn();
     render(
       <HomeStarters
-        assistants={[assistant('med-autoscience')]}
+        assistants={[assistant('mas')]}
         localeKey='en-US'
-        activeCapabilityId='med-autoscience'
+        activeCapabilityId='mas'
         onSelect={onSelect}
         onClear={onClear}
       />
     );
 
-    const blockedStarter = screen.getByTestId('home-starter-med-autoscience');
+    const blockedStarter = screen.getByTestId('home-starter-mas');
     expect(blockedStarter).toBeDisabled();
     expect(blockedStarter).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(blockedStarter);

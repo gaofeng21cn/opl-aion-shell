@@ -66,8 +66,8 @@ function readyMasAppState() {
     agent_packages: {
       status_index: {
         packages: {
-          'med-autoscience': {
-            package_id: 'med-autoscience',
+          mas: {
+            package_id: 'mas',
             operational_ready: true,
             launch_allowed: true,
             launch_blocked_reason: null,
@@ -159,8 +159,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       agent_packages: {
         status_index: {
           packages: {
-            'med-autoscience': {
-              package_id: 'med-autoscience',
+            mas: {
+              package_id: 'mas',
               operational_ready: true,
               launch_allowed: true,
             },
@@ -196,7 +196,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(payload.extra.opl_agent_package_invocation).toEqual({
       route_kind: 'agent_package_shortcut',
       executor: 'codex_cli',
-      package_id: 'med-autoscience',
+      package_id: 'mas',
       shortcut_id: 'research',
       codex_visible_entry: 'med-autoscience',
       required_skill_ids: ['med-autoscience'],
@@ -205,7 +205,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(payload.extra.opl_assistant_route).toMatchObject({
       route_kind: 'builtin_capability',
       executor: 'codex_cli',
-      assistant_id: 'med-autoscience',
+      assistant_id: 'mas',
       assistant_short_name: 'MAS',
       source: 'opl_app_home',
     });
@@ -217,8 +217,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       agent_packages: {
         status_index: {
           packages: {
-            'med-autoscience': {
-              package_id: 'med-autoscience',
+            mas: {
+              package_id: 'mas',
               operational_ready: true,
               launch_allowed: true,
               launch_blocked_reason: 'package_not_installed',
