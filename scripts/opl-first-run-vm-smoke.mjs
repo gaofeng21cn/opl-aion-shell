@@ -3725,6 +3725,31 @@ async function captureEarlyLaunchDiagnostics(options, secret) {
   }
 }
 
+function readRendererBootstrapFatal(artifacts) {
+  const diagnosticsPath = path.join(artifacts, 'renderer-bootstrap-diagnostics.json');
+  if (!fs.existsSync(diagnosticsPath)) return null;
+  try {
+    const diagnostics = JSON.parse(fs.readFileSync(diagnosticsPath, 'utf8'));
+    const event = diagnostics.events?.find((entry) => entry?.source === 'Runtime.exceptionThrown');
+    if (!event) return null;
+    return {
+      source: event.source,
+      text: typeof event.text === 'string' ? event.text : 'Unknown renderer exception',
+      url: event.url ?? null,
+      line: event.line ?? null,
+      column: event.column ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function assertNoRendererBootstrapFatal(artifacts) {
+  const fatal = readRendererBootstrapFatal(artifacts);
+  if (!fatal) return;
+  throw new Error(`Renderer bootstrap failed before usable entry: ${fatal.text}`);
+}
+
 async function waitForUsableGuidEntry(options, secret) {
   const started = Date.now();
   try {
@@ -5422,6 +5447,7 @@ async function main() {
         blocking_release_gate: false,
       }
     );
+    assertNoRendererBootstrapFatal(options.artifacts);
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
@@ -5816,6 +5842,8 @@ export const __test =
         rendererBootstrapDiagnosticsExpression,
         createRendererBootstrapDiagnosticsCollector,
         collectRendererBootstrapDiagnostics,
+        readRendererBootstrapFatal,
+        assertNoRendererBootstrapFatal,
         collectLaunchLogText,
         collectMainBootstrapFatalArtifacts,
         collectAppLogArtifacts,

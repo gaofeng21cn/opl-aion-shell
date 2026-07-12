@@ -71,6 +71,9 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.schema_version).toBe(2);
     expect(getOplProductDisplayName()).toBe('One Person Lab App');
     expect(OPL_PRODUCT_PROFILE.product.display_name).toBe('One Person Lab App');
+    expect(
+      OPL_PRODUCT_PROFILE.first_run.beginner_presentation.post_install_ai_self_check_entry.target_state_checks
+    ).toContain('session_scoped_opl_app_context');
   });
 
   it('exposes the App-generated Codex default model profile', () => {

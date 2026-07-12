@@ -391,6 +391,33 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(__test.remainingGuidFallbackTimeoutMs(180_000, 181_000)).toBe(0);
   });
 
+  it('fails before the long Accessibility fallback when renderer bootstrap threw', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-renderer-fatal-'));
+    try {
+      fs.writeFileSync(
+        path.join(artifacts, 'renderer-bootstrap-diagnostics.json'),
+        JSON.stringify({
+          events: [
+            {
+              source: 'Runtime.exceptionThrown',
+              text: 'Invalid OPL product profile: missing session_scoped_opl_app_context',
+            },
+          ],
+        })
+      );
+
+      expect(__test.readRendererBootstrapFatal(artifacts)).toMatchObject({
+        source: 'Runtime.exceptionThrown',
+        text: 'Invalid OPL product profile: missing session_scoped_opl_app_context',
+      });
+      expect(() => __test.assertNoRendererBootstrapFatal(artifacts)).toThrow(
+        /Renderer bootstrap failed before usable entry/
+      );
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('bounds guest waits before the host SSH deadline can kill diagnostics', () => {
     const nowMs = 1_000_000;
     const hostDeadlineMs = nowMs + 300_000;
