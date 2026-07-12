@@ -356,42 +356,23 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toContain('--aionui-cdp-port=9230');
   });
 
-  it('targets current OPL Settings pages instead of the retired overview refresh control', () => {
+  it('targets current OPL Settings pages through stable structural anchors instead of localized copy', () => {
     const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
     const environmentTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'environment');
     const appearanceTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'appearance');
 
     expect(generalTarget?.hash).toBe('#/settings/general');
-    expect(generalTarget?.requiredTextAny).toEqual(
-      expect.arrayContaining([
-        ['One Person Lab'],
-        ['Open Runtime Status', '打开运行状态'],
-        ['Open Maintenance', '打开维护'],
-      ])
-    );
+    expect(generalTarget?.contentSelector).toBe('[data-testid="settings-page-overview"]');
     expect(JSON.stringify(generalTarget)).not.toContain('Refresh status');
     expect(JSON.stringify(generalTarget)).not.toContain('刷新状态');
+    expect(JSON.stringify(generalTarget)).not.toContain('打开运行状态');
     expect(environmentTarget?.hash).toBe('#/settings/environment');
-    expect(environmentTarget?.requiredTextAny).toEqual(
-      expect.arrayContaining([
-        ['Maintenance and updates', '维护与更新'],
-        ['Make OPL usable', '让 OPL 可用'],
-        ['Runtime environment', '运行环境'],
-        ['Capability packs and Codex Surface sync', '能力包与 Codex Surface 同步'],
-      ])
+    expect(environmentTarget?.contentSelector).toBe('[data-testid="settings-page-maintenance"]');
+    expect(appearanceTarget?.contentSelector).toBe('[data-testid="settings-page-preferences"]');
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.contentSelector).toBe(
+      '[data-testid="settings-page-advanced"]'
     );
-    expect(appearanceTarget?.requiredTextAny).toEqual(
-      expect.arrayContaining([
-        ['Theme', '主题'],
-        ['Codex Theme', 'Codex 主题', 'Codex'],
-      ])
-    );
-    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.requiredTextAny).toEqual(
-      expect.arrayContaining([
-        ['OPL Developer Profile', 'OPL 开发者配置'],
-        ['OPL Flow Context', 'OPL Flow 上下文'],
-      ])
-    );
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.every((target) => !('requiredTextAny' in target))).toBe(true);
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about')?.navigation).toBe('secondary');
   });
 
@@ -402,8 +383,12 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.pageReadinessExpression(generalTarget)).toContain(
       'document.querySelector(\'.settings-sider__item[data-settings-id="general"]\')'
     );
+    expect(vmSmoke.pageReadinessExpression(generalTarget)).toContain(
+      'document.querySelector("[data-testid=\\"settings-page-overview\\"]")'
+    );
     expect(vmSmoke.pageReadinessExpression(aboutTarget)).toContain('const navPresent = true;');
     expect(vmSmoke.pageReadinessExpression(aboutTarget)).not.toContain('data-settings-id="about"');
+    expect(vmSmoke.pageReadinessExpression(generalTarget)).not.toContain('Open Runtime Status');
   });
 
   it('keeps runtime refresh checks in packaged Settings and Runtime smokes', () => {

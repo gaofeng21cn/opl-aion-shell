@@ -3932,45 +3932,40 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
   {
     id: 'general',
     hash: '#/settings/general',
-    requiredTextAny: [['One Person Lab'], ['Open Runtime Status', '打开运行状态'], ['Open Maintenance', '打开维护']],
+    contentSelector: '[data-testid="settings-page-overview"]',
   },
   {
     id: 'environment',
     hash: '#/settings/environment',
-    requiredTextAny: [
-      ['Maintenance and updates', '维护与更新'],
-      ['Make OPL usable', '让 OPL 可用'],
-      ['Runtime environment', '运行环境'],
-      ['Capability packs and Codex Surface sync', '能力包与 Codex Surface 同步'],
-    ],
+    contentSelector: '[data-testid="settings-page-maintenance"]',
   },
-  { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
+  {
+    id: 'capabilities',
+    hash: '#/settings/capabilities',
+    contentSelector: '[data-testid="settings-page-capabilities"]',
+  },
   {
     id: 'access',
     hash: '#/settings/access',
-    requiredTextAny: [
-      ['Access', '访问'],
-      ['WebUI', '远程连接'],
-    ],
+    contentSelector: '[data-testid="settings-page-access"]',
   },
   {
     id: 'appearance',
     hash: '#/settings/appearance',
-    requiredTextAny: [
-      ['Theme', '主题'],
-      ['Codex Theme', 'Codex 主题', 'Codex'],
-    ],
+    contentSelector: '[data-testid="settings-page-preferences"]',
   },
   {
     id: 'advanced',
     hash: '#/settings/advanced',
-    requiredTextAny: [
-      ['OPL Developer Profile', 'OPL 开发者配置'],
-      ['OPL Flow Context', 'OPL Flow 上下文'],
-    ],
+    contentSelector: '[data-testid="settings-page-advanced"]',
     navigation: 'secondary',
   },
-  { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']], navigation: 'secondary' },
+  {
+    id: 'about',
+    hash: '#/settings/about',
+    contentSelector: '[data-testid="settings-page-about"]',
+    navigation: 'secondary',
+  },
 ];
 
 function cdpString(value) {
@@ -3986,18 +3981,18 @@ function pageReadinessExpression(target) {
   return `(() => {
     const text = document.body?.innerText || '';
     const navPresent = ${settingsNavItemExpression(target)};
-    const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
-    const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
+    const contentPresent = Boolean(document.querySelector(${cdpString(target.contentSelector)}));
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     const firstRunWindowVisible = Boolean(document.querySelector('[data-testid="opl-first-run-window"]'));
     const hashOk = window.location.hash.startsWith(${cdpString(target.hash)});
-    return hashOk && navPresent && text.length > 80 && missingText.length === 0 && !appLoaderVisible && !firstRunWindowVisible
+    return hashOk && navPresent && contentPresent && text.length > 80 && !appLoaderVisible && !firstRunWindowVisible
       ? {
           id: ${cdpString(target.id)},
           hash: window.location.hash,
           textLength: text.length,
           navPresent,
-          requiredTextAny,
+          contentSelector: ${cdpString(target.contentSelector)},
+          contentPresent,
         }
       : false;
   })()`;
@@ -4058,8 +4053,6 @@ async function captureSettingsPage(client, target, options, secret) {
       client,
       `(() => {
         const text = document.body?.innerText || '';
-        const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
-        const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
         return {
           id: ${cdpString(target.id)},
           expectedHash: ${cdpString(target.hash)},
@@ -4067,9 +4060,10 @@ async function captureSettingsPage(client, target, options, secret) {
           textLength: text.length,
           navPresent: ${settingsNavItemExpression(target)},
           navigation: ${cdpString(target.navigation ?? 'top_level')},
+          contentSelector: ${cdpString(target.contentSelector)},
+          contentPresent: Boolean(document.querySelector(${cdpString(target.contentSelector)})),
           loaderVisible: Boolean(document.querySelector('[class*="loader"], .arco-spin-loading')),
           firstRunWindowVisible: Boolean(document.querySelector('[data-testid="opl-first-run-window"]')),
-          missingText,
           textSample: text.slice(0, 1000),
         };
       })()`
