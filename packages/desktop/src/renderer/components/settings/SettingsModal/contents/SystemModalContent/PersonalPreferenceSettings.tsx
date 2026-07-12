@@ -316,7 +316,7 @@ const PersonalPreferenceSettings: React.FC = () => {
       : []),
   ];
 
-  const technicalPreferenceItems: PreferenceItem[] = [
+  const backgroundPreferenceItems: PreferenceItem[] = [
     {
       key: 'agentIdleTimeout',
       label: t('settings.agentIdleTimeout'),
@@ -377,23 +377,32 @@ const PersonalPreferenceSettings: React.FC = () => {
             />
           </PreferenceRow>
         </div>
-        <details
-          className='opl-settings-details'
-          id='advanced-preferences'
-          data-testid='settings-preferences-technical-details'
-        >
-          <summary>{t('settings.advancedSettings')}</summary>
-          <span id='models-performance' aria-hidden='true' />
-          <span id='hardware' aria-hidden='true' />
-          <div className='mt-4px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
-          <div className='opl-settings-list mt-10px'>
-            {[...performancePreferenceItems, ...technicalPreferenceItems].map((item) => (
-              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-                {item.component}
-              </PreferenceRow>
-            ))}
+      </section>
+
+      <section className='opl-settings-section' id='models-performance' data-testid='preferences-performance-section'>
+        <span id='hardware' aria-hidden='true' />
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-12px'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+              <SettingConfig theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
+              <div className='text-14px font-medium text-t-primary leading-22px'>
+                {t('settings.performancePreferencesTitle')}
+              </div>
+              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                {t('settings.timeoutPreferencesDesc')}
+              </div>
+            </div>
           </div>
-        </details>
+        </div>
+        <div className='opl-settings-list'>
+          {[...performancePreferenceItems, ...backgroundPreferenceItems].map((item) => (
+            <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+              {item.component}
+            </PreferenceRow>
+          ))}
+        </div>
       </section>
     </>
   );

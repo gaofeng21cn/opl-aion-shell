@@ -194,6 +194,7 @@ describe('AppearanceModalContent', () => {
     const page = screen.getByTestId('settings-page-preferences');
     expect(Array.from(page.querySelectorAll('section')).map((section) => section.id)).toEqual([
       'app-behavior',
+      'models-performance',
       'instructions-context',
       'display',
     ]);
@@ -205,11 +206,15 @@ describe('AppearanceModalContent', () => {
     expect(appBehavior).toHaveTextContent('Keep running after closing the window');
     expect(appBehavior).toHaveTextContent('Keep awake');
     expect(appBehavior).toHaveTextContent('Save uploads to workspace');
-    expect(appBehavior).toHaveTextContent('Model response timeout');
-    await waitFor(() => expect(appBehavior).toHaveTextContent('Hardware acceleration'));
 
     expect(appBehavior).toHaveTextContent('Notifications');
     expect(appBehavior).toHaveTextContent('Background task completion');
+
+    const performancePreferences = screen.getByTestId('preferences-performance-section');
+    expect(performancePreferences).toHaveTextContent('Performance and background activity');
+    expect(performancePreferences).toHaveTextContent('Model response timeout');
+    expect(performancePreferences).toHaveTextContent('Release an idle background assistant after');
+    await waitFor(() => expect(performancePreferences).toHaveTextContent('Hardware acceleration'));
 
     const instructions = screen.getByTestId('settings-preferences-instructions');
     expect(instructions).toHaveTextContent('System AGENTS.md');
@@ -229,10 +234,7 @@ describe('AppearanceModalContent', () => {
     expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
 
-    const advancedPreferences = screen.getByTestId('settings-preferences-technical-details');
-    expect(advancedPreferences).not.toHaveAttribute('open');
-    expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
-    expect(appBehavior.querySelectorAll('details')).toHaveLength(1);
+    expect(appBehavior.querySelectorAll('details')).toHaveLength(0);
 
     fireEvent.click(screen.getByTestId('settings-keep-awake').querySelector('[role="switch"]')!);
     await waitFor(() => expect(bridgeMocks.setKeepAwake).toHaveBeenCalledWith({ enabled: true }));

@@ -1700,6 +1700,7 @@
       "detail": "Keep a restorable copy before removing local files.",
       "receiptRequired": "Create an archive first. You can then verify it or remove the local files.",
       "proofReady": "Archive created. You can verify it or remove the local files.",
+      "restoreConfirmation": "Restore the archived conversation files to their original location. Existing files will not be overwritten.",
       "deleteConfirmation": "Local conversation files will be removed. The archive will remain available for recovery.",
       "technicalReceipt": "Archive record: {{receipt}}",
       "proofReceipt": "Archive record: {{receipt}}"
@@ -1809,6 +1810,16 @@
       "configureButton": "Configure OPL Gateway",
       "configureSuccess": "OPL Gateway access key saved.",
       "configureFailed": "Could not save OPL Gateway access key."
+    },
+    "modelPreference": {
+      "title": "New conversation defaults",
+      "description": "Choose the default model and reasoning effort used when a new Codex conversation starts.",
+      "modelLabel": "Default model",
+      "reasoningLabel": "Reasoning effort",
+      "autoReasoning": "Auto uses the App reasoning policy for the selected model.",
+      "notReported": "Codex path not reported",
+      "saved": "Default model preference saved.",
+      "saveFailed": "Could not save model preference."
     },
     "remote": {
       "title": "Browser access to this computer",
@@ -2394,6 +2405,19 @@
           "title": "Local services and repair",
           "description": "Check local background services such as Codex, workspace, and Temporal."
         }
+      }
+    },
+    "management": {
+      "title": "Manage maintenance",
+      "description": "Check, apply, repair, or roll back OPL Packages and managed updates."
+    },
+    "updateChannel": {
+      "title": "Update channel",
+      "description": "Choose which OPL App and package updates this computer follows.",
+      "saved": "Update channel saved.",
+      "values": {
+        "stable": "Stable",
+        "nightly": "Nightly"
       }
     },
     "advancedDetails": {

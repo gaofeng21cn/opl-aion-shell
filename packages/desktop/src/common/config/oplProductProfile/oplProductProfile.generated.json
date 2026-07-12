@@ -1545,8 +1545,8 @@
             "configuration_id": "developer_supervisor",
             "owner_class": "framework",
             "truth_owner": "one-person-lab",
-            "page_id": "maintenance",
-            "anchor": "services",
+            "page_id": "capabilities",
+            "anchor": "source",
             "lifecycle": "persistent_configuration",
             "value_type": "object",
             "sensitivity": "ordinary",
@@ -2078,10 +2078,15 @@
         "pet": "appearance"
       },
       "extension_tab_policy": {
-        "anchored_tabs": "insert_before_or_after_remapped_ordinary_route",
-        "unanchored_tabs": "insert_before_advanced",
-        "unknown_anchor": "treat_as_unanchored",
-        "legacy_anchor_remap_required": true
+        "legacy_anchor_remap_required": true,
+        "default_visibility": "hidden_until_app_classified",
+        "mount_allowlist": [],
+        "allowed_classifications": ["accepted", "adapt", "redirect", "reject"],
+        "accepted_or_adapted_tabs": "insert_before_or_after_the_app_owned_route_declared_by_the_classification_record",
+        "redirected_tabs": "navigate_to_the_declared_owner_route_and_anchor_without_mounting_an_extension_page",
+        "rejected_tabs": "never_mount_or_index_in_opl_settings",
+        "unclassified_or_unknown_anchor": "hide_and_report_in_intake_diagnostics",
+        "extension_data_deletion_policy": "never_delete_extension_data_when_hiding_or_redirecting_an_entry"
       },
       "slot_registry": {
         "settings_general": {
@@ -2155,7 +2160,12 @@
           "domain truth",
           "owner receipts",
           "release readiness"
-        ]
+        ],
+        "configuration_action_policy": "framework_owned_persistent_controls_consume_configuration_catalog_action_ids_and_verify_refs_without_shell_hardcoding",
+        "one_time_action_policy": "maintenance_resource_storage_and_capability_commands_consume_action_catalog_entries_without_becoming_configuration",
+        "diagnostic_policy": "diagnostic_surfaces_are_read_only_and_must_not_mount_apply_repair_rollback_install_uninstall_or_persistent_setting_controls",
+        "status_vocabulary": ["checking", "not_checked", "not_applicable", "ready", "needs_attention", "failed"],
+        "unknown_status_policy": "unknown_is_reserved_for_malformed_or_unsupported_projection_and_is_never_used_for_loading_or_not_checked"
       },
       "model_reasoning_policy_source": {
         "owner": "one-person-lab-app",
@@ -2422,6 +2432,8 @@
           "classify as accepted/adapt/redirect/reject before changing registry or slots",
           "bind accepted/adapt entries to SettingsHost or SettingsShellAdapterSlot evidence",
           "route redirect/reject entries through legacy redirects, extension anchor remap, or forbidden probes",
+          "hide unclassified extension tabs until the App owner records accepted/adapt/redirect/reject",
+          "measure changed upstream Settings choke points and keep the OPL integration inside the declared overlay budget",
           "keep runtime truth, domain truth, provider implementation, owner receipts, and release readiness outside the shell adapter"
         ],
         "records": [
@@ -2515,7 +2527,25 @@
             "last_reviewed_at": "2026-06-30",
             "status": "active"
           }
-        ]
+        ],
+        "overlay_budget": {
+          "goal": "OPL Settings product pages live in additive overlay files and consume stable host slots",
+          "preferred_upstream_choke_points": [
+            "SettingsModal/index.tsx",
+            "SettingsHost.tsx",
+            "SettingsShellAdapterSlot.tsx",
+            "settingsRegistry.tsx"
+          ],
+          "direct_fork_body_page_modification_policy": "avoid_unless_an_accepted_upstream_capability_cannot_be_adapted_through_a_slot_or_wrapper",
+          "new_direct_fork_body_file_budget": 4,
+          "budget_exception_requires": [
+            "app_owner_rationale",
+            "upstream_diff_classification",
+            "focused_merge_conflict_test",
+            "documented_retirement_or_upstreaming_plan"
+          ],
+          "generated_profile_and_locales": "generated_or_app_owned_inputs_do_not_count_as_product_authority_but_remain_merge_hotspots_and_require_sync_checks"
+        }
       },
       "product_system_checklist": {
         "schema": "settings_product_system_checklist.v1",
@@ -2884,7 +2914,7 @@
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Capabilities separate availability, source, and Home visibility and keep custom assistants on their own entry.",
+                "normal_summary": "Capabilities separate availability, source, and Home visibility while keeping upstream custom assistants out of OPL Settings.",
                 "next_action": "open capability details or Maintenance for updates and repairs",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_capabilities",
                 "editable_reason": "visibility and setup actions are user configurable"
@@ -3062,12 +3092,12 @@
             "label_zh": "概览",
             "label_en": "Overview",
             "primary_information": [
-              "model access, workspace, background services, capabilities, and updates as distinct status domains",
-              "issue queue ordered by user impact",
-              "one next useful action without duplicating the Settings navigation",
-              "contextual common entries that open the owning page without copying the whole sidebar"
+              "one overall usability summary derived from model access, workspace, background services, capabilities, and updates",
+              "issue queue ordered by user impact and limited to actionable exceptions",
+              "one next useful action",
+              "at most two contextual entries selected from recent or currently relevant tasks, never a directory of Settings pages"
             ],
-            "first_viewport_groups": ["system_status", "attention_queue", "next_action", "common_entries"],
+            "first_viewport_groups": ["system_status", "attention_queue", "next_action_and_context"],
             "primary_action": {
               "id": "open_first_attention_item",
               "availability": "attention_only",
@@ -3076,9 +3106,9 @@
               "label_en": "Review attention item"
             },
             "exception_state": "emphasize only the highest-priority item that needs user action",
-            "technical_details_boundary": "raw state keys, timestamps, paths, and receipts stay collapsed",
+            "technical_details_boundary": "raw state keys, timestamps, paths, and receipts open in a read-only diagnostic modal; no inline details disclosure",
             "required_dom": {
-              "always": ["settings-page-overview", "settings-overview-primary", "settings-overview-technical-details"],
+              "always": ["settings-page-overview", "settings-overview-primary", "settings-overview-diagnostics-action"],
               "conditional": [
                 {
                   "testid": "settings-overview-exception",
@@ -3087,6 +3117,10 @@
                 {
                   "testid": "settings-overview-primary-action",
                   "when": "attention_only"
+                },
+                {
+                  "testid": "settings-overview-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -3096,7 +3130,32 @@
               "overview.attention",
               "overview.next_action",
               "overview.common_actions"
-            ]
+            ],
+            "surface_inventory": {
+              "configuration": [],
+              "status": [
+                {
+                  "id": "system_status",
+                  "owner": "overview"
+                },
+                {
+                  "id": "attention_queue",
+                  "owner": "overview"
+                }
+              ],
+              "action": [
+                {
+                  "id": "open_first_attention_item",
+                  "owner": "overview"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "raw_overview_evidence",
+                  "owner": "overview"
+                }
+              ]
+            }
           },
           "access": {
             "product_page_id": "access",
@@ -3121,9 +3180,14 @@
               "label_en": "Configure model access"
             },
             "exception_state": "highlight missing, expired, or unreachable model access and the one corrective action",
-            "technical_details_boundary": "base URL, environment variables, token paths, and raw provider ids stay hidden unless a distinct diagnostic surface needs them; displayed model and CLI facts are not repeated",
+            "technical_details_boundary": "base URL, environment variables, token paths, candidate binaries, and raw provider ids appear only in a read-only diagnostic modal; displayed model and CLI facts are not repeated",
             "required_dom": {
-              "always": ["settings-page-access", "settings-access-primary"],
+              "always": [
+                "settings-page-access",
+                "settings-access-primary",
+                "settings-access-model-preference",
+                "settings-access-diagnostics-action"
+              ],
               "conditional": [
                 {
                   "testid": "settings-access-exception",
@@ -3132,11 +3196,48 @@
                 {
                   "testid": "settings-access-primary-action",
                   "when": "missing_or_user_requested_change"
+                },
+                {
+                  "testid": "settings-access-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
             "required_anchors": ["provider-source", "model", "codex-cli", "authentication"],
-            "search_entry_ids": ["access.provider_source", "access.model", "access.codex_cli", "access.authentication"]
+            "search_entry_ids": ["access.provider_source", "access.model", "access.codex_cli", "access.authentication"],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "preferred_model",
+                  "owner": "access"
+                },
+                {
+                  "id": "preferred_reasoning_effort",
+                  "owner": "access"
+                },
+                {
+                  "id": "model_access_credential",
+                  "owner": "access"
+                }
+              ],
+              "status": [
+                {
+                  "id": "model_access_readiness",
+                  "owner": "access"
+                },
+                {
+                  "id": "codex_cli_and_authentication",
+                  "owner": "access"
+                }
+              ],
+              "action": [],
+              "diagnostic": [
+                {
+                  "id": "access_technical_details",
+                  "owner": "access"
+                }
+              ]
+            }
           },
           "workspace": {
             "product_page_id": "workspace",
@@ -3186,7 +3287,37 @@
               ]
             },
             "required_anchors": ["current-workspace", "permissions", "artifacts"],
-            "search_entry_ids": ["workspace.current", "workspace.permissions", "workspace.artifacts"]
+            "search_entry_ids": ["workspace.current", "workspace.permissions", "workspace.artifacts"],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "workspace_selection",
+                  "owner": "workspace"
+                }
+              ],
+              "status": [
+                {
+                  "id": "workspace_usability",
+                  "owner": "workspace"
+                }
+              ],
+              "action": [
+                {
+                  "id": "open_workspace",
+                  "owner": "workspace"
+                },
+                {
+                  "id": "workspace_recovery",
+                  "owner": "workspace"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "workspace_technical_details",
+                  "owner": "workspace"
+                }
+              ]
+            }
           },
           "capabilities": {
             "product_page_id": "capabilities",
@@ -3195,8 +3326,10 @@
             "label_zh": "智能体与能力",
             "label_en": "Agents & Capabilities",
             "primary_information": [
-              "capability catalog with availability and source",
-              "Home visibility and shortcut order on capability rows",
+              "capability catalog with availability and user-facing source labels",
+              "global managed, automatic, or developer source mode with selected workspace and authority summary",
+              "per-package automatic, managed, or developer source selection in package details",
+              "Home visibility, shortcut order, and lifecycle management on capability rows",
               "Skills and Tools as internal tabs or sections",
               "AionUI custom assistants excluded from the OPL product surface"
             ],
@@ -3222,7 +3355,8 @@
                 "settings-page-capabilities",
                 "settings-capabilities-primary",
                 "settings-capabilities-technical-details",
-                "settings-capabilities-primary-action"
+                "settings-capabilities-primary-action",
+                "opl-developer-profile-control"
               ],
               "conditional": [
                 {
@@ -3232,7 +3366,48 @@
               ]
             },
             "required_anchors": ["availability", "source", "home-visibility"],
-            "search_entry_ids": ["capabilities.availability", "capabilities.source", "capabilities.home_visibility"]
+            "search_entry_ids": ["capabilities.availability", "capabilities.source", "capabilities.home_visibility"],
+            "management_discoverability": {
+              "primary_row_controls": ["home_visibility", "manage"],
+              "lifecycle_actions": ["update", "repair", "enable", "disable", "uninstall"],
+              "raw_source_fallback_allowed": false,
+              "diagnostic_refs_location": "diagnostics_modal",
+              "home_preference_policy": "single_reactive_owner_with_success_commit_and_failure_rollback"
+            },
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "developer_source_mode",
+                  "owner": "capabilities"
+                },
+                {
+                  "id": "package_source_preference",
+                  "owner": "capabilities"
+                },
+                {
+                  "id": "home_visibility_and_order",
+                  "owner": "capabilities"
+                }
+              ],
+              "status": [
+                {
+                  "id": "capability_availability_and_source",
+                  "owner": "capabilities"
+                }
+              ],
+              "action": [
+                {
+                  "id": "capability_lifecycle_operations",
+                  "owner": "capabilities"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "capability_package_refs",
+                  "owner": "capabilities"
+                }
+              ]
+            }
           },
           "resources": {
             "product_page_id": "resources",
@@ -3299,7 +3474,7 @@
                 "settings-page-resources",
                 "settings-resources-primary",
                 "settings-resources-browser-access",
-                "settings-resources-technical-details"
+                "settings-resources-diagnostics-action"
               ],
               "conditional": [
                 {
@@ -3309,6 +3484,10 @@
                 {
                   "testid": "settings-resources-primary-action",
                   "when": "executable_action_available"
+                },
+                {
+                  "testid": "settings-resources-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -3325,7 +3504,33 @@
               "resources.readiness",
               "resources.executable",
               "resources.external"
-            ]
+            ],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "resource_connection_configuration",
+                  "owner": "resources"
+                }
+              ],
+              "status": [
+                {
+                  "id": "resource_and_action_readiness",
+                  "owner": "resources"
+                }
+              ],
+              "action": [
+                {
+                  "id": "resource_operations",
+                  "owner": "resources"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "resource_technical_details",
+                  "owner": "resources"
+                }
+              ]
+            }
           },
           "maintenance": {
             "product_page_id": "maintenance",
@@ -3354,7 +3559,8 @@
               "always": [
                 "settings-page-maintenance",
                 "settings-maintenance-primary",
-                "settings-maintenance-technical-details"
+                "settings-maintenance-management-action",
+                "settings-maintenance-diagnostics-action"
               ],
               "conditional": [
                 {
@@ -3364,6 +3570,14 @@
                 {
                   "testid": "settings-maintenance-primary-action",
                   "when": "attention_only"
+                },
+                {
+                  "testid": "settings-maintenance-management-details",
+                  "when": "management_open"
+                },
+                {
+                  "testid": "settings-maintenance-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
@@ -3374,7 +3588,40 @@
               "maintenance.services",
               "maintenance.repair_rollback",
               "maintenance.receipts"
-            ]
+            ],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "update_channel",
+                  "owner": "maintenance"
+                }
+              ],
+              "status": [
+                {
+                  "id": "health_updates_and_services",
+                  "owner": "maintenance"
+                }
+              ],
+              "action": [
+                {
+                  "id": "maintenance_operations",
+                  "owner": "maintenance"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "maintenance_receipts_and_raw_details",
+                  "owner": "maintenance"
+                }
+              ]
+            },
+            "surface_rules": {
+              "configuration_location": "update_channel_is_an_inline_persistent_control_in_the_updates_section",
+              "management_surface": "component_apply_repair_rollback_and_capability_sync_live_in_an_explicit_management_modal",
+              "diagnostic_surface": "read_only_status_paths_receipts_and_raw_projection_only",
+              "diagnostic_mutation_controls_allowed": false,
+              "unknown_state_copy": "distinguish_checking_not_checked_not_applicable_and_needs_attention"
+            }
           },
           "storage": {
             "product_page_id": "storage",
@@ -3394,7 +3641,9 @@
               "pure_usage_summary_card_allowed": false,
               "diagnostics_entry": "explicit_modal_action",
               "zero_byte_policy": "show_nothing_to_clean_and_hide_actions",
-              "cleanup_action_policy": "single_progressive_action_preview_then_confirm"
+              "cleanup_action_policy": "single_progressive_action_preview_then_confirm",
+              "conversation_archive_policy": "archive_receipt_is_required_before_delete_and_the_same_archive_exposes_a_confirmed_restore_action",
+              "restore_collision_policy": "never_overwrite_an_existing_conversation_without_an_explicit_collision_decision"
             },
             "primary_action": {
               "id": "preview_cleanup",
@@ -3423,7 +3672,32 @@
               ]
             },
             "required_anchors": ["storage-categories", "archives", "cleanup-preview", "cleanup-history"],
-            "search_entry_ids": ["storage.categories", "storage.archives", "storage.preview", "storage.history"]
+            "search_entry_ids": ["storage.categories", "storage.archives", "storage.preview", "storage.history"],
+            "surface_inventory": {
+              "configuration": [],
+              "status": [
+                {
+                  "id": "storage_usage_and_protection",
+                  "owner": "storage"
+                }
+              ],
+              "action": [
+                {
+                  "id": "storage_cleanup_archive_and_restore_operations",
+                  "owner": "storage"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "storage_plans_receipts_and_paths",
+                  "owner": "storage"
+                },
+                {
+                  "id": "storage_restore_probe",
+                  "owner": "storage"
+                }
+              ]
+            }
           },
           "preferences": {
             "product_page_id": "preferences",
@@ -3440,11 +3714,10 @@
               "theme and appearance including hardware acceleration where relevant"
             ],
             "first_viewport_groups": [
-              "app_behavior",
-              "notifications",
+              "application_behavior_and_notifications",
+              "performance_and_waiting",
               "instructions_and_session_context",
-              "display_and_fonts",
-              "themes"
+              "display_and_themes"
             ],
             "primary_action": {
               "id": "none",
@@ -3452,7 +3725,7 @@
               "max_visible": 1
             },
             "exception_state": "show restart-required or unsupported hardware states next to the affected setting only",
-            "technical_details_boundary": "raw millisecond values, Electron flags, and theme implementation ids stay collapsed",
+            "technical_details_boundary": "no dedicated diagnostic disclosure; raw millisecond values, Electron flags, and theme implementation ids are not rendered",
             "required_dom": {
               "always": [
                 "settings-page-preferences",
@@ -3460,7 +3733,7 @@
                 "settings-preferences-instructions",
                 "settings-system-agents-editor",
                 "settings-opl-app-context-editor",
-                "settings-preferences-technical-details"
+                "preferences-performance-section"
               ],
               "conditional": [
                 {
@@ -3472,6 +3745,7 @@
             "required_anchors": [
               "behavior",
               "notifications",
+              "models-performance",
               "instructions-context",
               "system-agents",
               "opl-app-context",
@@ -3481,11 +3755,53 @@
             "search_entry_ids": [
               "preferences.behavior",
               "preferences.notifications",
+              "preferences.performance",
               "preferences.display_fonts",
               "preferences.system_agents",
               "preferences.opl_app_context",
               "preferences.themes"
-            ]
+            ],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "application_behavior_and_notifications",
+                  "owner": "preferences"
+                },
+                {
+                  "id": "codex_user_instructions",
+                  "owner": "preferences"
+                },
+                {
+                  "id": "opl_app_session_context",
+                  "owner": "preferences"
+                },
+                {
+                  "id": "performance_and_waiting",
+                  "owner": "preferences"
+                },
+                {
+                  "id": "display_and_themes",
+                  "owner": "preferences"
+                }
+              ],
+              "status": [
+                {
+                  "id": "restart_and_hardware_support",
+                  "owner": "preferences"
+                }
+              ],
+              "action": [],
+              "diagnostic": []
+            },
+            "surface_rules": {
+              "full_width_group_count": 4,
+              "two_plus_one_grid_allowed": false,
+              "builtin_theme_ids": ["light", "dark", "codex"],
+              "extension_themes_default_visible": false,
+              "custom_theme_management": "preserved",
+              "interactive_controls_inside_diagnostic_surface_allowed": false,
+              "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure"
+            }
           },
           "advanced": {
             "product_page_id": "advanced",
@@ -3510,7 +3826,18 @@
               "conditional": []
             },
             "required_anchors": ["working-directories"],
-            "search_entry_ids": ["advanced.directories"]
+            "search_entry_ids": ["advanced.directories"],
+            "surface_inventory": {
+              "configuration": [],
+              "status": [],
+              "action": [],
+              "diagnostic": [
+                {
+                  "id": "working_directories",
+                  "owner": "advanced"
+                }
+              ]
+            }
           },
           "about": {
             "product_page_id": "about",
@@ -3519,7 +3846,7 @@
             "label_zh": "关于",
             "label_en": "About",
             "primary_information": ["App version", "update channel", "update status", "help and feedback entry points"],
-            "first_viewport_groups": ["version_and_channel", "updates", "help_and_feedback"],
+            "first_viewport_groups": ["version_channel_and_updates", "help_and_feedback"],
             "primary_action": {
               "id": "check_updates",
               "availability": "always",
@@ -3533,18 +3860,52 @@
               "always": [
                 "settings-page-about",
                 "settings-about-primary",
-                "settings-about-technical-details",
+                "settings-about-diagnostics-action",
                 "settings-about-primary-action"
               ],
               "conditional": [
                 {
                   "testid": "settings-about-exception",
                   "when": "attention_required"
+                },
+                {
+                  "testid": "settings-about-technical-details",
+                  "when": "diagnostics_open"
                 }
               ]
             },
             "required_anchors": ["version", "channel", "updates", "help-feedback"],
-            "search_entry_ids": ["about.version", "about.channel", "about.help_feedback", "about.updates"]
+            "search_entry_ids": ["about.version", "about.channel", "about.help_feedback", "about.updates"],
+            "surface_inventory": {
+              "configuration": [],
+              "status": [
+                {
+                  "id": "version_channel_and_update_status",
+                  "owner": "about"
+                }
+              ],
+              "action": [
+                {
+                  "id": "check_for_updates",
+                  "owner": "about"
+                },
+                {
+                  "id": "help_and_feedback_links",
+                  "owner": "about"
+                }
+              ],
+              "diagnostic": [
+                {
+                  "id": "build_and_framework_details",
+                  "owner": "about"
+                }
+              ]
+            },
+            "surface_rules": {
+              "version_update_card_count": 1,
+              "update_action_placement": "same_row_as_update_status",
+              "help_link_layout": "full_width_row_with_trailing_icon_at_container_edge"
+            }
           }
         },
         "search_index": {
@@ -3806,10 +4167,10 @@
               "id": "preferences.behavior",
               "page_id": "preferences",
               "anchor": "behavior",
-              "label_zh": "等待与行为",
-              "label_en": "Waiting and behavior",
-              "keywords_zh": ["等待时间", "超时", "行为"],
-              "keywords_en": ["waiting time", "timeout", "behavior"]
+              "label_zh": "应用行为",
+              "label_en": "App behavior",
+              "keywords_zh": ["启动", "窗口", "上传", "行为"],
+              "keywords_en": ["startup", "window", "uploads", "behavior"]
             },
             {
               "id": "preferences.notifications",
@@ -3819,6 +4180,24 @@
               "label_en": "Notifications",
               "keywords_zh": ["通知", "任务完成", "提醒"],
               "keywords_en": ["notification", "task complete", "alert"]
+            },
+            {
+              "id": "preferences.performance",
+              "page_id": "preferences",
+              "anchor": "models-performance",
+              "label_zh": "性能与后台活动",
+              "label_en": "Performance and background activity",
+              "keywords_zh": ["等待时间", "超时", "硬件加速", "空闲助手"],
+              "keywords_en": ["waiting time", "timeout", "hardware acceleration", "idle assistant"]
+            },
+            {
+              "id": "preferences.display_fonts",
+              "page_id": "preferences",
+              "anchor": "display-fonts",
+              "label_zh": "显示与字体",
+              "label_en": "Display and fonts",
+              "keywords_zh": ["显示", "字体", "缩放", "硬件加速", "语言"],
+              "keywords_en": ["display", "font", "scale", "hardware acceleration", "language"]
             },
             {
               "id": "preferences.system_agents",
@@ -3837,15 +4216,6 @@
               "label_en": "OPL App session context",
               "keywords_zh": ["会话上下文", "智能体路由", "新对话", "OPL"],
               "keywords_en": ["session context", "agent routing", "new conversation", "OPL"]
-            },
-            {
-              "id": "preferences.display_fonts",
-              "page_id": "preferences",
-              "anchor": "display-fonts",
-              "label_zh": "显示与字体",
-              "label_en": "Display and fonts",
-              "keywords_zh": ["显示", "字体", "缩放", "硬件加速", "语言"],
-              "keywords_en": ["display", "font", "scale", "hardware acceleration", "language"]
             },
             {
               "id": "preferences.themes",
@@ -3903,7 +4273,66 @@
             }
           ]
         },
-        "live_evidence_boundary": "contract_matrix_validator_and_focused_tests_do_not_prove_running_shell_runtime_or_release_readiness"
+        "live_evidence_boundary": "contract_matrix_validator_and_focused_tests_do_not_prove_running_shell_runtime_or_release_readiness",
+        "surface_model": {
+          "surface_types": ["configuration", "status", "action", "diagnostic"],
+          "classification_policy": "every_page_surface_has_exactly_one_type_and_one_page_owner",
+          "configuration": {
+            "presentation": "bounded_card_when_eligible_otherwise_flat_owner_section",
+            "interaction": "persistent_value_controls_only",
+            "visual_rule": "group_related_persistent_controls_under_the_existing_bounded_card_eligibility_rule",
+            "ownership_rule": "owns_persisted_user_workspace_or_app_preferences_not_one_time_operations",
+            "card_eligibility_any_of": [
+              "two_or_more_related_controls",
+              "one_consequential_persistent_setting",
+              "exception_or_recovery_workflow",
+              "independent_user_decision_boundary"
+            ],
+            "pure_state_card_allowed": false,
+            "one_time_action_allowed": false
+          },
+          "status": {
+            "presentation": "muted_row_inside_owning_page_section_or_configuration_group",
+            "interaction": "read_only_with_optional_route_to_owner_surface",
+            "visual_rule": "normal_state_muted_attention_state_inline_without_standalone_status_cards",
+            "ownership_rule": "owns_current_evidence_and_readiness_never_persisted_values_or_operation_execution",
+            "standalone_card_allowed": false,
+            "normal_state_emphasis": "muted",
+            "attention_state_emphasis": "inline_with_recovery_action"
+          },
+          "action": {
+            "presentation": "adjacent_to_the_object_or_section_it_operates_on",
+            "interaction": "explicit_one_time_command_with_confirmation_progress_and_receipt_as_required",
+            "visual_rule": "command_button_or_menu_item_never_rendered_as_a_persistent_setting_control",
+            "ownership_rule": "owns_one_time_maintenance_storage_resource_recovery_and_check_operations",
+            "persistent_value_allowed": false,
+            "maintenance_and_storage_are_settings": false
+          },
+          "diagnostic": {
+            "presentation": "advanced_page_or_explicit_summary_first_modal_or_drawer",
+            "interaction": "read_copy_export_or_open_detail_without_implicit_mutation",
+            "visual_rule": "secondary_technical_hierarchy_with_raw_fields_after_plain_language_summary",
+            "ownership_rule": "owns_paths_refs_receipts_runtime_enums_payloads_logs_and_advanced_page_content",
+            "ordinary_page_inline_allowed": false,
+            "entry_presentation": "explicit_diagnostics_action",
+            "container": "modal_or_drawer",
+            "summary_first": true,
+            "raw_details_secondary": true,
+            "raw_fields": ["paths", "refs", "action_ids", "receipts", "runtime_enums", "payloads", "logs"]
+          },
+          "advanced_page_type": "diagnostic",
+          "desktop_layout_policy": "use_columns_only_for_independent_groups_with_comparable_density",
+          "default_layout_policy": "full_width_vertical_groups"
+        }
+      },
+      "aionui_custom_assistant_boundary": {
+        "opl_app_product_surface": false,
+        "ordinary_navigation_entry_allowed": false,
+        "entry_may_be_hidden": true,
+        "legacy_assistants_target": "capabilities?tab=skills",
+        "underlying_user_data_owner": "aionui",
+        "underlying_user_data_deletion_policy": "forbidden_without_explicit_app_contract_and_migration_or_deletion_evidence",
+        "route_or_entry_removal_proves_data_migration": false
       }
     }
   },

@@ -1701,6 +1701,7 @@
       "detail": "先保留可恢复副本，再清理本机文件。",
       "receiptRequired": "先创建归档；完成后即可验证归档或删除本机文件。",
       "proofReady": "归档已创建，可继续验证或清理本机文件。",
+      "restoreConfirmation": "将归档中的对话文件恢复到原位置；不会覆盖现有文件。",
       "deleteConfirmation": "将删除本机对话文件。归档会保留，之后仍可恢复。",
       "technicalReceipt": "归档记录：{{receipt}}",
       "proofReceipt": "归档记录：{{receipt}}"
@@ -1810,6 +1811,16 @@
       "configureButton": "配置 OPL Gateway",
       "configureSuccess": "OPL Gateway 访问密钥已保存。",
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
+    },
+    "modelPreference": {
+      "title": "新对话默认值",
+      "description": "设置新建 Codex 对话时默认使用的模型和推理强度。",
+      "modelLabel": "默认模型",
+      "reasoningLabel": "推理强度",
+      "autoReasoning": "自动模式会使用 App 针对当前模型的推理策略。",
+      "notReported": "未读取到 Codex 路径",
+      "saved": "默认模型偏好已保存。",
+      "saveFailed": "无法保存默认模型偏好。"
     },
     "remote": {
       "title": "浏览器访问这台电脑",
@@ -2395,6 +2406,19 @@
           "title": "本机服务与修复",
           "description": "检查 Codex、工作目录、Temporal 等本机后台服务。"
         }
+      }
+    },
+    "management": {
+      "title": "管理维护",
+      "description": "检查、应用、修复或回滚 OPL Packages 和托管更新。"
+    },
+    "updateChannel": {
+      "title": "更新通道",
+      "description": "选择这台电脑跟随的 OPL App 与能力包更新通道。",
+      "saved": "更新通道已保存。",
+      "values": {
+        "stable": "稳定版",
+        "nightly": "每夜构建"
       }
     },
     "advancedDetails": {
