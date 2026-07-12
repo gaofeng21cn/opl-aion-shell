@@ -139,23 +139,25 @@ describe('HomeStarters', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('disables a canonical Home shortcut when its package status entry is missing', async () => {
-    const appState = readyAppState();
-    delete appState.agent_packages.status_index.packages['med-autogrant'];
-    mocks.appState = appState;
+  it('keeps an active but blocked package disabled instead of reopening its launch path', async () => {
+    mocks.blockedPackageId = 'med-autoscience';
     const onSelect = vi.fn();
+    const onClear = vi.fn();
     render(
       <HomeStarters
-        assistants={['med-autoscience', 'med-autogrant'].map(assistant)}
+        assistants={[assistant('med-autoscience')]}
         localeKey='en-US'
+        activeCapabilityId='med-autoscience'
         onSelect={onSelect}
+        onClear={onClear}
       />
     );
 
-    const blockedStarter = screen.getByTestId('home-starter-med-autogrant');
+    const blockedStarter = screen.getByTestId('home-starter-med-autoscience');
     expect(blockedStarter).toBeDisabled();
-    expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('package_not_installed'));
+    expect(blockedStarter).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(blockedStarter);
     expect(onSelect).not.toHaveBeenCalled();
+    expect(onClear).not.toHaveBeenCalled();
   });
 });

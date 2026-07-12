@@ -154,13 +154,15 @@ describe('OPL home assistants', () => {
     });
   });
 
-  it('treats a missing canonical package status as not installed without blocking unknown assistants', () => {
-    expect(resolveOplPackageLaunchGate({ agent_packages: { status_index: { packages: {} } } }, 'mas')).toEqual({
+  it('fails closed when a known professional package is absent from the runtime status index', () => {
+    expect(
+      resolveOplPackageLaunchGate({ agent_packages: { status_index: { packages: {} } } }, 'med-autoscience')
+    ).toEqual({
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
     });
-    expect(resolveOplPackageLaunchGate({}, 'third-party-assistant')).toEqual({
+    expect(resolveOplPackageLaunchGate({}, 'unknown-agent')).toEqual({
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],

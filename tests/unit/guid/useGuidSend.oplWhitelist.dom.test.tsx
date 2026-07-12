@@ -155,7 +155,19 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     mocks.createConversation.mockReset();
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
     mocks.navigate.mockReset();
-    mocks.appState = readyMasAppState();
+    mocks.appState = {
+      agent_packages: {
+        status_index: {
+          packages: {
+            'med-autoscience': {
+              package_id: 'med-autoscience',
+              operational_ready: true,
+              launch_allowed: true,
+            },
+          },
+        },
+      },
+    };
     mocks.messageError.mockReset();
     sessionStorage.clear();
   });
