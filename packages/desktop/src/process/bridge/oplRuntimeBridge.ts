@@ -1056,6 +1056,7 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
     baseEnv.PATH,
   ]);
   const hermesBin = baseEnv.OPL_HERMES_BIN?.trim() || path.join(runtimeHome, 'bin', 'hermes');
+  const prefilledNodeModulesDir = path.join(runtimeHome, 'opl', 'node_modules');
   return {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
     OPL_PACKAGED_SKILLS_ROOT: baseEnv.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(runtimeHome, 'skills'),
@@ -1070,6 +1071,7 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
       baseEnv.OPL_MODULE_PATH_OPLMETAAGENT?.trim() || path.join(runtimeHome, 'modules', 'meta-agent'),
     OPL_MODULE_PATH_OPLBOOKFORGE:
       baseEnv.OPL_MODULE_PATH_OPLBOOKFORGE?.trim() || path.join(runtimeHome, 'modules', 'bookforge'),
+    ...(fs.existsSync(prefilledNodeModulesDir) ? { OPL_PREFILLED_NODE_MODULES_DIR: prefilledNodeModulesDir } : {}),
     ...(fs.existsSync(hermesBin) ? { OPL_HERMES_BIN: hermesBin } : {}),
     PATH: pathEntries,
   };

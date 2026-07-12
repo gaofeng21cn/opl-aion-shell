@@ -436,6 +436,7 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'opl', 'node_modules'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'hermes'), '#!/usr/bin/env bash\n', 'utf8');
 
     const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
@@ -457,6 +458,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(runtimeHome, 'modules', 'rca'));
     expect(env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(runtimeHome, 'modules', 'meta-agent'));
     expect(env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(runtimeHome, 'modules', 'bookforge'));
+    expect(env.OPL_PREFILLED_NODE_MODULES_DIR).toBe(path.join(runtimeHome, 'opl', 'node_modules'));
     expect(env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
     expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
       path.join(runtimeHome, 'bin'),
