@@ -1976,11 +1976,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     }
   }
   const nonDefaultAssistants = readNonDefaultAssistants(gui);
-  if (
-    !packagedNotDefaultVisibleCodexSkillIds.includes('superpowers') ||
-    !packagedNotDefaultVisibleCodexSkillIds.includes('opl-meta-agent')
-  ) {
-    throw new Error('Invalid OPL product profile: explicit superpowers and OMA package policy must be declared');
+  if (!packagedNotDefaultVisibleCodexSkillIds.includes('opl-meta-agent')) {
+    throw new Error('Invalid OPL product profile: explicit OMA package policy must be declared');
   }
   if (
     skillPriority.includes('morph-ppt') ||

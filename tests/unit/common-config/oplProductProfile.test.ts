@@ -460,6 +460,12 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['opl-meta-agent']);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(false);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
+    expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).toContain(
+      'opl-meta-agent'
+    );
+    expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).not.toContain(
+      'superpowers'
+    );
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
     expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual([
