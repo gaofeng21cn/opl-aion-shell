@@ -32,6 +32,13 @@ export type CapabilityPurposeViewModel = {
   defaultHomeVisible: boolean | null;
   userConfigurable: boolean | null;
   sourceKind: string | null;
+  moduleId: string | null;
+  actualSource: string | null;
+  sourcePreference: 'auto' | 'managed' | 'developer';
+  checkoutPath: string | null;
+  managedCheckoutPath: string | null;
+  developerCheckoutPath: string | null;
+  sourceFallbackReason: string | null;
   packageLockRef: string | null;
   actionReceiptRef: string | null;
   rollbackRef: string | null;
@@ -73,6 +80,13 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'defaultHomeVisible'
   | 'userConfigurable'
   | 'sourceKind'
+  | 'moduleId'
+  | 'actualSource'
+  | 'sourcePreference'
+  | 'checkoutPath'
+  | 'managedCheckoutPath'
+  | 'developerCheckoutPath'
+  | 'sourceFallbackReason'
   | 'packageLockRef'
   | 'actionReceiptRef'
   | 'rollbackRef'
@@ -945,6 +959,13 @@ function buildCapabilityPurpose(
     | 'defaultHomeVisible'
     | 'userConfigurable'
     | 'sourceKind'
+    | 'moduleId'
+    | 'actualSource'
+    | 'sourcePreference'
+    | 'checkoutPath'
+    | 'managedCheckoutPath'
+    | 'developerCheckoutPath'
+    | 'sourceFallbackReason'
     | 'packageLockRef'
     | 'actionReceiptRef'
     | 'rollbackRef'
@@ -995,6 +1016,28 @@ function buildCapabilityPurpose(
     defaultHomeVisible: purpose.defaultHomeVisible ?? null,
     userConfigurable: purpose.userConfigurable ?? null,
     sourceKind: capabilitySourceKind(packageState, module),
+    moduleId: module ? capabilityModuleId(module) : null,
+    actualSource: firstString(module?.install_origin, packageState?.install_origin),
+    sourcePreference: (() => {
+      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      const preference = firstString(sourcePolicy.source_preference);
+      return preference === 'managed' || preference === 'developer' ? preference : 'auto';
+    })(),
+    checkoutPath: firstString(module?.checkout_path, packageState?.checkout_path),
+    managedCheckoutPath: firstString(module?.managed_checkout_path, packageState?.managed_checkout_path),
+    developerCheckoutPath: (() => {
+      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      return firstString(sourcePolicy.developer_checkout_path);
+    })(),
+    sourceFallbackReason: (() => {
+      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      const preference = firstString(sourcePolicy.source_preference);
+      const actual = firstString(module?.install_origin, packageState?.install_origin);
+      if (preference === 'developer' && actual !== 'sibling_workspace' && actual !== 'env_override') {
+        return 'developer_checkout_unavailable';
+      }
+      return firstString(sourcePolicy.fallback_reason);
+    })(),
     packageLockRef: capabilityPackageLockRef(packageState, module),
     actionReceiptRef: capabilityActionReceiptRef(packageState, module, task),
     rollbackRef: capabilityRollbackRef(packageState, module),

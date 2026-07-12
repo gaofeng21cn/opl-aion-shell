@@ -54,6 +54,17 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => ({
     appState: {
+      developer_mode: {
+        enabled: 'on',
+        mode: 'developer_apply_safe',
+        developer_workspace: {
+          selected_path: '/Users/test/workspace',
+          source: 'state',
+          exists: true,
+        },
+        github_identity: { status: 'ready', login: 'gaofeng21cn' },
+        repo_authority: { status: 'ready', direct_write_repo_count: 7, required_repo_count: 7 },
+      },
       agent_packages: {
         status_index: {
           packages: [
@@ -80,7 +91,12 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             source_policy: {
               effective_install_update_source: 'git_checkout',
               configured_by: 'developer_mode',
+              source_preference: 'auto',
+              developer_checkout_path: '/Users/test/workspace/med-autoscience',
             },
+            install_origin: 'sibling_workspace',
+            checkout_path: '/Users/test/workspace/med-autoscience',
+            managed_checkout_path: '/Users/test/Library/Application Support/OPL/state/modules/med-autoscience',
             version: '1.2.3',
             source: 'git_checkout',
             git: {
@@ -310,6 +326,27 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.capabilitiesPage.title': 'Agents & Capabilities',
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
+        'settings.capabilitiesPage.developerSource.title': 'Runtime source',
+        'settings.capabilitiesPage.developerSource.description': 'Choose the source used at runtime.',
+        'settings.capabilitiesPage.developerSource.modeLabel': 'Global runtime source',
+        'settings.capabilitiesPage.developerSource.modes.managed': 'Managed',
+        'settings.capabilitiesPage.developerSource.modes.auto': 'Automatic',
+        'settings.capabilitiesPage.developerSource.modes.developer': 'Developer',
+        'settings.capabilitiesPage.developerSource.safeMaintenance': 'Allow safe developer maintenance',
+        'settings.capabilitiesPage.developerSource.safeMaintenanceDescription': 'Use supervised maintenance.',
+        'settings.capabilitiesPage.developerSource.workspace': 'Developer workspace',
+        'settings.capabilitiesPage.developerSource.identity': 'GitHub identity',
+        'settings.capabilitiesPage.developerSource.authority': 'Directly maintainable repositories',
+        'settings.capabilitiesPage.developerSource.packageTitle': 'Runtime source for this capability',
+        'settings.capabilitiesPage.developerSource.packageDescription': 'Follow global or select a source.',
+        'settings.capabilitiesPage.developerSource.packageModes.auto': 'Follow global',
+        'settings.capabilitiesPage.developerSource.packageModes.managed': 'Managed copy',
+        'settings.capabilitiesPage.developerSource.packageModes.developer': 'Developer repository',
+        'settings.capabilitiesPage.developerSource.actualSource': 'Current source',
+        'settings.capabilitiesPage.developerSource.activePath': 'Current path',
+        'settings.capabilitiesPage.developerSource.managedPath': 'Managed path',
+        'settings.capabilitiesPage.developerSource.developerPath': 'Developer path',
+        'settings.capabilitiesPage.developerSource.fallback': 'Using the managed fallback.',
         'settings.capabilitiesPage.status.ready': 'Ready',
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.sync': 'Needs sync',
@@ -567,7 +604,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('Needs changes');
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
-    expect(detailedResearch).not.toHaveTextContent('Local developer source');
+    expect(detailedResearch).toHaveTextContent('Local developer source');
     expect(detailedResearch).not.toHaveTextContent('Package ID');
     expect(detailedResearch).not.toHaveTextContent('git_checkout');
     expect(detailedResearch).not.toHaveTextContent('Not reported');
@@ -658,6 +695,44 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
+  });
+
+  it('configures the global developer profile and per-package runtime source through App actions', async () => {
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    const profile = screen.getByTestId('opl-developer-profile-control');
+    expect(profile).toHaveTextContent('/Users/test/workspace');
+    expect(profile).toHaveTextContent('7 / 7');
+
+    fireEvent.click(within(profile).getByText('Managed'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'developer_supervisor',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          developerSupervisorEnabled: 'off',
+          developerSupervisorMode: 'developer_apply_safe',
+        },
+      })
+    );
+
+    bridgeMocks.executeActionInvoke.mockClear();
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
+    const details = screen.getByTestId('capability-details-mas');
+    expect(details).toHaveTextContent('/Users/test/workspace/med-autoscience');
+    expect(details).toHaveTextContent('/Users/test/Library/Application Support/OPL/state/modules/med-autoscience');
+
+    fireEvent.click(within(details).getByText('Managed copy'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'developer_supervisor',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          developerSupervisorModuleId: 'medautoscience',
+          developerSupervisorModuleSource: 'managed',
+        },
+      })
+    );
   });
 
   it('keeps raw package identifiers out of the directory and restores focus after closing the desktop panel', async () => {

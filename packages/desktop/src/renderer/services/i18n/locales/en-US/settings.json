@@ -2049,6 +2049,37 @@
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
     "description": "Review capabilities by purpose, then open management or advanced details only when needed.",
+    "developerSource": {
+      "title": "Runtime source",
+      "description": "OPL keeps a managed copy for normal use; Automatic or Developer mode can prefer repositories in the selected workspace.",
+      "modeLabel": "Global runtime source",
+      "modes": {
+        "managed": "Managed",
+        "auto": "Automatic",
+        "developer": "Developer"
+      },
+      "safeMaintenance": "Allow safe developer maintenance",
+      "safeMaintenanceDescription": "Allows supervised repair and maintenance when repository authority is confirmed; uncommitted changes are never overwritten.",
+      "workspace": "Developer workspace",
+      "identity": "GitHub identity",
+      "authority": "Directly maintainable repositories",
+      "packageTitle": "Runtime source for this capability",
+      "packageDescription": "Follow the global mode or pin this capability to the managed copy or local developer repository.",
+      "packageModes": {
+        "auto": "Follow global",
+        "managed": "Managed copy",
+        "developer": "Developer repository"
+      },
+      "actualSource": "Current source",
+      "activePath": "Current path",
+      "managedPath": "Managed path",
+      "developerPath": "Developer path",
+      "fallback": "The developer repository cannot be used, so OPL is using the managed copy.",
+      "fallbackReasons": {
+        "developer_checkout_unavailable": "The developer repository is unavailable, so OPL is using the managed copy.",
+        "developer_mode_inactive": "Developer mode is not active, so OPL is using the managed copy."
+      }
+    },
     "status": {
       "ready": "Ready",
       "update": "Update available",

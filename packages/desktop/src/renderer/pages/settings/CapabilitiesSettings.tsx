@@ -4,7 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Drawer, Input, Message, Modal, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
+import {
+  Button,
+  Drawer,
+  Input,
+  Message,
+  Modal,
+  Radio,
+  Space,
+  Switch,
+  Tag,
+  Tabs,
+  Typography,
+} from '@arco-design/web-react';
 import { Close, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -14,7 +26,7 @@ import ToolsModalContent from '@/renderer/components/settings/SettingsModal/cont
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   getOplHomeShortcutPreferences,
   getOplHomeShortcutPreferencesFromAppState,
@@ -110,10 +122,29 @@ function capabilitySourceLabel(
   const raw = item.sourceKind ?? item.source;
   if (!raw) return null;
   const token = raw.replace(/[^a-z0-9]/gi, '').toLowerCase();
-  if (['envoverride', 'gitcheckout', 'developercheckout', 'developermode'].includes(token)) {
+  if (
+    [
+      'envoverride',
+      'gitcheckout',
+      'developercheckout',
+      'developermode',
+      'developermodepackageoverride',
+      'siblingworkspace',
+    ].includes(token)
+  ) {
     return t('settings.capabilitiesPage.sourceLabels.developer');
   }
-  if (['managedroot', 'managed', 'builtin', 'packaged', 'firstparty'].includes(token)) {
+  if (
+    [
+      'managedroot',
+      'managed',
+      'builtin',
+      'packaged',
+      'firstparty',
+      'packagechannel',
+      'developermodemanagedoverride',
+    ].includes(token)
+  ) {
     return t('settings.capabilitiesPage.sourceLabels.managed');
   }
   if (['manifesturl', 'registry', 'thirdparty', 'remote'].includes(token)) {
@@ -471,6 +502,19 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       ]),
     [appStateQuery.appState, i18n.language, t]
   );
+  const developerMode = oplRecord(appStateQuery.appState.developer_mode);
+  const developerWorkspace = oplRecord(developerMode.developer_workspace);
+  const developerIdentity = oplRecord(developerMode.github_identity);
+  const developerAuthority = oplRecord(developerMode.repo_authority);
+  const developerModeEnabled = (() => {
+    const value = oplString(developerMode.enabled);
+    return value === 'on' || value === 'off' ? value : 'auto';
+  })();
+  const developerSafeMaintenance = oplString(developerMode.mode) === 'developer_apply_safe';
+  const developerWorkspacePath = oplString(developerWorkspace.selected_path);
+  const developerIdentityLogin = oplString(developerIdentity.login);
+  const directWriteRepoCount = Number(developerAuthority.direct_write_repo_count ?? 0);
+  const requiredRepoCount = Number(developerAuthority.required_repo_count ?? 0);
   const selectedCapability = React.useMemo(
     () => purposeCapabilities.find((item) => item.key === selectedCapabilityKey) ?? null,
     [purposeCapabilities, selectedCapabilityKey]
@@ -559,6 +603,25 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           }
         : { package_id: item.packageId };
     return executePackageAction(actionId, { ...packageSelection, ...payloadRefsOnlyJson });
+  };
+
+  const updateDeveloperMode = (enabled: 'auto' | 'on' | 'off') =>
+    executePackageAction('developer_supervisor', {
+      developerSupervisorEnabled: enabled,
+      developerSupervisorMode: developerSafeMaintenance ? 'developer_apply_safe' : 'external_observe',
+    });
+
+  const updateDeveloperMaintenance = (enabled: boolean) =>
+    executePackageAction('developer_supervisor', {
+      developerSupervisorMode: enabled ? 'developer_apply_safe' : 'external_observe',
+    });
+
+  const updatePackageSource = (item: CapabilityPurposeViewModel, source: 'auto' | 'managed' | 'developer') => {
+    if (!item.moduleId) return Promise.resolve(false);
+    return executePackageAction('developer_supervisor', {
+      developerSupervisorModuleId: item.moduleId,
+      developerSupervisorModuleSource: source,
+    });
   };
 
   const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
@@ -703,11 +766,71 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       <div className='flex flex-col gap-14px' data-testid='settings-capabilities-primary'>
         <section
           className='opl-settings-section opl-settings-surface--configuration'
+          id='source'
+          data-testid='opl-developer-profile-control'
+        >
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.developerSource.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.developerSource.description')}
+              </Typography.Text>
+            </div>
+            <Radio.Group
+              type='button'
+              value={developerModeEnabled}
+              disabled={packageMutationBusy}
+              onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
+              aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
+              data-testid='opl-developer-profile-mode'
+            >
+              <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
+              <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
+              <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
+            </Radio.Group>
+          </div>
+          <div className='opl-settings-list'>
+            <div className='opl-settings-row'>
+              <div className='opl-settings-row__main'>
+                <Typography.Text className='block font-500 text-t-primary'>
+                  {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
+                </Typography.Text>
+              </div>
+              <Switch
+                checked={developerSafeMaintenance}
+                loading={busyAction === 'developer_supervisor'}
+                disabled={packageMutationBusy}
+                onChange={(checked) => void updateDeveloperMaintenance(checked)}
+                data-testid='opl-developer-profile-maintenance'
+              />
+            </div>
+          </div>
+          <div className='flex flex-wrap gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'>
+            <span>
+              {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
+              {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </span>
+            <span>
+              {t('settings.capabilitiesPage.developerSource.identity')}:{' '}
+              {developerIdentityLogin ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </span>
+            <span>
+              {t('settings.capabilitiesPage.developerSource.authority')}: {directWriteRepoCount} / {requiredRepoCount}
+            </span>
+          </div>
+        </section>
+
+        <section
+          className='opl-settings-section opl-settings-surface--configuration'
           id='availability'
           data-testid='agent-package-catalog'
         >
           {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
-          <span id='source' aria-hidden='true' />
           <span id='home-visibility' aria-hidden='true' />
           <div className='opl-settings-section__header'>
             <div>
@@ -923,6 +1046,72 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     {selectedHomeLabel}
                   </Typography.Text>
                 </div>
+
+                {selectedCapability.moduleId && (
+                  <div
+                    className='opl-settings-section opl-settings-surface--configuration flex flex-col gap-10px'
+                    data-testid={`capability-source-control-${selectedCapability.key}`}
+                  >
+                    <div>
+                      <Typography.Text className='block text-13px font-600 text-t-primary'>
+                        {t('settings.capabilitiesPage.developerSource.packageTitle')}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t('settings.capabilitiesPage.developerSource.packageDescription')}
+                      </Typography.Text>
+                    </div>
+                    <Radio.Group
+                      type='button'
+                      value={selectedCapability.sourcePreference}
+                      disabled={packageMutationBusy}
+                      onChange={(value) =>
+                        void updatePackageSource(selectedCapability, value as 'auto' | 'managed' | 'developer')
+                      }
+                      aria-label={t('settings.capabilitiesPage.developerSource.packageTitle')}
+                      data-testid={`capability-source-preference-${selectedCapability.key}`}
+                    >
+                      <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.packageModes.auto')}</Radio>
+                      <Radio value='managed'>
+                        {t('settings.capabilitiesPage.developerSource.packageModes.managed')}
+                      </Radio>
+                      <Radio value='developer'>
+                        {t('settings.capabilitiesPage.developerSource.packageModes.developer')}
+                      </Radio>
+                    </Radio.Group>
+                    <div className='grid grid-cols-1 gap-4px text-12px'>
+                      <Typography.Text className='break-words text-t-secondary'>
+                        {t('settings.capabilitiesPage.developerSource.actualSource')}:{' '}
+                        {capabilitySourceLabel(selectedCapability, t) ??
+                          t('settings.capabilitiesPage.detailValues.notReported')}
+                      </Typography.Text>
+                      {selectedCapability.checkoutPath && (
+                        <Typography.Text className='break-all text-t-secondary'>
+                          {t('settings.capabilitiesPage.developerSource.activePath')}: {selectedCapability.checkoutPath}
+                        </Typography.Text>
+                      )}
+                      {selectedCapability.managedCheckoutPath && (
+                        <Typography.Text className='break-all text-t-secondary'>
+                          {t('settings.capabilitiesPage.developerSource.managedPath')}:{' '}
+                          {selectedCapability.managedCheckoutPath}
+                        </Typography.Text>
+                      )}
+                      {selectedCapability.developerCheckoutPath && (
+                        <Typography.Text className='break-all text-t-secondary'>
+                          {t('settings.capabilitiesPage.developerSource.developerPath')}:{' '}
+                          {selectedCapability.developerCheckoutPath}
+                        </Typography.Text>
+                      )}
+                      {selectedCapability.sourceFallbackReason && (
+                        <Typography.Text className='text-[rgb(var(--orange-6))]'>
+                          {t(
+                            `settings.capabilitiesPage.developerSource.fallbackReasons.${selectedCapability.sourceFallbackReason}`,
+                            { defaultValue: t('settings.capabilitiesPage.developerSource.fallback') }
+                          )}
+                        </Typography.Text>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {selectedHasPrimaryAction && (
                   <Button

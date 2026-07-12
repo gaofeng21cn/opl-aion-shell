@@ -2050,6 +2050,37 @@
   "capabilitiesPage": {
     "title": "智能体与能力",
     "description": "按用途查看可用能力；需要调整时再打开管理或高级详情。",
+    "developerSource": {
+      "title": "运行来源",
+      "description": "普通使用保留 OPL 托管版；自动或开发模式可优先使用所选工作区中的开发仓库。",
+      "modeLabel": "全局运行来源",
+      "modes": {
+        "managed": "托管",
+        "auto": "自动",
+        "developer": "开发"
+      },
+      "safeMaintenance": "允许安全开发维护",
+      "safeMaintenanceDescription": "允许在已确认仓库权限时执行受监督的修复和维护；不会覆盖未提交改动。",
+      "workspace": "开发工作区",
+      "identity": "GitHub 身份",
+      "authority": "可直接维护仓库",
+      "packageTitle": "此能力的运行来源",
+      "packageDescription": "自动跟随全局模式，也可以固定使用托管版或本地开发仓库。",
+      "packageModes": {
+        "auto": "跟随全局",
+        "managed": "托管版",
+        "developer": "开发仓库"
+      },
+      "actualSource": "当前来源",
+      "activePath": "当前路径",
+      "managedPath": "托管路径",
+      "developerPath": "开发路径",
+      "fallback": "当前无法使用开发仓库，已回退到托管版。",
+      "fallbackReasons": {
+        "developer_checkout_unavailable": "开发仓库当前不可用，已回退到托管版。",
+        "developer_mode_inactive": "开发模式当前未启用，已使用托管版。"
+      }
+    },
     "status": {
       "ready": "已就绪",
       "update": "可更新",
