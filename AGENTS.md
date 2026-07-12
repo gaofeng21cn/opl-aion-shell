@@ -186,6 +186,7 @@ For pull request creation, see the `oss-pr` skill (`.claude/skills/oss-pr/SKILL.
 > Skills are located in `.claude/skills/` and contain project conventions that apply to **all** agents and contributors.
 
 <!-- CODEGRAPH_START -->
+
 ## CodeGraph
 
 - 本仓库使用本地 `.codegraph/` 索引；该目录不得纳入 Git。
