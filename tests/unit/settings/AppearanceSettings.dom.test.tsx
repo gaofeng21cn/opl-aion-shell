@@ -9,7 +9,21 @@ const bridgeMocks = vi.hoisted(() => ({
   getCloseToTray: vi.fn(),
   getKeepAwake: vi.fn(),
   setKeepAwake: vi.fn(),
+  executeAction: vi.fn(),
+  loadAppState: vi.fn(),
+  confirmModal: vi.fn(),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
 }));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Modal: Object.assign(actual.Modal, { confirm: bridgeMocks.confirmModal }),
+    Message: { ...actual.Message, success: bridgeMocks.messageSuccess, error: bridgeMocks.messageError },
+  };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -27,7 +41,7 @@ vi.mock('@/common', () => ({
       setKeepAwake: { invoke: bridgeMocks.setKeepAwake },
     },
     oplRuntime: {
-      executeAction: { invoke: vi.fn() },
+      executeAction: { invoke: bridgeMocks.executeAction },
       getAppState: { invoke: vi.fn() },
     },
   },
@@ -55,7 +69,7 @@ vi.mock('@/common/config/configService', () => ({
 }));
 
 vi.mock('@/renderer/hooks/config/useConfig', () => ({
-  useConfig: (key: string) => [key.endsWith('Mode') ? 'automatic' : undefined, vi.fn()],
+  useConfig: () => [undefined, vi.fn()],
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -69,10 +83,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           content: 'Always answer directly.\n',
           sha256: 'sha-current',
         },
+        opl_flow_default_user_agents: {
+          status: 'available',
+          package_version: '0.1.16',
+          content: 'OPL Flow default instructions.\n',
+          sha256: 'sha-default',
+        },
       },
     },
     refreshing: false,
-    load: vi.fn(),
+    load: bridgeMocks.loadAppState,
   }),
 }));
 
@@ -162,13 +182,22 @@ vi.mock('react-i18next', () => ({
         'settings.personalization.systemAgentsDescription': 'Instructions for every task.',
         'settings.personalization.systemAgentsPlaceholder': 'Persistent instructions',
         'settings.personalization.systemAgentsTooLarge': 'Too large',
+        'settings.personalization.restoreOplFlowDefault': 'Restore OPL Flow default',
+        'settings.personalization.restoreSystemAgentsTitle': 'Restore system AGENTS.md?',
+        'settings.personalization.restoreSystemAgentsConfirm': 'Replace with the installed OPL Flow default.',
+        'settings.personalization.systemAgentsRestored': 'OPL Flow default restored',
+        'settings.personalization.oplFlowDefaultVersion': 'Installed OPL Flow default version: 0.1.16',
+        'settings.personalization.oplFlowDefaultUnavailable': 'Default unavailable',
         'settings.personalization.sessionContextTitle': 'OPL App session context',
         'settings.personalization.sessionContextDescription': 'Context for new conversations.',
-        'settings.personalization.automatic': 'Automatic',
-        'settings.personalization.custom': 'Custom',
+        'settings.personalization.generatedContextLabel': 'Generated base context',
+        'settings.personalization.additionalContextLabel': 'Additional user instructions',
+        'settings.personalization.additionalContextPlaceholder': 'Additional instructions',
+        'settings.personalization.restoreDefault': 'Restore default',
         'settings.personalization.save': 'Save',
         'settings.personalization.reload': 'Reload',
         'settings.personalization.nextConversationEffect': 'Applies to the next conversation.',
+        'common.cancel': 'Cancel',
       })[key] ?? key,
   }),
 }));
@@ -186,6 +215,11 @@ describe('AppearanceModalContent', () => {
     bridgeMocks.getCloseToTray.mockResolvedValue(true);
     bridgeMocks.getKeepAwake.mockResolvedValue(false);
     bridgeMocks.setKeepAwake.mockResolvedValue(undefined);
+    bridgeMocks.executeAction.mockResolvedValue({ ok: true, data: {} });
+    bridgeMocks.loadAppState.mockResolvedValue(undefined);
+    bridgeMocks.confirmModal.mockImplementation(({ onOk }: { onOk?: () => unknown }) => {
+      void onOk?.();
+    });
 
     render(<AppearanceModalContent />);
 
@@ -219,9 +253,34 @@ describe('AppearanceModalContent', () => {
     const instructions = screen.getByTestId('settings-preferences-instructions');
     expect(instructions).toHaveTextContent('System AGENTS.md');
     expect(instructions).toHaveTextContent('/Users/example/.codex/AGENTS.md');
+    expect(instructions).toHaveTextContent('Installed OPL Flow default version: 0.1.16');
+    expect(screen.getByRole('button', { name: 'Restore OPL Flow default' })).toBeEnabled();
     expect(instructions).toHaveTextContent('OPL App session context');
+    expect(instructions).toHaveTextContent('Generated base context');
+    expect(instructions).toHaveTextContent('Additional user instructions');
     expect(screen.getByTestId('settings-system-agents-editor')).toBeInTheDocument();
     expect(screen.getByTestId('settings-opl-app-context-editor')).toBeInTheDocument();
+    const contextEditors = screen.getByTestId('settings-opl-app-context-editor').querySelectorAll('textarea');
+    expect(contextEditors).toHaveLength(2);
+    expect(contextEditors[0]).toHaveAttribute('readonly');
+    expect(contextEditors[0]?.value).toContain('MAS (Med Auto Science)');
+    expect(contextEditors[1]).not.toHaveAttribute('readonly');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore OPL Flow default' }));
+    expect(bridgeMocks.confirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Restore system AGENTS.md?',
+        content: 'Replace with the installed OPL Flow default.',
+        okText: 'Restore OPL Flow default',
+      })
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'codex_user_instructions_restore_opl_flow_default',
+        dryRun: false,
+        payloadJson: { expected_sha256: 'sha-current' },
+      })
+    );
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');

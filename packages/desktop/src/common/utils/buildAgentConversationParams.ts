@@ -50,17 +50,18 @@ function mergePresetContext(oplFlowContext: string, presetRules?: string): strin
 export function resolveEffectiveOplAppSessionContext(
   language: string,
   settings: {
-    mode?: 'automatic' | 'custom';
-    customContent?: string;
+    additionalInstructions?: string;
   } = {}
-): { content: string; mode: 'automatic' | 'custom' } {
+): { content: string; hasAdditionalInstructions: boolean } {
   const locale = resolveLocaleKey(language);
   const automaticContent = getOplCodexSessionContextForLocale(locale);
-  const customContent = settings.customContent?.trim();
-  if (settings.mode === 'custom' && customContent) {
-    return { content: customContent, mode: 'custom' };
-  }
-  return { content: automaticContent, mode: 'automatic' };
+  const additionalInstructions = settings.additionalInstructions?.trim();
+  if (!additionalInstructions) return { content: automaticContent, hasAdditionalInstructions: false };
+  const heading = locale === 'zh-CN' ? '## 用户附加说明' : '## Additional User Instructions';
+  return {
+    content: `${automaticContent}\n\n${heading}\n\n${additionalInstructions}`,
+    hasAdditionalInstructions: true,
+  };
 }
 
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
@@ -97,8 +98,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const oplFlowContextPolicy = getOplFlowContextPolicy();
   const oplAppSessionContextPolicy = getOplAppSessionContextPolicy();
   const oplAppSessionContext = resolveEffectiveOplAppSessionContext(language, {
-    mode: configService.get('codex.oplAppSessionContextMode'),
-    customContent: configService.get('codex.oplAppSessionContextCustom'),
+    additionalInstructions: configService.get('codex.oplAppSessionContextAdditional'),
   });
   const extra: ICreateConversationParams['extra'] = {
     workspace,
@@ -113,7 +113,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     opl_app_session_context: {
       owner: oplAppSessionContextPolicy.owner,
       source: oplAppSessionContextPolicy.source,
-      mode: oplAppSessionContext.mode,
+      additional_instructions: oplAppSessionContext.hasAdditionalInstructions,
       effect: oplAppSessionContextPolicy.customization.effect,
     },
     ...extraOverrides,

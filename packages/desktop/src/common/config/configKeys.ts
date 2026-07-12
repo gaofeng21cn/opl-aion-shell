@@ -67,6 +67,7 @@ export type ConfigKeyMap = {
   'codex.oplFlowIntelligenceEnhancementMode': boolean | undefined;
   'codex.oplAppSessionContextMode': 'automatic' | 'custom' | undefined;
   'codex.oplAppSessionContextCustom': string | undefined;
+  'codex.oplAppSessionContextAdditional': string | undefined;
   'system.closeToTray': boolean | undefined;
   'system.notificationEnabled': boolean | undefined;
   'system.cronNotificationEnabled': boolean | undefined;

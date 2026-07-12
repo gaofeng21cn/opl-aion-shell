@@ -3,12 +3,10 @@ import { configService } from '@/common/config/configService';
 import { getOplCodexSessionContextForLocale } from '@/common/config/oplProductProfile';
 import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { Button, Input, Message, Radio } from '@arco-design/web-react';
+import { Button, Input, Message, Modal } from '@arco-design/web-react';
 import { EditTwo, Refresh } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-type ContextMode = 'automatic' | 'custom';
 
 function stringOrEmpty(value: unknown) {
   return typeof value === 'string' ? value : '';
@@ -17,20 +15,24 @@ function stringOrEmpty(value: unknown) {
 const OplPersonalizationSettings: React.FC = () => {
   const { t, i18n } = useTranslation();
   const appStateQuery = useOplAppState('fast');
-  const [savedContextMode] = useConfig('codex.oplAppSessionContextMode');
-  const [savedCustomContext] = useConfig('codex.oplAppSessionContextCustom');
+  const [savedAdditionalContext] = useConfig('codex.oplAppSessionContextAdditional');
   const locale = i18n.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
-  const automaticContext = useMemo(() => getOplCodexSessionContextForLocale(locale), [locale]);
+  const generatedContext = useMemo(() => getOplCodexSessionContextForLocale(locale), [locale]);
 
-  const userInstructions = oplRecord(oplRecord(appStateQuery.appState.codex_personalization).user_agents);
+  const personalization = oplRecord(appStateQuery.appState.codex_personalization);
+  const userInstructions = oplRecord(personalization.user_agents);
+  const defaultUserInstructions = oplRecord(personalization.opl_flow_default_user_agents);
   const loadedInstructions = stringOrEmpty(userInstructions.content);
   const loadedSha256 = typeof userInstructions.sha256 === 'string' ? userInstructions.sha256 : null;
   const instructionsStatus = stringOrEmpty(userInstructions.status);
   const instructionsPath = stringOrEmpty(userInstructions.path);
+  const defaultInstructionsStatus = stringOrEmpty(defaultUserInstructions.status);
+  const defaultInstructionsSha256 = stringOrEmpty(defaultUserInstructions.sha256);
+  const defaultInstructionsVersion = stringOrEmpty(defaultUserInstructions.package_version);
   const [instructionsDraft, setInstructionsDraft] = useState('');
   const [instructionsSaving, setInstructionsSaving] = useState(false);
-  const [contextModeDraft, setContextModeDraft] = useState<ContextMode>(savedContextMode ?? 'automatic');
-  const [customContextDraft, setCustomContextDraft] = useState(savedCustomContext ?? '');
+  const [instructionsRestoring, setInstructionsRestoring] = useState(false);
+  const [additionalContextDraft, setAdditionalContextDraft] = useState(savedAdditionalContext ?? '');
   const [contextSaving, setContextSaving] = useState(false);
 
   useEffect(() => {
@@ -38,9 +40,8 @@ const OplPersonalizationSettings: React.FC = () => {
   }, [loadedInstructions, loadedSha256]);
 
   useEffect(() => {
-    setContextModeDraft(savedContextMode ?? 'automatic');
-    setCustomContextDraft(savedCustomContext ?? '');
-  }, [savedContextMode, savedCustomContext]);
+    setAdditionalContextDraft(savedAdditionalContext ?? '');
+  }, [savedAdditionalContext]);
 
   const saveInstructions = async () => {
     setInstructionsSaving(true);
@@ -63,13 +64,37 @@ const OplPersonalizationSettings: React.FC = () => {
     }
   };
 
+  const restoreInstructionsDefault = () => {
+    Modal.confirm({
+      title: t('settings.personalization.restoreSystemAgentsTitle'),
+      content: t('settings.personalization.restoreSystemAgentsConfirm'),
+      okText: t('settings.personalization.restoreOplFlowDefault'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        setInstructionsRestoring(true);
+        try {
+          const result = await ipcBridge.oplRuntime.executeAction.invoke({
+            actionId: 'codex_user_instructions_restore_opl_flow_default',
+            dryRun: false,
+            payloadJson: { expected_sha256: loadedSha256 },
+          });
+          if (result.ok === false) throw new Error(result.error?.message || t('settings.personalization.saveFailed'));
+          await appStateQuery.load('fast', { showRefreshing: true });
+          Message.success(t('settings.personalization.systemAgentsRestored'));
+        } catch (error) {
+          Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
+          throw error;
+        } finally {
+          setInstructionsRestoring(false);
+        }
+      },
+    });
+  };
+
   const saveSessionContext = async () => {
     setContextSaving(true);
     try {
-      await configService.setBatch({
-        'codex.oplAppSessionContextMode': contextModeDraft,
-        'codex.oplAppSessionContextCustom': customContextDraft,
-      });
+      await configService.set('codex.oplAppSessionContextAdditional', additionalContextDraft);
       Message.success(t('settings.personalization.sessionContextSaved'));
     } catch (error) {
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
@@ -78,14 +103,23 @@ const OplPersonalizationSettings: React.FC = () => {
     }
   };
 
-  const selectContextMode = (value: ContextMode) => {
-    setContextModeDraft(value);
-    if (value === 'custom' && !customContextDraft.trim()) setCustomContextDraft(automaticContext);
+  const restoreSessionContextDefault = async () => {
+    setContextSaving(true);
+    try {
+      await configService.set('codex.oplAppSessionContextAdditional', '');
+      setAdditionalContextDraft('');
+      Message.success(t('settings.personalization.sessionContextRestored'));
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
+    } finally {
+      setContextSaving(false);
+    }
   };
 
-  const contextChanged =
-    contextModeDraft !== (savedContextMode ?? 'automatic') || customContextDraft !== (savedCustomContext ?? '');
+  const contextChanged = additionalContextDraft !== (savedAdditionalContext ?? '');
   const instructionsUnavailable = instructionsStatus === 'too_large';
+  const defaultInstructionsAvailable = defaultInstructionsStatus === 'available' && Boolean(defaultInstructionsSha256);
+  const instructionsAlreadyDefault = defaultInstructionsAvailable && loadedSha256 === defaultInstructionsSha256;
 
   return (
     <section className='opl-settings-section' id='instructions-context' data-testid='settings-preferences-instructions'>
@@ -119,8 +153,27 @@ const OplPersonalizationSettings: React.FC = () => {
               {t('settings.personalization.systemAgentsDescription')}
             </div>
             {instructionsPath && <div className='mt-4px break-all text-11px text-t-tertiary'>{instructionsPath}</div>}
+            {defaultInstructionsAvailable ? (
+              <div className='mt-2px text-11px text-t-tertiary'>
+                {t('settings.personalization.oplFlowDefaultVersion', { version: defaultInstructionsVersion })}
+              </div>
+            ) : (
+              defaultInstructionsStatus && (
+                <div className='mt-2px text-11px text-warning'>
+                  {t('settings.personalization.oplFlowDefaultUnavailable')}
+                </div>
+              )
+            )}
           </div>
-          <div className='flex shrink-0 items-center gap-8px'>
+          <div className='flex shrink-0 flex-wrap items-center justify-end gap-8px'>
+            <Button
+              size='small'
+              loading={instructionsRestoring}
+              disabled={!defaultInstructionsAvailable || instructionsAlreadyDefault}
+              onClick={restoreInstructionsDefault}
+            >
+              {t('settings.personalization.restoreOplFlowDefault')}
+            </Button>
             <Button
               size='small'
               icon={<Refresh theme='outline' />}
@@ -146,6 +199,7 @@ const OplPersonalizationSettings: React.FC = () => {
           <Input.TextArea
             className='mt-12px'
             value={instructionsDraft}
+            maxLength={256 * 1024}
             autoSize={{ minRows: 7, maxRows: 14 }}
             placeholder={t('settings.personalization.systemAgentsPlaceholder')}
             onChange={setInstructionsDraft}
@@ -158,43 +212,50 @@ const OplPersonalizationSettings: React.FC = () => {
         id='opl-app-context'
         data-testid='settings-opl-app-context-editor'
       >
-        <div className='flex min-w-0 flex-wrap items-start justify-between gap-12px'>
-          <div className='min-w-0'>
-            <div className='text-14px font-medium text-t-primary'>
-              {t('settings.personalization.sessionContextTitle')}
-            </div>
-            <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-              {t('settings.personalization.sessionContextDescription')}
-            </div>
+        <div className='min-w-0'>
+          <div className='text-14px font-medium text-t-primary'>
+            {t('settings.personalization.sessionContextTitle')}
           </div>
-          <Radio.Group
-            type='button'
-            size='small'
-            value={contextModeDraft}
-            onChange={(value) => selectContextMode(value as ContextMode)}
-          >
-            <Radio value='automatic'>{t('settings.personalization.automatic')}</Radio>
-            <Radio value='custom'>{t('settings.personalization.custom')}</Radio>
-          </Radio.Group>
+          <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+            {t('settings.personalization.sessionContextDescription')}
+          </div>
+        </div>
+        <div className='mt-12px text-12px font-medium text-t-secondary'>
+          {t('settings.personalization.generatedContextLabel')}
+        </div>
+        <Input.TextArea className='mt-6px' value={generatedContext} readOnly autoSize={{ minRows: 9, maxRows: 16 }} />
+        <div className='mt-12px text-12px font-medium text-t-secondary'>
+          {t('settings.personalization.additionalContextLabel')}
         </div>
         <Input.TextArea
-          className='mt-12px'
-          value={contextModeDraft === 'automatic' ? automaticContext : customContextDraft}
-          readOnly={contextModeDraft === 'automatic'}
-          autoSize={{ minRows: 9, maxRows: 16 }}
-          onChange={setCustomContextDraft}
+          className='mt-6px'
+          value={additionalContextDraft}
+          maxLength={64 * 1024}
+          placeholder={t('settings.personalization.additionalContextPlaceholder')}
+          autoSize={{ minRows: 4, maxRows: 10 }}
+          onChange={setAdditionalContextDraft}
         />
         <div className='mt-10px flex items-center justify-between gap-12px'>
           <div className='text-12px text-t-tertiary'>{t('settings.personalization.nextConversationEffect')}</div>
-          <Button
-            size='small'
-            type='primary'
-            loading={contextSaving}
-            disabled={!contextChanged}
-            onClick={() => void saveSessionContext()}
-          >
-            {t('settings.personalization.save')}
-          </Button>
+          <div className='flex shrink-0 items-center gap-8px'>
+            <Button
+              size='small'
+              loading={contextSaving}
+              disabled={!additionalContextDraft && !savedAdditionalContext}
+              onClick={() => void restoreSessionContextDefault()}
+            >
+              {t('settings.personalization.restoreDefault')}
+            </Button>
+            <Button
+              size='small'
+              type='primary'
+              loading={contextSaving}
+              disabled={!contextChanged}
+              onClick={() => void saveSessionContext()}
+            >
+              {t('settings.personalization.save')}
+            </Button>
+          </div>
         </div>
       </div>
     </section>

@@ -49,6 +49,7 @@ const ALL_LEGACY_KEYS: ConfigKey[] = [
   'codex.oplFlowIntelligenceEnhancementMode',
   'codex.oplAppSessionContextMode',
   'codex.oplAppSessionContextCustom',
+  'codex.oplAppSessionContextAdditional',
   'skillsMarket.enabled',
   'pet.enabled',
   'pet.size',

@@ -1956,7 +1956,7 @@ export interface ICreateConversationParams {
     opl_app_session_context?: {
       owner: string;
       source: string;
-      mode: 'automatic' | 'custom';
+      additional_instructions: boolean;
       effect: string;
     };
     /** Transient: MCP server ids selected on the Guid page. Consumed by the

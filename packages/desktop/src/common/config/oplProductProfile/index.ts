@@ -245,10 +245,10 @@ export type OplAppSessionContextPolicy = {
   update_policy: 'regenerated_when_app_product_profile_syncs';
   user_agents_policy: 'codex_reads_user_and_repo_agents_independently';
   customization: {
-    mode_key: 'codex.oplAppSessionContextMode';
-    custom_content_key: 'codex.oplAppSessionContextCustom';
-    modes: ['automatic', 'custom'];
-    default_mode: 'automatic';
+    additional_instructions_key: 'codex.oplAppSessionContextAdditional';
+    base_context_edit_policy: 'generated_read_only';
+    user_edit_policy: 'append_additional_instructions_only';
+    reset_behavior: 'clear_additional_instructions';
     effect: 'next_new_conversation';
   };
 };
@@ -1679,10 +1679,10 @@ function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppS
     value.generation_policy !== 'profile_agent_routes' ||
     value.update_policy !== 'regenerated_when_app_product_profile_syncs' ||
     value.user_agents_policy !== 'codex_reads_user_and_repo_agents_independently' ||
-    customization?.mode_key !== 'codex.oplAppSessionContextMode' ||
-    customization.custom_content_key !== 'codex.oplAppSessionContextCustom' ||
-    JSON.stringify(customization.modes) !== JSON.stringify(['automatic', 'custom']) ||
-    customization.default_mode !== 'automatic' ||
+    customization?.additional_instructions_key !== 'codex.oplAppSessionContextAdditional' ||
+    customization.base_context_edit_policy !== 'generated_read_only' ||
+    customization.user_edit_policy !== 'append_additional_instructions_only' ||
+    customization.reset_behavior !== 'clear_additional_instructions' ||
     customization.effect !== 'next_new_conversation'
   ) {
     throw new Error('Invalid OPL product profile: codex.opl_app_session_context is unsupported');
@@ -1695,10 +1695,10 @@ function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppS
     update_policy: 'regenerated_when_app_product_profile_syncs',
     user_agents_policy: 'codex_reads_user_and_repo_agents_independently',
     customization: {
-      mode_key: 'codex.oplAppSessionContextMode',
-      custom_content_key: 'codex.oplAppSessionContextCustom',
-      modes: ['automatic', 'custom'],
-      default_mode: 'automatic',
+      additional_instructions_key: 'codex.oplAppSessionContextAdditional',
+      base_context_edit_policy: 'generated_read_only',
+      user_edit_policy: 'append_additional_instructions_only',
+      reset_behavior: 'clear_additional_instructions',
       effect: 'next_new_conversation',
     },
   };
@@ -2872,7 +2872,6 @@ export function getOplAppSessionContextPolicy(): OplAppSessionContextPolicy {
     ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context,
     customization: {
       ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context.customization,
-      modes: [...OPL_PRODUCT_PROFILE.codex.opl_app_session_context.customization.modes],
     },
   };
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAgentConversationParams,
   getConversationTypeForBackend,
+  resolveEffectiveOplAppSessionContext,
 } from '@/common/utils/buildAgentConversationParams';
 
 const model = {
@@ -12,6 +13,25 @@ const model = {
 };
 
 describe('buildAgentConversationParams agent type policy', () => {
+  it('always keeps the generated OPL agent directory as the base session context', () => {
+    const context = resolveEffectiveOplAppSessionContext('zh-CN');
+
+    expect(context.hasAdditionalInstructions).toBe(false);
+    expect(context.content).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
+    expect(context.content).toContain('OMA（OPL Meta Agent）：创建、接管、检查和改进 OPL Foundry Agent');
+  });
+
+  it('appends user instructions without replacing the generated OPL agent directory', () => {
+    const context = resolveEffectiveOplAppSessionContext('en-US', {
+      additionalInstructions: 'Prefer concise progress summaries.',
+    });
+
+    expect(context.hasAdditionalInstructions).toBe(true);
+    expect(context.content).toContain('MAS (Med Auto Science): research, papers, data analysis, peer review');
+    expect(context.content).toContain('## Additional User Instructions');
+    expect(context.content).toContain('Prefer concise progress summaries.');
+  });
+
   it('maps only aionrs to top-level aionrs', () => {
     expect(getConversationTypeForBackend('aionrs')).toBe('aionrs');
   });

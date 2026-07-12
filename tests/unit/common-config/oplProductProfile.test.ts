@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
 import {
   getOplCodexSessionContext,
+  getOplAppSessionContextPolicy,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
   getOplCodexModelDisplayOptions,
@@ -788,6 +789,7 @@ describe('OPL generated product profile', () => {
 
   it('exposes the Codex session context without embedded secrets', () => {
     const context = getOplCodexSessionContext();
+    const policy = getOplAppSessionContextPolicy();
 
     expect(context).toContain('OPL App 会话上下文');
     expect(context).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
@@ -795,5 +797,12 @@ describe('OPL generated product profile', () => {
     expect(context).toContain('遵循用户及仓库 AGENTS.md');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
+    expect(policy.customization).toEqual({
+      additional_instructions_key: 'codex.oplAppSessionContextAdditional',
+      base_context_edit_policy: 'generated_read_only',
+      user_edit_policy: 'append_additional_instructions_only',
+      reset_behavior: 'clear_additional_instructions',
+      effect: 'next_new_conversation',
+    });
   });
 });

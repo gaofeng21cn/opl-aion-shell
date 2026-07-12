@@ -881,10 +881,10 @@
       "update_policy": "regenerated_when_app_product_profile_syncs",
       "user_agents_policy": "codex_reads_user_and_repo_agents_independently",
       "customization": {
-        "mode_key": "codex.oplAppSessionContextMode",
-        "custom_content_key": "codex.oplAppSessionContextCustom",
-        "modes": ["automatic", "custom"],
-        "default_mode": "automatic",
+        "additional_instructions_key": "codex.oplAppSessionContextAdditional",
+        "base_context_edit_policy": "generated_read_only",
+        "user_edit_policy": "append_additional_instructions_only",
+        "reset_behavior": "clear_additional_instructions",
         "effect": "next_new_conversation"
       }
     },
@@ -1660,6 +1660,8 @@
             "sensitivity": "user_authored",
             "current_value_source_ref": "app_state.codex_personalization.user_agents",
             "write_route": "opl app action execute --action codex_user_instructions_set",
+            "restore_route": "opl app action execute --action codex_user_instructions_restore_opl_flow_default",
+            "default_value_source_ref": "app_state.codex_personalization.opl_flow_default_user_agents",
             "persistence_target_ref": "$CODEX_HOME/AGENTS.md",
             "verify_ref": "app_state.codex_personalization.user_agents.sha256",
             "risk": "low_with_stale_write_guard",
@@ -1674,15 +1676,15 @@
             "page_id": "preferences",
             "anchor": "opl-app-context",
             "lifecycle": "persistent_new_conversation_configuration",
-            "value_type": "automatic_or_custom_markdown_text",
+            "value_type": "generated_markdown_plus_optional_additional_text",
             "sensitivity": "ordinary",
-            "current_value_source_ref": "app product profile agent routes + desktop client context override",
-            "write_route": "configService:codex.oplAppSessionContextMode + codex.oplAppSessionContextCustom",
+            "current_value_source_ref": "app product profile agent routes + desktop client additional instructions",
+            "write_route": "configService:codex.oplAppSessionContextAdditional",
             "persistence_target_ref": "desktop_client_settings",
             "verify_ref": "new conversation preset_context",
             "risk": "low_next_conversation_only",
             "confirmation_required": false,
-            "editable_reason": "This App-owned context explains available OPL agents and routing without duplicating user or repository AGENTS.md."
+            "editable_reason": "The generated App-owned agent directory stays current while the user may append or clear personal routing notes without replacing it."
           },
           {
             "stable_id": "settings.configuration.display_preferences",
@@ -3709,7 +3711,7 @@
               "application behavior including startup, close-window behavior, uploads, and reply waiting time",
               "notifications",
               "system-level Codex user instructions from the user-owned AGENTS.md",
-              "OPL App new-conversation context with automatic agent routing or a local custom override",
+              "OPL App new-conversation context with generated agent routing and optional additional instructions",
               "language, display scale, chat, Markdown, and code font sizes",
               "theme and appearance including hardware acceleration where relevant"
             ],
