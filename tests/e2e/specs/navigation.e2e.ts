@@ -245,7 +245,9 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('overview_page', '[data-testid="settings-page-overview"]'),
         anchor('overview_primary', '[data-testid="settings-overview-primary"]'),
-        anchor('overview_technical_details', '[data-testid="settings-overview-technical-details"]'),
+        anchor('overview_status', '[data-testid="settings-overview-status"]'),
+        anchor('overview_contextual_entries', '[data-testid="settings-overview-summary-grid"]'),
+        anchor('overview_diagnostics_action', '[data-testid="settings-overview-diagnostics-action"]'),
       ],
     },
     {
@@ -331,7 +333,9 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('preferences_page', '[data-testid="settings-page-preferences"]'),
         anchor('preferences_primary', '[data-testid="settings-preferences-primary"]'),
-        anchor('preferences_technical_details', '[data-testid="settings-preferences-technical-details"]'),
+        anchor('preferences_performance', '[data-testid="preferences-performance-section"]'),
+        anchor('preferences_instructions', '[data-testid="settings-preferences-instructions"]'),
+        anchor('preferences_display', '[data-testid="preferences-display-section"]'),
       ],
     },
   ];
