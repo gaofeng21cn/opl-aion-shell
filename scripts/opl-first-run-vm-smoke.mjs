@@ -3081,7 +3081,7 @@ function homeAssistantRouteReadyExpression(target) {
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
     const activeCapability = document.querySelector('[data-testid="guid-active-capability"]');
-    const modelSelector = document.querySelector('[data-testid="acp-model-selector"]');
+    const modelSelector = document.querySelector('[data-testid="guid-model-selector"]');
     const permissionSelector = document.querySelector('[data-testid^="agent-mode-selector-"], [data-testid="agent-mode-selector"]');
     const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
       .flatMap((selector) => [...document.querySelectorAll(selector)])
@@ -4286,7 +4286,7 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
             }
           : null,
       decision_controls_visible:
-        verificationMode === 'route_receipt' ? ['acp-model-selector', 'agent-mode-selector-*'] : null,
+        verificationMode === 'route_receipt' ? ['guid-model-selector', 'agent-mode-selector-*'] : null,
       executor_selectors_hidden: ['agent-pill-*'],
       route_receipt:
         verificationMode === 'route_receipt'
@@ -4436,7 +4436,7 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           homeAssistantRouteReadyExpression(assistantTarget),
           30_000,
-          `Selected OPL built-in assistant did not expose the expected badge without selectors: ${assistantTarget.id}`
+          `Selected OPL built-in assistant did not expose the selected Home capability state and composer decision controls: ${assistantTarget.id}`
         );
         if (ready?.status === 'failed') {
           throw new Error(`Selected OPL built-in assistant leaked selectors: ${JSON.stringify(ready)}`);

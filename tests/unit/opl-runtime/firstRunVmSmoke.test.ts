@@ -866,7 +866,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain('.find(visible)');
     expect(readyExpression).toContain('guid-active-capability');
     expect(readyExpression).toContain("getAttribute('aria-pressed') !== 'true'");
-    expect(readyExpression).toContain('acp-model-selector');
+    expect(readyExpression).toContain('guid-model-selector');
     expect(readyExpression).toContain('agent-mode-selector-');
     expect(readyExpression).toContain('agent-pill-');
     expect(readyExpression).toContain('model_selector_visible: true');
