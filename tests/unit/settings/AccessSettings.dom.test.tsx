@@ -22,6 +22,7 @@ type AccessSettingsTestMocks = {
   codexStatus: string;
   modelAccessReady: boolean;
   appStateAvailable: boolean;
+  appStateLoading: boolean;
   gatewayAccount: Record<string, unknown> | null;
 };
 
@@ -38,6 +39,7 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   codexStatus: 'ready',
   modelAccessReady: true,
   appStateAvailable: true,
+  appStateLoading: false,
   gatewayAccount: null,
 }));
 
@@ -456,6 +458,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           }
         : {},
       load: accessSettingsMocks.load,
+      loading: accessSettingsMocks.appStateLoading,
       refreshing: false,
     };
   },
@@ -644,6 +647,7 @@ describe('AccessSettingsContent', () => {
     mocks.codexStatus = 'ready';
     mocks.modelAccessReady = true;
     mocks.appStateAvailable = true;
+    mocks.appStateLoading = false;
     mocks.gatewayAccount = null;
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
@@ -819,6 +823,17 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-access-model-status')).not.toHaveClass('opl-settings-status--attention');
     expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
     expect(view.queryByTestId('settings-access-exception')).toBeNull();
+  });
+
+  it('does not flash the signed-out Gateway action while account state is still resolving', () => {
+    const mocks = getMocks();
+    mocks.appStateLoading = true;
+    mocks.gatewayAccount = null;
+
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
+    expect(view.queryByTestId('settings-access-gateway-account')).toBeNull();
   });
 
   it('does not promote OPL Gateway configuration when only Codex CLI needs attention', () => {

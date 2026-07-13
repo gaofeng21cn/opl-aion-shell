@@ -101,6 +101,22 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('keeps the account state unresolved when an older cache has no Gateway projection', () => {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        payload: { app_state: { core: { status: 'ready' } } },
+        loadedAt: '20:00:00',
+      })
+    );
+    getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    expect(result.current.appState.core).toEqual({ status: 'ready' });
+    expect(result.current.loading).toBe(true);
+  });
+
   it('keeps the cached account visible when the background refresh fails', async () => {
     seedCachedGateway();
     getAppStateInvoke.mockRejectedValue(new Error('offline'));

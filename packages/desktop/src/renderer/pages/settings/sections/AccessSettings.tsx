@@ -390,7 +390,7 @@ export const AccessSettingsContent: React.FC = () => {
               </Typography.Text>
             </div>
           </div>
-          {!gatewayFormVisible && gatewayAccount?.connection_mode !== 'account' && (
+          {!appStateQuery.loading && !gatewayFormVisible && gatewayAccount?.connection_mode !== 'account' && (
             <span className='shrink-0' data-testid='settings-access-primary-action'>
               <Button
                 type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
