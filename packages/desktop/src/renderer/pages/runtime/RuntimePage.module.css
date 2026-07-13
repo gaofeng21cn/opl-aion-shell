@@ -822,7 +822,6 @@
 .cockpitRowMeta,
 .actionResultLine {
   max-width: 100%;
-  overflow-wrap: anywhere;
 }
 
 .cockpitMetricLabel,
