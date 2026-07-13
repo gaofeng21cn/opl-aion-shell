@@ -1816,8 +1816,8 @@ function resolvePackagedStandardInstaller(appPath) {
 function buildStandardBootstrapCommand(installerPath) {
   return {
     command: '/bin/bash',
-    args: [installerPath, '--headless', '--skip-modules'],
-    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+    args: [installerPath, '--headless', '--skip-packages'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
   };
 }
 

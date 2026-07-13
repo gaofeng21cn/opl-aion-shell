@@ -162,7 +162,7 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
     case 'install-prep':
       return {
         surface: 'install_prep',
-        args: ['install', '--headless', '--skip-modules', '--json'],
+        args: ['install', '--headless', '--skip-packages', '--json'],
       };
     case 'configure-codex': {
       const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
@@ -381,8 +381,8 @@ function resolveOplInstaller(resourcesPath: string): string | null {
 function buildStandardBootstrapCommand(installerPath: string) {
   return {
     command: '/bin/bash',
-    args: [installerPath, '--headless', '--skip-modules'],
-    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+    args: [installerPath, '--headless', '--skip-packages'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
   };
 }
 

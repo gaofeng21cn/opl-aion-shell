@@ -473,8 +473,8 @@ fi
 if ! arg_present "--with-app" && ! arg_present "--headless"; then
   INSTALL_ARGS+=("--with-app")
 fi
-if ! arg_present "--skip-modules" && ! arg_present "--module" && ! arg_present "--modules"; then
-  INSTALL_ARGS+=("--skip-modules")
+if ! arg_present "--skip-packages" && ! arg_present "--package" && ! arg_present "--packages"; then
+  INSTALL_ARGS+=("--skip-packages")
 fi
 
 curl -fsSL "$OPL_INSTALL_SCRIPT_URL" | bash -s -- "${INSTALL_ARGS[@]}"

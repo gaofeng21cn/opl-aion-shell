@@ -227,8 +227,8 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.resolvePackagedStandardInstaller(appPath)).toBe(installerPath);
     expect(vmSmoke.buildStandardBootstrapCommand(installerPath)).toEqual({
       command: '/bin/bash',
-      args: [installerPath, '--headless', '--skip-modules'],
-      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+      args: [installerPath, '--headless', '--skip-packages'],
+      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
     });
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
   });
@@ -1635,7 +1635,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_home: '/tmp/runtime/current',
         standard_bootstrap: {
           status: 'passed',
-          command: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+          command: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
         },
         managed_opl_bin: '/Users/tester/.opl/one-person-lab/bin',
         managed_node_bin: null,

@@ -556,7 +556,7 @@ describe('static-server', () => {
         child.kill = vi.fn() as typeof child.kill;
         queueMicrotask(() => child.emit('close', 0));
         expect(command).toBe('/bin/bash');
-        expect(args).toEqual([path.join(resourcesPath, 'opl-install.sh'), '--headless', '--skip-modules']);
+        expect(args).toEqual([path.join(resourcesPath, 'opl-install.sh'), '--headless', '--skip-packages']);
         return child;
       })
       .mockImplementationOnce((command, args) => {

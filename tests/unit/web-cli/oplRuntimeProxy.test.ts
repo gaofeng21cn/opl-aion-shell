@@ -9,12 +9,12 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
   it('uses the Framework headless installation contract for App-managed setup', () => {
     expect(__oplRuntimeProxyTest.buildCommandFromRequest('install-prep', {})).toEqual({
       surface: 'install_prep',
-      args: ['install', '--headless', '--skip-modules', '--json'],
+      args: ['install', '--headless', '--skip-packages', '--json'],
     });
     expect(__oplRuntimeProxyTest.buildStandardBootstrapCommand('/opt/One Person Lab/opl-install.sh')).toEqual({
       command: '/bin/bash',
-      args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-modules'],
-      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+      args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-packages'],
+      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
     });
   });
 

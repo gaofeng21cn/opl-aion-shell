@@ -119,7 +119,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl runtime app-operator-drilldown --detail full --json',
     'opl system initialize --events --json',
     'opl system initialize --json',
-    'opl install --headless --skip-modules --json',
+    'opl install --headless --skip-packages --json',
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
     'opl system reconcile-modules --json',
@@ -303,7 +303,7 @@ function buildInitializeFallbackCommand(): RuntimeCommandSpec {
 function buildInstallPrepCommand(): RuntimeCommandSpec {
   return {
     surface: 'install_prep',
-    args: ['install', '--headless', '--skip-modules', '--json'],
+    args: ['install', '--headless', '--skip-packages', '--json'],
   };
 }
 
@@ -1158,8 +1158,8 @@ function resolvePackagedStandardInstaller(resourcesPath?: string): string | null
 function buildStandardBootstrapCommand(installerPath: string): SpawnCommandSpec {
   return {
     command: '/bin/bash',
-    args: [installerPath, '--headless', '--skip-modules'],
-    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+    args: [installerPath, '--headless', '--skip-packages'],
+    redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
   };
 }
 

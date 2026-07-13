@@ -86,7 +86,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl runtime app-operator-drilldown --detail full --json',
         'opl system initialize --events --json',
         'opl system initialize --json',
-        'opl install --headless --skip-modules --json',
+        'opl install --headless --skip-packages --json',
         'opl system configure-codex --api-key-stdin --json',
         'opl system startup-maintenance --json',
         'opl system reconcile-modules --json',
@@ -196,7 +196,7 @@ describe('OPL runtime bridge command whitelist', () => {
     });
     expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
       surface: 'install_prep',
-      args: ['install', '--headless', '--skip-modules', '--json'],
+      args: ['install', '--headless', '--skip-packages', '--json'],
     });
     expect(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand()).toEqual({
       surface: 'startup_maintenance',
@@ -375,8 +375,8 @@ describe('OPL runtime bridge command whitelist', () => {
   it('runs the packaged App installer as the standard bootstrap carrier without enabling module or GUI install loops', () => {
     expect(__oplRuntimeBridgeTest.buildStandardBootstrapCommand('/opt/One Person Lab/opl-install.sh')).toEqual({
       command: '/bin/bash',
-      args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-modules'],
-      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-modules',
+      args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-packages'],
+      redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
     });
   });
 
