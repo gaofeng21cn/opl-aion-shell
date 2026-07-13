@@ -279,7 +279,7 @@ function mergeRuntimeSourceCarrier(
   const carrierSourcePolicy = oplRecord(carrier.source_policy);
   const carrierGit = oplRecord(carrier.git);
   return {
-    ...(module ?? {}),
+    ...module,
     module_id: firstString(module?.module_id, carrier.carrier_id, carrier.package_id),
     install_origin: firstString(carrier.source_origin, module?.install_origin),
     checkout_path: firstString(carrier.source_path, module?.checkout_path),
