@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readRuntimeSafeActions } from '@/renderer/pages/runtime/cockpit';
 import { currentStageLabel, formatTokenObservation } from '@/renderer/pages/runtime/formatters';
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
 import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
@@ -34,7 +35,7 @@ describe('Runtime V2 projection boundary', () => {
 
   it('rejects duplicate work item identities instead of guessing which row wins', () => {
     const projection = createRuntimeV2Projection();
-    projection.items.push({ ...projection.items[0]! });
+    projection.items.push({ ...projection.items[0]!, item_id: 'distinct-envelope-for-the-same-work-item' });
 
     const result = readRuntimeWorkItemProjectionV2({
       operator: { workbench: { work_item_projection_v2: projection } },
@@ -124,6 +125,37 @@ describe('Runtime V2 projection boundary', () => {
       responsibleComponent: 'OPL Framework',
       expectedOutcome: 'Automatic execution resumes',
     });
+  });
+
+  it('exposes only explicit payload-free App safe actions', () => {
+    const actions = readRuntimeSafeActions({
+      app_operator_drilldown: {
+        app_execution_bridge: {
+          safe_action_routes: [
+            {
+              action_id: 'safe_app_action',
+              submit_via: 'opl app action execute',
+              route_requires_domain_or_app_payload: false,
+              payload_fields: [],
+            },
+            {
+              action_id: 'runtime_only_action',
+              submit_via: 'opl runtime action execute',
+              payload_fields: [],
+            },
+            {
+              action_id: 'payload_action',
+              submit_via: 'opl app action execute',
+              route_requires_domain_or_app_payload: true,
+              payload_fields: ['target_ref'],
+            },
+            { action_id: 'unmarked_action', payload_fields: [] },
+          ],
+        },
+      },
+    });
+
+    expect(actions.map((action) => action.id)).toEqual(['safe_app_action']);
   });
 
   it('shows sync pending instead of deriving a user state when primary state is absent', () => {

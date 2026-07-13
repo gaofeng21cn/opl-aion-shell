@@ -238,7 +238,8 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const freshness = record(value.freshness);
   if (!identity || !lifecycle || !execution || !attention || !telemetry || !freshness) return null;
 
-  const id = requiredString(value.item_id);
+  const itemEnvelopeId = requiredString(value.item_id);
+  const workItemId = requiredString(identity.work_item_id);
   const displayName = requiredString(identity.work_item_display_name);
   const agentId = requiredString(identity.agent_id);
   const projectId = requiredString(identity.project_id);
@@ -255,7 +256,8 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const sourceRefs = parseSourceRefs(value.source_refs);
   const inventoryObservedAt = requiredString(freshness.inventory_observed_at);
   if (
-    !id ||
+    !itemEnvelopeId ||
+    !workItemId ||
     !displayName ||
     !agentId ||
     !projectId ||
@@ -313,7 +315,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
       : 'missing_primary_state';
 
   return {
-    id,
+    id: workItemId,
     displayName,
     agentId,
     projectId,
