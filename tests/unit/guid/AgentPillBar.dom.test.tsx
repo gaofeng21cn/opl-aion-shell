@@ -31,7 +31,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AgentPillBar Settings route', () => {
-  it('opens the App-owned capabilities page instead of the legacy agent tab', async () => {
+  it('opens the App-owned agents page instead of the legacy agent tab', async () => {
     render(
       <AgentPillBar
         availableAgents={[
@@ -46,7 +46,7 @@ describe('AgentPillBar Settings route', () => {
 
     await userEvent.click(screen.getByTestId('guid-agent-settings-shortcut'));
 
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/capabilities');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/agents');
     expect(mocks.navigate).not.toHaveBeenCalledWith('/settings/agent?tab=local');
   });
 });
