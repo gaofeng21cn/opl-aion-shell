@@ -32,6 +32,8 @@ const DEFAULT_LABELS = {
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
 const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
+const OPL_JSON_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+const OPL_JSON_DIAGNOSTIC_INLINE_BYTES = 64 * 1024;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const FULL_ASSISTANT_READINESS_TIMEOUT_MS = 180_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
@@ -1289,10 +1291,11 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
 }
 
 class OplJsonCommandError extends Error {
-  constructor(message, diagnostics) {
+  constructor(message, diagnostics, rawOutput = null) {
     super(message);
     this.name = 'OplJsonCommandError';
     this.diagnostics = diagnostics;
+    this.rawOutput = rawOutput;
   }
 }
 
@@ -1857,21 +1860,27 @@ function buildOplJsonShellCommand(args, options = {}) {
   const runtimeProfile = options.runtimeProfile ?? 'standard';
   const fullRuntime = runtimeProfile === 'full' ? resolveFullRuntimeForSmoke(options) : null;
   const runtimeHome = fullRuntime?.runtime_home ?? null;
+  const testOplCommandPath = process.env.NODE_ENV === 'test' ? options.__testOplCommandPath : null;
   const pathPrefix = buildStandardBootstrapPathPrefix();
-  const commandArgs = [runtimeHome ? toRuntimeShellPath(path.join(runtimeHome, 'bin', 'opl')) : 'opl', ...args];
-  const command = runtimeHome
-    ? [buildFullRuntimeCommandPrefix(runtimeHome), commandArgs.map(shellQuote).join(' ')].filter(Boolean).join(' && ')
-    : [
-        pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
-        'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
-        commandArgs.map(shellQuote).join(' '),
-      ]
-        .filter(Boolean)
-        .join(' && ');
+  const commandArgs = [
+    testOplCommandPath || (runtimeHome ? toRuntimeShellPath(path.join(runtimeHome, 'bin', 'opl')) : 'opl'),
+    ...args,
+  ];
+  const command =
+    runtimeHome || testOplCommandPath
+      ? [buildFullRuntimeCommandPrefix(runtimeHome), commandArgs.map(shellQuote).join(' ')].filter(Boolean).join(' && ')
+      : [
+          pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
+          'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
+          commandArgs.map(shellQuote).join(' '),
+        ]
+          .filter(Boolean)
+          .join(' && ');
   return { command, runtimeHome, fullRuntime };
 }
 
 function resolveOplCommandPath(options = {}) {
+  if (process.env.NODE_ENV === 'test' && options.__testOplCommandPath) return options.__testOplCommandPath;
   const fullRuntime = options.runtimeProfile === 'full' ? resolveFullRuntimeForSmoke(options) : null;
   if (fullRuntime?.opl_path) return fullRuntime.opl_path;
   const result = spawnSync(runtimeShellExecutable(), ['-lc', 'command -v opl'], {
@@ -1882,15 +1891,34 @@ function resolveOplCommandPath(options = {}) {
   return result.status === 0 ? result.stdout.trim() || null : null;
 }
 
+function resolveOplJsonMaxBufferBytes(value) {
+  const candidate = Number(value);
+  return Number.isSafeInteger(candidate) && candidate > 0 ? candidate : OPL_JSON_MAX_BUFFER_BYTES;
+}
+
+function summarizeCommandOutput(value, maxBytes = OPL_JSON_DIAGNOSTIC_INLINE_BYTES) {
+  const text = String(value ?? '');
+  const bytes = Buffer.byteLength(text);
+  if (bytes <= maxBytes) return { text, bytes, truncated: false };
+  const prefix = Buffer.from(text).subarray(0, maxBytes).toString('utf8');
+  return {
+    text: `${prefix}\n...[truncated ${bytes - maxBytes} bytes; see raw output artifact]`,
+    bytes,
+    truncated: true,
+  };
+}
+
 function runOplJsonOnce(args, options = {}) {
   const { command, runtimeHome, fullRuntime } = buildOplJsonShellCommand(args, options);
+  const maxBufferBytes = resolveOplJsonMaxBufferBytes(options.maxBufferBytes);
   const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json', PATH: buildStandardBootstrapPathPrefix() },
     input: options.input ?? undefined,
     timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
+    maxBuffer: maxBufferBytes,
   });
-  return { command, runtimeHome, fullRuntime, result };
+  return { command, runtimeHome, fullRuntime, maxBufferBytes, result };
 }
 
 function runOplJson(args, options = {}) {
@@ -1903,7 +1931,13 @@ function runOplJson(args, options = {}) {
     }
   }
 
-  const { command, runtimeHome, result } = probe;
+  const { command, runtimeHome, maxBufferBytes, result } = probe;
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? '';
+  const stdoutSummary = summarizeCommandOutput(stdout);
+  const stderrSummary = summarizeCommandOutput(stderr);
+  const errorCode = result.error?.code ?? null;
+  const bufferExhausted = errorCode === 'ENOBUFS';
   const diagnostics = {
     schema: 'opl_vm_smoke_opl_command_error.v1',
     args,
@@ -1918,30 +1952,52 @@ function runOplJson(args, options = {}) {
     shell_executable: runtimeShellExecutable(),
     status: result.status,
     signal: result.signal ?? null,
-    timed_out: result.error?.code === 'ETIMEDOUT',
+    timed_out: errorCode === 'ETIMEDOUT',
     timeout_ms: resolveOplProbeTimeoutMs(options.timeoutMs),
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
+    max_buffer_bytes: maxBufferBytes,
+    buffer_exhausted: bufferExhausted,
+    error_code: errorCode,
+    stdout: stdoutSummary.text,
+    stdout_bytes: stdoutSummary.bytes,
+    stdout_truncated: stdoutSummary.truncated,
+    stderr: stderrSummary.text,
+    stderr_bytes: stderrSummary.bytes,
+    stderr_truncated: stderrSummary.truncated,
     error: result.error?.message ?? null,
   };
-  if (result.error?.code === 'ETIMEDOUT') {
+  const rawOutput = { stdout, stderr };
+  if (bufferExhausted) {
+    throw new OplJsonCommandError(
+      `opl ${args.join(' ')} exceeded the ${maxBufferBytes}-byte output buffer (ENOBUFS); ` +
+        `captured stdout_bytes=${stdoutSummary.bytes} stderr_bytes=${stderrSummary.bytes}.\ncommand: ${command}`,
+      diagnostics,
+      rawOutput
+    );
+  }
+  if (errorCode === 'ETIMEDOUT') {
     throw new OplJsonCommandError(
       [
         `opl ${args.join(' ')} timed out after ${resolveOplProbeTimeoutMs(options.timeoutMs)}ms.`,
-        result.stdout ? `stdout:\n${result.stdout}` : '',
-        result.stderr ? `stderr:\n${result.stderr}` : '',
+        stdout ? `stdout:\n${stdoutSummary.text}` : '',
+        stderr ? `stderr:\n${stderrSummary.text}` : '',
         `command: ${command}`,
       ]
         .filter(Boolean)
         .join('\n'),
-      diagnostics
+      diagnostics,
+      rawOutput
     );
   }
   if (result.status !== 0) {
-    const output = result.stderr || result.stdout || `status=${result.status} signal=${result.signal ?? 'none'}`;
-    throw new OplJsonCommandError(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`, diagnostics);
+    const output =
+      stderrSummary.text || stdoutSummary.text || `status=${result.status} signal=${result.signal ?? 'none'}`;
+    throw new OplJsonCommandError(
+      `opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`,
+      diagnostics,
+      rawOutput
+    );
   }
-  return result.stdout;
+  return stdout;
 }
 
 function parseOplJsonResult(raw, args) {
@@ -2188,18 +2244,34 @@ function writeJsonArtifact(target, value, secret) {
   writeTextArtifact(target, `${JSON.stringify(value, null, 2)}\n`, secret);
 }
 
-function oplJsonCommandDiagnostics(error) {
+function oplJsonCommandDiagnostics(error, rawOutputArtifacts = null) {
   const diagnostics = error instanceof OplJsonCommandError && error.diagnostics ? error.diagnostics : null;
   return {
     schema: 'opl_vm_smoke_opl_command_error_artifact.v1',
     message: error instanceof Error ? error.message : String(error),
     diagnostics,
+    raw_output_artifacts: rawOutputArtifacts,
   };
 }
 
 function writeOplJsonCommandErrorArtifacts(basePath, error, secret) {
+  const rawOutputArtifacts = {};
+  if (error instanceof OplJsonCommandError && error.rawOutput) {
+    for (const stream of ['stdout', 'stderr']) {
+      const content = String(error.rawOutput[stream] ?? '');
+      if (!content) continue;
+      const target = `${basePath}.${stream}.log`;
+      writeTextArtifact(target, content, secret);
+      rawOutputArtifacts[stream] = path.basename(target);
+    }
+  }
   writeTextArtifact(`${basePath}.error.txt`, error instanceof Error ? error.message : String(error), secret);
-  writeJsonArtifact(`${basePath}.error.json`, oplJsonCommandDiagnostics(error), secret);
+  writeJsonArtifact(
+    `${basePath}.error.json`,
+    oplJsonCommandDiagnostics(error, Object.keys(rawOutputArtifacts).length > 0 ? rawOutputArtifacts : null),
+    secret
+  );
+  return rawOutputArtifacts;
 }
 
 function captureOplJsonCommandErrorArtifacts(basePath, error, secret) {
@@ -2214,9 +2286,14 @@ function captureOplJsonCommandErrorArtifacts(basePath, error, secret) {
     signal: diagnostics.signal ?? null,
     timed_out: diagnostics.timed_out ?? null,
   };
+  if ('error_code' in diagnostics) summary.error_code = diagnostics.error_code ?? null;
+  if ('buffer_exhausted' in diagnostics) summary.buffer_exhausted = diagnostics.buffer_exhausted === true;
+  if ('max_buffer_bytes' in diagnostics) summary.max_buffer_bytes = diagnostics.max_buffer_bytes ?? null;
   try {
-    writeOplJsonCommandErrorArtifacts(basePath, error, secret);
-    return summary;
+    const rawOutputArtifacts = writeOplJsonCommandErrorArtifacts(basePath, error, secret);
+    return Object.keys(rawOutputArtifacts).length > 0
+      ? { ...summary, raw_output_artifacts: rawOutputArtifacts }
+      : summary;
   } catch (writeError) {
     const fallback = `${basePath}.error.write-error.txt`;
     fs.writeFileSync(fallback, writeError instanceof Error ? writeError.message : String(writeError), 'utf8');
@@ -5863,6 +5940,10 @@ export const __test =
         writeOplJsonCommandErrorArtifacts,
         captureOplJsonCommandErrorArtifacts,
         resolveOplProbeTimeoutMs,
+        resolveOplJsonMaxBufferBytes,
+        summarizeCommandOutput,
+        OPL_JSON_MAX_BUFFER_BYTES,
+        OPL_JSON_DIAGNOSTIC_INLINE_BYTES,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,
         cdpProbeTimeoutMs,

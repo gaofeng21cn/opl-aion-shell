@@ -6,7 +6,71 @@ import path from 'node:path';
 process.env.NODE_ENV = 'test';
 const { __test } = await import('../../../scripts/opl-first-run-vm-smoke.mjs');
 
+function withFakeOpl(payloadBytes: number, run: (root: string) => void): void {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-json-buffer-'));
+  const oplPath = path.join(root, 'opl');
+  const previousPath = process.env.PATH;
+  fs.writeFileSync(
+    oplPath,
+    `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({ payload: 'x'.repeat(${payloadBytes}) }));\n`,
+    { mode: 0o755 }
+  );
+  process.env.PATH = `${root}${path.delimiter}${previousPath ?? ''}`;
+  try {
+    run(root);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 describe('packaged first-run VM smoke helpers', () => {
+  it('accepts OPL JSON output above the Node spawnSync default buffer', () => {
+    withFakeOpl(2 * 1024 * 1024, (root) => {
+      const raw = __test.runOplJson(['app', 'state', '--profile', 'fast', '--json'], {
+        runtimeProfile: 'standard',
+        timeoutMs: 10_000,
+        __testOplCommandPath: path.join(root, 'opl'),
+      });
+
+      expect(Buffer.byteLength(raw)).toBeGreaterThan(1024 * 1024);
+      expect(JSON.parse(raw).payload).toHaveLength(2 * 1024 * 1024);
+    });
+  });
+
+  it('classifies output buffer exhaustion and bounds inline diagnostics', () => {
+    withFakeOpl(256 * 1024, (root) => {
+      let caught: InstanceType<typeof __test.OplJsonCommandError> | null = null;
+      try {
+        __test.runOplJson(['app', 'state', '--profile', 'fast', '--json'], {
+          runtimeProfile: 'standard',
+          timeoutMs: 10_000,
+          maxBufferBytes: 1024,
+          __testOplCommandPath: path.join(root, 'opl'),
+        });
+      } catch (error) {
+        caught = error as InstanceType<typeof __test.OplJsonCommandError>;
+      }
+      expect(caught).toBeInstanceOf(__test.OplJsonCommandError);
+      expect(caught?.diagnostics).toMatchObject({
+        error_code: 'ENOBUFS',
+        buffer_exhausted: true,
+        max_buffer_bytes: 1024,
+      });
+      if (!caught) throw new Error('Expected OPL JSON buffer exhaustion.');
+
+      const basePath = path.join(root, 'app-state-summary.json');
+      __test.writeOplJsonCommandErrorArtifacts(basePath, caught, null);
+      const errorArtifact = JSON.parse(fs.readFileSync(`${basePath}.error.json`, 'utf8'));
+      expect(Buffer.byteLength(errorArtifact.diagnostics.stdout)).toBeLessThanOrEqual(
+        __test.OPL_JSON_DIAGNOSTIC_INLINE_BYTES + 128
+      );
+      expect(errorArtifact.raw_output_artifacts.stdout).toBe('app-state-summary.json.stdout.log');
+      expect(fs.statSync(`${basePath}.stdout.log`).size).toBeGreaterThan(1024);
+    });
+  });
+
   it('launches packaged apps with CDP and renderer accessibility enabled', () => {
     expect(__test.buildLaunchAppArgs('/Applications/One Person Lab.app', { cdpPort: 9239 })).toEqual([
       '-n',
