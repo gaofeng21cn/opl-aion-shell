@@ -185,6 +185,15 @@ async function openFixtureConversation(
   await expect(page.locator('[data-testid="conversation-composer"]')).toBeVisible();
 }
 
+async function goToRuntime(page: Page): Promise<void> {
+  const baseUrl = page.url().split('#')[0];
+  await page.goto(`${baseUrl}#/runtime`);
+  await expect(page.locator('[data-testid="runtime-v2-page"]')).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.locator('[data-testid="runtime-cockpit"], [data-testid="runtime-projection-unavailable"]').first()
+  ).toBeVisible({ timeout: 30_000 });
+}
+
 async function collectAnchors(page: Page, targets: AnchorTarget[]): Promise<GuiBaselineAnchorEvidence[]> {
   return Promise.all(
     targets.map(async (target) => {
@@ -501,6 +510,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_starters', '[data-testid="opl-home-starters"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+        anchor('thread_coordination_entry', '[data-testid="thread-coordination-entry"]'),
       ],
       coverageGaps: [],
       setup: async (page) => {
@@ -568,6 +578,37 @@ function buildTargets(conversationId: string): VisualTarget[] {
           'mobile_home_action_sheet_text_does_not_overflow',
           '[role="dialog"][aria-modal="true"]'
         ),
+      ],
+    },
+    {
+      id: 'runtime-desktop-light-en-US-overview',
+      screenshotName: 'gui-baseline/runtime/desktop/light/en-US/overview',
+      viewport: { name: 'desktop', width: 1440, height: 960 },
+      theme: 'light',
+      locale: 'en-US',
+      anchors: [
+        anchor('runtime_route', '[data-testid="runtime-v2-page"]'),
+        anchor('runtime_state', '[data-testid="runtime-cockpit"], [data-testid="runtime-projection-unavailable"]'),
+        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+      ],
+      coverageGaps: [],
+      setup: async (page) => {
+        await goToRuntime(page);
+        await setNavigationRailExpanded(page, true);
+        return {
+          route_kind: 'runtime',
+          runtime_state: (await page
+            .locator('[data-testid="runtime-cockpit"]')
+            .isVisible()
+            .catch(() => false))
+            ? 'work_item_projection_with_cockpit'
+            : 'projection_unavailable',
+        };
+      },
+      layoutChecks: async (page) => [
+        ...(await railMainChecks(page)),
+        await viewportCheck(page, 'runtime_main_within_viewport', MAIN_CONTENT_SELECTOR),
+        await textOverflowCheck(page, 'runtime_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
       ],
     },
     {
