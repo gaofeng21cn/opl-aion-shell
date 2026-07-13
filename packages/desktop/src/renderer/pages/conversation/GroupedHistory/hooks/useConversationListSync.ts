@@ -163,7 +163,7 @@ const projectCanonicalThread = (
     modified_at: modifiedAt,
     status: thread.status === 'running' ? 'running' : 'finished',
     extra: {
-      ...(cached?.extra ?? {}),
+      ...cached?.extra,
       backend: 'codex',
       workspace: thread.workspace,
       custom_workspace: Boolean(thread.workspace),
