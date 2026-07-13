@@ -10,7 +10,6 @@ import type {
   CodexThreadDescriptor,
   CodexThreadDetail,
   CodexThreadHistoryItem,
-  CodexThreadPermission,
   ThreadCoordinationDeliveryRequest,
   ThreadCoordinationOverviewRequest,
 } from '@/common/types/codex/threadCoordination';
@@ -26,8 +25,7 @@ type RawThread = JsonRecord & {
   turns: JsonRecord[];
 };
 
-type ActiveWriteRegistration = {
-  permission: CodexThreadPermission;
+type ActiveCoordinationRegistration = {
   writeSet: string[];
   turnId: string;
 };
@@ -141,7 +139,7 @@ function mapThread(
   raw: RawThread,
   archived: boolean,
   ancestors: string[],
-  registration: ActiveWriteRegistration | undefined,
+  registration: ActiveCoordinationRegistration | undefined,
   host: string,
   goal: string | null = null
 ): CodexThreadDescriptor {
@@ -161,7 +159,7 @@ function mapThread(
     ancestorThreadIds: ancestors,
     activeTurnId: activeTurnId(turns) ?? (status === 'running' ? (registration?.turnId ?? null) : null),
     activeWriteSet: status === 'running' ? (registration?.writeSet ?? []) : [],
-    activePermission: status === 'running' ? (registration?.permission ?? null) : null,
+    activePermission: null,
     archived,
     updatedAt: isoFromSeconds(raw.updatedAt),
   };
@@ -189,21 +187,6 @@ function ancestorsFor(thread: RawThread, byId: Map<string, RawThread>): string[]
   return ancestors;
 }
 
-function permissionParams(permission: CodexThreadPermission, writeSet: string[]): JsonRecord {
-  return permission === 'read_only'
-    ? { approvalPolicy: 'never', sandboxPolicy: { type: 'readOnly', networkAccess: false } }
-    : {
-        approvalPolicy: 'never',
-        sandboxPolicy: {
-          type: 'workspaceWrite',
-          writableRoots: writeSet,
-          networkAccess: false,
-          excludeTmpdirEnvVar: true,
-          excludeSlashTmp: true,
-        },
-      };
-}
-
 function deliveryText(request: ThreadCoordinationDeliveryRequest): string {
   return [
     `Cross-thread coordination from ${request.sourceThreadId}.`,
@@ -219,7 +202,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
   private readonly protocolVersion: string;
   private readonly pageSize: number;
   private readonly maxPages: number;
-  private readonly activeWrites = new Map<string, ActiveWriteRegistration>();
+  private readonly activeCoordination = new Map<string, ActiveCoordinationRegistration>();
 
   constructor(options: PortOptions) {
     this.rpc = options.rpc;
@@ -230,7 +213,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
     this.rpc.onNotification((method, params) => {
       if (method !== 'turn/completed' || !isRecord(params)) return;
       const threadId = optionalString(params.threadId);
-      if (threadId) this.activeWrites.delete(threadId);
+      if (threadId) this.activeCoordination.delete(threadId);
     });
   }
 
@@ -251,7 +234,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
         }
       }
       descriptors.push(
-        mapThread(hydrated, archived, ancestorsFor(thread, byId), this.activeWrites.get(thread.id), this.host)
+        mapThread(hydrated, archived, ancestorsFor(thread, byId), this.activeCoordination.get(thread.id), this.host)
       );
     }
     const filtered = request.projectId
@@ -281,7 +264,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
     } catch {
       // Older app-server versions may not expose thread goals.
     }
-    const descriptor = mapThread(raw, false, [], this.activeWrites.get(threadId), this.host, goal);
+    const descriptor = mapThread(raw, false, [], this.activeCoordination.get(threadId), this.host, goal);
     return { thread: descriptor, history: historyFromTurns(raw.turns) };
   }
 
@@ -290,7 +273,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
       await this.rpc.request('thread/resume', { threadId, excludeTurns: false }),
       'thread resume response'
     );
-    return mapThread(parseThread(response.thread), false, [], this.activeWrites.get(threadId), this.host);
+    return mapThread(parseThread(response.thread), false, [], this.activeCoordination.get(threadId), this.host);
   }
 
   async forkThread(threadId: string): Promise<CodexThreadDescriptor> {
@@ -303,10 +286,12 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
 
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
-    this.activeWrites.delete(threadId);
+    this.activeCoordination.delete(threadId);
   }
 
   async startTurn(request: ThreadCoordinationDeliveryRequest): Promise<string> {
+    // Omitting turn-level context and permission overrides preserves the
+    // target thread's sticky Codex settings.
     const response = requiredRecord(
       await this.rpc.request('turn/start', {
         threadId: request.targetThreadId,
@@ -316,14 +301,12 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
           opl_coordination_sender: request.sourceThreadId,
           opl_coordination_idempotency_key: request.idempotencyKey,
         },
-        ...permissionParams(request.permission, request.writeSet),
       }),
       'turn start response'
     );
     const turn = requiredRecord(response.turn, 'turn start turn');
     const turnId = requiredString(turn.id, 'turn id');
-    this.activeWrites.set(request.targetThreadId, {
-      permission: request.permission,
+    this.activeCoordination.set(request.targetThreadId, {
       writeSet: [...request.writeSet],
       turnId,
     });
@@ -349,7 +332,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
 
   dispose(): void {
     this.rpc.dispose();
-    this.activeWrites.clear();
+    this.activeCoordination.clear();
   }
 
   private async readRawThread(threadId: string): Promise<RawThread> {

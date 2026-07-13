@@ -5,7 +5,7 @@
  */
 
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   CODEX_THREAD_COORDINATION_METHODS,
   type CodexThreadCoordinationMethod,
@@ -13,6 +13,7 @@ import {
   type CodexThreadDetail,
   type ThreadCoordinationActionRequest,
   type ThreadCoordinationActionResult,
+  type ThreadCoordinationAdvisory,
   type ThreadCoordinationAuditEvent,
   type ThreadCoordinationAuditResult,
   type ThreadCoordinationErrorCode,
@@ -65,14 +66,8 @@ type PolicyAudit = {
 
 type DeliveryEvaluation = {
   failure: ActionFailure | null;
-  risks: string[];
+  advisories: ThreadCoordinationAdvisory[];
   policy: PolicyAudit;
-};
-
-type PendingConfirmation = {
-  signature: string;
-  expiresAtMs: number;
-  risks: string[];
 };
 
 type FinishOptions = {
@@ -82,13 +77,12 @@ type FinishOptions = {
   forkedThreadId?: string | null;
   failure?: ActionFailure;
   outcome?: ThreadCoordinationAuditResult;
-  confirmation?: ThreadCoordinationActionResult['confirmation'];
   policy?: PolicyAudit;
   statusAfter?: CodexThreadDescriptor['status'] | null;
+  advisories?: ThreadCoordinationAdvisory[];
 };
 
 const MAX_ROUTE_HOPS = 4;
-const CONFIRMATION_TTL_MS = 2 * 60 * 1000;
 const MESSAGE_SUMMARY_LIMIT = 180;
 
 function unavailableOverview(
@@ -135,15 +129,6 @@ function writeSetsOverlap(left: string[], right: string[]): boolean {
   return normalizedLeft.some((leftPath) => normalizedRight.some((rightPath) => pathsOverlap(leftPath, rightPath)));
 }
 
-function writeSetIsContainedBy(requested: string[], allowed: string[]): boolean {
-  const normalizedAllowed = normalizedPaths(allowed);
-  return normalizedPaths(requested).every((requestedPath) =>
-    normalizedAllowed.some(
-      (allowedPath) => requestedPath === allowedPath || requestedPath.startsWith(`${allowedPath}${path.sep}`)
-    )
-  );
-}
-
 function threadLabel(thread: CodexThreadDescriptor | undefined, fallback: string): string {
   return thread?.title.trim() || fallback;
 }
@@ -171,23 +156,20 @@ function notApplicablePolicy(): PolicyAudit {
 }
 
 function initialDeliveryPolicy(request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>): PolicyAudit {
+  const requestedPathCount = normalizedPaths(request.writeSet).length;
   return {
-    permission: { requested: request.permission, decision: 'allowed', reason: 'Requested permission passed policy.' },
+    permission: {
+      requested: request.permission,
+      decision: 'not_applicable',
+      reason: 'The target thread keeps its existing Codex approval and sandbox policy.',
+    },
     writeSet: {
-      requestedPathCount: normalizedPaths(request.writeSet).length,
-      decision: request.permission === 'workspace_write' ? 'allowed' : 'not_applicable',
-      reason:
-        request.permission === 'workspace_write'
-          ? 'Declared write set passed conflict checks.'
-          : 'Read-only delivery has no write set.',
+      requestedPathCount,
+      decision: requestedPathCount > 0 ? 'allowed' : 'not_applicable',
+      reason: requestedPathCount > 0 ? 'Expected paths are advisory coordination metadata.' : 'No path hints supplied.',
       conflictingThreadId: null,
     },
   };
-}
-
-function signatureFor(request: ThreadCoordinationActionRequest): string {
-  const { confirmationToken: _confirmationToken, ...unsigned } = request;
-  return createHash('sha256').update(JSON.stringify(unsigned)).digest('hex');
 }
 
 export class ThreadCoordinationService {
@@ -195,7 +177,6 @@ export class ThreadCoordinationService {
   private readonly auditStore: ThreadCoordinationAuditStore;
   private readonly now: () => Date;
   private readonly createId: () => string;
-  private readonly confirmations = new Map<string, PendingConfirmation>();
 
   constructor(options: ServiceOptions) {
     this.port = options.port;
@@ -309,22 +290,6 @@ export class ThreadCoordinationService {
     request: Exclude<ThreadCoordinationActionRequest, { action: 'deliver' }>,
     target: CodexThreadDescriptor
   ): Promise<ThreadCoordinationActionResult> {
-    if (request.action === 'archive') {
-      const confirmation = this.confirmationFor(request, ['archive_lifecycle']);
-      if (confirmation.failure) {
-        return this.finish(request, { target, protocolMethod: 'thread/archive', failure: confirmation.failure });
-      }
-      if (confirmation.required) {
-        return this.finish(request, {
-          target,
-          protocolMethod: 'thread/archive',
-          outcome: 'confirmation_required',
-          confirmation: confirmation.required,
-          failure: { code: 'confirmation_required', message: 'Archive requires explicit confirmation.' },
-        });
-      }
-    }
-
     try {
       if (request.action === 'resume') {
         const resumed = await this.port?.resumeThread(target.id);
@@ -369,35 +334,7 @@ export class ThreadCoordinationService {
         source,
         failure: evaluation.failure,
         policy: evaluation.policy,
-      });
-    }
-
-    const intendedMethod: CodexThreadCoordinationMethod = target.status === 'running' ? 'turn/steer' : 'turn/start';
-    const confirmation = this.confirmationFor(request, evaluation.risks);
-    if (confirmation.failure) {
-      return this.finish(request, {
-        target,
-        source,
-        protocolMethod: intendedMethod,
-        failure: confirmation.failure,
-        policy: evaluation.policy,
-      });
-    }
-    if (confirmation.required) {
-      evaluation.policy.permission.decision = 'confirmation_required';
-      evaluation.policy.permission.reason = `Explicit confirmation required: ${evaluation.risks.join(', ')}.`;
-      if (request.permission === 'workspace_write') {
-        evaluation.policy.writeSet.decision = 'confirmation_required';
-        evaluation.policy.writeSet.reason = 'Write set is conflict-free but requires high-risk confirmation.';
-      }
-      return this.finish(request, {
-        target,
-        source,
-        protocolMethod: intendedMethod,
-        outcome: 'confirmation_required',
-        confirmation: confirmation.required,
-        failure: { code: 'confirmation_required', message: 'High-risk thread action requires explicit confirmation.' },
-        policy: evaluation.policy,
+        advisories: evaluation.advisories,
       });
     }
 
@@ -408,6 +345,7 @@ export class ThreadCoordinationService {
             target,
             source,
             policy: evaluation.policy,
+            advisories: evaluation.advisories,
             failure: { code: 'running_turn_unknown', message: 'Running thread has no active turn precondition.' },
           });
         }
@@ -417,6 +355,7 @@ export class ThreadCoordinationService {
           source,
           protocolMethod: 'turn/steer',
           policy: evaluation.policy,
+          advisories: evaluation.advisories,
           statusAfter: 'running',
         });
       }
@@ -424,25 +363,12 @@ export class ThreadCoordinationService {
       let resumed = target;
       if (target.status === 'not_loaded') resumed = (await this.port?.resumeThread(target.id)) ?? target;
       if (resumed.status === 'running') {
-        const resumedConfirmation = this.confirmationFor(request, ['active_turn_steer']);
-        if (resumedConfirmation.required) {
-          evaluation.policy.permission.decision = 'confirmation_required';
-          evaluation.policy.permission.reason = 'Resume joined an active turn; steering requires confirmation.';
-          return this.finish(request, {
-            target: resumed,
-            source,
-            protocolMethod: 'turn/steer',
-            outcome: 'confirmation_required',
-            confirmation: resumedConfirmation.required,
-            failure: { code: 'confirmation_required', message: 'Active-turn steer requires explicit confirmation.' },
-            policy: evaluation.policy,
-          });
-        }
         if (!resumed.activeTurnId) {
           return this.finish(request, {
             target: resumed,
             source,
             policy: evaluation.policy,
+            advisories: evaluation.advisories,
             failure: { code: 'running_turn_unknown', message: 'Resumed thread has no active turn precondition.' },
           });
         }
@@ -452,6 +378,7 @@ export class ThreadCoordinationService {
           source,
           protocolMethod: 'turn/steer',
           policy: evaluation.policy,
+          advisories: evaluation.advisories,
           statusAfter: 'running',
         });
       }
@@ -460,6 +387,7 @@ export class ThreadCoordinationService {
           target: resumed,
           source,
           policy: evaluation.policy,
+          advisories: evaluation.advisories,
           failure: { code: 'thread_not_writable', message: 'Target thread cannot accept a new turn.' },
         });
       }
@@ -469,6 +397,7 @@ export class ThreadCoordinationService {
         source,
         protocolMethod: 'turn/start',
         policy: evaluation.policy,
+        advisories: evaluation.advisories,
         statusAfter: 'running',
       });
     } catch (error) {
@@ -476,6 +405,7 @@ export class ThreadCoordinationService {
         target,
         source,
         policy: evaluation.policy,
+        advisories: evaluation.advisories,
         failure: {
           code: 'protocol_error',
           message: error instanceof Error ? error.message : 'Thread delivery failed.',
@@ -494,13 +424,7 @@ export class ThreadCoordinationService {
     const denyPermission = (failure: ActionFailure): DeliveryEvaluation => {
       policy.permission.decision = 'denied';
       policy.permission.reason = failure.message;
-      return { failure, risks: [], policy };
-    };
-    const denyWriteSet = (failure: ActionFailure, conflictingThreadId: string | null = null): DeliveryEvaluation => {
-      policy.writeSet.decision = 'denied';
-      policy.writeSet.reason = failure.message;
-      policy.writeSet.conflictingThreadId = conflictingThreadId;
-      return { failure, risks: [], policy };
+      return { failure, advisories: [], policy };
     };
 
     if (!source) return denyPermission({ code: 'thread_not_found', message: 'Sender thread was not found.' });
@@ -522,64 +446,10 @@ export class ThreadCoordinationService {
         message: 'Cross-host delivery is not supported by this host.',
       });
     }
-    if (
-      request.route.hopCount < 0 ||
-      request.route.hopCount >= MAX_ROUTE_HOPS ||
-      request.route.visitedThreadIds.includes(target.id)
-    ) {
-      return denyPermission({
-        code: 'delivery_loop',
-        message: 'Delivery route would repeat a thread or exceed the hop limit.',
-      });
-    }
     if (this.auditStore.hasIdempotencyKey(request.idempotencyKey)) {
       return denyPermission({ code: 'duplicate_delivery', message: 'This delivery was already recorded.' });
     }
-
     const writeSet = normalizedPaths(request.writeSet);
-    if (request.permission === 'read_only' && writeSet.length > 0) {
-      return denyWriteSet({ code: 'invalid_request', message: 'Read-only delivery cannot declare a write set.' });
-    }
-    if (request.permission === 'workspace_write' && writeSet.length === 0) {
-      return denyWriteSet({
-        code: 'write_set_required',
-        message: 'Workspace-write delivery requires an explicit write set.',
-      });
-    }
-    if (source.projectId !== target.projectId && request.permission !== 'read_only') {
-      return denyPermission({ code: 'cross_project_write', message: 'Cross-project delivery is read-only.' });
-    }
-
-    if (request.permission === 'workspace_write') {
-      if (target.status === 'running' && target.activePermission !== 'workspace_write') {
-        return denyPermission({
-          code: 'permission_expansion_denied',
-          message: 'turn/steer cannot expand the active turn permission profile.',
-        });
-      }
-      if (target.status === 'running' && target.activeWriteSet.length === 0) {
-        return denyWriteSet({ code: 'write_set_unknown', message: 'Running target has no declared write set.' });
-      }
-      if (target.status === 'running' && !writeSetIsContainedBy(writeSet, target.activeWriteSet)) {
-        return denyWriteSet({
-          code: 'write_set_conflict',
-          message: 'Steering would expand the running target write set.',
-        });
-      }
-      const conflictingThread = threads.find(
-        (thread) =>
-          thread.id !== target.id &&
-          thread.status === 'running' &&
-          thread.projectId === target.projectId &&
-          writeSetsOverlap(writeSet, thread.activeWriteSet)
-      );
-      if (conflictingThread) {
-        return denyWriteSet(
-          { code: 'write_set_conflict', message: `Write set conflicts with running thread ${conflictingThread.id}.` },
-          conflictingThread.id
-        );
-      }
-    }
     if (target.status === 'system_error' || target.status === 'archived') {
       return denyPermission({
         code: 'thread_not_writable',
@@ -587,49 +457,26 @@ export class ThreadCoordinationService {
       });
     }
 
-    const risks: string[] = [];
-    if (source.projectId !== target.projectId) risks.push('cross_project_delivery');
-    if (request.permission === 'workspace_write') risks.push('workspace_write');
-    if (target.status === 'running') risks.push('active_turn_steer');
-    return { failure: null, risks, policy };
-  }
-
-  private confirmationFor(
-    request: ThreadCoordinationActionRequest,
-    risks: string[]
-  ): { required: ThreadCoordinationActionResult['confirmation']; failure: ActionFailure | null } {
-    const nowMs = this.now().getTime();
-    const token = request.confirmationToken?.trim();
-    if (token) {
-      const pending = this.confirmations.get(token);
-      this.confirmations.delete(token);
-      if (!pending || pending.expiresAtMs < nowMs || pending.signature !== signatureFor(request)) {
-        return {
-          required: null,
-          failure: {
-            code: 'confirmation_invalid',
-            message: 'Confirmation is missing, expired, or bound to another request.',
-          },
-        };
-      }
-      return { required: null, failure: null };
+    const advisories: ThreadCoordinationAdvisory[] = [];
+    if (source.projectId !== target.projectId) advisories.push('cross_project_context');
+    if (source.workspace !== target.workspace) advisories.push('workspace_context_changed');
+    if (
+      request.route.hopCount < 0 ||
+      request.route.hopCount >= MAX_ROUTE_HOPS ||
+      request.route.visitedThreadIds.includes(target.id)
+    ) {
+      advisories.push('delegation_cycle');
     }
-    if (risks.length === 0) return { required: null, failure: null };
-    const confirmationToken = this.createId();
-    const expiresAtMs = nowMs + CONFIRMATION_TTL_MS;
-    this.confirmations.set(confirmationToken, {
-      signature: signatureFor(request),
-      expiresAtMs,
-      risks: [...risks],
-    });
-    return {
-      required: {
-        token: confirmationToken,
-        expiresAt: new Date(expiresAtMs).toISOString(),
-        risks: [...risks],
-      },
-      failure: null,
-    };
+    const conflictingThread = threads.find(
+      (thread) =>
+        thread.id !== target.id && thread.status === 'running' && writeSetsOverlap(writeSet, thread.activeWriteSet)
+    );
+    if (conflictingThread) {
+      advisories.push('write_set_overlap');
+      policy.writeSet.reason = `Expected paths overlap running thread ${conflictingThread.id}; delivery remains allowed.`;
+      policy.writeSet.conflictingThreadId = conflictingThread.id;
+    }
+    return { failure: null, advisories, policy };
   }
 
   private finish(request: ThreadCoordinationActionRequest, options: FinishOptions): ThreadCoordinationActionResult {
@@ -670,6 +517,7 @@ export class ThreadCoordinationService {
       threadStatusAfter: options.statusAfter ?? options.target?.status ?? null,
       idempotencyKey: request.action === 'deliver' ? request.idempotencyKey : null,
       errorCode: options.failure?.code ?? null,
+      advisories: options.advisories ?? [],
     };
     this.auditStore.append(event);
     return {
@@ -682,7 +530,7 @@ export class ThreadCoordinationService {
       auditId,
       errorCode: options.failure?.code ?? null,
       message: event.resultMessage,
-      confirmation: options.confirmation ?? null,
+      advisories: event.advisories,
     };
   }
 }

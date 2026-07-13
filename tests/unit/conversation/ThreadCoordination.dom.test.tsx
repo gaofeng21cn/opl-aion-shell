@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   readThread: vi.fn(),
   execute: vi.fn(),
   autoSizes: [] as unknown[],
-  confirm: vi.fn(),
   translate: (key: string) => key,
 }));
 
@@ -81,19 +80,6 @@ vi.mock('@arco-design/web-react', () => {
       ),
     }
   );
-  const Radio = Object.assign(({ children }: React.PropsWithChildren) => <>{children}</>, {
-    Group: ({ children, onChange }: React.PropsWithChildren<{ onChange?: (value: string) => void }>) => (
-      <div>
-        {React.Children.map(children, (child) =>
-          React.isValidElement<{ value?: string; children?: React.ReactNode }>(child) ? (
-            <button type='button' onClick={() => onChange?.(child.props.value ?? '')}>
-              {child.props.children}
-            </button>
-          ) : null
-        )}
-      </div>
-    ),
-  });
   return {
     Alert: ({ title, content }: { title: React.ReactNode; content: React.ReactNode }) => (
       <div>
@@ -121,8 +107,6 @@ vi.mock('@arco-design/web-react', () => {
     Empty: ({ description }: { description: React.ReactNode }) => <div>{description}</div>,
     Input,
     Message: { success: vi.fn(), error: vi.fn() },
-    Modal: { confirm: mocks.confirm },
-    Radio,
     Select,
     Spin: () => <div>loading</div>,
     Tag: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
@@ -210,7 +194,6 @@ function renderSection() {
 describe('ThreadCoordinationSection', () => {
   beforeEach(() => {
     mocks.autoSizes.length = 0;
-    mocks.confirm.mockReset();
     mocks.execute.mockReset();
     mocks.getConversation.mockResolvedValue({
       id: 'aion-conversation',
@@ -229,7 +212,7 @@ describe('ThreadCoordinationSection', () => {
       auditId: 'audit',
       errorCode: null,
       message: 'Accepted',
-      confirmation: null,
+      advisories: [],
     });
     vi.stubGlobal('crypto', { randomUUID: () => 'delivery-id' });
   });
@@ -254,17 +237,20 @@ describe('ThreadCoordinationSection', () => {
 
     await waitFor(() =>
       expect(mocks.execute).toHaveBeenCalledWith({
-        request: expect.objectContaining({ sourceThreadId: 'source', targetThreadId: 'receiver' }),
+        request: expect.objectContaining({
+          sourceThreadId: 'source',
+          targetThreadId: 'receiver',
+          permission: 'inherit',
+          writeSet: [],
+        }),
       })
     );
   });
 
-  it('keeps both TextArea autoSize objects stable across React rerenders', async () => {
+  it('keeps the message TextArea autoSize object stable across React rerenders', async () => {
     const view = renderSection();
     fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
     await screen.findByLabelText('conversation.threadCoordination.messagePlaceholder');
-    fireEvent.click(screen.getByText('conversation.threadCoordination.permissions.workspace_write'));
-    await screen.findByLabelText('conversation.threadCoordination.writeSetPlaceholder');
     view.rerender(
       <MemoryRouter initialEntries={['/conversation/aion-conversation']}>
         <Routes>
@@ -276,69 +262,35 @@ describe('ThreadCoordinationSection', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(new Set(mocks.autoSizes).size).toBe(2));
+    await waitFor(() => expect(new Set(mocks.autoSizes).size).toBe(1));
     const references = new Set(mocks.autoSizes);
-    expect([...references]).toEqual(
-      expect.arrayContaining([
-        { minRows: 3, maxRows: 6 },
-        { minRows: 2, maxRows: 4 },
-      ])
-    );
+    expect([...references]).toEqual([{ minRows: 3, maxRows: 6 }]);
   });
 
-  it('requires visible confirmation and resubmits the exact request-bound token', async () => {
-    mocks.execute
-      .mockResolvedValueOnce({
-        ok: false,
-        outcome: 'confirmation_required',
-        action: 'deliver',
-        targetThreadId: 'receiver',
-        forkedThreadId: null,
-        protocolMethod: 'turn/start',
-        auditId: 'audit-confirmation',
-        errorCode: 'confirmation_required',
-        message: 'Confirmation required',
-        confirmation: {
-          token: 'request-bound-token',
-          expiresAt: '2026-07-13T01:02:00.000Z',
-          risks: ['workspace_write'],
-        },
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        outcome: 'accepted',
-        action: 'deliver',
-        targetThreadId: 'receiver',
-        forkedThreadId: null,
-        protocolMethod: 'turn/start',
-        auditId: 'audit-accepted',
-        errorCode: null,
-        message: 'Accepted',
-        confirmation: null,
-      });
+  it('archives directly without adding an OPL confirmation step', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      ok: true,
+      outcome: 'accepted',
+      action: 'archive',
+      targetThreadId: 'receiver',
+      forkedThreadId: null,
+      protocolMethod: 'thread/archive',
+      auditId: 'audit-accepted',
+      errorCode: null,
+      message: 'Accepted',
+      advisories: [],
+    });
     renderSection();
     fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
     fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
     fireEvent.change(screen.getByLabelText('conversation.threadCoordination.reasonPlaceholder'), {
-      target: { value: 'Coordinate a write' },
+      target: { value: 'Archive completed work' },
     });
-    fireEvent.change(screen.getByLabelText('conversation.threadCoordination.messagePlaceholder'), {
-      target: { value: 'Update the declared path' },
-    });
-    fireEvent.click(screen.getByText('conversation.threadCoordination.permissions.workspace_write'));
-    fireEvent.change(screen.getByLabelText('conversation.threadCoordination.writeSetPlaceholder'), {
-      target: { value: '/workspace/a/src' },
-    });
-    fireEvent.click(screen.getByText('common.send'));
+    fireEvent.click(screen.getByText('conversation.history.archive'));
 
-    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledOnce());
-    const firstRequest = mocks.execute.mock.calls[0][0].request;
-    const confirmation = mocks.confirm.mock.calls[0][0] as { onOk: () => Promise<void> };
-    await act(async () => confirmation.onOk());
-
-    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(2));
-    expect(mocks.execute.mock.calls[1][0]).toEqual({
-      request: { ...firstRequest, confirmationToken: 'request-bound-token' },
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledOnce());
+    expect(mocks.execute.mock.calls[0][0]).toEqual({
+      request: expect.objectContaining({ action: 'archive', targetThreadId: 'receiver' }),
     });
   });
 
@@ -362,9 +314,13 @@ describe('ThreadCoordinationSection', () => {
             result: 'accepted',
             resultMessage: 'Accepted by turn/start.',
             protocolMethod: 'turn/start',
-            permission: 'read_only',
+            permission: 'inherit',
             writeSet: [],
-            permissionDecision: { requested: 'read_only', decision: 'allowed', reason: 'Policy passed.' },
+            permissionDecision: {
+              requested: 'inherit',
+              decision: 'not_applicable',
+              reason: 'Codex policy inherited.',
+            },
             writeSetDecision: {
               requestedPathCount: 0,
               decision: 'not_applicable',
@@ -375,6 +331,7 @@ describe('ThreadCoordinationSection', () => {
             threadStatusAfter: 'running',
             idempotencyKey: 'delivery-id',
             errorCode: null,
+            advisories: ['cross_project_context'],
           },
         ],
       })
@@ -385,7 +342,8 @@ describe('ThreadCoordinationSection', () => {
     expect((await screen.findAllByText('Source thread')).length).toBeGreaterThan(0);
     expect(screen.getByText(/Inspect api_key=\*\*\*/)).toBeInTheDocument();
     expect(screen.getAllByText(/turn\/start/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/allowed · Policy passed/)).toBeInTheDocument();
+    expect(screen.getByText(/not_applicable · Codex policy inherited/)).toBeInTheDocument();
+    expect(screen.getByText(/advisory.cross_project_context/)).toBeInTheDocument();
     expect(screen.getByText(/idle → running/)).toBeInTheDocument();
     expect(screen.getByText(/2026-07-13T01:00:00.000Z/)).toBeInTheDocument();
   });

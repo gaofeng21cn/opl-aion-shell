@@ -39,8 +39,7 @@ function memoryAuditStore(): ThreadCoordinationAuditStore & { events: ThreadCoor
     events,
     append: (event) => events.push(event),
     readRecent: (limit) => events.slice(-limit).reverse(),
-    hasIdempotencyKey: (key) =>
-      events.some((event) => event.idempotencyKey === key && event.result !== 'confirmation_required'),
+    hasIdempotencyKey: (key) => events.some((event) => event.idempotencyKey === key),
   };
 }
 
@@ -83,7 +82,7 @@ function delivery(overrides: Partial<ThreadCoordinationDeliveryRequest> = {}): T
     actor: { kind: 'model', id: 'sender-model', threadId: 'sender' },
     reason: 'Coordinate independent work',
     message: 'Inspect the requested boundary.',
-    permission: 'read_only',
+    permission: 'inherit',
     writeSet: [],
     idempotencyKey: 'delivery-1',
     route: { visitedThreadIds: ['sender'], hopCount: 1 },
@@ -135,7 +134,7 @@ describe('ThreadCoordinationService', () => {
       reason: 'Coordinate independent work',
       messageSummary: 'Inspect with api_key=*** and report.',
       protocolMethod: 'turn/start',
-      permissionDecision: { requested: 'read_only', decision: 'allowed' },
+      permissionDecision: { requested: 'inherit', decision: 'not_applicable' },
       writeSetDecision: { decision: 'not_applicable', requestedPathCount: 0 },
       threadStatusBefore: 'idle',
       threadStatusAfter: 'running',
@@ -145,21 +144,14 @@ describe('ThreadCoordinationService', () => {
     });
   });
 
-  it('steers the active turn with its id precondition for a running target', async () => {
+  it('steers the active turn without adding an OPL permission confirmation', async () => {
     const adapter = port([
       thread({ id: 'sender', title: 'Sender' }),
       thread({ status: 'running', activeTurnId: 'turn-active' }),
     ]);
     const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
 
-    const request = delivery();
-    const confirmation = await service.execute(request);
-
-    expect(confirmation.outcome).toBe('confirmation_required');
-    expect(confirmation.confirmation?.risks).toContain('active_turn_steer');
-    expect(adapter.steerTurn).not.toHaveBeenCalled();
-
-    const result = await service.execute({ ...request, confirmationToken: confirmation.confirmation?.token });
+    const result = await service.execute(delivery());
 
     expect(result.protocolMethod).toBe('turn/steer');
     expect(adapter.steerTurn).toHaveBeenCalledWith(
@@ -180,7 +172,7 @@ describe('ThreadCoordinationService', () => {
     expect(result.protocolMethod).toBe('turn/start');
   });
 
-  it('rejects repeated routes and duplicate idempotency keys', async () => {
+  it('reports repeated routes as advisory and deduplicates only an identical request key', async () => {
     const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
     const auditStore = memoryAuditStore();
     const service = new ThreadCoordinationService({ port: adapter, auditStore });
@@ -191,12 +183,25 @@ describe('ThreadCoordinationService', () => {
     const first = await service.execute(delivery({ idempotencyKey: 'duplicate' }));
     const duplicate = await service.execute(delivery({ idempotencyKey: 'duplicate' }));
 
-    expect(loop.errorCode).toBe('delivery_loop');
+    expect(loop.ok).toBe(true);
+    expect(loop.advisories).toContain('delegation_cycle');
     expect(first.ok).toBe(true);
     expect(duplicate.errorCode).toBe('duplicate_delivery');
   });
 
-  it('blocks cross-project writes and overlap with another running thread', async () => {
+  it('allows the same message to be sent again with a new request key', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const first = await service.execute(delivery({ idempotencyKey: 'first-request' }));
+    const repeatedMessage = await service.execute(delivery({ idempotencyKey: 'second-request' }));
+
+    expect(first.ok).toBe(true);
+    expect(repeatedMessage.ok).toBe(true);
+    expect(adapter.startTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows cross-project delivery and reports write-set overlap as advisory metadata', async () => {
     const sender = thread({ id: 'sender', title: 'Sender' });
     const crossProjectTarget = thread({ projectId: 'project-b', workspace: '/workspace/project-b' });
     const crossProjectService = new ThreadCoordinationService({
@@ -230,15 +235,17 @@ describe('ThreadCoordinationService', () => {
       })
     );
 
-    expect(crossProject.errorCode).toBe('cross_project_write');
-    expect(conflict.errorCode).toBe('write_set_conflict');
-    expect(conflictAdapter.startTurn).not.toHaveBeenCalled();
+    expect(crossProject.ok).toBe(true);
+    expect(crossProject.advisories).toEqual(['cross_project_context', 'workspace_context_changed']);
+    expect(conflict.ok).toBe(true);
+    expect(conflict.advisories).toContain('write_set_overlap');
+    expect(conflictAdapter.startTurn).toHaveBeenCalledOnce();
   });
 
-  it('denies permission expansion before checking a running turn write set', async () => {
+  it('inherits the running thread permission policy instead of imposing an OPL write scope', async () => {
     const adapter = port([
       thread({ id: 'sender', title: 'Sender' }),
-      thread({ status: 'running', activeTurnId: null, activeWriteSet: [] }),
+      thread({ status: 'running', activeTurnId: 'turn-active', activeWriteSet: [] }),
     ]);
     const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
 
@@ -246,11 +253,12 @@ describe('ThreadCoordinationService', () => {
       delivery({ permission: 'workspace_write', writeSet: ['/workspace/project-a/src'] })
     );
 
-    expect(result.errorCode).toBe('permission_expansion_denied');
-    expect(adapter.steerTurn).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.protocolMethod).toBe('turn/steer');
+    expect(adapter.steerTurn).toHaveBeenCalledOnce();
   });
 
-  it('rejects a parent-path write set that would expand a running turn scope', async () => {
+  it('allows path hints outside the directory where a running thread started', async () => {
     const adapter = port([
       thread({ id: 'sender', title: 'Sender' }),
       thread({
@@ -266,11 +274,12 @@ describe('ThreadCoordinationService', () => {
       delivery({ permission: 'workspace_write', writeSet: ['/workspace/project-a'] })
     );
 
-    expect(result.errorCode).toBe('write_set_conflict');
-    expect(adapter.steerTurn).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.advisories).toEqual([]);
+    expect(adapter.steerTurn).toHaveBeenCalledOnce();
   });
 
-  it('requires confirmation for cross-project read-only delivery and workspace writes', async () => {
+  it('does not add confirmation for cross-project delivery or a running turn steer', async () => {
     const sender = thread({ id: 'sender', title: 'Sender' });
     const crossProjectTarget = thread({ projectId: 'project-b', workspace: '/workspace/project-b' });
     const crossProjectAdapter = port([sender, crossProjectTarget]);
@@ -280,7 +289,7 @@ describe('ThreadCoordinationService', () => {
     });
     const crossProject = await crossProjectService.execute(delivery());
 
-    const writeAdapter = port([sender, thread()]);
+    const writeAdapter = port([sender, thread({ status: 'running', activeTurnId: 'turn-active' })]);
     const writeService = new ThreadCoordinationService({ port: writeAdapter, auditStore: memoryAuditStore() });
     const write = await writeService.execute(
       delivery({
@@ -290,13 +299,13 @@ describe('ThreadCoordinationService', () => {
       })
     );
 
-    expect(crossProject.confirmation?.risks).toEqual(['cross_project_delivery']);
-    expect(crossProjectAdapter.startTurn).not.toHaveBeenCalled();
-    expect(write.confirmation?.risks).toEqual(['workspace_write']);
-    expect(writeAdapter.startTurn).not.toHaveBeenCalled();
+    expect(crossProject.ok).toBe(true);
+    expect(crossProjectAdapter.startTurn).toHaveBeenCalledOnce();
+    expect(write.ok).toBe(true);
+    expect(writeAdapter.steerTurn).toHaveBeenCalledOnce();
   });
 
-  it('binds archive confirmation to the lifecycle request instead of delivery authorization', async () => {
+  it('archives directly through the Codex App Server lifecycle method', async () => {
     const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
     const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
     const archiveRequest = {
@@ -306,19 +315,10 @@ describe('ThreadCoordinationService', () => {
       reason: 'Archive completed work',
     };
 
-    const confirmation = await service.execute(archiveRequest);
-    const invalidReuse = await service.execute(
-      delivery({ confirmationToken: confirmation.confirmation?.token, idempotencyKey: 'not-archive' })
-    );
-    const secondConfirmation = await service.execute(archiveRequest);
-    const archived = await service.execute({
-      ...archiveRequest,
-      confirmationToken: secondConfirmation.confirmation?.token,
-    });
+    const archived = await service.execute(archiveRequest);
 
-    expect(confirmation.outcome).toBe('confirmation_required');
-    expect(invalidReuse.errorCode).toBe('confirmation_invalid');
     expect(archived.ok).toBe(true);
+    expect(archived.protocolMethod).toBe('thread/archive');
     expect(adapter.archiveThread).toHaveBeenCalledWith('receiver');
   });
 });

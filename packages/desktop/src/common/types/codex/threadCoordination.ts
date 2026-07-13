@@ -18,7 +18,7 @@ export type CodexThreadCoordinationMethod = (typeof CODEX_THREAD_COORDINATION_ME
 export type CodexThreadCoordinationStatus = 'not_loaded' | 'idle' | 'running' | 'system_error' | 'archived';
 export type CodexThreadTurnStatus = 'in_progress' | 'completed' | 'failed' | 'interrupted' | 'unknown';
 export type CodexThreadHistoryRole = 'user' | 'assistant' | 'system' | 'tool' | 'unknown';
-export type CodexThreadPermission = 'read_only' | 'workspace_write';
+export type CodexThreadPermission = 'inherit' | 'read_only' | 'workspace_write';
 
 export type CodexThreadDescriptor = {
   id: string;
@@ -66,21 +66,19 @@ export type ThreadCoordinationErrorCode =
   | 'thread_not_found'
   | 'not_top_level_thread'
   | 'self_delivery'
-  | 'delivery_loop'
   | 'duplicate_delivery'
-  | 'confirmation_required'
-  | 'confirmation_invalid'
   | 'cross_host_delivery'
-  | 'cross_project_write'
-  | 'permission_expansion_denied'
-  | 'write_set_required'
-  | 'write_set_unknown'
-  | 'write_set_conflict'
   | 'running_turn_unknown'
   | 'thread_not_writable';
 
-export type ThreadCoordinationAuditResult = 'accepted' | 'confirmation_required' | 'rejected' | 'failed';
-export type ThreadCoordinationDecision = 'allowed' | 'confirmation_required' | 'denied' | 'not_applicable';
+export type ThreadCoordinationAdvisory =
+  | 'cross_project_context'
+  | 'workspace_context_changed'
+  | 'write_set_overlap'
+  | 'delegation_cycle';
+
+export type ThreadCoordinationAuditResult = 'accepted' | 'rejected' | 'failed';
+export type ThreadCoordinationDecision = 'allowed' | 'denied' | 'not_applicable';
 
 export type ThreadCoordinationPermissionDecision = {
   requested: CodexThreadPermission | null;
@@ -119,6 +117,7 @@ export type ThreadCoordinationAuditEvent = {
   threadStatusAfter: CodexThreadCoordinationStatus | null;
   idempotencyKey: string | null;
   errorCode: ThreadCoordinationErrorCode | null;
+  advisories: ThreadCoordinationAdvisory[];
 };
 
 export type ThreadCoordinationAvailability = {
@@ -159,7 +158,6 @@ export type ThreadCoordinationLifecycleRequest = {
   targetThreadId: string;
   actor: ThreadCoordinationActor;
   reason: string;
-  confirmationToken?: string;
 };
 
 export type ThreadCoordinationDeliveryRequest = {
@@ -169,14 +167,15 @@ export type ThreadCoordinationDeliveryRequest = {
   actor: ThreadCoordinationActor;
   reason: string;
   message: string;
+  /** Compatibility hint only; OPL never overrides the target thread's Codex policy. */
   permission: CodexThreadPermission;
+  /** Optional path hints for visible coordination advisories, never an authorization boundary. */
   writeSet: string[];
   idempotencyKey: string;
   route: {
     visitedThreadIds: string[];
     hopCount: number;
   };
-  confirmationToken?: string;
 };
 
 export type ThreadCoordinationActionRequest = ThreadCoordinationLifecycleRequest | ThreadCoordinationDeliveryRequest;
@@ -195,9 +194,5 @@ export type ThreadCoordinationActionResult = {
   auditId: string;
   errorCode: ThreadCoordinationErrorCode | null;
   message: string;
-  confirmation: {
-    token: string;
-    expiresAt: string;
-    risks: string[];
-  } | null;
+  advisories: ThreadCoordinationAdvisory[];
 };

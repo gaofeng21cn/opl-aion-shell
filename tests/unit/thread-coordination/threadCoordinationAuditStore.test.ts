@@ -37,6 +37,7 @@ function event(id: string): ThreadCoordinationAuditEvent {
     threadStatusAfter: 'running',
     idempotencyKey: `key-${id}`,
     errorCode: null,
+    advisories: [],
   };
 }
 

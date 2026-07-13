@@ -45,7 +45,7 @@ function delivery(overrides: Partial<ThreadCoordinationDeliveryRequest> = {}): T
     actor: { kind: 'user', id: 'operator', threadId: 'source' },
     reason: 'Coordinate work',
     message: 'Inspect the boundary.',
-    permission: 'read_only',
+    permission: 'inherit',
     writeSet: [],
     idempotencyKey: '019f-test',
     route: { visitedThreadIds: ['source'], hopCount: 1 },
@@ -153,7 +153,7 @@ describe('CodexAppServerThreadCoordinationPort', () => {
     await port.resumeThread('target');
     await port.forkThread('target');
     await port.archiveThread('target');
-    await port.startTurn(delivery({ permission: 'workspace_write', writeSet: ['/workspace/target/src'] }));
+    await port.startTurn(delivery({ writeSet: ['/workspace/target/src'] }));
     await port.steerTurn(delivery({ idempotencyKey: 'steer-id' }), 'turn-active');
 
     expect(appServer.requests.map(([method]) => method)).toEqual([
@@ -163,10 +163,9 @@ describe('CodexAppServerThreadCoordinationPort', () => {
       'turn/start',
       'turn/steer',
     ]);
-    expect(appServer.requests[3][1]).toMatchObject({
-      threadId: 'target',
-      sandboxPolicy: { type: 'workspaceWrite', writableRoots: ['/workspace/target/src'] },
-    });
+    expect(appServer.requests[3][1]).toMatchObject({ threadId: 'target' });
+    expect(appServer.requests[3][1]).not.toHaveProperty('approvalPolicy');
+    expect(appServer.requests[3][1]).not.toHaveProperty('sandboxPolicy');
     expect(appServer.requests[4][1]).toMatchObject({ threadId: 'target', expectedTurnId: 'turn-active' });
   });
 });

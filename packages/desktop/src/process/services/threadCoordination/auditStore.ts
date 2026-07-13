@@ -45,8 +45,6 @@ export class JsonlThreadCoordinationAuditStore implements ThreadCoordinationAudi
 
   hasIdempotencyKey(idempotencyKey: string): boolean {
     if (!idempotencyKey || !fs.existsSync(this.auditPath)) return false;
-    return this.readRecent(500).some(
-      (event) => event.idempotencyKey === idempotencyKey && event.result !== 'confirmation_required'
-    );
+    return this.readRecent(500).some((event) => event.idempotencyKey === idempotencyKey);
   }
 }

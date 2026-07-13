@@ -5,20 +5,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Drawer,
-  Empty,
-  Input,
-  Message,
-  Modal,
-  Radio,
-  Select,
-  Spin,
-  Tag,
-  Tooltip,
-} from '@arco-design/web-react';
+import { Alert, Button, Drawer, Empty, Input, Message, Select, Spin, Tag, Tooltip } from '@arco-design/web-react';
 import { BranchOne, ConnectionPoint, Fork, Inbox, Refresh, Send } from '@icon-park/react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +13,6 @@ import { useParams } from 'react-router-dom';
 import type {
   CodexThreadDescriptor,
   CodexThreadDetail,
-  CodexThreadPermission,
   ThreadCoordinationActionRequest,
 } from '@/common/types/codex/threadCoordination';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -38,7 +24,6 @@ type ThreadCoordinationSectionProps = {
 };
 
 const MESSAGE_TEXTAREA_AUTO_SIZE = { minRows: 3, maxRows: 6 };
-const WRITE_SET_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 4 };
 
 function statusColor(status: CodexThreadDescriptor['status']): string {
   if (status === 'running') return 'green';
@@ -61,8 +46,6 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
   const [actionLoading, setActionLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
-  const [permission, setPermission] = useState<CodexThreadPermission>('read_only');
-  const [writeSetText, setWriteSetText] = useState('');
 
   const threads = overview?.threads ?? [];
   const selectedThread = useMemo(
@@ -118,22 +101,6 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
       if (result.ok) {
         Message.success(t('conversation.threadCoordination.actionAccepted'));
         setMessage('');
-        setWriteSetText('');
-      } else if (result.outcome === 'confirmation_required' && result.confirmation) {
-        const confirmation = result.confirmation;
-        Modal.confirm({
-          title: t('conversation.threadCoordination.confirmation.title'),
-          content: t('conversation.threadCoordination.confirmation.content', {
-            risks: confirmation.risks
-              .map((risk) => t(`conversation.threadCoordination.confirmation.risks.${risk}`))
-              .join(', '),
-          }),
-          okText: t('conversation.threadCoordination.confirmation.confirm'),
-          cancelText: t('common.cancel'),
-          okButtonProps: { status: 'warning' },
-          onOk: () => runAction({ ...request, confirmationToken: confirmation.token }),
-          getPopupContainer: () => document.body,
-        });
       } else {
         Message.error(t(`conversation.threadCoordination.errors.${result.errorCode ?? 'protocol_error'}`));
       }
@@ -156,13 +123,6 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
 
   const deliver = () => {
     if (!selectedThread || !sourceThreadId || !reason.trim() || !message.trim()) return;
-    const writeSet =
-      permission === 'workspace_write'
-        ? writeSetText
-            .split('\n')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-        : [];
     void runAction({
       action: 'deliver',
       sourceThreadId,
@@ -170,8 +130,8 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
       actor: { kind: 'user', id: 'opl-app-user', threadId: sourceThreadId },
       reason: reason.trim(),
       message: message.trim(),
-      permission,
-      writeSet,
+      permission: 'inherit',
+      writeSet: [],
       idempotencyKey: globalThis.crypto.randomUUID(),
       route: { visitedThreadIds: [sourceThreadId], hopCount: 1 },
     });
@@ -434,40 +394,13 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                         autoSize={MESSAGE_TEXTAREA_AUTO_SIZE}
                         disabled={actionLoading}
                       />
-                      <Radio.Group
-                        className='mt-10px'
-                        type='button'
-                        value={permission}
-                        onChange={(value) => setPermission(value as CodexThreadPermission)}
-                        disabled={actionLoading}
-                        aria-label={t('conversation.threadCoordination.permission')}
-                      >
-                        <Radio value='read_only'>{t('conversation.threadCoordination.permissions.read_only')}</Radio>
-                        <Radio value='workspace_write'>
-                          {t('conversation.threadCoordination.permissions.workspace_write')}
-                        </Radio>
-                      </Radio.Group>
-                      {permission === 'workspace_write' && (
-                        <Input.TextArea
-                          className='mt-10px'
-                          value={writeSetText}
-                          onChange={setWriteSetText}
-                          placeholder={t('conversation.threadCoordination.writeSetPlaceholder')}
-                          autoSize={WRITE_SET_TEXTAREA_AUTO_SIZE}
-                          disabled={actionLoading}
-                        />
-                      )}
                       <div className='mt-10px flex justify-end'>
                         <Button
                           type='primary'
                           icon={<Send />}
                           loading={actionLoading}
                           disabled={
-                            !sourceThreadId ||
-                            sourceThreadId === selectedThread.id ||
-                            !reason.trim() ||
-                            !message.trim() ||
-                            (permission === 'workspace_write' && !writeSetText.trim())
+                            !sourceThreadId || sourceThreadId === selectedThread.id || !reason.trim() || !message.trim()
                           }
                           onClick={deliver}
                         >
@@ -496,11 +429,9 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                                   color={
                                     event.result === 'accepted'
                                       ? 'green'
-                                      : event.result === 'confirmation_required'
-                                        ? 'arcoblue'
-                                        : event.result === 'rejected'
-                                          ? 'orangered'
-                                          : 'red'
+                                      : event.result === 'rejected'
+                                        ? 'orangered'
+                                        : 'red'
                                   }
                                 >
                                   {t(`conversation.threadCoordination.auditResult.${event.result}`)}
@@ -529,6 +460,14 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                                 {' · '}
                                 {event.writeSetDecision.reason}
                               </div>
+                              {event.advisories?.length > 0 && (
+                                <div className='mt-2px text-11px text-t-tertiary'>
+                                  {t('conversation.threadCoordination.advisories')}:{' '}
+                                  {event.advisories
+                                    .map((advisory) => t(`conversation.threadCoordination.advisory.${advisory}`))
+                                    .join(', ')}
+                                </div>
+                              )}
                               <div className='mt-2px text-11px text-t-tertiary'>
                                 {t('conversation.threadCoordination.statusTransition')}:{' '}
                                 {event.threadStatusBefore ?? t('conversation.threadCoordination.unknown')} →{' '}
