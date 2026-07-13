@@ -54,6 +54,7 @@ export type ManagedDependency = {
 
 export type ManagedDependencyCatalog = {
   lifecycleOwner?: string;
+  flowDependencies: ManagedDependency[];
   dependencies: ManagedDependency[];
 };
 
@@ -148,10 +149,6 @@ function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((entry) => firstOplString(entry)).filter((entry): entry is string => Boolean(entry))
     : [];
-}
-
-function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values)];
 }
 
 function nonNegativeNumber(...values: unknown[]): number | undefined {
@@ -356,51 +353,17 @@ function readManagedDependency(value: unknown, fallbackId: string, external = fa
 }
 
 export function readOplFlowManagedCapabilityCatalog(
-  appState: Record<string, unknown>
+  catalog: ManagedDependencyCatalog | undefined
 ): OplFlowManagedCapabilityCatalog {
-  const agentPackages = oplRecord(appState.agent_packages);
-  const directory = oplRecord(agentPackages.directory);
-  const flowPackage = oplRecordList(directory.installed_packages).find(
-    (item) => firstOplString(item.package_id, item.packageId) === 'opl-flow'
-  );
-  if (!flowPackage) return { skillIds: [], cliDependencies: [] };
-
-  const physicalSurface = oplRecord(flowPackage.physical_surface ?? flowPackage.physicalSurface);
-  const policy = oplRecord(
-    physicalSurface.workflow_policy_migration ??
-      physicalSurface.managed_policy_migration ??
-      flowPackage.workflow_policy_migration ??
-      flowPackage.managed_policy_migration
-  );
-  const dependencySync = oplRecord(policy.dependency_sync ?? policy.dependencySync);
-  const syncedSkillIds = oplRecordList(dependencySync.items).flatMap((item) => {
-    const id = firstOplString(item.skill_id, item.skillId);
-    return id ? [id] : [];
-  });
-  const skillIds = uniqueStrings([
-    ...stringArrayValue(flowPackage.bundled_required_skill_ids ?? flowPackage.required_skill_ids),
-    ...syncedSkillIds,
-  ]);
-  const cliDependencies = oplRecordList(dependencySync.tools).flatMap((tool) => {
-    const id = firstOplString(tool.tool_id, tool.toolId);
-    if (!id) return [];
-    const status = firstOplString(tool.status) ?? 'unknown';
-    const binaryPath = firstOplString(tool.binary_path, tool.binaryPath);
-    return [
-      {
-        id,
-        kind: 'cli',
-        installed: Boolean(binaryPath) || status === 'ready' || status === 'current',
-        version: versionValue(tool.version),
-        currentness: status === 'ready' || status === 'synced' ? 'current' : status,
-        ownership: 'opl_flow_managed',
-        updateMode: 'silent_managed' as const,
-        binaryPath,
-        guidance: firstOplString(tool.note),
-        external: false,
-      },
-    ];
-  });
+  if (!catalog) return { skillIds: [], cliDependencies: [] };
+  const skillIds = catalog.flowDependencies
+    .filter((dependency) => dependency.kind === 'codex_skill')
+    .map((dependency) => dependency.id);
+  const baseDependenciesById = new Map(catalog.dependencies.map((dependency) => [dependency.id, dependency]));
+  const cliDependencies = catalog.flowDependencies
+    .filter((dependency) => dependency.kind === 'cli')
+    .map((dependency) => baseDependenciesById.get(dependency.id) ?? dependency)
+    .filter((dependency) => !dependency.external);
   return { skillIds, cliDependencies };
 }
 
@@ -419,9 +382,14 @@ function readManagedDependencyCatalog(component: Record<string, unknown>): Manag
     });
     return primary ? [primary, ...externalInstallations] : externalInstallations;
   });
-  if (dependencies.length === 0) return undefined;
+  const flowDependencies = oplRecordList(catalog.flow_dependencies).flatMap((entry, index) => {
+    const dependency = readManagedDependency(entry, `flow-dependency-${index + 1}`);
+    return dependency ? [dependency] : [];
+  });
+  if (dependencies.length === 0 && flowDependencies.length === 0) return undefined;
   return {
     lifecycleOwner: firstOplString(catalog.lifecycle_owner),
+    flowDependencies,
     dependencies,
   };
 }

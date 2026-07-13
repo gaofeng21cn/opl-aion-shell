@@ -48,7 +48,11 @@ import {
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
-import { readOplFlowManagedCapabilityCatalog } from '@/renderer/services/managedUpdateProjection';
+import { useManagedUpdateMaintenance } from '@/renderer/services/managedUpdateMaintenance';
+import {
+  readManagedUpdatePlane,
+  readOplFlowManagedCapabilityCatalog,
+} from '@/renderer/services/managedUpdateProjection';
 
 export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
@@ -1564,10 +1568,18 @@ type CapabilitiesSettingsContentProps = {
 export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
+  const managedUpdateMaintenance = useManagedUpdateMaintenance();
   const [flowSyncing, setFlowSyncing] = useState(false);
+  const managedUpdatePlane = React.useMemo(
+    () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appStateQuery.appState),
+    [appStateQuery.appState, managedUpdateMaintenance.result]
+  );
+  const baseDependencyCatalog = managedUpdatePlane.components.find(
+    (component) => component.id === 'opl_base'
+  )?.dependencyCatalog;
   const flowManagedCatalog = React.useMemo(
-    () => readOplFlowManagedCapabilityCatalog(appStateQuery.appState),
-    [appStateQuery.appState]
+    () => readOplFlowManagedCapabilityCatalog(baseDependencyCatalog),
+    [baseDependencyCatalog]
   );
 
   const syncFlowCapabilities = async () => {
@@ -1598,54 +1610,56 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
       </header>
-      <Tabs
-        activeTab={activeTab}
-        onChange={(key) => {
-          if (isCapabilitiesTab(key)) onTabChange(key);
-        }}
-        type='line'
-      >
-        <Tabs.TabPane
-          key='opl_flow_managed'
-          title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
+      <div data-testid='settings-capabilities-primary'>
+        <Tabs
+          activeTab={activeTab}
+          onChange={(key) => {
+            if (isCapabilitiesTab(key)) onTabChange(key);
+          }}
+          type='line'
         >
-          <div data-testid='settings-capabilities-opl-flow-managed'>
-            <SkillsHubSettings
-              withWrapper={false}
-              displayGroup='flow'
-              flowManagedSkillIds={flowManagedCatalog.skillIds}
-              flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
-              flowSyncing={flowSyncing}
-              onSyncFlow={() => void syncFlowCapabilities()}
-            />
-          </div>
-        </Tabs.TabPane>
-        <Tabs.TabPane
-          key='manual_and_third_party'
-          title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manual & third-party' })}
-        >
-          <div className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
-            <SkillsHubSettings
-              withWrapper={false}
-              displayGroup='manual'
-              flowManagedSkillIds={flowManagedCatalog.skillIds}
-            />
-            <section className='opl-settings-section opl-settings-surface--configuration'>
-              <div className='opl-settings-section__header'>
-                <div>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsTitle')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsDescription')}
-                  </Typography.Text>
+          <Tabs.TabPane
+            key='opl_flow_managed'
+            title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
+          >
+            <div data-testid='settings-capabilities-opl-flow-managed'>
+              <SkillsHubSettings
+                withWrapper={false}
+                displayGroup='flow'
+                flowManagedSkillIds={flowManagedCatalog.skillIds}
+                flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
+                flowSyncing={flowSyncing}
+                onSyncFlow={() => void syncFlowCapabilities()}
+              />
+            </div>
+          </Tabs.TabPane>
+          <Tabs.TabPane
+            key='manual_and_third_party'
+            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manual & third-party' })}
+          >
+            <div className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
+              <SkillsHubSettings
+                withWrapper={false}
+                displayGroup='manual'
+                flowManagedSkillIds={flowManagedCatalog.skillIds}
+              />
+              <section className='opl-settings-section opl-settings-surface--configuration'>
+                <div className='opl-settings-section__header'>
+                  <div>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsTitle')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsDescription')}
+                    </Typography.Text>
+                  </div>
                 </div>
-              </div>
-              <ToolsModalContent />
-            </section>
-          </div>
-        </Tabs.TabPane>
-      </Tabs>
+                <ToolsModalContent />
+              </section>
+            </div>
+          </Tabs.TabPane>
+        </Tabs>
+      </div>
     </div>
   );
 };

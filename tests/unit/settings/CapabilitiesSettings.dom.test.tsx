@@ -49,7 +49,51 @@ vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
 }));
 
 vi.mock('@/renderer/services/managedUpdateMaintenance', () => ({
-  useManagedUpdateMaintenance: () => ({ result: null }),
+  useManagedUpdateMaintenance: () => ({
+    result: {
+      parsed: {
+        managed_update: {
+          components: [
+            {
+              component_id: 'opl_base',
+              current: {
+                dependency_catalog: {
+                  lifecycle_owner: 'opl_base',
+                  flow_dependencies: [
+                    {
+                      dependency_id: 'opl-flow',
+                      dependency_kind: 'codex_skill',
+                      installed: true,
+                      currentness: 'current',
+                      ownership: 'opl_flow_managed',
+                      update_mode: 'silent_managed',
+                    },
+                    {
+                      dependency_id: 'officecli-pptx',
+                      dependency_kind: 'codex_skill',
+                      installed: true,
+                      currentness: 'current',
+                      ownership: 'opl_flow_managed',
+                      update_mode: 'silent_managed',
+                    },
+                    {
+                      dependency_id: 'officecli-docx',
+                      dependency_kind: 'codex_skill',
+                      installed: true,
+                      currentness: 'current',
+                      ownership: 'opl_flow_managed',
+                      update_mode: 'silent_managed',
+                    },
+                  ],
+                  dependencies: [],
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  }),
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent', () => ({
@@ -798,7 +842,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toHaveAttribute(
       'data-flow-skills',
-      'opl-flow,codex-ops-kit,officecli-docx'
+      'opl-flow,officecli-pptx,officecli-docx'
     );
     expect(screen.queryByTestId('agent-package-catalog')).not.toBeInTheDocument();
 

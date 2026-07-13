@@ -148,39 +148,72 @@ describe('managed update projection public lifecycle ids', () => {
     );
   });
 
-  it('reads OPL Flow managed skills and tools from the installed package policy projection', () => {
+  it('reads OPL Flow managed skills and tools from the typed dependency catalog', () => {
     const catalog = readOplFlowManagedCapabilityCatalog({
-      agent_packages: {
-        directory: {
-          installed_packages: [
-            {
-              package_id: 'opl-flow',
-              bundled_required_skill_ids: ['opl-flow', 'codex-ops-kit'],
-              physical_surface: {
-                workflow_policy_migration: {
-                  dependency_sync: {
-                    items: [
-                      { skill_id: 'officecli-docx', status: 'synced' },
-                      { skill_id: 'ui-ux-pro-max', status: 'synced' },
-                    ],
-                    tools: [
-                      {
-                        tool_id: 'officecli',
-                        binary_path: '/usr/local/bin/officecli',
-                        version: '1.0.0',
-                        status: 'ready',
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-          ],
+      lifecycleOwner: 'opl_base',
+      flowDependencies: [
+        {
+          id: 'opl-flow',
+          kind: 'codex_skill',
+          installed: true,
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          external: false,
         },
-      },
+        {
+          id: 'officecli-pptx',
+          kind: 'codex_skill',
+          installed: true,
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          external: false,
+        },
+        {
+          id: 'officecli-docx',
+          kind: 'codex_skill',
+          installed: true,
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          external: false,
+        },
+        {
+          id: 'ui-ux-pro-max',
+          kind: 'codex_skill',
+          installed: true,
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          external: false,
+        },
+        {
+          id: 'officecli',
+          kind: 'cli',
+          installed: true,
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          external: false,
+        },
+      ],
+      dependencies: [
+        {
+          id: 'officecli',
+          kind: 'cli',
+          installed: true,
+          version: '1.0.0',
+          currentness: 'current',
+          ownership: 'opl_flow_managed',
+          updateMode: 'silent_managed',
+          binaryPath: '/usr/local/bin/officecli',
+          external: false,
+        },
+      ],
     });
 
-    expect(catalog.skillIds).toEqual(['opl-flow', 'codex-ops-kit', 'officecli-docx', 'ui-ux-pro-max']);
+    expect(catalog.skillIds).toEqual(['opl-flow', 'officecli-pptx', 'officecli-docx', 'ui-ux-pro-max']);
     expect(catalog.cliDependencies).toEqual([
       expect.objectContaining({ id: 'officecli', currentness: 'current', updateMode: 'silent_managed' }),
     ]);
