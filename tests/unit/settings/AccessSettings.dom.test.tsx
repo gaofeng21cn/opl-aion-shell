@@ -759,6 +759,8 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
     expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
+    expect(view.getByTestId('settings-access-summary-grid')).toHaveClass('grid-cols-1', 'xl:grid-cols-2');
+    expect(view.getByTestId('settings-access-summary-grid')).not.toHaveClass('md:grid-cols-2');
     expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
     expect(view.getByTestId('settings-access-model-preference')).toBeTruthy();
     expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto');

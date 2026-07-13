@@ -326,7 +326,7 @@ export const AccessSettingsContent: React.FC = () => {
         </div>
       </header>
 
-      <div className='grid grid-cols-1 gap-14px md:grid-cols-2'>
+      <div className='grid grid-cols-1 gap-14px xl:grid-cols-2' data-testid='settings-access-summary-grid'>
         <section
           className={`opl-settings-section opl-settings-surface--status ${
             modelAccessNeedsAttention ? 'opl-settings-section--attention' : ''
