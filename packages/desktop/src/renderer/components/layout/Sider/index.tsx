@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { Suspense, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePreviewContext } from '@renderer/pages/conversation/Preview/context/PreviewContext';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
@@ -31,7 +31,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const location = useLocation();
-  const { pathname, search, hash } = location;
+  const { pathname } = location;
 
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
@@ -41,7 +41,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const appStateQuery = useOplAppState('fast');
   useTeamCreatedRedirect();
   const isSettings = pathname.startsWith('/settings');
-  const lastNonSettingsPathRef = useRef('/guid');
   const showLogout =
     typeof window !== 'undefined' && !(window as { electronAPI?: unknown }).electronAPI && status === 'authenticated';
   const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
@@ -53,12 +52,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           initials: gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email),
         }
       : null;
-
-  useEffect(() => {
-    if (!pathname.startsWith('/settings')) {
-      lastNonSettingsPathRef.current = `${pathname}${search}${hash}`;
-    }
-  }, [pathname, search, hash]);
 
   const handleNewChat = () => {
     cleanupSiderTooltips();
@@ -75,16 +68,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const handleSettingsClick = (target: 'general' | 'access') => {
     cleanupSiderTooltips();
     blurActiveElement();
-    if (isSettings) {
-      const target = lastNonSettingsPathRef.current || '/guid';
-      Promise.resolve(navigate(target)).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
-    } else {
-      Promise.resolve(navigate(target === 'access' ? '/settings/access' : SETTINGS_DEFAULT_ROUTE)).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
-    }
+    Promise.resolve(navigate(target === 'access' ? '/settings/access' : SETTINGS_DEFAULT_ROUTE)).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
     if (onSessionClick) {
       onSessionClick();
     }

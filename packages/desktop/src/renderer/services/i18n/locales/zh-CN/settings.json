@@ -1,5 +1,10 @@
 {
   "title": "设置",
+  "githubIssue": {
+    "tooltip": "在 GitHub 提交 OPL App 问题",
+    "title": "OPL App 使用反馈",
+    "body": "请描述你遇到的问题。\n\n当前页面：{{route}}\nApp 版本：{{version}}"
+  },
   "skillsHub": {
     "title": "技能中心",
     "description": "集中管理 AI 智能体技能。一次安装，全助手通用。",
@@ -200,6 +205,7 @@
   "system": "系统",
   "about": "关于",
   "onboarding": "模型与访问",
+  "workspacePersonalization": "工作区与个性化",
   "resources": "资源与连接",
   "maintenance": "维护",
   "preferences": "偏好",

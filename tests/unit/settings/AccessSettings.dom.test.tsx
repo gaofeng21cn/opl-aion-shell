@@ -125,7 +125,7 @@ vi.mock('@arco-design/web-react', () => {
   const Button = ({
     children,
     loading: _loading,
-    icon: _icon,
+    icon,
     type: buttonType,
     size: _size,
     status: _status,
@@ -140,6 +140,7 @@ vi.mock('@arco-design/web-react', () => {
     htmlType?: 'button' | 'submit' | 'reset';
   }) => (
     <button {...props} type={htmlType ?? 'button'} data-button-type={buttonType}>
+      {icon}
       {children}
     </button>
   );
@@ -974,6 +975,7 @@ describe('AccessSettingsContent', () => {
 
     const refreshButton = view.getByRole('button', { name: 'Refresh' });
     expect(refreshButton).toHaveTextContent('');
+    expect(refreshButton.querySelector('svg')).not.toBeNull();
     fireEvent.click(refreshButton);
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({

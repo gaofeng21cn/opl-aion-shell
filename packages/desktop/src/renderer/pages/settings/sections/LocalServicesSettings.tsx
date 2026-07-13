@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import OplRefreshIconButton from '@/renderer/components/settings/OplRefreshIconButton';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import {
   formatStatus,
   isReadyStatus,
