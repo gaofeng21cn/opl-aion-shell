@@ -80,7 +80,10 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.handoffRunning': 'Finish the running turn first',
         'conversation.environment.handoffSuccess': 'Task location updated',
         'conversation.environment.handoffFailed': 'Could not update task location',
-        'conversation.environment.projectionUpdateFailed': 'Projection update failed',
+        'conversation.environment.projectionUpdateFailed':
+          'The local conversation could not be updated, so the task location was rolled back. Retry the location change.',
+        'conversation.environment.handoffInconsistent':
+          'Task location is inconsistent with this conversation. Retry the location change to resynchronize.',
         'conversation.environment.localWorkspaceUnavailable': 'Local workspace unavailable',
         'conversation.environment.worktreeUnavailable': 'Worktree needs coordination',
         'conversation.environment.worktreeCreateFailed': 'Worktree creation failed',
@@ -479,6 +482,93 @@ describe('ConversationEnvironmentPopover', () => {
     await waitFor(() => expect(handoffApi.execute).toHaveBeenCalledTimes(2));
     expect(handoffApi.execute.mock.calls[0][0].request.workspace).toBe('/Users/test/.codex/worktrees/demo-task');
     expect(handoffApi.execute.mock.calls[1][0].request.workspace).toBe('/projects/demo');
+    expect(handoffApi.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      handoffApi.updateConversation.mock.invocationCallOrder[0]
+    );
+    expect(handoffApi.updateConversation.mock.invocationCallOrder[0]).toBeLessThan(
+      handoffApi.execute.mock.invocationCallOrder[1]
+    );
+    const status = within(popover).getByRole('status');
+    expect(status).toHaveTextContent(
+      'The local conversation could not be updated, so the task location was rolled back. Retry the location change.'
+    );
+    expect(within(popover).getByRole('radiogroup', { name: 'Task location' })).toHaveAccessibleDescription(
+      status.textContent ?? ''
+    );
+    expect(messageApi.error).toHaveBeenCalledWith(
+      'The local conversation could not be updated, so the task location was rolled back. Retry the location change.'
+    );
+    expect(within(popover).queryByRole('alert')).not.toBeInTheDocument();
+    expect(worktree).toBeEnabled();
+    expect(worktree).not.toBeChecked();
+  });
+
+  it('shows an accessible inconsistent state and allows retry when rollback is rejected', async () => {
+    handoffApi.updateConversation.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    handoffApi.execute
+      .mockResolvedValueOnce(acceptedHandoff)
+      .mockResolvedValueOnce({
+        ...acceptedHandoff,
+        ok: false,
+        outcome: 'rejected',
+        errorCode: 'thread_not_writable',
+        message: 'Rollback rejected',
+      })
+      .mockResolvedValueOnce(acceptedHandoff);
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const worktree = within(popover).getByRole('radio', { name: 'Worktree' });
+    await waitFor(() => expect(worktree).toBeEnabled());
+    fireEvent.click(worktree);
+
+    const alert = await within(popover).findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Task location is inconsistent with this conversation. Retry the location change to resynchronize.'
+    );
+    expect(messageApi.error).toHaveBeenCalledWith(
+      'Task location is inconsistent with this conversation. Retry the location change to resynchronize.'
+    );
+    expect(within(popover).getByRole('radiogroup', { name: 'Task location' })).toHaveAttribute(
+      'aria-describedby',
+      alert.id
+    );
+    expect(worktree).toBeEnabled();
+    expect(worktree).not.toBeChecked();
+
+    fireEvent.click(worktree);
+
+    await waitFor(() => expect(worktree).toBeChecked());
+    expect(handoffApi.execute).toHaveBeenCalledTimes(3);
+    expect(handoffApi.updateConversation).toHaveBeenCalledTimes(2);
+    expect(within(popover).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows an accessible inconsistent state when rollback throws', async () => {
+    handoffApi.updateConversation.mockResolvedValueOnce(false);
+    handoffApi.execute
+      .mockResolvedValueOnce(acceptedHandoff)
+      .mockRejectedValueOnce(new Error('rollback transport failed'));
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const worktree = within(popover).getByRole('radio', { name: 'Worktree' });
+    await waitFor(() => expect(worktree).toBeEnabled());
+    fireEvent.click(worktree);
+
+    const alert = await within(popover).findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Task location is inconsistent with this conversation. Retry the location change to resynchronize.'
+    );
+    expect(messageApi.error).toHaveBeenCalledWith(
+      'Task location is inconsistent with this conversation. Retry the location change to resynchronize.'
+    );
+    expect(within(popover).getByRole('radiogroup', { name: 'Task location' })).toHaveAccessibleDescription(
+      alert.textContent ?? ''
+    );
+    expect(worktree).toBeEnabled();
     expect(worktree).not.toBeChecked();
   });
 

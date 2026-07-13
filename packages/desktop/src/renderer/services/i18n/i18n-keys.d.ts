@@ -878,6 +878,7 @@ export type I18nKey =
   | 'conversation.environment.git'
   | 'conversation.environment.handoffChecking'
   | 'conversation.environment.handoffFailed'
+  | 'conversation.environment.handoffInconsistent'
   | 'conversation.environment.handoffRunning'
   | 'conversation.environment.handoffSuccess'
   | 'conversation.environment.handoffUnavailable'

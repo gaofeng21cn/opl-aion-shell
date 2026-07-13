@@ -30,13 +30,16 @@ export const readWorkspaceHandoffMetadata = (value: unknown): GitWorkspaceHandof
 };
 
 type WorkspaceHandoffAvailability = { status: 'loading' | 'available' } | { status: 'unavailable'; reasonKey: string };
+type WorkspaceHandoffOperationStatus = { translationKey: string; role: 'status' | 'alert' };
 
 class WorkspaceHandoffError extends Error {
   readonly translationKey: string;
+  readonly requiresResync: boolean;
 
-  constructor(translationKey: string) {
+  constructor(translationKey: string, requiresResync = false) {
     super(translationKey);
     this.translationKey = translationKey;
+    this.requiresResync = requiresResync;
   }
 }
 
@@ -52,10 +55,12 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
   const { t } = useTranslation();
   const [availability, setAvailability] = useState<WorkspaceHandoffAvailability>({ status: 'loading' });
   const [loading, setLoading] = useState(false);
+  const [operationStatus, setOperationStatus] = useState<WorkspaceHandoffOperationStatus>();
   const threadId = canonicalCodexThreadId(conversation);
 
   useEffect(() => {
     let cancelled = false;
+    setOperationStatus(undefined);
     if (!threadId) return undefined;
 
     setAvailability({ status: 'loading' });
@@ -93,9 +98,9 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
 
   if (!threadId || conversation.type === 'remote') return null;
 
-  const rollbackThreadWorkspace = async () => {
+  const rollbackThreadWorkspace = async (): Promise<boolean> => {
     try {
-      await ipcBridge.threadCoordination.execute.invoke({
+      const result = await ipcBridge.threadCoordination.execute.invoke({
         request: {
           action: 'handoff',
           targetThreadId: threadId,
@@ -104,8 +109,14 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
           workspace,
         },
       });
+      if (!result.ok) {
+        console.warn('[ConversationEnvironment] Canonical task workspace rollback was rejected:', result);
+        return false;
+      }
+      return true;
     } catch (error) {
       console.warn('[ConversationEnvironment] Could not roll back canonical task workspace:', error);
+      return false;
     }
   };
 
@@ -179,19 +190,26 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
           merge_extra: true,
         });
       } catch {
-        await rollbackThreadWorkspace();
-        throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
+        projectionUpdated = false;
       }
       if (!projectionUpdated) {
-        await rollbackThreadWorkspace();
+        const rollbackSucceeded = await rollbackThreadWorkspace();
+        if (!rollbackSucceeded) {
+          throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
+        }
+        setOperationStatus({ translationKey: 'conversation.environment.projectionUpdateFailed', role: 'status' });
         throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
       }
 
+      setOperationStatus(undefined);
       onChanged(nextWorkspace, nextHandoff);
       emitter.emit('chat.history.refresh');
       Message.success(t('conversation.environment.handoffSuccess'));
     } catch (error) {
       console.error('[ConversationEnvironment] Failed to switch task workspace:', error);
+      if (error instanceof WorkspaceHandoffError && error.requiresResync) {
+        setOperationStatus({ translationKey: error.translationKey, role: 'alert' });
+      }
       Message.error(
         t(
           error instanceof WorkspaceHandoffError
@@ -206,12 +224,14 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
     }
   };
 
-  const statusKey =
+  const availabilityStatusKey =
     availability.status === 'loading'
       ? 'conversation.environment.handoffChecking'
       : availability.status === 'unavailable'
         ? availability.reasonKey
         : null;
+  const statusKey = operationStatus?.translationKey ?? availabilityStatusKey;
+  const statusRole = operationStatus?.role ?? 'status';
 
   return (
     <div className='conversation-environment-popover__section gap-6px' data-testid='environment-task-location'>
@@ -224,6 +244,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         value={locality}
         disabled={availability.status !== 'available' || loading}
         aria-label={t('conversation.environment.taskLocation')}
+        aria-describedby={statusKey ? 'environment-handoff-status' : undefined}
         onChange={(value) => void switchTaskLocality(value === 'worktree' ? 'worktree' : 'local')}
       >
         <Radio value='local'>
@@ -240,7 +261,13 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         </Radio>
       </Radio.Group>
       {statusKey && (
-        <span className='text-12px text-t-secondary' role='status' data-testid='environment-handoff-status'>
+        <span
+          id='environment-handoff-status'
+          className='text-12px text-t-secondary'
+          role={statusRole}
+          aria-atomic='true'
+          data-testid='environment-handoff-status'
+        >
           {t(statusKey)}
         </span>
       )}
