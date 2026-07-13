@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
-import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
+import OplRefreshIconButton from '@/renderer/components/settings/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';

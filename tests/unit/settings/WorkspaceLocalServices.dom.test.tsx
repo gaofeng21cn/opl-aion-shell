@@ -373,4 +373,15 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     fireEvent.click(screen.getByText('Open Maintenance'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
   });
+
+  it('renders local service refresh as an accessible icon-only action', () => {
+    render(<LocalServicesSettings withWrapper={false} />);
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    expect(refreshButton).toHaveTextContent('');
+    expect(refreshButton.querySelector('[data-icon="rotate-right"]')).not.toBeNull();
+
+    fireEvent.click(refreshButton);
+    expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true });
+  });
 });

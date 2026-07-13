@@ -5,6 +5,7 @@
  */
 
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
+import type { OplGatewayAccountReadModel } from '@/common/types/opl/appState';
 
 export type StatusCard = {
   key: string;
@@ -51,6 +52,79 @@ export type AccessProjection = {
   dockerWebui: DockerWebuiProjection;
   resourceSources: ResourceSourceProjection[];
 };
+
+export type CodexModelResolution = {
+  modelId: string | null;
+  reasoningEffort: string | null;
+};
+
+export function readGatewayAccountProjection(appState: unknown): OplGatewayAccountReadModel | null {
+  const settings = oplRecord(oplRecord(appState).settings_control_center);
+  const readModel = oplRecord(settings.app_settings_read_model);
+  const gateway = oplRecord(readModel.opl_gateway_account);
+  return gateway.surface_kind === 'opl_gateway_account_read_model.v1' ? (gateway as OplGatewayAccountReadModel) : null;
+}
+
+export function readCodexModelResolution(appState: unknown): CodexModelResolution {
+  const codex = oplRecord(oplRecord(oplRecord(appState).core).codex);
+  const codexConfig = oplRecord(codex.config);
+  const defaultProfile = oplRecord(codex.default_profile);
+  return {
+    modelId:
+      oplString(codex.default_model) ??
+      oplString(codex.model) ??
+      oplString(codexConfig.default_model) ??
+      oplString(defaultProfile.model) ??
+      oplString(codexConfig.model),
+    reasoningEffort:
+      oplString(codex.default_reasoning_effort) ??
+      oplString(defaultProfile.model_reasoning_effort) ??
+      oplString(codexConfig.reasoning_effort),
+  };
+}
+
+export function resolveDefaultGatewayGroup(groups: OplGatewayAccountReadModel['available_groups']): string | null {
+  const codexGroups = groups.filter((group) => group.label.trim().toLowerCase().includes('codex'));
+  if (codexGroups.length === 1) return codexGroups[0].group_id;
+  return groups.length === 1 ? groups[0].group_id : null;
+}
+
+export function formatGatewayTokenCount(value: number | null, locale?: string): string {
+  if (value === null || !Number.isFinite(value)) return '--';
+  const units = [
+    { divisor: 1_000_000_000_000, suffix: 'T' },
+    { divisor: 1_000_000_000, suffix: 'B' },
+    { divisor: 1_000_000, suffix: 'M' },
+    { divisor: 1_000, suffix: 'K' },
+  ];
+  const unit = units.find((candidate) => Math.abs(value) >= candidate.divisor);
+  const scaled = unit ? value / unit.divisor : value;
+  const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(scaled);
+  return `${formatted}${unit?.suffix ?? ''}`;
+}
+
+export function formatGatewayObservedAt(value: string | null, locale?: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+export function gatewayAccountInitials(displayName: string | null, email: string | null): string {
+  const name = displayName?.trim();
+  if (name) {
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length > 1)
+      return words
+        .slice(0, 2)
+        .map((word) => Array.from(word)[0])
+        .join('')
+        .toUpperCase();
+    return Array.from(name).slice(0, 2).join('').toUpperCase();
+  }
+  const localPart = email?.split('@')[0]?.trim() ?? '';
+  return Array.from(localPart).slice(0, 2).join('').toUpperCase() || 'OP';
+}
 
 export function normalizeAccessStatus(status: string | null, fallback: string): string {
   if (!status) return fallback;

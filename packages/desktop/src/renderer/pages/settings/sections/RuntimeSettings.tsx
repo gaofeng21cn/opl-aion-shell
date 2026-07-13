@@ -37,6 +37,7 @@ import {
   type ManagedUpdatePlane,
 } from '@/renderer/services/managedUpdateProjection';
 import { copyText } from '@/renderer/utils/ui/clipboard';
+import OplRefreshIconButton from '@/renderer/components/settings/OplRefreshIconButton';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   formatModuleAction,

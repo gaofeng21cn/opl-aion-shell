@@ -61,6 +61,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.actions.archive': 'Create archive',
     'settings.storagePage.actions.restoreProof': 'Verify archive',
     'settings.storagePage.actions.previewAll': 'Preview cleanup',
+    'settings.storagePage.actions.refresh': 'Refresh',
     'settings.storagePage.actions.dryRunRuntime': 'Review runtime cleanup',
     'settings.storagePage.actions.dryRunLogs': 'Review log cleanup',
     'settings.storagePage.actions.dryRunUpdater': 'Review installer cache cleanup',
@@ -319,6 +320,15 @@ describe('StorageSettingsContent', () => {
 
     expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
     expect(screen.getByTestId('storage-refresh')).toBeInTheDocument();
+  });
+
+  it('renders inventory refresh as an accessible icon-only action', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    expect(refreshButton).toHaveTextContent('');
+    expect(refreshButton.querySelector('[data-icon="rotate-right"]')).not.toBeNull();
   });
 
   it('shows work data safety context as read-only App projection data', async () => {

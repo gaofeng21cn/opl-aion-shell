@@ -1841,6 +1841,19 @@
       "devicePlaceholder": "可选的设备名称",
       "loginButton": "登录",
       "loginSuccess": "OPL Gateway 账户已连接。",
+      "unknownAccount": "Gateway 用户",
+      "status": {
+        "active": "激活",
+        "unknown": "未知",
+        "other": "{{status}}"
+      },
+      "metrics": {
+        "balance": "账户余额",
+        "todayTokens": "今日 Token",
+        "todayCost": "今日开支",
+        "totalTokens": "累计 Token",
+        "totalCost": "累计开支"
+      },
       "accountStatus": "账户状态：{{status}}",
       "balance": "余额：{{amount}} {{currency}}",
       "todayTokens": "今日：{{value}} Token",
@@ -1858,10 +1871,10 @@
       "disconnectConfirmTitle": "断开 OPL Gateway 账户？",
       "disconnectConfirmDescription": "OPL App 管理的专用密钥将被禁用；如果登录后没有修改模型访问配置，将恢复原来的访问方式。",
       "actions": {
-        "completeSetup": "继续",
+        "completeSetup": "完成连接",
         "signInAgain": "重新登录",
         "refresh": "刷新",
-        "repair": "修复",
+        "repair": "重新同步",
         "useForModelAccess": "设为模型来源",
         "disconnect": "断开"
       },
@@ -1871,7 +1884,7 @@
         "accountDisabled": "该 Gateway 账户已被禁用。",
         "mfaOrChallengeRequired": "该账户需要额外验证，暂时请使用访问密钥。",
         "sessionNotPersistable": "Gateway 未提供可持久化会话，暂时请使用访问密钥。",
-        "groupSelectionRequired": "请选择这台设备使用的访问分组。",
+        "groupSelectionRequired": "未能唯一识别 Codex 分组，请先在 Gateway 管理后台确认分组设置。",
         "authExpired": "Gateway 登录已失效，请重新登录。",
         "networkUnreachable": "暂时无法连接 Gateway，已保留现有数据。",
         "rateLimited": "请求过于频繁，请稍后重试。",
@@ -1888,6 +1901,7 @@
       "description": "设置新建 Codex 对话时默认使用的模型和推理强度。",
       "modelLabel": "默认模型",
       "reasoningLabel": "推理强度",
+      "autoCurrent": "自动（当前：{{model}}）",
       "autoReasoning": "自动模式会使用 App 针对当前模型的推理策略。",
       "notReported": "未读取到 Codex 路径",
       "saved": "默认模型偏好已保存。",

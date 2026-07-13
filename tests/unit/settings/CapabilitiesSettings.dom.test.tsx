@@ -694,7 +694,9 @@ describe('Agents and capabilities settings', () => {
     const catalog = screen.getByTestId('agent-package-catalog');
     expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(6);
     expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
-    expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
+    const refreshRegistryButton = screen.getByTestId('agent-package-refresh-registry');
+    expect(refreshRegistryButton).toHaveAccessibleName('Refresh registry');
+    expect(refreshRegistryButton).toHaveTextContent('');
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
     expect(screen.getByTestId('agent-package-advanced-add')).toBeInTheDocument();
