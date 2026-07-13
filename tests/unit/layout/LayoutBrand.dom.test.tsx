@@ -55,9 +55,12 @@ describe('Layout App branding', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('One Person Lab App')).toBeInTheDocument();
+    expect(screen.getByText('One Person Lab')).toBeInTheDocument();
+    expect(screen.queryByText('One Person Lab App')).not.toBeInTheDocument();
     expect(screen.queryByText('AionUi')).not.toBeInTheDocument();
-    expect(screen.getByTestId('app-navigation-rail')).toHaveAttribute('data-sider-width', '300');
+    const navigationRail = screen.getByTestId('app-navigation-rail');
+    expect(navigationRail).toHaveAttribute('data-sider-width', '300');
+    expect(navigationRail.querySelector('img')).toBeNull();
 
     fireEvent.mouseDown(screen.getByTestId('app-navigation-rail-resize'), { clientX: 300 });
     fireEvent.mouseMove(window, { clientX: 380 });

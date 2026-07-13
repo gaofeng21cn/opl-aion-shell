@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
-import { getOplProductDisplayName } from '@/common/config/oplProductProfile';
+import { getOplOrdinaryChromeName } from '@/common/config/oplProductProfile';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
@@ -21,7 +21,6 @@ import { useDirectorySelection } from '@renderer/hooks/file/useDirectorySelectio
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
 import { isElectronDesktop } from '@renderer/utils/platform';
-import appLogo from '@renderer/assets/logos/brand/app.png';
 import { resolveLegacySettingsRoute } from '@renderer/pages/settings/registry/settingsRegistry';
 import '@renderer/styles/layout.css';
 
@@ -79,7 +78,7 @@ const UpdateModal = React.lazy(() => import('@/renderer/components/settings/Upda
 const DEFAULT_SIDER_WIDTH = 300;
 const MIN_SIDER_WIDTH = 280;
 const MAX_SIDER_WIDTH = 340;
-const PRODUCT_DISPLAY_NAME = getOplProductDisplayName();
+const ORDINARY_CHROME_NAME = getOplOrdinaryChromeName();
 const DESKTOP_COLLAPSED_WIDTH = 64;
 const SIDER_DRAG_SNAP_THRESHOLD = Math.round((DEFAULT_SIDER_WIDTH + DESKTOP_COLLAPSED_WIDTH) / 2);
 const SIDER_DRAG_HYSTERESIS = 6;
@@ -372,14 +371,12 @@ const Layout: React.FC<{
                 data-sider-width={siderWidth}
               >
                 <div
-                  className={classNames('shrink-0 size-32px relative rd-0.5rem overflow-hidden', {
-                    '!size-24px': collapsed,
-                  })}
+                  className='text-16px text-t-primary collapsed-hidden font-semibold'
+                  data-testid='app-navigation-brand'
                   onClick={onClick}
                 >
-                  <img src={appLogo} alt='' className='absolute inset-0 size-full object-cover' aria-hidden='true' />
+                  {ORDINARY_CHROME_NAME}
                 </div>
-                <div className='text-16px text-t-primary collapsed-hidden font-semibold'>{PRODUCT_DISPLAY_NAME}</div>
                 {isMobile && !collapsed && (
                   <button
                     type='button'

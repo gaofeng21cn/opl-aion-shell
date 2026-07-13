@@ -8,6 +8,7 @@
   "product": {
     "id": "one_person_lab_app",
     "display_name": "One Person Lab App",
+    "ordinary_chrome_name": "One Person Lab",
     "primary_surface": "desktop_workbench",
     "supported_release_platforms": ["macos-arm64"],
     "positioning": "purpose_first_codex_app_wrapper",

@@ -449,6 +449,7 @@ type AppProductProfile = {
   product: {
     id: 'one_person_lab_app';
     display_name: 'One Person Lab App';
+    ordinary_chrome_name: 'One Person Lab';
     primary_surface: string;
     supported_release_platforms: string[];
     positioning: string;
@@ -1064,6 +1065,7 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
   if (
     product.id !== 'one_person_lab_app' ||
     product.display_name !== 'One Person Lab App' ||
+    product.ordinary_chrome_name !== 'One Person Lab' ||
     typeof product.primary_surface !== 'string' ||
     typeof product.positioning !== 'string' ||
     typeof product.primary_user_path !== 'string'
@@ -1073,6 +1075,7 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
   return {
     id: 'one_person_lab_app',
     display_name: 'One Person Lab App',
+    ordinary_chrome_name: 'One Person Lab',
     primary_surface: product.primary_surface,
     supported_release_platforms: supportedReleasePlatforms,
     positioning: product.positioning,
@@ -2545,6 +2548,10 @@ export const OPL_PRODUCT_PROFILE = validateOplProductProfile(generatedProfile);
 
 export function getOplProductDisplayName(): string {
   return OPL_PRODUCT_PROFILE.product.display_name;
+}
+
+export function getOplOrdinaryChromeName(): string {
+  return OPL_PRODUCT_PROFILE.product.ordinary_chrome_name;
 }
 
 export function getOplDefaultCodexModel(): string {
