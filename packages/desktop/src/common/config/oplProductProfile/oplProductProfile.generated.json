@@ -2451,14 +2451,14 @@
               "candidate_policy": "report_first_candidate_refs_review_needs_changes_continue_in_conversation_no_auto_enable_no_skill_body_write"
             },
             "directory_projection_surface": {
-              "surface": "settings_capabilities",
+              "surface": "settings_agents",
               "primary_identity": "installed_package_directory",
               "purpose_role": "secondary_tag_filter_only",
               "home_shortcut_integration": "inline_visibility_and_order_controls_on_package_rows",
               "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
               "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[] + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
               "normalization_policy": "shell must prefer canonical agent_packages projection and only fall back to modules.items when older runtime payloads or partial projections are still in circulation",
-              "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_capabilities.agent_package_lifecycle_ux.package_projection_contract.activation_preparation_policy",
+              "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.package_projection_contract.activation_preparation_policy",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
                 "axes": [
