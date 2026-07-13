@@ -93,13 +93,6 @@ const { controlPlane } = vi.hoisted(() => ({
         default_label_en: 'Preferences',
         slot_id: 'settings_theme',
       },
-      {
-        id: 'personalization',
-        path: '/settings/personalization',
-        label_key: 'settings.personalizationNav',
-        default_label_en: 'Personalization',
-        slot_id: 'settings_personalization',
-      },
     ],
     secondary_pages: [
       {
@@ -129,6 +122,10 @@ const { controlPlane } = vi.hoisted(() => ({
       'local-services': {
         target_route_id: 'environment',
         anchor: 'services',
+      },
+      personalization: {
+        target_route_id: 'workspace',
+        anchor: 'personalization',
       },
     },
     experience_contract: {
@@ -185,7 +182,7 @@ const { controlPlane } = vi.hoisted(() => ({
       settings_storage: { component_key: 'StorageSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_theme: { component_key: 'AppearanceModalContent', wrapper_policy: 'host_provides_wrapper' },
       settings_personalization: {
-        component_key: 'PersonalizationSettingsContent',
+        component_key: 'WorkspaceSettings',
         wrapper_policy: 'host_provides_wrapper',
       },
       settings_advanced: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
@@ -227,7 +224,6 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'environment',
     'storage',
     'appearance',
-    'personalization',
   ],
   getOplGuiSettingsSecondaryPageIds: () => ['advanced', 'about'],
 }));
@@ -246,7 +242,6 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
-      'personalization',
     ]);
     expect(SETTINGS_DEFAULT_ROUTE).toBe('/settings/general');
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
@@ -259,7 +254,6 @@ describe('settingsNav App-owned tabs', () => {
       'Maintenance & Updates',
       'Data & Storage',
       'Preferences',
-      'Personalization',
     ]);
   });
 
@@ -272,6 +266,7 @@ describe('settingsNav App-owned tabs', () => {
       update: '/settings/environment?section=updates',
       theme: '/settings/appearance?section=themes',
       'local-services': '/settings/environment?section=services',
+      personalization: '/settings/workspace?section=personalization',
       overview: '/settings/general',
       runtime: '/settings/environment',
       system: '/settings/advanced',
@@ -297,7 +292,6 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
-      'personalization',
       'advanced',
       'about',
     ]);
@@ -351,6 +345,11 @@ describe('settingsNav App-owned tabs', () => {
     });
     expect(resolveSettingsRenderTarget('update').anchor).toBe('updates');
     expect(resolveSettingsRenderTarget('local-services').anchor).toBe('services');
+    expect(resolveSettingsRenderTarget('personalization')).toEqual({
+      routeId: 'workspace',
+      capabilitiesTab: 'opl_flow_managed',
+      anchor: 'personalization',
+    });
     expect(getSettingsRenderSlot('workspace')).toMatchObject({
       id: 'workspace',
       routeId: 'workspace',
@@ -421,7 +420,6 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
-      'personalization',
     ]);
   });
 
@@ -458,7 +456,6 @@ describe('settingsNav App-owned tabs', () => {
       'environment',
       'storage',
       'appearance',
-      'personalization',
     ]);
     expect(modalIds).toEqual(navIds);
   });

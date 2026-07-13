@@ -1464,8 +1464,8 @@
     }
   },
   "workspacePage": {
-    "title": "工作目录",
-    "description": "确认本机项目和任务产物存放在哪里，以及 App 是否有权限访问。",
+    "title": "工作区与个性化",
+    "description": "设置项目与日志的存放位置，并管理 Codex 长期指令和 OPL App 新对话上下文。",
     "status": {
       "ready": "可用",
       "writable": "工作目录可写",
@@ -1490,7 +1490,8 @@
     "root": {
       "title": "工作目录",
       "current": "新项目和本机任务产物会存放在 {{path}}。",
-      "missing": "开始本机任务前，请先选择工作目录。"
+      "missing": "开始本机任务前，请先选择工作目录。",
+      "dockerMount": "Docker /projects"
     },
     "cards": {
       "permission": "App 可访问",
@@ -1508,9 +1509,20 @@
     },
     "logs": {
       "title": "日志目录",
-      "description": "需要支持细节或本机诊断证据时，从这里打开日志。",
+      "description": "桌面 App 的本机日志会写入这里。",
+      "webuiDescription": "Docker/WebUI 的 App 数据和日志位于宿主机挂载的 /data 目录。",
       "current": "日志目录：{{path}}",
-      "missing": "当前没有上报日志目录。"
+      "missing": "当前没有上报日志目录。",
+      "loading": "正在读取 App 日志目录…",
+      "unavailable": "无法读取 App 日志目录。",
+      "dockerMount": "Docker /data",
+      "saved": "日志目录已更新",
+      "saveFailed": "无法更新日志目录"
+    },
+    "frameworkLogs": {
+      "title": "OPL Framework 日志",
+      "current": "Framework 日志目录：{{path}}",
+      "missing": "当前没有上报 Framework 日志目录。"
     },
     "modules": {
       "title": "模块路径",
@@ -1524,6 +1536,7 @@
       "openWorkspace": "打开工作目录",
       "openLogs": "打开日志",
       "changeWorkspace": "更换工作目录",
+      "changeLogs": "更换日志目录",
       "recheck": "重新检查",
       "repairPermissions": "修复权限",
       "openMaintenance": "打开维护页"

@@ -1463,8 +1463,8 @@
     }
   },
   "workspacePage": {
-    "title": "Workspace",
-    "description": "Check where local projects and task artifacts are stored, and whether the App can access them.",
+    "title": "Workspace & Personalization",
+    "description": "Choose where projects and logs are stored, then manage the instructions used by Codex and new OPL App conversations.",
     "status": {
       "ready": "Available",
       "writable": "Work directory writable",
@@ -1489,7 +1489,8 @@
     "root": {
       "title": "Work directory",
       "current": "New projects and local task output are stored under {{path}}.",
-      "missing": "Choose a work directory before starting local tasks."
+      "missing": "Choose a work directory before starting local tasks.",
+      "dockerMount": "Docker /projects"
     },
     "cards": {
       "permission": "App can access it",
@@ -1507,9 +1508,20 @@
     },
     "logs": {
       "title": "Logs directory",
-      "description": "Open logs when you need support detail or local diagnosis evidence.",
+      "description": "The desktop App writes its local logs here.",
+      "webuiDescription": "Docker/WebUI stores App data and logs under the host-mounted /data directory.",
       "current": "Logs: {{path}}",
-      "missing": "No logs directory is currently reported."
+      "missing": "No logs directory is currently reported.",
+      "loading": "Loading the App logs directory...",
+      "unavailable": "The App logs directory could not be read.",
+      "dockerMount": "Docker /data",
+      "saved": "Logs directory updated",
+      "saveFailed": "Could not update the logs directory"
+    },
+    "frameworkLogs": {
+      "title": "OPL Framework logs",
+      "current": "Framework logs: {{path}}",
+      "missing": "No Framework logs directory is currently reported."
     },
     "modules": {
       "title": "Module paths",
@@ -1523,6 +1535,7 @@
       "openWorkspace": "Open Workspace",
       "openLogs": "Open logs",
       "changeWorkspace": "Change workspace",
+      "changeLogs": "Change logs directory",
       "recheck": "Recheck",
       "repairPermissions": "Repair permissions",
       "openMaintenance": "Open Maintenance"

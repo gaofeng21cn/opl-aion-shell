@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
 
@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   showOpen: vi.fn().mockResolvedValue(['/Users/example/New Workspace']),
   executeAction: vi.fn().mockResolvedValue({ ok: true, parsed: { ok: true } }),
+  systemInfo: vi.fn(),
+  updateSystemInfo: vi.fn(),
+  isDesktop: true,
+  workspaceRootPath: '/Users/example/OPL Workspace',
   workspaceExists: true as boolean | null,
   workspaceWritable: true as boolean | null,
   workspaceHealthStatus: 'ready' as string | null,
@@ -24,10 +28,22 @@ vi.mock('@/common', () => ({
     oplRuntime: {
       executeAction: { invoke: mocks.executeAction },
     },
+    application: {
+      systemInfo: { invoke: mocks.systemInfo },
+      updateSystemInfo: { invoke: mocks.updateSystemInfo },
+    },
     shell: {
       openFolderWith: { invoke: mocks.openFolder },
     },
   },
+}));
+
+vi.mock('@/renderer/utils/platform', () => ({
+  isElectronDesktop: () => mocks.isDesktop,
+}));
+
+vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent/OplPersonalizationSettings', () => ({
+  default: () => <div data-testid='settings-personalization-instructions'>Personalization controls</div>,
 }));
 
 vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
@@ -56,9 +72,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         },
       },
       paths: {
-        workspace_root_path: '/Users/example/OPL Workspace',
+        workspace_root_path: mocks.workspaceRootPath,
         workspace_root: {
-          selected_path: '/Users/example/OPL Workspace',
+          selected_path: mocks.workspaceRootPath,
           exists: mocks.workspaceExists,
           writable: mocks.workspaceWritable,
           health_status: mocks.workspaceHealthStatus,
@@ -102,8 +118,8 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'common.open': 'Open',
         'common.refresh': 'Refresh',
-        'settings.workspacePage.title': 'Workspace',
-        'settings.workspacePage.description': 'Review local paths.',
+        'settings.workspacePage.title': 'Workspace & Personalization',
+        'settings.workspacePage.description': 'Review local paths and personalization.',
         'settings.workspacePage.status.ready': 'Available',
         'settings.workspacePage.status.writable': 'Work directory writable',
         'settings.workspacePage.status.needsAction': 'Needs setup',
@@ -119,6 +135,7 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.root.title': 'Work directory',
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
         'settings.workspacePage.root.missing': 'No work root.',
+        'settings.workspacePage.root.dockerMount': 'Docker /projects',
         'settings.workspacePage.cards.permission': 'App can access it',
         'settings.workspacePage.cards.lastCheck': 'Last check',
         'settings.workspacePage.technical.title': 'Technical paths',
@@ -130,14 +147,24 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.modulesRoot.missing': 'No modules root.',
         'settings.workspacePage.logs.title': 'Logs directory',
         'settings.workspacePage.logs.description': 'Logs detail.',
+        'settings.workspacePage.logs.webuiDescription': 'Docker data and logs use /data.',
         'settings.workspacePage.logs.current': `Logs: ${options?.path}`,
         'settings.workspacePage.logs.missing': 'No logs root.',
+        'settings.workspacePage.logs.loading': 'Loading logs.',
+        'settings.workspacePage.logs.unavailable': 'Logs unavailable.',
+        'settings.workspacePage.logs.dockerMount': 'Docker /data',
+        'settings.workspacePage.logs.saved': 'Logs saved.',
+        'settings.workspacePage.logs.saveFailed': 'Logs save failed.',
+        'settings.workspacePage.frameworkLogs.title': 'OPL Framework logs',
+        'settings.workspacePage.frameworkLogs.current': `Framework logs: ${options?.path}`,
+        'settings.workspacePage.frameworkLogs.missing': 'No Framework logs.',
         'settings.workspacePage.modules.title': 'Module paths',
         'settings.workspacePage.modules.description': `${options?.ready} / ${options?.total} ready in technical paths.`,
         'settings.workspacePage.modules.empty': 'No module paths.',
         'settings.workspacePage.actions.openWorkspace': 'Open Workspace',
         'settings.workspacePage.actions.openLogs': 'Open logs',
         'settings.workspacePage.actions.changeWorkspace': 'Change workspace',
+        'settings.workspacePage.actions.changeLogs': 'Change logs directory',
         'settings.workspacePage.actions.title': 'Directory actions',
         'settings.workspacePage.actions.readyDescription': 'Open or change the current directory.',
         'settings.workspacePage.actions.attentionDescription': 'Choose a writable directory.',
@@ -170,6 +197,8 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.status.dirty': 'dirty',
         'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot': `From ${options?.root}`,
         'settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace': 'Sibling workspace',
+        'settings.personalization.title': 'Personalization',
+        'settings.personalization.description': 'Instructions and new-conversation context.',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -183,12 +212,23 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     mocks.workspaceWritable = true;
     mocks.workspaceHealthStatus = 'ready';
     mocks.executorPermissionMode = 'full-access';
+    mocks.isDesktop = true;
+    mocks.workspaceRootPath = '/Users/example/OPL Workspace';
+    mocks.systemInfo.mockResolvedValue({
+      cacheDir: '/Users/example/Library/Application Support/One Person Lab/config',
+      workDir: '/Users/example/Library/Application Support/One Person Lab',
+      logDir: '/Users/example/Library/Logs/One Person Lab App',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+    mocks.updateSystemInfo.mockResolvedValue(undefined);
+    mocks.showOpen.mockResolvedValue(['/Users/example/New Workspace']);
   });
 
-  it('renders workspace paths as a normal Settings page and opens the workspace folder', () => {
+  it('renders workspace, App logs, and personalization on one Settings page', async () => {
     render(<WorkspaceSettings withWrapper={false} />);
 
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).not.toHaveClass('md:grid-cols-2');
@@ -203,12 +243,18 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-log-directory')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab App')).toBeInTheDocument()
+    );
     expect(screen.getByText('Diagnostics')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Diagnostics'));
     expect(screen.getByTestId('settings-workspace-technical-details')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
-    expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
+    expect(screen.getByText('Framework logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
     expect(screen.queryByText('1 / 2 ready in technical paths.')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Open Workspace'));
@@ -219,9 +265,63 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     fireEvent.click(screen.getAllByText('Open logs')[0]);
     expect(mocks.openFolder).toHaveBeenCalledWith({
-      folder_path: '/Users/example/Library/Logs/One Person Lab',
+      folder_path: '/Users/example/Library/Logs/One Person Lab App',
       tool: 'explorer',
     });
+  });
+
+  it('updates the desktop App log directory without changing cache or work directories', async () => {
+    mocks.showOpen.mockResolvedValueOnce(['/Users/example/OPL Logs']);
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
+    fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
+
+    await waitFor(() =>
+      expect(mocks.updateSystemInfo).toHaveBeenCalledWith({
+        cacheDir: '/Users/example/Library/Application Support/One Person Lab/config',
+        workDir: '/Users/example/Library/Application Support/One Person Lab',
+        logDir: '/Users/example/OPL Logs',
+      })
+    );
+    expect(await screen.findByText('Logs: /Users/example/OPL Logs')).toBeInTheDocument();
+  });
+
+  it('keeps the existing log directory visible when the desktop update fails', async () => {
+    mocks.showOpen.mockResolvedValueOnce(['/Users/example/Broken Logs']);
+    mocks.updateSystemInfo.mockRejectedValueOnce(new Error('write failed'));
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
+    fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
+
+    await waitFor(() => expect(mocks.updateSystemInfo).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab App')).toBeInTheDocument();
+    expect(screen.queryByText('Logs: /Users/example/Broken Logs')).not.toBeInTheDocument();
+  });
+
+  it('projects Docker paths read-only from /projects and /data', async () => {
+    mocks.isDesktop = false;
+    mocks.workspaceRootPath = '/projects';
+    mocks.systemInfo.mockResolvedValue({
+      cacheDir: '/data/config',
+      workDir: '/data',
+      logDir: '/data/logs',
+      platform: 'linux',
+      arch: 'x64',
+    });
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    expect(screen.getByText('Work root: /projects')).toBeInTheDocument();
+    expect(screen.getByText('Docker /projects')).toBeInTheDocument();
+    expect(await screen.findByText('Logs: /data/logs')).toBeInTheDocument();
+    expect(screen.getByText('Docker /data')).toBeInTheDocument();
+    expect(screen.queryByText('Open Workspace')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-primary-action')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-log-directory-action')).not.toBeInTheDocument();
   });
 
   it('routes a non-writable work root to Maintenance without running global repair', () => {

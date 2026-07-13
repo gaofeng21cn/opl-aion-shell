@@ -110,11 +110,6 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalCo
   ),
 }));
 
-vi.mock('@/renderer/pages/settings/sections/PersonalizationSettings', () => ({
-  PersonalizationSettingsContent: () => <div data-testid='personalization-content'>Personalization content</div>,
-  default: () => <div data-testid='personalization-content'>Personalization content</div>,
-}));
-
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
   default: () => <div data-testid='skills-content'>Skills</div>,
 }));

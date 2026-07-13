@@ -45,6 +45,15 @@ describe('settings storage route', () => {
     expect(await screen.findByTestId('workspace-route-page')).toBeInTheDocument();
   });
 
+  it('redirects the legacy Personalization route to the Workspace personalization anchor', async () => {
+    window.location.hash = '#/settings/personalization';
+
+    render(<Router layout={<Outlet />} />);
+
+    expect(await screen.findByTestId('workspace-route-page')).toBeInTheDocument();
+    expect(window.location.hash).toContain('/settings/workspace?section=personalization');
+  });
+
   it('redirects the legacy Local Services route to its Maintenance owner page', async () => {
     window.location.hash = '#/settings/local-services';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { PersonalizationSettingsContent } from '@/renderer/pages/settings/sections/PersonalizationSettings';
+import OplPersonalizationSettings from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent/OplPersonalizationSettings';
 
 const mocks = vi.hoisted(() => ({
   executeAction: vi.fn(),
@@ -94,16 +94,16 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-describe('PersonalizationSettings', () => {
-  it('owns user instructions and new-conversation context without workspace settings', async () => {
+describe('OplPersonalizationSettings', () => {
+  it('renders the personalization content embedded by the Workspace page', async () => {
     mocks.executeAction.mockResolvedValue({ ok: true, data: {} });
     mocks.load.mockResolvedValue(undefined);
     mocks.setConfig.mockResolvedValue(undefined);
     mocks.confirm.mockImplementation(({ onOk }: { onOk?: () => unknown }) => void onOk?.());
 
-    render(<PersonalizationSettingsContent />);
+    render(<OplPersonalizationSettings />);
 
-    expect(screen.getByTestId('settings-page-personalization')).toHaveTextContent('Personalization');
+    expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
     expect(screen.getByTestId('settings-system-agents-editor')).toHaveTextContent('/Users/example/.codex/AGENTS.md');
     expect(screen.getByTestId('settings-system-agents-editor')).toHaveTextContent(
       'Installed OPL Flow default version: 0.1.16'
