@@ -5,10 +5,16 @@
  */
 
 import type { TConversationRuntimeSummary } from '@/common/config/storage';
+import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
+import { usePreviewContext } from '@/renderer/pages/conversation/Preview/context/PreviewContext';
+import {
+  openOplArtifactPreview,
+  resolveOplArtifactPreviewTarget,
+} from '@/renderer/pages/conversation/Preview/context/oplArtifactPreview';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { Down, PauseOne, Pushpin, Up } from '@icon-park/react';
+import { Down, PauseOne, PreviewOpen, Pushpin, Up } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './current-task-awareness.css';
 
@@ -303,15 +309,35 @@ export const hasCurrentTaskAwareness = (
   );
 };
 
-const EvidenceLine: React.FC<{ label: string; value?: string; refValue?: string }> = ({ label, value, refValue }) => {
+const EvidenceLine: React.FC<{
+  label: string;
+  value?: string;
+  refValue?: string;
+  workspace?: string;
+  previewLabel: string;
+  onOpenReference: (ref: string) => void;
+}> = ({ label, value, refValue, workspace, previewLabel, onOpenReference }) => {
   const displayValue = trim(value);
   const displayRef = trim(refValue);
+  const previewable = displayRef ? resolveOplArtifactPreviewTarget(displayRef, workspace).ok : false;
   if (!displayValue && !displayRef) return null;
   return (
     <div className='current-task-awareness__evidence-line'>
       <span className='current-task-awareness__evidence-label'>{label}</span>
       <span className='current-task-awareness__evidence-value'>
         {[displayValue, displayRef].filter(Boolean).join(' · ')}
+        {displayRef && previewable && (
+          <Tooltip content={previewLabel}>
+            <Button
+              type='text'
+              size='mini'
+              shape='circle'
+              aria-label={`${previewLabel}: ${displayRef}`}
+              icon={<PreviewOpen size={14} />}
+              onClick={() => onOpenReference(displayRef)}
+            />
+          </Tooltip>
+        )}
       </span>
     </div>
   );
@@ -325,13 +351,25 @@ type EvidenceItem = {
 
 const hasEvidence = (items: EvidenceItem[]): boolean => items.some((item) => trim(item.value) || trim(item.refValue));
 
-const EvidenceSection: React.FC<{ title: string; items: EvidenceItem[] }> = ({ title, items }) => {
+const EvidenceSection: React.FC<{
+  title: string;
+  items: EvidenceItem[];
+  workspace?: string;
+  previewLabel: string;
+  onOpenReference: (ref: string) => void;
+}> = ({ title, items, workspace, previewLabel, onOpenReference }) => {
   if (!hasEvidence(items)) return null;
   return (
     <div className='current-task-awareness__evidence-section'>
       <div className='current-task-awareness__section-title'>{title}</div>
       {items.map((item, index) => (
-        <EvidenceLine key={`${item.label}:${item.value ?? item.refValue ?? ''}:${index}`} {...item} />
+        <EvidenceLine
+          key={`${item.label}:${item.value ?? item.refValue ?? ''}:${index}`}
+          {...item}
+          workspace={workspace}
+          previewLabel={previewLabel}
+          onOpenReference={onOpenReference}
+        />
       ))}
     </div>
   );
@@ -356,6 +394,8 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
   onStop,
 }) => {
   const { t } = useTranslation();
+  const conversationContext = useConversationContextSafe();
+  const { openPreview } = usePreviewContext();
   const taskV2 = (task ?? {}) as ConversationCurrentTaskV2;
   const taskKey = trim(task?.task_id) ?? trim(task?.title) ?? '';
   const timingRecord = record(taskV2.timing);
@@ -367,6 +407,17 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
   useEffect(() => {
     setPinned(runtimePinned);
   }, [runtimePinned, taskKey]);
+
+  const handleOpenReference = useCallback(
+    (ref: string) => {
+      void openOplArtifactPreview({ ref, workspace: conversationContext?.workspace, openPreview }).then((result) => {
+        if ('reason' in result) {
+          console.warn('[CurrentTaskAwareness] artifact preview unavailable', { ref, reason: result.reason });
+        }
+      });
+    },
+    [conversationContext?.workspace, openPreview]
+  );
 
   if (!hasCurrentTaskAwareness(task)) return null;
 
@@ -535,6 +586,9 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
         <div className='current-task-awareness__evidence'>
           <EvidenceSection
             title={t('conversation.currentTask.result')}
+            workspace={conversationContext?.workspace}
+            previewLabel={t('preview.preview')}
+            onOpenReference={handleOpenReference}
             items={[
               { label: t('conversation.currentTask.status'), value: status },
               { label: t('conversation.currentTask.stage'), value: stage },
@@ -551,6 +605,9 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
           />
           <EvidenceSection
             title={t('conversation.currentTask.artifactsProvenanceRefs')}
+            workspace={conversationContext?.workspace}
+            previewLabel={t('preview.preview')}
+            onOpenReference={handleOpenReference}
             items={[
               ...evidenceItems,
               ...evidenceItemsFromValue(
@@ -604,6 +661,9 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
           />
           <EvidenceSection
             title={t('conversation.currentTask.reviewFollowUp')}
+            workspace={conversationContext?.workspace}
+            previewLabel={t('preview.preview')}
+            onOpenReference={handleOpenReference}
             items={[
               ...evidenceItemsFromValue(t('conversation.currentTask.review'), taskV2.review_receipt ?? reviewReceipt),
               ...evidenceItemsFromValue(t('conversation.currentTask.structuredFollowUp'), followUpSource),
@@ -612,6 +672,9 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
           <EvidenceBlock title={t('conversation.currentTask.structuredFollowUp')} text={followUpText} />
           <EvidenceSection
             title={t('conversation.currentTask.workflowResourceActionRefs')}
+            workspace={conversationContext?.workspace}
+            previewLabel={t('preview.preview')}
+            onOpenReference={handleOpenReference}
             items={[
               ...evidenceItemsFromValue(t('conversation.currentTask.workflow'), workflowRefs),
               ...evidenceItemsFromValue(t('conversation.currentTask.plan'), taskV2.plan_ref),

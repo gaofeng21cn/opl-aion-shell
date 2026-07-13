@@ -1,7 +1,32 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CurrentTaskAwareness from '@/renderer/pages/conversation/runtime/CurrentTaskAwareness';
+
+const mocks = vi.hoisted(() => ({
+  openPreview: vi.fn(),
+  getFileMetadata: vi.fn(),
+  readFile: vi.fn(),
+  getImageBase64: vi.fn(),
+}));
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    fs: {
+      getFileMetadata: { invoke: mocks.getFileMetadata },
+      readFile: { invoke: mocks.readFile },
+      getImageBase64: { invoke: mocks.getImageBase64 },
+    },
+  },
+}));
+
+vi.mock('@/renderer/hooks/context/ConversationContext', () => ({
+  useConversationContextSafe: () => ({ workspace: '/workspace/project' }),
+}));
+
+vi.mock('@/renderer/pages/conversation/Preview/context/PreviewContext', () => ({
+  usePreviewContext: () => ({ openPreview: mocks.openPreview }),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -83,6 +108,7 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.collapse': 'Hide task evidence',
         'conversation.currentTask.stop': 'Stop task',
         'conversation.currentTask.stopUnavailable': 'No running turn can be stopped',
+        'preview.preview': 'Preview',
       };
       if (key === 'conversation.currentTask.owner') return `Owner: ${options?.owner ?? ''}`;
       return map[key] ?? key;
@@ -91,6 +117,13 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('CurrentTaskAwareness', () => {
+  beforeEach(() => {
+    mocks.openPreview.mockReset();
+    mocks.getFileMetadata.mockReset();
+    mocks.readFile.mockReset();
+    mocks.getImageBase64.mockReset();
+  });
+
   it('keeps status, elapsed, progress, next action, and stop readable in the default unpinned summary', async () => {
     const onStop = vi.fn().mockResolvedValue(true);
     render(
@@ -279,6 +312,65 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getAllByText('Fabric resource').length).toBeGreaterThan(0);
     expect(screen.getByText('resource://status')).toBeTruthy();
     expect(screen.getByText('diagnostics://task')).toBeTruthy();
+  });
+
+  it('opens previewable artifact refs from a keyboard-reachable action', async () => {
+    mocks.getFileMetadata.mockResolvedValue({ isDirectory: false });
+    mocks.readFile.mockResolvedValue('# Reproducible result');
+
+    render(
+      <CurrentTaskAwareness
+        task={
+          {
+            title: 'Artifact delivery',
+            latest_artifact_ref: 'artifact://candidate/result.md',
+          } as never
+        }
+      />
+    );
+
+    const openButton = screen.getByRole('button', { name: 'Preview: artifact://candidate/result.md' });
+    openButton.focus();
+    expect(openButton).toHaveFocus();
+    fireEvent.click(openButton);
+
+    await waitFor(() =>
+      expect(mocks.openPreview).toHaveBeenCalledWith('# Reproducible result', 'markdown', {
+        title: 'result.md',
+        file_name: 'result.md',
+        file_path: '/workspace/project/candidate/result.md',
+        workspace: '/workspace/project',
+        editable: false,
+        truncated: false,
+      })
+    );
+  });
+
+  it('keeps failed and unsafe refs visible without opening a Preview tab', async () => {
+    mocks.getFileMetadata.mockRejectedValue(new Error('FILE_NOT_FOUND'));
+
+    render(
+      <CurrentTaskAwareness
+        task={
+          {
+            title: 'Artifact delivery',
+            evidence_cards: [
+              { title: 'Missing evidence', ref: 'evidence://review/missing.json' },
+              { title: 'Unsafe evidence', ref: 'evidence://../outside.md' },
+            ],
+          } as never
+        }
+      />
+    );
+
+    expect(screen.getByText('evidence://review/missing.json')).toBeInTheDocument();
+    expect(screen.getByText('evidence://../outside.md')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview: evidence://../outside.md' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview: evidence://review/missing.json' }));
+    await waitFor(() => expect(mocks.getFileMetadata).toHaveBeenCalledTimes(1));
+    expect(mocks.openPreview).not.toHaveBeenCalled();
+    expect(screen.getByText('evidence://review/missing.json')).toBeInTheDocument();
   });
 
   it('does not render without current task refs', () => {

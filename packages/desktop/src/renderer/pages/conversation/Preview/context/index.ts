@@ -12,5 +12,12 @@
 export { PreviewProvider, usePreviewContext } from './PreviewContext';
 export type { PreviewContextValue, DomSnippet } from './PreviewContext';
 
+export { openOplArtifactPreview, resolveOplArtifactPreviewTarget } from './oplArtifactPreview';
+export type {
+  OplArtifactPreviewFailureReason,
+  OplArtifactPreviewResolution,
+  OplArtifactPreviewTarget,
+} from './oplArtifactPreview';
+
 export { PreviewToolbarExtrasProvider, usePreviewToolbarExtras } from './PreviewToolbarExtrasContext';
 export type { PreviewToolbarExtras, PreviewToolbarExtrasContextValue } from './PreviewToolbarExtrasContext';

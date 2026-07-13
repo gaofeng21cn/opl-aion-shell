@@ -456,6 +456,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const tab = tabs.find((t) => t.id === targetTabId);
       if (!tab) return false;
+      if (tab.metadata?.editable === false) return false;
 
       // 如果有 file_path 和 workspace，写回工作空间文件 / If file_path and workspace exist, write back to workspace file
       if (tab.metadata?.file_path && tab.metadata?.workspace) {
