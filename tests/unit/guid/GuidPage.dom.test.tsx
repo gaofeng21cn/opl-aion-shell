@@ -543,7 +543,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   });
 
   it('migrates a persisted OPL preset into an active shortcut and restores the Codex executor', async () => {
-    mocks.locationState.value = null;
+    mocks.locationState.value = { selectedAgentKey: 'custom:mas' };
     mocks.isPresetAgent.value = true;
     render(<GuidPage />);
 

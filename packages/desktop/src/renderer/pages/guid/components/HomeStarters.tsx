@@ -7,7 +7,9 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { CloseSmall, Right } from '@icon-park/react';
+import { Right } from '@icon-park/react';
+import { faCheck } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -62,18 +64,21 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
             <Button
               key={assistant.id}
               type='text'
-              className={`!h-36px !w-full !justify-start !px-8px !rd-6px !text-13px ${
-                active ? '!bg-fill-2 !text-t-primary' : '!bg-transparent !text-t-secondary hover:!bg-fill-2'
+              className={`!h-36px !w-full !justify-start !border !px-8px !rd-6px !text-13px ${
+                active
+                  ? '!border-primary-5 !bg-primary-1 !text-primary-6'
+                  : '!border-transparent !bg-transparent !text-t-secondary hover:!border-border-1 hover:!bg-fill-2'
               }`}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
               disabled={launchBlocked}
               title={blockedTitle}
               aria-pressed={active}
+              data-opl-active={String(active)}
               data-testid={`home-starter-${assistant.id}`}
             >
               <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
               {active ? (
-                <CloseSmall theme='outline' size='14' fill='currentColor' className='shrink-0 text-t-tertiary' />
+                <FontAwesomeIcon icon={faCheck} className='shrink-0 text-13px' aria-hidden='true' />
               ) : (
                 <Right theme='outline' size='12' fill='currentColor' className='shrink-0 text-t-tertiary' />
               )}

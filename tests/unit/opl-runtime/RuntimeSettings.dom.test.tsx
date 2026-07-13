@@ -74,6 +74,7 @@ vi.mock('react-i18next', () => ({
         'settings.runtimePage.taskRuns.artifactContext.roCrate': 'RO-Crate metadata',
         'settings.runtimePage.taskRuns.artifactContext.openAction': 'Open detail action',
         'common.runtime.telemetryMissing': '用量未记录',
+        'common.runtime.tokenUsage.missingWithReason': '用量未记录',
         'common.runtime.noCurrentStage': '暂无当前阶段',
         'common.runtime.waitingSubmissionInfo': '等待补齐投稿信息',
         'common.runtime.waitingNextDirection': '等待明确是否继续推进',
@@ -1305,25 +1306,22 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-primary-summary')).not.toHaveTextContent('2026-07-04T19:00:00Z');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
     expect(screen.getByText('common.runtime.taskListTitle')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
+    expect(screen.getAllByText('common.runtime.agentAvailability.title').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
     expect(screen.getByText('OPL Book Forge')).toBeInTheDocument();
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
-    expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
-      'common.runtime.moduleWorkloadText 2 6'
+    expect(screen.getByTestId('runtime-agent-availability-mas')).toHaveTextContent(
+      'common.runtime.agentAvailability.workload 6 2'
     );
-    expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
-      'common.runtime.projectStates.needsAttention'
+    expect(screen.getByTestId('runtime-agent-availability-mas')).toHaveTextContent(
+      'common.runtime.agentAvailability.status.maintenance_required'
     );
-    expect(screen.getByTestId('runtime-module-status-medautogrant')).toHaveTextContent(
-      'common.runtime.projectStates.ready'
+    expect(screen.getByTestId('runtime-agent-availability-mag')).toHaveTextContent(
+      'common.runtime.agentAvailability.status.not_installed'
     );
-    expect(screen.getByTestId('runtime-module-status-scholarskills')).toHaveTextContent('common.runtime.moduleMissing');
-    expect(screen.getByTestId('runtime-module-status-scholarskills')).not.toHaveTextContent(
-      'common.runtime.moduleDirty'
-    );
+    expect(screen.queryByTestId('runtime-agent-availability-scholarskills')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('runtime-task-row').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
@@ -1332,7 +1330,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain('common.runtime.taskField.next');
     expect(screen.getByText('Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('1h');
-    expect(document.body.textContent).toContain('common.runtime.usageStageAndTotal 128 tokens 512 tokens');
+    expect(document.body.textContent).toContain(
+      'common.runtime.usageStageAndTotal common.runtime.tokenUsage.count 128 common.runtime.tokenUsage.count 512'
+    );
     expect(screen.getByText('Finish reviewer evaluation against current inputs')).toBeInTheDocument();
     expect(document.body.textContent).toContain('AI reviewer');
     expect(document.body.textContent).toContain('DM005 paper line');
@@ -1372,7 +1372,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');
     expect(defaultViewText).not.toContain('common.runtime.scopeInferredHint');
     expect(defaultViewText).not.toContain('common.runtime.metricHints.');
-    expect(defaultViewText).toContain('common.runtime.moduleDirty');
+    expect(defaultViewText).toContain('common.runtime.agentAvailability.status.maintenance_required');
     expect(defaultViewText).not.toContain('bookforge-1.0.0');
     expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
     expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
@@ -1408,7 +1408,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.currentAttempt');
     expect(dm002Details).toHaveTextContent('1 1');
     expect(dm002Details).toHaveTextContent('1h');
-    expect(dm002Details).toHaveTextContent('common.runtime.usageStageAndTotal 128 tokens 512 tokens');
+    expect(dm002Details).toHaveTextContent(
+      'common.runtime.usageStageAndTotal common.runtime.tokenUsage.count 128 common.runtime.tokenUsage.count 512'
+    );
     expect(dm002Details).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-06-02T00:01:12.853Z');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.timeline');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.evidence');
@@ -1447,7 +1449,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(document.body.textContent).toContain('common.runtime.scopeDiagnostics');
     expect(document.body.textContent).toContain('common.runtime.scopeSourceLabel');
-    expect(document.body.textContent).toContain('common.runtime.moduleDirty');
+    expect(document.body.textContent).toContain('common.runtime.agentAvailability.status.maintenance_required');
     expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
     expect(screen.getByTestId('runtime-archived-attempts')).toHaveTextContent('OPL Meta Agent');
     fireEvent.click(
@@ -1679,12 +1681,16 @@ describe('RuntimeSettings app state bridge usage', () => {
     const detail = await screen.findByTestId('runtime-task-detail-dm002-canonical');
     expect(detail).toHaveTextContent('Canonical evidence refs');
     expect(detail).toHaveTextContent('evidence://canonical');
-    expect(detail).toHaveTextContent('common.runtime.usageStageAndTotal 42 tokens 80 tokens');
+    expect(detail).toHaveTextContent(
+      'common.runtime.usageStageAndTotal common.runtime.tokenUsage.count 42 common.runtime.tokenUsage.count 80'
+    );
     expect(detail).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-07-01T00:02:00Z');
     expect(detail).toHaveTextContent('common.runtime.taskDetails.diagnostics');
     expect(detail).toHaveTextContent('attempt://canonical');
     expect(detail).not.toHaveTextContent('Legacy evidence refs');
-    expect(detail).not.toHaveTextContent('common.runtime.usageStageAndTotal 11 tokens 22 tokens');
+    expect(detail).not.toHaveTextContent(
+      'common.runtime.usageStageAndTotal common.runtime.tokenUsage.count 11 common.runtime.tokenUsage.count 22'
+    );
     expect(detail).not.toHaveTextContent('paper_autonomy/legacy-stage');
   });
 

@@ -921,7 +921,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-access-gateway-stale')).toBeTruthy();
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
 
-    fireEvent.click(view.getByText('Refresh'));
+    fireEvent.click(view.getByRole('button', { name: 'Refresh' }));
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'gateway_account_refresh',

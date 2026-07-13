@@ -6,11 +6,12 @@
 
 import React, { useMemo } from 'react';
 import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
-import { CheckOne, Refresh, Toolkit } from '@icon-park/react';
+import { CheckOne, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import {
   formatStatus,
   isReadyStatus,
@@ -103,9 +104,7 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.localServicesPage.description')}</Typography.Text>
         </div>
-        <Button icon={<Refresh theme='outline' />} loading={appStateQuery.refreshing} onClick={refresh}>
-          {t('common.refresh')}
-        </Button>
+        <OplRefreshIconButton label={t('common.refresh')} loading={appStateQuery.refreshing} onClick={refresh} />
       </div>
 
       <div className='grid grid-cols-1 md:grid-cols-3 gap-14px' data-testid='opl-local-services-cards'>

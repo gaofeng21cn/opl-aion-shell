@@ -12,6 +12,7 @@ import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection } from '../accessProjection';
 import { useLocation } from 'react-router-dom';
@@ -480,14 +481,12 @@ export const AccessSettingsContent: React.FC = () => {
                       </Button>
                     )}
                     {gatewayAccount.actions.refresh && (
-                      <Button
+                      <OplRefreshIconButton
                         size='small'
-                        icon={<UpdateRotation theme='outline' />}
+                        label={t('settings.accessPage.gatewayAccount.actions.refresh')}
                         loading={gatewayActionLoading === gatewayAccount.actions.refresh}
                         onClick={() => void handleGatewayAction(gatewayAccount.actions.refresh!)}
-                      >
-                        {t('settings.accessPage.gatewayAccount.actions.refresh')}
-                      </Button>
+                      />
                     )}
                     {gatewayAccount.actions.repair && (
                       <Button

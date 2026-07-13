@@ -25,7 +25,7 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { Brain, Check, Down } from '@icon-park/react';
+import { Check, Down } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
@@ -136,7 +136,6 @@ const AcpModelSelector: React.FC<{
     if (!model_info || isSettingReasoning) return;
     void selectAutoModel().catch(() => {});
   }, [isSettingReasoning, model_info, selectAutoModel]);
-  const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
   const reasoningOptions =
     useOplCodexModelDisplay && thoughtLevel
       ? thoughtLevel.options.filter((option) => oplReasoningEfforts.includes(option.value as OplCodexReasoningEffort))
@@ -178,7 +177,6 @@ const AcpModelSelector: React.FC<{
           style={{ cursor: 'default' }}
         >
           <span className='flex items-center gap-6px min-w-0 leading-none'>
-            {renderLogo()}
             <MarqueePillLabel>{t('conversation.welcome.useCliModel')}</MarqueePillLabel>
           </span>
         </Button>
@@ -196,7 +194,6 @@ const AcpModelSelector: React.FC<{
           style={{ cursor: 'default' }}
         >
           <span className='flex items-center gap-6px min-w-0 leading-none'>
-            {renderLogo()}
             <MarqueePillLabel>{display_label}</MarqueePillLabel>
           </span>
         </Button>
@@ -214,7 +211,6 @@ const AcpModelSelector: React.FC<{
           style={{ cursor: 'default' }}
         >
           <span className='flex items-center gap-6px min-w-0 leading-none'>
-            {renderLogo()}
             <MarqueePillLabel>{display_label}</MarqueePillLabel>
           </span>
         </Button>
@@ -284,7 +280,6 @@ const AcpModelSelector: React.FC<{
     >
       <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0 leading-none'>
-          {renderLogo()}
           <MarqueePillLabel>{display_label}</MarqueePillLabel>
           <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
         </span>

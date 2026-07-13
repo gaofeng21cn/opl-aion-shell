@@ -401,13 +401,10 @@ export const useGuidAgentSelection = ({
         if (cancelled) return;
 
         if (savedKey) {
-          // Preset assistant key — trust directly, assistants list resolves later
-          if (savedKey.startsWith('custom:')) {
-            _setSelectedAgentKey(savedKey);
-            return;
-          }
-          // Plain row key — verify it still exists in detected engines
-          if (availableAgents.some((agent) => getAgentKey(agent) === savedKey)) {
+          // Home always starts from the base executor. A saved professional
+          // preset is historical UI state, not explicit capability selection.
+          const savedAgent = availableAgents.find((agent) => getAgentKey(agent) === savedKey);
+          if (savedAgent && !savedAgent.is_preset) {
             _setSelectedAgentKey(savedKey);
             return;
           }

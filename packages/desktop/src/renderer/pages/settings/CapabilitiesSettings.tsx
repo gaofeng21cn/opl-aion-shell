@@ -17,13 +17,16 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
+import { Close, Experiment, FilePpt, FileWord, Robot } from '@icon-park/react';
+import { faRotate } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -1508,16 +1511,14 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             </summary>
             <div className='mt-10px flex flex-col gap-10px'>
               <Space wrap size={8}>
-                <Button
+                <OplRefreshIconButton
                   size='small'
-                  icon={<Refresh theme='outline' />}
+                  label={t('settings.capabilitiesPage.packageManager.refreshRegistry')}
                   loading={busyAction === 'refresh_registry'}
                   disabled={packageMutationBusy}
                   onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
                   data-testid='agent-package-refresh-registry'
-                >
-                  {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
-                </Button>
+                />
                 <span data-testid='agent-package-add-capability' aria-hidden='true' />
               </Space>
               {advancedAddOpen && (
@@ -1619,7 +1620,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         <div className='opl-settings-page-header__actions'>
           <Button
             type='primary'
-            icon={<Refresh theme='outline' />}
+            icon={<FontAwesomeIcon icon={faRotate} />}
             loading={flowSyncing}
             onClick={() => void syncFlowCapabilities()}
             data-testid='settings-capabilities-primary-action'

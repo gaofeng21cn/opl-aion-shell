@@ -60,7 +60,7 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
-import { Brain, MagicHat, Shield } from '@icon-park/react';
+import { MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildSendFailureError } from './buildSendFailureError';
@@ -604,7 +604,6 @@ Please check your local CLI tool authentication status`,
     if (reasoningOptions.length > 0) {
       entries.push({
         key: 'reasoning',
-        icon: <Brain theme='outline' size='16' />,
         label:
           modelDisplayLocale === 'en-US'
             ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
@@ -626,7 +625,6 @@ Please check your local CLI tool authentication status`,
     if (fixedModelOptions.length > 0) {
       entries.push({
         key: 'model',
-        icon: <Brain theme='outline' size='16' />,
         label: t('common.model', { defaultValue: 'Model' }),
         meta: currentModelLabel,
         submenu: {

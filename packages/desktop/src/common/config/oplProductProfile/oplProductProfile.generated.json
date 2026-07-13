@@ -93,6 +93,8 @@
       "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_secondary_menu",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
+        "default_active_shortcut": null,
+        "shortcut_selection_policy": "explicit_user_or_navigation_selection_only_no_saved_preset_restore",
         "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
         "composer_position": "floating_bottom_with_safe_inset",
         "composer_primary": true,
@@ -105,6 +107,7 @@
         "starter_order_policy": "stable_configured_order",
         "starter_layout_policy": "responsive_wrap",
         "starter_truncation_allowed": false,
+        "selected_starter_visual_policy": "accent_border_fill_and_check_indicator_not_color_alone",
         "workspace_selector_policy": {
           "primary_scope": "active_workspace_only",
           "inactive_recent_directories_visible": false,
@@ -133,6 +136,12 @@
           "AionUI Team nav entry",
           "AionUI Team page as ordinary App surface"
         ]
+      },
+      "utility_icon_policy": {
+        "library": "font_awesome_free_for_opl_owned_utility_icons",
+        "refresh_actions": "icon_only_with_tooltip_and_accessible_name",
+        "model_reasoning_control": "text_and_disclosure_without_brain_icon",
+        "scope": "opl_owned_overlay_surfaces_not_upstream_fork_body"
       },
       "codex_auto_model_selection": {
         "policy_source_ref": "contracts/app-product-profile.json#codex.auto_model_policy",
@@ -184,7 +193,7 @@
             "en": "Extra high reasoning"
           },
           "max": {
-            "zh": "推理最大",
+            "zh": "推理最高",
             "en": "Maximum reasoning"
           },
           "ultra": {

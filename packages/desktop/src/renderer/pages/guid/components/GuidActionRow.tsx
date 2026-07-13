@@ -35,7 +35,7 @@ import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, Brain, Lightning, MagicHat, Plus, Shield, UploadOne } from '@icon-park/react';
+import { ArrowUp, Lightning, MagicHat, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
@@ -288,7 +288,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         });
         entries.push({
           key: 'reasoning',
-          icon: <Brain theme='outline' size='16' />,
           label: reasoningTitle,
           meta: formatOplCodexReasoningMenuLabel(reasoningEffort, modelLocale),
           submenu: {
@@ -299,7 +298,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         });
         entries.push({
           key: 'model',
-          icon: <Brain theme='outline' size='16' />,
           label: t('common.model', { defaultValue: 'Model' }),
           meta: currentModelLabel,
           submenu: {

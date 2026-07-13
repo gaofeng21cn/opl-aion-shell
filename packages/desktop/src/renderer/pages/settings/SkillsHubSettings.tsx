@@ -1,7 +1,9 @@
 import { ipcBridge } from '@/common';
 import { getOplDefaultPackagedCodexSkills, getOplPackagedCodexSkills } from '@/common/config/oplProductProfile';
 import { Button, Message, Modal, Typography } from '@arco-design/web-react';
-import { Delete, FolderOpen, Info, Lightning, Puzzle, Search, Refresh } from '@icon-park/react';
+import { Delete, FolderOpen, Info, Lightning, Puzzle, Search } from '@icon-park/react';
+import { faRotate } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -221,7 +223,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               </div>
               {onSyncFlow && (
                 <Button
-                  icon={<Refresh theme='outline' />}
+                  icon={<FontAwesomeIcon icon={faRotate} />}
                   loading={flowSyncing}
                   onClick={onSyncFlow}
                   data-testid='opl-flow-sync-capabilities'
@@ -320,7 +322,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                     }}
                     title={t('common.refresh', { defaultValue: 'Refresh' })}
                   >
-                    <Refresh theme='outline' size={16} className={loading ? 'animate-spin' : ''} />
+                    <FontAwesomeIcon icon={faRotate} className={loading ? 'animate-spin' : ''} />
                   </button>
                 </div>
 

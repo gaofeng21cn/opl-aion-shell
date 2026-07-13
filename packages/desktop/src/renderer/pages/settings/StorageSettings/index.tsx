@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import { Alert, Button, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Delete, FolderSearch, Refresh, Repair, Undo, UpdateRotation } from '@icon-park/react';
+import { Alert, Button, Modal, Space, Tag, Typography } from '@arco-design/web-react';
+import { Delete, FolderSearch, Repair, Undo, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -17,6 +17,7 @@ import type {
   LocalDataLifecycleUpdaterCachePlan,
 } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import {
   buildStorageSettingsViewModel,
   formatStorageBytes,
@@ -675,17 +676,14 @@ export const StorageSettingsContent: React.FC = () => {
               {t('settings.storagePage.actions.previewAll')}
             </Button>
           )}
-          <Tooltip content={t('settings.storagePage.actions.refresh')}>
-            <Button
-              htmlType='button'
-              icon={<Refresh />}
-              aria-label={t('settings.storagePage.actions.refresh')}
-              disabled={interactionLocked}
-              loading={loading === 'inventory'}
-              onClick={loadInventory}
-              data-testid='storage-refresh'
-            />
-          </Tooltip>
+          <OplRefreshIconButton
+            htmlType='button'
+            label={t('settings.storagePage.actions.refresh')}
+            disabled={interactionLocked}
+            loading={loading === 'inventory'}
+            onClick={loadInventory}
+            data-testid='storage-refresh'
+          />
         </div>
       </div>
 

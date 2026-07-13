@@ -254,7 +254,8 @@ const GuidPage: React.FC = () => {
   }, [activeShortcut, agentSelection.assistants]);
 
   useLayoutEffect(() => {
-    if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return;
+    if (!preselectAgentKey || !agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id)
+      return;
     const legacyShortcut = resolveOplActiveShortcut(agentSelection.selectedAgentInfo.custom_agent_id);
     if (!legacyShortcut) return;
     setActiveShortcut((current) => current ?? legacyShortcut);
@@ -264,6 +265,7 @@ const GuidPage: React.FC = () => {
     agentSelection.is_presetAgent,
     agentSelection.selectedAgentInfo?.custom_agent_id,
     agentSelection.setSelectedAgentKey,
+    preselectAgentKey,
   ]);
 
   const selectedAssistantLabel = useMemo(() => {
