@@ -18,6 +18,7 @@ const bridgeMocks = vi.hoisted(() => ({
   getUpdateStatusInvoke: vi.fn(),
   runUpdateCheckInvoke: vi.fn(),
   getUpdatePlanInvoke: vi.fn(),
+  applyUpdatePlanInvoke: vi.fn(),
   applyUpdateComponentInvoke: vi.fn(),
   repairUpdateInvoke: vi.fn(),
   rollbackUpdateComponentInvoke: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/common', () => ({
       getUpdateStatus: { invoke: bridgeMocks.getUpdateStatusInvoke },
       runUpdateCheck: { invoke: bridgeMocks.runUpdateCheckInvoke },
       getUpdatePlan: { invoke: bridgeMocks.getUpdatePlanInvoke },
+      applyUpdatePlan: { invoke: bridgeMocks.applyUpdatePlanInvoke },
       applyUpdateComponent: { invoke: bridgeMocks.applyUpdateComponentInvoke },
       repairUpdate: { invoke: bridgeMocks.repairUpdateInvoke },
       rollbackUpdateComponent: { invoke: bridgeMocks.rollbackUpdateComponentInvoke },
@@ -67,6 +69,12 @@ const managedUpdatePlanResult = {
           host_executor_required: true,
           host_update_route: 'carrier_updater',
           manual_guidance: 'Update the App from its host carrier.',
+          auto_apply: {
+            eligible: false,
+            app_background_safe: false,
+            command_ref: null,
+            blocked_reasons: ['carrier_update_route_required'],
+          },
         },
         {
           component_id: 'opl_base',
@@ -74,6 +82,12 @@ const managedUpdatePlanResult = {
           safe_to_apply: true,
           needs_restart: true,
           integration_status: 'needs_reload',
+          auto_apply: {
+            eligible: true,
+            app_background_safe: true,
+            command_ref: 'opl update apply --json',
+            blocked_reasons: [],
+          },
         },
         {
           component_id: 'opl_packages',
@@ -82,6 +96,12 @@ const managedUpdatePlanResult = {
           safe_to_apply: true,
           projection_status: 'needs_reload',
           profile_migration_status: 'manual_required',
+          auto_apply: {
+            eligible: true,
+            app_background_safe: true,
+            command_ref: 'opl packages update --json',
+            blocked_reasons: [],
+          },
         },
       ],
     },
@@ -95,6 +115,23 @@ describe('managed update background maintenance scheduler', () => {
     vi.clearAllMocks();
     bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateCheckResult);
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdatePlanResult);
+    bridgeMocks.applyUpdatePlanInvoke.mockResolvedValue({
+      surface: 'update_apply',
+      command: 'opl update apply --json',
+      stdout: '{}',
+      parsed: {
+        managed_update: {
+          operation: 'apply',
+          idempotency_lock: { status: 'released' },
+          execution: { status: 'completed' },
+          reload_guidance: 'Restart OPL App to activate the staged runtime update.',
+          components: [
+            { component_id: 'opl_base', state: 'staged', needs_restart: true },
+            { component_id: 'opl_packages', state: 'current', receipt_ref: 'receipt-packages-1' },
+          ],
+        },
+      },
+    });
     bridgeMocks.applyUpdateComponentInvoke.mockImplementation(({ componentId }: { componentId: string }) =>
       Promise.resolve({
         surface: 'update_apply',
@@ -112,23 +149,35 @@ describe('managed update background maintenance scheduler', () => {
     );
   });
 
-  it('runs a non-blocking startup check and projects durable maintenance status fields', async () => {
+  it('runs startup check, plan, and one Framework-owned apply for all eligible Base and Packages work', async () => {
     const stop = startManagedUpdateMaintenanceScheduler();
 
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.applyUpdatePlanInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().lastRunAt).not.toBeNull());
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('completed');
-    expect(snapshot.lastTrigger).toBe('app_startup_after_core_ready');
+    expect(snapshot.lastTrigger).toBe('app_carrier_changed');
     expect(snapshot.lastFailure).toBeNull();
     expect(snapshot.lockStatus).toBe('released');
-    expect(snapshot.result?.surface).toBe('update_check');
+    expect(snapshot.result?.surface).toBe('update_apply');
+    expect(snapshot.lastAction?.componentIds).toEqual(['opl_base', 'opl_packages']);
+    expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
+    expect(snapshot.restartRequired).toBe(true);
+    expect(snapshot.lastReconciledCarrierCheckpoint).toBe('26.5.27:2.1.5');
+    expect(bridgeMocks.runUpdateCheckInvoke.mock.invocationCallOrder[0]).toBeLessThan(
+      bridgeMocks.getUpdatePlanInvoke.mock.invocationCallOrder[0]
+    );
+    expect(bridgeMocks.getUpdatePlanInvoke.mock.invocationCallOrder[0]).toBeLessThan(
+      bridgeMocks.applyUpdatePlanInvoke.mock.invocationCallOrder[0]
+    );
 
     stop();
   });
 
-  it('keeps background plans refresh-only and reports only the three public lifecycle ids', async () => {
+  it('projects Framework attention and restart state without inventing a Packages refresh-only rule', async () => {
     await executeManagedUpdateRead('plan', {
       background: true,
       trigger: 'daily_background_maintenance',
@@ -138,10 +187,10 @@ describe('managed update background maintenance scheduler', () => {
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.lastAction).toBeNull();
     expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
-    expect(snapshot.lastSkipReason).toContain('opl_base: restart_required');
-    expect(snapshot.lastSkipReason).toContain('opl_packages: refresh_only');
+    expect(snapshot.lastSkipReason).not.toContain('opl_packages: refresh_only');
     expect(snapshot.lastSkipReason).not.toContain('profile_migration_status');
     expect(snapshot.reloadGuidance).toBe('Reload visible OPL capabilities after background maintenance.');
+    expect(snapshot.restartRequired).toBe(true);
   });
 
   it('routes Base and explicitly targeted Packages mutations while rejecting App', async () => {
@@ -194,5 +243,83 @@ describe('managed update background maintenance scheduler', () => {
 
     expect(getManagedUpdateMaintenanceSnapshot().lastSkipReason).toBeNull();
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
+  });
+
+  it('does not apply when Framework declares no background-eligible component', async () => {
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
+      ...managedUpdatePlanResult,
+      parsed: {
+        managed_update: {
+          operation: 'plan',
+          execution: { status: 'completed' },
+          components: [
+            {
+              component_id: 'opl_packages',
+              state: 'update_available',
+              auto_apply: {
+                eligible: false,
+                app_background_safe: false,
+                command_ref: null,
+                blocked_reasons: ['developer_checkout_visible'],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+
+    expect(bridgeMocks.applyUpdatePlanInvoke).not.toHaveBeenCalled();
+    expect(getManagedUpdateMaintenanceSnapshot().lastSkipReason).toBe('opl_packages: developer_checkout_visible');
+    stop();
+  });
+
+  it('keeps the carrier checkpoint pending when planning fails so the next startup retries', async () => {
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
+      ok: false,
+      surface: 'update_plan',
+      command: 'opl update plan --json',
+      stdout: '',
+      parsed: null,
+      error: { message: 'Framework plan unavailable' },
+    });
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+
+    const snapshot = getManagedUpdateMaintenanceSnapshot();
+    expect(snapshot.executionStatus).toBe('failed');
+    expect(snapshot.lastFailure).toBe('Framework plan unavailable');
+    expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
+    expect(bridgeMocks.applyUpdatePlanInvoke).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('does not commit the carrier checkpoint when Framework reports a failed apply payload', async () => {
+    bridgeMocks.applyUpdatePlanInvoke.mockResolvedValueOnce({
+      surface: 'update_apply',
+      command: 'opl update apply --json',
+      stdout: '{}',
+      parsed: {
+        managed_update: {
+          operation: 'apply',
+          execution: { status: 'failed' },
+          summary: { message: 'Package activation failed verification' },
+        },
+      },
+    });
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+
+    const snapshot = getManagedUpdateMaintenanceSnapshot();
+    expect(snapshot.executionStatus).toBe('failed');
+    expect(snapshot.lastAction?.status).toBe('failed');
+    expect(snapshot.lastFailure).toBe('Package activation failed verification');
+    expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
+    stop();
   });
 });

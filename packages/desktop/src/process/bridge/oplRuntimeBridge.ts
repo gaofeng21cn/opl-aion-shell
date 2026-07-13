@@ -350,10 +350,10 @@ function buildUpdatePlanCommand(): RuntimeCommandSpec {
   };
 }
 
-function buildOplFlowPostAppUpdateReconcileCommand(): RuntimeCommandSpec {
+function buildUpdateApplyPlanCommand(): RuntimeCommandSpec {
   return {
     surface: 'update_apply',
-    args: ['packages', 'update', 'opl-flow', '--json'],
+    args: ['update', 'apply', '--json'],
     timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
   };
 }
@@ -367,8 +367,7 @@ function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCo
     };
   }
   return {
-    surface: 'update_apply',
-    args: ['update', 'apply', '--json'],
+    ...buildUpdateApplyPlanCommand(),
   };
 }
 
@@ -1427,10 +1426,6 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
   }
 }
 
-export function runOplFlowPostAppUpdateReconcile(): Promise<IOplRuntimeCommandResult> {
-  return runOplCommand(buildOplFlowPostAppUpdateReconcileCommand());
-}
-
 export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
   ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
@@ -1443,6 +1438,7 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
   ipcBridge.oplRuntime.runUpdateCheck.provider(() => runOplCommand(buildUpdateCheckCommand()));
   ipcBridge.oplRuntime.getUpdatePlan.provider(() => runOplCommand(buildUpdatePlanCommand()));
+  ipcBridge.oplRuntime.applyUpdatePlan.provider(() => runOplCommand(buildUpdateApplyPlanCommand()));
   ipcBridge.oplRuntime.applyUpdateComponent.provider((request) => runOplCommand(buildUpdateApplyCommand(request)));
   ipcBridge.oplRuntime.repairUpdate.provider((request) => runOplCommand(buildUpdateRepairCommand(request)));
   ipcBridge.oplRuntime.rollbackUpdateComponent.provider((request) =>
@@ -1463,7 +1459,7 @@ export const __oplRuntimeBridgeTest = {
   buildInitializeFallbackCommand,
   buildInitializeCommand,
   buildInstallPrepCommand,
-  buildOplFlowPostAppUpdateReconcileCommand,
+  buildUpdateApplyPlanCommand,
   buildReconcileModulesCommand,
   buildUpdateApplyCommand,
   buildUpdateCheckCommand,

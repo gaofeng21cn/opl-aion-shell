@@ -12,12 +12,9 @@ import { EventEmitter } from 'events';
 import fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  claimAutoUpdateOplFlowReconcileIfNeeded,
   recordAutoUpdateInstallNotAppliedIfNeeded,
-  recordAutoUpdateOplFlowReconcileResult,
   recordAutoUpdateQuitAndInstall,
   recordAutoUpdateStatus,
-  type OplFlowOptimizeCommandResult,
 } from './autoUpdateDiagnostics';
 import {
   launchLocalAuthorizedMacosInstaller,
@@ -81,7 +78,6 @@ function resolvePackagedUpdaterConfigPath(): string | null {
 
 /** Callback type for broadcasting update status */
 export type StatusBroadcastCallback = (status: AutoUpdateStatus) => void;
-export type PostAppUpdateDependencyReconcile = () => Promise<OplFlowOptimizeCommandResult>;
 
 /** Events emitted by AutoUpdaterService */
 export interface AutoUpdaterEvents {
@@ -92,7 +88,6 @@ class AutoUpdaterService extends EventEmitter {
   private _isInitialized = false;
   private _eventHandlersSetup = false;
   private _allowPrerelease = false;
-  private _postAppUpdateReconcileInFlight = false;
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
@@ -128,20 +123,13 @@ class AutoUpdaterService extends EventEmitter {
    * Initialize the service with an optional status broadcast callback.
    * This decouples the service from any specific window implementation.
    */
-  initialize(
-    statusBroadcastCallback?: StatusBroadcastCallback,
-    postAppUpdateDependencyReconcile?: PostAppUpdateDependencyReconcile
-  ): void {
+  initialize(statusBroadcastCallback?: StatusBroadcastCallback): void {
     this._statusBroadcastCallback = statusBroadcastCallback ?? null;
     this._isInitialized = true;
     this.cleanupDownloadedUpdateCache();
     const currentAppVersion = app.getVersion();
     const userDataPath = app.getPath('userData');
     recordAutoUpdateInstallNotAppliedIfNeeded({ currentAppVersion, userDataPath });
-    this.runPostAppUpdateDependencyReconcileIfNeeded(postAppUpdateDependencyReconcile, {
-      currentAppVersion,
-      userDataPath,
-    });
 
     // Setup event handlers only once
     if (!this._eventHandlersSetup) {
@@ -182,7 +170,6 @@ class AutoUpdaterService extends EventEmitter {
     this._isInitialized = false;
     this._eventHandlersSetup = false;
     this._allowPrerelease = false;
-    this._postAppUpdateReconcileInFlight = false;
     this._statusBroadcastCallback = null;
     // Remove listeners from this EventEmitter instance
     this.removeAllListeners();
@@ -195,39 +182,6 @@ class AutoUpdaterService extends EventEmitter {
       );
     }
     this._autoUpdaterHandlers.clear();
-  }
-
-  private runPostAppUpdateDependencyReconcileIfNeeded(
-    reconcile: PostAppUpdateDependencyReconcile | undefined,
-    options: { currentAppVersion: string; userDataPath: string }
-  ): void {
-    if (!reconcile || this._postAppUpdateReconcileInFlight) return;
-    const claim = claimAutoUpdateOplFlowReconcileIfNeeded(options);
-    if (!claim) return;
-    this._postAppUpdateReconcileInFlight = true;
-    void reconcile()
-      .then((result) => {
-        const event = recordAutoUpdateOplFlowReconcileResult(claim, result, options);
-        if (event?.status === 'opl_flow_optimize_completed') {
-          log.info('Post-update OPL Flow optimization completed:', event.receiptPath);
-          return;
-        }
-        log.warn('Post-update OPL Flow optimization needs attention:', event);
-      })
-      .catch((error) => {
-        const event = recordAutoUpdateOplFlowReconcileResult(
-          claim,
-          {
-            error: { message: error instanceof Error ? error.message : String(error) },
-            ok: false,
-          },
-          options
-        );
-        log.warn('Post-update OPL Flow optimization failed:', event);
-      })
-      .finally(() => {
-        this._postAppUpdateReconcileInFlight = false;
-      });
   }
 
   /**

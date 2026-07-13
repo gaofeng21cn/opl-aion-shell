@@ -42,6 +42,7 @@ describe('OPL runtime IPC channel contract', () => {
         'opl-runtime.get-managed-update-status',
         'opl-runtime.get-managed-update-check',
         'opl-runtime.get-managed-update-plan',
+        'opl-runtime.run-managed-update-plan-apply',
         'opl-runtime.run-managed-update-apply',
         'opl-runtime.run-managed-update-repair',
         'opl-runtime.run-managed-update-rollback',

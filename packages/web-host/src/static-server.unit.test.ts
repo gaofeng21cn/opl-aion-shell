@@ -470,10 +470,12 @@ describe('static-server', () => {
   it('/api/opl-runtime/* gives maintenance commands a long timeout without changing fast reads', () => {
     const maintenanceSpec = __oplRuntimeProxyTest.buildCommandFromRequest('startup-maintenance', {});
     const updateCheckSpec = __oplRuntimeProxyTest.buildCommandFromRequest('update-check', {});
+    const updateApplySpec = __oplRuntimeProxyTest.buildCommandFromRequest('update-plan-apply', {});
     const appStateSpec = __oplRuntimeProxyTest.buildCommandFromRequest('app-state', {});
 
     expect(maintenanceSpec.timeoutMs).toBe(__oplRuntimeProxyTest.MAINTENANCE_TIMEOUT_MS);
     expect(updateCheckSpec.timeoutMs).toBe(__oplRuntimeProxyTest.MAINTENANCE_TIMEOUT_MS);
+    expect(updateApplySpec.timeoutMs).toBe(__oplRuntimeProxyTest.MAINTENANCE_TIMEOUT_MS);
     expect(appStateSpec.timeoutMs).toBeUndefined();
   });
 

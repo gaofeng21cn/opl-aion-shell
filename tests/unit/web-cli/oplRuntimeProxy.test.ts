@@ -22,6 +22,10 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
   });
 
   it('routes only the three public update lifecycle ids to their owning CLI surfaces', () => {
+    expect(__oplRuntimeProxyTest.buildCommandFromRequest('update-plan-apply', {})).toMatchObject({
+      surface: 'update_apply',
+      args: ['update', 'apply', '--json'],
+    });
     expect(__oplRuntimeProxyTest.buildCommandFromRequest('update-apply', { componentId: 'opl_base' })).toMatchObject({
       surface: 'update_apply',
       args: ['update', 'apply', '--json'],

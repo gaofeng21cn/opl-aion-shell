@@ -412,39 +412,14 @@ describe('updateBridge auto-update config handling', () => {
     expect(log.error).not.toHaveBeenCalledWith('Auto-updater error:', expect.any(Error));
   });
 
-  it('requests the Framework-owned OPL Flow reconcile after a running-version switch claim', async () => {
+  it('keeps App binary updater initialization independent from Framework package reconciliation', async () => {
     vi.resetModules();
-    const diagnostics = await import('@process/services/autoUpdateDiagnostics');
-    const claim = { currentVersion: '1.0.0', targetVersion: '1.0.0' };
-    const claimSpy = vi.spyOn(diagnostics, 'claimAutoUpdateOplFlowReconcileIfNeeded').mockReturnValue(claim);
-    const recordSpy = vi.spyOn(diagnostics, 'recordAutoUpdateOplFlowReconcileResult').mockReturnValue({
-      at: '2026-07-12T12:00:00.000Z',
-      receiptPath: '/tmp/opl-flow-receipt.json',
-      status: 'opl_flow_optimize_completed',
-      version: '1.0.0',
-    });
-    const reconcile = vi.fn().mockResolvedValue({
-      ok: true,
-      parsed: {
-        workflow_package: {
-          receipt_path: '/tmp/opl-flow-receipt.json',
-          status: 'completed',
-        },
-      },
-    });
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
 
     autoUpdaterService.resetForTest();
-    autoUpdaterService.initialize(undefined, reconcile);
+    autoUpdaterService.initialize();
 
-    await vi.waitFor(() => expect(reconcile).toHaveBeenCalledOnce());
-    expect(recordSpy).toHaveBeenCalledWith(claim, expect.objectContaining({ ok: true }), {
-      currentAppVersion: '1.0.0',
-      userDataPath: '/test/path',
-    });
-
-    claimSpy.mockRestore();
-    recordSpy.mockRestore();
+    expect(autoUpdaterService.isInitialized).toBe(true);
   });
 });
 

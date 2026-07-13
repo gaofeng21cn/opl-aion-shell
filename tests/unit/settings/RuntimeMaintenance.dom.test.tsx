@@ -131,6 +131,8 @@ const maintenanceSnapshot: ManagedUpdateMaintenanceSnapshot = {
   lastAction: null,
   lastSkipReason: null,
   reloadGuidance: null,
+  restartRequired: false,
+  lastReconciledCarrierCheckpoint: null,
   lockStatus: null,
   result: {
     stdout: '{}',
@@ -224,6 +226,10 @@ describe('RuntimeSettings maintenance structure', () => {
       stdout: '{}',
       parsed: updateStatus,
     };
+    maintenanceSnapshot.lastAction = null;
+    maintenanceSnapshot.lastSkipReason = null;
+    maintenanceSnapshot.reloadGuidance = null;
+    maintenanceSnapshot.restartRequired = false;
     bridgeMocks.executeActionInvoke.mockResolvedValue({ ok: true, parsed: {} });
     bridgeMocks.executeManagedUpdateRead.mockResolvedValue({
       ok: true,
@@ -294,6 +300,24 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getAllByTestId(/opl-maintenance-action-/)).toHaveLength(4);
     expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
+    );
+  });
+
+  it('projects a staged background update as requiring an App restart', () => {
+    maintenanceSnapshot.lastAction = {
+      kind: 'auto_apply',
+      componentId: 'opl_base',
+      componentIds: ['opl_base', 'opl_packages'],
+      status: 'completed',
+      at: '2026-07-13T00:00:00Z',
+    };
+    maintenanceSnapshot.restartRequired = true;
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
+
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );
   });
 

@@ -2406,7 +2406,7 @@
         "complete": "建议修复已完成，状态已重新检查。",
         "confirmTitle": "确认运行建议修复",
         "confirmWillChange": "会运行当前建议的 OPL 安全修复，然后重新检查状态。",
-        "confirmWillNotChange": "不会覆盖本机开发目录、写入领域真相、删除用户数据，也不会静默应用需要重启的更新。",
+        "confirmWillNotChange": "不会覆盖本机开发目录、写入领域真相或删除用户数据。已暂存的运行时更新只会在 App 重启后启用。",
         "confirmRecovery": "如仍需处理，本页会继续显示下一项建议。",
         "confirmAction": "运行建议修复"
       },
@@ -2673,7 +2673,7 @@
         "willRepair": "运行这个组件已有的修复动作。",
         "willRollback": "通过明确的回滚动作恢复这个组件。",
         "willRollbackTo": "使用恢复引用 {{ref}} 恢复这个组件。",
-        "willNotApplyUnsafe": "不会覆盖脏工作区或开发目录，不写入领域真相，也不会静默应用需要重启的工作。",
+        "willNotApplyUnsafe": "不会覆盖脏工作区或开发目录，也不会写入领域真相。已暂存的运行时更新只会在 App 重启后启用。",
         "willNotRollback": "不会删除用户数据、隐藏凭据链路或回滚其他组件。",
         "rollbackRef": "恢复引用：{{ref}}",
         "receiptRef": "凭据引用：{{ref}}",

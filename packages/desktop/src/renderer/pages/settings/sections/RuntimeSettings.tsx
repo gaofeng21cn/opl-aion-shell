@@ -345,8 +345,12 @@ function PostUpdateNotice({
   const action = maintenance.lastAction;
   if (!action) return null;
 
-  const component = plane.components.find((entry) => entry.id === action.componentId);
-  const componentLabel = componentDisplayLabel(component, t);
+  const actionComponentIds = action.componentIds ?? [action.componentId];
+  const actionComponents = actionComponentIds
+    .map((componentId) => plane.components.find((entry) => entry.id === componentId))
+    .filter((component): component is ManagedUpdateComponent => Boolean(component));
+  const component = actionComponents[0];
+  const componentLabel = actionComponents.map((entry) => componentDisplayLabel(entry, t)).join(', ');
   const reloadGuidance = action.reloadGuidance ?? maintenance.reloadGuidance ?? component?.reloadGuidance;
   const receiptRef = action.receiptRef ?? component?.receiptRef ?? component?.repairReceiptId;
   const statusKey =
@@ -383,6 +387,8 @@ function PostUpdateNotice({
             <span className='break-words'>
               {t('settings.oplEnvironmentPage.updates.postAction.reloadGuidance', { guidance: reloadGuidance })}
             </span>
+          ) : maintenance.restartRequired ? (
+            <span className='break-words'>{t('settings.oplEnvironmentPage.updates.userSummaries.needsRestart')}</span>
           ) : (
             <span className='break-words'>{t('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance')}</span>
           )}
@@ -773,7 +779,9 @@ function ManagedUpdatesPanel({
                   <span className='break-words'>
                     {t('settings.oplEnvironmentPage.updates.background.lastAction', {
                       action: maintenance.lastAction.kind,
-                      componentId: maintenance.lastAction.componentId,
+                      componentId: (maintenance.lastAction.componentIds ?? [maintenance.lastAction.componentId]).join(
+                        ', '
+                      ),
                       status: maintenance.lastAction.status,
                     })}
                   </span>

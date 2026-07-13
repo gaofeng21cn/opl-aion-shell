@@ -3,8 +3,6 @@ import { collectBackendInstallDiagnostics } from '@/process/startup/backendInsta
 import {
   appendAutoUpdateDiagnosticEvent,
   appendInstallNotAppliedDiagnosticIfNeeded,
-  appendPostAppUpdateReconcileResult,
-  appendPostAppUpdateReconcileStartedIfNeeded,
 } from '@/process/services/autoUpdateDiagnostics';
 
 describe('collectBackendInstallDiagnostics', () => {
@@ -177,115 +175,6 @@ describe('appendAutoUpdateDiagnosticEvent', () => {
     expect(next).toEqual({
       ...state,
       currentAppVersion: '26.6.5',
-    });
-  });
-
-  it('claims OPL Flow optimization once after the running App reaches the downloaded target', () => {
-    const state = {
-      currentAppVersion: '26.6.3',
-      events: [
-        {
-          at: '2026-06-07T01:30:00.000Z',
-          status: 'downloaded' as const,
-          version: '26.6.5',
-        },
-        {
-          at: '2026-06-07T01:31:00.000Z',
-          status: 'quit-and-install' as const,
-        },
-      ],
-      lastEvent: {
-        at: '2026-06-07T01:31:00.000Z',
-        status: 'quit-and-install' as const,
-      },
-      lastQuitAndInstallAt: '2026-06-07T01:31:00.000Z',
-    };
-
-    const first = appendPostAppUpdateReconcileStartedIfNeeded(state, {
-      currentAppVersion: '26.6.5',
-      now: () => new Date('2026-06-07T01:34:00.000Z'),
-    });
-    const repeated = appendPostAppUpdateReconcileStartedIfNeeded(first.state, {
-      currentAppVersion: '26.6.5',
-      now: () => new Date('2026-06-07T01:35:00.000Z'),
-    });
-
-    expect(first.claim).toEqual({ currentVersion: '26.6.5', targetVersion: '26.6.5' });
-    expect(first.state.events.slice(-2).map((event) => event.status)).toEqual([
-      'running_version_switched',
-      'opl_flow_optimize_started',
-    ]);
-    expect(repeated.claim).toBeUndefined();
-    expect(repeated.state.events).toEqual(first.state.events);
-  });
-
-  it('does not claim OPL Flow optimization before the running version switches', () => {
-    const next = appendPostAppUpdateReconcileStartedIfNeeded(
-      {
-        currentAppVersion: '26.6.3',
-        events: [
-          { at: '2026-06-07T01:30:00.000Z', status: 'downloaded', version: '26.6.5' },
-          { at: '2026-06-07T01:31:00.000Z', status: 'quit-and-install' },
-        ],
-      },
-      { currentAppVersion: '26.6.3' }
-    );
-
-    expect(next.claim).toBeUndefined();
-    expect(next.state.events).toHaveLength(2);
-  });
-
-  it('projects a Framework merge packet without claiming optimization completed', () => {
-    const next = appendPostAppUpdateReconcileResult(
-      {
-        currentAppVersion: '26.6.5',
-        events: [],
-      },
-      { currentVersion: '26.6.5', targetVersion: '26.6.5' },
-      {
-        ok: true,
-        parsed: {
-          workflow_package: {
-            status: 'profile_merge_required',
-            receipt_path: '/tmp/opl-flow-receipt.json',
-            profile: {
-              status: 'merge_required',
-              merge_packet: '/tmp/opl-flow-merge-packet',
-            },
-          },
-        },
-      },
-      { now: () => new Date('2026-06-07T01:36:00.000Z') }
-    );
-
-    expect(next.lastEvent).toMatchObject({
-      mergePacketPath: '/tmp/opl-flow-merge-packet',
-      profileStatus: 'merge_required',
-      reason: 'profile_merge_required',
-      receiptPath: '/tmp/opl-flow-receipt.json',
-      status: 'opl_flow_optimize_attention_required',
-      workflowStatus: 'profile_merge_required',
-    });
-  });
-
-  it('records a Framework command failure without claiming optimization completed', () => {
-    const next = appendPostAppUpdateReconcileResult(
-      {
-        currentAppVersion: '26.6.5',
-        events: [],
-      },
-      { currentVersion: '26.6.5', targetVersion: '26.6.5' },
-      {
-        error: { message: 'managed update lock is held' },
-        ok: false,
-      },
-      { now: () => new Date('2026-06-07T01:37:00.000Z') }
-    );
-
-    expect(next.lastEvent).toMatchObject({
-      error: 'managed update lock is held',
-      reason: 'framework_command_failed',
-      status: 'opl_flow_optimize_failed',
     });
   });
 });

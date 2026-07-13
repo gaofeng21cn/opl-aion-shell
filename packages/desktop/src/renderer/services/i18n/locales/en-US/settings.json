@@ -2405,7 +2405,7 @@
         "complete": "The recommended repair finished and status was checked again.",
         "confirmTitle": "Confirm recommended repair",
         "confirmWillChange": "Will run the currently recommended safe OPL repair, then check status again.",
-        "confirmWillNotChange": "Will not overwrite local developer checkouts, write domain truth, delete user data, or silently apply restart-required updates.",
+        "confirmWillNotChange": "Will not overwrite local developer checkouts, write domain truth, or delete user data. A staged runtime update activates only after an App restart.",
         "confirmRecovery": "If more work is needed, this page will show the next recommendation.",
         "confirmAction": "Run recommended repair"
       },
@@ -2672,7 +2672,7 @@
         "willRepair": "Run the existing repair action for this component.",
         "willRollback": "Restore this component through its explicit rollback action.",
         "willRollbackTo": "Restore this component using rollback reference {{ref}}.",
-        "willNotApplyUnsafe": "It will not update dirty or developer checkouts, write domain truth, or silently apply restart-required work.",
+        "willNotApplyUnsafe": "It will not update dirty or developer checkouts or write domain truth. A staged runtime update activates only after an App restart.",
         "willNotRollback": "It will not delete user data, hide the receipt trail, or roll back other components.",
         "rollbackRef": "Recovery reference: {{ref}}",
         "receiptRef": "Receipt reference: {{ref}}",

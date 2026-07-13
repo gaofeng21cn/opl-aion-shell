@@ -224,14 +224,15 @@ describe('OPL runtime bridge command whitelist', () => {
       args: ['update', 'plan', '--json'],
       timeoutMs: MANAGED_UPDATE_READ_TIMEOUT_MS,
     });
-    expect(__oplRuntimeBridgeTest.buildOplFlowPostAppUpdateReconcileCommand()).toEqual({
+    expect(__oplRuntimeBridgeTest.buildUpdateApplyPlanCommand()).toEqual({
       surface: 'update_apply',
-      args: ['packages', 'update', 'opl-flow', '--json'],
+      args: ['update', 'apply', '--json'],
       timeoutMs: 900_000,
     });
     expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_base' })).toEqual({
       surface: 'update_apply',
       args: ['update', 'apply', '--json'],
+      timeoutMs: 900_000,
     });
     expect(
       __oplRuntimeBridgeTest.buildUpdateRepairCommand({

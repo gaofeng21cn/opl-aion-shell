@@ -17,6 +17,7 @@ import {
 } from '@/renderer/services/managedUpdateProjection';
 
 export type ManagedUpdateMaintenanceTrigger =
+  | 'app_carrier_changed'
   | 'app_startup_after_core_ready'
   | 'daily_background_maintenance'
   | 'manual_check_updates'
@@ -35,6 +36,7 @@ export type ManagedUpdateMaintenanceAction = {
   at: string;
   receiptRef?: string;
   reloadGuidance?: string;
+  componentIds?: ManagedUpdateComponentId[];
 };
 
 export type ManagedUpdateMaintenanceSnapshot = {
@@ -49,6 +51,8 @@ export type ManagedUpdateMaintenanceSnapshot = {
   lastAction: ManagedUpdateMaintenanceAction | null;
   lastSkipReason: string | null;
   reloadGuidance: string | null;
+  restartRequired: boolean;
+  lastReconciledCarrierCheckpoint: string | null;
   lockStatus: string | null;
   result: IOplRuntimeCommandResult | null;
 };
@@ -58,15 +62,6 @@ const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
 const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base', 'opl_packages']);
-const ACTIONABLE_BACKGROUND_STATES = new Set(['update_available', 'staged', 'needs_reload']);
-const DEVELOPER_CHECKOUT_SOURCES = new Set([
-  'developer_checkout',
-  'developer_mode',
-  'env_override',
-  'local_checkout',
-  'sibling_workspace',
-  'source_checkout',
-]);
 
 let retryCount = 0;
 let schedulerStarted = false;
@@ -87,6 +82,8 @@ const EMPTY_SNAPSHOT: ManagedUpdateMaintenanceSnapshot = {
   lastAction: null,
   lastSkipReason: null,
   reloadGuidance: null,
+  restartRequired: false,
+  lastReconciledCarrierCheckpoint: null,
   lockStatus: null,
   result: null,
 };
@@ -164,7 +161,30 @@ function readLockStatus(result: IOplRuntimeCommandResult | null | undefined): st
 
 function readReloadGuidance(result: IOplRuntimeCommandResult | null | undefined): string | null {
   const root = managedUpdateRoot(result);
-  return stringValue(root.reload_guidance) ?? stringValue(root.restart_guidance);
+  const rootGuidance = stringValue(root.reload_guidance) ?? stringValue(root.restart_guidance);
+  if (rootGuidance) return rootGuidance;
+  const components = componentRecords(root);
+  for (const component of components) {
+    const postApplyGuidance = nestedRecord(component, 'post_apply_guidance');
+    const receipt = nestedRecord(component, 'receipt');
+    const guidance =
+      stringValue(component.reload_guidance) ??
+      stringValue(component.restart_guidance) ??
+      stringValue(postApplyGuidance?.reload_guidance) ??
+      stringValue(receipt?.reload_guidance);
+    if (guidance) return guidance;
+  }
+  return null;
+}
+
+function readRestartRequired(result: IOplRuntimeCommandResult | null | undefined): boolean {
+  const root = managedUpdateRoot(result);
+  return (
+    booleanValue(root.restart_required) ||
+    componentRecords(root).some(
+      (component) => booleanValue(component.needs_restart) || booleanValue(component.restart_required)
+    )
+  );
 }
 
 function readReceiptRef(result: IOplRuntimeCommandResult | null | undefined, componentId: string): string | null {
@@ -206,6 +226,17 @@ function resultErrorMessage(result: IOplRuntimeCommandResult | null | undefined)
   if (result?.ok === false) {
     return result.error?.message ?? 'OPL managed update command failed';
   }
+  const root = managedUpdateRoot(result);
+  const executionStatus =
+    stringValue(nestedRecord(root, 'execution')?.status) ??
+    stringValue(nestedRecord(root, 'summary')?.execution_status);
+  if (executionStatus === 'failed' || executionStatus === 'failed_with_repair') {
+    return (
+      stringValue(nestedRecord(root, 'summary')?.message) ??
+      stringValue(root.message) ??
+      `OPL managed update ${executionStatus}`
+    );
+  }
   return null;
 }
 
@@ -222,6 +253,7 @@ function managedUpdateAction(input: {
   at: string;
   receiptRef?: string | null;
   reloadGuidance?: string | null;
+  componentIds?: ManagedUpdateComponentId[];
 }): ManagedUpdateMaintenanceAction {
   return {
     kind: input.kind,
@@ -230,6 +262,7 @@ function managedUpdateAction(input: {
     at: input.at,
     ...(input.receiptRef ? { receiptRef: input.receiptRef } : {}),
     ...(input.reloadGuidance ? { reloadGuidance: input.reloadGuidance } : {}),
+    ...(input.componentIds && input.componentIds.length > 0 ? { componentIds: input.componentIds } : {}),
   };
 }
 
@@ -257,6 +290,11 @@ function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | n
     at,
     receiptRef: stringValue(value.receiptRef),
     reloadGuidance: stringValue(value.reloadGuidance),
+    componentIds: Array.isArray(value.componentIds)
+      ? value.componentIds
+          .map(canonicalManagedUpdateComponentId)
+          .filter((entry): entry is ManagedUpdateComponentId => Boolean(entry))
+      : undefined,
   });
 }
 
@@ -272,6 +310,8 @@ function readPersistedSnapshot(): Partial<ManagedUpdateMaintenanceSnapshot> {
       lastAction: readPersistedAction(parsed.lastAction),
       lastSkipReason: stringValue(parsed.lastSkipReason),
       reloadGuidance: stringValue(parsed.reloadGuidance),
+      restartRequired: booleanValue(parsed.restartRequired),
+      lastReconciledCarrierCheckpoint: stringValue(parsed.lastReconciledCarrierCheckpoint),
       lockStatus: stringValue(parsed.lockStatus),
       lastTrigger: stringValue(parsed.lastTrigger) as ManagedUpdateMaintenanceTrigger | null,
       executionStatus:
@@ -293,6 +333,8 @@ function persistSnapshot(): void {
         lastAction: snapshot.lastAction,
         lastSkipReason: snapshot.lastSkipReason,
         reloadGuidance: snapshot.reloadGuidance,
+        restartRequired: snapshot.restartRequired,
+        lastReconciledCarrierCheckpoint: snapshot.lastReconciledCarrierCheckpoint,
         lockStatus: snapshot.lockStatus,
         lastTrigger: snapshot.lastTrigger,
         executionStatus: snapshot.executionStatus,
@@ -323,10 +365,7 @@ function scheduleNextRun(delayMs: number): void {
   if (!schedulerStarted) return;
   if (schedulerTimer) clearTimeout(schedulerTimer);
   schedulerTimer = setTimeout(() => {
-    void executeManagedUpdateRead('check', {
-      background: true,
-      trigger: 'daily_background_maintenance',
-    });
+    void executeManagedUpdateReconciliation('daily_background_maintenance');
   }, delayMs);
 }
 
@@ -336,94 +375,78 @@ async function invokeRead(operation: ManagedUpdateReadOperation): Promise<IOplRu
   return ipcBridge.oplRuntime.getUpdateStatus.invoke();
 }
 
-function skipReasonForComponent(component: Record<string, unknown>): string | null {
-  const componentId = canonicalManagedUpdateComponentId(
-    component.component_id ?? component.componentId ?? component.id
-  );
-  if (!componentId) return null;
-  const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
-  const actionableState = ACTIONABLE_BACKGROUND_STATES.has(state);
-  const explicitAutoApply = autoApplyInfo(component);
-  const safeToApply =
-    booleanValue(component.safe_to_apply) || booleanValue(component.apply_allowed) || booleanValue(component.can_apply);
-  const needsRestart = booleanValue(component.needs_restart) || booleanValue(component.restart_required);
-  const source = stringValue(component.source ?? component.install_origin ?? component.checkout_source);
-  const dirtyCheckout =
-    state === 'dirty' ||
-    booleanValue(component.dirty_checkout) ||
-    booleanValue(component.checkout_dirty) ||
-    booleanValue(component.working_tree_dirty) ||
-    booleanValue(nestedRecord(component, 'git')?.dirty);
-  const developerCheckout = Boolean(source && DEVELOPER_CHECKOUT_SOURCES.has(source));
-  const manualRequired =
-    state === 'manual_required' ||
-    state === 'host_executor_required' ||
-    state === 'skipped_manual_required' ||
-    booleanValue(component.host_executor_required) ||
-    booleanValue(component.hostExecutorRequired) ||
-    booleanValue(component.manual_required) ||
-    Boolean(stringValue(component.manual_guidance));
-  const applyRequested = explicitAutoApply
-    ? explicitAutoApply.eligible || actionableState || safeToApply || manualRequired
-    : actionableState || safeToApply || manualRequired;
-  if (componentId === 'opl_app' && applyRequested) {
-    if (state === 'host_executor_required') {
-      return `${componentId}: host_executor_required`;
-    }
-    if (manualRequired) {
-      return `${componentId}: manual_required`;
-    }
-    return `${componentId}: ${needsRestart ? 'restart_required' : 'manual_confirmation_required'}`;
-  }
-  if (!applyRequested) {
-    return null;
-  }
-  if (dirtyCheckout) {
-    return `${componentId}: dirty_checkout`;
-  }
-  if (developerCheckout) {
-    return `${componentId}: developer_checkout`;
-  }
-  if (manualRequired) {
-    return `${componentId}: manual_required`;
-  }
-  if (componentId === 'opl_packages') {
-    return `${componentId}: refresh_only`;
-  }
-  if (componentId !== 'opl_base') {
-    return `${componentId}: unsupported_component`;
-  }
-  if (explicitAutoApply) {
-    if (explicitAutoApply.blockedReasons.length > 0) {
-      return `${componentId}: ${explicitAutoApply.blockedReasons.join(', ')}`;
-    }
-    if (!explicitAutoApply.eligible || !explicitAutoApply.appBackgroundSafe) {
-      return `${componentId}: not_safe_to_apply`;
-    }
-    if (!explicitAutoApply.commandRef) {
-      return `${componentId}: missing_command_ref`;
-    }
-  } else if (!safeToApply) {
-    return `${componentId}: not_safe_to_apply`;
-  }
-  if (needsRestart) {
-    return `${componentId}: restart_required`;
-  }
-  return null;
+function currentCarrierCheckpoint(): string {
+  const appVersion = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
+  return `${appVersion}:${__SHELL_VERSION__}`;
 }
 
-function backgroundRefreshSkipReasons(result: IOplRuntimeCommandResult): string[] {
-  if (result.ok === false) {
-    return [];
-  }
-  const skipReasons: string[] = [];
+function backgroundPlanDecision(result: IOplRuntimeCommandResult): {
+  eligibleComponentIds: ManagedUpdateComponentId[];
+  attentionReasons: string[];
+} {
+  const eligibleComponentIds: ManagedUpdateComponentId[] = [];
+  const attentionReasons: string[] = [];
+  if (result.ok === false) return { eligibleComponentIds, attentionReasons };
+
   for (const component of componentRecords(managedUpdateRoot(result))) {
-    const skipReason = skipReasonForComponent(component);
-    if (skipReason) {
-      skipReasons.push(skipReason);
+    const componentId = canonicalManagedUpdateComponentId(
+      component.component_id ?? component.componentId ?? component.id
+    );
+    if (!componentId) continue;
+    const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
+    const autoApply = autoApplyInfo(component);
+    const manualRequired =
+      state === 'manual_required' ||
+      state === 'host_executor_required' ||
+      state === 'skipped_manual_required' ||
+      booleanValue(component.host_executor_required) ||
+      booleanValue(component.hostExecutorRequired) ||
+      booleanValue(component.manual_required) ||
+      Boolean(stringValue(component.manual_guidance));
+
+    if (componentId === 'opl_app') {
+      if (autoApply?.eligible || manualRequired) {
+        attentionReasons.push(
+          `${componentId}: ${state === 'host_executor_required' ? state : 'carrier_update_route_required'}`
+        );
+      }
+      continue;
+    }
+    if (autoApply?.eligible && autoApply.appBackgroundSafe && autoApply.commandRef) {
+      eligibleComponentIds.push(componentId);
+      continue;
+    }
+    if (autoApply?.blockedReasons.length) {
+      attentionReasons.push(`${componentId}: ${autoApply.blockedReasons.join(', ')}`);
+      continue;
+    }
+    if (autoApply?.eligible && !autoApply.appBackgroundSafe) {
+      attentionReasons.push(`${componentId}: framework_background_apply_not_safe`);
+      continue;
+    }
+    if (autoApply?.eligible && !autoApply.commandRef) {
+      attentionReasons.push(`${componentId}: framework_command_ref_missing`);
+      continue;
+    }
+    if (manualRequired) {
+      attentionReasons.push(`${componentId}: ${state === 'host_executor_required' ? state : 'manual_required'}`);
+      continue;
+    }
+    if (!autoApply && ['update_available', 'staged', 'needs_reload'].includes(state)) {
+      attentionReasons.push(`${componentId}: framework_auto_apply_not_declared`);
     }
   }
-  return skipReasons;
+  return { eligibleComponentIds, attentionReasons };
+}
+
+function projectBackgroundPlan(result: IOplRuntimeCommandResult): ReturnType<typeof backgroundPlanDecision> {
+  const decision = backgroundPlanDecision(result);
+  emit({
+    lastSkipReason: decision.attentionReasons.length > 0 ? decision.attentionReasons.join('; ') : null,
+    reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance,
+    restartRequired: readRestartRequired(result),
+  });
+  return decision;
 }
 
 function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
@@ -446,17 +469,6 @@ function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: s
       message,
     },
   };
-}
-
-function projectBackgroundRefresh(result: IOplRuntimeCommandResult): IOplRuntimeCommandResult {
-  const skipReasons = backgroundRefreshSkipReasons(result);
-  if (skipReasons.length > 0) {
-    emit({ lastSkipReason: skipReasons.join('; ') });
-  } else {
-    emit({ lastSkipReason: null });
-  }
-  emit({ reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance });
-  return result;
 }
 
 export function getManagedUpdateMaintenanceSnapshot(): ManagedUpdateMaintenanceSnapshot {
@@ -503,10 +515,10 @@ export async function executeManagedUpdateRead(
 
   inflight = invokeRead(operation)
     .then(async (readResult): Promise<IOplRuntimeCommandResult | null> => {
-      const result =
-        input.background && (operation === 'check' || operation === 'plan')
-          ? projectBackgroundRefresh(readResult)
-          : readResult;
+      if (input.background && (operation === 'check' || operation === 'plan')) {
+        projectBackgroundPlan(readResult);
+      }
+      const result = readResult;
       const lastFailure = resultErrorMessage(result);
       const executionStatus = readExecutionStatus(result);
       retryCount = lastFailure ? retryCount + 1 : 0;
@@ -518,6 +530,7 @@ export async function executeManagedUpdateRead(
         lastFailure,
         lockStatus: readLockStatus(result),
         reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance,
+        restartRequired: readRestartRequired(result),
         result,
       });
       scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
@@ -528,6 +541,103 @@ export async function executeManagedUpdateRead(
       emit({
         running: false,
         operation: null,
+        executionStatus: 'failed',
+        lastRunAt: isoNow(),
+        lastFailure: error instanceof Error ? error.message : String(error),
+      });
+      scheduleNextRun(retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
+      return null;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+
+  return inflight;
+}
+
+export async function executeManagedUpdateReconciliation(
+  trigger: 'app_carrier_changed' | 'app_startup_after_core_ready' | 'daily_background_maintenance'
+): Promise<IOplRuntimeCommandResult | null> {
+  if (inflight) {
+    emit({
+      executionStatus: 'skipped_locked',
+      lastTrigger: trigger,
+      lockStatus: snapshot.lockStatus ?? 'local_in_progress',
+    });
+    return inflight;
+  }
+
+  emit({
+    running: true,
+    operation: 'check',
+    busyAction: null,
+    executionStatus: 'running',
+    lastTrigger: trigger,
+    lastFailure: snapshot.lastFailure,
+  });
+
+  inflight = (async (): Promise<IOplRuntimeCommandResult | null> => {
+    let result = await invokeRead('check');
+    let lastFailure = resultErrorMessage(result);
+    let planResult: IOplRuntimeCommandResult | null = null;
+    let eligibleComponentIds: ManagedUpdateComponentId[] = [];
+
+    if (!lastFailure) {
+      emit({ operation: 'plan' });
+      planResult = await invokeRead('plan');
+      result = planResult;
+      lastFailure = resultErrorMessage(result);
+    }
+
+    if (!lastFailure && planResult) {
+      const decision = projectBackgroundPlan(planResult);
+      eligibleComponentIds = decision.eligibleComponentIds;
+    }
+
+    if (!lastFailure && eligibleComponentIds.length > 0) {
+      emit({ operation: 'apply', busyAction: 'auto_apply:managed_update_plan' });
+      result = await ipcBridge.oplRuntime.applyUpdatePlan.invoke();
+      lastFailure = resultErrorMessage(result);
+      const actionAt = isoNow();
+      const reloadGuidance = readReloadGuidance(result) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance;
+      emit({
+        lastAction: managedUpdateAction({
+          kind: 'auto_apply',
+          componentId: eligibleComponentIds[0],
+          componentIds: eligibleComponentIds,
+          status: summarizeResultStatus(result),
+          at: actionAt,
+          receiptRef: eligibleComponentIds.map((componentId) => readReceiptRef(result, componentId)).find(Boolean),
+          reloadGuidance,
+        }),
+        reloadGuidance,
+      });
+    }
+
+    retryCount = lastFailure ? retryCount + 1 : 0;
+    const restartRequired = readRestartRequired(result) || readRestartRequired(planResult);
+    emit({
+      running: false,
+      operation: null,
+      busyAction: null,
+      executionStatus: readExecutionStatus(result),
+      lastRunAt: isoNow(),
+      lastFailure,
+      lockStatus: readLockStatus(result),
+      reloadGuidance: readReloadGuidance(result) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance,
+      restartRequired,
+      ...(lastFailure ? {} : { lastReconciledCarrierCheckpoint: currentCarrierCheckpoint() }),
+      result,
+    });
+    scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
+    return result;
+  })()
+    .catch((error: unknown): IOplRuntimeCommandResult | null => {
+      retryCount += 1;
+      emit({
+        running: false,
+        operation: null,
+        busyAction: null,
         executionStatus: 'failed',
         lastRunAt: isoNow(),
         lastFailure: error instanceof Error ? error.message : String(error),
@@ -630,6 +740,7 @@ export async function executeManagedUpdateMutation(
         }),
         lockStatus: readLockStatus(result),
         reloadGuidance,
+        restartRequired: readRestartRequired(result),
         result,
       });
       scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
@@ -659,10 +770,11 @@ export function startManagedUpdateMaintenanceScheduler(): () => void {
   if (!schedulerStarted) {
     schedulerStarted = true;
     scheduleNextRun(DAILY_BACKGROUND_INTERVAL_MS);
-    void executeManagedUpdateRead('check', {
-      background: true,
-      trigger: 'app_startup_after_core_ready',
-    });
+    const trigger =
+      snapshot.lastReconciledCarrierCheckpoint === currentCarrierCheckpoint()
+        ? 'app_startup_after_core_ready'
+        : 'app_carrier_changed';
+    void executeManagedUpdateReconciliation(trigger);
   }
 
   return () => {

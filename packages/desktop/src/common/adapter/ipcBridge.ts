@@ -657,6 +657,10 @@ export const oplRuntime = {
     'opl-runtime.get-managed-update-plan',
     '/api/opl-runtime/update-plan'
   ),
+  applyUpdatePlan: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.run-managed-update-plan-apply',
+    '/api/opl-runtime/update-plan-apply'
+  ),
   applyUpdateComponent: runtimeProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
     'opl-runtime.run-managed-update-apply',
     '/api/opl-runtime/update-apply'

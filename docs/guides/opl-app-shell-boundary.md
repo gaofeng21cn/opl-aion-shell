@@ -41,6 +41,36 @@ The shell bridge uses the App/runtime contract surfaces as its primary path:
 
 `opl runtime app-operator-drilldown --detail full --json` is a diagnostic exception. Renderer pages must load normal Runtime status from `opl app state`; full drilldown is user-triggered diagnostic detail and must not become the default page-state source.
 
+## Managed Update Consumption
+
+The shell consumes the Framework-managed lifecycle; it does not maintain a
+second updater policy. After core readiness on every launch, and again during
+daily background maintenance, the renderer requests this sequence:
+
+1. `opl update check --json`
+2. `opl update plan --json`
+3. `opl update apply --json`, only when the Framework plan declares at least
+   one OPL Base or OPL Packages component `auto_apply.eligible`,
+   `auto_apply.app_background_safe`, and supplies its command reference.
+
+The apply request is intentionally component-neutral. Framework owns package
+enumeration, dependency closure, receipts, rollback, and the final eligibility
+recheck. The shell must not copy package, Skill, dependency, or conflict lists,
+and it must not translate an OPL Packages plan into per-package commands.
+
+The running App release version and shell version form a carrier-neutral local
+checkpoint. A new checkpoint covers standard-updater activation, DMG or package
+manager replacement, and Full/offline carrier replacement equally. The
+checkpoint is committed only after check and plan, plus apply when eligible,
+complete successfully; a failed run remains pending and is retried. Ordinary
+successful launches still reconcile, so managed lifecycle drift is not tied to
+how the App bytes arrived.
+
+OPL App binary replacement remains on its host/carrier route and is never sent
+through Framework apply. The shell projects Framework attention reasons,
+receipts, reload guidance, and restart-required state. It does not auto-apply a
+component when Framework omits or denies the `auto_apply` declaration.
+
 ## Renderer Consumption
 
 Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visualization_projection` parsing is kept as an isolated adapter for historical full-detail payloads and tests. New GUI work should not add top-level `runtime_visualization_projection` fallback to the main renderer path.

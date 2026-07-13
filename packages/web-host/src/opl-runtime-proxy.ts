@@ -209,6 +209,12 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
       return { surface: 'update_check', args: ['update', 'check', '--json'], timeoutMs: MAINTENANCE_TIMEOUT_MS };
     case 'update-plan':
       return { surface: 'update_plan', args: ['update', 'plan', '--json'] };
+    case 'update-plan-apply':
+      return {
+        surface: 'update_apply',
+        args: ['update', 'apply', '--json'],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
+      };
     case 'update-apply': {
       const lifecycleId = assertManagedUpdateTarget(body);
       return lifecycleId === 'opl_packages'

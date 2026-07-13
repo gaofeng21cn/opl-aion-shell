@@ -106,6 +106,8 @@ const maintenance: ManagedUpdateMaintenanceSnapshot = {
   lastAction: null,
   lastSkipReason: null,
   reloadGuidance: null,
+  restartRequired: false,
+  lastReconciledCarrierCheckpoint: null,
   lockStatus: null,
   result: {
     stdout: '{}',

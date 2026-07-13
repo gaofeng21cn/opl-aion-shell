@@ -50,6 +50,8 @@ const maintenance: ManagedUpdateMaintenanceSnapshot = {
   lastAction: null,
   lastSkipReason: null,
   reloadGuidance: null,
+  restartRequired: false,
+  lastReconciledCarrierCheckpoint: null,
   executionStatus: 'idle',
   checkNow: vi.fn(),
   applySafeCandidates: vi.fn(),
