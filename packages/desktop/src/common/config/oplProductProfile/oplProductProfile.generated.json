@@ -475,6 +475,22 @@
         "default_state": "closed",
         "opens_for": ["artifact", "file", "url", "result"]
       },
+      "review_surface": {
+        "host_surface": "existing_files_changes_diff_surface",
+        "default_state": "closed",
+        "opens_on_user_request": true,
+        "review_targets": ["uncommitted", "base_branch", "commit", "custom"],
+        "delivery_modes": ["inline", "detached"],
+        "default_section": "unstaged",
+        "sections": ["unstaged", "staged", "commit", "branch", "last_turn"],
+        "capabilities": ["pull_request_context", "inline_comments", "stage", "commit", "push"],
+        "pull_request_context_dependency": "gh",
+        "pull_request_context_unavailable_policy": "show_explicit_unavailable_state",
+        "git_authority": "existing_codex_git_integration",
+        "shell_role": "thin_adapter_only",
+        "duplicate_git_store_allowed": false,
+        "legacy_equal_weight_review_tab_allowed": false
+      },
       "on_demand_task_tools": {
         "terminal": {
           "entry_points": ["environment", "task_need"],
