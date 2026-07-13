@@ -229,6 +229,15 @@ describe('ThreadCoordinationSection', () => {
   });
 
   it('passes a real persisted Codex session id as a hint and supports explicit sender selection', async () => {
+    mocks.getConversation.mockResolvedValue({
+      id: 'aion-conversation',
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        acp_session_id: 'legacy-acp-session',
+        canonical_thread_id: 'source',
+      },
+    });
     mocks.getOverview.mockResolvedValue(overview({ currentThreadId: null, currentProjectId: null }));
     renderSection();
 

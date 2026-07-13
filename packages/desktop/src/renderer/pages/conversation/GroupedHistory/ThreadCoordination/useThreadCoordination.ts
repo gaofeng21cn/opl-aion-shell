@@ -16,6 +16,7 @@ import type {
   ThreadCoordinationResolveServerRequest,
   ThreadCoordinationResolveServerRequestResult,
 } from '@/common/types/codex/threadCoordination';
+import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 
 const PENDING_REQUEST_POLL_MS = 2_000;
 
@@ -41,9 +42,7 @@ async function sourceThreadHint(conversationId: string | undefined): Promise<str
   if (!conversationId) return undefined;
   try {
     const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
-    if (conversation?.type !== 'acp' || conversation.extra.backend !== 'codex') return undefined;
-    const sessionId = conversation.extra.acp_session_id?.trim();
-    return sessionId || undefined;
+    return canonicalCodexThreadId(conversation) ?? undefined;
   } catch {
     return undefined;
   }
