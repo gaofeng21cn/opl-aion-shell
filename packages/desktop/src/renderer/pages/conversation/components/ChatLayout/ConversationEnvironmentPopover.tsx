@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { GitWorkspaceHandoffMetadata } from '@/common/types/platform/gitWorkspace';
+import type { GitWorkspaceHandoffMetadata, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import {
   summarizeCurrentTaskReferences,
   type ConversationCurrentTask,
@@ -65,7 +65,8 @@ const ConversationEnvironmentPopover: React.FC<{
   );
   const [activeWorkspace, setActiveWorkspace] = useState(persistedWorkspace);
   const [activeHandoff, setActiveHandoff] = useState<GitWorkspaceHandoffMetadata | null>(persistedHandoff);
-  const [workspaceSnapshot, setWorkspaceSnapshot] = useState<{ branch?: string; changeCount?: number }>({});
+  const [gitInspection, setGitInspection] = useState<GitWorkspaceInspection>();
+  const [gitUnavailable, setGitUnavailable] = useState(false);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [browserUrl, setBrowserUrl] = useState('');
   const [browserUrlInvalid, setBrowserUrlInvalid] = useState(false);
@@ -87,6 +88,7 @@ const ConversationEnvironmentPopover: React.FC<{
 
     return {
       workspace: activeWorkspace,
+      isRemote: conversation?.type === 'remote',
       locality:
         conversation?.type === 'remote'
           ? t('conversation.environment.remote')
@@ -113,27 +115,27 @@ const ConversationEnvironmentPopover: React.FC<{
 
   useEffect(() => {
     let cancelled = false;
-    setWorkspaceSnapshot({});
+    setGitInspection(undefined);
+    setGitUnavailable(false);
     if (!summary.workspace) return undefined;
+    if (summary.isRemote) {
+      setGitUnavailable(true);
+      return undefined;
+    }
 
-    void Promise.allSettled([
-      ipcBridge.fileSnapshot.getInfo.invoke({ workspace: summary.workspace }),
-      ipcBridge.fileSnapshot.compare.invoke({ workspace: summary.workspace }),
-    ]).then(([infoResult, compareResult]) => {
-      if (cancelled) return;
-      setWorkspaceSnapshot({
-        branch: infoResult.status === 'fulfilled' ? text(infoResult.value.branch) : undefined,
-        changeCount:
-          compareResult.status === 'fulfilled'
-            ? compareResult.value.staged.length + compareResult.value.unstaged.length
-            : undefined,
-      });
-    });
+    void ipcBridge.gitWorkspace.inspect.invoke({ cwd: summary.workspace }).then(
+      (inspection) => {
+        if (!cancelled) setGitInspection(inspection);
+      },
+      () => {
+        if (!cancelled) setGitUnavailable(true);
+      }
+    );
 
     return () => {
       cancelled = true;
     };
-  }, [summary.workspace]);
+  }, [summary.isRemote, summary.workspace]);
 
   const renderReferenceGroup = (label: string, refs: string[]) => (
     <ReferenceGroup
@@ -145,6 +147,31 @@ const ConversationEnvironmentPopover: React.FC<{
   const hasTaskReferences = Boolean(
     summary.references.artifacts.length || summary.references.evidence.length || summary.references.receipts.length
   );
+  const inspectedWorkspace = text(gitInspection?.cwd) ?? summary.workspace;
+  const repositoryRoot = text(gitInspection?.root);
+  const currentBranch = text(gitInspection?.currentBranch);
+  const gitChanges = gitInspection
+    ? [
+        gitInspection.dirty ? t('conversation.environment.dirty') : t('conversation.environment.clean'),
+        gitInspection.staged ? t('conversation.environment.staged') : undefined,
+      ]
+        .filter(Boolean)
+        .join(' / ')
+    : undefined;
+  const pullRequest = gitInspection?.pullRequest.status === 'available' ? gitInspection.pullRequest : undefined;
+  const pullRequestSummary = pullRequest
+    ? [
+        pullRequest.isDraft ? t('conversation.environment.draft') : undefined,
+        `#${pullRequest.number}`,
+        pullRequest.title,
+        `(${pullRequest.headRefName} -> ${pullRequest.baseRefName})`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : undefined;
+  const pullRequestUnavailable =
+    gitInspection?.pullRequest.status === 'unavailable' &&
+    ['gh_command_failed', 'gh_not_found', 'invalid_response'].includes(gitInspection.pullRequest.reason);
   const openBrowser = () => {
     const url = normalizeBrowserUrl(browserUrl);
     setBrowserUrlInvalid(!url);
@@ -157,22 +184,46 @@ const ConversationEnvironmentPopover: React.FC<{
       <div className='conversation-environment-popover__section'>
         <div className='conversation-environment-popover__row'>
           <span>{t('conversation.environment.workspace')}</span>
-          <b title={summary.workspace}>{summary.workspace ?? t('conversation.environment.noWorkspace')}</b>
+          <b title={inspectedWorkspace}>{inspectedWorkspace ?? t('conversation.environment.noWorkspace')}</b>
         </div>
         <div className='conversation-environment-popover__row'>
           <span>{t('conversation.environment.location')}</span>
           <b>{summary.locality}</b>
         </div>
-        {workspaceSnapshot.branch && (
+        {gitUnavailable && (
           <div className='conversation-environment-popover__row'>
-            <span>{t('conversation.environment.branch')}</span>
-            <b title={workspaceSnapshot.branch}>{workspaceSnapshot.branch}</b>
+            <span>{t('conversation.environment.git')}</span>
+            <b>{t('conversation.environment.unavailable')}</b>
           </div>
         )}
-        {workspaceSnapshot.changeCount !== undefined && (
+        {repositoryRoot && (
+          <div className='conversation-environment-popover__row'>
+            <span>{t('conversation.environment.root')}</span>
+            <b title={repositoryRoot}>{repositoryRoot}</b>
+          </div>
+        )}
+        {currentBranch && (
+          <div className='conversation-environment-popover__row'>
+            <span>{t('conversation.environment.branch')}</span>
+            <b title={currentBranch}>{currentBranch}</b>
+          </div>
+        )}
+        {gitChanges && (
           <div className='conversation-environment-popover__row'>
             <span>{t('conversation.environment.changes')}</span>
-            <b>{workspaceSnapshot.changeCount}</b>
+            <b>{gitChanges}</b>
+          </div>
+        )}
+        {pullRequestSummary && pullRequest && (
+          <div className='conversation-environment-popover__row'>
+            <span>{t('conversation.environment.pullRequest')}</span>
+            <b title={`${pullRequestSummary}\n${pullRequest.url}`}>{pullRequestSummary}</b>
+          </div>
+        )}
+        {pullRequestUnavailable && (
+          <div className='conversation-environment-popover__row'>
+            <span>{t('conversation.environment.pullRequest')}</span>
+            <b>{t('conversation.environment.unavailable')}</b>
           </div>
         )}
         {summary.subtasks !== undefined && (

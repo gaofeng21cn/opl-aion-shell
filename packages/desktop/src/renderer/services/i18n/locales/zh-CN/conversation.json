@@ -209,6 +209,7 @@
     "title": "环境",
     "workspace": "工作区",
     "noWorkspace": "无活动工作区",
+    "root": "仓库根目录",
     "location": "位置",
     "local": "本机",
     "worktree": "Worktree",
@@ -224,8 +225,13 @@
     "worktreeUnavailable": "现有 Worktree 在接收新的本机改动前需要人工协调。",
     "worktreeCreateFailed": "无法创建或复用任务 Worktree。",
     "git": "Git",
-    "branch": "分支",
+    "branch": "当前分支",
     "changes": "更改",
+    "clean": "干净",
+    "dirty": "有未提交更改",
+    "staged": "已暂存",
+    "pullRequest": "拉取请求",
+    "draft": "草稿",
     "subtasks": "子任务",
     "sources": "来源",
     "taskReferences": "任务引用",
@@ -235,7 +241,7 @@
     "openFiles": "打开文件",
     "filesOpen": "文件已打开",
     "moreRefs": "另有 {{count}} 项",
-    "unavailable": "暂无"
+    "unavailable": "不可用"
   },
   "sidePanel": {
     "title": "文件与更改",

@@ -4,16 +4,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const snapshotApi = vi.hoisted(() => ({
-  getInfo: vi.fn(),
-  compare: vi.fn(),
+const gitWorkspaceApi = vi.hoisted(() => ({
+  inspect: vi.fn(),
 }));
 const workspaceEvents = vi.hoisted(() => ({ toggle: vi.fn() }));
 const previewContext = vi.hoisted(() => ({ openPreview: vi.fn() }));
 const handoffApi = vi.hoisted(() => ({
   getOverview: vi.fn(),
   execute: vi.fn(),
-  inspect: vi.fn(),
   ensureManagedWorktree: vi.fn(),
   updateConversation: vi.fn(),
 }));
@@ -33,17 +31,13 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    fileSnapshot: {
-      getInfo: { invoke: snapshotApi.getInfo },
-      compare: { invoke: snapshotApi.compare },
+    gitWorkspace: {
+      inspect: { invoke: gitWorkspaceApi.inspect },
+      ensureManagedWorktree: { invoke: handoffApi.ensureManagedWorktree },
     },
     threadCoordination: {
       getOverview: { invoke: handoffApi.getOverview },
       execute: { invoke: handoffApi.execute },
-    },
-    gitWorkspace: {
-      inspect: { invoke: handoffApi.inspect },
-      ensureManagedWorktree: { invoke: handoffApi.ensureManagedWorktree },
     },
     conversation: {
       update: { invoke: handoffApi.updateConversation },
@@ -75,6 +69,7 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.title': 'Environment',
         'conversation.environment.workspace': 'Workspace',
         'conversation.environment.noWorkspace': 'No active workspace',
+        'conversation.environment.root': 'Repository root',
         'conversation.environment.location': 'Location',
         'conversation.environment.local': 'Local',
         'conversation.environment.worktree': 'Worktree',
@@ -89,8 +84,14 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.localWorkspaceUnavailable': 'Local workspace unavailable',
         'conversation.environment.worktreeUnavailable': 'Worktree needs coordination',
         'conversation.environment.worktreeCreateFailed': 'Worktree creation failed',
+        'conversation.environment.git': 'Git',
         'conversation.environment.branch': 'Branch',
         'conversation.environment.changes': 'Changes',
+        'conversation.environment.clean': 'Clean',
+        'conversation.environment.dirty': 'Dirty',
+        'conversation.environment.staged': 'Staged',
+        'conversation.environment.pullRequest': 'Pull request',
+        'conversation.environment.draft': 'Draft',
         'conversation.environment.subtasks': 'Subtasks',
         'conversation.environment.sources': 'Sources',
         'conversation.environment.taskReferences': 'Task references',
@@ -100,6 +101,7 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.openFiles': 'Open files',
         'conversation.environment.filesOpen': 'Files open',
         'conversation.environment.moreRefs': `${options?.count ?? 0} more`,
+        'conversation.environment.unavailable': 'Unavailable',
         'conversation.sidePanel.browserAddress': 'Web address',
         'conversation.sidePanel.openBrowser': 'Open address',
       })[key] ?? key,
@@ -141,13 +143,25 @@ const acceptedHandoff = {
 
 describe('ConversationEnvironmentPopover', () => {
   beforeEach(() => {
-    snapshotApi.getInfo.mockReset().mockResolvedValue({ mode: 'git-repo', branch: 'feature/advanced-surfaces' });
-    snapshotApi.compare.mockReset().mockResolvedValue({
-      staged: [{ file_path: '/projects/demo/a.ts', relativePath: 'a.ts', operation: 'modify' }],
-      unstaged: [
-        { file_path: '/projects/demo/b.ts', relativePath: 'b.ts', operation: 'create' },
-        { file_path: '/projects/demo/c.ts', relativePath: 'c.ts', operation: 'delete' },
-      ],
+    gitWorkspaceApi.inspect.mockReset().mockResolvedValue({
+      cwd: '/projects/demo',
+      root: '/projects',
+      head: '0123456789abcdef',
+      currentBranch: 'feature/advanced-surfaces',
+      dirty: true,
+      staged: true,
+      branches: [],
+      worktrees: [],
+      pullRequest: {
+        status: 'available',
+        number: 42,
+        title: 'Environment Git summary',
+        url: 'https://github.com/example/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        headRefName: 'feature/advanced-surfaces',
+        baseRefName: 'main',
+      },
     });
     workspaceEvents.toggle.mockReset();
     previewContext.openPreview.mockReset();
@@ -186,16 +200,11 @@ describe('ConversationEnvironmentPopover', () => {
       audit: [],
     });
     handoffApi.execute.mockReset().mockResolvedValue(acceptedHandoff);
-    handoffApi.inspect.mockReset().mockResolvedValue({
-      root: '/projects/demo',
-      head: '1111111111111111111111111111111111111111',
-      currentBranch: 'main',
-    });
     handoffApi.ensureManagedWorktree.mockReset().mockResolvedValue({
       status: 'created',
       repositoryRoot: '/projects/demo',
       targetPath: '/Users/test/.codex/worktrees/demo-task',
-      startRef: 'main',
+      startRef: 'feature/advanced-surfaces',
       startCommit: '1111111111111111111111111111111111111111',
     });
     handoffApi.updateConversation.mockReset().mockResolvedValue(true);
@@ -220,13 +229,19 @@ describe('ConversationEnvironmentPopover', () => {
       />
     );
 
+    expect(screen.queryByTestId('conversation-environment-popover')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
 
     const popover = await screen.findByTestId('conversation-environment-popover');
     await waitFor(() => expect(within(popover).getByText('feature/advanced-surfaces')).toBeInTheDocument());
+    expect(gitWorkspaceApi.inspect).toHaveBeenCalledWith({ cwd: '/projects/demo' });
     expect(within(popover).getByText('/projects/demo')).toBeInTheDocument();
+    expect(within(popover).getByText('/projects')).toBeInTheDocument();
     expect(within(popover).getByText('Local')).toBeInTheDocument();
-    expect(within(popover).getByText('Changes').parentElement).toHaveTextContent('3');
+    expect(within(popover).getByText('Changes').parentElement).toHaveTextContent('Dirty / Staged');
+    expect(within(popover).getByText('Pull request').parentElement).toHaveTextContent(
+      '#42 Environment Git summary (feature/advanced-surfaces -> main)'
+    );
     expect(within(popover).getByText('Subtasks').parentElement).toHaveTextContent('2');
     expect(within(popover).getByText('source://workspace')).toBeInTheDocument();
     expect(within(popover).getByText('artifact://draft')).toBeInTheDocument();
@@ -239,7 +254,7 @@ describe('ConversationEnvironmentPopover', () => {
     expect(within(popover).getByRole('button', { name: 'Open terminal' })).toBeInTheDocument();
   });
 
-  it('shows a factual no-workspace state without requesting snapshot data or inventing task details', async () => {
+  it('shows a factual no-workspace state without requesting Git inspection or inventing task details', async () => {
     render(<ConversationEnvironmentPopover conversation={{ ...conversation, extra: {} } as TChatConversation} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
@@ -251,22 +266,81 @@ describe('ConversationEnvironmentPopover', () => {
     expect(within(popover).queryByText('Changes')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Task references')).not.toBeInTheDocument();
     expect(within(popover).queryByRole('button', { name: 'Open files' })).not.toBeInTheDocument();
-    expect(snapshotApi.getInfo).not.toHaveBeenCalled();
-    expect(snapshotApi.compare).not.toHaveBeenCalled();
+    expect(gitWorkspaceApi.inspect).not.toHaveBeenCalled();
   });
 
-  it('hides branch and change rows when live snapshot reads fail', async () => {
-    snapshotApi.getInfo.mockRejectedValue(new Error('snapshot unavailable'));
-    snapshotApi.compare.mockRejectedValue(new Error('compare unavailable'));
+  it('shows one compact unavailable Git row when local inspection fails', async () => {
+    gitWorkspaceApi.inspect.mockRejectedValue(new Error('git unavailable'));
 
     render(<ConversationEnvironmentPopover conversation={conversation} />);
     fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
 
     const popover = await screen.findByTestId('conversation-environment-popover');
-    await waitFor(() => expect(snapshotApi.compare).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(gitWorkspaceApi.inspect).toHaveBeenCalledTimes(1));
+    expect(within(popover).getByText('Git').parentElement).toHaveTextContent('Unavailable');
+    expect(within(popover).queryByText('Repository root')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Branch')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Changes')).not.toBeInTheDocument();
+    expect(within(popover).queryByText('Pull request')).not.toBeInTheDocument();
+  });
+
+  it('shows unavailable PR context when gh cannot provide a trustworthy read', async () => {
+    gitWorkspaceApi.inspect.mockResolvedValue({
+      cwd: '/projects/demo',
+      root: '/projects/demo',
+      head: '0123456789abcdef',
+      currentBranch: 'feature/no-gh',
+      dirty: false,
+      staged: false,
+      branches: [],
+      worktrees: [],
+      pullRequest: { status: 'unavailable', reason: 'gh_not_found' },
+    });
+
+    render(<ConversationEnvironmentPopover conversation={conversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    await waitFor(() => expect(within(popover).getByText('feature/no-gh')).toBeInTheDocument());
+    expect(within(popover).getByText('Changes').parentElement).toHaveTextContent('Clean');
+    expect(within(popover).getByText('Pull request').parentElement).toHaveTextContent('Unavailable');
+  });
+
+  it('hides PR context when the inspected branch has no current pull request', async () => {
+    gitWorkspaceApi.inspect.mockResolvedValue({
+      cwd: '/projects/demo',
+      root: '/projects/demo',
+      head: '0123456789abcdef',
+      currentBranch: 'feature/no-pr',
+      dirty: false,
+      staged: false,
+      branches: [],
+      worktrees: [],
+      pullRequest: { status: 'unavailable', reason: 'no_current_pull_request' },
+    });
+
+    render(<ConversationEnvironmentPopover conversation={conversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    await waitFor(() => expect(within(popover).getByText('feature/no-pr')).toBeInTheDocument());
+    expect(within(popover).queryByText('Pull request')).not.toBeInTheDocument();
     expect(within(popover).queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
+  it('does not inspect a remote workspace through the local Git bridge', async () => {
+    render(
+      <ConversationEnvironmentPopover
+        conversation={{ ...conversation, type: 'remote', extra: { workspace: '/remote/project' } } as TChatConversation}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    expect(within(popover).getByText('Remote')).toBeInTheDocument();
+    expect(within(popover).getByText('Git').parentElement).toHaveTextContent('Unavailable');
+    expect(within(popover).queryByText('Repository root')).not.toBeInTheDocument();
+    expect(gitWorkspaceApi.inspect).not.toHaveBeenCalled();
   });
 
   it('opens an http browser preview from Environment without restoring the legacy Browser tab', async () => {
@@ -310,11 +384,11 @@ describe('ConversationEnvironmentPopover', () => {
     fireEvent.click(worktree);
 
     await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
-    expect(handoffApi.inspect).toHaveBeenCalledWith({ cwd: '/projects/demo' });
+    expect(gitWorkspaceApi.inspect).toHaveBeenCalledWith({ cwd: '/projects/demo' });
     expect(handoffApi.ensureManagedWorktree).toHaveBeenCalledWith({
       repositoryPath: '/projects/demo',
       taskId: 'thread-1',
-      startRef: 'main',
+      startRef: 'feature/advanced-surfaces',
     });
     expect(handoffApi.execute).toHaveBeenCalledWith({
       request: expect.objectContaining({
@@ -334,7 +408,7 @@ describe('ConversationEnvironmentPopover', () => {
             localWorkspace: '/projects/demo',
             worktreePath: '/Users/test/.codex/worktrees/demo-task',
             taskId: 'thread-1',
-            startRef: 'main',
+            startRef: 'feature/advanced-surfaces',
             startCommit: '1111111111111111111111111111111111111111',
             worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
           },
