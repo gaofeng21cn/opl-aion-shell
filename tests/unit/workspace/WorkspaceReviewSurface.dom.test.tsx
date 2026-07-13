@@ -6,8 +6,10 @@
 
 import type { ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
 import type { GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
+import type { TMessage } from '@/common/chat/chatLib';
 import FileChangeList from '@/renderer/pages/conversation/Workspace/components/FileChangeList';
 import WorkspaceReviewSurface from '@/renderer/pages/conversation/Workspace/components/WorkspaceReviewSurface';
+import { MessageListProvider } from '@/renderer/pages/conversation/Messages/hooks';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TFunction } from 'i18next';
@@ -249,19 +251,58 @@ function inspection(overrides: Partial<GitWorkspaceInspection> = {}): GitWorkspa
   };
 }
 
-function renderSurface(overrides: Partial<React.ComponentProps<typeof WorkspaceReviewSurface>> = {}) {
+function renderSurface(
+  overrides: Partial<React.ComponentProps<typeof WorkspaceReviewSurface>> = {},
+  messages: TMessage[] = []
+) {
   const onRefreshChanges = vi.fn();
   render(
-    <WorkspaceReviewSurface
-      t={t}
-      conversationId='conversation-current'
-      workspace='/workspace/project'
-      stagedCount={2}
-      onRefreshChanges={onRefreshChanges}
-      {...overrides}
-    />
+    <MessageListProvider value={messages}>
+      <WorkspaceReviewSurface
+        t={t}
+        conversationId='conversation-current'
+        workspace='/workspace/project'
+        stagedCount={2}
+        onRefreshChanges={onRefreshChanges}
+        {...overrides}
+      />
+    </MessageListProvider>
   );
   return { onRefreshChanges };
+}
+
+function userMessage(id: string, content: string): TMessage {
+  return {
+    id,
+    msg_id: id,
+    conversation_id: 'conversation-current',
+    type: 'text',
+    position: 'right',
+    content: { content },
+  };
+}
+
+function editMessage(id: string, filePath: string, status: 'completed' | 'failed' = 'completed'): TMessage {
+  return {
+    id,
+    msg_id: id,
+    conversation_id: 'conversation-current',
+    type: 'acp_tool_call',
+    position: 'left',
+    content: {
+      session_id: 'thread-current',
+      update: {
+        sessionUpdate: 'tool_call',
+        tool_call_id: id,
+        status,
+        title: `Edit ${filePath}`,
+        kind: 'edit',
+        rawInput: { file_path: filePath },
+        content: [{ type: 'diff', path: filePath, old_text: 'before', new_text: 'after' }],
+        locations: [{ path: filePath }],
+      },
+    },
+  };
 }
 
 async function openSurface() {
@@ -376,6 +417,32 @@ describe('Workspace review surface', () => {
 
     expect(screen.getByText('#42 Workspace review surface')).toBeVisible();
     expect(screen.getByText('main <- feature/review')).toBeVisible();
+  });
+
+  it('shows successful file edits from the latest user turn through the existing message store', async () => {
+    renderSurface({}, [
+      userMessage('user-old', 'Older request'),
+      editMessage('edit-old', '/workspace/project/src/old.ts'),
+      userMessage('user-latest', 'Latest request'),
+      editMessage('edit-current', '/workspace/project/src/current.ts'),
+      editMessage('edit-failed', '/workspace/project/src/failed.ts', 'failed'),
+    ]);
+    await openSurface();
+
+    expect(screen.getByText('conversation.workspace.review.lastTurnTitle')).toBeVisible();
+    expect(screen.getByText('src/current.ts')).toBeVisible();
+    expect(screen.queryByText('src/old.ts')).not.toBeInTheDocument();
+    expect(screen.queryByText('src/failed.ts')).not.toBeInTheDocument();
+  });
+
+  it('shows an explicit empty state when the latest turn has no successful file edits', async () => {
+    renderSurface({}, [
+      userMessage('user-latest', 'Read the project'),
+      editMessage('read-failed', 'src/nope.ts', 'failed'),
+    ]);
+    await openSurface();
+
+    expect(screen.getByText('conversation.workspace.review.lastTurnEmpty')).toBeVisible();
   });
 
   it.each([

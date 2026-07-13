@@ -1261,6 +1261,8 @@ export type I18nKey =
   | 'conversation.workspace.review.gitInspectionFailed'
   | 'conversation.workspace.review.gitTitle'
   | 'conversation.workspace.review.headLabel'
+  | 'conversation.workspace.review.lastTurnEmpty'
+  | 'conversation.workspace.review.lastTurnTitle'
   | 'conversation.workspace.review.open'
   | 'conversation.workspace.review.pullRequestLabel'
   | 'conversation.workspace.review.pullRequestUnavailable.detachedHead'

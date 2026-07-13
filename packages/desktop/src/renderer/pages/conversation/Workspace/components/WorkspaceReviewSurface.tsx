@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { CodexThreadReviewDelivery, CodexThreadReviewTarget } from '@/common/types/codex/threadCoordination';
 import type { GitPullRequestContext, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import { useThreadCoordination } from '@/renderer/pages/conversation/GroupedHistory/ThreadCoordination/useThreadCoordination';
+import WorkspaceLastTurnSection from '@/renderer/pages/conversation/Workspace/components/WorkspaceLastTurnSection';
 import { Alert, Button, Input, Message, Modal, Radio, Select, Spin, Tag, Tooltip } from '@arco-design/web-react';
 import { BranchOne, CheckOne, PreviewOpen, PullRequests, Refresh, Upload } from '@icon-park/react';
 import type { TFunction } from 'i18next';
@@ -266,6 +267,8 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
           </dl>
         ) : null}
       </section>
+
+      <WorkspaceLastTurnSection t={t} workspace={workspace} />
 
       <section className='border-t border-solid border-[var(--color-border-2)] pt-16px'>
         <div className='mb-10px flex items-center gap-6px text-13px font-semibold text-t-primary'>

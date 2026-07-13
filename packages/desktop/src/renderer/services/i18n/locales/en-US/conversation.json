@@ -544,6 +544,8 @@
         "invalidResponse": "GitHub CLI returned an invalid response",
         "noCurrentPullRequest": "No pull request for the current branch"
       },
+      "lastTurnTitle": "Last turn",
+      "lastTurnEmpty": "No file edits in the last turn",
       "reviewTitle": "Review request",
       "threadUnavailable": "Review is unavailable for this conversation.",
       "targetLabel": "Review target",

@@ -544,6 +544,8 @@
         "invalidResponse": "GitHub CLI 返回了无效响应",
         "noCurrentPullRequest": "当前分支没有拉取请求"
       },
+      "lastTurnTitle": "最近一轮",
+      "lastTurnEmpty": "最近一轮没有文件编辑",
       "reviewTitle": "审查请求",
       "threadUnavailable": "当前会话无法发起审查。",
       "targetLabel": "审查目标",
