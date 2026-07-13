@@ -135,6 +135,15 @@ function writeSetsOverlap(left: string[], right: string[]): boolean {
   return normalizedLeft.some((leftPath) => normalizedRight.some((rightPath) => pathsOverlap(leftPath, rightPath)));
 }
 
+function writeSetIsContainedBy(requested: string[], allowed: string[]): boolean {
+  const normalizedAllowed = normalizedPaths(allowed);
+  return normalizedPaths(requested).every((requestedPath) =>
+    normalizedAllowed.some(
+      (allowedPath) => requestedPath === allowedPath || requestedPath.startsWith(`${allowedPath}${path.sep}`)
+    )
+  );
+}
+
 function threadLabel(thread: CodexThreadDescriptor | undefined, fallback: string): string {
   return thread?.title.trim() || fallback;
 }
@@ -551,7 +560,7 @@ export class ThreadCoordinationService {
       if (target.status === 'running' && target.activeWriteSet.length === 0) {
         return denyWriteSet({ code: 'write_set_unknown', message: 'Running target has no declared write set.' });
       }
-      if (target.status === 'running' && !writeSet.every((entry) => writeSetsOverlap([entry], target.activeWriteSet))) {
+      if (target.status === 'running' && !writeSetIsContainedBy(writeSet, target.activeWriteSet)) {
         return denyWriteSet({
           code: 'write_set_conflict',
           message: 'Steering would expand the running target write set.',

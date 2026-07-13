@@ -250,6 +250,26 @@ describe('ThreadCoordinationService', () => {
     expect(adapter.steerTurn).not.toHaveBeenCalled();
   });
 
+  it('rejects a parent-path write set that would expand a running turn scope', async () => {
+    const adapter = port([
+      thread({ id: 'sender', title: 'Sender' }),
+      thread({
+        status: 'running',
+        activeTurnId: 'turn-active',
+        activePermission: 'workspace_write',
+        activeWriteSet: ['/workspace/project-a/src'],
+      }),
+    ]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const result = await service.execute(
+      delivery({ permission: 'workspace_write', writeSet: ['/workspace/project-a'] })
+    );
+
+    expect(result.errorCode).toBe('write_set_conflict');
+    expect(adapter.steerTurn).not.toHaveBeenCalled();
+  });
+
   it('requires confirmation for cross-project read-only delivery and workspace writes', async () => {
     const sender = thread({ id: 'sender', title: 'Sender' });
     const crossProjectTarget = thread({ projectId: 'project-b', workspace: '/workspace/project-b' });
