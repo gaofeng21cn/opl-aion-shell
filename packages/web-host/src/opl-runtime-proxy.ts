@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -69,6 +70,7 @@ const MAINTENANCE_TIMEOUT_MS = 900_000;
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 
 let standardBootstrapCompleted = false;
+let oplAppProcessInstanceId = randomUUID();
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -311,6 +313,7 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   return {
     ...process.env,
     HOME: dataDir,
+    OPL_APP_PROCESS_INSTANCE_ID: oplAppProcessInstanceId,
     ...(inheritUserOplEnvironment
       ? {}
       : {
@@ -363,6 +366,11 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
       process.env.PATH,
     ]),
   };
+}
+
+function resetOplAppProcessInstanceIdForTest(): string {
+  oplAppProcessInstanceId = randomUUID();
+  return oplAppProcessInstanceId;
 }
 
 function resolveOplInstaller(resourcesPath: string): string | null {
@@ -630,8 +638,10 @@ export const __oplRuntimeProxyTest = {
   buildCommandFromRequest,
   buildOplEnv,
   buildStandardBootstrapCommand,
+  commandFailureResult,
   MAINTENANCE_TIMEOUT_MS,
   normalizeOplRuntimeProxyOptions,
+  resetOplAppProcessInstanceIdForTest,
   resolveDefaultFullRuntimeHome,
   resolveOplInstaller,
 };

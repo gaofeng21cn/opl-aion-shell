@@ -484,6 +484,39 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
+  it('uses one private process instance id for every OPL command and rotates it only for a new process', () => {
+    const input = {
+      baseEnv: {
+        HOME: makeTempRoot('opl-process-instance-home'),
+        PATH: '/usr/bin:/bin',
+        OPL_APP_PROCESS_INSTANCE_ID: 'user-supplied-value',
+      },
+      platform: 'darwin' as const,
+      arch: 'arm64',
+    };
+
+    const firstEnv = __oplRuntimeBridgeTest.buildOplCommandEnv(input);
+    const secondEnv = __oplRuntimeBridgeTest.buildOplCommandEnv(input);
+    const firstId = firstEnv.OPL_APP_PROCESS_INSTANCE_ID;
+
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(secondEnv.OPL_APP_PROCESS_INSTANCE_ID).toBe(firstId);
+    expect(firstId).not.toBe('user-supplied-value');
+
+    const nextProcessId = __oplRuntimeBridgeTest.resetOplAppProcessInstanceIdForTest();
+    const nextProcessEnv = __oplRuntimeBridgeTest.buildOplCommandEnv(input);
+    expect(nextProcessId).not.toBe(firstId);
+    expect(nextProcessEnv.OPL_APP_PROCESS_INSTANCE_ID).toBe(nextProcessId);
+
+    const uiResult = __oplRuntimeBridgeTest.commandFailureResult(
+      { surface: 'update_check', args: ['update', 'check', '--json'] },
+      'opl update check --json',
+      'fixture failure'
+    );
+    expect(JSON.stringify(uiResult)).not.toContain('OPL_APP_PROCESS_INSTANCE_ID');
+    expect(JSON.stringify(uiResult)).not.toContain(nextProcessId);
+  });
+
   it('prefers the installed App-managed runtime/current when no explicit full runtime env is set', () => {
     const homeDir = makeTempRoot('opl-detected-runtime-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');

@@ -71,6 +71,13 @@ through Framework apply. The shell projects Framework attention reasons,
 receipts, reload guidance, and restart-required state. It does not auto-apply a
 component when Framework omits or denies the `auto_apply` declaration.
 
+Each Desktop or Web host process creates one opaque
+`OPL_APP_PROCESS_INSTANCE_ID` and forwards it only in the environment of its OPL
+CLI children. The value stays stable for that process and changes after an App
+process restart, allowing Framework to distinguish same-process maintenance
+from restart activation. It is not a public command argument, user setting,
+persistent shell receipt, renderer state, or IPC response field.
+
 ## Renderer Consumption
 
 Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visualization_projection` parsing is kept as an isolated adapter for historical full-detail payloads and tests. New GUI work should not add top-level `runtime_visualization_projection` fallback to the main renderer path.

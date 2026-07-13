@@ -5,6 +5,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -64,6 +65,7 @@ const OPL_MODULE_PATH_ENV_KEYS = [
   'OPL_MODULE_PATH_OPLBOOKFORGE',
 ] as const;
 let standardBootstrapCompleted = false;
+let oplAppProcessInstanceId = randomUUID();
 let cachedDeveloperModeGithubIdentity: {
   key: string;
   value: DeveloperModeGithubIdentity;
@@ -1112,7 +1114,10 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
 }
 
 function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.ProcessEnv {
-  const standardEnv = buildStandardBootstrapEnv(input);
+  const standardEnv: NodeJS.ProcessEnv = {
+    ...buildStandardBootstrapEnv(input),
+    OPL_APP_PROCESS_INSTANCE_ID: oplAppProcessInstanceId,
+  };
   const fullRuntimeEnv = buildFullRuntimeBridgeEnv(standardEnv);
   if (!fullRuntimeEnv) {
     return standardEnv;
@@ -1134,6 +1139,11 @@ function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.
     }
   }
   return mergedEnv;
+}
+
+function resetOplAppProcessInstanceIdForTest(): string {
+  oplAppProcessInstanceId = randomUUID();
+  return oplAppProcessInstanceId;
 }
 
 function resolvePackagedStandardInstaller(resourcesPath?: string): string | null {
@@ -1479,6 +1489,7 @@ export const __oplRuntimeBridgeTest = {
   developerModePrefersLocalCheckout,
   readInitializeCompletePayload,
   readInitializeEventEnvelope,
+  resetOplAppProcessInstanceIdForTest,
   resolveOplCli,
   resolveOplFrameworkCarrier,
   resolveDeveloperModeCheckoutRoot,
