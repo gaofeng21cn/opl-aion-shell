@@ -656,5 +656,98 @@
       }
     }
   },
+  "threadCoordination": {
+    "title": "线程协调",
+    "availability": {
+      "available": "已连接",
+      "unavailable": "不可用"
+    },
+    "unavailableTitle": "Codex 线程协调当前不可用",
+    "hostUnavailable": "Host 不可用",
+    "threadList": "顶层线程（{{count}}）",
+    "noThreads": "没有顶层 Codex 线程",
+    "selectThread": "选择一个线程",
+    "readFailed": "无法读取此 Codex 线程",
+    "actionAccepted": "线程操作已受理",
+    "actionFailed": "线程操作失败",
+    "project": "项目",
+    "workspace": "工作区",
+    "host": "Host",
+    "owner": "负责人",
+    "goal": "目标",
+    "ancestry": "父线程 / 祖先",
+    "topLevel": "顶层线程",
+    "unknown": "未报告",
+    "history": "摘要与历史",
+    "noHistory": "未返回历史记录",
+    "coordinate": "协调操作",
+    "sender": "发送线程",
+    "sourcePlaceholder": "选择发送方顶层线程",
+    "reason": "原因",
+    "result": "结果",
+    "messageSummary": "消息摘要",
+    "protocolMethod": "协议方法",
+    "permissionDecision": "权限判定",
+    "writeSetDecision": "写集判定",
+    "statusTransition": "状态",
+    "timestamp": "时间",
+    "notApplicable": "不适用",
+    "reasonPlaceholder": "说明为什么要向此线程发起操作",
+    "messagePlaceholder": "发送给接收线程的消息",
+    "permission": "权限",
+    "writeSetPlaceholder": "每行填写一个绝对写入路径",
+    "resume": "恢复",
+    "fork": "分叉",
+    "audit": "投递审计",
+    "noAudit": "尚无跨线程投递记录",
+    "permissions": {
+      "read_only": "只读",
+      "workspace_write": "工作区写入"
+    },
+    "status": {
+      "not_loaded": "未加载",
+      "idle": "空闲",
+      "running": "运行中",
+      "system_error": "系统错误",
+      "archived": "已归档"
+    },
+    "auditResult": {
+      "accepted": "已受理",
+      "confirmation_required": "需要确认",
+      "rejected": "已拒绝",
+      "failed": "失败"
+    },
+    "confirmation": {
+      "title": "确认高风险线程操作",
+      "content": "此操作需要明确确认：{{risks}}",
+      "confirm": "确认操作",
+      "risks": {
+        "cross_project_delivery": "跨项目投递",
+        "workspace_write": "工作区写入权限",
+        "active_turn_steer": "引导运行中的 turn",
+        "archive_lifecycle": "归档线程"
+      }
+    },
+    "errors": {
+      "protocol_unavailable": "Codex app-server host adapter 尚未连接，所有线程操作保持禁用。",
+      "protocol_error": "Codex app-server 协议请求失败。",
+      "invalid_request": "线程请求不完整或无效。",
+      "thread_not_found": "未找到发送线程或接收线程。",
+      "not_top_level_thread": "此协调界面只允许顶层线程。",
+      "self_delivery": "线程不能向自身投递任务。",
+      "delivery_loop": "投递路径重复经过线程或超过最大跳数。",
+      "duplicate_delivery": "该投递已经记录。",
+      "confirmation_required": "此高风险操作需要明确确认。",
+      "confirmation_invalid": "确认已过期或属于另一个操作。",
+      "cross_host_delivery": "当前 Host 不支持跨 Host 投递。",
+      "cross_project_write": "跨项目投递只允许只读权限。",
+      "permission_expansion_denied": "运行中的 turn 不能通过 steer 扩大权限。",
+      "write_set_required": "工作区写入必须明确声明路径。",
+      "write_set_unknown": "运行中的接收线程没有声明写集。",
+      "write_set_conflict": "请求路径与其他运行中线程的写集冲突。",
+      "running_turn_unknown": "运行中的接收线程缺少 active turn 前置条件。",
+      "thread_not_writable": "接收线程当前状态不能接受新 turn。"
+    }
+  },
   "notFound": "会话不存在或已被删除"
 }

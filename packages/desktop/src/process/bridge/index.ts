@@ -14,10 +14,14 @@ import { initWebuiBridge } from './webuiBridge';
 import { initOplRuntimeBridge } from './oplRuntimeBridge';
 import { initThemeBridge } from './themeBridge';
 import { initLocalDataLifecycleBridge } from './localDataLifecycleBridge';
+import { disposeThreadCoordinationBridge, initThreadCoordinationBridge } from './threadCoordinationBridge';
+import type { CodexThreadCoordinationPort } from '../services/threadCoordination';
 
-export type BridgeDependencies = Record<string, never>;
+export type BridgeDependencies = {
+  threadCoordinationPort?: CodexThreadCoordinationPort;
+};
 
-export function initAllBridges(_deps: BridgeDependencies = {}): void {
+export function initAllBridges(deps: BridgeDependencies = {}): void {
   initDialogBridge();
   initApplicationBridge();
   initWindowControlsBridge();
@@ -28,6 +32,7 @@ export function initAllBridges(_deps: BridgeDependencies = {}): void {
   initOplRuntimeBridge();
   initThemeBridge();
   initLocalDataLifecycleBridge();
+  initThreadCoordinationBridge(deps.threadCoordinationPort);
 }
 
 export {
@@ -41,6 +46,8 @@ export {
   initWebuiBridge,
   initOplRuntimeBridge,
   initLocalDataLifecycleBridge,
+  initThreadCoordinationBridge,
+  disposeThreadCoordinationBridge,
 };
 export { registerWindowMaximizeListeners } from './windowControlsBridge';
 export const disposeAllTeamSessions = (): Promise<void> => Promise.resolve();

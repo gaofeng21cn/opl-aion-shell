@@ -60,6 +60,14 @@ import type {
   TeamAgent,
 } from '../types/team/teamTypes';
 import type {
+  ThreadCoordinationActionResult,
+  ThreadCoordinationExecuteRequest,
+  ThreadCoordinationOverview,
+  ThreadCoordinationOverviewRequest,
+  ThreadCoordinationReadRequest,
+  ThreadCoordinationReadResult,
+} from '../types/codex/threadCoordination';
+import type {
   AutoUpdateStatus,
   AutoUpdateInstallRequest,
   UpdateCheckRequest,
@@ -672,6 +680,22 @@ export const oplRuntime = {
   rollbackUpdateComponent: runtimeProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
     'opl-runtime.run-managed-update-rollback',
     '/api/opl-runtime/update-rollback'
+  ),
+};
+
+// ---------------------------------------------------------------------------
+// Codex thread coordination — Electron host boundary, fail-closed by default.
+// ---------------------------------------------------------------------------
+
+export const threadCoordination = {
+  getOverview: bridge.buildProvider<ThreadCoordinationOverview, ThreadCoordinationOverviewRequest>(
+    'thread-coordination.get-overview'
+  ),
+  readThread: bridge.buildProvider<ThreadCoordinationReadResult, ThreadCoordinationReadRequest>(
+    'thread-coordination.read-thread'
+  ),
+  execute: bridge.buildProvider<ThreadCoordinationActionResult, ThreadCoordinationExecuteRequest>(
+    'thread-coordination.execute'
   ),
 };
 

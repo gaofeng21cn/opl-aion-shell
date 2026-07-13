@@ -15,6 +15,7 @@ import SiderFooter from './SiderFooter';
 import TeamSiderSection from './TeamSiderSection';
 import FirstRunSetupEntry from './FirstRunSetupEntry';
 import siderStyles from './Sider.module.css';
+import ThreadCoordinationSection from '@renderer/pages/conversation/GroupedHistory/ThreadCoordination';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('@renderer/pages/conversation/GroupedHistory'));
 const SettingsSider = React.lazy(() => import('@renderer/pages/settings/components/SettingsSider'));
@@ -187,6 +188,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   {...workspaceHistoryProps}
                   afterPinnedContent={
                     <>
+                      <ThreadCoordinationSection collapsed={collapsed} tooltipEnabled={tooltipEnabled} />
                       {TEAM_MODE_ENABLED && (
                         <TeamSiderSection
                           collapsed={collapsed}

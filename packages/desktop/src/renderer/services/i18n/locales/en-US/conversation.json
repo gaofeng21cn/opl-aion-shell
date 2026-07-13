@@ -656,5 +656,98 @@
       }
     }
   },
+  "threadCoordination": {
+    "title": "Thread coordination",
+    "availability": {
+      "available": "Connected",
+      "unavailable": "Unavailable"
+    },
+    "unavailableTitle": "Codex thread coordination is unavailable",
+    "hostUnavailable": "Host unavailable",
+    "threadList": "Top-level threads ({{count}})",
+    "noThreads": "No top-level Codex threads",
+    "selectThread": "Select a thread",
+    "readFailed": "Could not read this Codex thread",
+    "actionAccepted": "Thread action accepted",
+    "actionFailed": "Thread action failed",
+    "project": "Project",
+    "workspace": "Workspace",
+    "host": "Host",
+    "owner": "Owner",
+    "goal": "Goal",
+    "ancestry": "Parent / ancestor",
+    "topLevel": "Top level",
+    "unknown": "Not reported",
+    "history": "Summary and history",
+    "noHistory": "No history was returned",
+    "coordinate": "Coordinate",
+    "sender": "Sender thread",
+    "sourcePlaceholder": "Select the sending top-level thread",
+    "reason": "Reason",
+    "result": "Result",
+    "messageSummary": "Message summary",
+    "protocolMethod": "Protocol method",
+    "permissionDecision": "Permission decision",
+    "writeSetDecision": "Write-set decision",
+    "statusTransition": "Status",
+    "timestamp": "Timestamp",
+    "notApplicable": "Not applicable",
+    "reasonPlaceholder": "Why this thread should receive the action",
+    "messagePlaceholder": "Message for the receiving thread",
+    "permission": "Permission",
+    "writeSetPlaceholder": "One absolute write path per line",
+    "resume": "Resume",
+    "fork": "Fork",
+    "audit": "Delivery audit",
+    "noAudit": "No thread deliveries recorded",
+    "permissions": {
+      "read_only": "Read only",
+      "workspace_write": "Workspace write"
+    },
+    "status": {
+      "not_loaded": "Not loaded",
+      "idle": "Idle",
+      "running": "Running",
+      "system_error": "System error",
+      "archived": "Archived"
+    },
+    "auditResult": {
+      "accepted": "Accepted",
+      "confirmation_required": "Confirmation required",
+      "rejected": "Rejected",
+      "failed": "Failed"
+    },
+    "confirmation": {
+      "title": "Confirm high-risk thread action",
+      "content": "This action requires explicit confirmation: {{risks}}",
+      "confirm": "Confirm action",
+      "risks": {
+        "cross_project_delivery": "cross-project delivery",
+        "workspace_write": "workspace write permission",
+        "active_turn_steer": "steering a running turn",
+        "archive_lifecycle": "archiving the thread"
+      }
+    },
+    "errors": {
+      "protocol_unavailable": "The Codex app-server host adapter is not connected. Thread actions remain disabled.",
+      "protocol_error": "The Codex app-server protocol request failed.",
+      "invalid_request": "The thread request is incomplete or invalid.",
+      "thread_not_found": "The sender or receiver thread was not found.",
+      "not_top_level_thread": "Only top-level threads can use this coordination surface.",
+      "self_delivery": "A thread cannot send work to itself.",
+      "delivery_loop": "This route repeats a thread or exceeds the hop limit.",
+      "duplicate_delivery": "This delivery was already recorded.",
+      "confirmation_required": "This high-risk action requires explicit confirmation.",
+      "confirmation_invalid": "The confirmation expired or belongs to another action.",
+      "cross_host_delivery": "Cross-host delivery is not supported by this host.",
+      "cross_project_write": "Cross-project delivery is read-only.",
+      "permission_expansion_denied": "A running turn cannot expand its permission profile through steer.",
+      "write_set_required": "Workspace-write delivery requires explicit paths.",
+      "write_set_unknown": "The running receiver has no declared write set.",
+      "write_set_conflict": "The requested paths conflict with another running thread.",
+      "running_turn_unknown": "The running receiver has no active turn precondition.",
+      "thread_not_writable": "The receiver cannot accept a turn in its current state."
+    }
+  },
   "notFound": "Conversation not found or has been deleted"
 }
