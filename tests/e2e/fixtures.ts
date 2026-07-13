@@ -33,28 +33,26 @@ function isDevToolsWindow(page: Page): boolean {
   return page.url().startsWith('devtools://');
 }
 
+function isLoadedRendererWindow(page: Page): boolean {
+  const url = page.url();
+  return !isDevToolsWindow(page) && url !== '' && url !== 'about:blank';
+}
+
 async function resolveMainWindow(electronApp: ElectronApplication): Promise<Page> {
-  const existingMainWindow = electronApp.windows().find((win) => !isDevToolsWindow(win));
-  if (existingMainWindow) {
-    await existingMainWindow.waitForLoadState('domcontentloaded');
-    return existingMainWindow;
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const mainWindow = electronApp.windows().find(isLoadedRendererWindow);
+    if (mainWindow) {
+      await mainWindow.waitForLoadState('domcontentloaded');
+      return mainWindow;
+    }
+
+    // Playwright exposes a transient about:blank page before Electron creates
+    // the real renderer. Rescan existing windows as well as waiting for new ones.
+    await electronApp.waitForEvent('window', { timeout: 250 }).catch(() => null);
   }
 
-  const resolveWindowBefore = async (deadline: number): Promise<Page> => {
-    if (Date.now() >= deadline) {
-      throw new Error('Failed to resolve main renderer window (non-DevTools).');
-    }
-
-    const win = await electronApp.waitForEvent('window', { timeout: 1_000 }).catch(() => null);
-    if (win && !isDevToolsWindow(win)) {
-      await win.waitForLoadState('domcontentloaded');
-      return win;
-    }
-
-    return resolveWindowBefore(deadline);
-  };
-
-  return resolveWindowBefore(Date.now() + 30_000);
+  throw new Error('Failed to resolve loaded main renderer window (non-DevTools).');
 }
 
 /**
