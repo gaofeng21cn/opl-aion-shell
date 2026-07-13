@@ -595,6 +595,10 @@ function buildTargets(conversationId: string): VisualTarget[] {
       setup: async (page) => {
         await goToRuntime(page);
         await setNavigationRailExpanded(page, true);
+        const summaryButton = page.locator('[data-testid="runtime-load-summary"]');
+        if (await summaryButton.count()) {
+          await expect(summaryButton).not.toHaveClass(/arco-btn-loading/, { timeout: 30_000 });
+        }
         return {
           route_kind: 'runtime',
           runtime_state: (await page

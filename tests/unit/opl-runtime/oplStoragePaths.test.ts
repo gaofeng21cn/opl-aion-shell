@@ -7,9 +7,9 @@ import type { IPlatformServices } from '@/common/platform/IPlatformServices';
 import { NodePlatformServices } from '@/common/platform/NodePlatformServices';
 import { getConfigPath, getDataPath, getTempPath } from '@/process/utils/utils';
 
-function registerTestPlatformServices(input: { homeDir: string; isPackaged: boolean }): void {
+function registerTestPlatformServices(input: { homeDir: string; isPackaged: boolean; userDataDir?: string }): void {
   const homeDir = input.homeDir;
-  const userDataDir = path.join(homeDir, 'Library', 'Application Support', 'One Person Lab');
+  const userDataDir = input.userDataDir ?? path.join(homeDir, 'Library', 'Application Support', 'One Person Lab');
   const services: IPlatformServices = {
     paths: {
       getDataDir: () => userDataDir,
@@ -68,6 +68,16 @@ describe('OPL App storage paths', () => {
 
     expect(getTempPath()).toBe(path.join(os.tmpdir(), 'one-person-lab'));
     expect(getTempPath()).not.toContain('aionui');
+  });
+
+  it('uses an already CLI-safe userData path directly', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'opl-home-'));
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'opl-e2e-user-data-'));
+    tempRoots.push(homeDir, userDataDir);
+    registerTestPlatformServices({ homeDir, isPackaged: true, userDataDir });
+
+    expect(getDataPath()).toBe(path.join(userDataDir, 'opl-data'));
+    expect(getConfigPath()).toBe(path.join(userDataDir, 'opl-config'));
   });
 
   it('keeps dev builds isolated under OPL-specific names', () => {

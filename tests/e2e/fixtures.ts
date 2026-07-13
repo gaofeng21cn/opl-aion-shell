@@ -28,6 +28,7 @@ let app: ElectronApplication | null = null;
 let mainPage: Page | null = null;
 const e2eStateSandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-e2e-state-'));
 const e2eStateFile = path.join(e2eStateSandboxDir, 'extension-states.json');
+const e2eUserDataDir = path.join(e2eStateSandboxDir, 'user-data');
 
 function isDevToolsWindow(page: Page): boolean {
   return page.url().startsWith('devtools://');
@@ -146,13 +147,13 @@ async function launchApp(): Promise<ElectronApplication> {
     if (!packaged) {
       throw new Error(
         'E2E packaged mode: could not find packaged app under out/. ' +
-          'Run `node scripts/build-with-builder.js auto --<platform> --pack-only` first.'
+          'Run `node scripts/build-with-builder.js auto --<platform> --dir-only` first.'
       );
     }
 
     console.log(`[E2E] Launching PACKAGED app: ${packaged.executablePath}`);
 
-    const launchArgs: string[] = [];
+    const launchArgs = [`--user-data-dir=${e2eUserDataDir}`];
     if (process.platform === 'linux' && process.env.CI) {
       launchArgs.push('--no-sandbox');
     }
@@ -174,7 +175,7 @@ async function launchApp(): Promise<ElectronApplication> {
   // Dev mode: launch via electron .
   console.log(`[E2E] Launching DEV app from: ${projectRoot}`);
 
-  const launchArgs = ['.'];
+  const launchArgs = ['.', `--user-data-dir=${e2eUserDataDir}`];
   if (process.platform === 'linux' && process.env.CI) {
     launchArgs.push('--no-sandbox');
   }
