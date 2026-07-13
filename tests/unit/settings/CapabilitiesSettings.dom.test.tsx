@@ -839,6 +839,8 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-capabilities')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-opl-flow-managed')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-capabilities-technical-details')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-capabilities-primary-action')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toHaveAttribute(
       'data-flow-skills',
@@ -846,7 +848,7 @@ describe('Agents and capabilities settings', () => {
     );
     expect(screen.queryByTestId('agent-package-catalog')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Sync Flow'));
+    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'settings_sync_capabilities',

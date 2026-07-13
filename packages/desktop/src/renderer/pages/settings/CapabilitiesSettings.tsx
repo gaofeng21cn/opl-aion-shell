@@ -1609,6 +1609,17 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
+        <div className='opl-settings-page-header__actions'>
+          <Button
+            type='primary'
+            icon={<Refresh theme='outline' />}
+            loading={flowSyncing}
+            onClick={() => void syncFlowCapabilities()}
+            data-testid='settings-capabilities-primary-action'
+          >
+            {t('settings.capabilitiesPage.groups.oplFlowManaged.sync')}
+          </Button>
+        </div>
       </header>
       <div data-testid='settings-capabilities-primary'>
         <Tabs
@@ -1623,14 +1634,14 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
           >
             <div data-testid='settings-capabilities-opl-flow-managed'>
-              <SkillsHubSettings
-                withWrapper={false}
-                displayGroup='flow'
-                flowManagedSkillIds={flowManagedCatalog.skillIds}
-                flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
-                flowSyncing={flowSyncing}
-                onSyncFlow={() => void syncFlowCapabilities()}
-              />
+              <div data-testid='settings-capabilities-technical-details'>
+                <SkillsHubSettings
+                  withWrapper={false}
+                  displayGroup='flow'
+                  flowManagedSkillIds={flowManagedCatalog.skillIds}
+                  flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
+                />
+              </div>
             </div>
           </Tabs.TabPane>
           <Tabs.TabPane
