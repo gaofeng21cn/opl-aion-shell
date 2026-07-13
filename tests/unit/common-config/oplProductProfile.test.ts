@@ -244,6 +244,7 @@ describe('OPL generated product profile', () => {
       'environment',
       'storage',
       'appearance',
+      'personalization',
     ]);
     expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about']);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({

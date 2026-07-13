@@ -479,14 +479,14 @@ describe('static-server', () => {
     expect(appStateSpec.timeoutMs).toBeUndefined();
   });
 
-  it('/api/opl-runtime/* prefers the installed App-managed runtime/current before developer PATH shims', () => {
+  it('/api/opl-runtime/* prefers the installed App-managed runtime/current before developer PATH shims', async () => {
     const runtimeHome = path.join(staticDir, 'home', 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const originalHome = process.env.HOME;
     const originalPath = process.env.PATH;
-    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    await fs.mkdir(path.join(runtimeHome, 'bin'), { recursive: true });
+    await fs.mkdir(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    await fs.mkdir(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
+    await fs.writeFile(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     process.env.HOME = path.join(staticDir, 'home');
     process.env.PATH = '/opt/homebrew/bin:/usr/bin:/bin';
 
@@ -556,14 +556,7 @@ describe('static-server', () => {
         child.kill = vi.fn() as typeof child.kill;
         queueMicrotask(() => child.emit('close', 0));
         expect(command).toBe('/bin/bash');
-        expect(args).toEqual([
-          path.join(resourcesPath, 'opl-install.sh'),
-          '--complete',
-          '--skip-modules',
-          '--skip-gui-open',
-          '--skip-native-helper-repair',
-          '--no-online-runtime',
-        ]);
+        expect(args).toEqual([path.join(resourcesPath, 'opl-install.sh'), '--headless', '--skip-modules']);
         return child;
       })
       .mockImplementationOnce((command, args) => {
