@@ -1,4 +1,5 @@
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -133,6 +134,38 @@ async function createFixtureConversation(page: Page): Promise<string> {
     throw new Error('POST /api/conversations succeeded without a conversation id');
   }
   return conversation.id;
+}
+
+function initializeFixtureWorkspace(): void {
+  fs.rmSync(WORKSPACE_PATH, { recursive: true, force: true });
+  fs.mkdirSync(path.join(WORKSPACE_PATH, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(WORKSPACE_PATH, 'README.md'), '# GUI Baseline Workspace\n');
+  fs.writeFileSync(path.join(WORKSPACE_PATH, 'src', 'index.ts'), "export const baseline = 'route-bound';\n");
+  fs.writeFileSync(path.join(WORKSPACE_PATH, 'notes.txt'), 'Stable fixture content for layout evidence.\n');
+
+  execFileSync('git', ['init', '--quiet', '--initial-branch=main', WORKSPACE_PATH]);
+  execFileSync('git', ['-C', WORKSPACE_PATH, 'add', '.']);
+  execFileSync(
+    'git',
+    [
+      '-C',
+      WORKSPACE_PATH,
+      '-c',
+      'user.name=OPL E2E',
+      '-c',
+      'user.email=opl-e2e@localhost',
+      'commit',
+      '--quiet',
+      '-m',
+      'test: seed GUI baseline workspace',
+    ],
+    { stdio: 'pipe' }
+  );
+
+  const repositoryRoot = execFileSync('git', ['-C', WORKSPACE_PATH, 'rev-parse', '--show-toplevel'], {
+    encoding: 'utf8',
+  }).trim();
+  expect(fs.realpathSync(repositoryRoot)).toBe(fs.realpathSync(WORKSPACE_PATH));
 }
 
 async function openFixtureConversation(
@@ -815,11 +848,7 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
   let conversationId: string | null = null;
   let originalSettings: ClientSettings | null = null;
 
-  fs.rmSync(WORKSPACE_PATH, { recursive: true, force: true });
-  fs.mkdirSync(path.join(WORKSPACE_PATH, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(WORKSPACE_PATH, 'README.md'), '# GUI Baseline Workspace\n');
-  fs.writeFileSync(path.join(WORKSPACE_PATH, 'src', 'index.ts'), "export const baseline = 'route-bound';\n");
-  fs.writeFileSync(path.join(WORKSPACE_PATH, 'notes.txt'), 'Stable fixture content for layout evidence.\n');
+  initializeFixtureWorkspace();
 
   try {
     await goToGuid(page);
