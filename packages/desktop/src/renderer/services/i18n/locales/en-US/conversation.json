@@ -746,6 +746,25 @@
     "unknown": "Not reported",
     "history": "Summary and history",
     "noHistory": "No history was returned",
+    "serverRequests": {
+      "title": "Pending Codex requests",
+      "description": "This task is waiting for your Codex approval or input. The task keeps its existing permission and sandbox policy.",
+      "kind": {
+        "command_approval": "Command approval",
+        "file_change_approval": "File change approval",
+        "permissions_approval": "Additional permissions",
+        "user_input": "Agent question",
+        "mcp_elicitation": "MCP request"
+      },
+      "accept": "Allow once",
+      "acceptForSession": "Allow for session",
+      "decline": "Decline",
+      "submit": "Submit answer",
+      "responseJson": "Response JSON",
+      "invalidJson": "Response JSON is invalid",
+      "resolved": "Codex request resolved",
+      "resolveFailed": "Could not resolve the Codex request"
+    },
     "coordinate": "Coordinate",
     "sender": "Sender thread",
     "sourcePlaceholder": "Select the sending top-level thread",

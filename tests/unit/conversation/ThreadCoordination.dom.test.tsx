@@ -8,8 +8,10 @@ import ThreadCoordinationSection from '@/renderer/pages/conversation/GroupedHist
 const mocks = vi.hoisted(() => ({
   getConversation: vi.fn(),
   getOverview: vi.fn(),
+  listPendingRequests: vi.fn(),
   readThread: vi.fn(),
   execute: vi.fn(),
+  resolveServerRequest: vi.fn(),
   autoSizes: [] as unknown[],
   translate: (key: string) => key,
 }));
@@ -19,8 +21,10 @@ vi.mock('@/common', () => ({
     conversation: { get: { invoke: mocks.getConversation } },
     threadCoordination: {
       getOverview: { invoke: mocks.getOverview },
+      listPendingRequests: { invoke: mocks.listPendingRequests },
       readThread: { invoke: mocks.readThread },
       execute: { invoke: mocks.execute },
+      resolveServerRequest: { invoke: mocks.resolveServerRequest },
     },
   },
 }));
@@ -197,12 +201,15 @@ describe('ThreadCoordinationSection', () => {
   beforeEach(() => {
     mocks.autoSizes.length = 0;
     mocks.execute.mockReset();
+    mocks.listPendingRequests.mockReset();
+    mocks.resolveServerRequest.mockReset();
     mocks.getConversation.mockResolvedValue({
       id: 'aion-conversation',
       type: 'acp',
       extra: { backend: 'codex', acp_session_id: 'source' },
     });
     mocks.getOverview.mockResolvedValue(overview());
+    mocks.listPendingRequests.mockResolvedValue({ requests: [] });
     mocks.readThread.mockResolvedValue({ ok: true, detail: { thread: overview().threads[0], history: [] } });
     mocks.execute.mockResolvedValue({
       ok: true,
@@ -217,6 +224,7 @@ describe('ThreadCoordinationSection', () => {
       message: 'Accepted',
       advisories: [],
     });
+    mocks.resolveServerRequest.mockResolvedValue({ ok: true });
     vi.stubGlobal('crypto', { randomUUID: () => 'delivery-id' });
   });
 
@@ -372,6 +380,45 @@ describe('ThreadCoordinationSection', () => {
         delivery: 'inline',
       }),
     });
+  });
+
+  it('shows and resolves app-server approval requests without changing the target Codex policy', async () => {
+    mocks.listPendingRequests.mockResolvedValue({
+      requests: [
+        {
+          requestId: 'number:41',
+          method: 'item/commandExecution/requestApproval',
+          kind: 'command_approval',
+          threadId: 'receiver',
+          turnId: 'turn-1',
+          itemId: 'item-1',
+          observedAt: '2026-07-13T01:00:00.000Z',
+          reason: 'Needs network access',
+          command: 'git fetch',
+          cwd: '/workspace/a',
+          availableDecisions: ['accept', 'acceptForSession', 'decline'],
+          questions: [],
+          requestedPermissions: null,
+          elicitation: null,
+        },
+      ],
+    });
+    renderSection();
+    fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
+    fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
+
+    expect(
+      await screen.findByText('conversation.threadCoordination.serverRequests.kind.command_approval')
+    ).toBeInTheDocument();
+    expect(screen.getByText('git fetch')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('conversation.threadCoordination.serverRequests.accept'));
+
+    await waitFor(() =>
+      expect(mocks.resolveServerRequest).toHaveBeenCalledWith({
+        requestId: 'number:41',
+        response: { kind: 'approval', decision: 'accept' },
+      })
+    );
   });
 
   it('shows bounded audit summary, protocol, policy decisions, status, result, and timestamps', async () => {

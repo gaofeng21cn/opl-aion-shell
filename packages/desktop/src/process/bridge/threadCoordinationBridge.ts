@@ -11,6 +11,7 @@ import type {
   ThreadCoordinationExecuteRequest,
   ThreadCoordinationOverviewRequest,
   ThreadCoordinationReadRequest,
+  ThreadCoordinationResolveServerRequest,
 } from '@/common/types/codex/threadCoordination';
 import {
   JsonlThreadCoordinationAuditStore,
@@ -49,6 +50,12 @@ export function initThreadCoordinationBridge(
   );
   ipcBridge.threadCoordination.execute.provider(({ request }: ThreadCoordinationExecuteRequest) =>
     service.execute(request)
+  );
+  ipcBridge.threadCoordination.listPendingRequests.provider(async () => ({
+    requests: service.listPendingServerRequests(),
+  }));
+  ipcBridge.threadCoordination.resolveServerRequest.provider(async (request: ThreadCoordinationResolveServerRequest) =>
+    service.resolveServerRequest(request)
   );
   if (!quitHandlerInstalled) {
     quitHandlerInstalled = true;

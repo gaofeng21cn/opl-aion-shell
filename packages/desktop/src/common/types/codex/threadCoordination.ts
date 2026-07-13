@@ -221,6 +221,86 @@ export type ThreadCoordinationExecuteRequest = {
   request: ThreadCoordinationActionRequest;
 };
 
+export type CodexThreadServerRequestMethod =
+  | 'item/commandExecution/requestApproval'
+  | 'item/fileChange/requestApproval'
+  | 'item/permissions/requestApproval'
+  | 'item/tool/requestUserInput'
+  | 'mcpServer/elicitation/request'
+  | 'execCommandApproval'
+  | 'applyPatchApproval';
+
+export type CodexThreadServerRequestKind =
+  | 'command_approval'
+  | 'file_change_approval'
+  | 'permissions_approval'
+  | 'user_input'
+  | 'mcp_elicitation';
+
+export type CodexThreadServerRequestQuestion = {
+  id: string;
+  header: string;
+  question: string;
+  isOther: boolean;
+  isSecret: boolean;
+  options: Array<{ label: string; description: string }> | null;
+};
+
+export type CodexThreadServerRequest = {
+  requestId: string;
+  method: CodexThreadServerRequestMethod;
+  kind: CodexThreadServerRequestKind;
+  threadId: string;
+  turnId: string | null;
+  itemId: string | null;
+  observedAt: string;
+  reason: string | null;
+  command: string | null;
+  cwd: string | null;
+  availableDecisions: string[];
+  questions: CodexThreadServerRequestQuestion[];
+  requestedPermissions: Record<string, unknown> | null;
+  elicitation: {
+    mode: string;
+    serverName: string;
+    message: string;
+    url: string | null;
+    requestedSchema: unknown;
+  } | null;
+};
+
+export type ThreadCoordinationPendingRequestsResult = {
+  requests: CodexThreadServerRequest[];
+};
+
+export type ThreadCoordinationServerRequestDecision = 'accept' | 'accept_for_session' | 'decline' | 'cancel';
+
+export type ThreadCoordinationResolveServerRequest = {
+  requestId: string;
+  response:
+    | {
+        kind: 'approval';
+        decision: ThreadCoordinationServerRequestDecision;
+      }
+    | {
+        kind: 'permissions';
+        decision: 'accept' | 'accept_for_session' | 'decline';
+      }
+    | {
+        kind: 'user_input';
+        answers: Record<string, string[]>;
+      }
+    | {
+        kind: 'mcp_elicitation';
+        action: 'accept' | 'decline' | 'cancel';
+        content: unknown;
+      };
+};
+
+export type ThreadCoordinationResolveServerRequestResult =
+  | { ok: true }
+  | { ok: false; errorCode: ThreadCoordinationErrorCode; message: string };
+
 export type ThreadCoordinationActionResult = {
   ok: boolean;
   outcome: ThreadCoordinationAuditResult;

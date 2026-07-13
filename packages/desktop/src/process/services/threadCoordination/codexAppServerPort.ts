@@ -10,8 +10,11 @@ import type {
   CodexThreadDescriptor,
   CodexThreadDetail,
   CodexThreadHistoryItem,
+  CodexThreadServerRequest,
+  CodexThreadServerRequestMethod,
   ThreadCoordinationDeliveryRequest,
   ThreadCoordinationOverviewRequest,
+  ThreadCoordinationResolveServerRequest,
   ThreadCoordinationReviewRequest,
 } from '@/common/types/codex/threadCoordination';
 import type { CodexThreadCoordinationPort, CodexThreadListSnapshot, CodexThreadReviewStartResult } from './index';
@@ -66,6 +69,145 @@ function isUnmaterializedThreadReadError(error: unknown): boolean {
 
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function optionalRecord(value: unknown): JsonRecord | null {
+  return isRecord(value) ? value : null;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => (typeof entry === 'string' ? entry : JSON.stringify(entry))).filter(Boolean);
+}
+
+function serverRequestMethod(value: string): CodexThreadServerRequestMethod | null {
+  if (
+    value === 'item/commandExecution/requestApproval' ||
+    value === 'item/fileChange/requestApproval' ||
+    value === 'item/permissions/requestApproval' ||
+    value === 'item/tool/requestUserInput' ||
+    value === 'mcpServer/elicitation/request' ||
+    value === 'execCommandApproval' ||
+    value === 'applyPatchApproval'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function mapServerRequest(
+  request: ReturnType<CodexAppServerJsonRpc['listPendingServerRequests']>[number]
+): CodexThreadServerRequest | null {
+  const method = serverRequestMethod(request.method);
+  const params = optionalRecord(request.params);
+  if (!method || !params) return null;
+  const legacy = method === 'execCommandApproval' || method === 'applyPatchApproval';
+  const threadId = optionalString(legacy ? params.conversationId : params.threadId);
+  if (!threadId) return null;
+  const questions = Array.isArray(params.questions)
+    ? params.questions.filter(isRecord).map((question) => ({
+        id: requiredString(question.id, 'server request question id'),
+        header: optionalString(question.header) ?? '',
+        question: requiredString(question.question, 'server request question'),
+        isOther: question.isOther === true,
+        isSecret: question.isSecret === true,
+        options: Array.isArray(question.options)
+          ? question.options.filter(isRecord).map((option) => ({
+              label: requiredString(option.label, 'server request option label'),
+              description: optionalString(option.description) ?? '',
+            }))
+          : null,
+      }))
+    : [];
+  const command = Array.isArray(params.command)
+    ? params.command.filter((entry): entry is string => typeof entry === 'string').join(' ')
+    : optionalString(params.command);
+  const elicitation =
+    method === 'mcpServer/elicitation/request'
+      ? {
+          mode: optionalString(params.mode) ?? 'form',
+          serverName: optionalString(params.serverName) ?? '',
+          message: optionalString(params.message) ?? '',
+          url: optionalString(params.url),
+          requestedSchema: params.requestedSchema ?? null,
+        }
+      : null;
+  return {
+    requestId: request.requestId,
+    method,
+    kind:
+      method === 'item/tool/requestUserInput'
+        ? 'user_input'
+        : method === 'item/permissions/requestApproval'
+          ? 'permissions_approval'
+          : method === 'item/fileChange/requestApproval' || method === 'applyPatchApproval'
+            ? 'file_change_approval'
+            : method === 'mcpServer/elicitation/request'
+              ? 'mcp_elicitation'
+              : 'command_approval',
+    threadId,
+    turnId: optionalString(params.turnId),
+    itemId: optionalString(params.itemId),
+    observedAt: request.observedAt,
+    reason: optionalString(params.reason),
+    command,
+    cwd: optionalString(params.cwd),
+    availableDecisions: stringArray(params.availableDecisions),
+    questions,
+    requestedPermissions: optionalRecord(params.permissions),
+    elicitation,
+  };
+}
+
+function approvalResult(
+  method: CodexThreadServerRequestMethod,
+  decision: Extract<ThreadCoordinationResolveServerRequest['response'], { kind: 'approval' }>['decision']
+): unknown {
+  if (method === 'execCommandApproval' || method === 'applyPatchApproval') {
+    const legacyDecision =
+      decision === 'accept'
+        ? 'approved'
+        : decision === 'accept_for_session'
+          ? 'approved_for_session'
+          : decision === 'cancel'
+            ? 'abort'
+            : 'denied';
+    return { decision: legacyDecision };
+  }
+  return {
+    decision: decision === 'accept_for_session' ? 'acceptForSession' : decision,
+  };
+}
+
+function responseForServerRequest(
+  request: CodexThreadServerRequest,
+  response: ThreadCoordinationResolveServerRequest['response']
+): unknown | null {
+  if (request.kind === 'command_approval' || request.kind === 'file_change_approval') {
+    return response.kind === 'approval' ? approvalResult(request.method, response.decision) : null;
+  }
+  if (request.kind === 'permissions_approval') {
+    if (response.kind !== 'permissions') return null;
+    return {
+      permissions: response.decision === 'decline' ? {} : (request.requestedPermissions ?? {}),
+      scope: response.decision === 'accept_for_session' ? 'session' : 'turn',
+    };
+  }
+  if (request.kind === 'user_input') {
+    if (response.kind !== 'user_input') return null;
+    return {
+      answers: Object.fromEntries(Object.entries(response.answers).map(([id, answers]) => [id, { answers }])),
+    };
+  }
+  if (request.kind === 'mcp_elicitation') {
+    if (response.kind !== 'mcp_elicitation') return null;
+    return {
+      action: response.action,
+      content: response.action === 'accept' ? response.content : null,
+      _meta: null,
+    };
+  }
+  return null;
 }
 
 function statusFromRaw(raw: JsonRecord, archived: boolean): CodexThreadCoordinationStatus {
@@ -309,6 +451,20 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
   async deleteThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/delete', { threadId });
     this.activeCoordination.delete(threadId);
+  }
+
+  listPendingServerRequests(): CodexThreadServerRequest[] {
+    return this.rpc
+      .listPendingServerRequests()
+      .map(mapServerRequest)
+      .filter((request) => request !== null);
+  }
+
+  resolveServerRequest(request: ThreadCoordinationResolveServerRequest): boolean {
+    const pending = this.listPendingServerRequests().find((entry) => entry.requestId === request.requestId);
+    if (!pending) return false;
+    const result = responseForServerRequest(pending, request.response);
+    return result !== null && this.rpc.resolveServerRequest(request.requestId, result);
   }
 
   async startReview(request: ThreadCoordinationReviewRequest): Promise<CodexThreadReviewStartResult> {

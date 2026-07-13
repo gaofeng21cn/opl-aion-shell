@@ -74,8 +74,11 @@ import type {
   ThreadCoordinationExecuteRequest,
   ThreadCoordinationOverview,
   ThreadCoordinationOverviewRequest,
+  ThreadCoordinationPendingRequestsResult,
   ThreadCoordinationReadRequest,
   ThreadCoordinationReadResult,
+  ThreadCoordinationResolveServerRequest,
+  ThreadCoordinationResolveServerRequestResult,
 } from '../types/codex/threadCoordination';
 import type {
   AutoUpdateStatus,
@@ -741,6 +744,13 @@ export const threadCoordination = {
   execute: bridge.buildProvider<ThreadCoordinationActionResult, ThreadCoordinationExecuteRequest>(
     'thread-coordination.execute'
   ),
+  listPendingRequests: bridge.buildProvider<ThreadCoordinationPendingRequestsResult, void>(
+    'thread-coordination.list-pending-requests'
+  ),
+  resolveServerRequest: bridge.buildProvider<
+    ThreadCoordinationResolveServerRequestResult,
+    ThreadCoordinationResolveServerRequest
+  >('thread-coordination.resolve-server-request'),
 };
 
 export type LocalDataLifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';

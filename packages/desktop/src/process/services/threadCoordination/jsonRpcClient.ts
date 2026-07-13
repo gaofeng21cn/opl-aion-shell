@@ -14,6 +14,19 @@ type PendingRequest = {
   timeout: ReturnType<typeof setTimeout>;
 };
 
+type JsonRpcRequestId = number | string;
+
+export type CodexAppServerPendingRequest = {
+  requestId: string;
+  method: string;
+  params: unknown;
+  observedAt: string;
+};
+
+type PendingServerRequest = CodexAppServerPendingRequest & {
+  rawId: JsonRpcRequestId;
+};
+
 export type CodexAppServerProcess = Pick<ChildProcessWithoutNullStreams, 'stdin' | 'stdout' | 'stderr' | 'kill' | 'on'>;
 export type SpawnCodexAppServerProcess = (
   executable: string,
@@ -24,6 +37,8 @@ export type SpawnCodexAppServerProcess = (
 export type CodexAppServerJsonRpc = {
   request: <T>(method: string, params: unknown, timeoutMs?: number) => Promise<T>;
   onNotification: (listener: (method: string, params: unknown) => void) => () => void;
+  listPendingServerRequests: () => CodexAppServerPendingRequest[];
+  resolveServerRequest: (requestId: string, result: unknown) => boolean;
   dispose: () => void;
 };
 
@@ -36,9 +51,22 @@ type ClientOptions = {
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 const MAX_STDERR_CHARS = 2_000;
+const INTERACTIVE_SERVER_REQUEST_METHODS = new Set([
+  'item/commandExecution/requestApproval',
+  'item/fileChange/requestApproval',
+  'item/permissions/requestApproval',
+  'item/tool/requestUserInput',
+  'mcpServer/elicitation/request',
+  'execCommandApproval',
+  'applyPatchApproval',
+]);
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function serverRequestKey(id: JsonRpcRequestId): string {
+  return `${typeof id}:${String(id)}`;
 }
 
 function defaultSpawn(
@@ -65,6 +93,7 @@ export class CodexAppServerJsonRpcClient implements CodexAppServerJsonRpc {
   private stderrTail = '';
   private disposed = false;
   private readonly pending = new Map<number, PendingRequest>();
+  private readonly pendingServerRequests = new Map<string, PendingServerRequest>();
   private readonly notificationListeners = new Set<(method: string, params: unknown) => void>();
 
   constructor(options: ClientOptions) {
@@ -84,12 +113,27 @@ export class CodexAppServerJsonRpcClient implements CodexAppServerJsonRpc {
     return () => this.notificationListeners.delete(listener);
   }
 
+  listPendingServerRequests(): CodexAppServerPendingRequest[] {
+    return [...this.pendingServerRequests.values()]
+      .map(({ rawId: _rawId, ...request }) => request)
+      .sort((left, right) => left.observedAt.localeCompare(right.observedAt));
+  }
+
+  resolveServerRequest(requestId: string, result: unknown): boolean {
+    const pending = this.pendingServerRequests.get(requestId);
+    if (!pending) return false;
+    this.write({ id: pending.rawId, result });
+    this.pendingServerRequests.delete(requestId);
+    return true;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.rejectPending(new Error('Codex app-server client was disposed.'));
     this.process?.kill();
     this.process = null;
     this.startPromise = null;
+    this.pendingServerRequests.clear();
   }
 
   private async start(): Promise<void> {
@@ -214,11 +258,33 @@ export class CodexAppServerJsonRpcClient implements CodexAppServerJsonRpc {
     }
     if (typeof payload.method !== 'string') return;
     if ('id' in payload) {
+      if (typeof payload.id !== 'number' && typeof payload.id !== 'string') return;
+      if (payload.method === 'currentTime/read') {
+        this.write({ id: payload.id, result: { currentTimeAt: Math.floor(Date.now() / 1000) } });
+        return;
+      }
+      if (INTERACTIVE_SERVER_REQUEST_METHODS.has(payload.method)) {
+        const requestId = serverRequestKey(payload.id);
+        this.pendingServerRequests.set(requestId, {
+          requestId,
+          rawId: payload.id,
+          method: payload.method,
+          params: payload.params,
+          observedAt: new Date().toISOString(),
+        });
+        return;
+      }
       this.write({
         id: payload.id,
         error: { code: -32601, message: `Unsupported server request: ${payload.method}` },
       });
       return;
+    }
+    if (payload.method === 'serverRequest/resolved' && isRecord(payload.params)) {
+      const requestId = payload.params.requestId;
+      if (typeof requestId === 'number' || typeof requestId === 'string') {
+        this.pendingServerRequests.delete(serverRequestKey(requestId));
+      }
     }
     this.notificationListeners.forEach((listener) => listener(payload.method as string, payload.params));
   }
@@ -227,6 +293,7 @@ export class CodexAppServerJsonRpcClient implements CodexAppServerJsonRpc {
     if (!this.process) return;
     this.process = null;
     this.startPromise = null;
+    this.pendingServerRequests.clear();
     this.rejectPending(error);
   }
 

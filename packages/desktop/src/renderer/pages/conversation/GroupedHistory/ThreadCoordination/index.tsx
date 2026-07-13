@@ -16,6 +16,7 @@ import type {
   ThreadCoordinationActionRequest,
 } from '@/common/types/codex/threadCoordination';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
+import PendingServerRequests from './PendingServerRequests';
 import { useThreadCoordination } from './useThreadCoordination';
 
 type ThreadCoordinationSectionProps = {
@@ -37,7 +38,8 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
   const { t } = useTranslation();
   const { id: conversationId } = useParams();
   const isMobile = useLayoutContext()?.isMobile ?? false;
-  const { overview, loading, refresh, readThread, execute } = useThreadCoordination(conversationId);
+  const { overview, pendingRequests, loading, refresh, readThread, execute, resolveServerRequest } =
+    useThreadCoordination(conversationId);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [sourceThreadId, setSourceThreadId] = useState<string | null>(null);
@@ -54,6 +56,7 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
   );
   const available = overview?.availability.status === 'available';
   const runningCount = threads.filter((thread) => thread.status === 'running').length;
+  const selectedPendingRequests = pendingRequests.filter((request) => request.threadId === selectedThreadId);
 
   useEffect(() => {
     if (!selectedThreadId && threads.length > 0) setSelectedThreadId(threads[0].id);
@@ -171,7 +174,9 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
         <>
           <span className='min-w-0 flex-1 truncate text-14px font-[500]'>{railLabel}</span>
           <span className='text-11px text-t-tertiary tabular-nums'>
-            {available ? `${runningCount}/${threads.length}` : '--'}
+            {available
+              ? `${runningCount}/${threads.length}${pendingRequests.length ? ` · ${pendingRequests.length}` : ''}`
+              : '--'}
           </span>
         </>
       )}
@@ -312,6 +317,8 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                         </dd>
                       </dl>
                     </section>
+
+                    <PendingServerRequests requests={selectedPendingRequests} onResolve={resolveServerRequest} />
 
                     <section className='border-t border-solid border-[var(--color-border-2)] pt-16px'>
                       <div className='mb-8px text-13px font-[600] text-t-primary'>

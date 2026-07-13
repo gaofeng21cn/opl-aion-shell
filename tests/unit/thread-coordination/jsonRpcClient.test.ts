@@ -6,7 +6,13 @@ import {
   type CodexAppServerProcess,
 } from '@/process/services/threadCoordination/jsonRpcClient';
 
-type RequestRecord = { method: string; id?: number; params?: unknown };
+type RequestRecord = {
+  method?: string;
+  id?: number | string;
+  params?: unknown;
+  result?: unknown;
+  error?: unknown;
+};
 
 class FakeCodexProcess extends EventEmitter {
   readonly stdin = new PassThrough();
@@ -34,8 +40,12 @@ class FakeCodexProcess extends EventEmitter {
     });
   }
 
-  reply(id: number, result: unknown): void {
+  reply(id: number | string, result: unknown): void {
     this.stdout.write(`${JSON.stringify({ id, result })}\n`);
+  }
+
+  requestClient(id: number | string, method: string, params: unknown): void {
+    this.stdout.write(`${JSON.stringify({ id, method, params })}\n`);
   }
 }
 
@@ -90,5 +100,69 @@ describe('CodexAppServerJsonRpcClient', () => {
     });
 
     await expect(client.request('thread/list', {})).rejects.toThrow(/exited/);
+  });
+
+  it('queues interactive server requests until the renderer returns a typed result', async () => {
+    const process = new FakeCodexProcess((request, child) => {
+      if (request.method === 'initialize' && request.id) child.reply(request.id, { userAgent: 'Codex/0.144.3' });
+      if (request.method === 'thread/list' && request.id) {
+        child.reply(request.id, { data: [], nextCursor: null });
+        queueMicrotask(() =>
+          child.requestClient(41, 'item/commandExecution/requestApproval', {
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            itemId: 'item-1',
+            command: 'git status',
+          })
+        );
+      }
+    });
+    const client = new CodexAppServerJsonRpcClient({
+      executable: '/managed/codex',
+      spawnProcess: () => asProcess(process),
+    });
+
+    await client.request('thread/list', {});
+    await vi.waitFor(() => expect(client.listPendingServerRequests()).toHaveLength(1));
+    const [pending] = client.listPendingServerRequests();
+
+    expect(pending).toMatchObject({
+      requestId: 'number:41',
+      method: 'item/commandExecution/requestApproval',
+    });
+    expect(client.resolveServerRequest(pending.requestId, { decision: 'accept' })).toBe(true);
+    expect(process.requests).toContainEqual({ id: 41, result: { decision: 'accept' } });
+    expect(client.listPendingServerRequests()).toEqual([]);
+  });
+
+  it('answers currentTime/read locally and rejects unknown server requests', async () => {
+    const process = new FakeCodexProcess((request, child) => {
+      if (request.method === 'initialize' && request.id) child.reply(request.id, { userAgent: 'Codex/0.144.3' });
+      if (request.method === 'thread/list' && request.id) {
+        child.reply(request.id, { data: [], nextCursor: null });
+        queueMicrotask(() => {
+          child.requestClient('clock', 'currentTime/read', { threadId: 'thread-1' });
+          child.requestClient('unknown', 'unsupported/request', {});
+        });
+      }
+    });
+    const client = new CodexAppServerJsonRpcClient({
+      executable: '/managed/codex',
+      spawnProcess: () => asProcess(process),
+    });
+
+    await client.request('thread/list', {});
+    await vi.waitFor(() =>
+      expect(process.requests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'clock', result: { currentTimeAt: expect.any(Number) } }),
+          {
+            id: 'unknown',
+            error: { code: -32601, message: 'Unsupported server request: unsupported/request' },
+          },
+        ])
+      )
+    );
+    expect(client.listPendingServerRequests()).toEqual([]);
   });
 });

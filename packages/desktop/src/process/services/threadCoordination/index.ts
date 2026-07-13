@@ -11,6 +11,7 @@ import {
   type CodexThreadCoordinationMethod,
   type CodexThreadDescriptor,
   type CodexThreadDetail,
+  type CodexThreadServerRequest,
   type ThreadCoordinationActionRequest,
   type ThreadCoordinationActionResult,
   type ThreadCoordinationAdvisory,
@@ -23,6 +24,8 @@ import {
   type ThreadCoordinationOverviewRequest,
   type ThreadCoordinationPermissionDecision,
   type ThreadCoordinationReadResult,
+  type ThreadCoordinationResolveServerRequest,
+  type ThreadCoordinationResolveServerRequestResult,
   type ThreadCoordinationReviewRequest,
   type ThreadCoordinationWriteSetDecision,
 } from '@/common/types/codex/threadCoordination';
@@ -51,6 +54,8 @@ export type CodexThreadCoordinationPort = {
   archiveThread: (threadId: string) => Promise<void>;
   unarchiveThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   deleteThread: (threadId: string) => Promise<void>;
+  listPendingServerRequests?: () => CodexThreadServerRequest[];
+  resolveServerRequest?: (request: ThreadCoordinationResolveServerRequest) => boolean;
   startReview: (request: ThreadCoordinationReviewRequest) => Promise<CodexThreadReviewStartResult>;
   startTurn: (request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>) => Promise<string>;
   steerTurn: (
@@ -281,6 +286,35 @@ export class ThreadCoordinationService {
         ok: false,
         errorCode: 'protocol_error',
         message: error instanceof Error ? error.message : 'Could not read the Codex thread.',
+      };
+    }
+  }
+
+  listPendingServerRequests(): CodexThreadServerRequest[] {
+    return this.port?.listPendingServerRequests?.() ?? [];
+  }
+
+  resolveServerRequest(request: ThreadCoordinationResolveServerRequest): ThreadCoordinationResolveServerRequestResult {
+    if (!request.requestId.trim()) {
+      return { ok: false, errorCode: 'invalid_request', message: 'Server request id is required.' };
+    }
+    if (!this.port?.resolveServerRequest) {
+      return {
+        ok: false,
+        errorCode: 'protocol_unavailable',
+        message: 'Codex app-server request handling is unavailable.',
+      };
+    }
+    try {
+      if (!this.port.resolveServerRequest(request)) {
+        return { ok: false, errorCode: 'thread_not_found', message: 'The Codex server request is no longer pending.' };
+      }
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        errorCode: 'protocol_error',
+        message: error instanceof Error ? error.message : 'Could not resolve the Codex server request.',
       };
     }
   }

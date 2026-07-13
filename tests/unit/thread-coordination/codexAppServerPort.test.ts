@@ -16,6 +16,8 @@ function rpc(handlers: Record<string, Handler>): CodexAppServerJsonRpc & { reque
       return (await handler(params)) as T;
     }),
     onNotification: () => () => {},
+    listPendingServerRequests: vi.fn(() => []),
+    resolveServerRequest: vi.fn(() => true),
     dispose: vi.fn(),
   };
 }
@@ -225,5 +227,76 @@ describe('CodexAppServerThreadCoordinationPort', () => {
       { reviewThreadId: 'review-thread-3', turnId: 'review-turn-3' },
       { reviewThreadId: 'review-thread-4', turnId: 'review-turn-4' },
     ]);
+  });
+
+  it('projects interactive app-server requests and returns protocol-specific decisions', () => {
+    const appServer = rpc({});
+    vi.mocked(appServer.listPendingServerRequests).mockReturnValue([
+      {
+        requestId: 'number:41',
+        method: 'item/commandExecution/requestApproval',
+        observedAt: '2026-07-13T01:00:00.000Z',
+        params: {
+          threadId: 'target',
+          turnId: 'turn-1',
+          itemId: 'item-1',
+          reason: 'Needs network access',
+          command: 'git fetch',
+          cwd: '/workspace/target',
+          availableDecisions: ['accept', 'acceptForSession', 'decline'],
+        },
+      },
+      {
+        requestId: 'string:question',
+        method: 'item/tool/requestUserInput',
+        observedAt: '2026-07-13T01:00:01.000Z',
+        params: {
+          threadId: 'target',
+          turnId: 'turn-1',
+          itemId: 'item-2',
+          questions: [
+            {
+              id: 'scope',
+              header: 'Scope',
+              question: 'Which scope?',
+              isOther: false,
+              isSecret: false,
+              options: [{ label: 'Focused', description: 'Only changed files' }],
+            },
+          ],
+        },
+      },
+    ]);
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+
+    expect(port.listPendingServerRequests()).toEqual([
+      expect.objectContaining({
+        requestId: 'number:41',
+        kind: 'command_approval',
+        threadId: 'target',
+        command: 'git fetch',
+      }),
+      expect.objectContaining({
+        requestId: 'string:question',
+        kind: 'user_input',
+        questions: [expect.objectContaining({ id: 'scope', question: 'Which scope?' })],
+      }),
+    ]);
+    expect(
+      port.resolveServerRequest({
+        requestId: 'number:41',
+        response: { kind: 'approval', decision: 'accept_for_session' },
+      })
+    ).toBe(true);
+    expect(appServer.resolveServerRequest).toHaveBeenCalledWith('number:41', { decision: 'acceptForSession' });
+    expect(
+      port.resolveServerRequest({
+        requestId: 'string:question',
+        response: { kind: 'user_input', answers: { scope: ['Focused'] } },
+      })
+    ).toBe(true);
+    expect(appServer.resolveServerRequest).toHaveBeenCalledWith('string:question', {
+      answers: { scope: { answers: ['Focused'] } },
+    });
   });
 });

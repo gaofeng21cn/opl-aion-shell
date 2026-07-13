@@ -746,6 +746,25 @@
     "unknown": "未报告",
     "history": "摘要与历史",
     "noHistory": "未返回历史记录",
+    "serverRequests": {
+      "title": "待处理的 Codex 请求",
+      "description": "该任务正在等待你的 Codex 授权或输入，并继续沿用任务原有的权限与沙箱策略。",
+      "kind": {
+        "command_approval": "命令授权",
+        "file_change_approval": "文件修改授权",
+        "permissions_approval": "额外权限",
+        "user_input": "Agent 提问",
+        "mcp_elicitation": "MCP 请求"
+      },
+      "accept": "允许一次",
+      "acceptForSession": "本会话允许",
+      "decline": "拒绝",
+      "submit": "提交回答",
+      "responseJson": "响应 JSON",
+      "invalidJson": "响应 JSON 无效",
+      "resolved": "Codex 请求已处理",
+      "resolveFailed": "无法处理 Codex 请求"
+    },
     "coordinate": "协调操作",
     "sender": "发送线程",
     "sourcePlaceholder": "选择发送方顶层线程",
