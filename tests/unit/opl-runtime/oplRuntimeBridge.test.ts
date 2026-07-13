@@ -609,6 +609,56 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(appStateCommand.timeoutMs).toBeUndefined();
   });
 
+  it('ignores a retired packaged Full runtime when refreshing after switching to the managed carrier', () => {
+    const homeDir = makeTempRoot('opl-retired-full-runtime-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(path.join(runtimeHome, 'opl'));
+    makeFrameworkCarrier(managedRoot);
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(
+      path.join(runtimeHome, 'opl', 'package.json'),
+      JSON.stringify({ name: 'opl-framework-shared', version: '0.1.0' }),
+      'utf8'
+    );
+
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+      __oplRuntimeBridgeTest.buildOplCommandEnv({
+        baseEnv: {
+          HOME: homeDir,
+          PATH: '/usr/bin:/bin',
+          OPL_APP_INSTALL_ORIGIN: 'direct_download',
+        },
+        platform: 'darwin',
+        arch: 'arm64',
+      })
+    );
+
+    expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('framework_managed_install');
+    expect(command.args[0]).toBe(path.join(managedRoot, 'dist', 'entrypoints', 'cli.js'));
+  });
+
+  it('bootstraps a legacy managed Framework that rejects the OPL Gateway account credential handle', () => {
+    const legacyError = new Error('credential_handle must use env:NAME or codex:selected_provider.');
+
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        legacyError
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildActionCommand({ actionId: 'connection_create' }),
+        legacyError
+      )
+    ).toBe(false);
+  });
+
   it('does not let an incomplete Standard carrier preempt a packaged Full runtime', () => {
     const homeDir = makeTempRoot('opl-full-runtime-incomplete-standard-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');

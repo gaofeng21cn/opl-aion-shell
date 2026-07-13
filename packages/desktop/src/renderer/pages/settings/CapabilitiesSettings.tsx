@@ -921,8 +921,8 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
               data-testid='opl-developer-profile-mode'
             >
-              <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
               <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
+              <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
               <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
             </Radio.Group>
           </div>

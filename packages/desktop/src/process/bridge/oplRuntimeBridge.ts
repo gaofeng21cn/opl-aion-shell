@@ -608,6 +608,14 @@ function isManagedCarrierDependencyError(error: unknown): boolean {
   );
 }
 
+function isLegacyGatewayCredentialHandleError(spec: RuntimeCommandSpec, error: unknown): boolean {
+  return (
+    spec.surface.startsWith('app_state_') &&
+    error instanceof Error &&
+    error.message.includes('credential_handle must use env:NAME or codex:selected_provider.')
+  );
+}
+
 function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error: unknown): boolean {
   return (
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
@@ -616,6 +624,7 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     (isManagedCarrierDependencyError(error) &&
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
+    isLegacyGatewayCredentialHandleError(spec, error) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
 }
@@ -997,7 +1006,8 @@ function resolvePackagedFullRuntimeRoot(env: NodeJS.ProcessEnv): string | null {
     return null;
   }
   const packageRoot = path.join(runtimeHome, 'opl');
-  return hasOplCliEntrypoint(packageRoot) ? packageRoot : null;
+  const packageManifest = readJsonRecordFile(path.join(packageRoot, 'package.json'));
+  return packageManifest?.name === 'opl-framework' && hasOplCliEntrypoint(packageRoot) ? packageRoot : null;
 }
 
 function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string; frameworkApiVersion: string } {

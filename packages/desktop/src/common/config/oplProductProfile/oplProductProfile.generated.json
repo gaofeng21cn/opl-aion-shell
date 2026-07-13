@@ -1278,7 +1278,7 @@
       "default_profile": "standard_user",
       "opt_in_policy": "explicit_opt_in_only",
       "settings_page": "settings_agents",
-      "global_control": "managed_automatic_developer_segmented_control",
+      "global_control": "automatic_managed_developer_segmented_control",
       "safe_maintenance_control": "switch",
       "safe_maintenance_independent_from_source_selection": true,
       "package_source_control": "auto_managed_developer_segmented_control_in_package_details",
@@ -3608,7 +3608,7 @@
             "label_en": "Agents",
             "primary_information": [
               "runnable Agent package catalog with availability and user-facing source labels",
-              "global managed, automatic, or developer source mode with selected workspace and authority summary",
+              "global automatic, managed, or developer source mode with selected workspace and authority summary",
               "per-package automatic, managed, or developer source selection in package details",
               "Home visibility, shortcut order, launch readiness, and lifecycle management on Agent rows",
               "Skills and Plugins excluded and routed to Capabilities",

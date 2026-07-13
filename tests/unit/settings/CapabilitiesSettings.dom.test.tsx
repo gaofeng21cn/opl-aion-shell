@@ -868,6 +868,11 @@ describe('Agents and capabilities settings', () => {
     const profile = screen.getByTestId('opl-developer-profile-control');
     expect(profile).toHaveTextContent('/Users/test/workspace');
     expect(profile).toHaveTextContent('7 / 7');
+    expect(
+      within(profile)
+        .getAllByRole('radio')
+        .map((control) => control.getAttribute('value'))
+    ).toEqual(['auto', 'off', 'on']);
     expect(within(profile).getByTestId('opl-developer-profile-maintenance')).toHaveClass('arco-switch-small');
     expect(screen.getByTestId('capability-purpose-mas')).toHaveClass('opl-settings-capability-row');
 
