@@ -18,7 +18,19 @@ const bridgeMocks = vi.hoisted(() => ({
   applyUpdateComponentInvoke: vi.fn(),
   repairUpdateInvoke: vi.fn(),
   rollbackUpdateComponentInvoke: vi.fn(),
+  modalConfirm: vi.fn(),
 }));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Modal: {
+      ...actual.Modal,
+      confirm: bridgeMocks.modalConfirm,
+    },
+  };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -250,6 +262,71 @@ const managedUpdateStatusResult = {
           },
           needs_restart: true,
           reload_guidance: 'Restart the app after apply.',
+          current: {
+            dependency_catalog: {
+              lifecycle_owner: 'opl_base',
+              flow_dependencies: [
+                {
+                  dependency_id: 'officecli',
+                  dependency_kind: 'cli',
+                  installed: true,
+                  currentness: 'current',
+                  ownership: 'opl_managed',
+                  update_mode: 'silent_managed',
+                },
+              ],
+              dependencies: [
+                {
+                  dependency_id: 'codex-cli',
+                  dependency_kind: 'runtime_executor',
+                  installed: true,
+                  version: '1.2.3',
+                  currentness: 'current',
+                  ownership: 'opl_managed',
+                  update_mode: 'silent_managed',
+                  external_installations: [
+                    {
+                      dependency_id: 'codex-cli-homebrew',
+                      installed: true,
+                      version: '1.2.2',
+                      latest_version: '1.2.3',
+                      currentness: 'update_available',
+                      ownership: 'homebrew',
+                      update_mode: 'explicit_owner_delegated',
+                      update_action: {
+                        action_id: 'update_external_codex_homebrew',
+                        label: 'Update with Homebrew',
+                        surface: 'opl app action execute',
+                        payload_fields: [],
+                        confirmation_required: true,
+                        owner_kind: 'homebrew_formula',
+                        auto_apply_allowed: false,
+                      },
+                    },
+                  ],
+                },
+                {
+                  dependency_id: 'temporal-runtime',
+                  dependency_kind: 'runtime_substrate',
+                  installed: true,
+                  version: { client: '1.11.0', worker: '1.11.0', workflow: '1.11.0' },
+                  currentness: 'current',
+                  ownership: 'opl_managed_runtime_generation',
+                  update_mode: 'silent_managed',
+                },
+                {
+                  dependency_id: 'temporal-system-cli',
+                  dependency_kind: 'cli',
+                  installed: true,
+                  version: '1.4.0',
+                  currentness: 'update_available',
+                  ownership: 'global_path',
+                  update_mode: 'detect_only_guidance',
+                  guidance: 'Update with the original package manager.',
+                },
+              ],
+            },
+          },
         },
         {
           component_id: 'opl_packages',
@@ -470,6 +547,24 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('Med Auto Science');
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('OPL Book Forge');
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
+    expect(screen.getByTestId('opl-base-dependency-catalog')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-base-dependency-codex-cli')).toHaveTextContent('1.2.3');
+    expect(screen.getByTestId('opl-base-dependency-temporal-runtime')).toHaveTextContent('client 1.11.0');
+    expect(screen.getByTestId('opl-base-dependency-temporal-system-cli')).toHaveTextContent(
+      'settings.oplEnvironmentPage.dependencies.updateModes.detect_only_guidance'
+    );
+    expect(screen.getByTestId('opl-base-dependency-update-codex-cli-homebrew')).toHaveTextContent(
+      'Update with Homebrew'
+    );
+    fireEvent.click(screen.getByTestId('opl-base-dependency-update-codex-cli-homebrew'));
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: 'update_external_codex_homebrew' })
+    );
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('settings.oplEnvironmentPage.dependencies.confirmation.title'),
+      })
+    );
 
     fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
 

@@ -23,6 +23,45 @@ export type ManagedUpdateSubstatus = {
   conditions: ManagedUpdateCondition[];
 };
 
+export type ManagedDependencyUpdateMode = 'silent_managed' | 'explicit_owner_delegated' | 'detect_only_guidance';
+
+export type ManagedDependencyUpdateAction = {
+  actionId: string;
+  label?: string;
+  surface?: string;
+  delegatedSurface?: string;
+  payloadFields: string[];
+  confirmationRequired: boolean;
+  ownerKind?: string;
+  autoApplyAllowed: boolean;
+};
+
+export type ManagedDependency = {
+  id: string;
+  kind?: string;
+  installed: boolean;
+  version?: string;
+  latestVersion?: string;
+  currentness: string;
+  ownership: string;
+  updateMode: ManagedDependencyUpdateMode;
+  updateAction?: ManagedDependencyUpdateAction;
+  activationPolicy?: string;
+  binaryPath?: string;
+  guidance?: string;
+  external: boolean;
+};
+
+export type ManagedDependencyCatalog = {
+  lifecycleOwner?: string;
+  dependencies: ManagedDependency[];
+};
+
+export type OplFlowManagedCapabilityCatalog = {
+  skillIds: string[];
+  cliDependencies: ManagedDependency[];
+};
+
 export type ManagedUpdateComponent = {
   id: ManagedUpdateComponentId;
   label: string;
@@ -54,6 +93,7 @@ export type ManagedUpdateComponent = {
   safeToApply: boolean;
   repairAllowed: boolean;
   rollbackAllowed: boolean;
+  dependencyCatalog?: ManagedDependencyCatalog;
 };
 
 export type ManagedUpdatePlane = {
@@ -108,6 +148,10 @@ function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((entry) => firstOplString(entry)).filter((entry): entry is string => Boolean(entry))
     : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function nonNegativeNumber(...values: unknown[]): number | undefined {
@@ -242,6 +286,146 @@ function readVersionDetail(component: Record<string, unknown>): {
   };
 }
 
+function versionValue(value: unknown): string | undefined {
+  const scalar = firstOplString(value);
+  if (scalar) return scalar;
+  const record = oplRecord(value);
+  const entries = Object.entries(record)
+    .map(([key, entry]) => {
+      const version = firstOplString(entry);
+      return version ? `${key} ${version}` : null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+  return entries.length > 0 ? entries.join(', ') : undefined;
+}
+
+function managedDependencyUpdateMode(value: unknown): ManagedDependencyUpdateMode {
+  const normalized = firstOplString(value);
+  if (normalized === 'silent_managed' || normalized === 'explicit_owner_delegated') return normalized;
+  if (
+    normalized === 'silent_stage_verify' ||
+    normalized === 'silent_managed_reconcile' ||
+    normalized === 'updated_with_opl_base_framework_generation' ||
+    normalized === 'updated_with_app_runtime_generation'
+  ) {
+    return 'silent_managed';
+  }
+  return 'detect_only_guidance';
+}
+
+function readManagedDependencyAction(value: unknown): ManagedDependencyUpdateAction | undefined {
+  const action = oplRecord(value);
+  const actionId = firstOplString(action.action_id, action.actionId);
+  if (!actionId) return undefined;
+  return {
+    actionId,
+    label: firstOplString(action.label),
+    surface: firstOplString(action.surface),
+    delegatedSurface: firstOplString(action.delegated_surface, action.delegatedSurface),
+    payloadFields: stringArrayValue(action.payload_fields ?? action.payloadFields),
+    confirmationRequired: action.confirmation_required !== false,
+    ownerKind: firstOplString(action.owner_kind, action.ownerKind),
+    autoApplyAllowed: oplBoolean(action.auto_apply_allowed ?? action.autoApplyAllowed),
+  };
+}
+
+function readManagedDependency(value: unknown, fallbackId: string, external = false): ManagedDependency | null {
+  const dependency = oplRecord(value);
+  const id = firstOplString(dependency.dependency_id, dependency.id, fallbackId);
+  if (!id) return null;
+  const updateMode = managedDependencyUpdateMode(dependency.update_mode ?? dependency.update_policy);
+  const updateAction =
+    updateMode === 'explicit_owner_delegated' ? readManagedDependencyAction(dependency.update_action) : undefined;
+  return {
+    id,
+    kind: firstOplString(dependency.dependency_kind, dependency.kind),
+    installed: oplBoolean(dependency.installed) || Boolean(firstOplString(dependency.binary_path, dependency.path)),
+    version: versionValue(dependency.version ?? dependency.current_version),
+    latestVersion: versionValue(dependency.latest_version),
+    currentness:
+      firstOplString(dependency.currentness, dependency.version_status, dependency.status) ??
+      (oplBoolean(dependency.installed) ? 'unknown' : 'missing'),
+    ownership: firstOplString(dependency.ownership, dependency.owner) ?? 'unknown',
+    updateMode,
+    updateAction,
+    activationPolicy: firstOplString(dependency.activation_policy),
+    binaryPath: firstOplString(dependency.binary_path, dependency.path),
+    guidance: firstOplString(dependency.guidance, dependency.note),
+    external,
+  };
+}
+
+export function readOplFlowManagedCapabilityCatalog(
+  appState: Record<string, unknown>
+): OplFlowManagedCapabilityCatalog {
+  const agentPackages = oplRecord(appState.agent_packages);
+  const directory = oplRecord(agentPackages.directory);
+  const flowPackage = oplRecordList(directory.installed_packages).find(
+    (item) => firstOplString(item.package_id, item.packageId) === 'opl-flow'
+  );
+  if (!flowPackage) return { skillIds: [], cliDependencies: [] };
+
+  const physicalSurface = oplRecord(flowPackage.physical_surface ?? flowPackage.physicalSurface);
+  const policy = oplRecord(
+    physicalSurface.workflow_policy_migration ??
+      physicalSurface.managed_policy_migration ??
+      flowPackage.workflow_policy_migration ??
+      flowPackage.managed_policy_migration
+  );
+  const dependencySync = oplRecord(policy.dependency_sync ?? policy.dependencySync);
+  const syncedSkillIds = oplRecordList(dependencySync.items).flatMap((item) => {
+    const id = firstOplString(item.skill_id, item.skillId);
+    return id ? [id] : [];
+  });
+  const skillIds = uniqueStrings([
+    ...stringArrayValue(flowPackage.bundled_required_skill_ids ?? flowPackage.required_skill_ids),
+    ...syncedSkillIds,
+  ]);
+  const cliDependencies = oplRecordList(dependencySync.tools).flatMap((tool) => {
+    const id = firstOplString(tool.tool_id, tool.toolId);
+    if (!id) return [];
+    const status = firstOplString(tool.status) ?? 'unknown';
+    const binaryPath = firstOplString(tool.binary_path, tool.binaryPath);
+    return [
+      {
+        id,
+        kind: 'cli',
+        installed: Boolean(binaryPath) || status === 'ready' || status === 'current',
+        version: versionValue(tool.version),
+        currentness: status === 'ready' || status === 'synced' ? 'current' : status,
+        ownership: 'opl_flow_managed',
+        updateMode: 'silent_managed' as const,
+        binaryPath,
+        guidance: firstOplString(tool.note),
+        external: false,
+      },
+    ];
+  });
+  return { skillIds, cliDependencies };
+}
+
+function readManagedDependencyCatalog(component: Record<string, unknown>): ManagedDependencyCatalog | undefined {
+  const current = oplRecord(component.current);
+  const catalog = oplRecord(component.dependency_catalog ?? current.dependency_catalog);
+  const dependencies = oplRecordList(catalog.dependencies).flatMap((entry, index) => {
+    const primary = readManagedDependency(entry, `dependency-${index + 1}`);
+    const externalInstallations = oplRecordList(entry.external_installations).flatMap((external, externalIndex) => {
+      const externalDependency = readManagedDependency(
+        external,
+        `${primary?.id ?? `dependency-${index + 1}`}-external-${externalIndex + 1}`,
+        true
+      );
+      return externalDependency ? [externalDependency] : [];
+    });
+    return primary ? [primary, ...externalInstallations] : externalInstallations;
+  });
+  if (dependencies.length === 0) return undefined;
+  return {
+    lifecycleOwner: firstOplString(catalog.lifecycle_owner),
+    dependencies,
+  };
+}
+
 export function readManagedUpdatePlane(parsed: unknown, appState: Record<string, unknown>): ManagedUpdatePlane {
   const root = managedUpdateRoot(parsed, appState);
   const rawComponents = managedUpdateComponentRecords(root);
@@ -363,6 +547,7 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
         !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
       rollbackAllowed:
         rawRollbackAllowed && packageTargetReady && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      dependencyCatalog: id === 'opl_base' ? readManagedDependencyCatalog(component) : undefined,
     };
   });
   return {

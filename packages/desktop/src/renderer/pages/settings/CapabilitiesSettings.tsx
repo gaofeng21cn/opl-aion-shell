@@ -48,10 +48,12 @@ import {
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
+import { readOplFlowManagedCapabilityCatalog } from '@/renderer/services/managedUpdateProjection';
 
-export type CapabilitiesTab = 'skills' | 'tools';
+export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
-const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
+const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
+  value === 'opl_flow_managed' || value === 'manual_and_third_party';
 const DEFAULT_AGENT_REGISTRY_URL =
   'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json';
 
@@ -572,17 +574,7 @@ const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | nul
   );
 };
 
-type CapabilitiesSettingsContentProps = {
-  activeTab: CapabilitiesTab;
-  onTabChange: (tab: CapabilitiesTab) => void;
-  supportingSurfaceDefaultOpen?: boolean;
-};
-
-export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({
-  activeTab,
-  onTabChange,
-  supportingSurfaceDefaultOpen = false,
-}) => {
+export const AgentPackagesSettingsContent: React.FC = () => {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = Boolean(useLayoutContext()?.isMobile);
@@ -598,7 +590,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const [advancedAddOpen, setAdvancedAddOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
-  const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
   const shortcutPreferences = useOplHomeShortcutPreferences();
   const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
   const shortcutByPackageId = React.useMemo(
@@ -880,23 +871,23 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   };
 
   return (
-    <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-capabilities'>
-      <span data-testid='capabilities-settings-page' aria-hidden='true' />
+    <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-agents'>
+      <span data-testid='agent-packages-settings-page' aria-hidden='true' />
       <header className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4} className='mb-6px'>
-            {t('settings.capabilitiesPage.title')}
+            {t('settings.agentsPage.title')}
           </Typography.Title>
-          <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
+          <Typography.Text className='text-t-secondary'>{t('settings.agentsPage.description')}</Typography.Text>
         </div>
         <div className='opl-settings-page-header__actions'>
-          <Button type='primary' onClick={openAddCapability} data-testid='settings-capabilities-primary-action'>
-            {t('settings.capabilitiesPage.packageManager.addCapability')}
+          <Button type='primary' onClick={openAddCapability} data-testid='settings-agents-primary-action'>
+            {t('settings.agentsPage.addAgent')}
           </Button>
         </div>
       </header>
 
-      <div className='flex flex-col gap-14px' data-testid='settings-capabilities-primary'>
+      <div className='flex flex-col gap-14px' data-testid='settings-agents-primary'>
         <section
           className='opl-settings-section opl-settings-surface--configuration'
           id='source'
@@ -1555,47 +1546,104 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </details>
         </section>
       </div>
+    </div>
+  );
+};
 
-      <details
-        className='opl-settings-details'
-        id='capability-supporting-surfaces'
-        open={supportingSurfaceOpen}
-        onToggle={(event) => setSupportingSurfaceOpen(event.currentTarget.open)}
-        data-testid='capability-supporting-surfaces'
+export const AgentPackagesSettings: React.FC = () => (
+  <SettingsPageWrapper contentClassName='max-w-none'>
+    <AgentPackagesSettingsContent />
+  </SettingsPageWrapper>
+);
+
+type CapabilitiesSettingsContentProps = {
+  activeTab: CapabilitiesTab;
+  onTabChange: (tab: CapabilitiesTab) => void;
+};
+
+export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
+  const { t } = useTranslation();
+  const appStateQuery = useOplAppState('fast');
+  const [flowSyncing, setFlowSyncing] = useState(false);
+  const flowManagedCatalog = React.useMemo(
+    () => readOplFlowManagedCapabilityCatalog(appStateQuery.appState),
+    [appStateQuery.appState]
+  );
+
+  const syncFlowCapabilities = async () => {
+    if (flowSyncing) return;
+    setFlowSyncing(true);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'settings_sync_capabilities',
+        dryRun: false,
+      });
+      if (result.ok === false) throw new Error(result.error?.message || result.command);
+      await appStateQuery.load('fast', { showRefreshing: true });
+      Message.success(t('settings.capabilitiesPage.groups.oplFlowManaged.syncComplete'));
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setFlowSyncing(false);
+    }
+  };
+
+  return (
+    <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-capabilities'>
+      <header className='opl-settings-page-header'>
+        <div className='opl-settings-page-header__copy'>
+          <Typography.Title heading={4} className='mb-6px'>
+            {t('settings.capabilitiesPage.title')}
+          </Typography.Title>
+          <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
+        </div>
+      </header>
+      <Tabs
+        activeTab={activeTab}
+        onChange={(key) => {
+          if (isCapabilitiesTab(key)) onTabChange(key);
+        }}
+        type='line'
       >
-        <summary className='cursor-pointer'>
-          <Typography.Text className='font-600 text-t-primary'>
-            {t('settings.capabilitiesPage.supporting.compactTitle', {
-              defaultValue: 'Skills and tools',
-            })}
-          </Typography.Text>
-        </summary>
-        {supportingSurfaceOpen && (
-          <div className='mt-10px'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.supporting.description')}
-            </Typography.Text>
-            <Tabs
-              activeTab={activeTab}
-              onChange={(key) => {
-                if (isCapabilitiesTab(key)) onTabChange(key);
-              }}
-              type='line'
-              className='mt-12px flex min-h-0 flex-1 flex-col [&>.arco-tabs-content]:pt-0'
-            >
-              <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
-                <SkillsHubSettings withWrapper={false} />
-              </Tabs.TabPane>
-              <Tabs.TabPane
-                key='tools'
-                title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
-              >
-                <ToolsModalContent />
-              </Tabs.TabPane>
-            </Tabs>
+        <Tabs.TabPane
+          key='opl_flow_managed'
+          title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
+        >
+          <SkillsHubSettings
+            withWrapper={false}
+            displayGroup='flow'
+            flowManagedSkillIds={flowManagedCatalog.skillIds}
+            flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
+            flowSyncing={flowSyncing}
+            onSyncFlow={() => void syncFlowCapabilities()}
+          />
+        </Tabs.TabPane>
+        <Tabs.TabPane
+          key='manual_and_third_party'
+          title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manual & third-party' })}
+        >
+          <div className='flex flex-col gap-16px' data-testid='manual-and-third-party-capabilities'>
+            <SkillsHubSettings
+              withWrapper={false}
+              displayGroup='manual'
+              flowManagedSkillIds={flowManagedCatalog.skillIds}
+            />
+            <section className='opl-settings-section opl-settings-surface--configuration'>
+              <div className='opl-settings-section__header'>
+                <div>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsTitle')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsDescription')}
+                  </Typography.Text>
+                </div>
+              </div>
+              <ToolsModalContent />
+            </section>
           </div>
-        )}
-      </details>
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };
@@ -1604,17 +1652,23 @@ const CapabilitiesSettings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>(() => {
     const tabParam = searchParams.get('tab');
-    return isCapabilitiesTab(tabParam) ? tabParam : 'skills';
+    if (tabParam === 'skills' || tabParam === 'tools' || tabParam === 'assistants') return 'manual_and_third_party';
+    return isCapabilitiesTab(tabParam) ? tabParam : 'opl_flow_managed';
   });
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'assistants' || searchParams.get('section') === 'custom-assistants') {
+    if (
+      tabParam === 'skills' ||
+      tabParam === 'tools' ||
+      tabParam === 'assistants' ||
+      searchParams.get('section') === 'custom-assistants'
+    ) {
       const next = new URLSearchParams(searchParams);
-      next.set('tab', 'skills');
+      next.set('tab', 'manual_and_third_party');
       next.delete('section');
       setSearchParams(next, { replace: true });
-      if (activeTab !== 'skills') setActiveTab('skills');
+      if (activeTab !== 'manual_and_third_party') setActiveTab('manual_and_third_party');
       return;
     }
     if (isCapabilitiesTab(tabParam) && tabParam !== activeTab) {
@@ -1631,11 +1685,7 @@ const CapabilitiesSettings: React.FC = () => {
 
   return (
     <SettingsPageWrapper contentClassName='max-w-none'>
-      <CapabilitiesSettingsContent
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab'))}
-      />
+      <CapabilitiesSettingsContent activeTab={activeTab} onTabChange={handleTabChange} />
     </SettingsPageWrapper>
   );
 };

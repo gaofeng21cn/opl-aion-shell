@@ -8,6 +8,7 @@ import {
   Lightning,
   LinkCloud,
   Puzzle,
+  Robot,
   SettingConfig,
   SwitchThemes,
   System,
@@ -30,6 +31,7 @@ export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'general',
   'access',
   'workspace',
+  'agents',
   'capabilities',
   'resources',
   'environment',
@@ -217,6 +219,7 @@ const SETTINGS_ICON_COLORS: Record<string, string> = {
   general: 'var(--color-primary-6)',
   access: 'rgb(var(--green-6))',
   workspace: 'rgb(var(--cyan-6))',
+  agents: 'rgb(var(--green-6))',
   capabilities: 'rgb(var(--purple-6))',
   resources: 'rgb(var(--blue-6))',
   environment: 'rgb(var(--orange-6))',
@@ -273,6 +276,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
     const modalIcons: Record<string, React.ReactElement> = {
       general: <Computer theme='outline' size='20' fill={iconColor} />,
       workspace: <FolderOpen theme='outline' size='20' fill={iconColor} />,
+      agents: <Robot theme='outline' size='20' fill={iconColor} />,
       'local-services': <Toolkit theme='outline' size='20' fill={iconColor} />,
       resources: <LinkCloud theme='outline' size='20' fill={iconColor} />,
       environment: <Toolkit theme='outline' size='20' fill={iconColor} />,
@@ -295,6 +299,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
         <Communication fill={iconColor} style={{ color: iconColor }} />
       ),
     workspace: <FolderOpen fill={iconColor} style={{ color: iconColor }} />,
+    agents: <Robot fill={iconColor} style={{ color: iconColor }} />,
     capabilities: <Lightning fill={iconColor} style={{ color: iconColor }} />,
     resources: <LinkCloud fill={iconColor} style={{ color: iconColor }} />,
     environment: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
@@ -318,11 +323,12 @@ export function normalizeOplSettingsTab(tabId: string): string {
   return LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId;
 }
 
-export type SettingsCapabilityDetailTab = 'skills' | 'tools';
+export type SettingsCapabilityDetailTab = 'opl_flow_managed' | 'manual_and_third_party';
 
-const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools']);
+const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['opl_flow_managed', 'manual_and_third_party']);
 
 const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
+  if (value === 'skills' || value === 'tools' || value === 'assistants') return 'manual_and_third_party';
   return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;
 };
 
@@ -348,7 +354,7 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
 
   return {
     routeId,
-    capabilitiesTab: tabFromRoute ?? tabFromLegacySlot ?? 'skills',
+    capabilitiesTab: tabFromRoute ?? tabFromLegacySlot ?? 'opl_flow_managed',
     ...(routeTarget.anchor ? { anchor: routeTarget.anchor } : {}),
   };
 }
@@ -568,6 +574,7 @@ type SettingsRouteComponentKey =
   | 'AccessSettingsContent'
   | 'ResourcesSettingsContent'
   | 'CapabilitiesSettingsContent'
+  | 'AgentPackagesSettingsContent'
   | 'RuntimeSettings'
   | 'StorageSettings'
   | 'AppearanceModalContent'
@@ -584,6 +591,7 @@ const ROUTE_COMPONENT_KEYS = new Set<string>([
   'AccessSettingsContent',
   'ResourcesSettingsContent',
   'CapabilitiesSettingsContent',
+  'AgentPackagesSettingsContent',
   'RuntimeSettings',
   'StorageSettings',
   'AppearanceModalContent',

@@ -31,6 +31,7 @@ import {
 } from '@/renderer/services/managedUpdateMaintenance';
 import {
   readManagedUpdatePlane,
+  type ManagedDependency,
   type ManagedUpdateComponent,
   type ManagedUpdatePlane,
 } from '@/renderer/services/managedUpdateProjection';
@@ -240,6 +241,105 @@ function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; 
   );
 }
 
+function dependencyDisplayLabel(dependency: ManagedDependency, t: Translate): string {
+  return t(`settings.oplEnvironmentPage.dependencies.items.${dependency.id}`, {
+    defaultValue: dependency.id,
+  });
+}
+
+function BaseDependencyCatalog({
+  component,
+  busyDependencyId,
+  onRequestExternalUpdate,
+  t,
+}: {
+  component: ManagedUpdateComponent;
+  busyDependencyId: string | null;
+  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
+  t: Translate;
+}) {
+  const catalog = component.dependencyCatalog;
+  if (!catalog || catalog.dependencies.length === 0) return null;
+
+  return (
+    <div className='opl-settings-technical-subgroup' data-testid='opl-base-dependency-catalog'>
+      <div>
+        <Typography.Text className='block font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.dependencies.title')}
+        </Typography.Text>
+        <Typography.Text className='block text-12px text-t-secondary'>
+          {t('settings.oplEnvironmentPage.dependencies.description')}
+        </Typography.Text>
+      </div>
+      <div className='mt-8px flex flex-col divide-y divide-border-1'>
+        {catalog.dependencies.map((dependency, index) => {
+          const canDelegateUpdate =
+            dependency.updateMode === 'explicit_owner_delegated' &&
+            Boolean(dependency.updateAction) &&
+            dependency.updateAction?.surface === 'opl app action execute' &&
+            dependency.updateAction?.payloadFields.length === 0 &&
+            dependency.updateAction?.confirmationRequired === true &&
+            dependency.updateAction?.autoApplyAllowed === false;
+          const versionDetail =
+            dependency.latestVersion && dependency.latestVersion !== dependency.version
+              ? `${dependency.version ?? t('settings.oplEnvironmentPage.status.unknown')} -> ${dependency.latestVersion}`
+              : (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'));
+          return (
+            <div
+              key={`${dependency.id}-${dependency.binaryPath ?? index}`}
+              className='flex flex-col gap-8px py-10px md:flex-row md:items-center md:justify-between'
+              data-testid={`opl-base-dependency-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
+            >
+              <div className='min-w-0'>
+                <div className='flex flex-wrap items-center gap-6px'>
+                  <Typography.Text className='font-600 text-t-primary break-words'>
+                    {dependencyDisplayLabel(dependency, t)}
+                  </Typography.Text>
+                  {dependency.external && <Tag>{t('settings.oplEnvironmentPage.dependencies.external')}</Tag>}
+                  <Tag
+                    color={
+                      dependency.currentness === 'update_available' || dependency.currentness === 'missing'
+                        ? 'orange'
+                        : 'gray'
+                    }
+                  >
+                    {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+                      defaultValue: formatStatus(dependency.currentness, t),
+                    })}
+                  </Tag>
+                </div>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.dependencies.version', { value: versionDetail })}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t(`settings.oplEnvironmentPage.dependencies.updateModes.${dependency.updateMode}`)}
+                </Typography.Text>
+                {dependency.guidance && (
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {dependency.guidance}
+                  </Typography.Text>
+                )}
+              </div>
+              {canDelegateUpdate && dependency.currentness === 'update_available' && (
+                <Button
+                  size='small'
+                  loading={busyDependencyId === dependency.id}
+                  disabled={Boolean(busyDependencyId)}
+                  onClick={() => onRequestExternalUpdate(dependency)}
+                  data-testid={`opl-base-dependency-update-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
+                >
+                  {dependency.updateAction?.label ??
+                    t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AgentModuleMaintenancePanel({
   modules,
   manualModuleCount,
@@ -410,6 +510,8 @@ function ManagedUpdatesPanel({
   onRequestAction,
   onCancelAction,
   onConfirmAction,
+  busyDependencyId,
+  onRequestExternalUpdate,
   t,
 }: {
   plane: ManagedUpdatePlane;
@@ -423,6 +525,8 @@ function ManagedUpdatesPanel({
   onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
   onCancelAction: () => void;
   onConfirmAction: () => void;
+  busyDependencyId: string | null;
+  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
@@ -615,6 +719,14 @@ function ManagedUpdatesPanel({
                   )}
                 </Space>
                 <HostRouteDetail component={component} t={t} />
+                {component.id === 'opl_base' && (
+                  <BaseDependencyCatalog
+                    component={component}
+                    busyDependencyId={busyDependencyId}
+                    onRequestExternalUpdate={onRequestExternalUpdate}
+                    t={t}
+                  />
+                )}
                 {(component.conditions.length > 0 ||
                   component.substatuses.length > 0 ||
                   component.receiptRef ||
@@ -824,6 +936,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
   const [updateChannelSaving, setUpdateChannelSaving] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
+  const [busyDependencyId, setBusyDependencyId] = React.useState<string | null>(null);
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
   const appStateQuery = useOplAppState('fast');
@@ -1057,6 +1170,54 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     setPendingUpdateAction(null);
     void runManagedUpdateMutation(action.kind, action.component);
   }, [pendingUpdateAction, runManagedUpdateMutation]);
+
+  const requestExternalDependencyUpdate = useCallback(
+    (dependency: ManagedDependency) => {
+      const action = dependency.updateAction;
+      if (
+        !action ||
+        dependency.updateMode !== 'explicit_owner_delegated' ||
+        action.surface !== 'opl app action execute' ||
+        action.payloadFields.length > 0 ||
+        !action.confirmationRequired ||
+        action.autoApplyAllowed ||
+        busyDependencyId
+      ) {
+        return;
+      }
+      Modal.confirm({
+        title: t('settings.oplEnvironmentPage.dependencies.confirmation.title', {
+          name: dependencyDisplayLabel(dependency, t),
+        }),
+        content: t('settings.oplEnvironmentPage.dependencies.confirmation.description', {
+          owner: action.ownerKind ?? dependency.ownership,
+        }),
+        okText: action.label ?? t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          setBusyDependencyId(dependency.id);
+          try {
+            const result = await ipcBridge.oplRuntime.executeAction.invoke({
+              actionId: action.actionId,
+              dryRun: false,
+            });
+            if (!bridgeResultSucceeded(result)) {
+              throw new Error(result?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
+            }
+            await executeManagedUpdateRead('status', { trigger: 'manual_refresh_status' });
+            await appStateQuery.load('fast', { showRefreshing: true });
+            message.success(t('settings.oplEnvironmentPage.dependencies.messages.ownerUpdateComplete'));
+          } catch (error) {
+            message.error(error instanceof Error ? error.message : String(error));
+            throw error;
+          } finally {
+            setBusyDependencyId(null);
+          }
+        },
+      });
+    },
+    [appStateQuery.load, busyDependencyId, message, t]
+  );
 
   React.useEffect(() => {
     if (!managedUpdateMaintenance.result && !managedUpdateMaintenance.running) {
@@ -1368,6 +1529,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   onRequestAction={requestManagedUpdateAction}
                   onCancelAction={cancelManagedUpdateAction}
                   onConfirmAction={confirmManagedUpdateAction}
+                  busyDependencyId={busyDependencyId}
+                  onRequestExternalUpdate={requestExternalDependencyUpdate}
                   t={t}
                 />
               </div>

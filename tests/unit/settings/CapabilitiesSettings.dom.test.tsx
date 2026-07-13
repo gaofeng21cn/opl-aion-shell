@@ -2,7 +2,11 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
+import {
+  AgentPackagesSettingsContent,
+  CapabilitiesSettingsContent,
+  type CapabilitiesTab,
+} from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
@@ -36,7 +40,16 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 });
 
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
-  default: () => <div data-testid='skills-detail'>Skills detail</div>,
+  default: ({ flowManagedSkillIds = [], onSyncFlow }: { flowManagedSkillIds?: string[]; onSyncFlow?: () => void }) => (
+    <div data-testid='skills-detail' data-flow-skills={flowManagedSkillIds.join(',')}>
+      Skills detail
+      {onSyncFlow && <button onClick={onSyncFlow}>Sync Flow</button>}
+    </div>
+  ),
+}));
+
+vi.mock('@/renderer/services/managedUpdateMaintenance', () => ({
+  useManagedUpdateMaintenance: () => ({ result: null }),
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent', () => ({
@@ -66,6 +79,22 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         repo_authority: { status: 'ready', direct_write_repo_count: 7, required_repo_count: 7 },
       },
       agent_packages: {
+        directory: {
+          installed_packages: [
+            {
+              package_id: 'opl-flow',
+              bundled_required_skill_ids: ['opl-flow', 'codex-ops-kit'],
+              physical_surface: {
+                workflow_policy_migration: {
+                  dependency_sync: {
+                    items: [{ skill_id: 'officecli-docx', status: 'synced' }],
+                    tools: [{ tool_id: 'officecli', binary_path: '/usr/local/bin/officecli', status: 'ready' }],
+                  },
+                },
+              },
+            },
+          ],
+        },
         status_index: {
           packages: [
             {
@@ -369,8 +398,13 @@ vi.mock('react-i18next', () => ({
     i18n: { language: 'en-US' },
     t: (key: string, options?: Record<string, string | undefined> & { defaultValue?: string }) => {
       const labels: Record<string, string> = {
-        'settings.capabilitiesPage.title': 'Agents & Capabilities',
-        'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
+        'settings.agentsPage.title': 'Agents',
+        'settings.agentsPage.description': 'Manage runnable agents.',
+        'settings.agentsPage.addAgent': 'Add agent',
+        'settings.capabilitiesPage.title': 'Capabilities',
+        'settings.capabilitiesPage.description': 'Manage skills and plugins.',
+        'settings.capabilitiesPage.groups.manualAndThirdParty.title': 'Manual and third-party capabilities',
+        'settings.capabilitiesPage.groups.manualAndThirdParty.description': 'Manage other capabilities.',
         'settings.capabilitiesPage.developerSource.title': 'Runtime source',
         'settings.capabilitiesPage.developerSource.description': 'Choose the source used at runtime.',
         'settings.capabilitiesPage.developerSource.modeLabel': 'Global runtime source',
@@ -558,6 +592,8 @@ vi.mock('react-i18next', () => ({
           'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
+        'settings.capabilitiesTab.oplFlowManaged': 'Managed by OPL Flow',
+        'settings.capabilitiesTab.manualAndThirdParty': 'Manual & third-party',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -573,7 +609,7 @@ const renderCapabilities = (ui: React.ReactElement, isMobile = false) =>
     </MemoryRouter>
   );
 
-describe('CapabilitiesSettingsContent', () => {
+describe('Agents and capabilities settings', () => {
   beforeEach(() => {
     bridgeMocks.executeActionInvoke.mockReset();
     bridgeMocks.executeActionInvoke.mockResolvedValue({
@@ -586,25 +622,12 @@ describe('CapabilitiesSettingsContent', () => {
     localStorage.clear();
   });
 
-  it('shows purpose capability groups before skills and tools details', async () => {
-    const onTabChange = vi.fn();
-    const Harness = () => {
-      const [activeTab, setActiveTab] = React.useState<CapabilitiesTab>('skills');
-      return (
-        <CapabilitiesSettingsContent
-          activeTab={activeTab}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-            onTabChange(tab);
-          }}
-        />
-      );
-    };
-    renderCapabilities(<Harness />);
+  it('shows runnable agent packages without embedding skills and tools', async () => {
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getAllByText('Capability directory').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByTestId('settings-page-capabilities')).toHaveClass('opl-settings-page');
+    expect(screen.getByTestId('settings-page-agents')).toHaveClass('opl-settings-page');
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
@@ -615,7 +638,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
+    fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
     expect(screen.getByTestId('agent-package-advanced-add')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
@@ -743,30 +766,57 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
-    expect(screen.getByText('Skills and tools')).toBeInTheDocument();
+    expect(screen.queryByText('Skills and tools')).not.toBeInTheDocument();
     expect(screen.queryByText('Custom assistants')).not.toBeInTheDocument();
     expect(screen.queryByTestId('capability-entry-external-tools')).not.toBeInTheDocument();
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
     expect(screen.getAllByText('OPL Meta Agent')).toHaveLength(1);
 
-    const supportingDetails = screen.getByTestId('capability-supporting-surfaces') as HTMLDetailsElement;
-    supportingDetails.open = true;
-    fireEvent(supportingDetails, new Event('toggle'));
-    await waitFor(() => expect(screen.getByTestId('skills-detail')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('tab', { name: 'External tools & voice' }));
-    expect(onTabChange).toHaveBeenCalledWith('tools');
-    await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
+    expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tools-detail')).not.toBeInTheDocument();
+  });
 
-    expect(screen.queryByRole('tab', { name: 'Custom assistants' })).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/custom assistants?/i);
+  it('keeps skills and third-party tools on the capabilities page', async () => {
+    const onTabChange = vi.fn();
+    const Harness = () => {
+      const [activeTab, setActiveTab] = React.useState<CapabilitiesTab>('opl_flow_managed');
+      return (
+        <CapabilitiesSettingsContent
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            onTabChange(tab);
+          }}
+        />
+      );
+    };
+    renderCapabilities(<Harness />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
-    expect(onTabChange).toHaveBeenCalledWith('skills');
+    expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-page-capabilities')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('skills-detail')).toHaveAttribute(
+      'data-flow-skills',
+      'opl-flow,codex-ops-kit,officecli-docx'
+    );
+    expect(screen.queryByTestId('agent-package-catalog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Sync Flow'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_sync_capabilities',
+        dryRun: false,
+      })
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Manual & third-party' }));
+    expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
+    await waitFor(() => expect(screen.getByTestId('manual-and-third-party-capabilities')).toBeInTheDocument());
+    expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
   });
 
   it('configures the global developer profile and per-package runtime source through App actions', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     const profile = screen.getByTestId('opl-developer-profile-control');
     expect(profile).toHaveTextContent('/Users/test/workspace');
@@ -818,7 +868,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('keeps raw package identifiers out of the directory and restores focus after closing the desktop panel', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     const catalog = screen.getByTestId('agent-package-catalog');
     expect(within(catalog).getByText('OPL Book Forge')).toBeInTheDocument();
@@ -851,7 +901,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('uses an accessible Drawer for capability details on mobile', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />, true);
+    renderCapabilities(<AgentPackagesSettingsContent />, true);
 
     const trigger = screen.getByTestId('capability-open-details-obf');
     trigger.focus();
@@ -868,7 +918,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
@@ -914,7 +964,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
+    fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });
@@ -936,7 +986,7 @@ describe('CapabilitiesSettingsContent', () => {
       command: 'opl app action execute --action agent_package_preferences_set --json',
       error: { message: 'preference update failed' },
     });
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     const homeSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
     expect(homeSwitch).toHaveClass('arco-switch-checked');
@@ -952,7 +1002,7 @@ describe('CapabilitiesSettingsContent', () => {
       resolveResearch = resolve;
     });
     bridgeMocks.executeActionInvoke.mockReturnValueOnce(researchResult);
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     const researchSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
     const grantSwitch = screen.getByTestId('agent-package-home-toggle-details-mag');
@@ -980,7 +1030,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('routes package lifecycle management actions through App action refs', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     expect(screen.getByTestId('agent-package-update-mas')).toBeDisabled();
@@ -1040,7 +1090,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('renders generic dependency repair and dependent guards without exposing closure diagnostics by default', async () => {
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('capability-open-details-example'));
     const readiness = screen.getByTestId('capability-readiness-example');
@@ -1078,9 +1128,9 @@ describe('CapabilitiesSettingsContent', () => {
     });
     bridgeMocks.executeActionInvoke.mockReturnValueOnce(updateResult);
 
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
+    fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });

@@ -51,6 +51,13 @@ const { controlPlane } = vi.hoisted(() => ({
         frequency: 'first_run_and_project_switching',
       },
       {
+        id: 'agents',
+        path: '/settings/agents',
+        label_key: 'settings.agents',
+        default_label_en: 'Agents',
+        slot_id: 'settings_agents',
+      },
+      {
         id: 'capabilities',
         path: '/settings/capabilities',
         label_key: 'settings.capabilities',
@@ -137,7 +144,7 @@ const { controlPlane } = vi.hoisted(() => ({
       runtime: 'environment',
       system: 'advanced',
       model: 'environment',
-      agent: 'capabilities',
+      agent: 'agents',
       assistants: 'capabilities?tab=skills',
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
@@ -150,7 +157,7 @@ const { controlPlane } = vi.hoisted(() => ({
       runtime: 'environment',
       system: 'advanced',
       model: 'environment',
-      agent: 'capabilities',
+      agent: 'agents',
       assistants: 'capabilities',
       'skills-hub': 'capabilities',
       tools: 'capabilities',
@@ -166,6 +173,7 @@ const { controlPlane } = vi.hoisted(() => ({
     slot_registry: {
       settings_general: { component_key: 'OverviewSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_access: { component_key: 'AccessSettingsContent', wrapper_policy: 'host_provides_wrapper' },
+      settings_agents: { component_key: 'AgentPackagesSettingsContent', wrapper_policy: 'host_provides_wrapper' },
       settings_capabilities: {
         component_key: 'CapabilitiesSettingsContent',
         wrapper_policy: 'host_provides_wrapper',
@@ -212,6 +220,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'general',
     'access',
     'workspace',
+    'agents',
     'capabilities',
     'resources',
     'environment',
@@ -230,6 +239,7 @@ describe('settingsNav App-owned tabs', () => {
       'general',
       'access',
       'workspace',
+      'agents',
       'capabilities',
       'resources',
       'environment',
@@ -242,6 +252,7 @@ describe('settingsNav App-owned tabs', () => {
       'Overview',
       'Setup & Access',
       'Workspace',
+      'Agents',
       'Capabilities',
       'Resources & Connections',
       'Maintenance & Updates',
@@ -260,7 +271,7 @@ describe('settingsNav App-owned tabs', () => {
       runtime: '/settings/environment',
       system: '/settings/advanced',
       model: '/settings/environment',
-      agent: '/settings/capabilities',
+      agent: '/settings/agents',
       assistants: '/settings/capabilities?tab=skills',
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
@@ -275,6 +286,7 @@ describe('settingsNav App-owned tabs', () => {
       'general',
       'access',
       'workspace',
+      'agents',
       'capabilities',
       'resources',
       'environment',
@@ -307,6 +319,12 @@ describe('settingsNav App-owned tabs', () => {
       componentKey: 'ResourcesSettingsContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
+    expect(getSettingsRenderSlot('agents')).toMatchObject({
+      id: 'settings_agents',
+      routeId: 'agents',
+      componentKey: 'AgentPackagesSettingsContent',
+      wrapperPolicy: 'host_provides_wrapper',
+    });
     expect(getSettingsRenderSlot('tools')).toMatchObject({
       id: 'settings_capabilities',
       routeId: 'capabilities',
@@ -323,7 +341,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getSettingsRenderSlot('theme')).toBeNull();
     expect(resolveSettingsRenderTarget('theme')).toEqual({
       routeId: 'appearance',
-      capabilitiesTab: 'skills',
+      capabilitiesTab: 'opl_flow_managed',
       anchor: 'themes',
     });
     expect(resolveSettingsRenderTarget('update').anchor).toBe('updates');
@@ -345,18 +363,18 @@ describe('settingsNav App-owned tabs', () => {
   it('derives capabilities detail tabs from App control-plane legacy subroutes', () => {
     expect(resolveSettingsRenderTarget('skills-hub')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'skills',
+      capabilitiesTab: 'manual_and_third_party',
     });
     expect(resolveSettingsRenderTarget('tools')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'tools',
+      capabilitiesTab: 'manual_and_third_party',
     });
     expect(resolveSettingsRenderTarget('assistants')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'skills',
+      capabilitiesTab: 'manual_and_third_party',
     });
-    expect(capabilityDetailTabFor('tools')).toBe('tools');
-    expect(capabilityDetailTabFor('capabilities')).toBe('skills');
+    expect(capabilityDetailTabFor('tools')).toBe('manual_and_third_party');
+    expect(capabilityDetailTabFor('capabilities')).toBe('opl_flow_managed');
   });
 
   it('remaps legacy extension anchors before inserting extension settings tabs', () => {
@@ -390,6 +408,7 @@ describe('settingsNav App-owned tabs', () => {
       'general',
       'access',
       'workspace',
+      'agents',
       'skills-extension',
       'capabilities',
       'tools-extension',
@@ -428,6 +447,7 @@ describe('settingsNav App-owned tabs', () => {
       'general',
       'access',
       'workspace',
+      'agents',
       'capabilities',
       'resources',
       'environment',

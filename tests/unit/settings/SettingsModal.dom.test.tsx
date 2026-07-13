@@ -120,7 +120,8 @@ vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
 }));
 
 vi.mock('@/renderer/pages/settings/CapabilitiesSettings', () => ({
-  CapabilitiesSettingsContent: ({ activeTab }: { activeTab: 'skills' | 'tools' }) => (
+  AgentPackagesSettingsContent: () => <div data-testid='agents-content'>Agent packages MAS MAG RCA OMA</div>,
+  CapabilitiesSettingsContent: ({ activeTab }: { activeTab: 'opl_flow_managed' | 'manual_and_third_party' }) => (
     <div data-testid='capabilities-content'>
       Agents & Capabilities embedded MAS MAG RCA OMA Skills Tools active:{activeTab}
     </div>
@@ -168,6 +169,7 @@ vi.mock('react-i18next', () => ({
         'settings.about': 'About',
         'settings.model': 'Model',
         'settings.agent': 'Agent',
+        'settings.agents': 'Agents',
         'settings.tools': 'Tools',
         'settings.webui': 'WebUI',
         'settings.searchPlaceholder': 'Search settings',
@@ -430,7 +432,9 @@ describe('SettingsModal OPL App navigation', () => {
     await waitFor(() => expect(document.getElementById('services')).toHaveFocus());
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
-    await waitFor(() => expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:skills'));
+    await waitFor(() =>
+      expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:manual_and_third_party')
+    );
     expect(document.getElementById('custom-assistants')).toBeNull();
   });
 
@@ -491,7 +495,7 @@ describe('SettingsModal OPL App navigation', () => {
     });
   });
 
-  it('redirects legacy agent and tools tab requests to purpose-first capability content', () => {
+  it('redirects legacy agent and tools requests to their separated owner pages', () => {
     render(<SettingsModal visible onCancel={() => {}} defaultTab='model' />);
 
     expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
@@ -499,21 +503,18 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='agent' />);
 
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('MAS');
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('MAG');
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('RCA');
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('OMA');
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:skills');
+    expect(screen.getByTestId('agents-content')).toHaveTextContent('MAS');
+    expect(screen.queryByTestId('capabilities-content')).not.toBeInTheDocument();
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='tools' />);
 
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Skills');
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Tools');
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:tools');
+    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:manual_and_third_party');
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
 
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:skills');
+    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:manual_and_third_party');
   });
 
   it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', async () => {

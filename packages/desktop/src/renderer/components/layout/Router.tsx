@@ -20,6 +20,9 @@ const WorkspaceSettings = React.lazy(() => import('@renderer/pages/settings/sect
 const LocalServicesSettings = React.lazy(() => import('@renderer/pages/settings/sections/LocalServicesSettings'));
 const StorageSettings = React.lazy(() => import('@renderer/pages/settings/StorageSettings'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
+const AgentPackagesSettings = React.lazy(() =>
+  import('@renderer/pages/settings/CapabilitiesSettings').then((module) => ({ default: module.AgentPackagesSettings }))
+);
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
 const ResourcesSettings = React.lazy(() => import('@renderer/pages/settings/sections/ResourcesSettings'));
 const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
@@ -46,6 +49,7 @@ const SETTINGS_COMPONENTS = {
   RuntimeSettings,
   StorageSettings,
   CapabilitiesSettingsContent: CapabilitiesSettings,
+  AgentPackagesSettingsContent: AgentPackagesSettings,
   AccessSettingsContent: AccessSettings,
   ResourcesSettingsContent: ResourcesSettings,
   AppearanceModalContent: AppearanceSettings,

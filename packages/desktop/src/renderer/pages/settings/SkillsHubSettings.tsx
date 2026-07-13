@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import type { ManagedDependency } from '@/renderer/services/managedUpdateProjection';
 
 // Skill 信息类型 / Skill info type
 interface SkillInfo {
@@ -47,9 +48,21 @@ const getAvatarColorClass = (name: string) => {
 interface SkillsHubSettingsProps {
   /** When false, renders without SettingsPageWrapper — useful for embedding in a tab */
   withWrapper?: boolean;
+  flowManagedSkillIds?: string[];
+  flowManagedCliDependencies?: ManagedDependency[];
+  flowSyncing?: boolean;
+  onSyncFlow?: () => void;
+  displayGroup?: 'all' | 'flow' | 'manual';
 }
 
-const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = true }) => {
+const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
+  withWrapper = true,
+  flowManagedSkillIds,
+  flowManagedCliDependencies = [],
+  flowSyncing = false,
+  onSyncFlow,
+  displayGroup = 'all',
+}) => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightName = searchParams.get('highlight');
@@ -61,8 +74,28 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = tru
   const [search_query, setSearchQuery] = useState('');
   const [builtinAutoSkills, setBuiltinAutoSkills] = useState<Array<{ name: string; description: string }>>([]);
 
-  const mySkills = useMemo(() => availableSkills.filter((s) => s.source !== 'extension'), [availableSkills]);
+  const allUserSkills = useMemo(() => availableSkills.filter((s) => s.source !== 'extension'), [availableSkills]);
   const extensionSkills = useMemo(() => availableSkills.filter((s) => s.source === 'extension'), [availableSkills]);
+  const flowManagedIdSet = useMemo(() => new Set(flowManagedSkillIds ?? []), [flowManagedSkillIds]);
+  const flowManagedCliIdSet = useMemo(
+    () => new Set(flowManagedCliDependencies.map((dependency) => dependency.id)),
+    [flowManagedCliDependencies]
+  );
+  const flowManagedSkills = useMemo(
+    () => allUserSkills.filter((skill) => flowManagedIdSet.has(skill.name)),
+    [allUserSkills, flowManagedIdSet]
+  );
+  const missingFlowManagedSkillIds = useMemo(() => {
+    const installed = new Set(flowManagedSkills.map((skill) => skill.name));
+    return [...flowManagedIdSet].filter((id) => !installed.has(id) && !flowManagedCliIdSet.has(id));
+  }, [flowManagedCliIdSet, flowManagedIdSet, flowManagedSkills]);
+  const mySkills = useMemo(
+    () =>
+      flowManagedSkillIds === undefined
+        ? allUserSkills
+        : allUserSkills.filter((skill) => !flowManagedIdSet.has(skill.name)),
+    [allUserSkills, flowManagedIdSet, flowManagedSkillIds]
+  );
 
   const filteredSkills = useMemo(() => {
     if (!search_query.trim()) return mySkills;
@@ -169,253 +202,354 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = tru
   const mainContent = (
     <div className='flex flex-col h-full w-full'>
       <div className='space-y-16px pb-24px'>
-        {/* ======== 我的技能 / My Skills ======== */}
-        <div
-          data-testid='my-skills-section'
-          className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
-        >
-          {/* Toolbar for My Skills */}
-          <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-16px mb-24px relative z-10'>
-            <div className='flex items-center gap-10px shrink-0'>
-              <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
-                {t('settings.skillsHub.mySkillsTitle', { defaultValue: 'My Skills' })}
-              </span>
-              <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                {mySkills.length}
-              </span>
-              <button
-                data-testid='btn-refresh-my-skills'
-                className='outline-none border-none bg-transparent cursor-pointer p-6px text-t-tertiary hover:text-primary-6 transition-colors rd-full hover:bg-fill-2 ml-4px'
-                onClick={async () => {
-                  await fetchData();
-                  Message.success(t('common.refreshSuccess', { defaultValue: 'Refreshed' }));
-                }}
-                title={t('common.refresh', { defaultValue: 'Refresh' })}
-              >
-                <Refresh theme='outline' size={16} className={loading ? 'animate-spin' : ''} />
-              </button>
+        {flowManagedSkillIds !== undefined && displayGroup !== 'manual' && (
+          <section
+            data-testid='opl-flow-managed-capabilities'
+            className='px-[16px] md:px-[32px] py-24px bg-base rd-8px border border-b-base relative overflow-hidden'
+          >
+            <div className='flex flex-col gap-12px sm:flex-row sm:items-start sm:justify-between'>
+              <div>
+                <Typography.Title heading={6} className='mb-4px'>
+                  {t('settings.capabilitiesPage.groups.oplFlowManaged.title')}
+                </Typography.Title>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.groups.oplFlowManaged.description')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-tertiary'>
+                  {t('settings.capabilitiesPage.groups.oplFlowManaged.source')}
+                </Typography.Text>
+              </div>
+              {onSyncFlow && (
+                <Button
+                  icon={<Refresh theme='outline' />}
+                  loading={flowSyncing}
+                  onClick={onSyncFlow}
+                  data-testid='opl-flow-sync-capabilities'
+                >
+                  {t('settings.capabilitiesPage.groups.oplFlowManaged.sync')}
+                </Button>
+              )}
             </div>
-
-            <div className='flex flex-col sm:flex-row items-stretch sm:items-center gap-12px w-full lg:w-auto shrink-0'>
-              <div className='relative group shrink-0 w-full sm:w-[200px] lg:w-[240px]'>
-                <div className='absolute left-12px top-1/2 -translate-y-1/2 text-t-tertiary group-focus-within:text-primary-6 flex pointer-events-none transition-colors'>
-                  <Search size={15} />
+            <div className='mt-14px flex flex-col divide-y divide-border-1'>
+              {flowManagedSkills.map((skill) => (
+                <div key={skill.name} className='flex items-start justify-between gap-12px py-10px'>
+                  <div className='min-w-0'>
+                    <Typography.Text className='font-600 text-t-primary'>{skill.name}</Typography.Text>
+                    {skill.description && (
+                      <Typography.Text className='block text-12px text-t-secondary break-words'>
+                        {skill.description}
+                      </Typography.Text>
+                    )}
+                  </div>
+                  <span className='opl-settings-status opl-settings-status--ready'>
+                    {t('settings.capabilitiesPage.groups.oplFlowManaged.managed')}
+                  </span>
                 </div>
-                <input
-                  data-testid='input-search-my-skills'
-                  type='text'
-                  className='w-full bg-fill-1 hover:bg-fill-2 border border-border-1 focus:border-primary-5 focus:bg-base outline-none rd-8px py-6px pl-36px pr-12px text-13px text-t-primary placeholder:text-t-tertiary transition-all shadow-sm box-border m-0'
-                  placeholder={t('settings.skillsHub.searchPlaceholder', { defaultValue: 'Search skills...' })}
-                  value={search_query}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+              ))}
+              {missingFlowManagedSkillIds.map((skillId) => (
+                <div key={skillId} className='flex items-center justify-between gap-12px py-10px'>
+                  <Typography.Text className='font-600 text-t-primary'>{skillId}</Typography.Text>
+                  <span className='opl-settings-status opl-settings-status--attention'>
+                    {t('settings.capabilitiesPage.groups.oplFlowManaged.missing')}
+                  </span>
+                </div>
+              ))}
+              {flowManagedCliDependencies.map((dependency) => (
+                <div
+                  key={`${dependency.id}-${dependency.binaryPath ?? 'cli'}`}
+                  className='flex items-start justify-between gap-12px py-10px'
+                >
+                  <div className='min-w-0'>
+                    <Typography.Text className='font-600 text-t-primary'>{dependency.id}</Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.groups.oplFlowManaged.cliVersion', {
+                        version: dependency.version ?? t('settings.capabilitiesPage.detailValues.notReported'),
+                      })}
+                    </Typography.Text>
+                  </div>
+                  <span
+                    className={`opl-settings-status ${
+                      dependency.currentness === 'current'
+                        ? 'opl-settings-status--ready'
+                        : 'opl-settings-status--attention'
+                    }`}
+                  >
+                    {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+                      defaultValue: dependency.currentness,
+                    })}
+                  </span>
+                </div>
+              ))}
+              {flowManagedSkills.length === 0 &&
+                missingFlowManagedSkillIds.length === 0 &&
+                flowManagedCliDependencies.length === 0 && (
+                  <Typography.Text className='py-12px text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.groups.oplFlowManaged.notReported')}
+                  </Typography.Text>
+                )}
+            </div>
+          </section>
+        )}
+
+        {displayGroup !== 'flow' && (
+          <>
+            {/* ======== 我的技能 / My Skills ======== */}
+            <div
+              data-testid={
+                flowManagedSkillIds === undefined ? 'my-skills-section' : 'manual-and-third-party-capabilities'
+              }
+              className='px-[16px] md:px-[32px] py-24px bg-base rd-8px border border-b-base relative overflow-hidden transition-all'
+            >
+              {/* Toolbar for My Skills */}
+              <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-16px mb-24px relative z-10'>
+                <div className='flex items-center gap-10px shrink-0'>
+                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
+                    {flowManagedSkillIds === undefined
+                      ? t('settings.skillsHub.mySkillsTitle', { defaultValue: 'My Skills' })
+                      : t('settings.capabilitiesPage.groups.manualAndThirdParty.title')}
+                  </span>
+                  <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
+                    {mySkills.length}
+                  </span>
+                  <button
+                    data-testid='btn-refresh-my-skills'
+                    className='outline-none border-none bg-transparent cursor-pointer p-6px text-t-tertiary hover:text-primary-6 transition-colors rd-full hover:bg-fill-2 ml-4px'
+                    onClick={async () => {
+                      await fetchData();
+                      Message.success(t('common.refreshSuccess', { defaultValue: 'Refreshed' }));
+                    }}
+                    title={t('common.refresh', { defaultValue: 'Refresh' })}
+                  >
+                    <Refresh theme='outline' size={16} className={loading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+
+                <div className='flex flex-col sm:flex-row items-stretch sm:items-center gap-12px w-full lg:w-auto shrink-0'>
+                  <div className='relative group shrink-0 w-full sm:w-[200px] lg:w-[240px]'>
+                    <div className='absolute left-12px top-1/2 -translate-y-1/2 text-t-tertiary group-focus-within:text-primary-6 flex pointer-events-none transition-colors'>
+                      <Search size={15} />
+                    </div>
+                    <input
+                      data-testid='input-search-my-skills'
+                      type='text'
+                      className='w-full bg-fill-1 hover:bg-fill-2 border border-border-1 focus:border-primary-5 focus:bg-base outline-none rd-8px py-6px pl-36px pr-12px text-13px text-t-primary placeholder:text-t-tertiary transition-all shadow-sm box-border m-0'
+                      placeholder={t('settings.skillsHub.searchPlaceholder', { defaultValue: 'Search skills...' })}
+                      value={search_query}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    data-testid='btn-manual-import'
+                    className='flex items-center justify-center gap-6px px-16px py-6px bg-base border border-border-1 hover:border-border-2 hover:bg-fill-1 text-t-primary rd-8px shadow-sm transition-all focus:outline-none shrink-0 cursor-pointer whitespace-nowrap'
+                    onClick={handleManualImport}
+                  >
+                    <FolderOpen size={15} className='text-t-secondary' />
+                    <span className='text-13px font-medium'>
+                      {t('settings.skillsHub.manualImport', { defaultValue: 'Import Skills' })}
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                data-testid='btn-manual-import'
-                className='flex items-center justify-center gap-6px px-16px py-6px bg-base border border-border-1 hover:border-border-2 hover:bg-fill-1 text-t-primary rd-8px shadow-sm transition-all focus:outline-none shrink-0 cursor-pointer whitespace-nowrap'
-                onClick={handleManualImport}
-              >
-                <FolderOpen size={15} className='text-t-secondary' />
-                <span className='text-13px font-medium'>
-                  {t('settings.skillsHub.manualImport', { defaultValue: 'Import Skills' })}
-                </span>
-              </button>
-            </div>
-          </div>
+              {/* Path Display moved below the toolbar */}
+              {skillPaths && (
+                <div className='flex items-center gap-8px text-12px text-t-tertiary font-mono bg-transparent py-4px mb-16px relative z-10 pt-4px border-t border-t-transparent'>
+                  <FolderOpen size={16} className='shrink-0' />
+                  <span className='truncate' title={skillPaths.user_skills_dir}>
+                    {skillPaths.user_skills_dir}
+                  </span>
+                </div>
+              )}
 
-          {/* Path Display moved below the toolbar */}
-          {skillPaths && (
-            <div className='flex items-center gap-8px text-12px text-t-tertiary font-mono bg-transparent py-4px mb-16px relative z-10 pt-4px border-t border-t-transparent'>
-              <FolderOpen size={16} className='shrink-0' />
-              <span className='truncate' title={skillPaths.user_skills_dir}>
-                {skillPaths.user_skills_dir}
-              </span>
-            </div>
-          )}
-
-          {mySkills.length > 0 ? (
-            <div className='w-full flex flex-col gap-6px relative z-10'>
-              {filteredSkills.map((skill) => (
-                <div
-                  key={skill.name}
-                  data-testid={`my-skill-card-${normalizeTestId(skill.name)}`}
-                  ref={(el) => {
-                    skillRefs.current[skill.name] = el;
-                  }}
-                  className={`group flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 hover:shadow-sm rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
-                >
-                  <div className='shrink-0 flex items-start sm:mt-2px'>
+              {mySkills.length > 0 ? (
+                <div className='w-full flex flex-col gap-6px relative z-10'>
+                  {filteredSkills.map((skill) => (
                     <div
-                      className={`w-40px h-40px rd-10px flex items-center justify-center font-bold text-16px shadow-sm text-transform-uppercase ${getAvatarColorClass(skill.name)}`}
+                      key={skill.name}
+                      data-testid={`my-skill-card-${normalizeTestId(skill.name)}`}
+                      ref={(el) => {
+                        skillRefs.current[skill.name] = el;
+                      }}
+                      className={`group flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 hover:shadow-sm rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
                     >
-                      {skill.name.charAt(0).toUpperCase()}
-                    </div>
-                  </div>
+                      <div className='shrink-0 flex items-start sm:mt-2px'>
+                        <div
+                          className={`w-40px h-40px rd-10px flex items-center justify-center font-bold text-16px shadow-sm text-transform-uppercase ${getAvatarColorClass(skill.name)}`}
+                        >
+                          {skill.name.charAt(0).toUpperCase()}
+                        </div>
+                      </div>
 
-                  <div className='flex-1 min-w-0 flex flex-col justify-center gap-6px'>
-                    <div className='flex items-center gap-10px flex-wrap'>
-                      <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                      {skill.source === 'custom' ? (
-                        <span className='bg-[rgba(var(--orange-6),0.08)] text-orange-6 border border-[rgba(var(--orange-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
-                          {t('settings.skillsHub.custom', { defaultValue: 'Custom' })}
-                        </span>
-                      ) : (
-                        <span className='bg-[rgba(var(--blue-6),0.08)] text-blue-6 border border-[rgba(var(--blue-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
-                          {t('settings.skillsHub.builtin', { defaultValue: 'Built-in' })}
-                        </span>
-                      )}
-                    </div>
-                    {skill.description && (
-                      <p
-                        className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'
-                        title={skill.description}
-                      >
-                        {skill.description}
-                      </p>
-                    )}
-                  </div>
+                      <div className='flex-1 min-w-0 flex flex-col justify-center gap-6px'>
+                        <div className='flex items-center gap-10px flex-wrap'>
+                          <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
+                          {skill.source === 'custom' ? (
+                            <span className='bg-[rgba(var(--orange-6),0.08)] text-orange-6 border border-[rgba(var(--orange-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
+                              {t('settings.skillsHub.custom', { defaultValue: 'Custom' })}
+                            </span>
+                          ) : (
+                            <span className='bg-[rgba(var(--blue-6),0.08)] text-blue-6 border border-[rgba(var(--blue-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
+                              {t('settings.skillsHub.builtin', { defaultValue: 'Built-in' })}
+                            </span>
+                          )}
+                        </div>
+                        {skill.description && (
+                          <p
+                            className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'
+                            title={skill.description}
+                          >
+                            {skill.description}
+                          </p>
+                        )}
+                      </div>
 
-                  <div className='shrink-0 sm:self-center flex items-center justify-end gap-6px mt-12px sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity pl-4px'>
-                    {skill.source === 'custom' && (
-                      <button
-                        data-testid={`btn-delete-${normalizeTestId(skill.name)}`}
-                        className='p-8px hover:bg-danger-1 hover:text-danger-6 text-t-tertiary rd-6px outline-none flex items-center justify-center border border-transparent cursor-pointer transition-colors shadow-sm bg-base sm:bg-transparent sm:shadow-none'
-                        onClick={() => {
-                          Modal.confirm({
-                            title: t('settings.skillsHub.deleteConfirmTitle', { defaultValue: 'Delete Skill' }),
-                            content: t('settings.skillsHub.deleteConfirmContent', {
-                              name: skill.name,
-                              defaultValue: `Are you sure you want to delete "${skill.name}"?`,
-                            }),
-                            okButtonProps: { status: 'danger' },
-                            okText: t('common.delete', { defaultValue: 'Delete' }),
-                            onOk: () => void handleDelete(skill.name),
-                            wrapClassName: 'modal-delete-skill',
-                          });
-                        }}
-                        title={t('common.delete', { defaultValue: 'Delete' })}
-                      >
-                        <Delete size={16} />
-                      </button>
-                    )}
-                  </div>
+                      <div className='shrink-0 sm:self-center flex items-center justify-end gap-6px mt-12px sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity pl-4px'>
+                        {skill.source === 'custom' && !flowManagedIdSet.has(skill.name) && (
+                          <button
+                            data-testid={`btn-delete-${normalizeTestId(skill.name)}`}
+                            className='p-8px hover:bg-danger-1 hover:text-danger-6 text-t-tertiary rd-6px outline-none flex items-center justify-center border border-transparent cursor-pointer transition-colors shadow-sm bg-base sm:bg-transparent sm:shadow-none'
+                            onClick={() => {
+                              Modal.confirm({
+                                title: t('settings.skillsHub.deleteConfirmTitle', { defaultValue: 'Delete Skill' }),
+                                content: t('settings.skillsHub.deleteConfirmContent', {
+                                  name: skill.name,
+                                  defaultValue: `Are you sure you want to delete "${skill.name}"?`,
+                                }),
+                                okButtonProps: { status: 'danger' },
+                                okText: t('common.delete', { defaultValue: 'Delete' }),
+                                onOk: () => void handleDelete(skill.name),
+                                wrapClassName: 'modal-delete-skill',
+                              });
+                            }}
+                            title={t('common.delete', { defaultValue: 'Delete' })}
+                          >
+                            <Delete size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className='text-center text-t-secondary text-13px py-40px bg-fill-1 rd-12px border border-b-base border-dashed relative z-10'>
-              {loading
-                ? t('common.loading', { defaultValue: 'Please wait...' })
-                : t('settings.skillsHub.noSkills', {
-                    defaultValue: 'No skills found. Import some to get started.',
-                  })}
-            </div>
-          )}
-        </div>
-
-        {/* ======== Extension Skills ======== */}
-        {extensionSkills.length > 0 && (
-          <div
-            data-testid='extension-skills-section'
-            className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
-          >
-            <div className='flex items-center gap-10px mb-24px'>
-              <Puzzle theme='filled' size={20} fill='var(--color-primary-6)' />
-              <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
-                {t('settings.extensionSkills', { defaultValue: 'Extension Skills' })}
-              </span>
-              <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                {extensionSkills.length}
-              </span>
-            </div>
-            <div className='w-full flex flex-col gap-6px'>
-              {extensionSkills.map((skill) => (
-                <div
-                  key={skill.name}
-                  ref={(el) => {
-                    skillRefs.current[skill.name] = el;
-                  }}
-                  className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
-                >
-                  <div className='shrink-0 flex items-start sm:mt-2px'>
-                    <div className='w-40px h-40px rd-10px bg-[rgba(var(--primary-6),0.08)] flex items-center justify-center shadow-sm'>
-                      <Puzzle theme='filled' size={20} fill='rgb(var(--primary-6))' />
-                    </div>
-                  </div>
-                  <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
-                    <div className='flex items-center gap-10px'>
-                      <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                      <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 border border-[rgba(var(--primary-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
-                        {t('settings.extensionSkillsBadge', { defaultValue: 'Extension' })}
-                      </span>
-                    </div>
-                    {skill.description && (
-                      <p className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'>{skill.description}</p>
-                    )}
-                  </div>
+              ) : (
+                <div className='text-center text-t-secondary text-13px py-40px bg-fill-1 rd-12px border border-b-base border-dashed relative z-10'>
+                  {loading
+                    ? t('common.loading', { defaultValue: 'Please wait...' })
+                    : t('settings.skillsHub.noSkills', {
+                        defaultValue: 'No skills found. Import some to get started.',
+                      })}
                 </div>
-              ))}
+              )}
             </div>
-          </div>
+
+            {/* ======== Extension Skills ======== */}
+            {extensionSkills.length > 0 && (
+              <div
+                data-testid='extension-skills-section'
+                className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
+              >
+                <div className='flex items-center gap-10px mb-24px'>
+                  <Puzzle theme='filled' size={20} fill='var(--color-primary-6)' />
+                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
+                    {t('settings.extensionSkills', { defaultValue: 'Extension Skills' })}
+                  </span>
+                  <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
+                    {extensionSkills.length}
+                  </span>
+                </div>
+                <div className='w-full flex flex-col gap-6px'>
+                  {extensionSkills.map((skill) => (
+                    <div
+                      key={skill.name}
+                      ref={(el) => {
+                        skillRefs.current[skill.name] = el;
+                      }}
+                      className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
+                    >
+                      <div className='shrink-0 flex items-start sm:mt-2px'>
+                        <div className='w-40px h-40px rd-10px bg-[rgba(var(--primary-6),0.08)] flex items-center justify-center shadow-sm'>
+                          <Puzzle theme='filled' size={20} fill='rgb(var(--primary-6))' />
+                        </div>
+                      </div>
+                      <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
+                        <div className='flex items-center gap-10px'>
+                          <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
+                          <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 border border-[rgba(var(--primary-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
+                            {t('settings.extensionSkillsBadge', { defaultValue: 'Extension' })}
+                          </span>
+                        </div>
+                        {skill.description && (
+                          <p className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'>
+                            {skill.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ======== Builtin Auto-injected Skills ======== */}
+            {builtinAutoSkills.length > 0 && (
+              <div
+                data-testid='auto-skills-section'
+                className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
+              >
+                <div className='flex items-center gap-10px mb-24px'>
+                  <Lightning theme='filled' size={20} fill='var(--color-primary-6)' />
+                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
+                    {t('settings.autoInjectedSkills')}
+                  </span>
+                  <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
+                    {builtinAutoSkills.length}
+                  </span>
+                </div>
+                <div className='w-full flex flex-col gap-6px'>
+                  {builtinAutoSkills.map((skill) => (
+                    <div
+                      key={skill.name}
+                      ref={(el) => {
+                        skillRefs.current[skill.name] = el;
+                      }}
+                      className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
+                    >
+                      <div className='shrink-0 flex items-start sm:mt-2px'>
+                        <div className='w-40px h-40px rd-10px bg-[rgba(var(--success-6),0.08)] flex items-center justify-center shadow-sm'>
+                          <Lightning theme='filled' size={20} fill='rgb(var(--success-6))' />
+                        </div>
+                      </div>
+                      <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
+                        <div className='flex items-center gap-10px'>
+                          <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
+                          <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] border border-[rgba(var(--success-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
+                            {t('settings.autoInjectedSkillsBadge')}
+                          </span>
+                        </div>
+                        {skill.description && (
+                          <p className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'>
+                            {skill.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ======== Usage Tip ======== */}
+            <div className='px-16px md:px-[24px] py-20px bg-base border border-b-base shadow-sm rd-16px flex items-start gap-12px text-t-secondary'>
+              <Info size={18} className='text-primary-6 mt-2px shrink-0' />
+              <div className='flex flex-col gap-4px'>
+                <span className='font-bold text-t-primary text-14px'>
+                  {t('settings.skillsHub.tipTitle', { defaultValue: 'Usage Tip:' })}
+                </span>
+                <span className='text-13px leading-relaxed'>{t('settings.skillsHub.tipContent')}</span>
+              </div>
+            </div>
+          </>
         )}
-
-        {/* ======== Builtin Auto-injected Skills ======== */}
-        {builtinAutoSkills.length > 0 && (
-          <div
-            data-testid='auto-skills-section'
-            className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
-          >
-            <div className='flex items-center gap-10px mb-24px'>
-              <Lightning theme='filled' size={20} fill='var(--color-primary-6)' />
-              <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
-                {t('settings.autoInjectedSkills')}
-              </span>
-              <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                {builtinAutoSkills.length}
-              </span>
-            </div>
-            <div className='w-full flex flex-col gap-6px'>
-              {builtinAutoSkills.map((skill) => (
-                <div
-                  key={skill.name}
-                  ref={(el) => {
-                    skillRefs.current[skill.name] = el;
-                  }}
-                  className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
-                >
-                  <div className='shrink-0 flex items-start sm:mt-2px'>
-                    <div className='w-40px h-40px rd-10px bg-[rgba(var(--success-6),0.08)] flex items-center justify-center shadow-sm'>
-                      <Lightning theme='filled' size={20} fill='rgb(var(--success-6))' />
-                    </div>
-                  </div>
-                  <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
-                    <div className='flex items-center gap-10px'>
-                      <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                      <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] border border-[rgba(var(--success-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
-                        {t('settings.autoInjectedSkillsBadge')}
-                      </span>
-                    </div>
-                    {skill.description && (
-                      <p className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'>{skill.description}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ======== Usage Tip ======== */}
-        <div className='px-16px md:px-[24px] py-20px bg-base border border-b-base shadow-sm rd-16px flex items-start gap-12px text-t-secondary'>
-          <Info size={18} className='text-primary-6 mt-2px shrink-0' />
-          <div className='flex flex-col gap-4px'>
-            <span className='font-bold text-t-primary text-14px'>
-              {t('settings.skillsHub.tipTitle', { defaultValue: 'Usage Tip:' })}
-            </span>
-            <span className='text-13px leading-relaxed'>{t('settings.skillsHub.tipContent')}</span>
-          </div>
-        </div>
       </div>
     </div>
   );

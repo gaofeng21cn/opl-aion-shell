@@ -284,8 +284,10 @@
   "darkMode": "深色",
   "agent": "对话Agent",
   "tools": "工具",
-  "capabilities": "智能体与能力",
+  "capabilities": "能力",
   "capabilitiesTab": {
+    "oplFlowManaged": "OPL Flow 托管",
+    "manualAndThirdParty": "手工与第三方",
     "skills": "技能",
     "tools": "外部工具与语音",
     "assistants": "自定义助手"
@@ -2083,9 +2085,33 @@
       "noRefs": "未报告资源上下文。"
     }
   },
+  "agentsPage": {
+    "title": "智能体",
+    "description": "管理可运行的 OPL 智能体包、首页入口、运行来源和依赖详情。",
+    "addAgent": "添加智能体"
+  },
   "capabilitiesPage": {
-    "title": "智能体与能力",
-    "description": "按用途查看可用能力；需要调整时再打开管理或高级详情。",
+    "title": "能力",
+    "description": "管理 OPL Flow 推荐能力，以及手工安装或第三方提供的 Skill 与插件。",
+    "groups": {
+      "oplFlowManaged": {
+        "title": "OPL Flow 托管能力",
+        "description": "推荐 Skill 与命令行能力通过已安装 OPL Flow 包的依赖闭包统一同步。",
+        "source": "来源：OPL Flow 已安装包依赖闭包",
+        "sync": "立即同步",
+        "syncComplete": "OPL Flow 能力已同步。",
+        "managed": "已托管",
+        "missing": "需要同步",
+        "notReported": "已安装的 OPL Flow 包尚未上报带类型的依赖明细。",
+        "cliVersion": "CLI 版本：{{version}}"
+      },
+      "manualAndThirdParty": {
+        "title": "手工与第三方能力",
+        "description": "导入、移除或查看不由 OPL Flow 托管的 Skill 与扩展能力。",
+        "toolsTitle": "插件与本机工具",
+        "toolsDescription": "在同一入口复用 AionUI 现有的扩展、本机工具和语音能力设置。"
+      }
+    },
     "developerSource": {
       "title": "运行来源",
       "description": "普通使用保留 OPL 托管版；自动或开发模式可优先使用所选工作区中的开发仓库。",
@@ -2588,6 +2614,40 @@
       },
       "actions": {
         "check": "检查包更新"
+      }
+    },
+    "dependencies": {
+      "title": "OPL Base 依赖",
+      "description": "OPL 托管依赖会静默更新；外部安装不会被覆盖，只有已验证的原渠道操作可在二次确认后执行。",
+      "external": "外部安装",
+      "version": "版本：{{value}}",
+      "items": {
+        "codex-cli": "Codex CLI",
+        "temporal-runtime": "Temporal 运行时",
+        "temporal-system-cli": "系统 Temporal CLI",
+        "officecli": "OfficeCLI",
+        "mineru-open-api": "MinerU"
+      },
+      "currentness": {
+        "current": "已是最新",
+        "update_available": "可更新",
+        "unknown": "尚未检查",
+        "missing": "未安装"
+      },
+      "updateModes": {
+        "silent_managed": "由 OPL Base 静默更新；按返回的重启或进程策略切换生效。",
+        "explicit_owner_delegated": "原安装渠道有可用更新；OPL 只会在你确认后委托原渠道执行。",
+        "detect_only_guidance": "仅检测状态；请通过原包管理器或安装来源更新。"
+      },
+      "actions": {
+        "updateViaOwner": "通过原渠道更新"
+      },
+      "confirmation": {
+        "title": "通过原渠道更新 {{name}}？",
+        "description": "这会明确委托 {{owner}} 执行更新，不会加入后台静默更新。"
+      },
+      "messages": {
+        "ownerUpdateComplete": "原渠道更新已完成。"
       }
     },
     "updates": {

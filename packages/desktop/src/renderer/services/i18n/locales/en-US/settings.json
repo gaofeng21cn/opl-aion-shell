@@ -284,8 +284,10 @@
   "darkMode": "Dark",
   "agent": "Agent",
   "tools": "Tools",
-  "capabilities": "Agents & Capabilities",
+  "capabilities": "Capabilities",
   "capabilitiesTab": {
+    "oplFlowManaged": "Managed by OPL Flow",
+    "manualAndThirdParty": "Manual & third-party",
     "skills": "Skills",
     "tools": "External tools & voice",
     "assistants": "Custom assistants"
@@ -2082,9 +2084,33 @@
       "noRefs": "No resource context reported."
     }
   },
+  "agentsPage": {
+    "title": "Agents",
+    "description": "Manage runnable OPL agent packages, their Home entries, runtime source, and dependencies.",
+    "addAgent": "Add agent"
+  },
   "capabilitiesPage": {
-    "title": "Agents & Capabilities",
-    "description": "Review capabilities by purpose, then open management or advanced details only when needed.",
+    "title": "Capabilities",
+    "description": "Manage OPL Flow recommendations and other manually installed or third-party skills and plugins.",
+    "groups": {
+      "oplFlowManaged": {
+        "title": "Managed by OPL Flow",
+        "description": "Recommended skills and command-line capabilities are reconciled through the installed OPL Flow package dependency closure.",
+        "source": "Source: OPL Flow installed package dependency closure",
+        "sync": "Sync now",
+        "syncComplete": "OPL Flow capabilities were synced.",
+        "managed": "Managed",
+        "missing": "Needs sync",
+        "notReported": "The installed OPL Flow package has not reported typed dependency details yet.",
+        "cliVersion": "CLI version: {{version}}"
+      },
+      "manualAndThirdParty": {
+        "title": "Manual and third-party capabilities",
+        "description": "Import, remove, or inspect skills and extension-provided capabilities that are not managed by OPL Flow.",
+        "toolsTitle": "Plugins and local tools",
+        "toolsDescription": "Manage the existing AionUI extension, local tool, and voice capability settings from this shared surface."
+      }
+    },
     "developerSource": {
       "title": "Runtime source",
       "description": "OPL keeps a managed copy for normal use; Automatic or Developer mode can prefer repositories in the selected workspace.",
@@ -2587,6 +2613,40 @@
       },
       "actions": {
         "check": "Check package updates"
+      }
+    },
+    "dependencies": {
+      "title": "OPL Base dependencies",
+      "description": "OPL-managed dependencies update silently. External installations are never overwritten; a verified original-channel action always asks for confirmation.",
+      "external": "External installation",
+      "version": "Version: {{value}}",
+      "items": {
+        "codex-cli": "Codex CLI",
+        "temporal-runtime": "Temporal runtime",
+        "temporal-system-cli": "Temporal system CLI",
+        "officecli": "OfficeCLI",
+        "mineru-open-api": "MinerU"
+      },
+      "currentness": {
+        "current": "Current",
+        "update_available": "Update available",
+        "unknown": "Not checked",
+        "missing": "Not installed"
+      },
+      "updateModes": {
+        "silent_managed": "Updated silently by OPL Base; activation follows the reported restart or process policy.",
+        "explicit_owner_delegated": "An update is available from the original installation channel. OPL will ask before delegating it.",
+        "detect_only_guidance": "Detected only. Update this installation through its original package manager or source."
+      },
+      "actions": {
+        "updateViaOwner": "Update via original channel"
+      },
+      "confirmation": {
+        "title": "Update {{name}} through its original channel?",
+        "description": "This explicitly delegates the update to {{owner}}. It is never included in silent background updates."
+      },
+      "messages": {
+        "ownerUpdateComplete": "The original-channel update completed."
       }
     },
     "updates": {

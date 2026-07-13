@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
+import {
+  readManagedUpdatePlane,
+  readOplFlowManagedCapabilityCatalog,
+} from '@/renderer/services/managedUpdateProjection';
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
@@ -73,6 +76,114 @@ describe('managed update projection public lifecycle ids', () => {
         { id: 'profile_migration_status', state: 'manual_required' },
       ],
     });
+  });
+
+  it('projects verified external owner updates under OPL Base without inventing a Flow catalog', () => {
+    const plane = readManagedUpdatePlane(
+      {
+        managed_update: {
+          components: [
+            {
+              component_id: 'opl_base',
+              state: 'current',
+              current: {
+                dependency_catalog: {
+                  lifecycle_owner: 'opl_base',
+                  dependencies: [
+                    {
+                      dependency_id: 'codex-cli',
+                      dependency_kind: 'runtime_executor',
+                      installed: true,
+                      version: '1.2.3',
+                      currentness: 'current',
+                      ownership: 'opl_managed',
+                      update_mode: 'silent_managed',
+                      external_installations: [
+                        {
+                          dependency_id: 'codex-cli-homebrew',
+                          installed: true,
+                          version: '1.2.2',
+                          latest_version: '1.2.3',
+                          currentness: 'update_available',
+                          ownership: 'homebrew',
+                          update_mode: 'explicit_owner_delegated',
+                          update_action: {
+                            action_id: 'update_external_codex_homebrew',
+                            label: 'Update with Homebrew',
+                            surface: 'opl app action execute',
+                            payload_fields: [],
+                            confirmation_required: true,
+                            owner_kind: 'homebrew_formula',
+                            auto_apply_allowed: false,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+      {}
+    );
+
+    const catalog = plane.components.find((component) => component.id === 'opl_base')?.dependencyCatalog;
+    expect(catalog?.dependencies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'codex-cli', external: false, updateMode: 'silent_managed' }),
+        expect.objectContaining({
+          id: 'codex-cli-homebrew',
+          external: true,
+          updateMode: 'explicit_owner_delegated',
+          updateAction: expect.objectContaining({
+            actionId: 'update_external_codex_homebrew',
+            surface: 'opl app action execute',
+            confirmationRequired: true,
+            autoApplyAllowed: false,
+          }),
+        }),
+      ])
+    );
+  });
+
+  it('reads OPL Flow managed skills and tools from the installed package policy projection', () => {
+    const catalog = readOplFlowManagedCapabilityCatalog({
+      agent_packages: {
+        directory: {
+          installed_packages: [
+            {
+              package_id: 'opl-flow',
+              bundled_required_skill_ids: ['opl-flow', 'codex-ops-kit'],
+              physical_surface: {
+                workflow_policy_migration: {
+                  dependency_sync: {
+                    items: [
+                      { skill_id: 'officecli-docx', status: 'synced' },
+                      { skill_id: 'ui-ux-pro-max', status: 'synced' },
+                    ],
+                    tools: [
+                      {
+                        tool_id: 'officecli',
+                        binary_path: '/usr/local/bin/officecli',
+                        version: '1.0.0',
+                        status: 'ready',
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(catalog.skillIds).toEqual(['opl-flow', 'codex-ops-kit', 'officecli-docx', 'ui-ux-pro-max']);
+    expect(catalog.cliDependencies).toEqual([
+      expect.objectContaining({ id: 'officecli', currentness: 'current', updateMode: 'silent_managed' }),
+    ]);
   });
 
   it('requires an explicit package id before package mutations become executable', () => {
