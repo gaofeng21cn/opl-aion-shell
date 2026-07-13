@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Message, Modal, Radio, Select, Typography } from '@arco-design/web-react';
 import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
@@ -83,6 +83,7 @@ export const AccessSettingsContent: React.FC = () => {
   const [gatewayLoginError, setGatewayLoginError] = useState<IOplGatewayAccountErrorCode | null>(null);
   const [gatewayLoginLoading, setGatewayLoginLoading] = useState(false);
   const [gatewayActionLoading, setGatewayActionLoading] = useState<OplGatewayAccountActionId | null>(null);
+  const autoSetupAttemptRef = useRef<string | null>(null);
   const [disconnectConfirmVisible, setDisconnectConfirmVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
@@ -208,9 +209,9 @@ export const AccessSettingsContent: React.FC = () => {
     }
   };
 
-  const refreshFastState = async (): Promise<void> => {
+  const refreshFastState = React.useCallback(async (): Promise<void> => {
     await appStateQuery.load('fast', { showRefreshing: true });
-  };
+  }, [appStateQuery.load]);
 
   const handleGatewayLogin = async () => {
     const email = gatewayEmail.trim();
@@ -233,7 +234,7 @@ export const AccessSettingsContent: React.FC = () => {
       }
       setGatewayFormVisible(false);
       Message.success(t('settings.accessPage.gatewayAccount.loginSuccess'));
-      if (result.stateRefreshRequired) await refreshFastState();
+      await refreshFastState();
     } catch {
       setGatewayLoginError('gateway_account_failed');
     } finally {
@@ -242,27 +243,33 @@ export const AccessSettingsContent: React.FC = () => {
     }
   };
 
-  const handleGatewayAction = async (
-    actionId: OplGatewayAccountActionId,
-    payloadJson?: Record<string, unknown>
-  ): Promise<void> => {
-    setGatewayActionLoading(actionId);
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId,
-        dryRun: false,
-        ...(payloadJson ? { payloadJson } : {}),
-      });
-      assertOplCommandOk(result);
-      setDisconnectConfirmVisible(false);
-      Message.success(t('settings.accessPage.gatewayAccount.actionSuccess'));
-      await refreshFastState();
-    } catch {
-      Message.error(t('settings.accessPage.gatewayAccount.actionFailed'));
-    } finally {
-      setGatewayActionLoading(null);
-    }
-  };
+  const handleGatewayAction = React.useCallback(
+    async (
+      actionId: OplGatewayAccountActionId,
+      payloadJson?: Record<string, unknown>,
+      options: { announceSuccess?: boolean } = {}
+    ): Promise<void> => {
+      setGatewayActionLoading(actionId);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId,
+          dryRun: false,
+          ...(payloadJson ? { payloadJson } : {}),
+        });
+        assertOplCommandOk(result);
+        setDisconnectConfirmVisible(false);
+        if (options.announceSuccess !== false) {
+          Message.success(t('settings.accessPage.gatewayAccount.actionSuccess'));
+        }
+        await refreshFastState();
+      } catch {
+        Message.error(t('settings.accessPage.gatewayAccount.actionFailed'));
+      } finally {
+        setGatewayActionLoading(null);
+      }
+    },
+    [refreshFastState, t]
+  );
 
   const gatewayNumber = (value: number | null): string =>
     value === null ? '--' : new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 2 }).format(value);
@@ -280,15 +287,26 @@ export const AccessSettingsContent: React.FC = () => {
   const projectedGatewayStatusError =
     gatewayLoginError ??
     gatewayAccount?.freshness.last_error_code ??
-    (gatewayAccount?.status === 'reauth_required'
-      ? 'auth_expired'
-      : gatewayAccount?.status === 'disconnect_pending'
-        ? 'disconnect_pending'
-        : null);
+    (gatewayAccount?.status === 'setup_required' && !defaultGatewayGroupId
+      ? 'group_selection_required'
+      : gatewayAccount?.status === 'reauth_required'
+        ? 'auth_expired'
+        : gatewayAccount?.status === 'disconnect_pending'
+          ? 'disconnect_pending'
+          : null);
   const gatewayStatusError =
     projectedGatewayStatusError === 'group_selection_required' && defaultGatewayGroupId
       ? null
       : projectedGatewayStatusError;
+
+  useEffect(() => {
+    const actionId = gatewayAccount?.actions.complete_setup;
+    if (gatewayAccount?.status !== 'setup_required' || !actionId || !defaultGatewayGroupId) return;
+    const attemptKey = [actionId, defaultGatewayGroupId, gatewayAccount.freshness.observed_at ?? 'unknown'].join(':');
+    if (autoSetupAttemptRef.current === attemptKey) return;
+    autoSetupAttemptRef.current = attemptKey;
+    void handleGatewayAction(actionId, { group_id: defaultGatewayGroupId }, { announceSuccess: false });
+  }, [defaultGatewayGroupId, gatewayAccount, handleGatewayAction]);
 
   return (
     <div className='opl-settings-page' data-testid='settings-page-access'>
@@ -553,27 +571,6 @@ export const AccessSettingsContent: React.FC = () => {
                 </div>
               </div>
               <div className='flex flex-wrap items-center justify-end gap-8px'>
-                {gatewayAccount.status === 'setup_required' &&
-                  gatewayAccount.actions.complete_setup &&
-                  (defaultGatewayGroupId ? (
-                    <Button
-                      size='small'
-                      type='primary'
-                      loading={gatewayActionLoading === gatewayAccount.actions.complete_setup}
-                      onClick={() =>
-                        void handleGatewayAction(gatewayAccount.actions.complete_setup!, {
-                          group_id: defaultGatewayGroupId,
-                        })
-                      }
-                      data-testid='settings-access-gateway-complete-setup'
-                    >
-                      {t('settings.accessPage.gatewayAccount.actions.completeSetup')}
-                    </Button>
-                  ) : (
-                    <Typography.Text className='max-w-360px text-12px text-warning'>
-                      {t('settings.accessPage.gatewayAccount.errors.groupSelectionRequired')}
-                    </Typography.Text>
-                  ))}
                 {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
                   <Button
                     size='small'
@@ -587,16 +584,6 @@ export const AccessSettingsContent: React.FC = () => {
                     {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
                   </Button>
                 )}
-                {(gatewayAccount.status === 'attention_needed' || gatewayAccount.status === 'disconnect_pending') &&
-                  gatewayAccount.actions.repair && (
-                    <Button
-                      size='small'
-                      loading={gatewayActionLoading === gatewayAccount.actions.repair}
-                      onClick={() => void handleGatewayAction(gatewayAccount.actions.repair!)}
-                    >
-                      {t('settings.accessPage.gatewayAccount.actions.repair')}
-                    </Button>
-                  )}
                 {gatewayAccount.actions.disconnect && (
                   <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
                     {t('settings.accessPage.gatewayAccount.actions.disconnect')}

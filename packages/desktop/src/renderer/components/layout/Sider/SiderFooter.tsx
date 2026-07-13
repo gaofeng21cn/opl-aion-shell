@@ -100,7 +100,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
               type='text'
               onClick={onThemeToggle}
               className={classNames(
-                '!h-34px !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
+                '!h-34px !p-0 !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
                 '!w-34px !shrink-0',
                 isMobile && 'sider-footer-btn-mobile !h-44px !min-h-44px',
                 isMobile && '!w-44px'
