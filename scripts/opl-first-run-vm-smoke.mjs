@@ -3279,7 +3279,7 @@ function conversationRouteReceiptExpression(
     ${
       expectedWorkspace
         ? `if (matched.extra?.workspace !== ${cdpString(expectedWorkspace)}) invalid.push('conversation_workspace');
-    if (matched.extra?.custom_workspace !== true) invalid.push('conversation_custom_workspace');
+    if (matched.extra?.is_temporary_workspace !== false) invalid.push('conversation_temporary_workspace');
     if (activation?.target_workspace !== ${cdpString(expectedWorkspace)}) invalid.push('activation_target_workspace');
     if (useBinding?.target_root !== ${cdpString(expectedWorkspace)}) invalid.push('use_binding_target_root');`
         : ''

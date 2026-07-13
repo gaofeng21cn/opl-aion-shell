@@ -928,7 +928,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(activeReceiptExpression).toContain('activation_use_receipt_ref');
     expect(activeReceiptExpression).toContain('activation_use_binding');
     expect(activeReceiptExpression).toContain('use_binding_target_root');
-    expect(activeReceiptExpression).toContain('conversation_custom_workspace');
+    expect(activeReceiptExpression).toContain('matched.extra?.is_temporary_workspace !== false');
+    expect(activeReceiptExpression).toContain('conversation_temporary_workspace');
+    expect(activeReceiptExpression).not.toContain('conversation_custom_workspace');
     expect(activeReceiptExpression).not.toContain("method: 'POST'");
     expect(receiptExpression).toContain('opl_agent_package_invocation');
     expect(receiptExpression).toContain('opl_assistant_route');
