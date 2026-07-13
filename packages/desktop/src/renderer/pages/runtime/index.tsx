@@ -22,6 +22,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import {
+  canonicalizeOplProfessionalAgentId,
+  getOplProfessionalAgentPackages,
+} from '@/common/config/oplProductProfile';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
 import type {
@@ -31,10 +35,16 @@ import type {
   RuntimeTaskPrimaryState,
 } from '@/renderer/pages/settings/RuntimeSettings/types';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import styles from './RuntimePage.module.css';
+import {
+  readRuntimeTaskCockpitProjectionIndex,
+  type RuntimeSystemAttentionProjection,
+  type RuntimeTaskCockpitProjection,
+  type RuntimeTokenObservation,
+} from './runtimeCockpitProjection';
 
 type RuntimeSnapshot = Record<string, unknown>;
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
-const TASK_ROW_GRID_TEMPLATE = 'minmax(220px, 1.35fr) minmax(112px, 0.62fr) minmax(164px, 0.9fr) minmax(128px, 0.62fr)';
 const TWO_LINE_CLAMP_STYLE: React.CSSProperties = {
   display: '-webkit-box',
   WebkitBoxOrient: 'vertical',
@@ -60,6 +70,11 @@ function record(value: unknown): RuntimeSnapshot {
 
 function recordList(value: unknown): RuntimeSnapshot[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function keyedRecordList(value: unknown, idKey: string): RuntimeSnapshot[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  return Object.entries(record(value)).map(([id, entry]) => ({ ...record(entry), [idKey]: record(entry)[idKey] ?? id }));
 }
 
 function stringValue(value: unknown): string | null {
@@ -476,16 +491,17 @@ function taskFallbackLabel(taskId: string | null, index: number): string {
   return taskId ?? `task-${index + 1}`;
 }
 
-type RuntimeModuleStatusItem = {
+type RuntimeAgentAvailabilityState = 'available' | 'maintenance_required' | 'not_installed';
+
+type RuntimeAgentAvailabilityItem = {
   id: string;
   title: string;
-  statusRaw: string | null;
-  statusLabel: string | null;
+  availability: RuntimeAgentAvailabilityState;
+  availabilityLabel: string;
   detail: string | null;
   activeTaskCount: number;
   automationRunningCount: number;
   latestActivityAt: string | null;
-  needsAttention: boolean;
 };
 
 type ActionResultSummary = {
@@ -505,11 +521,14 @@ type RuntimeOverviewTaskItem = {
   stageLabel: string | null;
   elapsedLabel: string | null;
   livenessLabel: string;
-  stageUsageLabel: string;
-  totalUsageLabel: string;
+  stageUsageLabel: string | null;
+  totalUsageLabel: string | null;
+  stageUsageMissingReason: string | null;
+  totalUsageMissingReason: string | null;
   nextStep: string | null;
   ownerLabel: string | null;
   blockerSummary: string | null;
+  systemAttention: RuntimeSystemAttentionSummary | null;
   latestActivityAt: string | null;
   currentnessTag: string | null;
 };
@@ -518,6 +537,19 @@ type RuntimeModuleVisual = {
   icon: React.ReactNode;
   color: string;
   background: string;
+};
+
+type RuntimeUsageDisplay = {
+  valueLabel: string | null;
+  missingReason: string | null;
+};
+
+type RuntimeSystemAttentionSummary = {
+  responsibleComponent: string;
+  issueAndRepair: string;
+  impact: string;
+  expectedOutcome: string;
+  diagnosticsRequired: boolean;
 };
 
 type RuntimeTaskStageMapItem = {
@@ -630,14 +662,6 @@ const RUNTIME_STAGE_DISPLAY_LABELS: Record<string, { en: string; zh: string }> =
 
 const RUNTIME_TITLE_ACRONYMS = new Set(['ai', 'cvd', 'dm', 'dpcc', 'mas', 'mag', 'oma', 'opl', 'us']);
 
-const MODULE_ATTENTION_STATES = new Set([
-  'dirty',
-  'missing',
-  'blocked',
-  'failed',
-  'attention_needed',
-  'attention_required',
-]);
 const ARCHIVABLE_TASK_STATES = new Set(['completed', 'failed', 'dead_lettered']);
 
 function isArchivableTask(task: RuntimeTaskDrilldown): boolean {
@@ -705,15 +729,7 @@ function humanizeScopeOptionLabel(
   });
 }
 
-function humanizeModuleTitle(
-  moduleId: string | null | undefined,
-  label: string | null | undefined,
-  fallback: string
-): string {
-  return runtimeLabelFor(moduleId) ?? runtimeLabelFor(label) ?? label?.trim() ?? moduleId?.trim() ?? fallback;
-}
-
-function moduleVisualFor(item: RuntimeModuleStatusItem): RuntimeModuleVisual {
+function moduleVisualFor(item: RuntimeAgentAvailabilityItem): RuntimeModuleVisual {
   const key = humanLabelKey(item.id) ?? humanLabelKey(item.title);
   if (key === 'medautoscience' || key === 'mas') {
     return {
@@ -914,19 +930,18 @@ function translateMappedValue(
   return mapping[text] ? t(mapping[text]) : text;
 }
 
-function parseModuleStatusItems(
+function parseAgentAvailabilityItems(
   appState: RuntimeSnapshot,
   taskItems: RuntimeOverviewTaskItem[],
   t: (key: string, options?: Record<string, string | number>) => string
-): RuntimeModuleStatusItem[] {
-  const moduleItems = new Map<string, RuntimeModuleStatusItem>();
+): RuntimeAgentAvailabilityItem[] {
   const taskStats = new Map<
     string,
     { activeTaskCount: number; automationRunningCount: number; latestActivityAt: string | null }
   >();
   taskItems.forEach((item) => {
-    const key = humanLabelKey(item.agentLabel);
-    if (!key) return;
+    const actor = item.task.domainId ?? item.task.domainLabel ?? item.task.agentDisplayName ?? item.agentLabel;
+    const key = canonicalizeOplProfessionalAgentId(actor);
     const current = taskStats.get(key) ?? { activeTaskCount: 0, automationRunningCount: 0, latestActivityAt: null };
     current.activeTaskCount += 1;
     if (item.automationState === 'automation_running') {
@@ -937,67 +952,95 @@ function parseModuleStatusItems(
     }
     taskStats.set(key, current);
   });
-  const statsFor = (title: string) =>
-    taskStats.get(humanLabelKey(title) ?? '') ?? {
+  const statsFor = (packageId: string) =>
+    taskStats.get(canonicalizeOplProfessionalAgentId(packageId)) ?? {
       activeTaskCount: 0,
       automationRunningCount: 0,
       latestActivityAt: null,
     };
-  oplRecordList(oplRecord(appState.modules).items).forEach((item, index) => {
-    const status = oplString(item.status) ?? oplString(item.health_status);
-    const moduleId = oplString(item.module_id);
-    const title = humanizeModuleTitle(moduleId, oplString(item.display_name), `module-${index + 1}`);
-    const dirty = oplRecord(item.git).dirty === true;
-    const id = moduleId ?? title;
-    const stats = statsFor(title);
-    moduleItems.set(id, {
-      id,
-      title,
-      statusRaw: dirty ? 'attention_needed' : status,
-      statusLabel: dirty
-        ? t('common.runtime.projectStates.needsAttention')
-        : (translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status),
-      detail: dirty
-        ? t('common.runtime.moduleDirty')
-        : status === 'missing'
-          ? t('common.runtime.moduleMissing')
-          : (oplString(item.version) ?? null),
-      activeTaskCount: stats.activeTaskCount,
-      automationRunningCount: stats.automationRunningCount,
-      latestActivityAt: stats.latestActivityAt,
-      needsAttention: dirty || (status ? MODULE_ATTENTION_STATES.has(status) : false),
+
+  const agentPackages = oplRecord(appState.agent_packages);
+  const directory = oplRecord(agentPackages.directory);
+  const statusIndex = oplRecord(agentPackages.status_index);
+  const canonicalSurfacePresent = Object.keys(agentPackages).length > 0;
+  const installedById = new Map(
+    keyedRecordList(directory.installed_packages, 'package_id').flatMap((item) => {
+      const packageId = oplString(item.package_id);
+      return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), item] as const] : [];
+    })
+  );
+  const statusById = new Map(
+    keyedRecordList(statusIndex.packages, 'package_id').flatMap((item) => {
+      const packageId = oplString(item.package_id);
+      return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), item] as const] : [];
+    })
+  );
+  const legacyById = new Map(
+    oplRecordList(oplRecord(appState.modules).items).flatMap((item) => {
+      const moduleId = oplString(item.module_id) ?? oplString(item.package_id);
+      return moduleId ? [[canonicalizeOplProfessionalAgentId(moduleId), item] as const] : [];
+    })
+  );
+  const availableStates = new Set(['available', 'ready', 'healthy', 'installed']);
+
+  return getOplProfessionalAgentPackages()
+    .filter((profile) => profile.installed_manageable)
+    .map((profile) => {
+      const id = canonicalizeOplProfessionalAgentId(profile.package_id);
+      const installed = installedById.get(id);
+      const status = statusById.get(id);
+      const legacy = legacyById.get(id);
+      const activationAction = oplRecord(status?.activation_action);
+      const launchBlockedReason = oplString(status?.launch_blocked_reason);
+      const explicitNotInstalled =
+        oplString(activationAction.preparation_status) === 'not_installed' ||
+        launchBlockedReason === 'package_not_installed';
+      let availability: RuntimeAgentAvailabilityState;
+      if (canonicalSurfacePresent) {
+        if (explicitNotInstalled || (!installed && !status)) {
+          availability = 'not_installed';
+        } else if (
+          status?.operational_ready === true &&
+          status?.launch_allowed !== false &&
+          launchBlockedReason === null
+        ) {
+          availability = 'available';
+        } else if (
+          typeof status?.operational_ready !== 'boolean' &&
+          availableStates.has(oplString(status?.status) ?? '') &&
+          status?.launch_allowed !== false
+        ) {
+          availability = 'available';
+        } else {
+          availability = 'maintenance_required';
+        }
+      } else {
+        const legacyStatus = oplString(legacy?.status) ?? oplString(legacy?.health_status);
+        if (!legacy || legacyStatus === 'missing') {
+          availability = 'not_installed';
+        } else if (availableStates.has(legacyStatus ?? '') && oplRecord(legacy.git).dirty !== true) {
+          availability = 'available';
+        } else {
+          availability = 'maintenance_required';
+        }
+      }
+      const stats = statsFor(id);
+      return {
+        id,
+        title: profile.display_name,
+        availability,
+        availabilityLabel: t(`common.runtime.agentAvailability.status.${availability}`),
+        detail:
+          availability === 'maintenance_required'
+            ? t('common.runtime.agentAvailability.maintenanceDetail')
+            : availability === 'not_installed'
+              ? t('common.runtime.agentAvailability.notInstalledDetail')
+              : null,
+        activeTaskCount: stats.activeTaskCount,
+        automationRunningCount: stats.automationRunningCount,
+        latestActivityAt: stats.latestActivityAt,
+      };
     });
-  });
-  const workbench = oplRecord(oplRecord(appState.operator).workbench);
-  oplRecordList(workbench.task_drilldowns).forEach((task) => {
-    const stage = oplString(task.active_stage_id) ?? oplString(task.stage);
-    const hasProject = Boolean(
-      oplString(task.project_id) ?? oplString(task.project_display_name) ?? oplString(task.study_id)
-    );
-    if (hasProject || stage !== 'module_runtime') return;
-    const id = oplString(task.domain_id) ?? oplString(task.task_id) ?? oplString(task.title);
-    if (!id) return;
-    const existing = moduleItems.get(id);
-    const status = oplString(task.state) ?? oplString(task.status) ?? existing?.statusRaw ?? null;
-    const needsAttention = status ? MODULE_ATTENTION_STATES.has(status) : (existing?.needsAttention ?? false);
-    const title = existing?.title ?? humanizeModuleTitle(id, oplString(task.title), id);
-    const stats = statsFor(title);
-    moduleItems.set(id, {
-      id,
-      title,
-      statusRaw: status,
-      statusLabel: translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? existing?.statusLabel ?? status,
-      detail:
-        status === 'missing'
-          ? t('common.runtime.moduleMissing')
-          : (existing?.detail ?? (status === 'dirty' ? t('common.runtime.moduleDirty') : null)),
-      activeTaskCount: stats.activeTaskCount,
-      automationRunningCount: stats.automationRunningCount,
-      latestActivityAt: stats.latestActivityAt,
-      needsAttention,
-    });
-  });
-  return Array.from(moduleItems.values());
 }
 
 function controlStateTimestamp(state: RuntimeSnapshot): number {
@@ -1301,19 +1344,64 @@ function dedupeTaskItems(items: RuntimeOverviewTaskItem[]): RuntimeOverviewTaskI
   return Array.from(byKey.values());
 }
 
-function combinedUsageLabel(
-  item: RuntimeOverviewTaskItem,
-  telemetryMissing: string,
+function tokenMissingReasonLabel(
+  reason: string | null,
   t: (key: string, options?: Record<string, string | number>) => string
 ): string {
-  const hasStageUsage = item.stageUsageLabel !== telemetryMissing;
-  const hasTotalUsage = item.totalUsageLabel !== telemetryMissing;
-  if (hasStageUsage && hasTotalUsage) {
+  if (!reason) return t('common.runtime.tokenUsage.missingReason.notProvided');
+  const normalized = reason.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (normalized.includes('provider') && /(report|return|emit)/.test(normalized)) {
+    return t('common.runtime.tokenUsage.missingReason.providerDidNotReport');
+  }
+  if (normalized.includes('not_measured') || normalized.includes('measurement_not_enabled')) {
+    return t('common.runtime.tokenUsage.missingReason.notMeasured');
+  }
+  if (normalized.includes('not_applicable')) {
+    return t('common.runtime.tokenUsage.missingReason.notApplicable');
+  }
+  if (normalized.includes('legacy') || normalized.includes('histor')) {
+    return t('common.runtime.tokenUsage.missingReason.legacyRecord');
+  }
+  if (normalized.includes('telemetry') || normalized.includes('unavailable') || normalized.includes('missing')) {
+    return t('common.runtime.tokenUsage.missingReason.telemetryUnavailable');
+  }
+  return t('common.runtime.tokenUsage.missingReason.unavailableDetail');
+}
+
+function combinedUsageLabel(
+  item: RuntimeOverviewTaskItem,
+  t: (key: string, options?: Record<string, string | number>) => string
+): string {
+  const hasStageUsage = Boolean(item.stageUsageLabel);
+  const hasTotalUsage = Boolean(item.totalUsageLabel);
+  if (item.stageUsageLabel && item.totalUsageLabel) {
     return t('common.runtime.usageStageAndTotal', { stage: item.stageUsageLabel, total: item.totalUsageLabel });
   }
-  if (hasStageUsage) return t('common.runtime.usageStageOnly', { stage: item.stageUsageLabel });
-  if (hasTotalUsage) return t('common.runtime.usageTotalOnly', { total: item.totalUsageLabel });
-  return telemetryMissing;
+  if (item.stageUsageLabel) {
+    return t('common.runtime.tokenUsage.stageObservedTotalMissing', {
+      stage: item.stageUsageLabel,
+      reason: tokenMissingReasonLabel(item.totalUsageMissingReason, t),
+    });
+  }
+  if (item.totalUsageLabel) {
+    return t('common.runtime.tokenUsage.stageMissingTotalObserved', {
+      total: item.totalUsageLabel,
+      reason: tokenMissingReasonLabel(item.stageUsageMissingReason, t),
+    });
+  }
+  if (!hasStageUsage && !hasTotalUsage) {
+    const stageReason = tokenMissingReasonLabel(item.stageUsageMissingReason, t);
+    const totalReason = tokenMissingReasonLabel(item.totalUsageMissingReason, t);
+    return stageReason === totalReason
+      ? t('common.runtime.tokenUsage.missingWithReason', { reason: stageReason })
+      : t('common.runtime.tokenUsage.missingWithStageAndTotalReasons', {
+          stageReason,
+          totalReason,
+        });
+  }
+  return t('common.runtime.tokenUsage.missingWithReason', {
+    reason: t('common.runtime.tokenUsage.missingReason.notProvided'),
+  });
 }
 
 function stagePathLabels(task: RuntimeTaskDrilldown, language: string | null | undefined, states: string[]): string[] {
@@ -1338,7 +1426,7 @@ function taskStageMap(
     item.primaryState === 'system_attention_required' ||
     item.automationState === 'automation_failed' ||
     item.automationState === 'result_pending_terminalization'
-      ? item.primaryLabel
+      ? (item.systemAttention?.issueAndRepair ?? t('common.runtime.systemAttention.unknownWork'))
       : empty;
   return [
     {
@@ -1380,7 +1468,6 @@ function taskDetailRows(
   t: (key: string, options?: Record<string, string | number>) => string
 ): RuntimeTaskDetailRow[] {
   const empty = t('common.runtime.values.empty');
-  const telemetryMissing = t('common.runtime.telemetryMissing');
   const attemptCount = item.task.stageAttemptIds.length;
   const attemptValue = attemptCount > 0 ? String(attemptCount) : empty;
   const currentAttempt =
@@ -1391,7 +1478,7 @@ function taskDetailRows(
     {
       key: 'stage',
       label: t('common.runtime.taskDetails.currentStage'),
-      value: item.stageLabel ?? telemetryMissing,
+      value: item.stageLabel ?? t('common.runtime.noCurrentStage'),
     },
     {
       key: 'attempt-count',
@@ -1406,12 +1493,12 @@ function taskDetailRows(
     {
       key: 'next',
       label: t('common.runtime.taskDetails.nextAction'),
-      value: item.nextStep ?? telemetryMissing,
+      value: item.nextStep ?? t('common.runtime.nextStepUnavailable'),
     },
     {
       key: 'duration',
       label: t('common.runtime.taskDetails.duration'),
-      value: item.elapsedLabel ?? telemetryMissing,
+      value: item.elapsedLabel ?? t('common.runtime.durationMissing'),
     },
     {
       key: 'usage',
@@ -1446,7 +1533,7 @@ function humanizeNextStep(
 ): string | null {
   const raw = rawStep?.trim();
   if (!raw) {
-    return automationState === 'result_pending_terminalization'
+    return automationState === 'result_pending_terminalization' && primaryState !== 'system_attention_required'
       ? t('common.runtime.primaryStates.systemAttentionRequired')
       : null;
   }
@@ -1455,10 +1542,10 @@ function humanizeNextStep(
   if (stageStep && !(rawRuntimeStep && /domain_route|reconcile/.test(raw.toLowerCase()))) return stageStep;
   if (!rawRuntimeStep) return raw;
   if (automationState === 'result_pending_terminalization') {
-    return t('common.runtime.primaryStates.systemAttentionRequired');
+    return primaryState === 'system_attention_required' ? null : t('common.runtime.primaryStates.systemAttentionRequired');
   }
   if (automationState === 'automation_failed' || primaryState === 'system_attention_required') {
-    return t('common.runtime.primaryStates.systemAttentionRequired');
+    return null;
   }
   if (primaryState === 'owner_decision_required') {
     return t('common.runtime.primaryStates.ownerDecisionRequired');
@@ -1557,22 +1644,89 @@ function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: Runtime
   );
 }
 
-function displayUsageLabel(
-  value: string | null | undefined,
+function formatObservedTokenUsage(
+  observation: Extract<RuntimeTokenObservation, { state: 'observed' }>,
   t: (key: string, options?: Record<string, string | number>) => string
-): string {
+): string | null {
+  if (observation.totalTokens !== undefined) {
+    return t('common.runtime.tokenUsage.count', { count: observation.totalTokens });
+  }
+  if (observation.inputTokens !== undefined && observation.outputTokens !== undefined) {
+    return t('common.runtime.tokenUsage.inputAndOutput', {
+      input: observation.inputTokens,
+      output: observation.outputTokens,
+    });
+  }
+  if (observation.inputTokens !== undefined) {
+    return t('common.runtime.tokenUsage.inputOnly', { input: observation.inputTokens });
+  }
+  if (observation.outputTokens !== undefined) {
+    return t('common.runtime.tokenUsage.outputOnly', { output: observation.outputTokens });
+  }
+  return observation.displayValue ?? null;
+}
+
+function displayUsage(
+  value: string | null | undefined,
+  observation: RuntimeTokenObservation | null | undefined,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeUsageDisplay {
+  if (observation?.state === 'observed') {
+    return { valueLabel: formatObservedTokenUsage(observation, t), missingReason: null };
+  }
+  if (observation?.state === 'missing') {
+    return { valueLabel: null, missingReason: observation.missingReason };
+  }
   const text = value?.trim();
-  if (!text) return t('common.runtime.telemetryMissing');
+  if (!text) return { valueLabel: null, missingReason: null };
   const lower = text.toLowerCase();
   if (lower.includes('telemetry_status') || lower.includes('source_ref_count') || lower.includes('usage_ref')) {
-    return t('common.runtime.telemetryMissing');
+    return { valueLabel: null, missingReason: null };
   }
+  return { valueLabel: text, missingReason: null };
+}
+
+function userFacingAttentionText(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text || isRawRuntimeNextStep(text) || isRawRuntimeTitle(text)) return null;
   return text;
+}
+
+function systemAttentionSummary(
+  task: RuntimeTaskDrilldown,
+  projection: RuntimeSystemAttentionProjection | null | undefined,
+  nextStep: string | null,
+  ownerLabel: string | null,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeSystemAttentionSummary {
+  const conditionIssue = task.conditions.map((condition) => userFacingAttentionText(condition.message)).find(Boolean);
+  const resolvedResponsibleComponent = humanizeRuntimeActor(projection?.responsibleComponent) ?? ownerLabel;
+  const issue =
+    userFacingAttentionText(projection?.issue) ??
+    userFacingAttentionText(task.typedBlockerSummary) ??
+    userFacingAttentionText(task.primaryStateReason) ??
+    userFacingAttentionText(task.automationStateReason) ??
+    conditionIssue ??
+    null;
+  const repairAction = userFacingAttentionText(projection?.repairAction) ?? nextStep;
+  const impact = userFacingAttentionText(projection?.impact);
+  const expectedOutcome = userFacingAttentionText(projection?.expectedOutcome);
+  return {
+    responsibleComponent: resolvedResponsibleComponent ?? t('common.runtime.systemAttention.unknownOwner'),
+    issueAndRepair:
+      issue && repairAction
+        ? t('common.runtime.systemAttention.issueAndRepair', { issue, repair: repairAction })
+        : (issue ?? repairAction ?? t('common.runtime.systemAttention.unknownWork')),
+    impact: impact ?? t('common.runtime.systemAttention.unknownImpact'),
+    expectedOutcome: expectedOutcome ?? t('common.runtime.systemAttention.unknownOutcome'),
+    diagnosticsRequired: !(resolvedResponsibleComponent && issue && repairAction && impact && expectedOutcome),
+  };
 }
 
 function runtimeTaskItem(
   task: RuntimeTaskDrilldown,
   controlStates: RuntimeSnapshot[],
+  cockpitProjection: RuntimeTaskCockpitProjection | undefined,
   t: (key: string, options?: Record<string, string | number>) => string,
   language: string | null | undefined
 ): RuntimeOverviewTaskItem {
@@ -1599,13 +1753,31 @@ function runtimeTaskItem(
               t('common.runtime.values.empty'),
             time: completedAt,
           })
-        : t('common.runtime.telemetryMissing');
-  const blockerSummary = task.typedBlockerSummary ?? stringValue(controlState?.blocker_reason) ?? null;
+        : t('common.runtime.runningProofMissing');
+  const blockerSummary =
+    cockpitProjection?.systemAttention?.issue ??
+    task.typedBlockerSummary ??
+    stringValue(controlState?.blocker_reason) ??
+    null;
+  const projectedRepairAction = userFacingAttentionText(cockpitProjection?.systemAttention?.repairAction);
   const nextStep = deliveredAutoPaused
     ? t('common.runtime.waitingSubmissionInfo')
     : masOwnerPaused
       ? t('common.runtime.waitingNextDirection')
-      : humanizeNextStep(task.nextStep ?? task.typedBlockerResolutionRef, primaryState, automationState, t, language);
+      : humanizeNextStep(
+          projectedRepairAction ?? task.nextStep ?? task.typedBlockerResolutionRef,
+          primaryState,
+          automationState,
+          t,
+          language
+        );
+  const ownerLabel =
+    noActiveStage && primaryState !== 'system_attention_required'
+      ? null
+      : (humanizeRuntimeActor(cockpitProjection?.systemAttention?.responsibleComponent) ??
+        humanizeRuntimeActor(task.nextOwner ?? task.typedBlockerOwner));
+  const stageUsage = displayUsage(task.stageUsage, cockpitProjection?.stageUsage, t);
+  const totalUsage = displayUsage(task.taskTotalUsage, cockpitProjection?.taskTotalUsage, t);
   return {
     task,
     primaryState,
@@ -1630,11 +1802,17 @@ function runtimeTaskItem(
       : humanizeRuntimeStage(task.stage, task.activeStageId, language),
     elapsedLabel: stageElapsed,
     livenessLabel,
-    stageUsageLabel: displayUsageLabel(task.stageUsage, t),
-    totalUsageLabel: displayUsageLabel(task.taskTotalUsage, t),
+    stageUsageLabel: stageUsage.valueLabel,
+    totalUsageLabel: totalUsage.valueLabel,
+    stageUsageMissingReason: stageUsage.missingReason,
+    totalUsageMissingReason: totalUsage.missingReason,
     nextStep,
-    ownerLabel: noActiveStage ? null : humanizeRuntimeActor(task.nextOwner ?? task.typedBlockerOwner),
+    ownerLabel,
     blockerSummary,
+    systemAttention:
+      primaryState === 'system_attention_required'
+        ? systemAttentionSummary(task, cockpitProjection?.systemAttention, nextStep, ownerLabel, t)
+        : null,
     latestActivityAt: task.lastProgressAt ?? lastHeartbeatAt ?? completedAt ?? null,
     currentnessTag:
       typeof task.masOwnerConsumptionMatchesRuntimeCloseout === 'boolean'
@@ -1650,6 +1828,7 @@ function buildOverviewSections(
   scope: RuntimeScopeOption | null,
   savedView: RuntimeSavedViewId,
   controlStates: RuntimeSnapshot[],
+  cockpitProjections: Map<string, RuntimeTaskCockpitProjection>,
   t: (key: string, options?: Record<string, string | number>) => string,
   language: string | null | undefined
 ): {
@@ -1660,9 +1839,9 @@ function buildOverviewSections(
   visibleTaskCount: number;
 } {
   const scopedTasks = tasks.filter((task) => scopeMatchesTask(task, scope) && !isModuleRuntimeTask(task));
-  const items = dedupeTaskItems(scopedTasks.map((task) => runtimeTaskItem(task, controlStates, t, language))).filter(
-    (item) => savedViewMatchesItem(item, savedView)
-  );
+  const items = dedupeTaskItems(
+    scopedTasks.map((task) => runtimeTaskItem(task, controlStates, cockpitProjections.get(task.taskId), t, language))
+  ).filter((item) => savedViewMatchesItem(item, savedView));
   const byState = new Map<RuntimeTaskPrimaryState, RuntimeOverviewTaskItem[]>();
   PRIMARY_STATE_ORDER.forEach((state) => byState.set(state, []));
   items.forEach((item) => {
@@ -1768,6 +1947,10 @@ const RuntimePage: React.FC = () => {
 
   const appStateProjection = useMemo(
     () => appStateToRuntimeProjection(appStateQuery.appState),
+    [appStateQuery.appState]
+  );
+  const taskCockpitProjections = useMemo(
+    () => readRuntimeTaskCockpitProjectionIndex(appStateQuery.appState),
     [appStateQuery.appState]
   );
   const runtimeModel = useMemo(() => normalizeRuntimeProjection(appStateQuery.appState), [appStateQuery.appState]);
@@ -1878,14 +2061,23 @@ const RuntimePage: React.FC = () => {
         selectedScope,
         selectedSavedViewId,
         controlStates,
+        taskCockpitProjections,
         t,
         runtimeLanguage
       ),
-    [controlStates, runtimeLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedSavedViewId, selectedScope, t]
+    [
+      controlStates,
+      runtimeLanguage,
+      runtimeModel.taskRunProjectionV2.tasks,
+      selectedSavedViewId,
+      selectedScope,
+      t,
+      taskCockpitProjections,
+    ]
   );
-  const moduleStatusItems = useMemo(
+  const agentAvailabilityItems = useMemo(
     () =>
-      parseModuleStatusItems(
+      parseAgentAvailabilityItems(
         appStateQuery.appState,
         overview.sections.flatMap((section) => section.tasks),
         t
@@ -1927,8 +2119,14 @@ const RuntimePage: React.FC = () => {
         .filter((item) => item.rows.length > 0),
     [overview.sections, t]
   );
-  const healthyModuleCount = moduleStatusItems.filter((item) => !item.needsAttention).length;
-  const attentionModuleCount = moduleStatusItems.length - healthyModuleCount;
+  const availableAgentCount = agentAvailabilityItems.filter((item) => item.availability === 'available').length;
+  const maintenanceAgentCount = agentAvailabilityItems.filter(
+    (item) => item.availability === 'maintenance_required'
+  ).length;
+  const notInstalledAgentCount = agentAvailabilityItems.filter(
+    (item) => item.availability === 'not_installed'
+  ).length;
+  const installedAgentCount = availableAgentCount + maintenanceAgentCount;
   const metricCards = [
     {
       key: 'in_progress',
@@ -2211,9 +2409,8 @@ const RuntimePage: React.FC = () => {
   const renderTaskItem = useCallback(
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
-      const telemetryMissing = t('common.runtime.telemetryMissing');
       const accent = primaryStateAccent(item.primaryState);
-      const usageLabel = combinedUsageLabel(item, telemetryMissing, t);
+      const usageLabel = combinedUsageLabel(item, t);
       const expanded = expandedTaskId === task.taskId;
       const showTaskLabel = shouldShowTaskLabel(item.projectLabel, item.taskLabel);
       const projectContextLabel = humanizeProjectContextLabel(task);
@@ -2222,12 +2419,9 @@ const RuntimePage: React.FC = () => {
         <React.Fragment key={task.taskId}>
           <div
             data-testid='runtime-task-row'
+            className={styles.taskRow}
             style={{
               borderTop: '1px solid #e5e7eb',
-              display: 'grid',
-              gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
-              gap: 12,
-              minWidth: 0,
               alignItems: 'start',
               padding: '14px 18px',
               background: '#fff',
@@ -2265,12 +2459,20 @@ const RuntimePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            <Typography.Text className='block text-13px text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
-              {item.stageLabel ?? telemetryMissing}
-            </Typography.Text>
             <div className='min-w-0'>
+              <Typography.Text className={`${styles.mobileFieldLabel} text-12px text-t-secondary`}>
+                {t('common.runtime.taskField.stage')}
+              </Typography.Text>
               <Typography.Text className='block text-13px text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
-                {item.nextStep ?? telemetryMissing}
+                {item.stageLabel ?? t('common.runtime.noCurrentStage')}
+              </Typography.Text>
+            </div>
+            <div className='min-w-0'>
+              <Typography.Text className={`${styles.mobileFieldLabel} text-12px text-t-secondary`}>
+                {t('common.runtime.taskField.next')}
+              </Typography.Text>
+              <Typography.Text className='block text-13px text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
+                {item.nextStep ?? t('common.runtime.nextStepUnavailable')}
               </Typography.Text>
               {item.ownerLabel && (
                 <Typography.Text className='block mt-4px text-12px text-t-secondary' style={ONE_LINE_CLAMP_STYLE}>
@@ -2279,13 +2481,58 @@ const RuntimePage: React.FC = () => {
               )}
             </div>
             <div className='min-w-0'>
+              <Typography.Text className={`${styles.mobileFieldLabel} text-12px text-t-secondary`}>
+                {t('common.runtime.taskField.elapsed')} / {t('common.runtime.taskField.usage')}
+              </Typography.Text>
               <Typography.Text className='block text-13px text-t-primary' style={ONE_LINE_CLAMP_STYLE}>
-                {item.elapsedLabel ?? telemetryMissing}
+                {item.elapsedLabel ?? t('common.runtime.durationMissing')}
               </Typography.Text>
               <Typography.Text className='block mt-4px text-12px text-t-secondary' style={TWO_LINE_CLAMP_STYLE}>
                 {usageLabel}
               </Typography.Text>
             </div>
+            {item.systemAttention && (
+              <div data-testid='runtime-system-attention-summary' className={styles.systemAttentionSummary}>
+                {[
+                  {
+                    key: 'owner',
+                    label: t('common.runtime.systemAttention.responsibleComponent'),
+                    value: item.systemAttention.responsibleComponent,
+                  },
+                  {
+                    key: 'work',
+                    label: t('common.runtime.systemAttention.issueAndAction'),
+                    value: item.systemAttention.issueAndRepair,
+                  },
+                  {
+                    key: 'impact',
+                    label: t('common.runtime.systemAttention.impact'),
+                    value: item.systemAttention.impact,
+                  },
+                  {
+                    key: 'outcome',
+                    label: t('common.runtime.systemAttention.expectedOutcome'),
+                    value: item.systemAttention.expectedOutcome,
+                  },
+                ].map((entry) => (
+                  <div key={entry.key} className='min-w-0'>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {entry.label}
+                    </Typography.Text>
+                    <Typography.Text className='block mt-3px text-13px text-t-primary break-words'>
+                      {entry.value}
+                    </Typography.Text>
+                  </div>
+                ))}
+                {item.systemAttention.diagnosticsRequired && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <Button size='mini' type='text' onClick={() => setExpandedTaskId(expanded ? null : task.taskId)}>
+                      {t('common.runtime.systemAttention.openDiagnostics')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {expanded && renderTaskDetails(item, usageLabel)}
         </React.Fragment>
@@ -2297,13 +2544,9 @@ const RuntimePage: React.FC = () => {
   const renderTaskTableHeader = useCallback(
     () => (
       <div
-        className='px-18px py-10px text-12px text-t-secondary'
+        className={`${styles.taskHeader} px-18px py-10px text-12px text-t-secondary`}
         style={{
           borderTop: '1px solid #e5e7eb',
-          display: 'grid',
-          gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
-          gap: 12,
-          minWidth: 0,
           background: '#f8fafc',
         }}
       >
@@ -2558,7 +2801,7 @@ const RuntimePage: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
+                  <div className={styles.taskTable}>
                     {overview.sections.some((section) => section.tasks.length > 0) ? (
                       <>
                         {renderTaskTableHeader()}
@@ -2577,21 +2820,32 @@ const RuntimePage: React.FC = () => {
                 <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
                   <div className='flex flex-col gap-12px'>
                     <Typography.Text className='font-600 text-t-primary'>
-                      {t('common.runtime.moduleStatus')}
+                      {t('common.runtime.agentAvailability.title')}
                     </Typography.Text>
-                    <Typography.Text className='text-13px text-t-secondary'>
-                      {t('common.runtime.moduleStatusSummaryText', {
-                        healthy: healthyModuleCount,
-                        attention: attentionModuleCount,
+                    <Typography.Text className='text-13px text-t-secondary break-words'>
+                      {t('common.runtime.agentAvailability.summary', {
+                        installed: installedAgentCount,
+                        available: availableAgentCount,
+                        maintenance: maintenanceAgentCount,
+                        notInstalled: notInstalledAgentCount,
                       })}
                     </Typography.Text>
+                    <Typography.Text className='text-12px text-t-secondary break-words'>
+                      {t('common.runtime.agentAvailability.explanation')}
+                    </Typography.Text>
                     <div className='flex flex-col divide-y divide-border-1'>
-                      {moduleStatusItems.map((item) => {
+                      {agentAvailabilityItems.map((item) => {
                         const visual = moduleVisualFor(item);
+                        const availabilityColor =
+                          item.availability === 'available'
+                            ? 'green'
+                            : item.availability === 'maintenance_required'
+                              ? 'orange'
+                              : 'gray';
                         return (
                           <div
                             key={item.id}
-                            data-testid={`runtime-module-status-${item.id}`}
+                            data-testid={`runtime-agent-availability-${item.id}`}
                             className='flex items-start gap-12px py-12px min-w-0'
                           >
                             <span
@@ -2613,28 +2867,23 @@ const RuntimePage: React.FC = () => {
                                 <Typography.Text className='block font-600 text-t-primary' style={ONE_LINE_CLAMP_STYLE}>
                                   {item.title}
                                 </Typography.Text>
-                                {item.statusLabel && (
-                                  <Tag
-                                    color={item.needsAttention ? 'orange' : 'green'}
-                                    style={{ flexShrink: 0, whiteSpace: 'normal' }}
-                                  >
-                                    {item.statusLabel}
-                                  </Tag>
-                                )}
+                                <Tag color={availabilityColor} style={{ flexShrink: 0, whiteSpace: 'normal' }}>
+                                  {item.availabilityLabel}
+                                </Tag>
                               </div>
                               {item.detail && (
                                 <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
                                   {item.detail}
                                 </Typography.Text>
                               )}
-                              {(item.activeTaskCount > 0 || item.automationRunningCount > 0) && (
-                                <Typography.Text className='block mt-4px text-12px text-t-secondary'>
-                                  {t('common.runtime.moduleWorkloadText', {
-                                    automation: item.automationRunningCount,
-                                    total: item.activeTaskCount,
-                                  })}
-                                </Typography.Text>
-                              )}
+                              <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                                {item.activeTaskCount > 0
+                                  ? t('common.runtime.agentAvailability.workload', {
+                                      count: item.activeTaskCount,
+                                      running: item.automationRunningCount,
+                                    })
+                                  : t('common.runtime.agentAvailability.noTasks')}
+                              </Typography.Text>
                               {item.latestActivityAt && (
                                 <Typography.Text className='block mt-2px text-12px text-t-secondary'>
                                   {formatRecentActivityHint(item.latestActivityAt, t)}
@@ -2678,16 +2927,16 @@ const RuntimePage: React.FC = () => {
                           </Typography.Text>
                         </div>
 
-                        {moduleStatusItems.some((item) => item.detail) && (
+                        {agentAvailabilityItems.some((item) => item.detail) && (
                           <div className='flex flex-col gap-8px'>
                             <Typography.Text className='font-600 text-t-primary'>
-                              {t('common.runtime.moduleStatus')}
+                              {t('common.runtime.agentAvailability.title')}
                             </Typography.Text>
                             <div className='flex flex-col divide-y divide-border-1'>
-                              {moduleStatusItems
+                              {agentAvailabilityItems
                                 .filter((item) => item.detail)
                                 .map((item) => (
-                                  <div key={`module-detail-${item.id}`} className='py-8px'>
+                                  <div key={`agent-detail-${item.id}`} className='py-8px'>
                                     <Typography.Text className='block text-13px text-t-primary break-words'>
                                       {item.title}
                                     </Typography.Text>

@@ -1,0 +1,56 @@
+.taskTable {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.taskHeader,
+.taskRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.62fr) minmax(0, 0.9fr) minmax(0, 0.62fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.mobileFieldLabel {
+  display: none;
+}
+
+.systemAttentionSummary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin-left: 20px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-orange-5);
+  background: var(--color-orange-light-1);
+}
+
+@media (max-width: 900px) {
+  .taskHeader {
+    display: none;
+  }
+
+  .taskRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .mobileFieldLabel {
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .systemAttentionSummary {
+    grid-column: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .systemAttentionSummary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
