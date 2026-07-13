@@ -16,7 +16,11 @@ import {
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
 import type { ProjectContextRef } from '@/common/config/configKeys';
-import type { GitManagedWorktreeHandoffReceipt, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
+import type {
+  GitManagedWorktreeHandoffReceipt,
+  GitWorkspaceHandoffMetadata,
+  GitWorkspaceInspection,
+} from '@/common/types/platform/gitWorkspace';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
@@ -160,6 +164,7 @@ const GuidPage: React.FC = () => {
   const [worktreePreparing, setWorktreePreparing] = useState(false);
   const [worktreeError, setWorktreeError] = useState<string | null>(null);
   const [preparedWorktreePath, setPreparedWorktreePath] = useState<string | null>(null);
+  const [preparedWorktreeMetadata, setPreparedWorktreeMetadata] = useState<GitWorkspaceHandoffMetadata | null>(null);
   const [worktreeSendRequest, setWorktreeSendRequest] = useState(0);
   const worktreeTaskIdentityRef = useRef<GuidWorktreeTaskIdentity | null>(null);
   const worktreePrepareRequestRef = useRef(0);
@@ -472,6 +477,7 @@ const GuidPage: React.FC = () => {
     setFiles: guidInput.setFiles,
     projectContextRefs,
     dir: taskWorkspaceDir,
+    workspaceHandoff: launchMode === 'worktree' ? (preparedWorktreeMetadata ?? undefined) : undefined,
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
     loading: guidInput.loading,
@@ -584,6 +590,16 @@ const GuidPage: React.FC = () => {
           setWorktreeError(t('guid.worktree.errors.createFailed'));
           return;
         }
+        setPreparedWorktreeMetadata({
+          schema: 'opl_workspace_handoff.v1',
+          locality: 'worktree',
+          localWorkspace: result.repositoryRoot,
+          worktreePath: result.targetPath,
+          taskId: worktreeTaskIdentityRef.current?.taskId ?? '',
+          startRef: result.startRef,
+          startCommit: result.startCommit,
+          worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+        });
         setPreparedWorktreePath(result.targetPath);
         setWorktreeSendRequest((current) => current + 1);
       })
@@ -625,6 +641,7 @@ const GuidPage: React.FC = () => {
     worktreeTaskIdentityRef.current = null;
     setWorktreePreparing(false);
     setPreparedWorktreePath(null);
+    setPreparedWorktreeMetadata(null);
   }, []);
 
   const handleLaunchModeChange = useCallback(

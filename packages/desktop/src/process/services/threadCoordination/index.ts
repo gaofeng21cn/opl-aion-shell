@@ -17,6 +17,7 @@ import {
   type ThreadCoordinationAuditEvent,
   type ThreadCoordinationAuditResult,
   type ThreadCoordinationErrorCode,
+  type ThreadCoordinationHandoffRequest,
   type ThreadCoordinationLifecycleRequest,
   type ThreadCoordinationOverview,
   type ThreadCoordinationOverviewRequest,
@@ -46,6 +47,7 @@ export type CodexThreadCoordinationPort = {
   resumeThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   forkThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   renameThread: (threadId: string, name: string) => Promise<void>;
+  updateThreadWorkspace: (threadId: string, workspace: string) => Promise<void>;
   archiveThread: (threadId: string) => Promise<void>;
   unarchiveThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   deleteThread: (threadId: string) => Promise<void>;
@@ -352,10 +354,34 @@ export class ThreadCoordinationService {
   }
 
   private async executeLifecycle(
-    request: ThreadCoordinationLifecycleRequest,
+    request: ThreadCoordinationLifecycleRequest | ThreadCoordinationHandoffRequest,
     target: CodexThreadDescriptor
   ): Promise<ThreadCoordinationActionResult> {
     try {
+      if (request.action === 'handoff') {
+        const workspace = request.workspace.trim();
+        if (!path.isAbsolute(workspace)) {
+          return this.finish(request, {
+            target,
+            failure: { code: 'invalid_request', message: 'Handoff workspace must be an absolute path.' },
+          });
+        }
+        if (target.status === 'running' || target.status === 'archived' || target.status === 'system_error') {
+          return this.finish(request, {
+            target,
+            failure: {
+              code: 'thread_not_writable',
+              message: 'The Codex task must be idle before its working directory can be handed off.',
+            },
+          });
+        }
+        await this.port?.updateThreadWorkspace(target.id, workspace);
+        return this.finish(request, {
+          target,
+          protocolMethod: 'thread/settings/update',
+          statusAfter: target.status,
+        });
+      }
       if (request.action === 'resume') {
         const resumed = await this.port?.resumeThread(target.id);
         return this.finish(request, {

@@ -10,6 +10,7 @@ export const CODEX_THREAD_COORDINATION_METHODS = [
   'thread/resume',
   'thread/fork',
   'thread/name/set',
+  'thread/settings/update',
   'thread/archive',
   'thread/unarchive',
   'thread/delete',
@@ -178,6 +179,11 @@ export type ThreadCoordinationLifecycleRequest =
       name: string;
     });
 
+export type ThreadCoordinationHandoffRequest = ThreadCoordinationLifecycleRequestBase & {
+  action: 'handoff';
+  workspace: string;
+};
+
 export type ThreadCoordinationReviewRequest = {
   action: 'review';
   targetThreadId: string;
@@ -207,6 +213,7 @@ export type ThreadCoordinationDeliveryRequest = {
 
 export type ThreadCoordinationActionRequest =
   | ThreadCoordinationLifecycleRequest
+  | ThreadCoordinationHandoffRequest
   | ThreadCoordinationReviewRequest
   | ThreadCoordinationDeliveryRequest;
 

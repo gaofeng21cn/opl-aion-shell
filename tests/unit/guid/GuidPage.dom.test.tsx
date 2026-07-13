@@ -919,11 +919,17 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.ensureManagedWorktree
       .mockResolvedValueOnce({
         status: 'created',
+        repositoryRoot: '/workspace/research',
         targetPath: '/Users/example/.codex/worktrees/research-task',
+        startRef: 'refs/heads/feature/research',
+        startCommit: '2222222222222222222222222222222222222222',
       })
       .mockResolvedValueOnce({
         status: 'reused',
+        repositoryRoot: '/workspace/research',
         targetPath: '/Users/example/.codex/worktrees/research-task',
+        startRef: 'refs/heads/feature/research',
+        startCommit: '2222222222222222222222222222222222222222',
       });
 
     render(<GuidPage />);
@@ -943,7 +949,19 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(firstRequest.taskId).toMatch(/^guid-/);
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
-        expect.objectContaining({ dir: '/Users/example/.codex/worktrees/research-task' })
+        expect.objectContaining({
+          dir: '/Users/example/.codex/worktrees/research-task',
+          workspaceHandoff: {
+            schema: 'opl_workspace_handoff.v1',
+            locality: 'worktree',
+            localWorkspace: '/workspace/research',
+            worktreePath: '/Users/example/.codex/worktrees/research-task',
+            taskId: firstRequest.taskId,
+            startRef: 'refs/heads/feature/research',
+            startCommit: '2222222222222222222222222222222222222222',
+            worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+          },
+        })
       );
       expect(mocks.sendMessageHandler).toHaveBeenCalledTimes(1);
     });

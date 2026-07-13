@@ -245,6 +245,10 @@ export type TConversationRuntimeSummary = {
   };
 };
 
+type TWorkspaceHandoffExtra = {
+  workspace_handoff?: import('@/common/types/platform/gitWorkspace').GitWorkspaceHandoffMetadata;
+};
+
 interface IChatConversation<T, Extra> {
   created_at: number;
   modified_at: number;
@@ -271,7 +275,7 @@ export type TChatConversation =
   | Omit<
       IChatConversation<
         'acp',
-        {
+        TWorkspaceHandoffExtra & {
           workspace?: string;
           backend: string;
           cli_path?: string;
@@ -331,7 +335,7 @@ export type TChatConversation =
   | Omit<
       IChatConversation<
         'codex',
-        {
+        TWorkspaceHandoffExtra & {
           workspace?: string;
           cli_path?: string;
           custom_workspace?: boolean;

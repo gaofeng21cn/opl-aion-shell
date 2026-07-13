@@ -119,6 +119,17 @@ export type GitManagedWorktreeRequest = {
   newBranch?: string;
 };
 
+export type GitWorkspaceHandoffMetadata = {
+  schema: 'opl_workspace_handoff.v1';
+  locality: 'local' | 'worktree';
+  localWorkspace: string;
+  worktreePath: string;
+  taskId: string;
+  startRef: string;
+  startCommit: string;
+  worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup';
+};
+
 type GitManagedWorktreeResultBase = {
   repositoryRoot: string;
   targetPath: string;

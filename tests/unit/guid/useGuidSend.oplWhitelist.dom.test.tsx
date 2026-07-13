@@ -257,6 +257,29 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
   });
 
+  it('persists the managed Worktree handoff metadata with the new Codex conversation', async () => {
+    const workspaceHandoff = {
+      schema: 'opl_workspace_handoff.v1' as const,
+      locality: 'worktree' as const,
+      localWorkspace: '/tmp/opl',
+      worktreePath: '/Users/test/.codex/worktrees/opl-task',
+      taskId: 'guid-task-1',
+      startRef: 'main',
+      startCommit: '1111111111111111111111111111111111111111',
+      worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup' as const,
+    };
+    const deps = buildDeps();
+    deps.dir = workspaceHandoff.worktreePath;
+    deps.workspaceHandoff = workspaceHandoff;
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation.mock.calls[0][0].extra.workspace_handoff).toEqual(workspaceHandoff);
+  });
+
   it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {
     mocks.appState = {
       agent_packages: {

@@ -289,6 +289,10 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
     await this.rpc.request('thread/name/set', { threadId, name });
   }
 
+  async updateThreadWorkspace(threadId: string, workspace: string): Promise<void> {
+    await this.rpc.request('thread/settings/update', { threadId, cwd: workspace });
+  }
+
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
     this.activeCoordination.delete(threadId);

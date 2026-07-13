@@ -10,6 +10,26 @@ const snapshotApi = vi.hoisted(() => ({
 }));
 const workspaceEvents = vi.hoisted(() => ({ toggle: vi.fn() }));
 const previewContext = vi.hoisted(() => ({ openPreview: vi.fn() }));
+const handoffApi = vi.hoisted(() => ({
+  getOverview: vi.fn(),
+  execute: vi.fn(),
+  inspect: vi.fn(),
+  ensureManagedWorktree: vi.fn(),
+  updateConversation: vi.fn(),
+}));
+const messageApi = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      ...actual.Message,
+      success: messageApi.success,
+      error: messageApi.error,
+    },
+  };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -17,7 +37,22 @@ vi.mock('@/common', () => ({
       getInfo: { invoke: snapshotApi.getInfo },
       compare: { invoke: snapshotApi.compare },
     },
+    threadCoordination: {
+      getOverview: { invoke: handoffApi.getOverview },
+      execute: { invoke: handoffApi.execute },
+    },
+    gitWorkspace: {
+      inspect: { invoke: handoffApi.inspect },
+      ensureManagedWorktree: { invoke: handoffApi.ensureManagedWorktree },
+    },
+    conversation: {
+      update: { invoke: handoffApi.updateConversation },
+    },
   },
+}));
+
+vi.mock('@/renderer/utils/emitter', () => ({
+  emitter: { emit: vi.fn() },
 }));
 
 vi.mock('@/renderer/utils/workspace/workspaceEvents', () => ({
@@ -42,7 +77,18 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.noWorkspace': 'No active workspace',
         'conversation.environment.location': 'Location',
         'conversation.environment.local': 'Local',
+        'conversation.environment.worktree': 'Worktree',
         'conversation.environment.remote': 'Remote',
+        'conversation.environment.taskLocation': 'Task location',
+        'conversation.environment.handoffChecking': 'Checking task availability...',
+        'conversation.environment.handoffUnavailable': 'Task handoff unavailable',
+        'conversation.environment.handoffRunning': 'Finish the running turn first',
+        'conversation.environment.handoffSuccess': 'Task location updated',
+        'conversation.environment.handoffFailed': 'Could not update task location',
+        'conversation.environment.projectionUpdateFailed': 'Projection update failed',
+        'conversation.environment.localWorkspaceUnavailable': 'Local workspace unavailable',
+        'conversation.environment.worktreeUnavailable': 'Worktree needs coordination',
+        'conversation.environment.worktreeCreateFailed': 'Worktree creation failed',
         'conversation.environment.branch': 'Branch',
         'conversation.environment.changes': 'Changes',
         'conversation.environment.subtasks': 'Subtasks',
@@ -69,6 +115,30 @@ const conversation = {
   extra: { workspace: '/projects/demo' },
 } as TChatConversation;
 
+const canonicalConversation = {
+  ...conversation,
+  type: 'acp',
+  extra: {
+    backend: 'codex',
+    workspace: '/projects/demo',
+    canonical_thread_id: 'thread-1',
+  },
+} as TChatConversation;
+
+const acceptedHandoff = {
+  ok: true,
+  outcome: 'accepted',
+  action: 'handoff',
+  targetThreadId: 'thread-1',
+  forkedThreadId: null,
+  reviewThreadId: null,
+  protocolMethod: 'thread/settings/update',
+  auditId: 'audit-1',
+  errorCode: null,
+  message: 'Accepted',
+  advisories: [],
+};
+
 describe('ConversationEnvironmentPopover', () => {
   beforeEach(() => {
     snapshotApi.getInfo.mockReset().mockResolvedValue({ mode: 'git-repo', branch: 'feature/advanced-surfaces' });
@@ -81,6 +151,56 @@ describe('ConversationEnvironmentPopover', () => {
     });
     workspaceEvents.toggle.mockReset();
     previewContext.openPreview.mockReset();
+    handoffApi.getOverview.mockReset().mockResolvedValue({
+      schema: 'opl_codex_thread_coordination_overview.v1',
+      availability: {
+        status: 'available',
+        host: 'local',
+        protocolVersion: '0.144.3',
+        methods: ['thread/list', 'thread/settings/update'],
+        reasonCode: null,
+        detail: null,
+      },
+      currentThreadId: 'thread-1',
+      currentProjectId: 'project-1',
+      threads: [
+        {
+          id: 'thread-1',
+          title: 'Task',
+          summary: '',
+          status: 'idle',
+          projectId: 'project-1',
+          workspace: '/projects/demo',
+          host: 'local',
+          owner: 'Codex',
+          goal: null,
+          parentThreadId: null,
+          ancestorThreadIds: [],
+          activeTurnId: null,
+          activeWriteSet: [],
+          activePermission: null,
+          archived: false,
+          updatedAt: '2026-07-13T00:00:00.000Z',
+        },
+      ],
+      audit: [],
+    });
+    handoffApi.execute.mockReset().mockResolvedValue(acceptedHandoff);
+    handoffApi.inspect.mockReset().mockResolvedValue({
+      root: '/projects/demo',
+      head: '1111111111111111111111111111111111111111',
+      currentBranch: 'main',
+    });
+    handoffApi.ensureManagedWorktree.mockReset().mockResolvedValue({
+      status: 'created',
+      repositoryRoot: '/projects/demo',
+      targetPath: '/Users/test/.codex/worktrees/demo-task',
+      startRef: 'main',
+      startCommit: '1111111111111111111111111111111111111111',
+    });
+    handoffApi.updateConversation.mockReset().mockResolvedValue(true);
+    messageApi.success.mockReset();
+    messageApi.error.mockReset();
   });
 
   it('reads live workspace facts and summarizes only task refs that actually exist', async () => {
@@ -178,5 +298,136 @@ describe('ConversationEnvironmentPopover', () => {
 
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(previewContext.openPreview).not.toHaveBeenCalled();
+  });
+
+  it('moves an idle canonical Codex task from Local to a managed Worktree and persists the projection', async () => {
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const worktree = within(popover).getByRole('radio', { name: 'Worktree' });
+    await waitFor(() => expect(worktree).toBeEnabled());
+    fireEvent.click(worktree);
+
+    await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
+    expect(handoffApi.inspect).toHaveBeenCalledWith({ cwd: '/projects/demo' });
+    expect(handoffApi.ensureManagedWorktree).toHaveBeenCalledWith({
+      repositoryPath: '/projects/demo',
+      taskId: 'thread-1',
+      startRef: 'main',
+    });
+    expect(handoffApi.execute).toHaveBeenCalledWith({
+      request: expect.objectContaining({
+        action: 'handoff',
+        targetThreadId: 'thread-1',
+        workspace: '/Users/test/.codex/worktrees/demo-task',
+      }),
+    });
+    expect(handoffApi.updateConversation).toHaveBeenCalledWith({
+      id: 'conversation-1',
+      updates: {
+        extra: {
+          workspace: '/Users/test/.codex/worktrees/demo-task',
+          workspace_handoff: {
+            schema: 'opl_workspace_handoff.v1',
+            locality: 'worktree',
+            localWorkspace: '/projects/demo',
+            worktreePath: '/Users/test/.codex/worktrees/demo-task',
+            taskId: 'thread-1',
+            startRef: 'main',
+            startCommit: '1111111111111111111111111111111111111111',
+            worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+          },
+        },
+      },
+      merge_extra: true,
+    });
+    expect(worktree).toBeChecked();
+  });
+
+  it('returns a Worktree task to its recorded Local workspace without creating another Worktree', async () => {
+    render(
+      <ConversationEnvironmentPopover
+        conversation={
+          {
+            ...canonicalConversation,
+            extra: {
+              ...canonicalConversation.extra,
+              workspace: '/Users/test/.codex/worktrees/demo-task',
+              workspace_handoff: {
+                schema: 'opl_workspace_handoff.v1',
+                locality: 'worktree',
+                localWorkspace: '/projects/demo',
+                worktreePath: '/Users/test/.codex/worktrees/demo-task',
+                taskId: 'thread-1',
+                startRef: 'main',
+                startCommit: '1111111111111111111111111111111111111111',
+                worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+              },
+            },
+          } as TChatConversation
+        }
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const local = within(popover).getByRole('radio', { name: 'Local' });
+    await waitFor(() => expect(local).toBeEnabled());
+    fireEvent.click(local);
+
+    await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
+    expect(handoffApi.ensureManagedWorktree).not.toHaveBeenCalled();
+    expect(handoffApi.execute).toHaveBeenCalledWith({
+      request: expect.objectContaining({ action: 'handoff', workspace: '/projects/demo' }),
+    });
+    expect(handoffApi.updateConversation.mock.calls[0][0]).toMatchObject({
+      updates: {
+        extra: {
+          workspace: '/projects/demo',
+          workspace_handoff: { locality: 'local', worktreePath: '/Users/test/.codex/worktrees/demo-task' },
+        },
+      },
+    });
+    expect(local).toBeChecked();
+  });
+
+  it('rolls the canonical cwd back when the local conversation projection cannot be saved', async () => {
+    handoffApi.updateConversation.mockResolvedValueOnce(false);
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const worktree = within(popover).getByRole('radio', { name: 'Worktree' });
+    await waitFor(() => expect(worktree).toBeEnabled());
+    fireEvent.click(worktree);
+
+    await waitFor(() => expect(handoffApi.execute).toHaveBeenCalledTimes(2));
+    expect(handoffApi.execute.mock.calls[0][0].request.workspace).toBe('/Users/test/.codex/worktrees/demo-task');
+    expect(handoffApi.execute.mock.calls[1][0].request.workspace).toBe('/projects/demo');
+    expect(worktree).not.toBeChecked();
+  });
+
+  it('keeps task-location controls unavailable while the canonical turn is running', async () => {
+    handoffApi.getOverview.mockResolvedValueOnce({
+      ...(await handoffApi.getOverview()),
+      threads: [
+        {
+          ...(await handoffApi.getOverview()).threads[0],
+          status: 'running',
+          activeTurnId: 'turn-1',
+        },
+      ],
+    });
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    await waitFor(() =>
+      expect(within(popover).getByTestId('environment-handoff-status')).toHaveTextContent(
+        'Finish the running turn first'
+      )
+    );
+    expect(within(popover).getByRole('radio', { name: 'Worktree' })).toBeDisabled();
   });
 });

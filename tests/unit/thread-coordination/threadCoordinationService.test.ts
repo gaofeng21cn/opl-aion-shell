@@ -72,6 +72,7 @@ function port(threads: CodexThreadDescriptor[]): CodexThreadCoordinationPort {
     ),
     forkThread: vi.fn().mockResolvedValue(thread({ id: 'forked-thread' })),
     renameThread: vi.fn().mockResolvedValue(undefined),
+    updateThreadWorkspace: vi.fn().mockResolvedValue(undefined),
     archiveThread: vi.fn().mockResolvedValue(undefined),
     unarchiveThread: vi.fn().mockImplementation(async (threadId: string) =>
       thread({
@@ -379,6 +380,58 @@ describe('ThreadCoordinationService', () => {
     expect(deleted.ok).toBe(true);
     expect(deleted.protocolMethod).toBe('thread/delete');
     expect(adapter.deleteThread).toHaveBeenCalledWith('receiver');
+  });
+
+  it('hands an idle canonical task to another absolute working directory', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const auditStore = memoryAuditStore();
+    const service = new ThreadCoordinationService({ port: adapter, auditStore });
+
+    const handedOff = await service.execute({
+      action: 'handoff',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'receiver' },
+      reason: 'Switch task workspace',
+      workspace: '/workspace/project-a/.worktrees/task',
+    });
+
+    expect(handedOff.ok).toBe(true);
+    expect(handedOff.protocolMethod).toBe('thread/settings/update');
+    expect(adapter.updateThreadWorkspace).toHaveBeenCalledWith('receiver', '/workspace/project-a/.worktrees/task');
+    expect(auditStore.events[0]).toMatchObject({
+      action: 'handoff',
+      protocolMethod: 'thread/settings/update',
+      result: 'accepted',
+      threadStatusBefore: 'idle',
+      threadStatusAfter: 'idle',
+    });
+  });
+
+  it('rejects relative or running-task handoffs without changing the canonical cwd', async () => {
+    const adapter = port([
+      thread({ id: 'sender', title: 'Sender' }),
+      thread({ status: 'running', activeTurnId: 'turn-active' }),
+    ]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const relative = await service.execute({
+      action: 'handoff',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'receiver' },
+      reason: 'Switch task workspace',
+      workspace: 'relative/worktree',
+    });
+    const running = await service.execute({
+      action: 'handoff',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'receiver' },
+      reason: 'Switch task workspace',
+      workspace: '/workspace/project-a/.worktrees/task',
+    });
+
+    expect(relative).toMatchObject({ ok: false, errorCode: 'invalid_request' });
+    expect(running).toMatchObject({ ok: false, errorCode: 'thread_not_writable' });
+    expect(adapter.updateThreadWorkspace).not.toHaveBeenCalled();
   });
 
   it('restores an archived top-level thread through thread/unarchive', async () => {
