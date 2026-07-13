@@ -12,7 +12,7 @@ import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import OplRefreshIconButton from '@/renderer/components/settings/OplRefreshIconButton';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { useTranslation } from 'react-i18next';
 import {
   buildAccessProjection,
@@ -269,10 +269,13 @@ export const AccessSettingsContent: React.FC = () => {
   const observedAt = formatGatewayObservedAt(gatewayAccount?.freshness.observed_at ?? null, i18n.resolvedLanguage);
   const defaultGatewayGroupId = resolveDefaultGatewayGroup(gatewayAccount?.available_groups ?? []);
   const accountStatus = gatewayAccount?.account?.status?.trim() || 'unknown';
-  const accountStatusLabel =
-    accountStatus === 'active'
-      ? t('settings.accessPage.gatewayAccount.status.active')
-      : t('settings.accessPage.gatewayAccount.status.other', { status: accountStatus });
+  const gatewayStatusLabel = (status: string | null | undefined): string => {
+    const normalizedStatus = status?.trim() || 'unknown';
+    if (normalizedStatus === 'active') return t('settings.accessPage.gatewayAccount.status.active');
+    if (normalizedStatus === 'unknown') return t('settings.accessPage.gatewayAccount.status.unknown');
+    return t('settings.accessPage.gatewayAccount.status.other', { status: normalizedStatus });
+  };
+  const accountStatusLabel = gatewayStatusLabel(accountStatus);
 
   const projectedGatewayStatusError =
     gatewayLoginError ??
@@ -528,8 +531,7 @@ export const AccessSettingsContent: React.FC = () => {
                   <Typography.Text className='block break-words text-12px text-t-secondary'>
                     {t('settings.accessPage.gatewayAccount.managedKey', {
                       name: gatewayAccount.managed_key.name,
-                      status:
-                        gatewayAccount.managed_key.status ?? t('settings.accessPage.gatewayAccount.status.unknown'),
+                      status: gatewayStatusLabel(gatewayAccount.managed_key.status),
                     })}
                   </Typography.Text>
                 )}

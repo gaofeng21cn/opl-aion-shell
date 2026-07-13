@@ -26,6 +26,7 @@ const tooltipProps = { disabled: true, popupVisible: false };
 describe('Sider navigation hierarchy', () => {
   it('orders primary actions before history utilities and keeps the footer compact', () => {
     const onRuntimeClick = vi.fn();
+    const onSettingsClick = vi.fn();
     render(
       <div>
         <SiderToolbar isMobile={false} collapsed={false} siderTooltipProps={tooltipProps} onNewChat={vi.fn()} />
@@ -43,7 +44,7 @@ describe('Sider navigation hierarchy', () => {
           isSettings={false}
           theme='light'
           siderTooltipProps={tooltipProps}
-          onSettingsClick={vi.fn()}
+          onSettingsClick={onSettingsClick}
           onThemeToggle={vi.fn()}
         />
       </div>
@@ -59,6 +60,7 @@ describe('Sider navigation hierarchy', () => {
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();
-    expect(screen.getByTestId('sider-footer-settings-content')).toHaveClass('flex', 'items-center', 'w-full');
+    fireEvent.click(screen.getByTestId('sider-footer-settings'));
+    expect(onSettingsClick).toHaveBeenCalledWith('general');
   });
 });

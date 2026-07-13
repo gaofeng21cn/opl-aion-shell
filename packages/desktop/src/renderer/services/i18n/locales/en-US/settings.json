@@ -1,5 +1,10 @@
 {
   "title": "Settings",
+  "githubIssue": {
+    "tooltip": "Report an OPL App issue on GitHub",
+    "title": "OPL App feedback",
+    "body": "Describe the issue you encountered.\n\nCurrent page: {{route}}\nApp version: {{version}}"
+  },
   "skillsHub": {
     "title": "Skills Hub",
     "description": "Centrally manage AI agent skills. Install once, use across all assistants.",
@@ -200,6 +205,7 @@
   "system": "System",
   "about": "About",
   "onboarding": "Models & Access",
+  "workspacePersonalization": "Workspace & Personalization",
   "resources": "Resources & Connections",
   "maintenance": "Maintenance",
   "preferences": "Preferences",

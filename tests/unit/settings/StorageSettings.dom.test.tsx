@@ -328,7 +328,7 @@ describe('StorageSettingsContent', () => {
 
     const refreshButton = screen.getByRole('button', { name: 'Refresh' });
     expect(refreshButton).toHaveTextContent('');
-    expect(refreshButton.querySelector('[data-icon="rotate-right"]')).not.toBeNull();
+    expect(refreshButton.querySelector('svg')).not.toBeNull();
   });
 
   it('shows work data safety context as read-only App projection data', async () => {

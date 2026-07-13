@@ -60,11 +60,78 @@ export function getAppState(payload: OplAppStatePayload | null | undefined): Opl
   return oplRecord(payload?.app_state ?? payload);
 }
 
-function stripGatewayAccountFromAppState(appState: OplAppStateRecord): OplAppStateRecord {
+const GATEWAY_ACCOUNT_CACHE_TOP_LEVEL_FIELDS = [
+  'surface_kind',
+  'connection_mode',
+  'status',
+  'account_card_visible',
+  'account',
+  'usage',
+  'managed_key',
+  'installation',
+  'available_groups',
+  'freshness',
+  'capabilities',
+  'actions',
+] as const;
+
+const GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS = {
+  account: ['display_name', 'email', 'status', 'balance'],
+  balance: ['amount', 'currency'],
+  usage: ['today_tokens', 'total_tokens', 'today_actual_cost', 'total_actual_cost', 'currency', 'day_timezone'],
+  managed_key: ['name', 'status', 'ownership'],
+  installation: ['device_label', 'short_id'],
+  available_group: ['group_id', 'label'],
+  freshness: ['observed_at', 'stale_after', 'stale', 'last_error_code'],
+  capabilities: ['account_login_supported', 'manual_key_supported'],
+  actions: ['complete_setup', 'refresh', 'repair', 'use_for_model_access', 'disconnect'],
+} as const;
+
+function pickCacheFields(value: unknown, fields: readonly string[]): OplAppStateRecord | null {
+  if (value === null) return null;
+  if (!isOplRecord(value)) return null;
+  return Object.fromEntries(fields.filter((field) => field in value).map((field) => [field, value[field]]));
+}
+
+function sanitizeGatewayAccountForCache(value: unknown): OplAppStateRecord | null {
+  const gatewayAccount = pickCacheFields(value, GATEWAY_ACCOUNT_CACHE_TOP_LEVEL_FIELDS);
+  if (gatewayAccount?.surface_kind !== 'opl_gateway_account_read_model.v1') return null;
+
+  const account = pickCacheFields(gatewayAccount.account, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.account);
+  if (account && 'balance' in account) {
+    account.balance = pickCacheFields(account.balance, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.balance);
+  }
+  gatewayAccount.account = account;
+  gatewayAccount.usage = pickCacheFields(gatewayAccount.usage, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.usage);
+  gatewayAccount.managed_key = pickCacheFields(
+    gatewayAccount.managed_key,
+    GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.managed_key
+  );
+  gatewayAccount.installation = pickCacheFields(
+    gatewayAccount.installation,
+    GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.installation
+  );
+  gatewayAccount.available_groups = oplRecordList(gatewayAccount.available_groups).map(
+    (group) => pickCacheFields(group, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.available_group) ?? {}
+  );
+  gatewayAccount.freshness = pickCacheFields(gatewayAccount.freshness, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.freshness);
+  gatewayAccount.capabilities = pickCacheFields(
+    gatewayAccount.capabilities,
+    GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.capabilities
+  );
+  gatewayAccount.actions = pickCacheFields(gatewayAccount.actions, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.actions);
+  return gatewayAccount;
+}
+
+function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecord {
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   if (!('opl_gateway_account' in appSettingsReadModel)) return appState;
-  const { opl_gateway_account: _gatewayAccount, ...safeReadModel } = appSettingsReadModel;
+  const gatewayAccount = sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account);
+  const { opl_gateway_account: _rawGatewayAccount, ...readModelWithoutGatewayAccount } = appSettingsReadModel;
+  const safeReadModel = gatewayAccount
+    ? { ...readModelWithoutGatewayAccount, opl_gateway_account: gatewayAccount }
+    : readModelWithoutGatewayAccount;
   return {
     ...appState,
     settings_control_center: {
@@ -76,9 +143,9 @@ function stripGatewayAccountFromAppState(appState: OplAppStateRecord): OplAppSta
 
 export function sanitizeOplAppStatePayloadForCache(payload: OplAppStatePayload): OplAppStatePayload {
   if (isOplRecord(payload.app_state)) {
-    return { ...payload, app_state: stripGatewayAccountFromAppState(payload.app_state) };
+    return { ...payload, app_state: sanitizeAppStateForCache(payload.app_state) };
   }
-  return stripGatewayAccountFromAppState(payload) as OplAppStatePayload;
+  return sanitizeAppStateForCache(payload) as OplAppStatePayload;
 }
 
 function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undefined): OplAppStatePayload | null {

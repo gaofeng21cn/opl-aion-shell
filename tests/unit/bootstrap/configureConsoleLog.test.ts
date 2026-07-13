@@ -62,7 +62,9 @@ const createLogMock = (): LogMock => ({
   },
 });
 
-const loadConfigureConsoleLog = async (isPackaged: boolean): Promise<LogMock> => {
+const loadConfigureConsoleLog = async (
+  isPackaged: boolean
+): Promise<{ log: LogMock; setConsoleLogRoot: (logRoot: string | null | undefined) => void }> => {
   vi.resetModules();
 
   const logMock = createLogMock();
@@ -77,9 +79,9 @@ const loadConfigureConsoleLog = async (isPackaged: boolean): Promise<LogMock> =>
     default: logMock,
   }));
 
-  await import('@process/utils/configureConsoleLog');
+  const configureConsoleLog = await import('@process/utils/configureConsoleLog');
 
-  return logMock;
+  return { log: logMock, setConsoleLogRoot: configureConsoleLog.setConsoleLogRoot };
 };
 
 describe('configureConsoleLog', () => {
@@ -90,7 +92,7 @@ describe('configureConsoleLog', () => {
   });
 
   it('disables stdout console transport in packaged builds', async () => {
-    const log = await loadConfigureConsoleLog(true);
+    const { log } = await loadConfigureConsoleLog(true);
 
     expect(log.transports.console.level).toBe(false);
     expect(log.transports.file.level).toBe('info');
@@ -98,13 +100,13 @@ describe('configureConsoleLog', () => {
   });
 
   it('keeps stdout console transport available during development', async () => {
-    const log = await loadConfigureConsoleLog(false);
+    const { log } = await loadConfigureConsoleLog(false);
 
     expect(log.transports.console.level).toBe('silly');
   });
 
   it('routes cross-day frontend log writes into the matching date directory', async () => {
-    const log = await loadConfigureConsoleLog(false);
+    const { log } = await loadConfigureConsoleLog(false);
     const logsRoot = mkdtempSync(path.join(os.tmpdir(), 'aionui-log-test-'));
 
     try {
@@ -119,6 +121,33 @@ describe('configureConsoleLog', () => {
       expect(resolvedPath).toBe(path.join(logsRoot, '2026/07/03/2026-07-03.log'));
     } finally {
       rmSync(logsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('switches to a configured logs root and falls back to the platform default when cleared', async () => {
+    const { log, setConsoleLogRoot } = await loadConfigureConsoleLog(false);
+    const defaultRoot = mkdtempSync(path.join(os.tmpdir(), 'aionui-default-log-test-'));
+    const customRoot = mkdtempSync(path.join(os.tmpdir(), 'aionui-custom-log-test-'));
+
+    try {
+      setConsoleLogRoot(customRoot);
+      expect(
+        log.transports.file.resolvePathFn?.(
+          { libraryDefaultDir: defaultRoot, fileName: '' },
+          { date: new Date(2026, 6, 3, 0, 1) }
+        )
+      ).toBe(path.join(customRoot, '2026/07/03/2026-07-03.log'));
+
+      setConsoleLogRoot('');
+      expect(
+        log.transports.file.resolvePathFn?.(
+          { libraryDefaultDir: defaultRoot, fileName: '' },
+          { date: new Date(2026, 6, 3, 0, 1) }
+        )
+      ).toBe(path.join(defaultRoot, '2026/07/03/2026-07-03.log'));
+    } finally {
+      rmSync(defaultRoot, { recursive: true, force: true });
+      rmSync(customRoot, { recursive: true, force: true });
     }
   });
 });

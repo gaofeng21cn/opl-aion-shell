@@ -62,7 +62,9 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
               data-testid={account ? 'sider-footer-account' : 'sider-footer-settings'}
               aria-label={accountLabel}
             >
-              <span className={classNames('flex min-w-0 items-center', collapsed ? 'justify-center' : 'w-full gap-9px')}>
+              <span
+                className={classNames('flex min-w-0 items-center', collapsed ? 'justify-center' : 'w-full gap-9px')}
+              >
                 {account ? (
                   <span className='flex size-28px shrink-0 items-center justify-center rounded-full bg-fill-3 text-11px font-600 text-t-primary'>
                     {account.initials}
