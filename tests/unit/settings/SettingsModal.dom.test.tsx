@@ -294,7 +294,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
   });
 
-  it('keeps only the named theme action in the Settings footer', () => {
+  it('keeps the connected account entry beside the named theme action in the Settings footer', () => {
     const onSettingsClick = vi.fn();
     const onThemeToggle = vi.fn();
 
@@ -303,6 +303,7 @@ describe('SettingsModal OPL App navigation', () => {
         isMobile
         isSettings
         theme='dark'
+        account={{ displayName: 'Feng Gao', email: 'feng@example.com', initials: 'FG' }}
         siderTooltipProps={getSiderTooltipProps(false)}
         onSettingsClick={onSettingsClick}
         onThemeToggle={onThemeToggle}
@@ -311,12 +312,15 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.click(screen.getByTestId('sider-footer-theme'));
 
-    expect(onSettingsClick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('sider-footer-account'));
+
+    expect(onSettingsClick).toHaveBeenCalledWith('access');
     expect(onThemeToggle).toHaveBeenCalledOnce();
     expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
     expect(screen.getByTestId('sider-footer-theme')).toHaveClass('!p-0');
     expect(screen.queryByTestId('sider-footer-settings')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('sider-footer-account')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
+    expect(screen.queryByRole('button', { name: 'Back to chat' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 

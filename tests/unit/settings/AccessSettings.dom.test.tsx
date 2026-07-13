@@ -1003,10 +1003,10 @@ describe('AccessSettingsContent', () => {
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 
-  it('automatically completes setup with the unique Codex group without rendering a control', async () => {
+  it('automatically completes an exposed managed-Key setup action without rendering a control', async () => {
     const mocks = getMocks();
     mocks.gatewayAccount = makeGatewayAccount({
-      status: 'setup_required',
+      status: 'attention_needed',
       connection_mode: 'account',
       account_card_visible: true,
       account: {

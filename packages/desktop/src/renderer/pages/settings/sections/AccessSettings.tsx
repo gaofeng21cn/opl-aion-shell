@@ -301,7 +301,16 @@ export const AccessSettingsContent: React.FC = () => {
 
   useEffect(() => {
     const actionId = gatewayAccount?.actions.complete_setup;
-    if (gatewayAccount?.status !== 'setup_required' || !actionId || !defaultGatewayGroupId) return;
+    if (
+      !gatewayAccount ||
+      gatewayAccount.connection_mode !== 'account' ||
+      !gatewayAccount.account_card_visible ||
+      gatewayAccount.managed_key ||
+      gatewayAccount.freshness.last_error_code ||
+      !actionId ||
+      !defaultGatewayGroupId
+    )
+      return;
     const attemptKey = [actionId, defaultGatewayGroupId, gatewayAccount.freshness.observed_at ?? 'unknown'].join(':');
     if (autoSetupAttemptRef.current === attemptKey) return;
     autoSetupAttemptRef.current = attemptKey;

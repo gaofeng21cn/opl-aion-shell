@@ -10,6 +10,8 @@ import type { OplAppStatePayload, OplAppStateProfile, OplAppStateRecord } from '
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
+const GATEWAY_ACCOUNT_CACHE_KEY = 'opl.gatewayAccount.projection.v1';
+const APP_STATE_CACHE_UPDATED_EVENT = 'opl:app-state-cache-updated';
 const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
 
 export function resetOplAppStateLoadsForTest(): void {
@@ -18,6 +20,11 @@ export function resetOplAppStateLoadsForTest(): void {
 
 export type OplAppStateCache = {
   payload: OplAppStatePayload;
+  loadedAt: string | null;
+};
+
+type OplGatewayAccountCache = {
+  projection: OplAppStateRecord;
   loadedAt: string | null;
 };
 
@@ -148,6 +155,49 @@ export function sanitizeOplAppStatePayloadForCache(payload: OplAppStatePayload):
   return sanitizeAppStateForCache(payload) as OplAppStatePayload;
 }
 
+function gatewayAccountProjectionFromPayload(payload: OplAppStatePayload | null | undefined): OplAppStateRecord | null {
+  const settingsControlCenter = oplRecord(getAppState(payload).settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account);
+}
+
+function withGatewayAccountProjection(payload: OplAppStatePayload, projection: OplAppStateRecord): OplAppStatePayload {
+  const appState = getAppState(payload);
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const nextAppState = {
+    ...appState,
+    settings_control_center: {
+      ...settingsControlCenter,
+      app_settings_read_model: {
+        ...appSettingsReadModel,
+        opl_gateway_account: projection,
+      },
+    },
+  };
+  return isOplRecord(payload.app_state)
+    ? { ...payload, app_state: nextAppState }
+    : (nextAppState as OplAppStatePayload);
+}
+
+function withoutGatewayAccountProjection(payload: OplAppStatePayload): OplAppStatePayload {
+  const appState = getAppState(payload);
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  if (!('opl_gateway_account' in appSettingsReadModel)) return payload;
+  const { opl_gateway_account: _gatewayAccount, ...readModelWithoutGatewayAccount } = appSettingsReadModel;
+  const nextAppState = {
+    ...appState,
+    settings_control_center: {
+      ...settingsControlCenter,
+      app_settings_read_model: readModelWithoutGatewayAccount,
+    },
+  };
+  return isOplRecord(payload.app_state)
+    ? { ...payload, app_state: nextAppState }
+    : (nextAppState as OplAppStatePayload);
+}
+
 function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undefined): OplAppStatePayload | null {
   if (result?.ok === false) {
     throw new Error(result.error?.message || 'OPL App state command failed');
@@ -179,15 +229,15 @@ export function loadOplAppStateFromBridge(profile: OplAppStateProfile): Promise<
   return request;
 }
 
-function readCachedFastState(): OplAppStateCache | null {
+function readCachedGatewayAccount(): OplGatewayAccountCache | null {
   try {
-    const raw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
+    const raw = localStorage.getItem(GATEWAY_ACCOUNT_CACHE_KEY);
     if (!raw) return null;
     const parsed = oplRecord(JSON.parse(raw) as unknown);
-    const payload = sanitizeOplAppStatePayloadForCache(oplRecord(parsed.payload) as OplAppStatePayload);
-    if (Object.keys(getAppState(payload)).length === 0) return null;
+    const projection = sanitizeGatewayAccountForCache(parsed.projection);
+    if (!projection) return null;
     return {
-      payload,
+      projection,
       loadedAt: oplString(parsed.loadedAt),
     };
   } catch {
@@ -195,18 +245,70 @@ function readCachedFastState(): OplAppStateCache | null {
   }
 }
 
+function cacheGatewayAccountProjection(projection: OplAppStateRecord, loadedAt: string | null): void {
+  try {
+    localStorage.setItem(GATEWAY_ACCOUNT_CACHE_KEY, JSON.stringify({ projection, loadedAt }));
+  } catch {
+    // The Framework-owned projection remains authoritative when renderer persistence is unavailable.
+  }
+}
+
+function notifyOplAppStateCacheUpdated(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(APP_STATE_CACHE_UPDATED_EVENT));
+}
+
+function readLegacyFastStateCache(): OplAppStateCache | null {
+  try {
+    const raw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = oplRecord(JSON.parse(raw) as unknown);
+    const payload = sanitizeOplAppStatePayloadForCache(oplRecord(parsed.payload) as OplAppStatePayload);
+    if (Object.keys(getAppState(payload)).length === 0) return null;
+    return { payload, loadedAt: oplString(parsed.loadedAt) };
+  } catch {
+    return null;
+  }
+}
+
+function readCachedFastState(): OplAppStateCache | null {
+  const appStateCache = readLegacyFastStateCache();
+  const gatewayCache = readCachedGatewayAccount();
+  const legacyGatewayProjection = gatewayAccountProjectionFromPayload(appStateCache?.payload);
+  const gatewayProjection = gatewayCache?.projection ?? legacyGatewayProjection;
+  if (!appStateCache && !gatewayProjection) return null;
+
+  if (!gatewayCache && legacyGatewayProjection) {
+    cacheGatewayAccountProjection(legacyGatewayProjection, appStateCache?.loadedAt ?? null);
+  }
+
+  const basePayload = appStateCache?.payload ?? ({ app_state: {} } as OplAppStatePayload);
+  return {
+    payload: gatewayProjection ? withGatewayAccountProjection(basePayload, gatewayProjection) : basePayload,
+    loadedAt: gatewayCache?.loadedAt ?? appStateCache?.loadedAt ?? null,
+  };
+}
+
 function hasGatewayAccountProjection(payload: OplAppStatePayload | null | undefined): boolean {
-  const settingsControlCenter = oplRecord(getAppState(payload).settings_control_center);
-  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
-  return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account) !== null;
+  return gatewayAccountProjectionFromPayload(payload) !== null;
+}
+
+function mergeCachedGatewayAccount(payload: OplAppStatePayload): OplAppStatePayload {
+  if (gatewayAccountProjectionFromPayload(payload)) return payload;
+  const cachedGateway = readCachedGatewayAccount();
+  return cachedGateway ? withGatewayAccountProjection(payload, cachedGateway.projection) : payload;
 }
 
 export function cacheFastOplAppState(payload: OplAppStatePayload, loadedAt: string): void {
+  const sanitizedPayload = sanitizeOplAppStatePayloadForCache(payload);
+  const gatewayProjection = gatewayAccountProjectionFromPayload(sanitizedPayload);
+  if (gatewayProjection) cacheGatewayAccountProjection(gatewayProjection, loadedAt);
   try {
     localStorage.setItem(
       APP_STATE_FAST_CACHE_KEY,
-      JSON.stringify({ payload: sanitizeOplAppStatePayloadForCache(payload), loadedAt })
+      JSON.stringify({ payload: withoutGatewayAccountProjection(sanitizedPayload), loadedAt })
     );
+    notifyOplAppStateCacheUpdated();
   } catch {
     // The CLI-backed App state remains authoritative when localStorage is unavailable.
   }
@@ -240,15 +342,24 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
       }
       setError(null);
       try {
-        const nextPayload = await loadOplAppStateFromBridge(profile);
+        const loadedPayload = await loadOplAppStateFromBridge(profile);
         if (requestSeq.current !== requestId) return null;
-        if (!nextPayload) {
+        if (!loadedPayload) {
           throw new Error('Invalid OPL App state payload');
         }
+        const nextPayload = mergeCachedGatewayAccount(loadedPayload);
         const nextLoadedAt = new Date().toLocaleTimeString();
         setPayload(nextPayload);
         setLoadedAt(nextLoadedAt);
-        if (profile === 'fast') cacheFastOplAppState(nextPayload, nextLoadedAt);
+        if (profile === 'fast') {
+          cacheFastOplAppState(nextPayload, nextLoadedAt);
+        } else {
+          const gatewayProjection = gatewayAccountProjectionFromPayload(nextPayload);
+          if (gatewayProjection) {
+            cacheGatewayAccountProjection(gatewayProjection, nextLoadedAt);
+            notifyOplAppStateCacheUpdated();
+          }
+        }
         return nextPayload;
       } catch (caughtError) {
         if (requestSeq.current === requestId) setError(errorMessage(caughtError));
@@ -266,6 +377,19 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
   useEffect(() => {
     void load(initialProfile, { background: initialHadCachedState.current });
   }, [initialProfile, load]);
+
+  useEffect(() => {
+    if (initialProfile !== 'fast' || typeof window === 'undefined') return undefined;
+    const handleCacheUpdate = () => {
+      const nextCached = readCachedFastState();
+      if (!nextCached) return;
+      setPayload(nextCached.payload);
+      setLoadedAt(nextCached.loadedAt);
+      setLoading(!hasGatewayAccountProjection(nextCached.payload));
+    };
+    window.addEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
+    return () => window.removeEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
+  }, [initialProfile]);
 
   return {
     appState: getAppState(payload),
