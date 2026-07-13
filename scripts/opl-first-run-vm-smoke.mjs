@@ -3050,6 +3050,40 @@ function homeAssistantDeniedSelectorExpression() {
   return JSON.stringify(homeAssistantDeniedSelectorParts());
 }
 
+function homeAssistantWorkspacePreparationExpression(workspace) {
+  return `(() => {
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
+    if (
+      composer?.getAttribute('data-opl-workspace-selected') === 'true' &&
+      composer?.getAttribute('data-opl-workspace-path') === ${cdpString(workspace)}
+    ) {
+      return {
+        status: 'ready',
+        target_workspace: ${cdpString(workspace)},
+        workspace_selected: true,
+      };
+    }
+    if (!window.location.hash.startsWith('#/guid')) {
+      window.location.hash = '#/guid';
+      return false;
+    }
+    const currentState = window.history.state && typeof window.history.state === 'object'
+      ? window.history.state
+      : {};
+    const currentUserState = currentState.usr && typeof currentState.usr === 'object'
+      ? currentState.usr
+      : {};
+    const nextState = {
+      ...currentState,
+      usr: { ...currentUserState, workspace: ${cdpString(workspace)} },
+      key: 'opl-vm-workspace-' + Date.now(),
+    };
+    window.history.replaceState(nextState, '', window.location.href);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: nextState }));
+    return false;
+  })()`;
+}
+
 function homeAssistantRouteSelectionExpression(target) {
   return `(() => {
     const visible = (node) => {
@@ -3065,14 +3099,29 @@ function homeAssistantRouteSelectionExpression(target) {
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
     const control = card?.closest('button') || card;
     const disabled = control?.disabled === true
       || control?.getAttribute('disabled') !== null
       || control?.getAttribute('aria-disabled') === 'true'
       || String(control?.className || '').includes('disabled');
     if (!visible(card) || !visible(input) || !visible(sendButton) || disabled) return false;
+    if (
+      card.getAttribute('aria-pressed') === 'true' &&
+      composer?.getAttribute('data-opl-active-shortcut') === ${cdpString(target.shortcutId)}
+    ) {
+      return {
+        clickedAssistantId: ${cdpString(target.id)},
+        cardText: card.textContent || '',
+        alreadySelected: true,
+      };
+    }
     control.click();
-    return { clickedAssistantId: ${cdpString(target.id)}, cardText: card.textContent || '' };
+    return {
+      clickedAssistantId: ${cdpString(target.id)},
+      cardText: card.textContent || '',
+      alreadySelected: false,
+    };
   })()`;
 }
 
@@ -3103,12 +3152,14 @@ function homeAssistantRouteReadyExpression(target) {
       model_reasoning_visible: composer?.getAttribute('data-opl-model-reasoning-visible') === 'true',
       permission_access_visible: composer?.getAttribute('data-opl-permission-access-visible') === 'true',
       executor_selector_visible: composer?.getAttribute('data-opl-executor-selector-visible') === 'true',
+      workspace_selected: composer?.getAttribute('data-opl-workspace-selected') === 'true',
     };
     const missingControls = [];
     if (!visible(modelSelector) || !semanticState.model_reasoning_visible) missingControls.push('model_reasoning');
     if (!visible(permissionSelector) || !semanticState.permission_access_visible) missingControls.push('permission_access');
     if (deniedVisible.length > 0 || semanticState.executor_selector_visible) missingControls.push('forbidden_executor_selector');
     if (semanticState.executor !== 'codex') missingControls.push('codex_executor');
+    if (!semanticState.workspace_selected) missingControls.push('workspace_scope');
     if (missingControls.length > 0) {
       return {
         status: 'failed',
@@ -3137,7 +3188,8 @@ function homeAssistantRouteSendExpression(target, prompt) {
   return `(() => {
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
-    if (!input || !sendButton) return false;
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
+    if (!input || !sendButton || composer?.getAttribute('data-opl-workspace-selected') !== 'true') return false;
     const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
       || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
     if (!nativeSetter) throw new Error('Could not resolve native input value setter');
@@ -3148,109 +3200,60 @@ function homeAssistantRouteSendExpression(target, prompt) {
       return false;
     }
     sendButton.click();
-    return { assistant_id: ${cdpString(target.id)}, promptLength: ${prompt.length} };
-  })()`;
-}
-
-function createAssistantRouteReceiptConversationExpression(target) {
-  return `(async () => {
-    const backendPort = window.__backendPort;
-    if (!backendPort) return false;
-    const agentPackageInvocation = {
-      receipt_type: 'capability_invocation',
-      route_kind: 'agent_package_shortcut',
-      executor: 'codex_cli',
-      package_id: ${cdpString(target.id)},
-      agent_id: ${cdpString(target.id)},
-      shortcut_id: ${cdpString(target.shortcutId)},
-      codex_visible_entry: ${cdpString(target.codexVisibleEntry)},
-      required_skill_ids: ${JSON.stringify(target.requiredSkillIds)},
-      source: 'opl_app_home',
-      launched_from: 'opl_app_home',
-      display_policy: 'refs_only_no_domain_verdict',
-    };
-    const legacyRoute = {
-      route_kind: 'builtin_capability',
-      executor: 'codex_cli',
-      assistant_id: ${cdpString(target.id)},
-      assistant_short_name: ${cdpString(target.shortName)},
-      source: 'opl_app_home',
-    };
-    const response = await fetch(\`http://127.0.0.1:\${backendPort}/api/conversations\`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'acp',
-        name: ${cdpString(`OPL packaged GUI route smoke receipt for ${target.shortName}`)},
-        extra: {
-          workspace: '',
-          custom_workspace: false,
-          backend: 'codex',
-          preset_assistant_id: ${cdpString(target.id)},
-          opl_agent_package_invocation: agentPackageInvocation,
-          opl_assistant_route: legacyRoute,
-        },
-      }),
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(\`POST /api/conversations failed for ${target.id}: \${response.status} \${body}\`);
-    }
-    const payload = await response.json();
-    const conversation = payload?.data || payload;
-    const conversationId = conversation?.id;
-    if (!conversationId) {
-      throw new Error(\`POST /api/conversations returned no conversation id for ${target.id}: \${JSON.stringify(payload)}\`);
-    }
     return {
-      status: 'created',
       assistant_id: ${cdpString(target.id)},
-      conversation_id: conversationId,
-      route: agentPackageInvocation,
+      promptLength: ${prompt.length},
+      interaction_path: 'guid_ui_send',
     };
   })()`;
 }
 
-function conversationRouteReceiptExpression(target, conversationId = null) {
-  const conversationPath = conversationId
-    ? `/api/conversations/${encodeURIComponent(conversationId)}`
-    : '/api/conversations?limit=10';
+function conversationRouteReceiptExpression(
+  target,
+  conversationId = null,
+  expectedWorkspace = null,
+  activeRoute = false
+) {
   return `(async () => {
     const backendPort = window.__backendPort;
     if (!backendPort) return false;
-    const response = await fetch(\`http://127.0.0.1:\${backendPort}${conversationPath}\`);
+    const routeMatch = ${activeRoute ? 'window.location.hash.match(/^#\\/conversation\\/([^/?#]+)/)' : 'null'};
+    const expectedConversationId = ${
+      conversationId
+        ? cdpString(conversationId)
+        : activeRoute
+          ? 'routeMatch ? decodeURIComponent(routeMatch[1]) : null'
+          : 'null'
+    };
+    if (${activeRoute ? 'true' : 'false'} && !expectedConversationId) return false;
+    const conversationPath = expectedConversationId
+      ? \`/api/conversations/\${encodeURIComponent(expectedConversationId)}\`
+      : '/api/conversations?limit=10';
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}\${conversationPath}\`);
     if (!response.ok) {
       throw new Error(\`Conversation receipt lookup returned \${response.status}\`);
     }
     const payload = await response.json();
-    const conversations = ${conversationId ? '[payload?.data || payload]' : 'payload?.data?.items || payload?.items || []'};
+    const conversations = expectedConversationId ? [payload?.data || payload] : payload?.data?.items || payload?.items || [];
     const matched = conversations.find((conversation) => {
       const invocation = conversation?.extra?.opl_agent_package_invocation;
       const legacyRoute = conversation?.extra?.opl_assistant_route;
       const assistantMatches =
         invocation?.package_id === ${cdpString(target.id)} ||
         legacyRoute?.assistant_id === ${cdpString(target.id)};
-      const conversationMatches = ${conversationId ? `conversation?.id === ${cdpString(conversationId)}` : 'true'};
+      const conversationMatches = expectedConversationId ? conversation?.id === expectedConversationId : true;
       return assistantMatches && conversationMatches;
     });
-    if (!matched) {
-      return {
-        status: 'waiting_for_route_receipt',
-        assistant_id: ${cdpString(target.id)},
-        expected_conversation_id: ${conversationId ? cdpString(conversationId) : 'null'},
-        recent_conversation_count: conversations.length,
-        recent_routes: conversations.map((conversation) => conversation?.extra?.opl_agent_package_invocation || conversation?.extra?.opl_assistant_route || null),
-      };
-    }
+    if (!matched) return false;
     const invocation = matched.extra.opl_agent_package_invocation;
+    const activation = matched.extra.opl_agent_package_activation;
+    const useBinding = activation?.use_binding;
     const legacyRoute = matched.extra.opl_assistant_route;
     const invalid = [];
     if (!invocation) invalid.push('opl_agent_package_invocation');
-    if (invocation?.receipt_type !== 'capability_invocation') invalid.push('receipt_type');
     if (invocation?.route_kind !== 'agent_package_shortcut') invalid.push('route_kind');
     if (invocation?.executor !== 'codex_cli') invalid.push('executor');
     if (invocation?.package_id !== ${cdpString(target.id)}) invalid.push('package_id');
-    if (invocation?.agent_id !== ${cdpString(target.id)}) invalid.push('agent_id');
     if (invocation?.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('shortcut_id');
     if (invocation?.codex_visible_entry !== ${cdpString(target.codexVisibleEntry)}) invalid.push('codex_visible_entry');
     const requiredSkillIds = ${JSON.stringify(target.requiredSkillIds)};
@@ -3258,21 +3261,40 @@ function conversationRouteReceiptExpression(target, conversationId = null) {
       invalid.push('required_skill_ids');
     }
     if (invocation?.source !== 'opl_app_home') invalid.push('source');
-    if (invocation?.launched_from !== 'opl_app_home') invalid.push('launched_from');
-    if (invocation?.display_policy !== 'refs_only_no_domain_verdict') invalid.push('display_policy');
     if (legacyRoute?.route_kind !== 'builtin_capability') invalid.push('legacy_route_kind');
     if (legacyRoute?.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('legacy_assistant_short_name');
     if (matched.type !== 'acp') invalid.push('conversation_type');
     if (matched.extra?.backend !== 'codex') invalid.push('backend');
+    if (activation?.action_id !== 'agent_package_activate') invalid.push('activation_action_id');
+    if (activation?.package_id !== ${cdpString(target.id)}) invalid.push('activation_package_id');
+    if (activation?.scope !== 'workspace') invalid.push('activation_scope');
+    if (activation?.launch_allowed !== true) invalid.push('activation_launch_allowed');
+    if (!activation?.use_boundary_id) invalid.push('activation_use_boundary_id');
+    if (!activation?.use_receipt_ref) invalid.push('activation_use_receipt_ref');
+    if (!useBinding) invalid.push('activation_use_binding');
+    if (useBinding?.use_boundary_id !== activation?.use_boundary_id) invalid.push('use_binding_boundary_id');
+    if (useBinding?.use_receipt_ref !== activation?.use_receipt_ref) invalid.push('use_binding_receipt_ref');
+    if (useBinding?.scope !== 'workspace') invalid.push('use_binding_scope');
+    if (useBinding?.root_package?.package_id !== ${cdpString(target.id)}) invalid.push('use_binding_package_id');
+    ${
+      expectedWorkspace
+        ? `if (matched.extra?.workspace !== ${cdpString(expectedWorkspace)}) invalid.push('conversation_workspace');
+    if (matched.extra?.custom_workspace !== true) invalid.push('conversation_custom_workspace');
+    if (activation?.target_workspace !== ${cdpString(expectedWorkspace)}) invalid.push('activation_target_workspace');
+    if (useBinding?.target_root !== ${cdpString(expectedWorkspace)}) invalid.push('use_binding_target_root');`
+        : ''
+    }
     if (invalid.length > 0) {
-      throw new Error(\`Invalid OPL agent package invocation receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
+      throw new Error(\`Invalid OPL agent package launch receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
     }
     return {
       status: 'passed',
       conversation_id: matched.id,
       conversation_type: matched.type,
       backend: matched.extra.backend,
+      workspace: matched.extra.workspace,
       route: invocation,
+      activation,
       legacy_route: legacyRoute ?? null,
     };
   })()`;
@@ -3280,6 +3302,10 @@ function conversationRouteReceiptExpression(target, conversationId = null) {
 
 function latestConversationRouteReceiptExpression(target) {
   return conversationRouteReceiptExpression(target);
+}
+
+function activeConversationRouteReceiptExpression(target, expectedWorkspace) {
+  return conversationRouteReceiptExpression(target, null, expectedWorkspace, true);
 }
 
 function firstRunBeginnerUxExpression() {
@@ -4445,6 +4471,9 @@ async function runAssistantRouteSmoke(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   const results = [];
+  const assistantWorkspace =
+    options.runtimeProfile === 'full' ? path.join(os.homedir(), 'OPL-Release-Smoke-Workspace') : null;
+  if (assistantWorkspace) fs.mkdirSync(assistantWorkspace, { recursive: true });
   const writeFailureSummary = (assistantTarget, error) => {
     writeJsonArtifact(
       path.join(options.artifacts, 'assistant-route-smoke-summary.json'),
@@ -4483,6 +4512,12 @@ async function runAssistantRouteSmoke(options, secret) {
           });
           continue;
         }
+        const workspace = await waitForCdpPredicate(
+          client,
+          homeAssistantWorkspacePreparationExpression(assistantWorkspace),
+          30_000,
+          `Could not prepare a workspace-scoped OPL assistant launch: ${assistantTarget.id}`
+        );
         const selected = await waitForCdpPredicate(
           client,
           homeAssistantRouteSelectionExpression(assistantTarget),
@@ -4507,25 +4542,30 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
         );
-        const created = await waitForCdpPredicate(
+        const sent = await waitForCdpPredicate(
           client,
-          createAssistantRouteReceiptConversationExpression(assistantTarget),
+          homeAssistantRouteSendExpression(
+            assistantTarget,
+            `Verify the packaged ${assistantTarget.shortName} workspace activation and route receipt.`
+          ),
           30_000,
-          `Could not create OPL built-in assistant route receipt conversation: ${assistantTarget.id}`
+          `Could not send through the OPL built-in assistant composer: ${assistantTarget.id}`
         );
         const receipt = await waitForCdpPredicate(
           client,
-          conversationRouteReceiptExpression(assistantTarget, created.conversation_id),
+          activeConversationRouteReceiptExpression(assistantTarget, assistantWorkspace),
           45_000,
-          `Created conversation did not expose the OPL assistant route receipt: ${assistantTarget.id}`
+          `UI-created conversation did not expose matching workspace activation and route receipts: ${assistantTarget.id}`
         );
         results.push({
           id: assistantTarget.id,
           badge: assistantTarget.badge,
           verification_mode: 'route_receipt',
+          interaction_path: 'workspace_guid_ui_send_then_conversation_get',
+          workspace,
           selected,
           ready,
-          created,
+          sent,
           receipt,
         });
       } catch (error) {
@@ -4542,6 +4582,8 @@ async function runAssistantRouteSmoke(options, secret) {
     cdp_port: options.cdpPort,
     runtime_profile: options.runtimeProfile,
     verification_mode: options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate',
+    interaction_path:
+      options.runtimeProfile === 'full' ? 'workspace_guid_ui_send_then_conversation_get' : 'launch_gate_only',
     assistants: results,
   };
   writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
@@ -5918,11 +5960,12 @@ export const __test =
         guideScreenshotSources,
         visibleHomeAssistantControlSelector,
         homeAssistantBlockedReadinessExpression,
+        homeAssistantWorkspacePreparationExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
         homeAssistantRouteSendExpression,
-        createAssistantRouteReceiptConversationExpression,
         conversationRouteReceiptExpression,
+        activeConversationRouteReceiptExpression,
         latestConversationRouteReceiptExpression,
       }
     : undefined;

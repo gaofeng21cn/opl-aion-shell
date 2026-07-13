@@ -139,6 +139,35 @@ describe('OPL home assistants', () => {
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      activationRequired: false,
+    });
+  });
+
+  it('treats a missing workspace materialization as a pre-launch activation requirement', () => {
+    const gate = resolveOplPackageLaunchGate(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              mas: {
+                package_id: 'mas',
+                operational_ready: false,
+                launch_allowed: false,
+                launch_blocked_reason: 'scope_materialization_scope_required',
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
+              },
+            },
+          },
+        },
+      },
+      'mas'
+    );
+
+    expect(gate).toEqual({
+      launchAllowed: false,
+      launchBlockedReason: 'scope_materialization_scope_required',
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      activationRequired: true,
     });
   });
 
@@ -186,11 +215,13 @@ describe('OPL home assistants', () => {
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      activationRequired: false,
     });
     expect(resolveOplPackageLaunchGate({}, 'unknown-agent')).toEqual({
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],
+      activationRequired: false,
     });
   });
 

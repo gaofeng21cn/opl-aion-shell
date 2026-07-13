@@ -877,15 +877,21 @@ describe('packaged first-run VM smoke helpers', () => {
     ]);
   });
 
-  it('checks packaged assistant routes through receipt-only Codex ACP conversations', () => {
+  it('checks packaged assistant routes through workspace-scoped Guid sends and GET readback', () => {
     const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const workspaceExpression = __test.homeAssistantWorkspacePreparationExpression('/Users/opl/OPL-Smoke');
     const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
     const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
-    const createExpression = __test.createAssistantRouteReceiptConversationExpression(masTarget);
+    const sendExpression = __test.homeAssistantRouteSendExpression(masTarget, 'Verify MAS launch.');
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
     const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
+    const activeReceiptExpression = __test.activeConversationRouteReceiptExpression(masTarget, '/Users/opl/OPL-Smoke');
 
     expect(__test.FULL_ASSISTANT_READINESS_TIMEOUT_MS).toBe(180_000);
+    expect(workspaceExpression).toContain("getAttribute('data-opl-workspace-selected')");
+    expect(workspaceExpression).toContain("getAttribute('data-opl-workspace-path')");
+    expect(workspaceExpression).toContain('workspace: "/Users/opl/OPL-Smoke"');
+    expect(workspaceExpression).toContain("new PopStateEvent('popstate'");
     expect(selectionExpression).toContain('preset-pill-mas');
     expect(selectionExpression).toContain('preset-pill-research');
     expect(selectionExpression).toContain('home-starter-mas');
@@ -895,6 +901,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain("getAttribute('disabled')");
     expect(selectionExpression).toContain("getAttribute('aria-disabled')");
     expect(selectionExpression).toContain('|| disabled');
+    expect(selectionExpression).toContain('alreadySelected: true');
     expect(readyExpression).toContain('guid-active-capability');
     expect(readyExpression).toContain("getAttribute('aria-pressed') !== 'true'");
     expect(readyExpression).toContain('guid-model-selector');
@@ -907,29 +914,25 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(readyExpression).toContain("missingControls.push('permission_access')");
     expect(readyExpression).toContain("missingControls.push('forbidden_executor_selector')");
     expect(readyExpression).toContain("getAttribute('data-opl-composer-executor')");
+    expect(readyExpression).toContain("missingControls.push('workspace_scope')");
     expect(readyExpression).toContain("reason: 'home_composer_contract_mismatch'");
-    expect(createExpression).toContain('/api/conversations');
-    expect(createExpression).toContain("method: 'POST'");
-    expect(createExpression).toContain('preset_assistant_id');
-    expect(createExpression).toContain('preset_assistant_id: "mas"');
-    expect(createExpression).toContain('opl_agent_package_invocation');
-    expect(createExpression).toContain("receipt_type: 'capability_invocation'");
-    expect(createExpression).toContain("route_kind: 'agent_package_shortcut'");
-    expect(createExpression).toContain('package_id: "mas"');
-    expect(createExpression).toContain('shortcut_id: "research"');
-    expect(createExpression).toContain('codex_visible_entry: "med-autoscience"');
-    expect(createExpression).toContain('required_skill_ids');
-    expect(createExpression).toContain("display_policy: 'refs_only_no_domain_verdict'");
-    expect(createExpression).toContain('opl_assistant_route');
-    expect(createExpression).toContain("backend: 'codex'");
-    expect(createExpression).not.toContain('guid-send-btn');
+    expect(sendExpression).toContain('guid-send-btn');
+    expect(sendExpression).toContain("interaction_path: 'guid_ui_send'");
+    expect(sendExpression).not.toContain("method: 'POST'");
     expect(receiptExpression).toContain('/api/conversations?limit=10');
-    expect(receiptByIdExpression).toContain('/api/conversations/conv-123');
-    expect(receiptByIdExpression).toContain('expected_conversation_id');
+    expect(receiptByIdExpression).toContain('expectedConversationId = "conv-123"');
+    expect(activeReceiptExpression).toContain('window.location.hash.match(/^#\\/conversation\\/');
+    expect(activeReceiptExpression).toContain('/api/conversations/');
+    expect(activeReceiptExpression).toContain('opl_agent_package_activation');
+    expect(activeReceiptExpression).toContain('activation_use_boundary_id');
+    expect(activeReceiptExpression).toContain('activation_use_receipt_ref');
+    expect(activeReceiptExpression).toContain('activation_use_binding');
+    expect(activeReceiptExpression).toContain('use_binding_target_root');
+    expect(activeReceiptExpression).toContain('conversation_custom_workspace');
+    expect(activeReceiptExpression).not.toContain("method: 'POST'");
     expect(receiptExpression).toContain('opl_agent_package_invocation');
     expect(receiptExpression).toContain('opl_assistant_route');
     expect(receiptExpression).toContain('agent_package_shortcut');
-    expect(receiptExpression).toContain('capability_invocation');
     expect(receiptExpression).toContain('builtin_capability');
     expect(receiptExpression).toContain('codex_cli');
     expect(receiptExpression).toContain('opl_app_home');

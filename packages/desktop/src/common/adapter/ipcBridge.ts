@@ -2008,6 +2008,17 @@ export interface ICreateConversationParams {
       required_skill_ids: string[];
       source: string;
     };
+    opl_agent_package_activation?: {
+      action_id: 'agent_package_activate';
+      package_id: string;
+      scope: 'workspace' | 'quest';
+      target_workspace?: string;
+      target_quest?: string;
+      use_boundary_id: string;
+      launch_allowed: true;
+      use_receipt_ref: string;
+      use_binding: Record<string, unknown>;
+    };
     opl_flow_context?: {
       flow_id: string;
       source: string;

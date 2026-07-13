@@ -25,6 +25,7 @@ export type OplPackageLaunchGate = {
   launchAllowed: boolean | null;
   launchBlockedReason: string | null;
   allowedWhenBlocked: string[];
+  activationRequired: boolean;
 };
 
 const BLOCKED_PACKAGE_ACTIONS = new Set(['status', 'doctor', 'repair']);
@@ -58,8 +59,9 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
           launchAllowed: false,
           launchBlockedReason: 'package_not_installed',
           allowedWhenBlocked: [...BLOCKED_PACKAGE_ACTIONS],
+          activationRequired: false,
         }
-      : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+      : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
   }
   const operationalReady = typeof status.operational_ready === 'boolean' ? status.operational_ready : null;
   const projectedLaunchAllowed = typeof status.launch_allowed === 'boolean' ? status.launch_allowed : null;
@@ -69,6 +71,7 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
       : operationalReady === false
         ? 'operational_not_ready'
         : null;
+  const activationRequired = launchBlockedReason?.startsWith('scope_materialization_') === true;
   return {
     launchAllowed:
       operationalReady === false || launchBlockedReason === 'package_not_installed' ? false : projectedLaunchAllowed,
@@ -78,6 +81,7 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
           (action): action is string => typeof action === 'string' && BLOCKED_PACKAGE_ACTIONS.has(action)
         )
       : [],
+    activationRequired,
   };
 }
 

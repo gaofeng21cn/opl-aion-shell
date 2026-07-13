@@ -51,7 +51,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
           const label = assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
           const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
-          const launchBlocked = launchGate.launchAllowed === false;
+          const launchBlocked = launchGate.launchAllowed === false && !launchGate.activationRequired;
           const blockedTitle = launchBlocked
             ? t('guid.home.launchBlocked', {
                 reason: launchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),

@@ -791,6 +791,8 @@ const GuidPage: React.FC = () => {
         aria-label='opl-guid-entry'
         data-opl-composer-executor={composerSurface.executor}
         data-opl-active-shortcut={composerSurface.active_shortcut_id ?? ''}
+        data-opl-workspace-selected={String(Boolean(guidInput.dir))}
+        data-opl-workspace-path={guidInput.dir}
         data-opl-model-reasoning-visible={String(composerSurface.model_reasoning_visible)}
         data-opl-permission-access-visible={String(composerSurface.permission_access_visible)}
         data-opl-executor-selector-visible={String(composerSurface.executor_selector_visible)}

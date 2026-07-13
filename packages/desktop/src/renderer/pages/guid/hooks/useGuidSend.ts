@@ -116,6 +116,79 @@ function buildLegacyOplAgentPackageInvocationReceipt(
   return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
 }
 
+type OplAgentPackageActivationReceipt = {
+  action_id: 'agent_package_activate';
+  package_id: string;
+  scope: 'workspace';
+  target_workspace: string;
+  use_boundary_id: string;
+  launch_allowed: true;
+  use_receipt_ref: string;
+  use_binding: Record<string, unknown>;
+};
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function nonemptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function createPackageUseBoundaryId(packageId: string): string {
+  const uniqueId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `opl-app-conversation-${packageId}-${uniqueId}`;
+}
+
+async function activateOplAgentPackage(
+  packageId: string,
+  targetWorkspace: string
+): Promise<OplAgentPackageActivationReceipt> {
+  const useBoundaryId = createPackageUseBoundaryId(packageId);
+  const result = await ipcBridge.oplRuntime.executeAction.invoke({
+    actionId: 'agent_package_activate',
+    dryRun: false,
+    payloadRefsOnlyJson: {
+      package_id: packageId,
+      scope: 'workspace',
+      target_workspace: targetWorkspace,
+      use_boundary_id: useBoundaryId,
+    },
+  });
+  if (result.ok === false) {
+    throw new Error(result.error?.message || result.command);
+  }
+  const execution = recordValue(recordValue(result.parsed).app_action_execution);
+  const activation = recordValue(recordValue(execution.result).opl_agent_package_activation);
+  const useReceiptRef = nonemptyString(activation.use_receipt_ref);
+  const useBinding = recordValue(activation.package_use_binding);
+  const rootPackage = recordValue(useBinding.root_package);
+  if (
+    execution.action_id !== 'agent_package_activate' ||
+    activation.package_id !== packageId ||
+    activation.launch_allowed !== true ||
+    activation.use_boundary_id !== useBoundaryId ||
+    !useReceiptRef ||
+    useBinding.use_boundary_id !== useBoundaryId ||
+    useBinding.use_receipt_ref !== useReceiptRef ||
+    useBinding.scope !== 'workspace' ||
+    useBinding.target_root !== targetWorkspace ||
+    rootPackage.package_id !== packageId
+  ) {
+    throw new Error('OPL package activation returned an invalid launch receipt.');
+  }
+  return {
+    action_id: 'agent_package_activate',
+    package_id: packageId,
+    scope: 'workspace',
+    target_workspace: targetWorkspace,
+    use_boundary_id: useBoundaryId,
+    launch_allowed: true,
+    use_receipt_ref: useReceiptRef,
+    use_binding: useBinding,
+  };
+}
+
 /**
  * Hook that manages the send logic for ACP and Aion CLI conversations.
  */
@@ -160,14 +233,17 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   } = deps;
   const sendingRef = useRef(false);
   const { appState } = useOplAppState('fast');
-  const selectedPackageId =
-    activeShortcut?.package_id ??
+  const selectedShortcut =
+    activeShortcut ??
     (is_presetAgent && selectedAgentInfo?.custom_agent_id
-      ? canonicalizeOplProfessionalAgentId(selectedAgentInfo.custom_agent_id)
+      ? resolveOplActiveShortcut(selectedAgentInfo.custom_agent_id)
       : null);
+  const selectedPackageId = selectedShortcut?.package_id ?? null;
   const selectedPackageLaunchGate = selectedPackageId
     ? resolveOplPackageLaunchGate(appState, selectedPackageId)
-    : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [] };
+    : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
+  const packageLaunchHardBlocked =
+    selectedPackageLaunchGate.launchAllowed === false && !selectedPackageLaunchGate.activationRequired;
   const launchBlockedMessage = () =>
     t('guid.home.launchBlocked', {
       reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
@@ -175,13 +251,20 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     });
 
   const handleSend = useCallback(async () => {
-    if (selectedPackageLaunchGate.launchAllowed === false) {
+    if (packageLaunchHardBlocked) {
       Message.error(launchBlockedMessage());
+      return;
+    }
+    if (selectedPackageId && !dir) {
+      Message.error(t('guid.workspace.specifyWorkspace'));
       return;
     }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
     const initialFiles = Array.from(new Set([...projectContextRefs.map((ref) => ref.path), ...files]));
+    const oplAgentPackageActivation = selectedPackageId
+      ? await activateOplAgentPackage(selectedPackageId, finalWorkspace)
+      : undefined;
 
     const agentInfo = selectedAgentInfo;
     const is_preset = is_presetAgent;
@@ -251,6 +334,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
+          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -301,6 +385,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
+          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -355,6 +440,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
             opl_agent_package_invocation: oplAgentPackageInvocation,
+            opl_agent_package_activation: oplAgentPackageActivation,
             opl_assistant_route: oplAssistantRoute,
             selected_mcp_server_ids: selectedUserMcpServerIds,
             // aionrs should consume the authoritative session snapshot, just
@@ -450,6 +536,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: files,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
+          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,
@@ -518,12 +605,19 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchAllowed,
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
+    selectedPackageLaunchGate.activationRequired,
+    selectedPackageId,
+    packageLaunchHardBlocked,
   ]);
 
   const sendMessageHandler = useCallback(() => {
     if (loading || sendingRef.current) return;
-    if (selectedPackageLaunchGate.launchAllowed === false) {
+    if (packageLaunchHardBlocked) {
       Message.error(launchBlockedMessage());
+      return;
+    }
+    if (selectedPackageId && !dir) {
+      Message.error(t('guid.workspace.specifyWorkspace'));
       return;
     }
     sendingRef.current = true;
@@ -561,6 +655,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchAllowed,
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
+    selectedPackageLaunchGate.activationRequired,
+    selectedPackageId,
+    dir,
+    packageLaunchHardBlocked,
   ]);
 
   // Calculate button disabled state
