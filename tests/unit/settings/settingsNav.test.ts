@@ -25,6 +25,7 @@ const { controlPlane } = vi.hoisted(() => ({
         path: '/settings/general',
         label_key: 'settings.overview',
         default_label_en: 'Overview',
+        icon_token: 'dashboard',
         slot_id: 'settings_general',
       },
       {
@@ -37,18 +38,18 @@ const { controlPlane } = vi.hoisted(() => ({
       {
         id: 'workspace',
         path: '/settings/workspace',
-        label_key: 'settings.workspace',
-        default_label_en: 'Workspace',
-        default_label_zh: '工作区',
+        label_key: 'settings.workspacePersonalization',
+        default_label_en: 'Workspace & Personalization',
+        default_label_zh: '工作区与个性化',
         icon_token: 'workspace',
         ia_group: 'overview',
         slot_id: 'workspace',
         state_source: 'opl app state --profile fast --json',
         refresh_source: 'opl app state --profile fast --json',
-        scope: 'selected_workspace',
-        intent: 'configure_and_inspect_paths_permissions_and_artifact_roots',
-        risk: 'read_only_or_reversible_local_path_actions',
-        frequency: 'first_run_and_project_switching',
+        scope: 'workspace',
+        intent: 'configure',
+        risk: 'confirmation_required',
+        frequency: 'first_run_or_project_switch',
       },
       {
         id: 'agents',
@@ -187,7 +188,7 @@ const { controlPlane } = vi.hoisted(() => ({
       },
       settings_advanced: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
       settings_resources: { component_key: 'ResourcesSettingsContent', wrapper_policy: 'host_provides_wrapper' },
-      about: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
+      about: { component_key: 'AboutModalContent', wrapper_policy: 'host_provides_wrapper' },
       update: { component_key: 'RuntimeSettings', wrapper_policy: 'host_provides_wrapper' },
       workspace: { component_key: 'WorkspaceSettings', wrapper_policy: 'host_provides_wrapper' },
       local_services: { component_key: 'LocalServicesSettings', wrapper_policy: 'host_provides_wrapper' },
@@ -247,7 +248,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
       'Overview',
       'Setup & Access',
-      'Workspace',
+      'Workspace & Personalization',
       'Agents',
       'Capabilities',
       'Resources & Connections',
@@ -300,7 +301,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getSettingsRenderSlot('about')).toMatchObject({
       id: 'about',
       routeId: 'about',
-      componentKey: 'SystemModalContent',
+      componentKey: 'AboutModalContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
   });
@@ -461,7 +462,9 @@ describe('settingsNav App-owned tabs', () => {
   });
 
   it('includes route metadata in Settings search text', () => {
-    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('selected_workspace');
-    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('project_switching');
+    expect(getSettingsTabSearchText('workspace', 'Workspace & Personalization')).toContain('workspace');
+    expect(getSettingsTabSearchText('workspace', 'Workspace & Personalization')).toContain(
+      'first_run_or_project_switch'
+    );
   });
 });

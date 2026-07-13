@@ -210,7 +210,9 @@ describe('SettingsModal OPL App navigation', () => {
   it('shows only App-owned ordinary settings tabs', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    expect(screen.getByText('Overview')).toBeInTheDocument();
+    const overviewButton = screen.getByRole('button', { name: 'Overview' });
+    expect(overviewButton).toBeInTheDocument();
+    expect(overviewButton.querySelector('.i-icon-dashboard')).not.toBeNull();
     expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByText('Agents')).toBeInTheDocument();
@@ -292,7 +294,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
   });
 
-  it('keeps the Settings footer to return and named theme actions', () => {
+  it('keeps only the named theme action in the Settings footer', () => {
     const onSettingsClick = vi.fn();
     const onThemeToggle = vi.fn();
 
@@ -307,60 +309,56 @@ describe('SettingsModal OPL App navigation', () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId('sider-footer-settings'));
     fireEvent.click(screen.getByTestId('sider-footer-theme'));
 
-    expect(onSettingsClick).toHaveBeenCalledOnce();
+    expect(onSettingsClick).not.toHaveBeenCalled();
     expect(onThemeToggle).toHaveBeenCalledOnce();
     expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
+    expect(screen.queryByTestId('sider-footer-settings')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 
-  it('keeps Advanced and About after a Settings secondary-group divider', () => {
-    render(
-      <MemoryRouter initialEntries={['/settings/general']}>
-        <SettingsSider />
-      </MemoryRouter>
-    );
-
-    const divider = screen.getByTestId('settings-sider-secondary-divider');
-    const preferences = screen.getByRole('button', { name: 'Preferences' });
-    const advanced = screen.getByRole('button', { name: 'Advanced' });
-    const about = screen.getByRole('button', { name: 'About' });
-
-    expect(preferences.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(divider.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(advanced.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working directories' } });
-
-    expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
-  });
-
-  it('keeps the Settings footer to return and named theme actions', () => {
+  it('shows the connected Gateway account with its full email and opens Models & Access', () => {
     const onSettingsClick = vi.fn();
-    const onThemeToggle = vi.fn();
 
     render(
       <SiderFooter
-        isMobile
-        isSettings
-        theme='dark'
+        isMobile={false}
+        isSettings={false}
+        theme='light'
+        account={{ displayName: 'Feng Gao', email: 'feng@example.com', initials: 'FG' }}
         siderTooltipProps={getSiderTooltipProps(false)}
         onSettingsClick={onSettingsClick}
-        onThemeToggle={onThemeToggle}
+        onThemeToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
+    expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('feng@example.com');
+    fireEvent.click(screen.getByTestId('sider-footer-account'));
+
+    expect(onSettingsClick).toHaveBeenCalledWith('access');
+  });
+
+  it('shows Settings when no Gateway account is connected and opens Overview', () => {
+    const onSettingsClick = vi.fn();
+
+    render(
+      <SiderFooter
+        isMobile={false}
+        isSettings={false}
+        theme='light'
+        siderTooltipProps={getSiderTooltipProps(false)}
+        onSettingsClick={onSettingsClick}
+        onThemeToggle={vi.fn()}
       />
     );
 
     fireEvent.click(screen.getByTestId('sider-footer-settings'));
-    fireEvent.click(screen.getByTestId('sider-footer-theme'));
 
-    expect(onSettingsClick).toHaveBeenCalledOnce();
-    expect(onThemeToggle).toHaveBeenCalledOnce();
-    expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
-    expect(screen.queryByTestId('sider-footer-account')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sider-footer-settings')).toHaveTextContent('Settings');
+    expect(onSettingsClick).toHaveBeenCalledWith('general');
   });
 
   it('caps Settings modal surfaces at an 8px radius', () => {

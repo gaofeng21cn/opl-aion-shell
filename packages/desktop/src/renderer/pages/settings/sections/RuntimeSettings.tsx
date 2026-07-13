@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
-import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
@@ -37,6 +36,7 @@ import {
   type ManagedUpdatePlane,
 } from '@/renderer/services/managedUpdateProjection';
 import { copyText } from '@/renderer/utils/ui/clipboard';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   formatModuleAction,

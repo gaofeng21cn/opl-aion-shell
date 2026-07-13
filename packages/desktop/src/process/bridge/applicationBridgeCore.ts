@@ -14,6 +14,7 @@ import path from 'path';
 import { ipcBridge } from '@/common';
 import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePath } from '@process/utils';
+import { setConsoleLogRoot } from '@process/utils/configureConsoleLog';
 
 export const OPL_APP_RELEASE_REPO = 'gaofeng21cn/one-person-lab-app';
 
@@ -31,6 +32,7 @@ export function initApplicationBridgeCore(): void {
       await copyDirectoryRecursively(oldDir.cacheDir, safeCacheDir);
     }
     await ProcessEnv.set('aionui.dir', { cacheDir: safeCacheDir, workDir: safeWorkDir, logDir: safeLogDir });
+    setConsoleLogRoot(safeLogDir);
   });
 
   ipcBridge.application.getPath.provider(({ name }) => {

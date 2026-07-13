@@ -10,16 +10,25 @@ import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
-import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { useTranslation } from 'react-i18next';
-import { buildAccessProjection } from '../accessProjection';
+import {
+  buildAccessProjection,
+  formatGatewayObservedAt,
+  formatGatewayTokenCount,
+  gatewayAccountInitials,
+  readCodexModelResolution,
+  readGatewayAccountProjection,
+  resolveDefaultGatewayGroup,
+} from '../accessProjection';
 import { useLocation } from 'react-router-dom';
 import { ResourcesSettingsContent } from './ResourcesSettings';
-import type { OplGatewayAccountActionId, OplGatewayAccountReadModel } from '@/common/types/opl/appState';
+import type { OplGatewayAccountActionId } from '@/common/types/opl/appState';
 import type { IOplGatewayAccountErrorCode } from '@/common/adapter/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
+import { formatOplCodexModelDisplay } from '@/renderer/utils/model/oplCodexModelDisplay';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
@@ -31,13 +40,6 @@ function assertOplCommandOk(result: OplCommandResult): void {
 
 function splitAccessDetail(detail: string): string[] {
   return detail.split(' · ').filter((line) => line.trim().length > 0);
-}
-
-export function readGatewayAccountProjection(appState: unknown): OplGatewayAccountReadModel | null {
-  const settings = oplRecord(oplRecord(appState).settings_control_center);
-  const readModel = oplRecord(settings.app_settings_read_model);
-  const gateway = oplRecord(readModel.opl_gateway_account);
-  return gateway.surface_kind === 'opl_gateway_account_read_model.v1' ? (gateway as OplGatewayAccountReadModel) : null;
 }
 
 function gatewayErrorTranslationKey(errorCode: string | null): string {
@@ -81,7 +83,6 @@ export const AccessSettingsContent: React.FC = () => {
   const [gatewayLoginError, setGatewayLoginError] = useState<IOplGatewayAccountErrorCode | null>(null);
   const [gatewayLoginLoading, setGatewayLoginLoading] = useState(false);
   const [gatewayActionLoading, setGatewayActionLoading] = useState<OplGatewayAccountActionId | null>(null);
-  const [selectedGatewayGroup, setSelectedGatewayGroup] = useState('');
   const [disconnectConfirmVisible, setDisconnectConfirmVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
@@ -112,9 +113,22 @@ export const AccessSettingsContent: React.FC = () => {
   const modelAccessSource = modelAccessCard?.detail || null;
   const codexDetailLines = codexCard ? splitAccessDetail(codexCard.detail) : [];
   const isZh = i18n?.resolvedLanguage?.toLowerCase().startsWith('zh') ?? false;
+  const localeKey = isZh ? 'zh-CN' : 'en-US';
+  const currentModelResolution = readCodexModelResolution(appStateQuery.appState);
+  const currentModelLabel = currentModelResolution.modelId
+    ? formatOplCodexModelDisplay({
+        id: currentModelResolution.modelId,
+        reasoningEffort: currentModelResolution.reasoningEffort,
+        localeKey,
+      }).modelLabel.replace(/^GPT-/i, '')
+    : null;
   const preferredModelOptions = [
     {
-      label: isZh ? modelOptions.auto_option.label_zh : modelOptions.auto_option.label_en,
+      label: currentModelLabel
+        ? t('settings.accessPage.modelPreference.autoCurrent', { model: currentModelLabel })
+        : isZh
+          ? modelOptions.auto_option.label_zh
+          : modelOptions.auto_option.label_en,
       value: modelOptions.auto_option.id,
     },
     ...modelOptions.visible_models.map((model) => ({
@@ -252,8 +266,18 @@ export const AccessSettingsContent: React.FC = () => {
 
   const gatewayNumber = (value: number | null): string =>
     value === null ? '--' : new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 2 }).format(value);
+  const observedAt = formatGatewayObservedAt(gatewayAccount?.freshness.observed_at ?? null, i18n.resolvedLanguage);
+  const defaultGatewayGroupId = resolveDefaultGatewayGroup(gatewayAccount?.available_groups ?? []);
+  const accountStatus = gatewayAccount?.account?.status?.trim() || 'unknown';
+  const gatewayStatusLabel = (status: string | null | undefined): string => {
+    const normalizedStatus = status?.trim() || 'unknown';
+    if (normalizedStatus === 'active') return t('settings.accessPage.gatewayAccount.status.active');
+    if (normalizedStatus === 'unknown') return t('settings.accessPage.gatewayAccount.status.unknown');
+    return t('settings.accessPage.gatewayAccount.status.other', { status: normalizedStatus });
+  };
+  const accountStatusLabel = gatewayStatusLabel(accountStatus);
 
-  const gatewayStatusError =
+  const projectedGatewayStatusError =
     gatewayLoginError ??
     gatewayAccount?.freshness.last_error_code ??
     (gatewayAccount?.status === 'reauth_required'
@@ -261,6 +285,10 @@ export const AccessSettingsContent: React.FC = () => {
       : gatewayAccount?.status === 'disconnect_pending'
         ? 'disconnect_pending'
         : null);
+  const gatewayStatusError =
+    projectedGatewayStatusError === 'group_selection_required' && defaultGatewayGroupId
+      ? null
+      : projectedGatewayStatusError;
 
   return (
     <div className='opl-settings-page' data-testid='settings-page-access'>
@@ -348,43 +376,206 @@ export const AccessSettingsContent: React.FC = () => {
         data-testid='settings-access-gateway'
       >
         <span id='opl-gateway' aria-hidden='true' />
-        <div className='opl-settings-row items-start'>
-          <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
+        <div className='opl-settings-section__header'>
+          <div className='flex min-w-0 items-start gap-10px'>
             <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
               <Key theme='outline' />
             </span>
-            <div className='min-w-0 flex-1'>
+            <div className='min-w-0'>
               <Typography.Text className='block font-600 text-t-primary'>
                 {t('settings.accessPage.gatewayAccount.title')}
               </Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary'>
                 {t('settings.accessPage.gatewayAccount.description')}
               </Typography.Text>
+            </div>
+          </div>
+          {!appStateQuery.loading && !gatewayFormVisible && gatewayAccount?.connection_mode !== 'account' && (
+            <span className='shrink-0' data-testid='settings-access-primary-action'>
+              <Button
+                type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
+                data-testid='opl-settings-show-gateway-config-button'
+                onClick={() => {
+                  setGatewayMode(accountLoginSupported ? 'account' : 'manual_key');
+                  setGatewayFormVisible(true);
+                  setGatewayLoginError(null);
+                }}
+              >
+                {t('settings.accessPage.modelAccount.showConfigButton')}
+              </Button>
+            </span>
+          )}
+        </div>
 
-              {gatewayAccount?.freshness.stale && (
-                <div
-                  className='mt-8px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'
-                  data-testid='settings-access-gateway-stale'
-                >
-                  {t('settings.accessPage.gatewayAccount.stale', {
-                    observedAt:
-                      gatewayAccount.freshness.observed_at ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
-                  })}
+        {gatewayAccount?.freshness.stale && (
+          <div
+            className='mx-16px mb-12px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'
+            data-testid='settings-access-gateway-stale'
+          >
+            {t('settings.accessPage.gatewayAccount.stale', {
+              observedAt: observedAt ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
+            })}
+          </div>
+        )}
+
+        {gatewayStatusError && !gatewayFormVisible && (
+          <div className='mx-16px mb-12px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'>
+            {t(gatewayErrorTranslationKey(gatewayStatusError))}
+          </div>
+        )}
+
+        {gatewayAccount?.status === 'reauth_required' &&
+          !gatewayAccount.account_card_visible &&
+          accountLoginSupported &&
+          !gatewayFormVisible && (
+            <div className='border-t border-solid border-[var(--border-base)] p-16px'>
+              <Button
+                size='small'
+                type='primary'
+                onClick={() => {
+                  setGatewayMode('account');
+                  setGatewayFormVisible(true);
+                  setGatewayLoginError(null);
+                }}
+              >
+                {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
+              </Button>
+            </div>
+          )}
+
+        {gatewayAccount?.account_card_visible && gatewayAccount.account && (
+          <div
+            className='border-t border-solid border-[var(--border-base)]'
+            data-testid='settings-access-gateway-account'
+          >
+            <div className='flex flex-wrap items-center justify-between gap-12px px-16px py-14px'>
+              <div className='flex min-w-0 items-center gap-12px'>
+                <span className='flex h-44px w-44px shrink-0 items-center justify-center rd-full bg-primary-1 text-15px font-600 text-primary-6'>
+                  {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
+                </span>
+                <div className='min-w-0'>
+                  <div className='flex flex-wrap items-center gap-8px'>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {gatewayAccount.account.display_name ||
+                        gatewayAccount.account.email ||
+                        t('settings.accessPage.gatewayAccount.unknownAccount')}
+                    </Typography.Text>
+                    <span
+                      className={`opl-settings-status ${
+                        accountStatus === 'active' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'
+                      }`}
+                    >
+                      {accountStatusLabel}
+                    </span>
+                  </div>
+                  {gatewayAccount.account.email && (
+                    <Typography.Text className='block break-all text-12px text-t-secondary'>
+                      {gatewayAccount.account.email}
+                    </Typography.Text>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
 
-              {gatewayStatusError && !gatewayFormVisible && (
-                <div className='mt-8px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'>
-                  {t(gatewayErrorTranslationKey(gatewayStatusError))}
+            <div
+              className='grid grid-cols-2 border-t border-solid border-[var(--border-base)] md:grid-cols-3 xl:grid-cols-5'
+              data-testid='settings-access-gateway-metrics'
+            >
+              <div className='min-w-0 px-16px py-13px'>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  {gatewayNumber(gatewayAccount.account.balance.amount)} {gatewayAccount.account.balance.currency}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.gatewayAccount.metrics.balance')}
+                </Typography.Text>
+              </div>
+              <div className='min-w-0 px-16px py-13px'>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  {formatGatewayTokenCount(gatewayAccount.usage?.today_tokens ?? null, i18n.resolvedLanguage)}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.gatewayAccount.metrics.todayTokens')}
+                </Typography.Text>
+              </div>
+              <div className='min-w-0 px-16px py-13px'>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  {gatewayNumber(gatewayAccount.usage?.today_actual_cost ?? null)}{' '}
+                  {gatewayAccount.usage?.currency ?? ''}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.gatewayAccount.metrics.todayCost')}
+                </Typography.Text>
+              </div>
+              <div className='min-w-0 px-16px py-13px'>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  {formatGatewayTokenCount(gatewayAccount.usage?.total_tokens ?? null, i18n.resolvedLanguage)}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.gatewayAccount.metrics.totalTokens')}
+                </Typography.Text>
+              </div>
+              <div className='min-w-0 px-16px py-13px'>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  {gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}{' '}
+                  {gatewayAccount.usage?.currency ?? ''}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.accessPage.gatewayAccount.metrics.totalCost')}
+                </Typography.Text>
+              </div>
+            </div>
+
+            <div className='flex flex-wrap items-center justify-between gap-12px border-t border-solid border-[var(--border-base)] px-16px py-12px'>
+              <div className='min-w-0'>
+                {gatewayAccount.managed_key && (
+                  <Typography.Text className='block break-words text-12px text-t-secondary'>
+                    {t('settings.accessPage.gatewayAccount.managedKey', {
+                      name: gatewayAccount.managed_key.name,
+                      status: gatewayStatusLabel(gatewayAccount.managed_key.status),
+                    })}
+                  </Typography.Text>
+                )}
+                <div className='flex min-w-0 items-center gap-2px'>
+                  <Typography.Text className='break-words text-12px text-t-secondary'>
+                    {t('settings.accessPage.gatewayAccount.updatedAt', {
+                      observedAt: observedAt ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
+                    })}
+                  </Typography.Text>
+                  {gatewayAccount.actions.refresh && (
+                    <OplRefreshIconButton
+                      type='text'
+                      size='mini'
+                      label={t('settings.accessPage.gatewayAccount.actions.refresh')}
+                      loading={gatewayActionLoading === gatewayAccount.actions.refresh}
+                      onClick={() => void handleGatewayAction(gatewayAccount.actions.refresh!)}
+                    />
+                  )}
                 </div>
-              )}
-
-              {gatewayAccount?.status === 'reauth_required' &&
-                !gatewayAccount.account_card_visible &&
-                accountLoginSupported &&
-                !gatewayFormVisible && (
+              </div>
+              <div className='flex flex-wrap items-center justify-end gap-8px'>
+                {gatewayAccount.status === 'setup_required' &&
+                  gatewayAccount.actions.complete_setup &&
+                  (defaultGatewayGroupId ? (
+                    <Button
+                      size='small'
+                      type='primary'
+                      loading={gatewayActionLoading === gatewayAccount.actions.complete_setup}
+                      onClick={() =>
+                        void handleGatewayAction(gatewayAccount.actions.complete_setup!, {
+                          group_id: defaultGatewayGroupId,
+                        })
+                      }
+                      data-testid='settings-access-gateway-complete-setup'
+                    >
+                      {t('settings.accessPage.gatewayAccount.actions.completeSetup')}
+                    </Button>
+                  ) : (
+                    <Typography.Text className='max-w-360px text-12px text-warning'>
+                      {t('settings.accessPage.gatewayAccount.errors.groupSelectionRequired')}
+                    </Typography.Text>
+                  ))}
+                {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
                   <Button
-                    className='mt-8px'
                     size='small'
                     type='primary'
                     onClick={() => {
@@ -396,264 +587,115 @@ export const AccessSettingsContent: React.FC = () => {
                     {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
                   </Button>
                 )}
-
-              {gatewayAccount?.account_card_visible && gatewayAccount.account && (
-                <div className='mt-12px flex flex-col gap-10px' data-testid='settings-access-gateway-account'>
-                  <div className='flex flex-wrap items-baseline gap-x-10px gap-y-4px'>
-                    <Typography.Text className='font-600 text-t-primary'>
-                      {gatewayAccount.account.display_name || gatewayAccount.account.masked_email}
-                    </Typography.Text>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {gatewayAccount.account.masked_email}
-                    </Typography.Text>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.accountStatus', {
-                        status: gatewayAccount.account.status,
-                      })}
-                    </Typography.Text>
-                  </div>
-                  <div className='grid grid-cols-2 gap-x-18px gap-y-8px md:grid-cols-3'>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.balance', {
-                        amount: gatewayNumber(gatewayAccount.account.balance.amount),
-                        currency: gatewayAccount.account.balance.currency,
-                      })}
-                    </Typography.Text>
-                    {gatewayAccount.usage && (
-                      <>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.accessPage.gatewayAccount.todayTokens', {
-                            value: gatewayNumber(gatewayAccount.usage.today_tokens),
-                          })}
-                        </Typography.Text>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.accessPage.gatewayAccount.todayCost', {
-                            value: gatewayNumber(gatewayAccount.usage.today_actual_cost),
-                            currency: gatewayAccount.usage.currency,
-                          })}
-                        </Typography.Text>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.accessPage.gatewayAccount.totalTokens', {
-                            value: gatewayNumber(gatewayAccount.usage.total_tokens),
-                          })}
-                        </Typography.Text>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.accessPage.gatewayAccount.totalCost', {
-                            value: gatewayNumber(gatewayAccount.usage.total_actual_cost),
-                            currency: gatewayAccount.usage.currency,
-                          })}
-                        </Typography.Text>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.accessPage.gatewayAccount.dayTimezone', {
-                            timezone: gatewayAccount.usage.day_timezone,
-                          })}
-                        </Typography.Text>
-                      </>
-                    )}
-                  </div>
-                  {gatewayAccount.managed_key && (
-                    <Typography.Text className='break-words text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.managedKey', {
-                        name: gatewayAccount.managed_key.name,
-                        status: gatewayAccount.managed_key.status,
-                      })}
-                    </Typography.Text>
+                {(gatewayAccount.status === 'attention_needed' || gatewayAccount.status === 'disconnect_pending') &&
+                  gatewayAccount.actions.repair && (
+                    <Button
+                      size='small'
+                      loading={gatewayActionLoading === gatewayAccount.actions.repair}
+                      onClick={() => void handleGatewayAction(gatewayAccount.actions.repair!)}
+                    >
+                      {t('settings.accessPage.gatewayAccount.actions.repair')}
+                    </Button>
                   )}
-                  {gatewayAccount.freshness.observed_at && (
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.updatedAt', {
-                        observedAt: gatewayAccount.freshness.observed_at,
-                      })}
-                    </Typography.Text>
-                  )}
-                  <div className='flex flex-wrap gap-8px'>
-                    {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
-                      <Button
-                        size='small'
-                        type='primary'
-                        onClick={() => {
-                          setGatewayMode('account');
-                          setGatewayFormVisible(true);
-                          setGatewayLoginError(null);
-                        }}
-                      >
-                        {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
-                      </Button>
-                    )}
-                    {gatewayAccount.actions.refresh && (
-                      <OplRefreshIconButton
-                        size='small'
-                        label={t('settings.accessPage.gatewayAccount.actions.refresh')}
-                        loading={gatewayActionLoading === gatewayAccount.actions.refresh}
-                        onClick={() => void handleGatewayAction(gatewayAccount.actions.refresh!)}
-                      />
-                    )}
-                    {gatewayAccount.actions.repair && (
-                      <Button
-                        size='small'
-                        loading={gatewayActionLoading === gatewayAccount.actions.repair}
-                        onClick={() => void handleGatewayAction(gatewayAccount.actions.repair!)}
-                      >
-                        {t('settings.accessPage.gatewayAccount.actions.repair')}
-                      </Button>
-                    )}
-                    {gatewayAccount.actions.use_for_model_access && (
-                      <Button
-                        size='small'
-                        type='primary'
-                        loading={gatewayActionLoading === gatewayAccount.actions.use_for_model_access}
-                        onClick={() => void handleGatewayAction(gatewayAccount.actions.use_for_model_access!)}
-                      >
-                        {t('settings.accessPage.gatewayAccount.actions.useForModelAccess')}
-                      </Button>
-                    )}
-                    {gatewayAccount.actions.disconnect && (
-                      <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
-                        {t('settings.accessPage.gatewayAccount.actions.disconnect')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {gatewayAccount?.status === 'setup_required' && gatewayAccount.available_groups.length > 0 && (
-                <div
-                  className='mt-12px flex max-w-560px flex-col gap-8px md:flex-row'
-                  data-testid='settings-access-gateway-setup'
-                >
-                  <Select
-                    className='min-w-0 flex-1'
-                    value={selectedGatewayGroup || undefined}
-                    placeholder={t('settings.accessPage.gatewayAccount.groupPlaceholder')}
-                    options={gatewayAccount.available_groups.map((group) => ({
-                      label: group.label,
-                      value: group.group_id,
-                    }))}
-                    onChange={(value) => setSelectedGatewayGroup(String(value))}
-                  />
-                  <Button
-                    type='primary'
-                    disabled={!selectedGatewayGroup || !gatewayAccount.actions.complete_setup}
-                    loading={gatewayActionLoading === gatewayAccount.actions.complete_setup}
-                    onClick={() => {
-                      if (gatewayAccount.actions.complete_setup && selectedGatewayGroup) {
-                        void handleGatewayAction(gatewayAccount.actions.complete_setup, {
-                          group_id: selectedGatewayGroup,
-                        });
-                      }
-                    }}
-                  >
-                    {t('settings.accessPage.gatewayAccount.actions.completeSetup')}
+                {gatewayAccount.actions.disconnect && (
+                  <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
+                    {t('settings.accessPage.gatewayAccount.actions.disconnect')}
                   </Button>
-                </div>
-              )}
-
-              {gatewayFormVisible && (
-                <div className='mt-12px max-w-560px' data-testid='settings-access-gateway-setup'>
-                  {accountLoginSupported && manualKeySupported && (
-                    <Radio.Group
-                      type='button'
-                      value={gatewayMode}
-                      onChange={(value) => {
-                        setGatewayMode(value as 'account' | 'manual_key');
-                        setGatewayLoginError(null);
-                      }}
-                    >
-                      <Radio value='account'>{t('settings.accessPage.gatewayAccount.modes.account')}</Radio>
-                      <Radio value='manual_key'>{t('settings.accessPage.gatewayAccount.modes.manualKey')}</Radio>
-                    </Radio.Group>
-                  )}
-
-                  {gatewayMode === 'account' && accountLoginSupported && (
-                    <div className='mt-10px flex flex-col gap-8px'>
-                      <Input
-                        data-testid='opl-settings-gateway-email-input'
-                        aria-label={t('settings.accessPage.gatewayAccount.emailLabel')}
-                        value={gatewayEmail}
-                        placeholder={t('settings.accessPage.gatewayAccount.emailPlaceholder')}
-                        autoComplete='username'
-                        onChange={setGatewayEmail}
-                      />
-                      <Input.Password
-                        data-testid='opl-settings-gateway-password-input'
-                        aria-label={t('settings.accessPage.gatewayAccount.passwordLabel')}
-                        value={gatewayPassword}
-                        placeholder={t('settings.accessPage.gatewayAccount.passwordPlaceholder')}
-                        autoComplete='current-password'
-                        onChange={setGatewayPassword}
-                        onPressEnter={() => void handleGatewayLogin()}
-                      />
-                      <Input
-                        data-testid='opl-settings-gateway-device-input'
-                        aria-label={t('settings.accessPage.gatewayAccount.deviceLabel')}
-                        value={gatewayDeviceLabel}
-                        placeholder={t('settings.accessPage.gatewayAccount.devicePlaceholder')}
-                        autoComplete='off'
-                        onChange={setGatewayDeviceLabel}
-                      />
-                      {gatewayLoginError && (
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t(gatewayErrorTranslationKey(gatewayLoginError))}
-                        </Typography.Text>
-                      )}
-                      <div className='flex flex-wrap gap-8px'>
-                        <Button type='primary' loading={gatewayLoginLoading} onClick={() => void handleGatewayLogin()}>
-                          {t('settings.accessPage.gatewayAccount.loginButton')}
-                        </Button>
-                        <Button onClick={() => setGatewayFormVisible(false)}>{t('common.cancel')}</Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {gatewayMode === 'manual_key' && manualKeySupported && (
-                    <div
-                      className='mt-10px flex flex-col gap-8px md:flex-row'
-                      data-testid='settings-access-gateway-manual-key'
-                    >
-                      <Input.Password
-                        data-testid='opl-settings-codex-api-key-input'
-                        aria-label={t('settings.accessPage.modelAccount.keyTitle')}
-                        value={codexApiKey}
-                        placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
-                        autoComplete='off'
-                        className='min-w-0 flex-1'
-                        onChange={setCodexApiKey}
-                        onPressEnter={() => void handleConfigureCodex()}
-                      />
-                      <Button
-                        data-testid='opl-settings-configure-codex-button'
-                        aria-label={t('settings.accessPage.modelAccount.configureButton')}
-                        type='primary'
-                        loading={configureLoading}
-                        onClick={() => void handleConfigureCodex()}
-                      >
-                        {t('settings.accessPage.modelAccount.configureButton')}
-                      </Button>
-                      <Button onClick={() => setGatewayFormVisible(false)}>{t('common.cancel')}</Button>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-          {!gatewayFormVisible && gatewayAccount?.connection_mode !== 'account' && (
-            <div className='opl-settings-row__meta'>
-              <span data-testid='settings-access-primary-action'>
+        )}
+
+        {gatewayFormVisible && (
+          <div
+            className='max-w-600px border-t border-solid border-[var(--border-base)] p-16px'
+            data-testid='settings-access-gateway-setup'
+          >
+            {accountLoginSupported && manualKeySupported && (
+              <Radio.Group
+                type='button'
+                value={gatewayMode}
+                onChange={(value) => {
+                  setGatewayMode(value as 'account' | 'manual_key');
+                  setGatewayLoginError(null);
+                }}
+              >
+                <Radio value='account'>{t('settings.accessPage.gatewayAccount.modes.account')}</Radio>
+                <Radio value='manual_key'>{t('settings.accessPage.gatewayAccount.modes.manualKey')}</Radio>
+              </Radio.Group>
+            )}
+
+            {gatewayMode === 'account' && accountLoginSupported && (
+              <div className='mt-10px flex flex-col gap-8px'>
+                <Input
+                  data-testid='opl-settings-gateway-email-input'
+                  aria-label={t('settings.accessPage.gatewayAccount.emailLabel')}
+                  value={gatewayEmail}
+                  placeholder={t('settings.accessPage.gatewayAccount.emailPlaceholder')}
+                  autoComplete='username'
+                  onChange={setGatewayEmail}
+                />
+                <Input.Password
+                  data-testid='opl-settings-gateway-password-input'
+                  aria-label={t('settings.accessPage.gatewayAccount.passwordLabel')}
+                  value={gatewayPassword}
+                  placeholder={t('settings.accessPage.gatewayAccount.passwordPlaceholder')}
+                  autoComplete='current-password'
+                  onChange={setGatewayPassword}
+                  onPressEnter={() => void handleGatewayLogin()}
+                />
+                <Input
+                  data-testid='opl-settings-gateway-device-input'
+                  aria-label={t('settings.accessPage.gatewayAccount.deviceLabel')}
+                  value={gatewayDeviceLabel}
+                  placeholder={t('settings.accessPage.gatewayAccount.devicePlaceholder')}
+                  autoComplete='off'
+                  onChange={setGatewayDeviceLabel}
+                />
+                {gatewayLoginError && (
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t(gatewayErrorTranslationKey(gatewayLoginError))}
+                  </Typography.Text>
+                )}
+                <div className='flex flex-wrap gap-8px'>
+                  <Button type='primary' loading={gatewayLoginLoading} onClick={() => void handleGatewayLogin()}>
+                    {t('settings.accessPage.gatewayAccount.loginButton')}
+                  </Button>
+                  <Button onClick={() => setGatewayFormVisible(false)}>{t('common.cancel')}</Button>
+                </div>
+              </div>
+            )}
+
+            {gatewayMode === 'manual_key' && manualKeySupported && (
+              <div
+                className='mt-10px flex flex-col gap-8px md:flex-row'
+                data-testid='settings-access-gateway-manual-key'
+              >
+                <Input.Password
+                  data-testid='opl-settings-codex-api-key-input'
+                  aria-label={t('settings.accessPage.modelAccount.keyTitle')}
+                  value={codexApiKey}
+                  placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
+                  autoComplete='off'
+                  className='min-w-0 flex-1'
+                  onChange={setCodexApiKey}
+                  onPressEnter={() => void handleConfigureCodex()}
+                />
                 <Button
-                  type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
-                  data-testid='opl-settings-show-gateway-config-button'
-                  onClick={() => {
-                    setGatewayMode(accountLoginSupported ? 'account' : 'manual_key');
-                    setGatewayFormVisible(true);
-                    setGatewayLoginError(null);
-                  }}
+                  data-testid='opl-settings-configure-codex-button'
+                  aria-label={t('settings.accessPage.modelAccount.configureButton')}
+                  type='primary'
+                  loading={configureLoading}
+                  onClick={() => void handleConfigureCodex()}
                 >
-                  {t('settings.accessPage.modelAccount.showConfigButton')}
+                  {t('settings.accessPage.modelAccount.configureButton')}
                 </Button>
-              </span>
-            </div>
-          )}
-        </div>
+                <Button onClick={() => setGatewayFormVisible(false)}>{t('common.cancel')}</Button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <Modal

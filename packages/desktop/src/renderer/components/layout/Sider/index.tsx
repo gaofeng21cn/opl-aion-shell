@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { Suspense, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePreviewContext } from '@renderer/pages/conversation/Preview/context/PreviewContext';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
@@ -10,6 +10,9 @@ import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { useTeamCreatedRedirect } from '@renderer/pages/team/hooks/useTeamCreatedRedirect';
 import { useTranslation } from 'react-i18next';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
+import { SETTINGS_DEFAULT_ROUTE } from '@/renderer/pages/settings/registry/settingsRegistry';
+import { gatewayAccountInitials, readGatewayAccountProjection } from '@/renderer/pages/settings/accessProjection';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import TeamSiderSection from './TeamSiderSection';
@@ -31,24 +34,27 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const location = useLocation();
-  const { pathname, search, hash } = location;
+  const { pathname } = location;
 
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
   const { logout, status } = useAuth();
   const { theme, setTheme } = useThemeContext();
   const { t } = useTranslation();
+  const appStateQuery = useOplAppState('fast');
   useTeamCreatedRedirect();
   const isSettings = pathname.startsWith('/settings');
-  const lastNonSettingsPathRef = useRef('/guid');
   const showLogout =
     typeof window !== 'undefined' && !(window as { electronAPI?: unknown }).electronAPI && status === 'authenticated';
-
-  useEffect(() => {
-    if (!pathname.startsWith('/settings')) {
-      lastNonSettingsPathRef.current = `${pathname}${search}${hash}`;
-    }
-  }, [pathname, search, hash]);
+  const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
+  const footerAccount =
+    gatewayAccount?.connection_mode === 'account' && gatewayAccount.account_card_visible && gatewayAccount.account
+      ? {
+          displayName: gatewayAccount.account.display_name,
+          email: gatewayAccount.account.email,
+          initials: gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email),
+        }
+      : null;
 
   const handleNewChat = () => {
     cleanupSiderTooltips();
@@ -62,19 +68,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     }
   };
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = (target: 'general' | 'access') => {
     cleanupSiderTooltips();
     blurActiveElement();
-    if (isSettings) {
-      const target = lastNonSettingsPathRef.current || '/guid';
-      Promise.resolve(navigate(target)).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
-    } else {
-      Promise.resolve(navigate('/settings/overview')).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
-    }
+    Promise.resolve(navigate(target === 'access' ? '/settings/access' : SETTINGS_DEFAULT_ROUTE)).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
     if (onSessionClick) {
       onSessionClick();
     }
@@ -214,6 +213,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         isSettings={isSettings}
         collapsed={collapsed}
         theme={theme}
+        account={footerAccount}
         siderTooltipProps={siderTooltipProps}
         onSettingsClick={handleSettingsClick}
         onThemeToggle={handleQuickThemeToggle}

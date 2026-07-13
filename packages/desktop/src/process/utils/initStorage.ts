@@ -29,6 +29,7 @@ import {
 } from './utils';
 import { runLegacyDatabaseMigrations } from '@process/services/database/runLegacyDatabaseMigrations';
 import { BUILTIN_IMAGE_GEN_ID } from '../resources/builtinMcp/constants';
+import { setConsoleLogRoot } from './configureConsoleLog';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -236,9 +237,11 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(file_path: 
 
 const envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORAGE_PATH.env));
 
-const dirConfig = envFile.getSync('aionui.dir');
+const readDirConfig = () => envFile.getSync('aionui.dir');
+const initialDirConfig = readDirConfig();
 
-const cacheDir = dirConfig?.cacheDir || getHomePage();
+const cacheDir = initialDirConfig?.cacheDir || getHomePage();
+setConsoleLogRoot(initialDirConfig?.logDir);
 
 const configFile = JsonFileBuilder<IConfigStorageRefer>(path.join(cacheDir, STORAGE_PATH.config));
 type ConversationHistoryData = Record<string, TMessage[]>;
@@ -430,6 +433,7 @@ export const ProcessChatMessage = chatMessageFile;
 export const ProcessEnv = envFile;
 
 export const getSystemDir = () => {
+  const dirConfig = readDirConfig();
   // electron-log writes to the platform-standard logs directory
   const logDir = dirConfig?.logDir || getPlatformServices().paths.getLogsDir();
 

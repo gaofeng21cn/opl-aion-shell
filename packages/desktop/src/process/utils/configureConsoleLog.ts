@@ -33,6 +33,13 @@ type LogPathMessage = {
   date?: Date | number | string;
 };
 
+let configuredLogRoot: string | null = null;
+
+export function setConsoleLogRoot(logRoot: string | null | undefined): void {
+  const normalized = logRoot?.trim();
+  configuredLogRoot = normalized ? path.resolve(normalized) : null;
+}
+
 function formatLocalDateParts(date: Date): { year: string; month: string; day: string; dateStr: string } {
   const year = String(date.getFullYear()).padStart(4, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -59,7 +66,10 @@ function resolveMessageDate(message?: LogPathMessage): Date {
 // Daily log file: e.g. 2026/03/12/2026-03-12.log
 log.transports.file.fileName = buildDatedLogFileName();
 log.transports.file.resolvePathFn = (variables, message?: LogPathMessage) => {
-  const filePath = path.join(variables.libraryDefaultDir, buildDatedLogFileName(resolveMessageDate(message)));
+  const filePath = path.join(
+    configuredLogRoot ?? variables.libraryDefaultDir,
+    buildDatedLogFileName(resolveMessageDate(message))
+  );
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   return filePath;
 };

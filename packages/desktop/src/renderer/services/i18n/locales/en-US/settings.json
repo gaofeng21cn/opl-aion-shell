@@ -1,5 +1,10 @@
 {
   "title": "Settings",
+  "githubIssue": {
+    "tooltip": "Report an OPL App issue on GitHub",
+    "title": "OPL App feedback",
+    "body": "Describe the issue you encountered.\n\nCurrent page: {{route}}\nApp version: {{version}}"
+  },
   "skillsHub": {
     "title": "Skills Hub",
     "description": "Centrally manage AI agent skills. Install once, use across all assistants.",
@@ -200,6 +205,7 @@
   "system": "System",
   "about": "About",
   "onboarding": "Models & Access",
+  "workspacePersonalization": "Workspace & Personalization",
   "resources": "Resources & Connections",
   "maintenance": "Maintenance",
   "preferences": "Preferences",
@@ -1840,6 +1846,19 @@
       "devicePlaceholder": "Optional device name",
       "loginButton": "Sign in",
       "loginSuccess": "OPL Gateway account connected.",
+      "unknownAccount": "Gateway user",
+      "status": {
+        "active": "Active",
+        "unknown": "Unknown",
+        "other": "{{status}}"
+      },
+      "metrics": {
+        "balance": "Account balance",
+        "todayTokens": "Tokens today",
+        "todayCost": "Cost today",
+        "totalTokens": "Total tokens",
+        "totalCost": "Total cost"
+      },
       "accountStatus": "Account status: {{status}}",
       "balance": "Balance: {{amount}} {{currency}}",
       "todayTokens": "Today: {{value}} tokens",
@@ -1857,10 +1876,10 @@
       "disconnectConfirmTitle": "Disconnect OPL Gateway account?",
       "disconnectConfirmDescription": "The OPL App managed key will be disabled. Existing model access is restored when it has not been changed since sign-in.",
       "actions": {
-        "completeSetup": "Continue",
+        "completeSetup": "Complete connection",
         "signInAgain": "Sign in again",
         "refresh": "Refresh",
-        "repair": "Repair",
+        "repair": "Resync",
         "useForModelAccess": "Use for model access",
         "disconnect": "Disconnect"
       },
@@ -1870,7 +1889,7 @@
         "accountDisabled": "This Gateway account is disabled.",
         "mfaOrChallengeRequired": "This account requires an additional verification step. Use an access key for now.",
         "sessionNotPersistable": "The Gateway did not provide a persistent session. Use an access key for now.",
-        "groupSelectionRequired": "Select the access group for this device.",
+        "groupSelectionRequired": "A unique Codex group could not be identified. Check the group setup in Gateway management.",
         "authExpired": "The Gateway session expired. Sign in again.",
         "networkUnreachable": "The Gateway is currently unreachable. Existing data has been kept.",
         "rateLimited": "Too many requests. Try again later.",
@@ -1887,6 +1906,7 @@
       "description": "Choose the default model and reasoning effort used when a new Codex conversation starts.",
       "modelLabel": "Default model",
       "reasoningLabel": "Reasoning effort",
+      "autoCurrent": "Auto (current: {{model}})",
       "autoReasoning": "Auto uses the App reasoning policy for the selected model.",
       "notReported": "Codex path not reported",
       "saved": "Default model preference saved.",

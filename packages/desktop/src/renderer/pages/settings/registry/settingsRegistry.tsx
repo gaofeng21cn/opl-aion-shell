@@ -1,6 +1,5 @@
 import {
   Communication,
-  Computer,
   Dashboard,
   Earth,
   FolderOpen,
@@ -271,7 +270,8 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
   const iconColor = SETTINGS_ICON_COLORS[iconToken] ?? SETTINGS_ICON_COLORS[tabId] ?? iconColors.secondary;
   if (slot === 'modal') {
     const modalIcons: Record<string, React.ReactElement> = {
-      general: <Computer theme='outline' size='20' fill={iconColor} />,
+      dashboard: <Dashboard theme='outline' size='20' fill={iconColor} />,
+      general: <Dashboard theme='outline' size='20' fill={iconColor} />,
       workspace: <FolderOpen theme='outline' size='20' fill={iconColor} />,
       agents: <Robot theme='outline' size='20' fill={iconColor} />,
       'local-services': <Toolkit theme='outline' size='20' fill={iconColor} />,
@@ -287,6 +287,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
   }
 
   const siderIcons: Record<string, React.ReactElement> = {
+    dashboard: <Dashboard fill={iconColor} style={{ color: iconColor }} />,
     general: <Dashboard fill={iconColor} style={{ color: iconColor }} />,
     access:
       slot === 'siderDesktop' ? (
