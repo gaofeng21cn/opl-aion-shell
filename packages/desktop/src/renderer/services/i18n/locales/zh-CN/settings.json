@@ -1894,9 +1894,9 @@
         "authExpired": "Gateway 登录已失效，请重新登录。",
         "networkUnreachable": "暂时无法连接 Gateway，已保留现有数据。",
         "rateLimited": "请求过于频繁，请稍后重试。",
-        "managedKeyMissing": "OPL App 专用密钥已不存在，请执行修复。",
+        "managedKeyMissing": "OPL App 专用密钥当前不可用，请先刷新；仍未恢复时请重新登录。",
         "managedKeyConflict": "有多个专用密钥使用了当前设备名称，请先解决冲突。",
-        "managedKeyIdentityDrift": "专用密钥身份发生变化，请修复后再继续。",
+        "managedKeyIdentityDrift": "专用密钥身份发生变化，请先刷新；仍未恢复时请重新登录。",
         "disconnectPending": "专用密钥尚未禁用，请在 Gateway 可访问后重试断开。",
         "internalContractViolation": "Gateway 返回了不安全的响应，账户数据未被接收。",
         "generic": "OPL Gateway 账户操作失败。"

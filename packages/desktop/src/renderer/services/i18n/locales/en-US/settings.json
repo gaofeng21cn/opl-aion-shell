@@ -1893,9 +1893,9 @@
         "authExpired": "The Gateway session expired. Sign in again.",
         "networkUnreachable": "The Gateway is currently unreachable. Existing data has been kept.",
         "rateLimited": "Too many requests. Try again later.",
-        "managedKeyMissing": "The OPL App managed key no longer exists. Run repair.",
+        "managedKeyMissing": "The OPL App managed key is unavailable. Refresh, then sign in again if needed.",
         "managedKeyConflict": "More than one managed key has this device name. Resolve the conflict before continuing.",
-        "managedKeyIdentityDrift": "The managed key identity changed. Run repair before continuing.",
+        "managedKeyIdentityDrift": "The managed key identity changed. Refresh, then sign in again if needed.",
         "disconnectPending": "The managed key has not been disabled yet. Retry disconnect when the Gateway is reachable.",
         "internalContractViolation": "The Gateway returned an unsafe response. No account data was accepted.",
         "generic": "The OPL Gateway account operation failed."

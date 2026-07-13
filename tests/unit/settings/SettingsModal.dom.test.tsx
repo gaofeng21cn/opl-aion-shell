@@ -314,6 +314,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(onSettingsClick).not.toHaveBeenCalled();
     expect(onThemeToggle).toHaveBeenCalledOnce();
     expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
+    expect(screen.getByTestId('sider-footer-theme')).toHaveClass('!p-0');
     expect(screen.queryByTestId('sider-footer-settings')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
