@@ -1,5 +1,7 @@
 import {
   WORK_ITEM_PROJECTION_V2_SCHEMA,
+  type RuntimeAction,
+  type RuntimeActionKind,
   type RuntimeAgent,
   type RuntimeAgentAvailabilityState,
   type RuntimeBusinessState,
@@ -10,6 +12,8 @@ import {
   type RuntimeProjectionDiagnostic,
   type RuntimeProjectionReadResult,
   type RuntimeSourceRef,
+  type RuntimeStage,
+  type RuntimeStageState,
   type RuntimeSystemAttention,
   type RuntimeTimelineEntry,
   type RuntimeTokenObservation,
@@ -35,15 +39,36 @@ const EXECUTION_STATES = new Set<RuntimeExecutionState>([
   'failed',
   'unknown',
 ]);
-const AVAILABILITY_STATES = new Set<RuntimeAgentAvailabilityState>([
-  'available',
-  'attention',
-  'unavailable',
-  'unknown',
+const PRIMARY_STATUSES = new Set<RuntimePrimaryStatus>([
+  'automatically_advancing',
+  'awaiting_user_decision',
+  'system_attention',
+  'delivered_auto_paused',
+  'paused',
+  'stopped',
+  'sync_pending',
 ]);
+const AVAILABILITY_STATES = new Set<RuntimeAgentAvailabilityState>(['available', 'attention_required', 'unavailable']);
 const CONDITION_STATUSES = new Set<RuntimeCondition['status']>(['True', 'False', 'Unknown']);
 const CONDITION_SEVERITIES = new Set<RuntimeCondition['severity']>(['none', 'info', 'warning', 'error']);
 const ATTENTION_KINDS = new Set(['none', 'user', 'system']);
+const ACTION_KINDS = new Set<RuntimeActionKind>([
+  'user_action',
+  'system_action',
+  'agent_action',
+  'safe_action',
+  'blocked_no_action',
+]);
+const STAGE_STATES = new Set<RuntimeStageState>([
+  'completed',
+  'current',
+  'next',
+  'pending',
+  'waiting_user',
+  'system_attention',
+  'stopped',
+  'failed',
+]);
 const SOURCE_REF_KINDS = new Set<RuntimeSourceRef['kind']>(['file', 'sqlite', 'projection']);
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -150,27 +175,47 @@ function parseSystemAttention(value: JsonRecord): RuntimeSystemAttention | null 
     : null;
 }
 
-function primaryStatus(
-  businessState: RuntimeBusinessState,
-  attentionKind: string,
-  systemAttention: RuntimeSystemAttention | null
-): { status: RuntimePrimaryStatus; unavailableReason: RuntimeWorkItem['statusUnavailableReason'] } {
-  if (attentionKind === 'system') {
-    return systemAttention
-      ? { status: 'system_attention_required', unavailableReason: null }
-      : { status: 'unavailable', unavailableReason: 'incomplete_system_attention' };
+function parseAction(value: unknown): RuntimeAction | null | false {
+  if (value === null || value === undefined) return null;
+  const source = record(value);
+  if (!source) return false;
+  const kind = enumValue(source.kind, ACTION_KINDS);
+  const title = requiredString(source.title);
+  const summary = requiredString(source.summary);
+  const ownerDisplayName = requiredString(source.owner_display_name) ?? requiredString(source.owner);
+  return kind && title && summary && ownerDisplayName ? { kind, title, summary, ownerDisplayName } : false;
+}
+
+function parseStageMap(value: unknown): RuntimeStage[] | null {
+  if (value === null || value === undefined) return [];
+  const source = records(value);
+  if (!source) return null;
+  const stages: RuntimeStage[] = [];
+  for (const entry of source) {
+    const id = requiredString(entry.stage_id);
+    const displayName = requiredString(entry.display_name);
+    const state = enumValue(entry.state, STAGE_STATES);
+    const ownerDisplayName = optionalString(entry.owner_display_name ?? entry.owner);
+    const elapsedSeconds =
+      entry.elapsed_seconds === null || entry.elapsed_seconds === undefined
+        ? null
+        : nonNegativeInteger(entry.elapsed_seconds);
+    const usage = entry.usage === null || entry.usage === undefined ? null : parseTokenObservation(entry.usage);
+    const nextAction = optionalString(entry.next_action);
+    if (
+      !id ||
+      !displayName ||
+      !state ||
+      (elapsedSeconds === null && entry.elapsed_seconds !== null && entry.elapsed_seconds !== undefined)
+    ) {
+      return null;
+    }
+    if (entry.owner_display_name !== null && entry.owner_display_name !== undefined && !ownerDisplayName) return null;
+    if (entry.usage !== null && entry.usage !== undefined && !usage) return null;
+    if (entry.next_action !== null && entry.next_action !== undefined && !nextAction) return null;
+    stages.push({ id, displayName, state, ownerDisplayName, elapsedSeconds, usage, nextAction });
   }
-  if (attentionKind === 'user') return { status: 'owner_decision_required', unavailableReason: null };
-  const statusByBusinessState: Record<Exclude<RuntimeBusinessState, 'unknown'>, RuntimePrimaryStatus> = {
-    active: 'in_progress',
-    delivered_paused: 'delivered_auto_paused',
-    paused: 'paused_waiting_for_direction',
-    stopped: 'stopped',
-    archived: 'archived',
-  };
-  return businessState === 'unknown'
-    ? { status: 'unavailable', unavailableReason: 'unknown_business_state' }
-    : { status: statusByBusinessState[businessState], unavailableReason: null };
+  return stages;
 }
 
 function parseTimeline(input: {
@@ -198,11 +243,14 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const agentId = requiredString(identity.agent_id);
   const projectId = requiredString(identity.project_id);
   const businessState = enumValue(lifecycle.business_state, BUSINESS_STATES);
+  const projectedPrimaryStatus = enumValue(lifecycle.primary_state, PRIMARY_STATUSES);
   const executionState = enumValue(execution.state, EXECUTION_STATES);
   const attentionKind = enumValue(attention.kind, ATTENTION_KINDS);
   const attentionReason = requiredString(attention.reason);
   const stageUsage = parseTokenObservation(telemetry.current_stage);
   const taskUsage = parseTokenObservation(telemetry.cumulative);
+  const stageMap = parseStageMap(value.stage_map);
+  const projectedAction = parseAction(value.action);
   const conditions = parseConditions(value.conditions);
   const sourceRefs = parseSourceRefs(value.source_refs);
   const inventoryObservedAt = requiredString(freshness.inventory_observed_at);
@@ -217,6 +265,8 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     !attentionReason ||
     !stageUsage ||
     !taskUsage ||
+    !stageMap ||
+    projectedAction === false ||
     !conditions ||
     !sourceRefs ||
     !inventoryObservedAt
@@ -228,23 +278,39 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const lastHeartbeatAt = optionalString(execution.last_heartbeat_at);
   const updatedAt = optionalString(execution.updated_at);
   const controlUpdatedAt = optionalString(lifecycle.control_updated_at);
+  const currentStageId = optionalString(execution.current_stage_id) ?? optionalString(lifecycle.current_stage_id);
+  const currentStageDisplayName =
+    optionalString(execution.current_stage_display_name) ?? optionalString(lifecycle.current_stage_display_name);
+  const nextStageId = optionalString(execution.next_stage_id);
+  const nextStageDisplayName = optionalString(execution.next_stage_display_name);
   if (execution.started_at !== null && execution.started_at !== undefined && !startedAt) return null;
   if (execution.last_heartbeat_at !== null && execution.last_heartbeat_at !== undefined && !lastHeartbeatAt)
     return null;
   if (execution.updated_at !== null && execution.updated_at !== undefined && !updatedAt) return null;
   if (lifecycle.control_updated_at !== null && lifecycle.control_updated_at !== undefined && !controlUpdatedAt)
     return null;
+  if (
+    execution.current_stage_display_name !== null &&
+    execution.current_stage_display_name !== undefined &&
+    !currentStageDisplayName
+  )
+    return null;
+  if (execution.next_stage_id !== null && execution.next_stage_id !== undefined && !nextStageId) return null;
+  if (
+    execution.next_stage_display_name !== null &&
+    execution.next_stage_display_name !== undefined &&
+    !nextStageDisplayName
+  )
+    return null;
 
   const systemAttention = attentionKind === 'system' ? parseSystemAttention(attention) : null;
-  const projectedStatus = primaryStatus(businessState, attentionKind, systemAttention);
-  const action = systemAttention
-    ? {
-        kind: 'system_action' as const,
-        title: systemAttention.repairAction,
-        summary: systemAttention.expectedOutcome,
-        ownerDisplayName: systemAttention.responsibleComponent,
-      }
-    : null;
+  const incompleteSystemAttention = projectedPrimaryStatus === 'system_attention' && !systemAttention;
+  const primaryStatus = incompleteSystemAttention ? 'sync_pending' : (projectedPrimaryStatus ?? 'sync_pending');
+  const statusSyncReason = incompleteSystemAttention
+    ? 'incomplete_system_attention'
+    : projectedPrimaryStatus
+      ? null
+      : 'missing_primary_state';
 
   return {
     id,
@@ -252,12 +318,22 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     agentId,
     projectId,
     businessState,
-    primaryStatus: projectedStatus.status,
-    statusUnavailableReason: projectedStatus.unavailableReason,
-    execution: { state: executionState, startedAt, lastHeartbeatAt, updatedAt },
+    primaryStatus,
+    statusSyncReason,
+    execution: {
+      state: executionState,
+      currentStageId,
+      currentStageDisplayName,
+      nextStageId,
+      nextStageDisplayName,
+      startedAt,
+      lastHeartbeatAt,
+      updatedAt,
+    },
+    stageMap,
     stageUsage,
     taskUsage,
-    action,
+    action: projectedAction,
     systemAttention,
     conditions,
     timeline: parseTimeline({ inventoryObservedAt, executionUpdatedAt: updatedAt, controlUpdatedAt }),

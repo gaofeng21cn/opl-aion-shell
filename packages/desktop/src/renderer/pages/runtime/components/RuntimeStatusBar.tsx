@@ -1,4 +1,4 @@
-import { Radio, Typography } from '@arco-design/web-react';
+import { Radio, Select, Typography } from '@arco-design/web-react';
 import React from 'react';
 import type { RuntimeTranslate } from '../formatters';
 import type { RuntimeStatusView, RuntimeWorkItem } from '../types';
@@ -13,23 +13,25 @@ type RuntimeStatusBarProps = {
 
 const STATUS_VIEWS: Array<{ id: RuntimeStatusView; labelKey: string }> = [
   { id: 'all', labelKey: 'common.runtime.savedView.all' },
-  { id: 'in_progress', labelKey: 'common.runtime.primaryStates.inProgress' },
-  { id: 'owner_decision_required', labelKey: 'common.runtime.primaryStates.ownerDecisionRequired' },
-  { id: 'paused', labelKey: 'common.runtime.savedView.paused' },
-  { id: 'system_attention_required', labelKey: 'common.runtime.primaryStates.systemAttentionRequired' },
+  { id: 'automatically_advancing', labelKey: 'common.runtime.savedView.automaticallyAdvancing' },
+  { id: 'awaiting_user_decision', labelKey: 'common.runtime.savedView.awaitingUserDecision' },
+  { id: 'system_attention', labelKey: 'common.runtime.savedView.systemAttention' },
+  { id: 'delivered_or_paused', labelKey: 'common.runtime.savedView.deliveredOrPaused' },
+  { id: 'stopped', labelKey: 'common.runtime.savedView.stopped' },
+  { id: 'sync_pending', labelKey: 'common.runtime.savedView.syncPending' },
 ];
 
 export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: RuntimeStatusBarProps) {
   const metrics = [
     {
-      key: 'in-progress',
-      label: t('common.runtime.primaryStates.inProgress'),
-      count: items.filter((item) => item.primaryStatus === 'in_progress').length,
+      key: 'total',
+      label: t('common.runtime.metrics.total'),
+      count: items.length,
     },
     {
       key: 'automation-running',
-      label: t('common.runtime.automationStates.running'),
-      count: items.filter((item) => ['running', 'queued'].includes(item.execution.state)).length,
+      label: t('common.runtime.primaryStates.automaticallyAdvancing'),
+      count: items.filter((item) => item.primaryStatus === 'automatically_advancing').length,
     },
     {
       key: 'delivered',
@@ -39,17 +41,17 @@ export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: Runti
     {
       key: 'owner-decision',
       label: t('common.runtime.primaryStates.ownerDecisionRequired'),
-      count: items.filter((item) => item.primaryStatus === 'owner_decision_required').length,
+      count: items.filter((item) => item.primaryStatus === 'awaiting_user_decision').length,
     },
     {
       key: 'system-attention',
       label: t('common.runtime.primaryStates.systemAttentionRequired'),
-      count: items.filter((item) => item.primaryStatus === 'system_attention_required').length,
+      count: items.filter((item) => item.primaryStatus === 'system_attention').length,
     },
   ];
 
   return (
-    <section className={styles.statusRegion}>
+    <section className={styles.statusRegion} data-testid='runtime-status-region'>
       <div className={styles.metricGrid} data-testid='runtime-status-metrics'>
         {metrics.map((metric) => (
           <div className={styles.metric} key={metric.key}>
@@ -66,6 +68,7 @@ export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: Runti
           </Typography.Text>
         </div>
         <Radio.Group
+          className={styles.desktopStatusViews}
           type='button'
           value={selectedView}
           onChange={(value) => onViewChange(value as RuntimeStatusView)}
@@ -78,6 +81,14 @@ export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: Runti
             </Radio>
           ))}
         </Radio.Group>
+        <Select
+          className={styles.mobileStatusView}
+          value={selectedView}
+          options={STATUS_VIEWS.map((view) => ({ label: t(view.labelKey), value: view.id }))}
+          onChange={(value) => onViewChange(value as RuntimeStatusView)}
+          data-testid='runtime-status-view-select'
+          aria-label={t('common.runtime.savedViews')}
+        />
       </div>
     </section>
   );

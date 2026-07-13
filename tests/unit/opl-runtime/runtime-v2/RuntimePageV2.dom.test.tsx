@@ -44,15 +44,26 @@ vi.mock('react-i18next', () => ({
         'common.runtime.title': '项目运行总览',
         'common.runtime.scope.agent': '智能体',
         'common.runtime.scope.project': '项目',
+        'common.runtime.scope.viewing': '查看范围',
         'common.runtime.scope.allAgents': '全部智能体',
         'common.runtime.scope.allProjects': '全部项目',
-        'common.runtime.primaryStates.inProgress': '进行中',
+        'common.runtime.primaryStates.automaticallyAdvancing': '自动推进中',
+        'common.runtime.primaryStates.awaitingUserDecision': '等待你决定',
+        'common.runtime.primaryStates.systemAttention': '系统处理中',
         'common.runtime.primaryStates.deliveredAutoPaused': '已交付，自动暂停',
-        'common.runtime.primaryStates.pausedWaitingForDirection': '已暂停，等待后续决定',
+        'common.runtime.primaryStates.paused': '已暂停',
         'common.runtime.primaryStates.ownerDecisionRequired': '需要你决定',
         'common.runtime.primaryStates.systemAttentionRequired': '需要系统处理',
         'common.runtime.primaryStates.stopped': '已停止',
-        'common.runtime.primaryStates.unavailable': '状态暂不可用',
+        'common.runtime.primaryStates.syncPending': '状态待同步',
+        'common.runtime.metrics.total': '工作项',
+        'common.runtime.savedView.all': '全部',
+        'common.runtime.savedView.automaticallyAdvancing': '自动推进中',
+        'common.runtime.savedView.awaitingUserDecision': '等待你决定',
+        'common.runtime.savedView.systemAttention': '系统处理中',
+        'common.runtime.savedView.deliveredOrPaused': '已交付或暂停',
+        'common.runtime.savedView.stopped': '已停止',
+        'common.runtime.savedView.syncPending': '状态待同步',
         'common.runtime.automationStates.running': '自动运行中',
         'common.runtime.executionStates.running': '正在运行',
         'common.runtime.executionStates.queued': '等待运行',
@@ -65,10 +76,17 @@ vi.mock('react-i18next', () => ({
         'common.runtime.taskDetails.stageMap': '阶段图',
         'common.runtime.taskDetails.stageMapUnavailable': '当前投影尚未提供阶段图',
         'common.runtime.taskDetails.stageUnavailable': '当前投影尚未提供阶段名称',
+        'common.runtime.taskDetails.noCurrentStage': '暂无当前阶段',
+        'common.runtime.taskDetails.stageAndRun': '阶段与运行',
+        'common.runtime.taskDetails.stage.completed': '已完成',
+        'common.runtime.taskDetails.stage.current': '当前',
+        'common.runtime.taskDetails.stage.next': '下一步',
+        'common.runtime.taskDetails.stage.pending': '待开始',
         'common.runtime.taskDetails.currentRun': '当前运行',
         'common.runtime.taskDetails.nextAction': '下一步动作',
         'common.runtime.taskDetails.artifacts': '产物',
         'common.runtime.taskDetails.timeline': '时间线',
+        'common.runtime.taskDetails.evidence': '证据',
         'common.runtime.taskDetails.diagnostics': '诊断',
         'common.runtime.systemAttention.title': '系统处理',
         'common.runtime.systemAttention.responsibleComponent': '责任组件',
@@ -79,6 +97,10 @@ vi.mock('react-i18next', () => ({
         'common.runtime.projection.unavailableTitle': '运行状态暂不可用',
         'common.runtime.projection.legacyDescription': 'V1 状态不再用于推断',
         'common.runtime.agentAvailability.available': '可用',
+        'common.runtime.noActiveRun': '当前没有运行',
+        'common.runtime.stageUsageShort': '阶段',
+        'common.runtime.totalUsageShort': '累计',
+        'common.runtime.actionKinds.agent': '智能体动作',
       };
       if (labels[key]) return labels[key];
       const rendered = Object.values(values ?? {}).join(' ');
@@ -114,6 +136,9 @@ describe('Runtime V2 page', () => {
     expect(within(projectSelect).getByText('无功能垂体瘤')).toBeInTheDocument();
     expect(within(projectSelect).getByText('肥胖')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-status-views')).not.toHaveTextContent('Med Auto Science');
+    expect(screen.getByTestId('runtime-status-views')).toHaveTextContent(
+      '全部自动推进中等待你决定系统处理中已交付或暂停已停止状态待同步'
+    );
 
     fireEvent.change(projectSelect, { target: { value: 'diabetes' } });
     await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(4));
@@ -136,12 +161,20 @@ describe('Runtime V2 page', () => {
     expect(rows[0]?.children).toHaveLength(4);
     expect(document.body).toHaveTextContent('1,200');
     expect(document.body).toHaveTextContent('2,400');
+    expect(document.body).toHaveTextContent('1,500');
     expect(document.body).toHaveTextContent('用量未记录');
     expect(document.body).not.toHaveTextContent('0 tokens');
-    expect(screen.getByTestId('runtime-agent-availability')).toHaveTextContent('5');
+    expect(document.body).not.toHaveTextContent('runtime_token_telemetry_verification');
+    const deliveredRow = rows.find((row) => row.textContent?.includes('002 DM China US Mortality Attribution'));
+    expect(deliveredRow).toHaveTextContent('暂无当前阶段');
+    expect(deliveredRow).toHaveTextContent('1,500');
+    const availability = screen.getByTestId('runtime-agent-availability');
+    expect(availability).toHaveTextContent('5');
+    expect(availability).not.toHaveTextContent('9');
+    expect(availability.querySelectorAll('.arco-collapse-item-active')).toHaveLength(0);
   });
 
-  it('opens the stage, run, action, artifact, timeline, and diagnostics detail layers', async () => {
+  it('opens workflow-first details and keeps secondary evidence collapsed', async () => {
     render(<RuntimePage />);
 
     const openButton = await screen.findByRole('button', {
@@ -151,20 +184,28 @@ describe('Runtime V2 page', () => {
 
     const drawer = await screen.findByTestId('runtime-task-detail');
     expect(drawer).toHaveTextContent('阶段图');
-    expect(drawer).toHaveTextContent('当前投影尚未提供阶段图');
-    expect(drawer).toHaveTextContent('当前投影尚未提供阶段名称');
-    expect(drawer).toHaveTextContent('当前运行');
+    expect(drawer).toHaveTextContent('研究立项');
+    expect(drawer).toHaveTextContent('分析结果复核');
+    expect(drawer).toHaveTextContent('医学写作');
+    expect(drawer).not.toHaveTextContent('当前投影尚未提供阶段图');
+    expect(drawer).toHaveTextContent('阶段与运行');
     expect(drawer).toHaveTextContent('正在运行');
     expect(drawer).toHaveTextContent('1,200');
     expect(drawer).toHaveTextContent('2,400');
     expect(drawer).toHaveTextContent('下一步动作');
+    expect(drawer).toHaveTextContent('完成结果复核并进入写作');
+    expect(drawer).toHaveTextContent('Med Auto Science');
     expect(drawer).toHaveTextContent('产物');
     expect(drawer).toHaveTextContent('时间线');
+    expect(drawer).toHaveTextContent('证据');
     expect(drawer).toHaveTextContent('诊断');
+    expect(drawer.querySelectorAll('.arco-collapse-item')).toHaveLength(4);
+    expect(drawer.querySelectorAll('.arco-collapse-item-active')).toHaveLength(0);
   });
 
   it('shows every system responsibility field only for a complete envelope', async () => {
     const projection = createRuntimeV2Projection();
+    projection.items[0]!.lifecycle.primary_state = 'system_attention';
     Object.assign(projection.items[0]!.attention, {
       kind: 'system',
       owner: 'opl_framework',

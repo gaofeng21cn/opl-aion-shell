@@ -3,10 +3,36 @@ type FixtureItemOptions = {
   projectId: string;
   projectName: string;
   displayName: string;
+  primaryState:
+    | 'automatically_advancing'
+    | 'awaiting_user_decision'
+    | 'system_attention'
+    | 'delivered_auto_paused'
+    | 'paused'
+    | 'stopped'
+    | 'sync_pending';
   businessState?: 'active' | 'delivered_paused' | 'paused' | 'stopped';
   executionState?: 'running' | 'idle';
   attentionKind?: 'none' | 'user' | 'system';
   observedTokens?: number;
+  cumulativeTokens?: number;
+  runtimeStageId?: string | null;
+  currentStage?: { id: string; displayName: string } | null;
+  nextStage?: { id: string; displayName: string } | null;
+  action: {
+    kind: 'user_action' | 'system_action' | 'agent_action' | 'safe_action' | 'blocked_no_action';
+    title: string;
+    summary: string;
+    owner: string;
+  };
+  stageMap: Array<{
+    id: string;
+    displayName: string;
+    state: 'completed' | 'current' | 'next' | 'pending' | 'waiting_user' | 'system_attention' | 'stopped';
+    elapsedSeconds?: number;
+    usage?: number;
+    nextAction?: string;
+  }>;
 };
 
 function tokenObservation(total: number | undefined, missingReason: string) {
@@ -36,14 +62,21 @@ function fixtureItem({
   projectId,
   projectName,
   displayName,
+  primaryState,
   businessState = 'active',
   executionState = 'running',
   attentionKind = 'none',
   observedTokens,
+  cumulativeTokens,
+  runtimeStageId,
+  currentStage = null,
+  nextStage = null,
+  action,
+  stageMap,
 }: FixtureItemOptions) {
-  const active = businessState === 'active';
+  const active = executionState === 'running';
   const stageTokens = observedTokens;
-  const cumulativeTokens = observedTokens === undefined ? undefined : observedTokens * 2;
+  const resolvedCumulativeTokens = cumulativeTokens ?? (observedTokens === undefined ? undefined : observedTokens * 2);
   return {
     item_id: `mas:${projectId}:${id}`,
     identity: {
@@ -65,7 +98,11 @@ function fixtureItem({
       domain_business_state: businessState,
       control_state: businessState,
       raw_business_status: businessState,
-      current_stage_id: active ? 'write' : null,
+      primary_state: primaryState,
+      primary_state_label: primaryState,
+      reason: `fixture_${primaryState}`,
+      current_stage_id: currentStage?.id ?? null,
+      current_stage_display_name: currentStage?.displayName ?? null,
       current_stage_status: active ? 'running' : null,
       package_status: businessState === 'delivered_paused' ? 'milestone_delivered' : 'not_ready',
       lifecycle_ref: `/fixtures/${projectId}/studies/${id}/STUDY_STATUS.md`,
@@ -76,7 +113,11 @@ function fixtureItem({
     },
     execution: {
       state: executionState,
-      stage_id: active ? 'write' : null,
+      stage_id: runtimeStageId ?? currentStage?.id ?? null,
+      current_stage_id: currentStage?.id ?? null,
+      current_stage_display_name: currentStage?.displayName ?? null,
+      next_stage_id: nextStage?.id ?? null,
+      next_stage_display_name: nextStage?.displayName ?? null,
       stage_status: active ? 'running' : null,
       attempt_id: active ? `attempt:${id}` : null,
       attempt_ids: active ? [`attempt:${id}`] : [],
@@ -99,11 +140,28 @@ function fixtureItem({
       expected_outcome: null,
     },
     telemetry: {
-      state: observedTokens === undefined ? 'missing' : 'observed',
+      state:
+        observedTokens === undefined ? (resolvedCumulativeTokens === undefined ? 'missing' : 'partial') : 'observed',
       current_stage: tokenObservation(stageTokens, 'no_stage_usage_observed'),
-      cumulative: tokenObservation(cumulativeTokens, 'no_cumulative_usage_observed'),
-      missing_reason: observedTokens === undefined ? 'no_usage_observed' : null,
+      cumulative: tokenObservation(resolvedCumulativeTokens, 'no_cumulative_usage_observed'),
+      missing_reason:
+        observedTokens === undefined && resolvedCumulativeTokens === undefined ? 'no_usage_observed' : null,
     },
+    action: {
+      kind: action.kind,
+      title: action.title,
+      summary: action.summary,
+      owner_display_name: action.owner,
+    },
+    stage_map: stageMap.map((stage) => ({
+      stage_id: stage.id,
+      display_name: stage.displayName,
+      state: stage.state,
+      owner_display_name: 'Med Auto Science',
+      elapsed_seconds: stage.elapsedSeconds ?? null,
+      usage: stage.usage === undefined ? null : tokenObservation(stage.usage, 'stage_usage_missing'),
+      next_action: stage.nextAction ?? null,
+    })),
     conditions: [
       {
         type: 'InventoryResolved',
@@ -165,77 +223,188 @@ function project(projectId: string, displayName: string) {
 }
 
 export function createRuntimeV2Projection() {
+  const deliveredStages = [
+    { id: 'intake', displayName: '研究立项', state: 'completed' as const },
+    { id: 'analysis', displayName: '统计分析', state: 'completed' as const },
+    { id: 'write', displayName: '论文写作', state: 'completed' as const },
+    { id: 'submission', displayName: '投稿包交付', state: 'completed' as const },
+  ];
+  const stoppedStages = [
+    { id: 'intake', displayName: '研究立项', state: 'completed' as const },
+    { id: 'publication_gate', displayName: '发表可行性评估', state: 'stopped' as const },
+  ];
   const items = [
     fixtureItem({
       id: 'dm001',
       projectId: 'diabetes',
       projectName: '糖尿病',
       displayName: '001 DM CVD Mortality Risk',
+      primaryState: 'automatically_advancing',
       observedTokens: 1200,
+      currentStage: { id: 'analysis_review', displayName: '分析结果复核' },
+      nextStage: { id: 'write', displayName: '医学写作' },
+      action: {
+        kind: 'agent_action',
+        title: '完成结果复核并进入写作',
+        summary: 'Med Auto Science 正在复核结果，完成后进入论文写作。',
+        owner: 'Med Auto Science',
+      },
+      stageMap: [
+        { id: 'intake', displayName: '研究立项', state: 'completed' },
+        { id: 'analysis', displayName: '统计分析', state: 'completed', elapsedSeconds: 3200, usage: 900 },
+        {
+          id: 'analysis_review',
+          displayName: '分析结果复核',
+          state: 'current',
+          elapsedSeconds: 5340,
+          usage: 1200,
+          nextAction: '完成结果复核',
+        },
+        { id: 'write', displayName: '医学写作', state: 'next', nextAction: '生成论文初稿' },
+        { id: 'review', displayName: '医学审稿', state: 'pending' },
+      ],
     }),
     fixtureItem({
       id: 'dm002',
       projectId: 'diabetes',
       projectName: '糖尿病',
       displayName: '002 DM China US Mortality Attribution',
+      primaryState: 'delivered_auto_paused',
       businessState: 'delivered_paused',
       executionState: 'idle',
+      cumulativeTokens: 1500,
+      runtimeStageId: 'runtime_token_telemetry_verification',
+      action: {
+        kind: 'user_action',
+        title: '补齐投稿信息',
+        summary: '里程碑投稿包已交付，待补齐作者和机构等客观信息。',
+        owner: '你',
+      },
+      stageMap: deliveredStages,
     }),
     fixtureItem({
       id: 'dm003',
       projectId: 'diabetes',
       projectName: '糖尿病',
       displayName: '003 DPCC Primary Care Phenotype Treatment Gap',
+      primaryState: 'delivered_auto_paused',
       businessState: 'delivered_paused',
       executionState: 'idle',
+      action: {
+        kind: 'user_action',
+        title: '补齐投稿信息',
+        summary: '里程碑投稿包已交付，待补齐作者和机构等客观信息。',
+        owner: '你',
+      },
+      stageMap: deliveredStages,
     }),
     fixtureItem({
       id: 'dm004',
       projectId: 'diabetes',
       projectName: '糖尿病',
       displayName: '004 DPCC Longitudinal Care Inertia Gap',
+      primaryState: 'paused',
       businessState: 'paused',
       executionState: 'idle',
+      action: {
+        kind: 'user_action',
+        title: '明确是否继续推进',
+        summary: '当前方向已暂停，等待更明确的研究判断。',
+        owner: '你',
+      },
+      stageMap: [
+        ...deliveredStages.slice(0, 3),
+        { id: 'decision', displayName: '后续方向决定', state: 'waiting_user' },
+      ],
     }),
     fixtureItem({
       id: 'nf001',
       projectId: 'nf-pitnet',
       projectName: '无功能垂体瘤',
       displayName: 'NF-PitNET Paper 1',
+      primaryState: 'stopped',
       businessState: 'stopped',
       executionState: 'idle',
+      action: {
+        kind: 'blocked_no_action',
+        title: '已停止推进',
+        summary: '发表可行性不足，已在早期止损。',
+        owner: 'Med Auto Science',
+      },
+      stageMap: stoppedStages,
     }),
     fixtureItem({
       id: 'nf002',
       projectId: 'nf-pitnet',
       projectName: '无功能垂体瘤',
       displayName: 'NF-PitNET Paper 2',
+      primaryState: 'delivered_auto_paused',
       businessState: 'delivered_paused',
       executionState: 'idle',
+      action: {
+        kind: 'user_action',
+        title: '补齐投稿信息',
+        summary: '里程碑投稿包已交付，等待投稿所需客观信息。',
+        owner: '你',
+      },
+      stageMap: deliveredStages,
     }),
     fixtureItem({
       id: 'nf003',
       projectId: 'nf-pitnet',
       projectName: '无功能垂体瘤',
       displayName: 'NF-PitNET Paper 3',
+      primaryState: 'delivered_auto_paused',
       businessState: 'delivered_paused',
       executionState: 'idle',
+      action: {
+        kind: 'user_action',
+        title: '补齐投稿信息',
+        summary: '里程碑投稿包已交付，等待投稿所需客观信息。',
+        owner: '你',
+      },
+      stageMap: deliveredStages,
     }),
     fixtureItem({
       id: 'nf004',
       projectId: 'nf-pitnet',
       projectName: '无功能垂体瘤',
       displayName: 'NF-PitNET Paper 4',
+      primaryState: 'stopped',
       businessState: 'stopped',
       executionState: 'idle',
+      action: {
+        kind: 'blocked_no_action',
+        title: '已停止推进',
+        summary: '完成评估后确认发表可行性不足，不再自动推进。',
+        owner: 'Med Auto Science',
+      },
+      stageMap: [
+        ...deliveredStages.slice(0, 3),
+        { id: 'publication_gate', displayName: '发表可行性评估', state: 'stopped' },
+      ],
     }),
     fixtureItem({
       id: 'obesity001',
       projectId: 'obesity',
       projectName: '肥胖',
       displayName: 'Obesity Paper 1',
+      primaryState: 'awaiting_user_decision',
       executionState: 'idle',
       attentionKind: 'user',
+      currentStage: { id: 'idea', displayName: '研究方向确认' },
+      nextStage: { id: 'protocol', displayName: '研究设计' },
+      action: {
+        kind: 'user_action',
+        title: '确认研究问题和终点',
+        summary: '确认研究方向后，Med Auto Science 将进入研究设计。',
+        owner: '你',
+      },
+      stageMap: [
+        { id: 'idea', displayName: '研究方向确认', state: 'waiting_user', nextAction: '确认研究问题和终点' },
+        { id: 'protocol', displayName: '研究设计', state: 'next' },
+        { id: 'analysis', displayName: '统计分析', state: 'pending' },
+      ],
     }),
   ];
   return {

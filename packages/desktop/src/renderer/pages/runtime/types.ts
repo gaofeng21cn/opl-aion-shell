@@ -3,18 +3,17 @@ export const WORK_ITEM_PROJECTION_V2_SCHEMA = 'work-item-projection.v2' as const
 export type RuntimeBusinessState = 'active' | 'delivered_paused' | 'paused' | 'stopped' | 'archived' | 'unknown';
 
 export type RuntimePrimaryStatus =
-  | 'in_progress'
+  | 'automatically_advancing'
+  | 'awaiting_user_decision'
+  | 'system_attention'
   | 'delivered_auto_paused'
-  | 'paused_waiting_for_direction'
-  | 'owner_decision_required'
-  | 'system_attention_required'
+  | 'paused'
   | 'stopped'
-  | 'archived'
-  | 'unavailable';
+  | 'sync_pending';
 
 export type RuntimeExecutionState = 'running' | 'queued' | 'idle' | 'succeeded' | 'failed' | 'unknown';
 
-export type RuntimeAgentAvailabilityState = 'available' | 'attention' | 'unavailable' | 'unknown';
+export type RuntimeAgentAvailabilityState = 'available' | 'attention_required' | 'unavailable';
 
 export type RuntimeAgent = {
   id: string;
@@ -44,11 +43,33 @@ export type RuntimeTokenObservation =
       reason: string;
     };
 
+export type RuntimeActionKind = 'user_action' | 'system_action' | 'agent_action' | 'safe_action' | 'blocked_no_action';
+
 export type RuntimeAction = {
-  kind: 'system_action';
+  kind: RuntimeActionKind;
   title: string;
   summary: string;
   ownerDisplayName: string;
+};
+
+export type RuntimeStageState =
+  | 'completed'
+  | 'current'
+  | 'next'
+  | 'pending'
+  | 'waiting_user'
+  | 'system_attention'
+  | 'stopped'
+  | 'failed';
+
+export type RuntimeStage = {
+  id: string;
+  displayName: string;
+  state: RuntimeStageState;
+  ownerDisplayName: string | null;
+  elapsedSeconds: number | null;
+  usage: RuntimeTokenObservation | null;
+  nextAction: string | null;
 };
 
 export type RuntimeSystemAttention = {
@@ -88,13 +109,18 @@ export type RuntimeWorkItem = {
   projectId: string;
   businessState: RuntimeBusinessState;
   primaryStatus: RuntimePrimaryStatus;
-  statusUnavailableReason: 'incomplete_system_attention' | 'unknown_business_state' | null;
+  statusSyncReason: 'incomplete_system_attention' | 'missing_primary_state' | null;
   execution: {
     state: RuntimeExecutionState;
+    currentStageId: string | null;
+    currentStageDisplayName: string | null;
+    nextStageId: string | null;
+    nextStageDisplayName: string | null;
     startedAt: string | null;
     lastHeartbeatAt: string | null;
     updatedAt: string | null;
   };
+  stageMap: RuntimeStage[];
   stageUsage: RuntimeTokenObservation;
   taskUsage: RuntimeTokenObservation;
   action: RuntimeAction | null;
@@ -124,7 +150,9 @@ export type RuntimeProjectionReadResult =
 
 export type RuntimeStatusView =
   | 'all'
-  | 'in_progress'
-  | 'owner_decision_required'
-  | 'paused'
-  | 'system_attention_required';
+  | 'automatically_advancing'
+  | 'awaiting_user_decision'
+  | 'system_attention'
+  | 'delivered_or_paused'
+  | 'stopped'
+  | 'sync_pending';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTokenObservation } from '@/renderer/pages/runtime/formatters';
+import { currentStageLabel, formatTokenObservation } from '@/renderer/pages/runtime/formatters';
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
 import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
 
@@ -58,8 +58,32 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items.some((item) => item.displayName === 'mas')).toBe(false);
   });
 
+  it('accepts only canonical availability and does not derive it from inventory or task counts', () => {
+    const projection = createRuntimeV2Projection();
+    projection.agent_availability[0]!.availability = 'attention_required';
+    projection.summary.work_item_count = 0;
+    projection.items = [];
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.agents[0]?.availability.state).toBe('attention_required');
+    expect(result.projection?.agents.slice(1).every((agent) => agent.availability.state === 'available')).toBe(true);
+
+    for (const retiredState of ['attention', 'unknown']) {
+      const invalid = createRuntimeV2Projection();
+      invalid.agent_availability[0]!.availability = retiredState;
+      expect(
+        readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalid } } })
+      ).toEqual({ state: 'invalid', projection: null });
+    }
+  });
+
   it('does not claim system handling when the responsibility envelope is incomplete', () => {
     const projection = createRuntimeV2Projection();
+    projection.items[0]!.lifecycle.primary_state = 'system_attention';
     Object.assign(projection.items[0]!.attention, {
       kind: 'system',
       owner: 'opl_framework',
@@ -72,14 +96,15 @@ describe('Runtime V2 projection boundary', () => {
     });
 
     expect(result.projection?.items[0]).toMatchObject({
-      primaryStatus: 'unavailable',
-      statusUnavailableReason: 'incomplete_system_attention',
+      primaryStatus: 'sync_pending',
+      statusSyncReason: 'incomplete_system_attention',
       systemAttention: null,
     });
   });
 
   it('preserves all five actionable system handling fields', () => {
     const projection = createRuntimeV2Projection();
+    projection.items[0]!.lifecycle.primary_state = 'system_attention';
     Object.assign(projection.items[0]!.attention, {
       kind: 'system',
       owner: 'opl_framework',
@@ -94,11 +119,65 @@ describe('Runtime V2 projection boundary', () => {
       operator: { workbench: { work_item_projection_v2: projection } },
     });
 
-    expect(result.projection?.items[0]?.primaryStatus).toBe('system_attention_required');
+    expect(result.projection?.items[0]?.primaryStatus).toBe('system_attention');
     expect(result.projection?.items[0]?.systemAttention).toMatchObject({
       responsibleComponent: 'OPL Framework',
       expectedOutcome: 'Automatic execution resumes',
     });
+  });
+
+  it('shows sync pending instead of deriving a user state when primary state is absent', () => {
+    const projection = createRuntimeV2Projection();
+    delete projection.items[0]!.lifecycle.primary_state;
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.projection?.items[0]).toMatchObject({
+      primaryStatus: 'sync_pending',
+      statusSyncReason: 'missing_primary_state',
+    });
+  });
+
+  it('preserves projected stages and actions for the detail view', () => {
+    const result = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState());
+    const item = result.projection?.items[0];
+
+    expect(item?.execution).toMatchObject({
+      currentStageDisplayName: '分析结果复核',
+      nextStageDisplayName: '医学写作',
+    });
+    expect(item?.stageMap.map((stage) => stage.state)).toEqual([
+      'completed',
+      'completed',
+      'current',
+      'next',
+      'pending',
+    ]);
+    expect(item?.action).toMatchObject({
+      kind: 'agent_action',
+      ownerDisplayName: 'Med Auto Science',
+    });
+  });
+
+  it('never promotes a telemetry verification attempt to the business stage of a delivered item', () => {
+    const result = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState());
+    const item = result.projection?.items.find((candidate) => candidate.displayName.startsWith('002 '));
+    const t = (key: string) => (key === 'common.runtime.taskDetails.noCurrentStage' ? '暂无当前阶段' : key);
+
+    expect(item?.primaryStatus).toBe('delivered_auto_paused');
+    expect(item?.execution.currentStageId).toBeNull();
+    expect(item?.execution.currentStageDisplayName).toBeNull();
+    expect(item && currentStageLabel(item, t)).toBe('暂无当前阶段');
+    expect(item?.taskUsage).toEqual({
+      state: 'observed',
+      inputTokens: 1480,
+      outputTokens: 20,
+      totalTokens: 1500,
+      observedAt: '2026-07-13T08:00:00Z',
+    });
+    expect(JSON.stringify(item)).not.toContain('runtime_token_telemetry_verification');
   });
 });
 

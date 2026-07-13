@@ -1,7 +1,10 @@
 import type {
+  RuntimeActionKind,
   RuntimeAgentAvailabilityState,
   RuntimeExecutionState,
   RuntimePrimaryStatus,
+  RuntimeStage,
+  RuntimeStageState,
   RuntimeStatusView,
   RuntimeTokenObservation,
   RuntimeWorkItem,
@@ -10,14 +13,13 @@ import type {
 export type RuntimeTranslate = (key: string, values?: Record<string, string | number>) => string;
 
 const PRIMARY_STATUS_KEYS: Record<RuntimePrimaryStatus, string> = {
-  in_progress: 'common.runtime.primaryStates.inProgress',
+  automatically_advancing: 'common.runtime.primaryStates.automaticallyAdvancing',
+  awaiting_user_decision: 'common.runtime.primaryStates.awaitingUserDecision',
+  system_attention: 'common.runtime.primaryStates.systemAttention',
   delivered_auto_paused: 'common.runtime.primaryStates.deliveredAutoPaused',
-  paused_waiting_for_direction: 'common.runtime.primaryStates.pausedWaitingForDirection',
-  owner_decision_required: 'common.runtime.primaryStates.ownerDecisionRequired',
-  system_attention_required: 'common.runtime.primaryStates.systemAttentionRequired',
+  paused: 'common.runtime.primaryStates.paused',
   stopped: 'common.runtime.primaryStates.stopped',
-  archived: 'common.runtime.primaryStates.archived',
-  unavailable: 'common.runtime.primaryStates.unavailable',
+  sync_pending: 'common.runtime.primaryStates.syncPending',
 };
 
 const EXECUTION_STATE_KEYS: Record<RuntimeExecutionState, string> = {
@@ -31,9 +33,32 @@ const EXECUTION_STATE_KEYS: Record<RuntimeExecutionState, string> = {
 
 const AVAILABILITY_KEYS: Record<RuntimeAgentAvailabilityState, string> = {
   available: 'common.runtime.agentAvailability.available',
-  attention: 'common.runtime.agentAvailability.attention',
+  attention_required: 'common.runtime.agentAvailability.attentionRequired',
   unavailable: 'common.runtime.agentAvailability.unavailable',
-  unknown: 'common.runtime.agentAvailability.unknown',
+};
+
+const AVAILABILITY_DESCRIPTION_KEYS: Record<Exclude<RuntimeAgentAvailabilityState, 'available'>, string> = {
+  attention_required: 'common.runtime.agentAvailability.description.attentionRequired',
+  unavailable: 'common.runtime.agentAvailability.description.unavailable',
+};
+
+const ACTION_KIND_KEYS: Record<RuntimeActionKind, string> = {
+  user_action: 'common.runtime.actionKinds.user',
+  system_action: 'common.runtime.actionKinds.system',
+  agent_action: 'common.runtime.actionKinds.agent',
+  safe_action: 'common.runtime.actionKinds.safe',
+  blocked_no_action: 'common.runtime.actionKinds.blocked',
+};
+
+const STAGE_STATE_KEYS: Record<RuntimeStageState, string> = {
+  completed: 'common.runtime.taskDetails.stage.completed',
+  current: 'common.runtime.taskDetails.stage.current',
+  next: 'common.runtime.taskDetails.stage.next',
+  pending: 'common.runtime.taskDetails.stage.pending',
+  waiting_user: 'common.runtime.taskDetails.stage.waitingUser',
+  system_attention: 'common.runtime.taskDetails.stage.systemHandling',
+  stopped: 'common.runtime.taskDetails.stage.stopped',
+  failed: 'common.runtime.taskDetails.stage.failed',
 };
 
 export function primaryStatusLabel(status: RuntimePrimaryStatus, t: RuntimeTranslate): string {
@@ -46,6 +71,46 @@ export function executionStateLabel(state: RuntimeExecutionState, t: RuntimeTran
 
 export function availabilityLabel(state: RuntimeAgentAvailabilityState, t: RuntimeTranslate): string {
   return t(AVAILABILITY_KEYS[state]);
+}
+
+export function availabilityDescription(
+  state: Exclude<RuntimeAgentAvailabilityState, 'available'>,
+  t: RuntimeTranslate
+): string {
+  return t(AVAILABILITY_DESCRIPTION_KEYS[state]);
+}
+
+export function actionKindLabel(kind: RuntimeActionKind, t: RuntimeTranslate): string {
+  return t(ACTION_KIND_KEYS[kind]);
+}
+
+export function stageStateLabel(state: RuntimeStageState, t: RuntimeTranslate): string {
+  return t(STAGE_STATE_KEYS[state]);
+}
+
+function humanizeStageId(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/[._/-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+  return normalized ? normalized[0]!.toUpperCase() + normalized.slice(1) : value;
+}
+
+export function currentStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): string {
+  if (item.execution.currentStageDisplayName) return item.execution.currentStageDisplayName;
+  if (item.execution.currentStageId) return humanizeStageId(item.execution.currentStageId);
+  return t('common.runtime.taskDetails.noCurrentStage');
+}
+
+export function nextStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): string {
+  if (item.execution.nextStageDisplayName) return item.execution.nextStageDisplayName;
+  if (item.execution.nextStageId) return humanizeStageId(item.execution.nextStageId);
+  if (item.action?.title) return item.action.title;
+  return t('common.runtime.noNextAction');
+}
+
+export function stageMapUsageLabel(stage: RuntimeStage, locale: string, t: RuntimeTranslate): string | null {
+  return stage.usage ? formatTokenObservation(stage.usage, locale, t) : null;
 }
 
 export function formatDuration(seconds: number | null, t: RuntimeTranslate): string {
@@ -65,6 +130,13 @@ export function elapsedSeconds(item: RuntimeWorkItem, generatedAt: string): numb
   const end = Date.parse(endValue);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
   return Math.floor((end - start) / 1000);
+}
+
+export function formatItemElapsed(item: RuntimeWorkItem, generatedAt: string, t: RuntimeTranslate): string {
+  const elapsed = elapsedSeconds(item, generatedAt);
+  if (elapsed !== null) return formatDuration(elapsed, t);
+  if (['idle', 'succeeded'].includes(item.execution.state)) return t('common.runtime.noActiveRun');
+  return t('common.runtime.timeNotRecorded');
 }
 
 export function formatTimestamp(value: string | null, locale: string, t: RuntimeTranslate): string {
@@ -108,10 +180,12 @@ export function formatUsagePair(
 
 export function matchesStatusView(item: RuntimeWorkItem, view: RuntimeStatusView): boolean {
   if (view === 'all') return true;
-  if (view === 'paused') {
-    return ['delivered_auto_paused', 'paused_waiting_for_direction', 'stopped', 'archived'].includes(
-      item.primaryStatus
-    );
+  if (view === 'automatically_advancing') return item.primaryStatus === 'automatically_advancing';
+  if (view === 'awaiting_user_decision') return item.primaryStatus === 'awaiting_user_decision';
+  if (view === 'system_attention') return item.primaryStatus === 'system_attention';
+  if (view === 'delivered_or_paused') {
+    return ['delivered_auto_paused', 'paused'].includes(item.primaryStatus);
   }
-  return item.primaryStatus === view;
+  if (view === 'stopped') return item.primaryStatus === 'stopped';
+  return item.primaryStatus === 'sync_pending';
 }

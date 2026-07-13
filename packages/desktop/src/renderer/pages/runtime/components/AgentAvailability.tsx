@@ -1,7 +1,7 @@
 import { Collapse, Tag, Typography } from '@arco-design/web-react';
 import { Attention, CheckOne } from '@icon-park/react';
 import React from 'react';
-import { availabilityLabel, type RuntimeTranslate } from '../formatters';
+import { availabilityDescription, availabilityLabel, type RuntimeTranslate } from '../formatters';
 import type { RuntimeAgent } from '../types';
 import styles from '../RuntimePage.module.css';
 
@@ -38,7 +38,7 @@ export function AgentAvailability({ agents, t }: AgentAvailabilityProps) {
                   <Typography.Text className={styles.agentName}>{agent.displayName}</Typography.Text>
                   {agent.availability.state !== 'available' && (
                     <Typography.Text className={styles.agentMessage}>
-                      {t(`common.runtime.agentAvailability.description.${agent.availability.state}`)}
+                      {availabilityDescription(agent.availability.state, t)}
                     </Typography.Text>
                   )}
                 </div>

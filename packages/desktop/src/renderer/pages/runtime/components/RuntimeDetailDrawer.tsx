@@ -1,12 +1,17 @@
-import { Drawer, Empty, Tabs, Tag, Typography } from '@arco-design/web-react';
+import { Collapse, Drawer, Empty, Tag, Typography } from '@arco-design/web-react';
 import React from 'react';
 import {
-  elapsedSeconds,
+  actionKindLabel,
+  currentStageLabel,
   executionStateLabel,
   formatDuration,
+  formatItemElapsed,
   formatTimestamp,
   formatTokenObservation,
+  nextStageLabel,
   primaryStatusLabel,
+  stageMapUsageLabel,
+  stageStateLabel,
   type RuntimeTranslate,
 } from '../formatters';
 import type {
@@ -14,6 +19,7 @@ import type {
   RuntimeCondition,
   RuntimeProject,
   RuntimeSourceRef,
+  RuntimeStage,
   RuntimeTokenObservation,
   RuntimeWorkItem,
 } from '../types';
@@ -75,6 +81,57 @@ function SourceRefList({ refs, t }: { refs: RuntimeSourceRef[]; t: RuntimeTransl
   );
 }
 
+function StageMeta({ stage, locale, t }: { stage: RuntimeStage; locale: string; t: RuntimeTranslate }) {
+  const usage = stageMapUsageLabel(stage, locale, t);
+  return (
+    <div className={styles.stageMeta}>
+      {stage.ownerDisplayName && (
+        <Typography.Text>{t('common.runtime.nextOwner', { owner: stage.ownerDisplayName })}</Typography.Text>
+      )}
+      {stage.elapsedSeconds !== null && (
+        <Typography.Text>
+          {t('common.runtime.elapsedValue', { value: formatDuration(stage.elapsedSeconds, t) })}
+        </Typography.Text>
+      )}
+      {usage && <Typography.Text>{t('common.runtime.stageUsage', { value: usage })}</Typography.Text>}
+      {stage.nextAction && (
+        <Typography.Text>{t('common.runtime.nextStep', { step: stage.nextAction })}</Typography.Text>
+      )}
+    </div>
+  );
+}
+
+function StageMap({ item, locale, t }: { item: RuntimeWorkItem; locale: string; t: RuntimeTranslate }) {
+  if (item.stageMap.length === 0) {
+    return (
+      <div className={styles.stageMapUnavailable} data-testid='runtime-stage-map-unavailable'>
+        <Typography.Text>{t('common.runtime.taskDetails.stageMapUnavailable')}</Typography.Text>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.stageMap} data-testid='runtime-stage-map'>
+      {item.stageMap.map((stage) => (
+        <div
+          className={styles.stageStep}
+          data-stage-state={stage.state}
+          data-testid='runtime-stage-step'
+          key={stage.id}
+        >
+          <span className={styles.stageMarker} aria-hidden='true' />
+          <div className={styles.stageStepBody}>
+            <div className={styles.stageStepTitleRow}>
+              <Typography.Text className={styles.stageStepTitle}>{stage.displayName}</Typography.Text>
+              <Tag>{stageStateLabel(stage.state, t)}</Tag>
+            </div>
+            <StageMeta stage={stage} locale={locale} t={t} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function RuntimeDetailDrawer({
   item,
   agent,
@@ -87,7 +144,7 @@ export function RuntimeDetailDrawer({
   return (
     <Drawer
       visible={Boolean(item)}
-      width='min(720px, 100vw)'
+      width='min(680px, 100vw)'
       title={item ? t('common.runtime.taskDetails.title', { task: item.displayName }) : undefined}
       footer={null}
       onCancel={onClose}
@@ -104,12 +161,24 @@ export function RuntimeDetailDrawer({
 
           <section className={styles.detailSection}>
             <Typography.Title heading={5}>{t('common.runtime.taskDetails.stageMap')}</Typography.Title>
-            <Empty description={t('common.runtime.taskDetails.stageMapUnavailable')} />
+            <StageMap item={item} locale={locale} t={t} />
           </section>
 
           <section className={styles.detailSection}>
-            <Typography.Title heading={5}>{t('common.runtime.taskDetails.currentRun')}</Typography.Title>
+            <Typography.Title heading={5}>{t('common.runtime.taskDetails.stageAndRun')}</Typography.Title>
             <div className={styles.detailFacts}>
+              <div className={styles.detailFact}>
+                <Typography.Text className={styles.detailFactLabel}>
+                  {t('common.runtime.taskDetails.currentStage')}
+                </Typography.Text>
+                <Typography.Text className={styles.detailFactValue}>{currentStageLabel(item, t)}</Typography.Text>
+              </div>
+              <div className={styles.detailFact}>
+                <Typography.Text className={styles.detailFactLabel}>
+                  {t('common.runtime.taskDetails.nextStage')}
+                </Typography.Text>
+                <Typography.Text className={styles.detailFactValue}>{nextStageLabel(item, t)}</Typography.Text>
+              </div>
               <div className={styles.detailFact}>
                 <Typography.Text className={styles.detailFactLabel}>
                   {t('common.runtime.taskDetails.currentProgress')}
@@ -120,26 +189,10 @@ export function RuntimeDetailDrawer({
               </div>
               <div className={styles.detailFact}>
                 <Typography.Text className={styles.detailFactLabel}>
-                  {t('common.runtime.taskDetails.currentStage')}
-                </Typography.Text>
-                <Typography.Text className={styles.detailFactValue}>
-                  {t('common.runtime.taskDetails.stageUnavailable')}
-                </Typography.Text>
-              </div>
-              <div className={styles.detailFact}>
-                <Typography.Text className={styles.detailFactLabel}>
-                  {t('common.runtime.taskDetails.nextStage')}
-                </Typography.Text>
-                <Typography.Text className={styles.detailFactValue}>
-                  {t('common.runtime.taskDetails.stageUnavailable')}
-                </Typography.Text>
-              </div>
-              <div className={styles.detailFact}>
-                <Typography.Text className={styles.detailFactLabel}>
                   {t('common.runtime.taskDetails.duration')}
                 </Typography.Text>
                 <Typography.Text className={styles.detailFactValue}>
-                  {formatDuration(generatedAt ? elapsedSeconds(item, generatedAt) : null, t)}
+                  {generatedAt ? formatItemElapsed(item, generatedAt, t) : t('common.runtime.timeNotRecorded')}
                 </Typography.Text>
               </div>
               <div className={styles.detailFact}>
@@ -172,7 +225,7 @@ export function RuntimeDetailDrawer({
           <section className={styles.detailSection} data-testid='runtime-next-action'>
             <div className={styles.sectionTitleRow}>
               <Typography.Title heading={5}>{t('common.runtime.taskDetails.nextAction')}</Typography.Title>
-              {item.action && <Tag>{t('common.runtime.actionKinds.system')}</Tag>}
+              {item.action && <Tag>{actionKindLabel(item.action.kind, t)}</Tag>}
             </div>
             {item.action ? (
               <>
@@ -187,7 +240,7 @@ export function RuntimeDetailDrawer({
             )}
           </section>
 
-          {item.primaryStatus === 'system_attention_required' && item.systemAttention && (
+          {item.primaryStatus === 'system_attention' && item.systemAttention && (
             <section className={styles.systemAttention} data-testid='runtime-system-attention'>
               <Typography.Title heading={5}>{t('common.runtime.systemAttention.title')}</Typography.Title>
               <dl className={styles.systemAttentionGrid}>
@@ -215,11 +268,11 @@ export function RuntimeDetailDrawer({
             </section>
           )}
 
-          <Tabs defaultActiveTab='artifacts' className={styles.detailTabs}>
-            <Tabs.TabPane key='artifacts' title={t('common.runtime.taskDetails.artifacts')}>
+          <Collapse bordered={false} className={styles.detailDisclosure} data-testid='runtime-detail-disclosure'>
+            <Collapse.Item name='artifacts' header={t('common.runtime.taskDetails.artifacts')}>
               <Empty description={t('common.runtime.taskDetails.artifactsUnavailable')} />
-            </Tabs.TabPane>
-            <Tabs.TabPane key='timeline' title={t('common.runtime.taskDetails.timeline')}>
+            </Collapse.Item>
+            <Collapse.Item name='timeline' header={t('common.runtime.taskDetails.timeline')}>
               <div className={styles.detailEntries}>
                 {item.timeline.map((entry) => (
                   <div className={styles.detailEntry} key={entry.id}>
@@ -232,16 +285,22 @@ export function RuntimeDetailDrawer({
                   </div>
                 ))}
               </div>
-            </Tabs.TabPane>
-            <Tabs.TabPane key='diagnostics' title={t('common.runtime.taskDetails.diagnostics')}>
+            </Collapse.Item>
+            <Collapse.Item name='evidence' header={t('common.runtime.taskDetails.evidence')}>
+              {item.sourceRefs.length > 0 ? (
+                <SourceRefList refs={item.sourceRefs} t={t} />
+              ) : (
+                <Empty description={t('common.runtime.taskDetails.noItems')} />
+              )}
+            </Collapse.Item>
+            <Collapse.Item name='diagnostics' header={t('common.runtime.taskDetails.diagnostics')}>
               <div className={styles.telemetryReasons}>
                 <TelemetryReason label={t('common.runtime.stageUsageLabel')} observation={item.stageUsage} />
                 <TelemetryReason label={t('common.runtime.totalUsageLabel')} observation={item.taskUsage} />
               </div>
               <ConditionList conditions={item.conditions} t={t} />
-              <SourceRefList refs={item.sourceRefs} t={t} />
-            </Tabs.TabPane>
-          </Tabs>
+            </Collapse.Item>
+          </Collapse>
         </div>
       )}
     </Drawer>

@@ -143,16 +143,18 @@ const RuntimePage: React.FC = () => {
             t={translate}
             onViewChange={setSelectedStatusView}
           />
-          <RuntimeWorkItemList
-            items={visibleItems}
-            agentsById={agentsById}
-            projectsById={projectsById}
-            locale={i18n.resolvedLanguage ?? i18n.language}
-            generatedAt={projection.generatedAt}
-            t={translate}
-            onOpen={(item) => setSelectedItemId(item.id)}
-          />
-          <AgentAvailability agents={projection.agents} t={translate} />
+          <div className={styles.workspaceGrid}>
+            <RuntimeWorkItemList
+              items={visibleItems}
+              agentsById={agentsById}
+              projectsById={projectsById}
+              locale={i18n.resolvedLanguage ?? i18n.language}
+              generatedAt={projection.generatedAt}
+              t={translate}
+              onOpen={(item) => setSelectedItemId(item.id)}
+            />
+            <AgentAvailability agents={projection.agents} t={translate} />
+          </div>
         </div>
       )}
 
