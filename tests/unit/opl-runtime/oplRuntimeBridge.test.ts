@@ -88,6 +88,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl system initialize --json',
         'opl install --headless --skip-packages --json',
         'opl system configure-codex --api-key-stdin --json',
+        'opl connect gateway login --credentials-stdin --json',
         'opl system startup-maintenance --json',
         'opl system reconcile-modules --json',
         'opl update status --json',
@@ -947,6 +948,65 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(() => __oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: '   ' })).toThrow(
       /OPL Gateway access key is required/
     );
+  });
+
+  it('sends Gateway account credentials only through dedicated stdin and preserves the password bytes', () => {
+    expect(
+      __oplRuntimeBridgeTest.buildGatewayAccountLoginCommand({
+        email: ' user@example.com ',
+        password: '  exact-password  ',
+        deviceLabel: ' Feng Mac ',
+      })
+    ).toEqual({
+      surface: 'gateway_account',
+      args: ['connect', 'gateway', 'login', '--credentials-stdin', '--json'],
+      stdin: '{"email":"user@example.com","password":"  exact-password  ","device_label":"Feng Mac"}\n',
+      redactedCommand: 'opl connect gateway login --credentials-stdin --json',
+    });
+  });
+
+  it('fails closed when the Gateway login response contains a secret field', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '{"refresh_token":"secret"}',
+        parsed: { refresh_token: 'secret' },
+        ok: true,
+      })
+    ).toEqual({
+      ok: false,
+      errorCode: 'internal_contract_violation',
+      stateRefreshRequired: false,
+    });
+  });
+
+  it('fails closed when a successful Gateway command omits its JSON result', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '',
+        parsed: null,
+        ok: true,
+      })
+    ).toEqual({
+      ok: false,
+      errorCode: 'internal_contract_violation',
+      stateRefreshRequired: false,
+    });
+  });
+
+  it('returns only a stable error code for a failed Gateway login response', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '{"ok":false,"error_code":"invalid_credentials"}',
+        parsed: { ok: false, error_code: 'invalid_credentials', detail: 'upstream text' },
+        ok: true,
+      })
+    ).toEqual({ ok: false, errorCode: 'invalid_credentials', stateRefreshRequired: false });
   });
 
   it('parses initialize event envelopes and returns the complete payload as the command result payload', () => {

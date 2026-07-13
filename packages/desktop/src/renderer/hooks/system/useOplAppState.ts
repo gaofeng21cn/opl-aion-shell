@@ -60,6 +60,27 @@ export function getAppState(payload: OplAppStatePayload | null | undefined): Opl
   return oplRecord(payload?.app_state ?? payload);
 }
 
+function stripGatewayAccountFromAppState(appState: OplAppStateRecord): OplAppStateRecord {
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  if (!('opl_gateway_account' in appSettingsReadModel)) return appState;
+  const { opl_gateway_account: _gatewayAccount, ...safeReadModel } = appSettingsReadModel;
+  return {
+    ...appState,
+    settings_control_center: {
+      ...settingsControlCenter,
+      app_settings_read_model: safeReadModel,
+    },
+  };
+}
+
+export function sanitizeOplAppStatePayloadForCache(payload: OplAppStatePayload): OplAppStatePayload {
+  if (isOplRecord(payload.app_state)) {
+    return { ...payload, app_state: stripGatewayAccountFromAppState(payload.app_state) };
+  }
+  return stripGatewayAccountFromAppState(payload) as OplAppStatePayload;
+}
+
 function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undefined): OplAppStatePayload | null {
   if (result?.ok === false) {
     throw new Error(result.error?.message || 'OPL App state command failed');
@@ -96,7 +117,7 @@ function readCachedFastState(): OplAppStateCache | null {
     const raw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
     if (!raw) return null;
     const parsed = oplRecord(JSON.parse(raw) as unknown);
-    const payload = oplRecord(parsed.payload) as OplAppStatePayload;
+    const payload = sanitizeOplAppStatePayloadForCache(oplRecord(parsed.payload) as OplAppStatePayload);
     if (Object.keys(getAppState(payload)).length === 0) return null;
     return {
       payload,
@@ -109,7 +130,10 @@ function readCachedFastState(): OplAppStateCache | null {
 
 function writeCachedFastState(payload: OplAppStatePayload, loadedAt: string): void {
   try {
-    localStorage.setItem(APP_STATE_FAST_CACHE_KEY, JSON.stringify({ payload, loadedAt }));
+    localStorage.setItem(
+      APP_STATE_FAST_CACHE_KEY,
+      JSON.stringify({ payload: sanitizeOplAppStatePayloadForCache(payload), loadedAt })
+    );
   } catch {
     // The CLI-backed App state remains authoritative when localStorage is unavailable.
   }

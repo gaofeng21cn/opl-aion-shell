@@ -2,10 +2,11 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { JSDOM } from 'jsdom';
-import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
+import { AccessSettingsContent, readGatewayAccountProjection } from '@/renderer/pages/settings/sections/AccessSettings';
 
 type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
+  loginGatewayAccountInvoke: ReturnType<typeof vi.fn>;
   executeActionInvoke: ReturnType<typeof vi.fn>;
   configGet: ReturnType<typeof vi.fn>;
   configSet: ReturnType<typeof vi.fn>;
@@ -16,10 +17,12 @@ type AccessSettingsTestMocks = {
   codexStatus: string;
   modelAccessReady: boolean;
   appStateAvailable: boolean;
+  gatewayAccount: Record<string, unknown> | null;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
+  loginGatewayAccountInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   configGet: vi.fn(),
   configSet: vi.fn(),
@@ -30,6 +33,7 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   codexStatus: 'ready',
   modelAccessReady: true,
   appStateAvailable: true,
+  gatewayAccount: null,
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -69,6 +73,35 @@ Object.defineProperty(Element.prototype, 'scrollIntoView', { value: () => {}, co
 
 const getMocks = (): AccessSettingsTestMocks => accessSettingsMocks;
 
+function makeGatewayAccount(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    surface_kind: 'opl_gateway_account_read_model.v1',
+    status: 'not_connected',
+    connection_mode: 'none',
+    account_card_visible: false,
+    account: null,
+    usage: null,
+    managed_key: null,
+    installation: null,
+    available_groups: [],
+    freshness: {
+      observed_at: '2026-07-13T10:00:00+08:00',
+      stale_after: '2026-07-13T10:15:00+08:00',
+      stale: false,
+      last_error_code: null,
+    },
+    capabilities: { account_login_supported: true, manual_key_supported: true },
+    actions: {
+      complete_setup: null,
+      refresh: null,
+      repair: null,
+      use_for_model_access: null,
+      disconnect: null,
+    },
+    ...overrides,
+  };
+}
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
@@ -89,12 +122,16 @@ vi.mock('@arco-design/web-react', () => {
     loading: _loading,
     icon: _icon,
     type: buttonType,
+    size: _size,
+    status: _status,
     htmlType,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     loading?: boolean;
     icon?: React.ReactNode;
     type?: string;
+    size?: string;
+    status?: string;
     htmlType?: 'button' | 'submit' | 'reset';
   }) => (
     <button {...props} type={htmlType ?? 'button'} data-button-type={buttonType}>
@@ -162,6 +199,19 @@ vi.mock('@arco-design/web-react', () => {
       }}
     />
   );
+  const TextInput = ({
+    onChange,
+    ...props
+  }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
+    onChange?: (value: string) => void;
+  }) => (
+    <input
+      {...props}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      onInput={(event) => onChange?.(event.currentTarget.value)}
+    />
+  );
+  const Input = Object.assign(TextInput, { Password });
   const Select = ({
     options = [],
     onChange,
@@ -180,16 +230,43 @@ vi.mock('@arco-design/web-react', () => {
       ))}
     </select>
   );
+  const RadioItem = ({
+    children,
+    value,
+    onSelect,
+  }: React.PropsWithChildren<{ value?: string; onSelect?: (value: string) => void }>) => (
+    <label>
+      <input type='radio' value={value} onChange={() => value && onSelect?.(value)} />
+      {children}
+    </label>
+  );
+  const RadioGroup = ({
+    children,
+    onChange,
+    type: _type,
+  }: React.PropsWithChildren<{ onChange?: (value: string) => void; type?: string; value?: string }>) => (
+    <div>
+      {React.Children.map(children, (child) =>
+        React.isValidElement(child)
+          ? React.cloneElement(child as React.ReactElement<{ onSelect?: (value: string) => void }>, {
+              onSelect: onChange,
+            })
+          : child
+      )}
+    </div>
+  );
+  const Radio = Object.assign(RadioItem, { Group: RadioGroup });
 
   return {
     Button,
     Card,
-    Input: { Password },
+    Input,
     Message: {
       success: vi.fn(message),
       error: vi.fn(message),
     },
     Modal,
+    Radio,
     Select,
     Space,
     Tag,
@@ -202,6 +279,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       configureCodex: { invoke: accessSettingsMocks.configureCodexInvoke },
+      loginGatewayAccount: { invoke: accessSettingsMocks.loginGatewayAccountInvoke },
       executeAction: { invoke: accessSettingsMocks.executeActionInvoke },
     },
   },
@@ -354,6 +432,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                     user_provided: true,
                   },
                 },
+                ...(accessSettingsMocks.gatewayAccount
+                  ? { opl_gateway_account: accessSettingsMocks.gatewayAccount }
+                  : {}),
               },
             },
           }
@@ -366,6 +447,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { resolvedLanguage: 'en-US' },
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
@@ -411,6 +493,49 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
+        'settings.accessPage.gatewayAccount.title': 'OPL Gateway',
+        'settings.accessPage.gatewayAccount.description':
+          'Sign in to view account balance and usage, or keep using an access key.',
+        'settings.accessPage.gatewayAccount.modes.account': 'Account sign-in',
+        'settings.accessPage.gatewayAccount.modes.manualKey': 'Access key',
+        'settings.accessPage.gatewayAccount.emailLabel': 'Gateway account email',
+        'settings.accessPage.gatewayAccount.emailPlaceholder': 'Email',
+        'settings.accessPage.gatewayAccount.passwordLabel': 'Gateway account password',
+        'settings.accessPage.gatewayAccount.passwordPlaceholder': 'Password',
+        'settings.accessPage.gatewayAccount.deviceLabel': 'Device name',
+        'settings.accessPage.gatewayAccount.devicePlaceholder': 'Optional device name',
+        'settings.accessPage.gatewayAccount.loginButton': 'Sign in',
+        'settings.accessPage.gatewayAccount.loginSuccess': 'OPL Gateway account connected.',
+        'settings.accessPage.gatewayAccount.accountStatus': `Account status: ${options?.status}`,
+        'settings.accessPage.gatewayAccount.balance': `Balance: ${options?.amount} ${options?.currency}`,
+        'settings.accessPage.gatewayAccount.todayTokens': `Today: ${options?.value} tokens`,
+        'settings.accessPage.gatewayAccount.todayCost': `Today cost: ${options?.value} ${options?.currency}`,
+        'settings.accessPage.gatewayAccount.totalTokens': `Total: ${options?.value} tokens`,
+        'settings.accessPage.gatewayAccount.totalCost': `Total cost: ${options?.value} ${options?.currency}`,
+        'settings.accessPage.gatewayAccount.dayTimezone': `Daily boundary: ${options?.timezone}`,
+        'settings.accessPage.gatewayAccount.managedKey': `Managed key: ${options?.name} · ${options?.status}`,
+        'settings.accessPage.gatewayAccount.updatedAt': `Updated: ${options?.observedAt}`,
+        'settings.accessPage.gatewayAccount.stale': `Showing saved data from ${options?.observedAt}.`,
+        'settings.accessPage.gatewayAccount.unknownObservedAt': 'an earlier check',
+        'settings.accessPage.gatewayAccount.groupPlaceholder': 'Select an access group',
+        'settings.accessPage.gatewayAccount.actionSuccess': 'OPL Gateway account updated.',
+        'settings.accessPage.gatewayAccount.actionFailed': 'Could not update the OPL Gateway account.',
+        'settings.accessPage.gatewayAccount.disconnectConfirmTitle': 'Disconnect OPL Gateway account?',
+        'settings.accessPage.gatewayAccount.disconnectConfirmDescription': 'The managed key will be disabled.',
+        'settings.accessPage.gatewayAccount.actions.completeSetup': 'Continue',
+        'settings.accessPage.gatewayAccount.actions.signInAgain': 'Sign in again',
+        'settings.accessPage.gatewayAccount.actions.refresh': 'Refresh',
+        'settings.accessPage.gatewayAccount.actions.repair': 'Repair',
+        'settings.accessPage.gatewayAccount.actions.useForModelAccess': 'Use for model access',
+        'settings.accessPage.gatewayAccount.actions.disconnect': 'Disconnect',
+        'settings.accessPage.gatewayAccount.errors.invalidRequest': 'Enter the account email and password.',
+        'settings.accessPage.gatewayAccount.errors.invalidCredentials': 'The email or password is incorrect.',
+        'settings.accessPage.gatewayAccount.errors.authExpired': 'The Gateway session expired. Sign in again.',
+        'settings.accessPage.gatewayAccount.errors.managedKeyMissing': 'The managed key no longer exists. Run repair.',
+        'settings.accessPage.gatewayAccount.errors.managedKeyConflict': 'More than one managed key exists.',
+        'settings.accessPage.gatewayAccount.errors.managedKeyIdentityDrift': 'The managed key identity changed.',
+        'settings.accessPage.gatewayAccount.errors.disconnectPending': 'The managed key has not been disabled yet.',
+        'settings.accessPage.gatewayAccount.errors.generic': 'The OPL Gateway account operation failed.',
         'settings.accessPage.remote.title': 'Browser access to this computer',
         'settings.accessPage.remote.description':
           'Open OPL on this computer from a browser; manage the port, account, and password here.',
@@ -493,12 +618,14 @@ describe('AccessSettingsContent', () => {
     mocks.codexStatus = 'ready';
     mocks.modelAccessReady = true;
     mocks.appStateAvailable = true;
+    mocks.gatewayAccount = null;
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
       stdout: '{}',
       parsed: {},
     });
+    mocks.loginGatewayAccountInvoke.mockResolvedValue({ ok: true, stateRefreshRequired: true });
     mocks.executeActionInvoke.mockResolvedValue({
       surface: 'app_action',
       command: 'opl app action execute --action settings_install_docker_webui --dry-run --json',
@@ -513,6 +640,22 @@ describe('AccessSettingsContent', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+  });
+
+  it('reads Gateway account state only from the canonical settings projection', () => {
+    const gateway = makeGatewayAccount();
+    expect(
+      readGatewayAccountProjection({
+        resource_sources: { opl_gateway: gateway },
+        settings_control_center: { app_settings_read_model: {} },
+      })
+    ).toBeNull();
+    expect(
+      readGatewayAccountProjection({
+        settings_control_center: { app_settings_read_model: { opl_gateway_account: gateway } },
+      })
+    ).toBe(gateway);
   });
 
   it('renders model access, Codex CLI, and progressive Gateway configuration without resource entries', () => {
@@ -699,5 +842,175 @@ describe('AccessSettingsContent', () => {
     expect(mocks.configureCodexInvoke).not.toHaveBeenCalled();
     expect(mocks.load).not.toHaveBeenCalled();
     expect(await view.findByText('Enter an OPL Gateway access key.')).toBeTruthy();
+  });
+
+  it('uses the desktop-only account bridge and clears the password after a failed login', async () => {
+    Object.defineProperty(window, 'electronAPI', { value: {}, configurable: true });
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount();
+    mocks.loginGatewayAccountInvoke.mockResolvedValueOnce({
+      ok: false,
+      errorCode: 'invalid_credentials',
+      stateRefreshRequired: false,
+    });
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
+    fireEvent.input(view.getByTestId('opl-settings-gateway-email-input'), {
+      target: { value: ' user@example.com ' },
+    });
+    const password = view.getByTestId('opl-settings-gateway-password-input') as HTMLInputElement;
+    fireEvent.input(password, { target: { value: 'account-secret' } });
+    fireEvent.input(view.getByTestId('opl-settings-gateway-device-input'), { target: { value: 'Feng Mac' } });
+    fireEvent.click(view.getByText('Sign in'));
+
+    await waitFor(() =>
+      expect(mocks.loginGatewayAccountInvoke).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        password: 'account-secret',
+        deviceLabel: 'Feng Mac',
+      })
+    );
+    await waitFor(() => expect(password.value).toBe(''));
+    expect(view.getByText('The email or password is incorrect.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('account-secret');
+    expect(mocks.load).not.toHaveBeenCalled();
+  });
+
+  it('renders the canonical account card, preserves null metrics, and refreshes through App action', async () => {
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'connected',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        masked_email: 'f***@example.com',
+        status: 'active',
+        balance: { amount: 18.5, currency: 'CNY' },
+      },
+      usage: {
+        today_tokens: null,
+        total_tokens: 123456,
+        today_actual_cost: 1.25,
+        total_actual_cost: 88.4,
+        currency: 'CNY',
+        day_timezone: 'Asia/Shanghai',
+      },
+      managed_key: { name: 'OPL App · Feng-Mac · 7F31A9C2', status: 'active', ownership: 'opl_app' },
+      freshness: {
+        observed_at: '2026-07-13T10:00:00+08:00',
+        stale_after: '2026-07-13T10:15:00+08:00',
+        stale: true,
+        last_error_code: 'network_unreachable',
+      },
+      actions: {
+        complete_setup: null,
+        refresh: 'gateway_account_refresh',
+        repair: null,
+        use_for_model_access: null,
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('f***@example.com');
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Balance: 18.5 CNY');
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Today: -- tokens');
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
+    expect(view.getByTestId('settings-access-gateway-stale')).toBeTruthy();
+    expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
+
+    fireEvent.click(view.getByText('Refresh'));
+    await waitFor(() =>
+      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'gateway_account_refresh',
+        dryRun: false,
+      })
+    );
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+  });
+
+  it('completes group selection through the canonical App action payload', async () => {
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'setup_required',
+      connection_mode: 'account',
+      available_groups: [{ group_id: 'group-openai', label: 'OpenAI' }],
+      actions: {
+        complete_setup: 'gateway_account_complete_setup',
+        refresh: null,
+        repair: null,
+        use_for_model_access: null,
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+    const view = render(<AccessSettingsContent />);
+    const setup = view.getByTestId('settings-access-gateway-setup');
+    const select = setup.querySelector('select');
+    expect(select).toBeTruthy();
+
+    fireEvent.change(select!, { target: { value: 'group-openai' } });
+    fireEvent.click(view.getByText('Continue'));
+
+    await waitFor(() =>
+      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'gateway_account_complete_setup',
+        dryRun: false,
+        payloadJson: { group_id: 'group-openai' },
+      })
+    );
+  });
+
+  it('requires confirmation before disconnecting the managed account', () => {
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'connected',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        masked_email: 'f***@example.com',
+        status: 'active',
+        balance: { amount: 1, currency: 'CNY' },
+      },
+      actions: {
+        complete_setup: null,
+        refresh: null,
+        repair: null,
+        use_for_model_access: null,
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.click(view.getByText('Disconnect'));
+
+    expect(view.getByTestId('settings-access-gateway-disconnect-confirm')).toBeTruthy();
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['reauth_required', 'auth_expired', 'The Gateway session expired. Sign in again.'],
+    ['attention_needed', 'managed_key_missing', 'The managed key no longer exists. Run repair.'],
+    ['attention_needed', 'managed_key_conflict', 'More than one managed key exists.'],
+    ['attention_needed', 'managed_key_identity_drift', 'The managed key identity changed.'],
+    ['disconnect_pending', 'disconnect_pending', 'The managed key has not been disabled yet.'],
+  ])('maps %s / %s to stable user-facing guidance', (status, errorCode, expected) => {
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount({
+      status,
+      connection_mode: 'account',
+      freshness: {
+        observed_at: '2026-07-13T10:00:00+08:00',
+        stale_after: '2026-07-13T10:15:00+08:00',
+        stale: false,
+        last_error_code: errorCode,
+      },
+    });
+
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.getByText(expected)).toBeTruthy();
   });
 });

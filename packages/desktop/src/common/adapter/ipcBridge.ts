@@ -518,6 +518,35 @@ export type IOplConfigureCodexRequest = {
   apiKey: string;
 };
 
+export type IOplGatewayAccountErrorCode =
+  | 'invalid_credentials'
+  | 'account_disabled'
+  | 'mfa_or_challenge_required'
+  | 'session_not_persistable'
+  | 'group_selection_required'
+  | 'auth_expired'
+  | 'network_unreachable'
+  | 'rate_limited'
+  | 'managed_key_missing'
+  | 'managed_key_conflict'
+  | 'managed_key_identity_drift'
+  | 'disconnect_pending'
+  | 'invalid_request'
+  | 'internal_contract_violation'
+  | 'gateway_account_failed';
+
+export type IOplGatewayAccountLoginRequest = {
+  email: string;
+  password: string;
+  deviceLabel?: string;
+};
+
+export type IOplGatewayAccountMutationResult = {
+  ok: boolean;
+  errorCode?: IOplGatewayAccountErrorCode;
+  stateRefreshRequired: boolean;
+};
+
 export type IOplManagedUpdateLifecycleId = 'opl_base' | 'opl_app' | 'opl_packages';
 
 export type IOplUpdateComponentRequest = {
@@ -541,6 +570,7 @@ export type IOplRuntimeCommandResult = {
     | 'system_initialize'
     | 'install_prep'
     | 'configure_codex'
+    | 'gateway_account'
     | 'startup_maintenance'
     | 'reconcile_modules'
     | 'update_status'
@@ -636,6 +666,10 @@ export const oplRuntime = {
   configureCodex: runtimeProvider<IOplRuntimeCommandResult, IOplConfigureCodexRequest>(
     'opl-runtime.configure-codex',
     '/api/opl-runtime/configure-codex'
+  ),
+  // Desktop-only secret channel. Browser WebUI must never receive the user's Gateway password.
+  loginGatewayAccount: bridge.buildProvider<IOplGatewayAccountMutationResult, IOplGatewayAccountLoginRequest>(
+    'opl-runtime.login-gateway-account'
   ),
   runStartupMaintenance: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.run-startup-maintenance',

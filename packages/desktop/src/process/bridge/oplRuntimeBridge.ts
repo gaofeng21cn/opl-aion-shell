@@ -12,6 +12,9 @@ import path from 'node:path';
 import { ipcBridge } from '@/common';
 import type {
   IOplConfigureCodexRequest,
+  IOplGatewayAccountErrorCode,
+  IOplGatewayAccountLoginRequest,
+  IOplGatewayAccountMutationResult,
   IOplRuntimeActionRequest,
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
@@ -121,6 +124,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl system initialize --json',
     'opl install --headless --skip-packages --json',
     'opl system configure-codex --api-key-stdin --json',
+    'opl connect gateway login --credentials-stdin --json',
     'opl system startup-maintenance --json',
     'opl system reconcile-modules --json',
     'opl update status --json',
@@ -318,6 +322,108 @@ function buildConfigureCodexCommand(request: IOplConfigureCodexRequest): Runtime
     stdin: `${apiKey}\n`,
     redactedCommand: 'opl system configure-codex --api-key-stdin --json',
   };
+}
+
+function buildGatewayAccountLoginCommand(request: IOplGatewayAccountLoginRequest): RuntimeCommandSpec {
+  const email = request.email.trim();
+  if (!email || !request.password) {
+    throw new Error('Invalid Gateway account login request.');
+  }
+  const deviceLabel = request.deviceLabel?.trim();
+  return {
+    surface: 'gateway_account',
+    args: ['connect', 'gateway', 'login', '--credentials-stdin', '--json'],
+    stdin: `${JSON.stringify({
+      email,
+      password: request.password,
+      ...(deviceLabel ? { device_label: deviceLabel } : {}),
+    })}\n`,
+    redactedCommand: 'opl connect gateway login --credentials-stdin --json',
+  };
+}
+
+const GATEWAY_ACCOUNT_ERROR_CODES = new Set<IOplGatewayAccountErrorCode>([
+  'invalid_credentials',
+  'account_disabled',
+  'mfa_or_challenge_required',
+  'session_not_persistable',
+  'group_selection_required',
+  'auth_expired',
+  'network_unreachable',
+  'rate_limited',
+  'managed_key_missing',
+  'managed_key_conflict',
+  'managed_key_identity_drift',
+  'disconnect_pending',
+  'invalid_request',
+  'internal_contract_violation',
+  'gateway_account_failed',
+]);
+
+const SECRET_FIELD_NAMES = new Set([
+  'password',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'apikey',
+  'key',
+  'keyvalue',
+  'keyplaintext',
+  'plaintextkey',
+  'secret',
+]);
+
+function containsSecretField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsSecretField);
+  if (!isRecord(value)) return false;
+  return Object.entries(value).some(([field, nested]) => {
+    const normalized = field.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    return SECRET_FIELD_NAMES.has(normalized) || containsSecretField(nested);
+  });
+}
+
+function readGatewayAccountErrorCode(value: unknown): IOplGatewayAccountErrorCode | null {
+  if (!isRecord(value)) return null;
+  const direct = typeof value.error_code === 'string' ? value.error_code : null;
+  const nested = isRecord(value.error) && typeof value.error.code === 'string' ? value.error.code : null;
+  const candidate = direct ?? nested;
+  return candidate && GATEWAY_ACCOUNT_ERROR_CODES.has(candidate as IOplGatewayAccountErrorCode)
+    ? (candidate as IOplGatewayAccountErrorCode)
+    : null;
+}
+
+function inferGatewayAccountErrorCode(result: IOplRuntimeCommandResult): IOplGatewayAccountErrorCode {
+  const parsedCode = readGatewayAccountErrorCode(result.parsed);
+  if (parsedCode) return parsedCode;
+  const text = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`.toLowerCase();
+  if (/invalid credentials|invalid password|unauthorized|401/.test(text)) return 'invalid_credentials';
+  if (/disabled|suspended/.test(text)) return 'account_disabled';
+  if (/turnstile|captcha|totp|two-factor|mfa|challenge/.test(text)) return 'mfa_or_challenge_required';
+  if (/429|rate limit/.test(text)) return 'rate_limited';
+  if (/network|enotfound|econn|timeout|timed out/.test(text)) return 'network_unreachable';
+  return 'gateway_account_failed';
+}
+
+function sanitizeGatewayAccountResult(result: IOplRuntimeCommandResult): IOplGatewayAccountMutationResult {
+  if (!isRecord(result.parsed)) {
+    if (result.ok === false) {
+      return { ok: false, errorCode: inferGatewayAccountErrorCode(result), stateRefreshRequired: false };
+    }
+    return { ok: false, errorCode: 'internal_contract_violation', stateRefreshRequired: false };
+  }
+  if (containsSecretField(result.parsed)) {
+    return { ok: false, errorCode: 'internal_contract_violation', stateRefreshRequired: false };
+  }
+  const parsedOk = typeof result.parsed.ok === 'boolean' ? result.parsed.ok : null;
+  const ok = result.ok !== false && parsedOk !== false;
+  if (!ok) {
+    return { ok: false, errorCode: inferGatewayAccountErrorCode(result), stateRefreshRequired: false };
+  }
+  return { ok: true, stateRefreshRequired: true };
+}
+
+async function runGatewayAccountCommand(spec: RuntimeCommandSpec): Promise<IOplGatewayAccountMutationResult> {
+  return sanitizeGatewayAccountResult(await runOplCommand(spec));
 }
 
 function buildStartupMaintenanceCommand(): RuntimeCommandSpec {
@@ -1441,6 +1547,9 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
   ipcBridge.oplRuntime.runInstallPrep.provider(() => runOplCommand(buildInstallPrepCommand()));
   ipcBridge.oplRuntime.configureCodex.provider((request) => runOplCommand(buildConfigureCodexCommand(request)));
+  ipcBridge.oplRuntime.loginGatewayAccount.provider((request) =>
+    runGatewayAccountCommand(buildGatewayAccountLoginCommand(request))
+  );
   ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
   ipcBridge.oplRuntime.runReconcileModules.provider(() => runOplCommand(buildReconcileModulesCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
@@ -1465,9 +1574,12 @@ export const __oplRuntimeBridgeTest = {
   buildActionCommand,
   buildAppStateCommand,
   buildConfigureCodexCommand,
+  buildGatewayAccountLoginCommand,
   buildDrilldownCommand,
   buildInitializeFallbackCommand,
   buildInitializeCommand,
+  containsSecretField,
+  sanitizeGatewayAccountResult,
   buildInstallPrepCommand,
   buildUpdateApplyPlanCommand,
   buildReconcileModulesCommand,
