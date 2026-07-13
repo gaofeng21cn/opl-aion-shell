@@ -134,6 +134,8 @@ export class GitWorkspaceAdapter {
           targetPath
         );
       }
+      const liveWorktree = await this.readLiveWorktree(existingWorktree);
+      this.assertReusableWorktree(liveWorktree, startCommit, request.newBranch);
       if (source.summary.unmerged || source.summary.staged || source.summary.unstaged) {
         return {
           status: 'unsupported',
@@ -141,7 +143,7 @@ export class GitWorkspaceAdapter {
           targetPath,
           startRef: request.startRef,
           startCommit,
-          worktree: existingWorktree,
+          worktree: liveWorktree,
           handoff: {
             status: 'unsupported',
             reason: 'existing_worktree_handoff_requires_coordinator',
@@ -156,7 +158,7 @@ export class GitWorkspaceAdapter {
         targetPath,
         startRef: request.startRef,
         startCommit,
-        worktree: existingWorktree,
+        worktree: liveWorktree,
         handoff: {
           status: 'not_run',
           reason: 'existing_task_worktree',
@@ -494,6 +496,41 @@ export class GitWorkspaceAdapter {
     } catch {
       return false;
     }
+  }
+
+  private async readLiveWorktree(worktree: GitWorktreeSummary): Promise<GitWorktreeSummary> {
+    const [head, branch] = await Promise.all([this.readHead(worktree.path), this.readCurrentBranch(worktree.path)]);
+    return {
+      ...worktree,
+      head,
+      branch,
+      branchRef: branch ? `refs/heads/${branch}` : null,
+      detached: branch === null,
+    };
+  }
+
+  private assertReusableWorktree(
+    worktree: GitWorktreeSummary,
+    startCommit: string,
+    newBranch: string | undefined
+  ): void {
+    const requestedBranch = newBranch || null;
+    const requestedDetached = !newBranch;
+    if (
+      worktree.head === startCommit &&
+      worktree.branch === requestedBranch &&
+      worktree.detached === requestedDetached
+    ) {
+      return;
+    }
+
+    const expectedState = requestedBranch ? `branch=${requestedBranch}` : 'detached=true';
+    const actualState = worktree.branch ? `branch=${worktree.branch}` : `detached=${worktree.detached}`;
+    throw new GitWorkspaceAdapterError(
+      'TARGET_EXISTS',
+      'The managed worktree target does not match the requested starting state.',
+      `path=${worktree.path}; expected HEAD=${startCommit}, ${expectedState}; actual HEAD=${worktree.head}, ${actualState}`
+    );
   }
 
   private async readSourceSnapshot(repositoryRoot: string, includePatches: boolean): Promise<SourceSnapshot> {

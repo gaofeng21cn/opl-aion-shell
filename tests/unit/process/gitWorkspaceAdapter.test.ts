@@ -12,6 +12,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -73,6 +74,29 @@ function createAdapter(
   commandRunner: CommandRunner = runnerWithoutGh
 ): GitWorkspaceAdapter {
   return new GitWorkspaceAdapter({ commandRunner, worktreeRoot: fixture.worktreeRoot });
+}
+
+function withStaleWorktreeMetadata(targetPath: string): CommandRunner {
+  const canonicalTarget = realpathSync(targetPath);
+  return async (command, args, options) => {
+    const result = await runnerWithoutGh(command, args, options);
+    if (command !== 'git' || !args.includes('worktree') || !args.includes('list')) return result;
+
+    const stdout = result.stdout
+      .split('\0\0')
+      .map((record) => {
+        const reportedPath = record.split('\0', 1)[0]?.slice('worktree '.length);
+        if (!reportedPath || !existsSync(reportedPath) || realpathSync(reportedPath) !== canonicalTarget) return record;
+        return record
+          .split('\0')
+          .filter((field) => field && field !== 'detached' && !field.startsWith('branch '))
+          .map((field) => (field.startsWith('HEAD ') ? `HEAD ${'f'.repeat(40)}` : field))
+          .concat('branch refs/heads/stale-metadata')
+          .join('\0');
+      })
+      .join('\0\0');
+    return { ...result, stdout };
+  };
 }
 
 async function expectAdapterError(promise: Promise<unknown>, code: GitWorkspaceAdapterError['code']): Promise<void> {
@@ -166,17 +190,116 @@ describe('GitWorkspaceAdapter inspection', () => {
 });
 
 describe('GitWorkspaceAdapter managed worktrees', () => {
-  it('creates a deterministic detached worktree and reuses it for the same task', async () => {
+  it('reuses the same task when the live HEAD and detached state still match', async () => {
     const fixture = createRepository();
     const adapter = createAdapter(fixture);
     const request = { repositoryPath: fixture.repository, taskId: 'task-123', startRef: 'main' };
 
     const created = await adapter.ensureManagedWorktree(request);
     const reused = await adapter.ensureManagedWorktree(request);
+    const actualHead = git(created.targetPath, 'rev-parse', 'HEAD').trim();
 
     expect(created.status).toBe('created');
     expect(created.worktree?.detached).toBe(true);
-    expect(reused).toMatchObject({ status: 'reused', targetPath: created.targetPath });
+    expect(reused).toMatchObject({
+      status: 'reused',
+      targetPath: created.targetPath,
+      startCommit: actualHead,
+      worktree: {
+        head: actualHead,
+        branch: null,
+        branchRef: null,
+        detached: true,
+      },
+    });
+  });
+
+  it('rejects reuse when the requested start commit no longer matches the task worktree HEAD', async () => {
+    const fixture = createRepository();
+    const adapter = createAdapter(fixture);
+    const request = { repositoryPath: fixture.repository, taskId: 'commit-conflict', startRef: 'main' };
+    const created = await adapter.ensureManagedWorktree(request);
+
+    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'task commit\n');
+    git(created.targetPath, 'add', 'tracked.txt');
+    git(created.targetPath, 'commit', '-m', 'advance task worktree');
+    const taskHead = git(created.targetPath, 'rev-parse', 'HEAD').trim();
+
+    await expectAdapterError(adapter.ensureManagedWorktree(request), 'TARGET_EXISTS');
+    expect(git(created.targetPath, 'rev-parse', 'HEAD').trim()).toBe(taskHead);
+  });
+
+  it('rejects reuse when a branch is requested for an existing detached task worktree', async () => {
+    const fixture = createRepository();
+    const adapter = createAdapter(fixture);
+    const request = { repositoryPath: fixture.repository, taskId: 'detached-conflict', startRef: 'main' };
+    const created = await adapter.ensureManagedWorktree(request);
+
+    await expectAdapterError(
+      adapter.ensureManagedWorktree({ ...request, newBranch: 'feature/detached-conflict' }),
+      'TARGET_EXISTS'
+    );
+    expect(git(created.targetPath, 'rev-parse', 'HEAD').trim()).toBe(created.startCommit);
+  });
+
+  it('rejects reuse when detached mode is requested for an existing branch task worktree', async () => {
+    const fixture = createRepository();
+    const adapter = createAdapter(fixture);
+    const request = {
+      repositoryPath: fixture.repository,
+      taskId: 'branch-conflict',
+      startRef: 'main',
+      newBranch: 'feature/branch-conflict',
+    };
+    const created = await adapter.ensureManagedWorktree(request);
+
+    await expectAdapterError(adapter.ensureManagedWorktree({ ...request, newBranch: undefined }), 'TARGET_EXISTS');
+    expect(git(created.targetPath, 'branch', '--show-current').trim()).toBe(request.newBranch);
+  });
+
+  it('rejects reuse when the requested branch differs from the task worktree branch', async () => {
+    const fixture = createRepository();
+    const adapter = createAdapter(fixture);
+    const request = {
+      repositoryPath: fixture.repository,
+      taskId: 'branch-name-conflict',
+      startRef: 'main',
+      newBranch: 'feature/original-task',
+    };
+    const created = await adapter.ensureManagedWorktree(request);
+
+    await expectAdapterError(
+      adapter.ensureManagedWorktree({ ...request, newBranch: 'feature/different-task' }),
+      'TARGET_EXISTS'
+    );
+    expect(git(created.targetPath, 'branch', '--show-current').trim()).toBe(request.newBranch);
+  });
+
+  it('returns reused metadata from the live worktree instead of the registration snapshot', async () => {
+    const fixture = createRepository();
+    const request = {
+      repositoryPath: fixture.repository,
+      taskId: 'live-metadata',
+      startRef: 'main',
+      newBranch: 'feature/live-metadata',
+    };
+    const created = await createAdapter(fixture).ensureManagedWorktree(request);
+    const actualHead = git(created.targetPath, 'rev-parse', 'HEAD').trim();
+
+    const reused = await createAdapter(fixture, withStaleWorktreeMetadata(created.targetPath)).ensureManagedWorktree(
+      request
+    );
+
+    expect(reused).toMatchObject({
+      status: 'reused',
+      startCommit: actualHead,
+      worktree: {
+        head: actualHead,
+        branch: request.newBranch,
+        branchRef: `refs/heads/${request.newBranch}`,
+        detached: false,
+      },
+    });
   });
 
   it('copies staged and unstaged tracked changes while leaving untracked files behind', async () => {
