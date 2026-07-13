@@ -183,13 +183,13 @@ describe('managed update background maintenance scheduler', () => {
     );
   });
 
-  it('runs startup check, plan, and one Framework-owned apply for all eligible Base and Packages work', async () => {
+  it('publishes status before startup check, plan, and one Framework-owned apply', async () => {
     const stop = startManagedUpdateMaintenanceScheduler();
 
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.applyUpdatePlanInvoke).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().lastRunAt).not.toBeNull());
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
@@ -218,6 +218,9 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
     expect(snapshot.restartRequired).toBe(true);
     expect(snapshot.lastReconciledCarrierCheckpoint).toBe('26.5.27:2.1.5');
+    expect(bridgeMocks.getUpdateStatusInvoke.mock.invocationCallOrder[0]).toBeLessThan(
+      bridgeMocks.runUpdateCheckInvoke.mock.invocationCallOrder[0]
+    );
     expect(bridgeMocks.runUpdateCheckInvoke.mock.invocationCallOrder[0]).toBeLessThan(
       bridgeMocks.getUpdatePlanInvoke.mock.invocationCallOrder[0]
     );
@@ -225,9 +228,39 @@ describe('managed update background maintenance scheduler', () => {
       bridgeMocks.applyUpdatePlanInvoke.mock.invocationCallOrder[0]
     );
     expect(bridgeMocks.applyUpdatePlanInvoke.mock.invocationCallOrder[0]).toBeLessThan(
-      bridgeMocks.getUpdateStatusInvoke.mock.invocationCallOrder[0]
+      bridgeMocks.getUpdateStatusInvoke.mock.invocationCallOrder[1]
     );
 
+    stop();
+  });
+
+  it('makes the typed status projection available while the network check is still running', async () => {
+    let resolveCheck: ((value: typeof managedUpdateCheckResult) => void) | undefined;
+    bridgeMocks.runUpdateCheckInvoke.mockReturnValueOnce(
+      new Promise<typeof managedUpdateCheckResult>((resolve) => {
+        resolveCheck = resolve;
+      })
+    );
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().result?.surface).toBe('update_status'));
+    expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledOnce();
+    expect(bridgeMocks.getUpdatePlanInvoke).not.toHaveBeenCalled();
+
+    resolveCheck?.(managedUpdateCheckResult);
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+    stop();
+  });
+
+  it('continues Framework reconciliation when the projection prefetch rejects', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockRejectedValueOnce(new Error('Status prefetch unavailable'));
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+
+    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+    expect(getManagedUpdateMaintenanceSnapshot().lastFailure).toBeNull();
     stop();
   });
 
@@ -353,7 +386,7 @@ describe('managed update background maintenance scheduler', () => {
   });
 
   it('keeps the carrier checkpoint pending when terminal status readback fails after apply', async () => {
-    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce(managedUpdateStatusResult).mockResolvedValueOnce({
       ok: false,
       surface: 'update_status',
       command: 'opl update status --json',
@@ -364,7 +397,7 @@ describe('managed update background maintenance scheduler', () => {
 
     const stop = startManagedUpdateMaintenanceScheduler();
     await waitFor(() => expect(bridgeMocks.applyUpdatePlanInvoke).toHaveBeenCalledOnce());
-    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();

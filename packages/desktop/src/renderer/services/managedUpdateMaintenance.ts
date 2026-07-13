@@ -569,7 +569,7 @@ export async function executeManagedUpdateReconciliation(
 
   emit({
     running: true,
-    operation: 'check',
+    operation: 'status',
     busyAction: null,
     executionStatus: 'running',
     lastTrigger: trigger,
@@ -577,6 +577,24 @@ export async function executeManagedUpdateReconciliation(
   });
 
   inflight = (async (): Promise<IOplRuntimeCommandResult | null> => {
+    let preflightStatusResult: IOplRuntimeCommandResult | null = null;
+    try {
+      preflightStatusResult = await invokeRead('status');
+    } catch {
+      // The read-only projection prefetch must not block the owned reconciliation sequence.
+    }
+    let projectionResult: IOplRuntimeCommandResult | null = null;
+    if (!resultErrorMessage(preflightStatusResult)) {
+      projectionResult = preflightStatusResult;
+      emit({
+        result: preflightStatusResult,
+        lockStatus: readLockStatus(preflightStatusResult),
+        reloadGuidance: readReloadGuidance(preflightStatusResult) ?? snapshot.reloadGuidance,
+        restartRequired: readRestartRequired(preflightStatusResult),
+      });
+    }
+
+    emit({ operation: 'check' });
     let result = await invokeRead('check');
     let lastFailure = resultErrorMessage(result);
     let planResult: IOplRuntimeCommandResult | null = null;
@@ -584,10 +602,12 @@ export async function executeManagedUpdateReconciliation(
     let eligibleComponentIds: ManagedUpdateComponentId[] = [];
 
     if (!lastFailure) {
+      projectionResult = result;
       emit({ operation: 'plan' });
       planResult = await invokeRead('plan');
       result = planResult;
       lastFailure = resultErrorMessage(result);
+      if (!lastFailure) projectionResult = result;
     }
 
     if (!lastFailure && planResult) {
@@ -621,6 +641,7 @@ export async function executeManagedUpdateReconciliation(
       emit({ operation: 'status', busyAction: null });
       result = await invokeRead('status');
       lastFailure = resultErrorMessage(result);
+      if (!lastFailure) projectionResult = result;
     }
 
     retryCount = lastFailure ? retryCount + 1 : 0;
@@ -641,7 +662,7 @@ export async function executeManagedUpdateReconciliation(
         snapshot.reloadGuidance,
       restartRequired,
       ...(lastFailure ? {} : { lastReconciledCarrierCheckpoint: currentCarrierCheckpoint() }),
-      result,
+      result: projectionResult ?? result,
     });
     scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
     return result;
