@@ -3500,7 +3500,9 @@
                 "settings-page-capabilities",
                 "settings-capabilities-primary",
                 "settings-capabilities-opl-flow-managed",
-                "settings-capabilities-third-party"
+                "settings-capabilities-third-party",
+                "settings-capabilities-technical-details",
+                "settings-capabilities-primary-action"
               ],
               "conditional": [
                 {
