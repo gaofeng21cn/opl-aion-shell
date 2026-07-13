@@ -6,6 +6,7 @@ import { useConversationActions } from '@/renderer/pages/conversation/GroupedHis
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   update: vi.fn(),
+  createWithConversation: vi.fn(),
   reset: vi.fn(),
   emit: vi.fn(),
   modalConfirm: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     conversation: {
       update: { invoke: mocks.update },
+      createWithConversation: { invoke: mocks.createWithConversation },
       remove: { invoke: vi.fn() },
       reset: { invoke: mocks.reset },
     },
@@ -68,6 +70,7 @@ describe('conversation archive actions', () => {
   beforeEach(() => {
     mocks.navigate.mockClear();
     mocks.update.mockReset();
+    mocks.createWithConversation.mockReset();
     mocks.reset.mockReset();
     mocks.emit.mockClear();
     mocks.modalConfirm.mockClear();
@@ -121,5 +124,43 @@ describe('conversation archive actions', () => {
 
     expect(mocks.reset).toHaveBeenCalledWith({ id: 'conv-1' });
     expect(mocks.emit).toHaveBeenCalledWith('conversation.reset', 'conv-1');
+  });
+
+  it('materializes an App Server task projection before opening it', async () => {
+    mocks.createWithConversation.mockResolvedValue(undefined);
+    const markAsRead = vi.fn();
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead,
+      })
+    );
+    const canonicalStub = {
+      id: 'thread-1',
+      name: 'Canonical task',
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: {
+        backend: 'codex',
+        acp_session_id: 'thread-1',
+        canonical_thread_id: 'thread-1',
+        canonical_thread_stub: true,
+      },
+    } as TChatConversation;
+
+    act(() => result.current.handleConversationClick(canonicalStub));
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/conversation/thread-1'));
+    expect(mocks.createWithConversation).toHaveBeenCalledWith({
+      conversation: expect.objectContaining({
+        id: 'thread-1',
+        extra: expect.objectContaining({ canonical_thread_stub: false }),
+      }),
+    });
+    expect(markAsRead).toHaveBeenCalledWith('thread-1');
   });
 });

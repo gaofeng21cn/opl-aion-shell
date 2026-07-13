@@ -10,7 +10,7 @@ import { refreshConversationCache } from '@/renderer/pages/conversation/utils/co
 import { emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/focus';
 import { Message, Modal } from '@arco-design/web-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -43,6 +43,7 @@ export const useConversationActions = ({
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const materializingThreadIdsRef = useRef(new Set<string>());
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -61,14 +62,34 @@ export const useConversationActions = ({
       blockMobileInputFocus();
       blurActiveElement();
 
-      markAsRead(conversation.id);
+      void (async () => {
+        if (conversation.type === 'acp' && conversation.extra.canonical_thread_stub) {
+          const threadId = conversation.extra.canonical_thread_id ?? conversation.extra.acp_session_id;
+          if (!threadId || materializingThreadIdsRef.current.has(threadId)) return;
+          materializingThreadIdsRef.current.add(threadId);
+          try {
+            await ipcBridge.conversation.createWithConversation.invoke({
+              conversation: {
+                ...conversation,
+                extra: { ...conversation.extra, canonical_thread_stub: false },
+              },
+            });
+            emitter.emit('chat.history.refresh');
+          } catch (error) {
+            console.error('Failed to materialize canonical Codex task:', error);
+            Message.error(t('conversation.createFailed'));
+            return;
+          } finally {
+            materializingThreadIdsRef.current.delete(threadId);
+          }
+        }
 
-      void navigate(`/conversation/${conversation.id}`);
-      if (onSessionClick) {
-        onSessionClick();
-      }
+        markAsRead(conversation.id);
+        void navigate(`/conversation/${conversation.id}`);
+        onSessionClick?.();
+      })();
     },
-    [batchMode, toggleSelectedConversation, markAsRead, navigate, onSessionClick]
+    [batchMode, toggleSelectedConversation, markAsRead, navigate, onSessionClick, t]
   );
 
   const removeConversation = useCallback(

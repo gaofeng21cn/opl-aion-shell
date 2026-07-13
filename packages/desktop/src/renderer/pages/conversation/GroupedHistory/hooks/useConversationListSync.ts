@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
+import type { CodexThreadDescriptor, ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -134,37 +135,104 @@ const subscribeConversationListSync = (listener: () => void) => {
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
-const refreshConversations = () => {
-  void ipcBridge.database.getUserConversations
-    .invoke({ limit: 10000 })
-    .then((result) => {
-      const items = result?.items;
-      if (items && Array.isArray(items)) {
-        const filteredData = items.filter((conv) => {
-          // Legacy rows from the pre-provider-probe health check flow are hidden
-          // from normal history. New health checks must not create conversations.
-          const extra = conv.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
-          return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
-        });
-        conversationsState = filteredData;
-        // Use ALL conversation IDs (including team/legacy health-check rows) so the
-        // responseStream listener recognises them as known and doesn't
-        // trigger an infinite refreshConversations loop.
-        conversation_idsState = new Set(items.map((conversation) => conversation.id));
-        emitStoreChange();
-        return;
-      }
+const canonicalThreadId = (conversation: TChatConversation): string | undefined => {
+  if (conversation.type !== 'acp' || conversation.extra.backend !== 'codex') return undefined;
+  return conversation.extra.acp_session_id?.trim() || conversation.extra.canonical_thread_id?.trim() || undefined;
+};
 
-      conversationsState = [];
-      conversation_idsState = new Set();
-      emitStoreChange();
-    })
-    .catch((error) => {
-      console.error('[WorkspaceGroupedHistory] Failed to load conversations:', error);
-      conversationsState = [];
-      conversation_idsState = new Set();
-      emitStoreChange();
+const threadTimestamp = (thread: CodexThreadDescriptor): number => {
+  const parsed = Date.parse(thread.updatedAt);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const projectCanonicalThread = (
+  thread: CodexThreadDescriptor,
+  cached: Extract<TChatConversation, { type: 'acp' }> | undefined
+): TChatConversation => {
+  const modifiedAt = threadTimestamp(thread);
+  return {
+    ...(cached ?? {
+      id: thread.id,
+      created_at: modifiedAt,
+      type: 'acp' as const,
+      source: 'codex-app-server',
+    }),
+    id: cached?.id ?? thread.id,
+    name: thread.title,
+    desc: thread.summary,
+    modified_at: modifiedAt,
+    status: thread.status === 'running' ? 'running' : 'finished',
+    extra: {
+      ...(cached?.extra ?? {}),
+      backend: 'codex',
+      workspace: thread.workspace,
+      custom_workspace: Boolean(thread.workspace),
+      acp_session_id: thread.id,
+      canonical_thread_id: thread.id,
+      canonical_thread_stub: !cached,
+      canonical_thread_host: thread.host,
+      archived: thread.archived,
+      archived_at: thread.archived ? (cached?.extra.archived_at ?? modifiedAt) : undefined,
+    },
+  };
+};
+
+/**
+ * Codex app-server owns task identity and lifecycle. Shell rows only add local
+ * UI preferences or provide a lazy, rebuildable projection for unseen tasks.
+ */
+export const mergeCanonicalThreadDirectory = (
+  localConversations: TChatConversation[],
+  overview: ThreadCoordinationOverview | null
+): TChatConversation[] => {
+  if (!overview || overview.availability.status !== 'available') return localConversations;
+
+  const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
+  const localOnly = localConversations.filter((conversation) => {
+    const threadId = canonicalThreadId(conversation);
+    if (!threadId) return true;
+    cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
+    return false;
+  });
+
+  return [
+    ...localOnly,
+    ...overview.threads.map((thread) => projectCanonicalThread(thread, cachedByThreadId.get(thread.id))),
+  ];
+};
+
+const refreshConversations = () => {
+  void Promise.allSettled([
+    ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
+    ipcBridge.threadCoordination.getOverview.invoke({ includeArchived: true }),
+  ]).then(([localResult, canonicalResult]) => {
+    const items =
+      localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items) ? localResult.value.items : [];
+    if (localResult.status === 'rejected') {
+      console.error('[WorkspaceGroupedHistory] Failed to load shell conversation cache:', localResult.reason);
+    }
+    if (canonicalResult.status === 'rejected') {
+      console.error('[WorkspaceGroupedHistory] Failed to load canonical Codex task directory:', canonicalResult.reason);
+    }
+
+    const filteredData = items.filter((conv) => {
+      // Legacy rows from the pre-provider-probe health check flow are hidden
+      // from normal history. New health checks must not create conversations.
+      const extra = conv.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
+      return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
     });
+    conversationsState = mergeCanonicalThreadDirectory(
+      filteredData,
+      canonicalResult.status === 'fulfilled' ? canonicalResult.value : null
+    );
+    // Keep local ids for response-stream guards while canonical-only rows use
+    // app-server notifications and are materialized lazily on first open.
+    conversation_idsState = new Set([
+      ...items.map((conversation) => conversation.id),
+      ...conversationsState.map((conversation) => conversation.id),
+    ]);
+    emitStoreChange();
+  });
 };
 
 const markGenerating = (conversation_id: string) => {

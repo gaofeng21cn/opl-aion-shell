@@ -302,6 +302,12 @@ export type TChatConversation =
           acp_session_conversation_id?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
           acp_session_updated_at?: number;
+          /** Canonical Codex app-server thread represented by this rebuildable shell projection. */
+          canonical_thread_id?: string;
+          /** True only for an in-memory rail row that has not been cached in the shell database yet. */
+          canonical_thread_stub?: boolean;
+          /** Host that reported the canonical thread; informational and never an authorization boundary. */
+          canonical_thread_host?: string;
           /** Last context usage from usage_update */
           last_token_usage?: TokenUsageData;
           /** Context window capacity from usage_update */
