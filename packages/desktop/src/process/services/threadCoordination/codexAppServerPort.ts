@@ -57,6 +57,14 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
+function isUnmaterializedThreadReadError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes('not materialized yet') &&
+    error.message.includes('includeTurns is unavailable before first user message')
+  );
+}
+
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
@@ -345,10 +353,14 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
   }
 
   private async readRawThread(threadId: string): Promise<RawThread> {
-    const response = requiredRecord(
-      await this.rpc.request('thread/read', { threadId, includeTurns: true }),
-      'thread read response'
-    );
+    let result: unknown;
+    try {
+      result = await this.rpc.request('thread/read', { threadId, includeTurns: true });
+    } catch (error) {
+      if (!isUnmaterializedThreadReadError(error)) throw error;
+      result = await this.rpc.request('thread/read', { threadId, includeTurns: false });
+    }
+    const response = requiredRecord(result, 'thread read response');
     return parseThread(response.thread);
   }
 

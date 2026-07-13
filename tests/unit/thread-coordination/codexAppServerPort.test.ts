@@ -104,6 +104,42 @@ describe('CodexAppServerThreadCoordinationPort', () => {
     ]);
   });
 
+  it('reads an unmaterialized empty thread without weakening other read failures', async () => {
+    const appServer = rpc({
+      'thread/read': (params) => {
+        if ((params as { includeTurns: boolean }).includeTurns) {
+          throw new Error(
+            'thread target is not materialized yet; includeTurns is unavailable before first user message'
+          );
+        }
+        return { thread: rawThread('target') };
+      },
+      'thread/goal/get': () => ({ goal: null }),
+    });
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+
+    const detail = await port.readThread('target');
+
+    expect(detail.thread.id).toBe('target');
+    expect(detail.history).toEqual([]);
+    expect(appServer.requests.filter(([method]) => method === 'thread/read')).toEqual([
+      ['thread/read', { threadId: 'target', includeTurns: true }],
+      ['thread/read', { threadId: 'target', includeTurns: false }],
+    ]);
+  });
+
+  it('keeps unrelated thread/read failures fail closed', async () => {
+    const appServer = rpc({
+      'thread/read': () => {
+        throw new Error('permission denied');
+      },
+    });
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+
+    await expect(port.readThread('target')).rejects.toThrow('permission denied');
+    expect(appServer.requests.filter(([method]) => method === 'thread/read')).toHaveLength(1);
+  });
+
   it('routes lifecycle and turn operations to the real app-server method shapes', async () => {
     const appServer = rpc({
       'thread/resume': () => ({ thread: rawThread('target') }),
