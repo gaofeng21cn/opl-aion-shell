@@ -134,6 +134,8 @@ export type RuntimeProjectionDiagnostic = {
   reason: string;
 };
 
+export type RuntimeProjectionDiagnosticDetailPolicy = 'summary_only' | 'included';
+
 export type RuntimeWorkItemProjectionV2 = {
   schemaVersion: typeof WORK_ITEM_PROJECTION_V2_SCHEMA;
   profile: 'fast' | 'full';
@@ -142,6 +144,8 @@ export type RuntimeWorkItemProjectionV2 = {
   projects: RuntimeProject[];
   items: RuntimeWorkItem[];
   diagnostics: RuntimeProjectionDiagnostic[];
+  diagnosticCount: number;
+  diagnosticDetailPolicy: RuntimeProjectionDiagnosticDetailPolicy;
 };
 
 export type RuntimeProjectionReadResult =
