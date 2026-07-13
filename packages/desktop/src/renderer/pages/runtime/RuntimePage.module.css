@@ -10,6 +10,18 @@
   background: var(--color-bg-1);
 }
 
+.page,
+.detailDrawer {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.page :global(.arco-typography),
+.detailDrawer :global(.arco-typography) {
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
+
 .pageHeader {
   display: flex;
   flex-wrap: wrap;
@@ -160,7 +172,6 @@
 }
 
 .metricLabel {
-  overflow-wrap: anywhere;
   color: var(--color-text-2);
   font-size: 12px;
 }
@@ -234,7 +245,6 @@
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
 .workItemRows {
@@ -283,7 +293,6 @@
 .executionLabel,
 .attentionSummary {
   max-width: 100%;
-  overflow-wrap: anywhere;
   color: var(--color-text-3);
   font-size: 12px;
   line-height: 1.45;
@@ -305,7 +314,6 @@
 
 .workItemTitle {
   min-width: 0;
-  overflow-wrap: anywhere;
   color: var(--color-text-1);
   font-size: 14px;
   font-weight: 600;
@@ -322,7 +330,6 @@
 .progressLabel,
 .nextLabel {
   max-width: 100%;
-  overflow-wrap: anywhere;
   color: var(--color-text-1);
   font-size: 13px;
   line-height: 1.5;
@@ -356,7 +363,6 @@
 .usagePair dd {
   min-width: 0;
   margin: 0;
-  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 1.45;
 }
@@ -374,7 +380,6 @@
   max-width: 100%;
   height: auto;
   white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 .workItemRow :global(.arco-tag)[data-runtime-status='automatically_advancing'] {
@@ -426,7 +431,6 @@
 
 .agentAvailabilitySummary {
   min-width: 0;
-  overflow-wrap: anywhere;
   font-weight: 600;
 }
 
@@ -459,7 +463,6 @@
 .agentName,
 .agentMessage {
   max-width: 100%;
-  overflow-wrap: anywhere;
 }
 
 .agentName {
@@ -493,7 +496,6 @@
 
 .detailProject,
 .detailAgent {
-  overflow-wrap: anywhere;
   color: var(--color-text-2);
 }
 
@@ -531,7 +533,6 @@
 .detailFactLabel,
 .detailFactValue {
   max-width: 100%;
-  overflow-wrap: anywhere;
 }
 
 .stageMapUnavailable {
@@ -609,7 +610,6 @@
 
 .stageStepTitle {
   min-width: 0;
-  overflow-wrap: anywhere;
   color: var(--color-text-1);
   font-weight: 600;
 }
@@ -624,7 +624,6 @@
 .stageMeta :global(.arco-typography) {
   min-width: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
   color: var(--color-text-3);
   font-size: 12px;
   white-space: normal;
@@ -653,7 +652,6 @@
 .actionOwner {
   display: block;
   max-width: 100%;
-  overflow-wrap: anywhere;
 }
 
 .actionTitle {
@@ -686,11 +684,6 @@
 
 .systemAttentionGrid div {
   min-width: 0;
-}
-
-.systemAttentionGrid dt,
-.systemAttentionGrid dd {
-  overflow-wrap: anywhere;
 }
 
 .systemAttentionGrid dt {
@@ -748,7 +741,6 @@
 .detailEntryMeta,
 .detailEntryRef {
   max-width: 100%;
-  overflow-wrap: anywhere;
 }
 
 .detailEntryLabel {
