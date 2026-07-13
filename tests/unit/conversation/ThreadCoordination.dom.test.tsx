@@ -228,7 +228,7 @@ describe('ThreadCoordinationSection', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'delivery-id' });
   });
 
-  it('passes a real persisted Codex session id as a hint and supports explicit sender selection', async () => {
+  it('prefers the canonical Codex thread id over the legacy session id and supports explicit sender selection', async () => {
     mocks.getConversation.mockResolvedValue({
       id: 'aion-conversation',
       type: 'acp',
