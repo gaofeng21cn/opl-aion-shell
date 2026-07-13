@@ -2035,7 +2035,7 @@
           "icon_token": "agents",
           "ia_group": "agents",
           "slot_id": "settings_agents",
-          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + home_agent_shortcuts",
+          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "user",
           "intent": "manage",
@@ -2417,7 +2417,7 @@
             "route_id": "agents",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/agentPackagesProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/AgentPackagesSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
+            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.agents",
             "resource_grouping_surface": {
               "surface": "settings_capabilities",
@@ -2460,9 +2460,11 @@
               "primary_identity": "installed_package_directory",
               "purpose_role": "secondary_tag_filter_only",
               "home_shortcut_integration": "inline_visibility_and_order_controls_on_package_rows",
-              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
+              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[]",
+              "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
+              "source_semantics_policy": "agent package state owns installation truth; runtime source carriers own active run source; runtime source presence alone is not package installation truth",
               "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[] + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
-              "normalization_policy": "shell must prefer canonical agent_packages projection and only fall back to modules.items when older runtime payloads or partial projections are still in circulation",
+              "normalization_policy": "shell must use agent_packages for installation truth, overlay runtime_source_carriers for active run source, and only fall back to modules.items when older runtime payloads or partial projections are still in circulation",
               "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.package_projection_contract.activation_preparation_policy",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
@@ -2477,7 +2479,7 @@
                   "launch_allowed",
                   "activation_action"
                 ],
-                "developer_source_policy": "developer checkout semantics must surface explicitly and must not collapse into a generic repair bucket",
+                "developer_source_policy": "active runtime developer checkout semantics must surface explicitly, remain distinct from package installation source, and must not collapse into a generic repair bucket",
                 "must_not_collapse": ["developer_checkout", "dirty_checkout", "git_behind", "unknown", "needs_sync"]
               },
               "detail_surface": {
@@ -2504,7 +2506,7 @@
                 "first_screen_policy": "dependency_readiness_operational_ready_launch_gate_and_dependent_guard_are_normal_detail_fields_while_receipts_dependency_closure_digests_physical_surface_and_workflow_connector_resource_refs_are_advanced_only_not_primary_row_density",
                 "rollback_display_policy": "rollback_ref_is_diagnostic_recovery_reference_not_an_app_owned_rollback_button_or_runtime_truth"
               },
-              "completion_boundary": "this control-plane contract requires canonical agent_packages projection and allows modules.items fallback only as rollout compatibility"
+              "completion_boundary": "this control-plane contract requires agent_packages installation truth plus runtime_source_carriers active run source and allows modules.items fallback only as rollout compatibility"
             },
             "forbidden_sources": ["upstream unified catalog without allowlist", "Team MCP ordinary surface"]
           }

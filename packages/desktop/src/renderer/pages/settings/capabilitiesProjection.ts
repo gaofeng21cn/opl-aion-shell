@@ -160,6 +160,7 @@ export type ExtraCapabilityPurposeInput = Omit<
 type RuntimeModuleItem = OplAppStateRecord;
 type RuntimeTaskItem = OplAppStateRecord;
 type RuntimePackageStateItem = OplAppStateRecord;
+type RuntimeSourceCarrierItem = OplAppStateRecord;
 
 export type CapabilityRefViewModel = {
   id: string;
@@ -263,6 +264,29 @@ function capabilityModuleRecords(value: unknown): RuntimeModuleItem[] {
   return Object.entries(record)
     .filter(([, module]) => Object.keys(oplRecord(module)).length > 0)
     .map(([id, module]) => Object.assign({}, oplRecord(module), { module_id: id }));
+}
+
+function runtimeSourceCarrierIds(carrier: RuntimeSourceCarrierItem): string[] {
+  return [firstString(carrier.carrier_id, carrier.module_id), firstString(carrier.package_id)]
+    .filter((id): id is string => Boolean(id))
+    .map(normalizeCapabilityModuleId);
+}
+
+function mergeRuntimeSourceCarrier(
+  module: RuntimeModuleItem | undefined,
+  carrier: RuntimeSourceCarrierItem
+): RuntimeModuleItem {
+  const carrierSourcePolicy = oplRecord(carrier.source_policy);
+  const carrierGit = oplRecord(carrier.git);
+  return {
+    ...(module ?? {}),
+    module_id: firstString(module?.module_id, carrier.carrier_id, carrier.package_id),
+    install_origin: firstString(carrier.source_origin, module?.install_origin),
+    checkout_path: firstString(carrier.source_path, module?.checkout_path),
+    managed_checkout_path: firstString(carrier.managed_source_path, module?.managed_checkout_path),
+    source_policy: Object.keys(carrierSourcePolicy).length > 0 ? carrierSourcePolicy : oplRecord(module?.source_policy),
+    git: Object.keys(carrierGit).length > 0 ? carrierGit : oplRecord(module?.git),
+  };
 }
 
 function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
@@ -1283,6 +1307,11 @@ export function buildCapabilitiesViewModel(
   for (const module of capabilityModuleRecords(modulesPayload.items ?? modulesPayload.modules ?? modulesPayload)) {
     modules.set(capabilityModuleId(module), module);
   }
+  const runtimeSourceCarriers = new Map<string, RuntimeSourceCarrierItem>();
+  const runtimeSourceCarriersPayload = oplRecord(appState.runtime_source_carriers);
+  for (const carrier of capabilityModuleRecords(runtimeSourceCarriersPayload.items)) {
+    for (const id of runtimeSourceCarrierIds(carrier)) runtimeSourceCarriers.set(id, carrier);
+  }
   const tasks = new Map<string, RuntimeTaskItem>();
   for (const task of capabilityTaskRecords(appState)) {
     tasks.set(capabilityTaskId(task), task);
@@ -1292,7 +1321,12 @@ export function buildCapabilitiesViewModel(
   const defaultPurposes = getOplProfessionalAgentPackages().map((agentPackage) => {
     const moduleIds = agentPackageModuleIds(agentPackage);
     const packageState = packageStates.get(canonicalCapabilityPackageId(agentPackage.package_id) ?? '');
-    const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const legacyModule = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const runtimeSourceCarrier = moduleIds.map((id) => runtimeSourceCarriers.get(id)).find(Boolean);
+    const module =
+      packageState && runtimeSourceCarrier
+        ? mergeRuntimeSourceCarrier(legacyModule, runtimeSourceCarrier)
+        : legacyModule;
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     const canonicalPackageId = canonicalizeOplProfessionalAgentId(agentPackage.package_id);
     const shortcut = shortcutsByPackageId.get(canonicalPackageId) ?? shortcutsByPackageId.get(agentPackage.package_id);
@@ -1317,7 +1351,12 @@ export function buildCapabilitiesViewModel(
   const explicitPurposes = extraPurposes.map((purpose) => {
     const moduleIds = purpose.moduleIds.map(normalizeCapabilityModuleId);
     const packageState = packageStates.get(canonicalCapabilityPackageId(purpose.packageId ?? purpose.key) ?? '');
-    const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const legacyModule = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const runtimeSourceCarrier = moduleIds.map((id) => runtimeSourceCarriers.get(id)).find(Boolean);
+    const module =
+      packageState && runtimeSourceCarrier
+        ? mergeRuntimeSourceCarrier(legacyModule, runtimeSourceCarrier)
+        : legacyModule;
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     return buildCapabilityPurpose(
       {

@@ -255,6 +255,70 @@ describe('buildCapabilitiesViewModel', () => {
     expect(research.actualSource).toBe('sibling_workspace');
   });
 
+  it('uses the runtime carrier as run source without replacing package installation truth', () => {
+    const [research] = buildCapabilitiesViewModel(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              mas: {
+                package_id: 'mas',
+                status: 'installed',
+                source_kind: 'local_manifest_file',
+                codex_visible: true,
+              },
+            },
+          },
+        },
+        runtime_source_carriers: {
+          items: [
+            {
+              package_id: 'mas',
+              carrier_id: 'medautoscience',
+              source_origin: 'sibling_workspace',
+              source_path: '/workspace/med-autoscience',
+              managed_source_path: '/managed/med-autoscience',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
+              },
+              git: { dirty: false, sync_status: 'synced', short_sha: 'abc1234' },
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+
+    expect(research.status).toBe('ready');
+    expect(research.actualSource).toBe('sibling_workspace');
+    expect(research.checkoutPath).toBe('/workspace/med-autoscience');
+  });
+
+  it('does not treat an uninstalled runtime carrier as package installation truth', () => {
+    const [research] = buildCapabilitiesViewModel(
+      {
+        agent_packages: {
+          status_index: { packages: {} },
+        },
+        runtime_source_carriers: {
+          items: [
+            {
+              package_id: 'mas',
+              carrier_id: 'medautoscience',
+              source_origin: 'sibling_workspace',
+              source_health_status: 'ready',
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+
+    expect(research.status).toBe('missing');
+    expect(research.actualSource).toBeNull();
+  });
+
   it('reports ready only when dependency closure and operational readiness are ready', () => {
     const capability = buildCapabilitiesViewModel(
       {

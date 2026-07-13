@@ -934,10 +934,12 @@ function resolveNodeCommand(env: NodeJS.ProcessEnv): {
 }
 
 function hasManagedUpdateKernel(packageRoot: string): boolean {
-  return (
-    pathExistsFile(path.join(packageRoot, 'src', 'managed-update-kernel.ts')) ||
-    pathExistsFile(path.join(packageRoot, 'dist', 'managed-update-kernel.js'))
-  );
+  return [
+    ['src', 'modules', 'connect', 'managed-update-kernel.ts'],
+    ['dist', 'modules', 'connect', 'managed-update-kernel.js'],
+    ['src', 'managed-update-kernel.ts'],
+    ['dist', 'managed-update-kernel.js'],
+  ].some((segments) => pathExistsFile(path.join(packageRoot, ...segments)));
 }
 
 function packageSupportsCommand(packageRoot: string, spec: RuntimeCommandSpec): boolean {

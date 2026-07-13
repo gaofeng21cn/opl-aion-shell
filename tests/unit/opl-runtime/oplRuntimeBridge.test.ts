@@ -638,6 +638,34 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(command.args[0]).toBe(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'));
   });
 
+  it('recognizes the current Framework managed-update module path', () => {
+    const homeDir = makeTempRoot('opl-managed-update-current-path-home');
+    const privateRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(privateRoot);
+    fs.mkdirSync(path.join(privateRoot, 'dist', 'modules', 'connect'), { recursive: true });
+    fs.writeFileSync(
+      path.join(privateRoot, 'dist', 'modules', 'connect', 'managed-update-kernel.js'),
+      'export {}\n',
+      'utf8'
+    );
+
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+      __oplRuntimeBridgeTest.buildOplCommandEnv({
+        baseEnv: {
+          HOME: homeDir,
+          PATH: '/usr/bin:/bin',
+          OPL_APP_INSTALL_ORIGIN: 'direct_download',
+        },
+        platform: 'darwin',
+        arch: 'arm64',
+      })
+    );
+
+    expect(command.args.slice(-3)).toEqual(['update', 'status', '--json']);
+    expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('framework_managed_install');
+  });
+
   it('prefers the explicit local framework checkout when Developer Mode auto-matches the developer identity', () => {
     const homeDir = makeTempRoot('opl-devmode-source-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
