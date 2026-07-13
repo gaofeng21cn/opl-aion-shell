@@ -505,6 +505,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
           <FlexFullContainer containerClassName='overflow-y-auto'>
             <FileChangeList
               t={t}
+              conversationId={conversation_id}
               workspace={workspace}
               staged={fileChangesHook.staged}
               unstaged={fileChangesHook.unstaged}

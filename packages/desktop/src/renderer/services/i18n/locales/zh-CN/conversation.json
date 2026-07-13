@@ -508,6 +508,55 @@
       "noUnstaged": "没有未暂存的更改",
       "noStaged": "没有已暂存的更改"
     },
+    "review": {
+      "open": "审查",
+      "title": "审查更改",
+      "gitTitle": "Git 上下文",
+      "refreshGit": "刷新 Git 上下文",
+      "gitInspectionFailed": "Git 上下文不可用",
+      "branchLabel": "分支",
+      "headLabel": "HEAD",
+      "detachedHead": "游离 HEAD",
+      "pullRequestLabel": "拉取请求",
+      "unavailable": "不可用",
+      "pullRequestUnavailable": {
+        "detachedHead": "当前处于游离 HEAD",
+        "ghCommandFailed": "GitHub CLI 不可用",
+        "ghNotFound": "GitHub CLI 不可用",
+        "invalidResponse": "GitHub CLI 返回了无效响应",
+        "noCurrentPullRequest": "当前分支没有拉取请求"
+      },
+      "reviewTitle": "审查请求",
+      "threadUnavailable": "当前会话无法发起审查。",
+      "targetLabel": "审查目标",
+      "target": {
+        "uncommittedChanges": "未提交的更改",
+        "baseBranch": "基准分支",
+        "commit": "提交",
+        "custom": "自定义"
+      },
+      "baseBranchPlaceholder": "选择或输入基准分支",
+      "commitPlaceholder": "输入提交 SHA",
+      "customPlaceholder": "输入审查指令",
+      "focusPlaceholder": "可选的审查重点",
+      "deliveryLabel": "投递方式",
+      "delivery": {
+        "inline": "当前会话",
+        "detached": "独立会话"
+      },
+      "defaultReason": "审查所选工作区目标。",
+      "startReview": "开始审查",
+      "reviewSuccess": "审查已开始",
+      "reviewFailed": "无法开始审查",
+      "deliveryTitle": "提交与推送",
+      "commitMessagePlaceholder": "说明已暂存的更改",
+      "commitStaged": "提交已暂存内容",
+      "commitSuccess": "已提交 {{sha}}",
+      "commitFailed": "无法提交已暂存内容",
+      "pushCurrentBranch": "推送当前分支",
+      "pushSuccess": "已推送 {{branch}}",
+      "pushFailed": "无法推送当前分支"
+    },
     "openWorkspace": "打开项目文件夹",
     "openWith": {
       "vscode": "VS Code",

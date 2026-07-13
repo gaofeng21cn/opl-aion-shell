@@ -1,0 +1,505 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
+import type { GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
+import FileChangeList from '@/renderer/pages/conversation/Workspace/components/FileChangeList';
+import WorkspaceReviewSurface from '@/renderer/pages/conversation/Workspace/components/WorkspaceReviewSurface';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { TFunction } from 'i18next';
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  getConversation: vi.fn(),
+  getOverview: vi.fn(),
+  executeReview: vi.fn(),
+  inspect: vi.fn(),
+  commitStaged: vi.fn(),
+  pushCurrentBranch: vi.fn(),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
+}));
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    conversation: { get: { invoke: mocks.getConversation } },
+    threadCoordination: {
+      getOverview: { invoke: mocks.getOverview },
+      readThread: { invoke: vi.fn() },
+      execute: { invoke: mocks.executeReview },
+    },
+    gitWorkspace: {
+      inspect: { invoke: mocks.inspect },
+      commitStaged: { invoke: mocks.commitStaged },
+      pushCurrentBranch: { invoke: mocks.pushCurrentBranch },
+    },
+    fileSnapshot: {
+      getBaselineContent: { invoke: vi.fn() },
+    },
+    fs: {
+      readFile: { invoke: vi.fn() },
+    },
+  },
+}));
+
+vi.mock('@/renderer/components/media/Diff2Html', () => ({
+  default: () => <div>diff</div>,
+}));
+
+vi.mock('@/renderer/services/FileService', () => ({
+  isTextFile: () => true,
+}));
+
+vi.mock('@arco-design/web-react', async () => {
+  const ReactModule = await import('react');
+  type RadioContextValue = {
+    value: string;
+    disabled: boolean;
+    onChange?: (value: string) => void;
+  };
+  const RadioContext = ReactModule.createContext<RadioContextValue>({ value: '', disabled: false });
+
+  const Input = Object.assign(
+    ({
+      value,
+      onChange,
+      ...props
+    }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & { onChange?: (value: string) => void }) => (
+      <input {...props} value={value} onChange={(event) => onChange?.(event.target.value)} />
+    ),
+    {
+      TextArea: ({
+        value,
+        onChange,
+        autoSize: _autoSize,
+        ...props
+      }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> & {
+        autoSize?: unknown;
+        onChange?: (value: string) => void;
+      }) => <textarea {...props} value={value} onChange={(event) => onChange?.(event.target.value)} />,
+    }
+  );
+
+  const Select = Object.assign(
+    ({
+      value,
+      onChange,
+      children,
+      allowCreate: _allowCreate,
+      showSearch: _showSearch,
+      ...props
+    }: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & {
+      allowCreate?: boolean;
+      showSearch?: boolean;
+      onChange?: (value: string) => void;
+    }) => (
+      <select {...props} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)}>
+        <option value='' />
+        {children}
+      </select>
+    ),
+    {
+      Option: ({ value, children }: React.OptionHTMLAttributes<HTMLOptionElement>) => (
+        <option value={value}>{children}</option>
+      ),
+    }
+  );
+
+  const Radio = Object.assign(
+    ({ value, children }: React.PropsWithChildren<{ value: string }>) => {
+      const context = ReactModule.useContext(RadioContext);
+      return (
+        <label>
+          <input
+            type='radio'
+            value={value}
+            checked={context.value === value}
+            disabled={context.disabled}
+            onChange={() => context.onChange?.(value)}
+          />
+          {children}
+        </label>
+      );
+    },
+    {
+      Group: ({
+        value,
+        disabled = false,
+        onChange,
+        children,
+        type: _type,
+        ...props
+      }: React.PropsWithChildren<{
+        value: string;
+        disabled?: boolean;
+        onChange?: (value: string) => void;
+        type?: string;
+      }>) => (
+        <div {...props} role='radiogroup'>
+          <RadioContext.Provider value={{ value, disabled, onChange }}>{children}</RadioContext.Provider>
+        </div>
+      ),
+    }
+  );
+
+  return {
+    Alert: ({ content }: { content: React.ReactNode }) => <div role='alert'>{content}</div>,
+    Button: ({
+      children,
+      onClick,
+      disabled,
+      loading: _loading,
+      icon: _icon,
+      shape: _shape,
+      size: _size,
+      type: _type,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & Record<string, unknown>) => (
+      <button {...props} type='button' disabled={disabled} onClick={onClick}>
+        {children}
+      </button>
+    ),
+    Empty: ({ description }: { description: React.ReactNode }) => <div>{description}</div>,
+    Input,
+    Message: { success: mocks.messageSuccess, error: mocks.messageError },
+    Modal: ({
+      visible,
+      title,
+      children,
+      onCancel,
+    }: React.PropsWithChildren<{ visible: boolean; title: React.ReactNode; onCancel?: () => void }>) =>
+      visible ? (
+        <div role='dialog' aria-label={String(title)}>
+          <button type='button' aria-label='modal-close' onClick={onCancel} />
+          {children}
+        </div>
+      ) : null,
+    Radio,
+    Select,
+    Spin: () => <div>loading</div>,
+    Tag: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
+    Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
+  };
+});
+
+const HEAD = '0123456789abcdef0123456789abcdef01234567';
+const t = ((key: string, options?: Record<string, unknown>) => {
+  if (options?.sha) return `${key}:${String(options.sha)}`;
+  if (options?.branch) return `${key}:${String(options.branch)}`;
+  return key;
+}) as TFunction;
+
+function overview(overrides: Partial<ThreadCoordinationOverview> = {}): ThreadCoordinationOverview {
+  return {
+    schema: 'opl_codex_thread_coordination_overview.v1',
+    availability: {
+      status: 'available',
+      host: 'codex-app-server',
+      protocolVersion: '1',
+      methods: ['review/start'],
+      reasonCode: null,
+      detail: null,
+    },
+    currentThreadId: 'thread-current',
+    currentProjectId: 'project-current',
+    threads: [],
+    audit: [],
+    ...overrides,
+  };
+}
+
+function inspection(overrides: Partial<GitWorkspaceInspection> = {}): GitWorkspaceInspection {
+  return {
+    cwd: '/workspace/project',
+    root: '/workspace/project',
+    head: HEAD,
+    currentBranch: 'feature/review',
+    dirty: true,
+    staged: true,
+    branches: [
+      {
+        name: 'main',
+        fullRef: 'refs/heads/main',
+        head: HEAD,
+        kind: 'local',
+        current: false,
+        upstream: 'origin/main',
+        upstreamTrack: null,
+        checkedOutAt: null,
+      },
+      {
+        name: 'feature/review',
+        fullRef: 'refs/heads/feature/review',
+        head: HEAD,
+        kind: 'local',
+        current: true,
+        upstream: 'origin/feature/review',
+        upstreamTrack: null,
+        checkedOutAt: '/workspace/project',
+      },
+    ],
+    worktrees: [],
+    pullRequest: { status: 'unavailable', reason: 'gh_not_found' },
+    ...overrides,
+  };
+}
+
+function renderSurface(overrides: Partial<React.ComponentProps<typeof WorkspaceReviewSurface>> = {}) {
+  const onRefreshChanges = vi.fn();
+  render(
+    <WorkspaceReviewSurface
+      t={t}
+      conversationId='conversation-current'
+      workspace='/workspace/project'
+      stagedCount={2}
+      onRefreshChanges={onRefreshChanges}
+      {...overrides}
+    />
+  );
+  return { onRefreshChanges };
+}
+
+async function openSurface() {
+  const user = userEvent.setup();
+  const trigger = screen.getByRole('button', { name: 'conversation.workspace.review.open' });
+  await user.tab();
+  expect(document.activeElement).toBe(trigger);
+  await user.keyboard('{Enter}');
+  await screen.findByRole('dialog', { name: 'conversation.workspace.review.title' });
+  await screen.findByText('feature/review');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' })).toBeEnabled()
+  );
+  return user;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getConversation.mockResolvedValue({
+    type: 'acp',
+    extra: { backend: 'codex', acp_session_id: 'thread-current' },
+  });
+  mocks.getOverview.mockResolvedValue(overview());
+  mocks.inspect.mockResolvedValue(inspection());
+  mocks.executeReview.mockResolvedValue({
+    ok: true,
+    outcome: 'accepted',
+    action: 'review',
+    targetThreadId: 'thread-current',
+    forkedThreadId: null,
+    reviewThreadId: 'review-thread',
+    protocolMethod: 'review/start',
+    auditId: 'audit-review',
+    errorCode: null,
+    message: 'Accepted',
+    advisories: [],
+  });
+  mocks.commitStaged.mockResolvedValue({
+    root: '/workspace/project',
+    branch: 'feature/review',
+    commitSha: HEAD,
+  });
+  mocks.pushCurrentBranch.mockResolvedValue({
+    root: '/workspace/project',
+    branch: 'feature/review',
+    remote: 'origin',
+    upstream: 'origin/feature/review',
+  });
+});
+
+describe('Workspace review surface', () => {
+  it('keeps the review entry visible for an empty change list without loading review context early', () => {
+    render(
+      <FileChangeList
+        t={t}
+        conversationId='conversation-current'
+        workspace='/workspace/project'
+        staged={[]}
+        unstaged={[]}
+        loading={false}
+        snapshotInfo={{ mode: 'git-repo', branch: 'feature/review' }}
+        onRefresh={vi.fn()}
+        onOpenDiff={vi.fn()}
+        onStageFile={vi.fn()}
+        onStageAll={vi.fn()}
+        onUnstageFile={vi.fn()}
+        onUnstageAll={vi.fn()}
+        onDiscardFile={vi.fn()}
+        onResetFile={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'conversation.workspace.review.open' })).toBeVisible();
+    expect(mocks.getOverview).not.toHaveBeenCalled();
+    expect(mocks.inspect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['gh_not_found', 'ghNotFound'],
+    ['no_current_pull_request', 'noCurrentPullRequest'],
+  ] as const)('opens from the keyboard and reports %s as unavailable', async (reason, reasonKey) => {
+    mocks.inspect.mockResolvedValueOnce(
+      inspection({
+        pullRequest: { status: 'unavailable', reason },
+      })
+    );
+    renderSurface();
+    await openSurface();
+
+    expect(screen.getByText('conversation.workspace.review.unavailable')).toBeVisible();
+    expect(screen.getByText(`conversation.workspace.review.pullRequestUnavailable.${reasonKey}`)).toBeVisible();
+    expect(mocks.inspect).toHaveBeenCalledWith({ cwd: '/workspace/project' });
+  });
+
+  it('renders the pull request returned by gitWorkspace.inspect', async () => {
+    mocks.inspect.mockResolvedValueOnce(
+      inspection({
+        pullRequest: {
+          status: 'available',
+          number: 42,
+          title: 'Workspace review surface',
+          url: 'https://example.invalid/pull/42',
+          state: 'OPEN',
+          isDraft: false,
+          headRefName: 'feature/review',
+          baseRefName: 'main',
+        },
+      })
+    );
+    renderSurface();
+    await openSurface();
+
+    expect(screen.getByText('#42 Workspace review surface')).toBeVisible();
+    expect(screen.getByText('main <- feature/review')).toBeVisible();
+  });
+
+  it.each([
+    {
+      name: 'uncommitted changes inline',
+      targetType: 'uncommittedChanges',
+      delivery: 'inline',
+      expectedTarget: { type: 'uncommittedChanges' },
+      expectedReason: 'conversation.workspace.review.defaultReason',
+    },
+    {
+      name: 'base branch detached',
+      targetType: 'baseBranch',
+      delivery: 'detached',
+      expectedTarget: { type: 'baseBranch', branch: 'main' },
+      expectedReason: 'conversation.workspace.review.defaultReason',
+    },
+    {
+      name: 'commit inline',
+      targetType: 'commit',
+      delivery: 'inline',
+      expectedTarget: { type: 'commit', sha: 'abcdef123456', title: null },
+      expectedReason: 'conversation.workspace.review.defaultReason',
+    },
+    {
+      name: 'custom detached',
+      targetType: 'custom',
+      delivery: 'detached',
+      expectedTarget: { type: 'custom', instructions: 'Review only the Workspace boundary.' },
+      expectedReason: 'Review only the Workspace boundary.',
+    },
+  ])('starts a $name review through the typed coordination bridge', async (testCase) => {
+    renderSurface();
+    const user = await openSurface();
+
+    await user.selectOptions(screen.getByLabelText('conversation.workspace.review.targetLabel'), testCase.targetType);
+    if (testCase.targetType === 'baseBranch') {
+      await user.selectOptions(screen.getByLabelText('conversation.workspace.review.baseBranchPlaceholder'), 'main');
+    }
+    if (testCase.targetType === 'commit') {
+      const input = screen.getByLabelText('conversation.workspace.review.commitPlaceholder');
+      await user.clear(input);
+      await user.type(input, 'abcdef123456');
+    }
+    if (testCase.targetType === 'custom') {
+      await user.type(
+        screen.getByLabelText('conversation.workspace.review.customPlaceholder'),
+        'Review only the Workspace boundary.'
+      );
+    }
+    if (testCase.delivery === 'detached') {
+      await user.click(screen.getByLabelText('conversation.workspace.review.delivery.detached'));
+    }
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
+
+    await waitFor(() => expect(mocks.executeReview).toHaveBeenCalledOnce());
+    expect(mocks.executeReview).toHaveBeenCalledWith({
+      request: {
+        action: 'review',
+        targetThreadId: 'thread-current',
+        actor: { kind: 'user', id: 'opl-app-user', threadId: 'thread-current' },
+        reason: testCase.expectedReason,
+        target: testCase.expectedTarget,
+        delivery: testCase.delivery,
+      },
+    });
+  });
+
+  it('commits only staged changes through gitWorkspace and refreshes fileSnapshot data', async () => {
+    const { onRefreshChanges } = renderSurface();
+    const user = await openSurface();
+    await user.type(
+      screen.getByLabelText('conversation.workspace.review.commitMessagePlaceholder'),
+      'feat(workspace): add review surface'
+    );
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.commitStaged' }));
+
+    await waitFor(() => expect(mocks.commitStaged).toHaveBeenCalledOnce());
+    expect(mocks.commitStaged).toHaveBeenCalledWith({
+      cwd: '/workspace/project',
+      message: 'feat(workspace): add review surface',
+    });
+    expect(onRefreshChanges).toHaveBeenCalledOnce();
+  });
+
+  it('pushes the current branch through gitWorkspace', async () => {
+    renderSurface();
+    const user = await openSurface();
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.pushCurrentBranch' }));
+
+    await waitFor(() => expect(mocks.pushCurrentBranch).toHaveBeenCalledOnce());
+    expect(mocks.pushCurrentBranch).toHaveBeenCalledWith({ cwd: '/workspace/project' });
+  });
+
+  it('surfaces push failures without mutating another Git state path', async () => {
+    mocks.pushCurrentBranch.mockRejectedValueOnce(new Error('Current branch has no configured upstream.'));
+    renderSurface();
+    const user = await openSurface();
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.pushCurrentBranch' }));
+
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('Current branch has no configured upstream.'));
+    expect(mocks.commitStaged).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the current Codex thread cannot be resolved', async () => {
+    mocks.getOverview.mockResolvedValueOnce(
+      overview({
+        availability: {
+          status: 'unavailable',
+          host: null,
+          protocolVersion: null,
+          methods: ['review/start'],
+          reasonCode: 'protocol_unavailable',
+          detail: null,
+        },
+        currentThreadId: null,
+      })
+    );
+    renderSurface();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.open' }));
+    await screen.findByText('conversation.workspace.review.threadUnavailable');
+
+    expect(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' })).toBeDisabled();
+    expect(mocks.executeReview).not.toHaveBeenCalled();
+  });
+});

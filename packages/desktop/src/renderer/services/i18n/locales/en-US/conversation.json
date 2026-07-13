@@ -508,6 +508,55 @@
       "noUnstaged": "No unstaged changes",
       "noStaged": "No staged changes"
     },
+    "review": {
+      "open": "Review",
+      "title": "Review changes",
+      "gitTitle": "Git context",
+      "refreshGit": "Refresh Git context",
+      "gitInspectionFailed": "Git context is unavailable",
+      "branchLabel": "Branch",
+      "headLabel": "HEAD",
+      "detachedHead": "Detached HEAD",
+      "pullRequestLabel": "Pull request",
+      "unavailable": "Unavailable",
+      "pullRequestUnavailable": {
+        "detachedHead": "Detached HEAD",
+        "ghCommandFailed": "GitHub CLI is unavailable",
+        "ghNotFound": "GitHub CLI is unavailable",
+        "invalidResponse": "GitHub CLI returned an invalid response",
+        "noCurrentPullRequest": "No pull request for the current branch"
+      },
+      "reviewTitle": "Review request",
+      "threadUnavailable": "Review is unavailable for this conversation.",
+      "targetLabel": "Review target",
+      "target": {
+        "uncommittedChanges": "Uncommitted changes",
+        "baseBranch": "Base branch",
+        "commit": "Commit",
+        "custom": "Custom"
+      },
+      "baseBranchPlaceholder": "Select or enter a base branch",
+      "commitPlaceholder": "Enter a commit SHA",
+      "customPlaceholder": "Enter review instructions",
+      "focusPlaceholder": "Optional review focus",
+      "deliveryLabel": "Delivery",
+      "delivery": {
+        "inline": "Inline",
+        "detached": "Detached"
+      },
+      "defaultReason": "Review the selected workspace target.",
+      "startReview": "Start review",
+      "reviewSuccess": "Review started",
+      "reviewFailed": "Could not start review",
+      "deliveryTitle": "Commit and push",
+      "commitMessagePlaceholder": "Describe the staged changes",
+      "commitStaged": "Commit staged",
+      "commitSuccess": "Committed {{sha}}",
+      "commitFailed": "Could not commit staged changes",
+      "pushCurrentBranch": "Push current branch",
+      "pushSuccess": "Pushed {{branch}}",
+      "pushFailed": "Could not push current branch"
+    },
     "openWorkspace": "Open project folder",
     "openWith": {
       "vscode": "VS Code",

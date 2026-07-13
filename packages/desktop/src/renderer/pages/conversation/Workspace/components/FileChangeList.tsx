@@ -13,9 +13,11 @@ import { Down, Minus, Plus, PreviewOpen, Redo, Refresh, Right } from '@icon-park
 import { createTwoFilesPatch } from 'diff';
 import type { TFunction } from 'i18next';
 import React, { useCallback, useMemo, useState } from 'react';
+import WorkspaceReviewSurface from './WorkspaceReviewSurface';
 
 type FileChangeListProps = {
   t: TFunction;
+  conversationId: string;
   workspace: string;
   staged: FileChangeInfo[];
   unstaged: FileChangeInfo[];
@@ -162,6 +164,7 @@ const ActionBtn: React.FC<{
 
 const FileChangeList: React.FC<FileChangeListProps> = ({
   t,
+  conversationId,
   workspace,
   staged,
   unstaged,
@@ -336,97 +339,102 @@ const FileChangeList: React.FC<FileChangeListProps> = ({
     [isGitRepo, onDiscardFile, onResetFile, onStageAll, onStageFile, onUnstageAll, onUnstageFile, staged, t, unstaged]
   );
 
-  if (loading) {
-    return (
-      <div className='flex-1 size-full flex items-center justify-center'>
-        <Spin />
-      </div>
-    );
-  }
-
   const totalCount = staged.length + unstaged.length;
-
-  if (totalCount === 0) {
-    return (
-      <div className='flex-1 size-full flex items-center justify-center px-12px'>
-        <Empty
-          description={
-            <div>
-              <span className='text-t-secondary font-bold text-14px'>{t('conversation.workspace.changes.empty')}</span>
-              <div className='text-t-secondary'>{t('conversation.workspace.changes.emptyDescription')}</div>
-            </div>
-          }
-        />
-      </div>
-    );
-  }
 
   return (
     <div className='flex flex-col size-full'>
       {/* Top toolbar */}
-      <div className='px-8px py-4px border-b border-b-base flex items-center justify-between flex-shrink-0'>
-        <span className='text-12px text-t-secondary'>
+      <div className='px-8px py-4px border-b border-b-base flex items-center justify-between gap-6px flex-shrink-0'>
+        <span className='min-w-0 truncate text-12px text-t-secondary'>
           {t('conversation.workspace.changes.summary', { count: totalCount })}
         </span>
-        <ActionBtn
-          tooltip={t('conversation.workspace.changes.refresh')}
-          icon={<Refresh size={14} />}
-          onClick={onRefresh}
-        />
+        <div className='flex flex-shrink-0 items-center gap-2px'>
+          <WorkspaceReviewSurface
+            t={t}
+            conversationId={conversationId}
+            workspace={workspace}
+            stagedCount={staged.length}
+            onRefreshChanges={onRefresh}
+          />
+          <ActionBtn
+            tooltip={t('conversation.workspace.changes.refresh')}
+            icon={<Refresh size={14} />}
+            onClick={onRefresh}
+          />
+        </div>
       </div>
-      <div className='flex-1 overflow-y-auto p-8px flex flex-col gap-10px'>
-        {groupedChanges.map((group) => (
-          <div key={group.key} className='border border-base rounded-10px overflow-hidden bg-bg-1'>
-            <PanelHeader title={group.title} count={group.count} actions={group.headerAction} />
-            {group.items.length === 0 ? (
-              <div className='flex items-center justify-center py-16px text-12px text-t-quaternary'>
-                {group.emptyText}
+      {loading ? (
+        <div className='flex-1 size-full flex items-center justify-center'>
+          <Spin />
+        </div>
+      ) : totalCount === 0 ? (
+        <div className='flex-1 size-full flex items-center justify-center px-12px'>
+          <Empty
+            description={
+              <div>
+                <span className='text-t-secondary font-bold text-14px'>
+                  {t('conversation.workspace.changes.empty')}
+                </span>
+                <div className='text-t-secondary'>{t('conversation.workspace.changes.emptyDescription')}</div>
               </div>
-            ) : (
-              group.items.map((change) => {
-                const diffState = diffCache[change.file_path];
-                const isExpanded = expandedFilePath === change.file_path;
-                const isLoadingDiff = loadingFilePath === change.file_path;
-                const canExpand = isTextFile(change.relativePath);
+            }
+          />
+        </div>
+      ) : (
+        <div className='flex-1 overflow-y-auto p-8px flex flex-col gap-10px'>
+          {groupedChanges.map((group) => (
+            <div key={group.key} className='border border-base rounded-10px overflow-hidden bg-bg-1'>
+              <PanelHeader title={group.title} count={group.count} actions={group.headerAction} />
+              {group.items.length === 0 ? (
+                <div className='flex items-center justify-center py-16px text-12px text-t-quaternary'>
+                  {group.emptyText}
+                </div>
+              ) : (
+                group.items.map((change) => {
+                  const diffState = diffCache[change.file_path];
+                  const isExpanded = expandedFilePath === change.file_path;
+                  const isLoadingDiff = loadingFilePath === change.file_path;
+                  const canExpand = isTextFile(change.relativePath);
 
-                return (
-                  <FileChangeItem
-                    key={`${group.key}-${change.file_path}`}
-                    change={change}
-                    diffState={diffState}
-                    expanded={isExpanded}
-                    loading={isLoadingDiff}
-                    expandable={canExpand}
-                    onToggle={() => {
-                      void handleToggleDiff(change);
-                    }}
-                    actions={
-                      <>
-                        <ActionBtn
-                          tooltip={t('preview.preview')}
-                          icon={<PreviewOpen size={14} />}
-                          onClick={() => {
-                            void handleOpenPreview(change);
-                          }}
-                        />
-                        {group.renderActions(change)}
-                      </>
-                    }
-                  >
-                    {diffState ? (
-                      <Diff2Html diff={diffState.diff} title={change.relativePath} file_path={change.file_path} />
-                    ) : isLoadingDiff ? (
-                      <div className='flex items-center justify-center py-12px text-12px text-t-quaternary'>
-                        <Spin size={14} />
-                      </div>
-                    ) : null}
-                  </FileChangeItem>
-                );
-              })
-            )}
-          </div>
-        ))}
-      </div>
+                  return (
+                    <FileChangeItem
+                      key={`${group.key}-${change.file_path}`}
+                      change={change}
+                      diffState={diffState}
+                      expanded={isExpanded}
+                      loading={isLoadingDiff}
+                      expandable={canExpand}
+                      onToggle={() => {
+                        void handleToggleDiff(change);
+                      }}
+                      actions={
+                        <>
+                          <ActionBtn
+                            tooltip={t('preview.preview')}
+                            icon={<PreviewOpen size={14} />}
+                            onClick={() => {
+                              void handleOpenPreview(change);
+                            }}
+                          />
+                          {group.renderActions(change)}
+                        </>
+                      }
+                    >
+                      {diffState ? (
+                        <Diff2Html diff={diffState.diff} title={change.relativePath} file_path={change.file_path} />
+                      ) : isLoadingDiff ? (
+                        <div className='flex items-center justify-center py-12px text-12px text-t-quaternary'>
+                          <Spin size={14} />
+                        </div>
+                      ) : null}
+                    </FileChangeItem>
+                  );
+                })
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
