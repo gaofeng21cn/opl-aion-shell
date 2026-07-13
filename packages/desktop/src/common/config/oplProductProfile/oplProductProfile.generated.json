@@ -2054,7 +2054,7 @@
           "icon_token": "capabilities",
           "ia_group": "capabilities",
           "slot_id": "settings_capabilities",
-          "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
+          "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + compatibility fallback: opl app state --profile fast --json#app_state.agent_packages.directory.installed_packages[package_id=opl-flow].bundled_required_skill_ids + physical_surface.workflow_policy_migration.dependency_sync + Codex and shell skill/plugin registries",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "user",
           "intent": "view_status",
@@ -2402,7 +2402,7 @@
             "route_id": "capabilities",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/capabilitiesProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx",
-            "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
+            "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + compatibility fallback: opl app state --profile fast --json#app_state.agent_packages.directory.installed_packages[package_id=opl-flow].bundled_required_skill_ids + physical_surface.workflow_policy_migration.dependency_sync + Codex and shell skill/plugin registries",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.capabilities",
             "groups": ["opl_flow_managed", "manual_and_third_party"],
             "entity_kinds": ["skill", "plugin"],
@@ -3500,9 +3500,7 @@
                 "settings-page-capabilities",
                 "settings-capabilities-primary",
                 "settings-capabilities-opl-flow-managed",
-                "settings-capabilities-third-party",
-                "settings-capabilities-technical-details",
-                "settings-capabilities-primary-action"
+                "settings-capabilities-third-party"
               ],
               "conditional": [
                 {
