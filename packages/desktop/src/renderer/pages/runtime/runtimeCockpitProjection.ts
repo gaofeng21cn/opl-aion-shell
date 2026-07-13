@@ -94,10 +94,7 @@ function isMissingStatus(value: unknown): boolean {
   const status = stringValue(value)?.toLowerCase();
   return Boolean(
     status &&
-      (status === 'missing' ||
-        status === 'unreported' ||
-        status === 'unavailable' ||
-        status.startsWith('not_measured'))
+    (status === 'missing' || status === 'unreported' || status === 'unavailable' || status.startsWith('not_measured'))
   );
 }
 
@@ -295,9 +292,12 @@ function taskId(entry: JsonRecord): string | null {
   return stringValue(entry.item_id) ?? stringValue(entry.task_id);
 }
 
-export function readRuntimeTaskCockpitProjectionIndex(appStateValue: unknown): Map<string, RuntimeTaskCockpitProjection> {
+export function readRuntimeTaskCockpitProjectionIndex(
+  appStateValue: unknown
+): Map<string, RuntimeTaskCockpitProjection> {
   const appStateRecord = record(appStateValue);
-  const appState = Object.keys(record(appStateRecord.app_state)).length > 0 ? record(appStateRecord.app_state) : appStateRecord;
+  const appState =
+    Object.keys(record(appStateRecord.app_state)).length > 0 ? record(appStateRecord.app_state) : appStateRecord;
   const workbench = record(record(appState.operator).workbench);
   const taskRunProjection = record(workbench.task_run_projection_v2);
   const workItemProjection = firstRecord(workbench.work_item_projection_v1, taskRunProjection.work_item_projection_v1);

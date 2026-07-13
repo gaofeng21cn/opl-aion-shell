@@ -22,10 +22,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import {
-  canonicalizeOplProfessionalAgentId,
-  getOplProfessionalAgentPackages,
-} from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId, getOplProfessionalAgentPackages } from '@/common/config/oplProductProfile';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
 import type {
@@ -74,7 +71,10 @@ function recordList(value: unknown): RuntimeSnapshot[] {
 
 function keyedRecordList(value: unknown, idKey: string): RuntimeSnapshot[] {
   if (Array.isArray(value)) return value.filter(isRecord);
-  return Object.entries(record(value)).map(([id, entry]) => ({ ...record(entry), [idKey]: record(entry)[idKey] ?? id }));
+  return Object.entries(record(value)).map(([id, entry]) => ({
+    ...record(entry),
+    [idKey]: record(entry)[idKey] ?? id,
+  }));
 }
 
 function stringValue(value: unknown): string | null {
@@ -1349,7 +1349,10 @@ function tokenMissingReasonLabel(
   t: (key: string, options?: Record<string, string | number>) => string
 ): string {
   if (!reason) return t('common.runtime.tokenUsage.missingReason.notProvided');
-  const normalized = reason.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const normalized = reason
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_');
   if (normalized.includes('provider') && /(report|return|emit)/.test(normalized)) {
     return t('common.runtime.tokenUsage.missingReason.providerDidNotReport');
   }
@@ -1542,7 +1545,9 @@ function humanizeNextStep(
   if (stageStep && !(rawRuntimeStep && /domain_route|reconcile/.test(raw.toLowerCase()))) return stageStep;
   if (!rawRuntimeStep) return raw;
   if (automationState === 'result_pending_terminalization') {
-    return primaryState === 'system_attention_required' ? null : t('common.runtime.primaryStates.systemAttentionRequired');
+    return primaryState === 'system_attention_required'
+      ? null
+      : t('common.runtime.primaryStates.systemAttentionRequired');
   }
   if (automationState === 'automation_failed' || primaryState === 'system_attention_required') {
     return null;
@@ -2123,9 +2128,7 @@ const RuntimePage: React.FC = () => {
   const maintenanceAgentCount = agentAvailabilityItems.filter(
     (item) => item.availability === 'maintenance_required'
   ).length;
-  const notInstalledAgentCount = agentAvailabilityItems.filter(
-    (item) => item.availability === 'not_installed'
-  ).length;
+  const notInstalledAgentCount = agentAvailabilityItems.filter((item) => item.availability === 'not_installed').length;
   const installedAgentCount = availableAgentCount + maintenanceAgentCount;
   const metricCards = [
     {
