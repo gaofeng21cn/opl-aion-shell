@@ -794,6 +794,7 @@ describe('Agents and capabilities settings', () => {
 
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-capabilities')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-capabilities-opl-flow-managed')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
     expect(screen.getByTestId('skills-detail')).toHaveAttribute(
       'data-flow-skills',
@@ -811,7 +812,7 @@ describe('Agents and capabilities settings', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Manual & third-party' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
-    await waitFor(() => expect(screen.getByTestId('manual-and-third-party-capabilities')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
   });
 

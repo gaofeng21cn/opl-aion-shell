@@ -1609,20 +1609,22 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           key='opl_flow_managed'
           title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
         >
-          <SkillsHubSettings
-            withWrapper={false}
-            displayGroup='flow'
-            flowManagedSkillIds={flowManagedCatalog.skillIds}
-            flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
-            flowSyncing={flowSyncing}
-            onSyncFlow={() => void syncFlowCapabilities()}
-          />
+          <div data-testid='settings-capabilities-opl-flow-managed'>
+            <SkillsHubSettings
+              withWrapper={false}
+              displayGroup='flow'
+              flowManagedSkillIds={flowManagedCatalog.skillIds}
+              flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
+              flowSyncing={flowSyncing}
+              onSyncFlow={() => void syncFlowCapabilities()}
+            />
+          </div>
         </Tabs.TabPane>
         <Tabs.TabPane
           key='manual_and_third_party'
           title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manual & third-party' })}
         >
-          <div className='flex flex-col gap-16px' data-testid='manual-and-third-party-capabilities'>
+          <div className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
             <SkillsHubSettings
               withWrapper={false}
               displayGroup='manual'
