@@ -51,6 +51,7 @@ interface SkillsHubSettingsProps {
   /** When false, renders without SettingsPageWrapper — useful for embedding in a tab */
   withWrapper?: boolean;
   flowManagedSkillIds?: string[];
+  flowManagedSkillDependencies?: ManagedDependency[];
   flowManagedCliDependencies?: ManagedDependency[];
   flowSyncing?: boolean;
   onSyncFlow?: () => void;
@@ -60,6 +61,7 @@ interface SkillsHubSettingsProps {
 const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
   withWrapper = true,
   flowManagedSkillIds,
+  flowManagedSkillDependencies = [],
   flowManagedCliDependencies = [],
   flowSyncing = false,
   onSyncFlow,
@@ -79,6 +81,10 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
   const allUserSkills = useMemo(() => availableSkills.filter((s) => s.source !== 'extension'), [availableSkills]);
   const extensionSkills = useMemo(() => availableSkills.filter((s) => s.source === 'extension'), [availableSkills]);
   const flowManagedIdSet = useMemo(() => new Set(flowManagedSkillIds ?? []), [flowManagedSkillIds]);
+  const flowManagedSkillDependencyById = useMemo(
+    () => new Map(flowManagedSkillDependencies.map((dependency) => [dependency.id, dependency])),
+    [flowManagedSkillDependencies]
+  );
   const flowManagedCliIdSet = useMemo(
     () => new Set(flowManagedCliDependencies.map((dependency) => dependency.id)),
     [flowManagedCliDependencies]
@@ -98,6 +104,10 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
         : allUserSkills.filter((skill) => !flowManagedIdSet.has(skill.name)),
     [allUserSkills, flowManagedIdSet, flowManagedSkillIds]
   );
+  const flowManagedSkillIsInstalled = (skillId: string, locallyAvailable: boolean): boolean => {
+    const dependency = flowManagedSkillDependencyById.get(skillId);
+    return dependency ? dependency.installed && dependency.currentness !== 'missing' : locallyAvailable;
+  };
 
   const filteredSkills = useMemo(() => {
     if (!search_query.trim()) return mySkills;
@@ -234,7 +244,11 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
             </div>
             <div className='mt-14px flex flex-col divide-y divide-border-1'>
               {flowManagedSkills.map((skill) => (
-                <div key={skill.name} className='flex items-start justify-between gap-12px py-10px'>
+                <div
+                  key={skill.name}
+                  className='flex items-start justify-between gap-12px py-10px'
+                  data-testid={`opl-flow-capability-${normalizeTestId(skill.name)}`}
+                >
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{skill.name}</Typography.Text>
                     {skill.description && (
@@ -243,16 +257,40 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                       </Typography.Text>
                     )}
                   </div>
-                  <span className='opl-settings-status opl-settings-status--ready'>
-                    {t('settings.capabilitiesPage.groups.oplFlowManaged.managed')}
+                  <span
+                    className={`opl-settings-status ${
+                      flowManagedSkillIsInstalled(skill.name, true)
+                        ? 'opl-settings-status--ready'
+                        : 'opl-settings-status--attention'
+                    }`}
+                  >
+                    {t(
+                      flowManagedSkillIsInstalled(skill.name, true)
+                        ? 'settings.capabilitiesPage.groups.oplFlowManaged.managed'
+                        : 'settings.capabilitiesPage.groups.oplFlowManaged.missing'
+                    )}
                   </span>
                 </div>
               ))}
               {missingFlowManagedSkillIds.map((skillId) => (
-                <div key={skillId} className='flex items-center justify-between gap-12px py-10px'>
+                <div
+                  key={skillId}
+                  className='flex items-center justify-between gap-12px py-10px'
+                  data-testid={`opl-flow-capability-${normalizeTestId(skillId)}`}
+                >
                   <Typography.Text className='font-600 text-t-primary'>{skillId}</Typography.Text>
-                  <span className='opl-settings-status opl-settings-status--attention'>
-                    {t('settings.capabilitiesPage.groups.oplFlowManaged.missing')}
+                  <span
+                    className={`opl-settings-status ${
+                      flowManagedSkillIsInstalled(skillId, false)
+                        ? 'opl-settings-status--ready'
+                        : 'opl-settings-status--attention'
+                    }`}
+                  >
+                    {t(
+                      flowManagedSkillIsInstalled(skillId, false)
+                        ? 'settings.capabilitiesPage.groups.oplFlowManaged.managed'
+                        : 'settings.capabilitiesPage.groups.oplFlowManaged.missing'
+                    )}
                   </span>
                 </div>
               ))}

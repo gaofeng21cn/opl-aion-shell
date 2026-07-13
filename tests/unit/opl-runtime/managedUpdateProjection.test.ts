@@ -214,6 +214,12 @@ describe('managed update projection public lifecycle ids', () => {
     });
 
     expect(catalog.skillIds).toEqual(['opl-flow', 'officecli-pptx', 'officecli-docx', 'ui-ux-pro-max']);
+    expect(catalog.skillDependencies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'officecli-pptx', installed: true, currentness: 'current' }),
+        expect.objectContaining({ id: 'ui-ux-pro-max', installed: true, currentness: 'current' }),
+      ])
+    );
     expect(catalog.cliDependencies).toEqual([
       expect.objectContaining({ id: 'officecli', currentness: 'current', updateMode: 'silent_managed' }),
     ]);
@@ -226,7 +232,7 @@ describe('managed update projection public lifecycle ids', () => {
       dependencies: [],
     });
 
-    expect(catalog).toEqual({ skillIds: [], cliDependencies: [] });
+    expect(catalog).toEqual({ skillIds: [], skillDependencies: [], cliDependencies: [] });
   });
 
   it('requires an explicit package id before package mutations become executable', () => {

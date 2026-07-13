@@ -1647,6 +1647,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   withWrapper={false}
                   displayGroup='flow'
                   flowManagedSkillIds={flowManagedCatalog.skillIds}
+                  flowManagedSkillDependencies={flowManagedCatalog.skillDependencies}
                   flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
                 />
               </div>

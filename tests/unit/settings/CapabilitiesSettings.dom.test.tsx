@@ -40,8 +40,22 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 });
 
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
-  default: ({ flowManagedSkillIds = [], onSyncFlow }: { flowManagedSkillIds?: string[]; onSyncFlow?: () => void }) => (
-    <div data-testid='skills-detail' data-flow-skills={flowManagedSkillIds.join(',')}>
+  default: ({
+    flowManagedSkillIds = [],
+    flowManagedSkillDependencies = [],
+    onSyncFlow,
+  }: {
+    flowManagedSkillIds?: string[];
+    flowManagedSkillDependencies?: Array<{ id: string; installed: boolean }>;
+    onSyncFlow?: () => void;
+  }) => (
+    <div
+      data-testid='skills-detail'
+      data-flow-skills={flowManagedSkillIds.join(',')}
+      data-flow-skill-statuses={flowManagedSkillDependencies
+        .map((dependency) => `${dependency.id}:${dependency.installed}`)
+        .join(',')}
+    >
       Skills detail
       {onSyncFlow && <button onClick={onSyncFlow}>Sync Flow</button>}
     </div>
@@ -845,6 +859,10 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('skills-detail')).toHaveAttribute(
       'data-flow-skills',
       'opl-flow,officecli-pptx,officecli-docx'
+    );
+    expect(screen.getByTestId('skills-detail')).toHaveAttribute(
+      'data-flow-skill-statuses',
+      'opl-flow:true,officecli-pptx:true,officecli-docx:true'
     );
     expect(screen.queryByTestId('agent-package-catalog')).not.toBeInTheDocument();
 

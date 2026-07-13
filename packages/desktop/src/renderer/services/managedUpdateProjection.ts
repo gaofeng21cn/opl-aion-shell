@@ -60,6 +60,7 @@ export type ManagedDependencyCatalog = {
 
 export type OplFlowManagedCapabilityCatalog = {
   skillIds: string[];
+  skillDependencies: ManagedDependency[];
   cliDependencies: ManagedDependency[];
 };
 
@@ -355,16 +356,15 @@ function readManagedDependency(value: unknown, fallbackId: string, external = fa
 export function readOplFlowManagedCapabilityCatalog(
   catalog: ManagedDependencyCatalog | undefined
 ): OplFlowManagedCapabilityCatalog {
-  if (!catalog) return { skillIds: [], cliDependencies: [] };
-  const skillIds = catalog.flowDependencies
-    .filter((dependency) => dependency.kind === 'codex_skill')
-    .map((dependency) => dependency.id);
+  if (!catalog) return { skillIds: [], skillDependencies: [], cliDependencies: [] };
+  const skillDependencies = catalog.flowDependencies.filter((dependency) => dependency.kind === 'codex_skill');
+  const skillIds = skillDependencies.map((dependency) => dependency.id);
   const baseDependenciesById = new Map(catalog.dependencies.map((dependency) => [dependency.id, dependency]));
   const cliDependencies = catalog.flowDependencies
     .filter((dependency) => dependency.kind === 'cli')
     .map((dependency) => baseDependenciesById.get(dependency.id) ?? dependency)
     .filter((dependency) => !dependency.external);
-  return { skillIds, cliDependencies };
+  return { skillIds, skillDependencies, cliDependencies };
 }
 
 function readManagedDependencyCatalog(component: Record<string, unknown>): ManagedDependencyCatalog | undefined {

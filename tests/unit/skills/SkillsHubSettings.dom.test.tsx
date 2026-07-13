@@ -97,4 +97,42 @@ describe('SkillsHubSettings', () => {
     expect(screen.queryByText('aionui-skills')).not.toBeInTheDocument();
     expect(screen.queryByText('AionUI implementation helper')).not.toBeInTheDocument();
   });
+
+  it('uses the typed Flow catalog instead of the App-local skill directory for managed status', async () => {
+    render(
+      <SkillsHubSettings
+        withWrapper={false}
+        displayGroup='flow'
+        flowManagedSkillIds={['ui-ux-pro-max', 'mineru-document-extractor']}
+        flowManagedSkillDependencies={[
+          {
+            id: 'ui-ux-pro-max',
+            kind: 'codex_skill',
+            installed: true,
+            currentness: 'current',
+            ownership: 'opl_managed',
+            updateMode: 'silent_managed',
+            external: false,
+          },
+          {
+            id: 'mineru-document-extractor',
+            kind: 'codex_skill',
+            installed: false,
+            currentness: 'missing',
+            ownership: 'opl_managed',
+            updateMode: 'silent_managed',
+            external: false,
+          },
+        ]}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toBeInTheDocument());
+    expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toHaveTextContent(
+      'settings.capabilitiesPage.groups.oplFlowManaged.managed'
+    );
+    expect(screen.getByTestId('opl-flow-capability-mineru-document-extractor')).toHaveTextContent(
+      'settings.capabilitiesPage.groups.oplFlowManaged.missing'
+    );
+  });
 });
