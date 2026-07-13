@@ -16,8 +16,10 @@ import { initThemeBridge } from './themeBridge';
 import { initLocalDataLifecycleBridge } from './localDataLifecycleBridge';
 import { disposeThreadCoordinationBridge, initThreadCoordinationBridge } from './threadCoordinationBridge';
 import type { CodexThreadCoordinationPort } from '../services/threadCoordination';
+import { initGitWorkspaceBridge, type GitWorkspacePort } from '../services/git-workspace';
 
 export type BridgeDependencies = {
+  gitWorkspacePort?: GitWorkspacePort;
   threadCoordinationPort?: CodexThreadCoordinationPort;
 };
 
@@ -32,6 +34,7 @@ export function initAllBridges(deps: BridgeDependencies = {}): void {
   initOplRuntimeBridge();
   initThemeBridge();
   initLocalDataLifecycleBridge();
+  initGitWorkspaceBridge(deps.gitWorkspacePort);
   initThreadCoordinationBridge(deps.threadCoordinationPort);
 }
 
@@ -46,6 +49,7 @@ export {
   initWebuiBridge,
   initOplRuntimeBridge,
   initLocalDataLifecycleBridge,
+  initGitWorkspaceBridge,
   initThreadCoordinationBridge,
   disposeThreadCoordinationBridge,
 };

@@ -41,6 +41,16 @@ import type {
   SetConfigOptionResponse,
 } from '../types/platform/acpTypes';
 import type {
+  GitCommitStagedRequest,
+  GitCommitStagedResult,
+  GitManagedWorktreeRequest,
+  GitManagedWorktreeResult,
+  GitPushCurrentBranchRequest,
+  GitPushCurrentBranchResult,
+  GitWorkspaceInspectRequest,
+  GitWorkspaceInspection,
+} from '../types/platform/gitWorkspace';
+import type {
   CreateProviderRequest,
   FetchModelsAnonymousRequest,
   FetchModelsResponse,
@@ -1134,6 +1144,19 @@ export const fileSnapshot = {
     }
   >('/api/fs/snapshot/reset'),
   getBranches: httpPost<string[], { workspace: string }>('/api/fs/snapshot/branches'),
+};
+
+// Git workspace lifecycle stays in the desktop main process. File staging,
+// unstaging, and diff reads remain owned by fileSnapshot above.
+export const gitWorkspace = {
+  inspect: bridge.buildProvider<GitWorkspaceInspection, GitWorkspaceInspectRequest>('git-workspace.inspect'),
+  ensureManagedWorktree: bridge.buildProvider<GitManagedWorktreeResult, GitManagedWorktreeRequest>(
+    'git-workspace.ensure-managed-worktree'
+  ),
+  commitStaged: bridge.buildProvider<GitCommitStagedResult, GitCommitStagedRequest>('git-workspace.commit-staged'),
+  pushCurrentBranch: bridge.buildProvider<GitPushCurrentBranchResult, GitPushCurrentBranchRequest>(
+    'git-workspace.push-current-branch'
+  ),
 };
 
 // ---------------------------------------------------------------------------
