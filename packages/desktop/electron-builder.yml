@@ -156,6 +156,8 @@ extraResources:
     to: .
   - from: resources/app.png
     to: app.png
+  - from: resources/opl-branding
+    to: opl-branding
   - from: resources/opl-install.sh
     to: opl-install.sh
   # aioncore binary (pre-compiled per platform/arch, ships its own bun runtime)

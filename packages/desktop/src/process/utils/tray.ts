@@ -41,11 +41,22 @@ export const setIsQuitting = (quitting: boolean): void => {
  * Get tray icon.
  * macOS uses Template image to adapt to dark/light menu bar.
  */
-const getTrayIcon = (): Electron.NativeImage => {
-  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources');
-  const icon = nativeImage.createFromPath(path.join(resourcesPath, 'app.png'));
-  if (process.platform === 'darwin') {
-    return icon.resize({ width: 16, height: 16 });
+export const getTrayIcon = (
+  platform = process.platform,
+  resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources')
+): Electron.NativeImage => {
+  const iconFilename = platform === 'darwin' ? 'trayTemplate.png' : 'app.png';
+  const iconPath =
+    platform === 'darwin'
+      ? path.join(resourcesPath, 'opl-branding', iconFilename)
+      : path.join(resourcesPath, iconFilename);
+  const icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    throw new Error(`Tray icon could not be loaded from ${iconPath}`);
+  }
+  if (platform === 'darwin') {
+    icon.setTemplateImage(true);
+    return icon;
   }
   return icon.resize({ width: 32, height: 32 });
 };
