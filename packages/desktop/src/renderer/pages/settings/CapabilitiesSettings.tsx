@@ -1578,8 +1578,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     (component) => component.id === 'opl_base'
   )?.dependencyCatalog;
   const flowManagedCatalog = React.useMemo(
-    () => readOplFlowManagedCapabilityCatalog(baseDependencyCatalog),
-    [baseDependencyCatalog]
+    () => readOplFlowManagedCapabilityCatalog(baseDependencyCatalog, appStateQuery.appState),
+    [appStateQuery.appState, baseDependencyCatalog]
   );
 
   const syncFlowCapabilities = async () => {

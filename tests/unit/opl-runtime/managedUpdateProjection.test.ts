@@ -219,6 +219,48 @@ describe('managed update projection public lifecycle ids', () => {
     ]);
   });
 
+  it('falls back to the installed OPL Flow policy while an older package lock has no typed dependencies', () => {
+    const catalog = readOplFlowManagedCapabilityCatalog(
+      { lifecycleOwner: 'opl_base', flowDependencies: [], dependencies: [] },
+      {
+        agent_packages: {
+          directory: {
+            installed_packages: [
+              {
+                package_id: 'opl-flow',
+                bundled_required_skill_ids: ['opl-flow', 'codex-ops-kit'],
+                physical_surface: {
+                  workflow_policy_migration: {
+                    dependency_sync: {
+                      items: [{ skill_id: 'officecli-docx', status: 'synced' }],
+                      tools: [
+                        {
+                          tool_id: 'officecli',
+                          binary_path: '/usr/local/bin/officecli',
+                          version: '1.0.0',
+                          status: 'ready',
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      }
+    );
+
+    expect(catalog.skillIds).toEqual(['opl-flow', 'codex-ops-kit', 'officecli-docx']);
+    expect(catalog.cliDependencies).toEqual([
+      expect.objectContaining({
+        id: 'officecli',
+        currentness: 'current',
+        ownership: 'opl_flow_managed_compatibility_projection',
+      }),
+    ]);
+  });
+
   it('requires an explicit package id before package mutations become executable', () => {
     const plane = readManagedUpdatePlane(
       {
