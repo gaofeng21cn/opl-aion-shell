@@ -195,6 +195,12 @@ function readCachedFastState(): OplAppStateCache | null {
   }
 }
 
+function hasGatewayAccountProjection(payload: OplAppStatePayload | null | undefined): boolean {
+  const settingsControlCenter = oplRecord(getAppState(payload).settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account) !== null;
+}
+
 export function cacheFastOplAppState(payload: OplAppStatePayload, loadedAt: string): void {
   try {
     localStorage.setItem(
@@ -214,7 +220,7 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
   const cached = useMemo(() => (initialProfile === 'fast' ? readCachedFastState() : null), [initialProfile]);
   const [payload, setPayload] = useState<OplAppStatePayload | null>(cached?.payload ?? null);
   const [loadedAt, setLoadedAt] = useState<string | null>(cached?.loadedAt ?? null);
-  const [loading, setLoading] = useState(!cached);
+  const [loading, setLoading] = useState(!cached || !hasGatewayAccountProjection(cached.payload));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
