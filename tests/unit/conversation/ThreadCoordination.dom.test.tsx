@@ -127,6 +127,8 @@ function overview(overrides: Partial<ThreadCoordinationOverview> = {}): ThreadCo
         'thread/resume',
         'thread/fork',
         'thread/archive',
+        'thread/unarchive',
+        'review/start',
         'turn/start',
         'turn/steer',
       ],
@@ -208,6 +210,7 @@ describe('ThreadCoordinationSection', () => {
       action: 'deliver',
       targetThreadId: 'receiver',
       forkedThreadId: null,
+      reviewThreadId: null,
       protocolMethod: 'turn/start',
       auditId: 'audit',
       errorCode: null,
@@ -222,7 +225,7 @@ describe('ThreadCoordinationSection', () => {
     renderSection();
 
     await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith({ includeArchived: false, sourceThreadIdHint: 'source' })
+      expect(mocks.getOverview).toHaveBeenCalledWith({ includeArchived: true, sourceThreadIdHint: 'source' })
     );
     fireEvent.click(screen.getByTestId('thread-coordination-entry'));
     fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
@@ -245,6 +248,16 @@ describe('ThreadCoordinationSection', () => {
         }),
       })
     );
+  });
+
+  it('keeps the Sider entry closed by default and opens it from the keyboard', async () => {
+    renderSection();
+
+    const entry = await screen.findByTestId('thread-coordination-entry');
+    expect(screen.queryByText('conversation.threadCoordination.threadList')).not.toBeInTheDocument();
+    fireEvent.keyDown(entry, { key: 'Enter' });
+
+    expect(await screen.findByText('conversation.threadCoordination.threadList')).toBeInTheDocument();
   });
 
   it('keeps the message TextArea autoSize object stable across React rerenders', async () => {
@@ -274,6 +287,7 @@ describe('ThreadCoordinationSection', () => {
       action: 'archive',
       targetThreadId: 'receiver',
       forkedThreadId: null,
+      reviewThreadId: null,
       protocolMethod: 'thread/archive',
       auditId: 'audit-accepted',
       errorCode: null,
@@ -291,6 +305,72 @@ describe('ThreadCoordinationSection', () => {
     await waitFor(() => expect(mocks.execute).toHaveBeenCalledOnce());
     expect(mocks.execute.mock.calls[0][0]).toEqual({
       request: expect.objectContaining({ action: 'archive', targetThreadId: 'receiver' }),
+    });
+  });
+
+  it('restores an archived Codex task through the typed lifecycle action', async () => {
+    mocks.getOverview.mockResolvedValue(
+      overview({
+        threads: [overview().threads[0], { ...overview().threads[1], status: 'archived', archived: true }],
+      })
+    );
+    mocks.execute.mockResolvedValueOnce({
+      ok: true,
+      outcome: 'accepted',
+      action: 'unarchive',
+      targetThreadId: 'receiver',
+      forkedThreadId: null,
+      reviewThreadId: null,
+      protocolMethod: 'thread/unarchive',
+      auditId: 'audit-restored',
+      errorCode: null,
+      message: 'Accepted',
+      advisories: [],
+    });
+    renderSection();
+    fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
+    fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
+    fireEvent.change(screen.getByLabelText('conversation.threadCoordination.reasonPlaceholder'), {
+      target: { value: 'Restore archived work' },
+    });
+    fireEvent.click(screen.getByText('conversation.history.restore'));
+
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledOnce());
+    expect(mocks.execute.mock.calls[0][0]).toEqual({
+      request: expect.objectContaining({ action: 'unarchive', targetThreadId: 'receiver' }),
+    });
+  });
+
+  it('starts an inline uncommitted-changes review from the selected thread detail', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      ok: true,
+      outcome: 'accepted',
+      action: 'review',
+      targetThreadId: 'receiver',
+      forkedThreadId: null,
+      reviewThreadId: 'receiver',
+      protocolMethod: 'review/start',
+      auditId: 'audit-review',
+      errorCode: null,
+      message: 'Accepted',
+      advisories: [],
+    });
+    renderSection();
+    fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
+    fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
+    fireEvent.change(screen.getByLabelText('conversation.threadCoordination.reasonPlaceholder'), {
+      target: { value: 'Review current changes' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'conversation.threadCoordination.reviewChanges' }));
+
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledOnce());
+    expect(mocks.execute.mock.calls[0][0]).toEqual({
+      request: expect.objectContaining({
+        action: 'review',
+        targetThreadId: 'receiver',
+        target: { type: 'uncommittedChanges' },
+        delivery: 'inline',
+      }),
     });
   });
 

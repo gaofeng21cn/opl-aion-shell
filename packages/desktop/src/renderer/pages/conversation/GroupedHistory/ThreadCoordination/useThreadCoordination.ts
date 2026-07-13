@@ -58,9 +58,7 @@ export function useThreadCoordination(conversationId?: string): {
     setLoading(true);
     try {
       const sourceThreadIdHint = await sourceThreadHint(conversationId);
-      setOverview(
-        await ipcBridge.threadCoordination.getOverview.invoke({ includeArchived: false, sourceThreadIdHint })
-      );
+      setOverview(await ipcBridge.threadCoordination.getOverview.invoke({ includeArchived: true, sourceThreadIdHint }));
     } catch (error) {
       setOverview(unavailableOverview(error));
     } finally {

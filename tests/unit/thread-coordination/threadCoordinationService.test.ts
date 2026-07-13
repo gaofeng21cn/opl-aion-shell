@@ -39,7 +39,10 @@ function memoryAuditStore(): ThreadCoordinationAuditStore & { events: ThreadCoor
     events,
     append: (event) => events.push(event),
     readRecent: (limit) => events.slice(-limit).reverse(),
-    hasIdempotencyKey: (key) => events.some((event) => event.idempotencyKey === key),
+    findAcceptedByIdempotencyKey: (key) =>
+      events.find(
+        (event) => event.action === 'deliver' && event.result === 'accepted' && event.idempotencyKey === key
+      ) ?? null,
   };
 }
 
@@ -69,6 +72,15 @@ function port(threads: CodexThreadDescriptor[]): CodexThreadCoordinationPort {
     ),
     forkThread: vi.fn().mockResolvedValue(thread({ id: 'forked-thread' })),
     archiveThread: vi.fn().mockResolvedValue(undefined),
+    unarchiveThread: vi.fn().mockImplementation(async (threadId: string) =>
+      thread({
+        ...threads.find((candidate) => candidate.id === threadId),
+        id: threadId,
+        status: 'idle',
+        archived: false,
+      })
+    ),
+    startReview: vi.fn().mockResolvedValue({ reviewThreadId: 'receiver', turnId: 'review-turn' }),
     startTurn: vi.fn().mockResolvedValue('new-turn'),
     steerTurn: vi.fn().mockResolvedValue('active-turn'),
   };
@@ -172,7 +184,7 @@ describe('ThreadCoordinationService', () => {
     expect(result.protocolMethod).toBe('turn/start');
   });
 
-  it('reports repeated routes as advisory and deduplicates only an identical request key', async () => {
+  it('reports repeated routes as advisory and replays the first accepted receipt for an identical request key', async () => {
     const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
     const auditStore = memoryAuditStore();
     const service = new ThreadCoordinationService({ port: adapter, auditStore });
@@ -186,7 +198,26 @@ describe('ThreadCoordinationService', () => {
     expect(loop.ok).toBe(true);
     expect(loop.advisories).toContain('delegation_cycle');
     expect(first.ok).toBe(true);
-    expect(duplicate.errorCode).toBe('duplicate_delivery');
+    expect(duplicate).toEqual(first);
+    expect(adapter.listThreads).toHaveBeenCalledTimes(2);
+    expect(adapter.startTurn).toHaveBeenCalledTimes(2);
+    expect(auditStore.events).toHaveLength(2);
+  });
+
+  it('coalesces concurrent retries for one idempotency key into a single dispatch', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const auditStore = memoryAuditStore();
+    const service = new ThreadCoordinationService({ port: adapter, auditStore });
+
+    const [first, retry] = await Promise.all([
+      service.execute(delivery({ idempotencyKey: 'concurrent' })),
+      service.execute(delivery({ idempotencyKey: 'concurrent' })),
+    ]);
+
+    expect(retry).toEqual(first);
+    expect(adapter.listThreads).toHaveBeenCalledOnce();
+    expect(adapter.startTurn).toHaveBeenCalledOnce();
+    expect(auditStore.events).toHaveLength(1);
   });
 
   it('allows the same message to be sent again with a new request key', async () => {
@@ -320,5 +351,47 @@ describe('ThreadCoordinationService', () => {
     expect(archived.ok).toBe(true);
     expect(archived.protocolMethod).toBe('thread/archive');
     expect(adapter.archiveThread).toHaveBeenCalledWith('receiver');
+  });
+
+  it('restores an archived top-level thread through thread/unarchive', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread({ status: 'archived', archived: true })]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const restored = await service.execute({
+      action: 'unarchive',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Restore archived work',
+    });
+
+    expect(restored.ok).toBe(true);
+    expect(restored.protocolMethod).toBe('thread/unarchive');
+    expect(adapter.unarchiveThread).toHaveBeenCalledWith('receiver');
+    expect(adapter.archiveThread).not.toHaveBeenCalled();
+  });
+
+  it('starts a typed inline review for the selected thread', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const reviewed = await service.execute({
+      action: 'review',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Review current changes',
+      target: { type: 'uncommittedChanges' },
+      delivery: 'inline',
+    });
+
+    expect(reviewed.ok).toBe(true);
+    expect(reviewed.protocolMethod).toBe('review/start');
+    expect(reviewed.reviewThreadId).toBe('receiver');
+    expect(adapter.startReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetThreadId: 'receiver',
+        target: { type: 'uncommittedChanges' },
+        delivery: 'inline',
+      })
+    );
   });
 });

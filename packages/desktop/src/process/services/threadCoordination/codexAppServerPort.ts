@@ -12,8 +12,9 @@ import type {
   CodexThreadHistoryItem,
   ThreadCoordinationDeliveryRequest,
   ThreadCoordinationOverviewRequest,
+  ThreadCoordinationReviewRequest,
 } from '@/common/types/codex/threadCoordination';
-import type { CodexThreadCoordinationPort, CodexThreadListSnapshot } from './index';
+import type { CodexThreadCoordinationPort, CodexThreadListSnapshot, CodexThreadReviewStartResult } from './index';
 import { CodexAppServerJsonRpcClient, type CodexAppServerJsonRpc } from './jsonRpcClient';
 import { resolveCodexCliPath } from './codexCliResolver';
 
@@ -287,6 +288,30 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
     this.activeCoordination.delete(threadId);
+  }
+
+  async unarchiveThread(threadId: string): Promise<CodexThreadDescriptor> {
+    const response = requiredRecord(
+      await this.rpc.request('thread/unarchive', { threadId }),
+      'thread unarchive response'
+    );
+    return mapThread(parseThread(response.thread), false, [], this.activeCoordination.get(threadId), this.host);
+  }
+
+  async startReview(request: ThreadCoordinationReviewRequest): Promise<CodexThreadReviewStartResult> {
+    const response = requiredRecord(
+      await this.rpc.request('review/start', {
+        threadId: request.targetThreadId,
+        target: request.target,
+        delivery: request.delivery,
+      }),
+      'review start response'
+    );
+    const turn = requiredRecord(response.turn, 'review start turn');
+    return {
+      reviewThreadId: requiredString(response.reviewThreadId, 'review thread id'),
+      turnId: requiredString(turn.id, 'review turn id'),
+    };
   }
 
   async startTurn(request: ThreadCoordinationDeliveryRequest): Promise<string> {

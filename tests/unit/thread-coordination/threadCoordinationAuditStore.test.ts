@@ -56,7 +56,24 @@ describe('JsonlThreadCoordinationAuditStore', () => {
     store.append(event('two'));
 
     expect(store.readRecent(1).map((entry) => entry.id)).toEqual(['two']);
-    expect(store.hasIdempotencyKey('key-one')).toBe(true);
+    expect(store.findAcceptedByIdempotencyKey('key-one')?.id).toBe('one');
+  });
+
+  it('finds the first accepted receipt beyond the recent overview window while preserving JSONL compatibility', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thread-coordination-audit-'));
+    roots.push(root);
+    const auditPath = path.join(root, 'events.jsonl');
+    const store = new JsonlThreadCoordinationAuditStore(auditPath);
+    const accepted = event('accepted-first');
+    store.append(accepted);
+    for (let index = 0; index < 501; index += 1) store.append(event(`later-${index}`));
+    store.append({ ...event('rejected-later'), idempotencyKey: accepted.idempotencyKey, result: 'rejected' });
+
+    expect(store.findAcceptedByIdempotencyKey(accepted.idempotencyKey ?? '')).toMatchObject({
+      id: 'accepted-first',
+      result: 'accepted',
+      protocolMethod: 'turn/start',
+    });
   });
 
   it('ignores a damaged line without losing valid audit history', () => {

@@ -145,6 +145,7 @@ describe('CodexAppServerThreadCoordinationPort', () => {
       'thread/resume': () => ({ thread: rawThread('target') }),
       'thread/fork': () => ({ thread: rawThread('forked', { forkedFromId: 'target' }) }),
       'thread/archive': () => ({}),
+      'thread/unarchive': () => ({ thread: rawThread('target') }),
       'turn/start': () => ({ turn: { id: 'turn-started' } }),
       'turn/steer': () => ({ turnId: 'turn-active' }),
     });
@@ -153,6 +154,7 @@ describe('CodexAppServerThreadCoordinationPort', () => {
     await port.resumeThread('target');
     await port.forkThread('target');
     await port.archiveThread('target');
+    await port.unarchiveThread('target');
     await port.startTurn(delivery({ writeSet: ['/workspace/target/src'] }));
     await port.steerTurn(delivery({ idempotencyKey: 'steer-id' }), 'turn-active');
 
@@ -160,12 +162,57 @@ describe('CodexAppServerThreadCoordinationPort', () => {
       'thread/resume',
       'thread/fork',
       'thread/archive',
+      'thread/unarchive',
       'turn/start',
       'turn/steer',
     ]);
-    expect(appServer.requests[3][1]).toMatchObject({ threadId: 'target' });
-    expect(appServer.requests[3][1]).not.toHaveProperty('approvalPolicy');
-    expect(appServer.requests[3][1]).not.toHaveProperty('sandboxPolicy');
-    expect(appServer.requests[4][1]).toMatchObject({ threadId: 'target', expectedTurnId: 'turn-active' });
+    expect(appServer.requests[4][1]).toMatchObject({ threadId: 'target' });
+    expect(appServer.requests[4][1]).not.toHaveProperty('approvalPolicy');
+    expect(appServer.requests[4][1]).not.toHaveProperty('sandboxPolicy');
+    expect(appServer.requests[5][1]).toMatchObject({ threadId: 'target', expectedTurnId: 'turn-active' });
+  });
+
+  it('routes every generated review/start target shape and delivery mode without Git side effects', async () => {
+    let reviewIndex = 0;
+    const appServer = rpc({
+      'review/start': () => {
+        reviewIndex += 1;
+        return { turn: { id: `review-turn-${reviewIndex}` }, reviewThreadId: `review-thread-${reviewIndex}` };
+      },
+    });
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+    const requests = [
+      { target: { type: 'uncommittedChanges' as const }, delivery: 'inline' as const },
+      { target: { type: 'baseBranch' as const, branch: 'main' }, delivery: 'detached' as const },
+      {
+        target: { type: 'commit' as const, sha: '0123456789abcdef', title: 'Reviewed commit' },
+        delivery: 'inline' as const,
+      },
+      {
+        target: { type: 'custom' as const, instructions: 'Review only the coordination boundary.' },
+        delivery: 'detached' as const,
+      },
+    ];
+
+    const results = [];
+    for (const request of requests) {
+      results.push(
+        await port.startReview({
+          action: 'review',
+          targetThreadId: 'target',
+          actor: { kind: 'user', id: 'operator', threadId: 'source' },
+          reason: 'Review changes',
+          ...request,
+        })
+      );
+    }
+
+    expect(appServer.requests).toEqual(requests.map((request) => ['review/start', { threadId: 'target', ...request }]));
+    expect(results).toEqual([
+      { reviewThreadId: 'review-thread-1', turnId: 'review-turn-1' },
+      { reviewThreadId: 'review-thread-2', turnId: 'review-turn-2' },
+      { reviewThreadId: 'review-thread-3', turnId: 'review-turn-3' },
+      { reviewThreadId: 'review-thread-4', turnId: 'review-turn-4' },
+    ]);
   });
 });

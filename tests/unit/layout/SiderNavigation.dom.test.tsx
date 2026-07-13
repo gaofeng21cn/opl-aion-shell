@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import { SiderPrimaryNav, SiderToolbar } from '@/renderer/components/layout/Sider/SiderNav';
 
+vi.mock('@/renderer/pages/conversation/GroupedHistory/ThreadCoordination', () => ({
+  default: () => <button type='button'>Thread coordination</button>,
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -53,7 +57,7 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Settings']);
+    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Thread coordination', 'Settings']);
     fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
     expect(onRuntimeClick).toHaveBeenCalledOnce();
     expect(screen.getByText('Conversation history')).toBeInTheDocument();

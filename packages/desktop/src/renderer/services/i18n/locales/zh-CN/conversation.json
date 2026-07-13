@@ -697,6 +697,7 @@
     "messagePlaceholder": "发送给接收线程的消息",
     "resume": "恢复",
     "fork": "分叉",
+    "reviewChanges": "审查更改",
     "audit": "投递审计",
     "noAudit": "尚无跨线程投递记录",
     "advisory": {

@@ -10,6 +10,7 @@ import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
+import ThreadCoordinationSection from '@/renderer/pages/conversation/GroupedHistory/ThreadCoordination';
 
 type SiderPrimaryNavProps = {
   collapsed: boolean;
@@ -66,6 +67,7 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
           </Button>
         </Tooltip>
       ))}
+      <ThreadCoordinationSection collapsed={collapsed} tooltipEnabled={collapsed && !isMobile} />
     </nav>
   );
 };

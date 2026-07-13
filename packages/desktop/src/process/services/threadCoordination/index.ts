@@ -17,10 +17,12 @@ import {
   type ThreadCoordinationAuditEvent,
   type ThreadCoordinationAuditResult,
   type ThreadCoordinationErrorCode,
+  type ThreadCoordinationLifecycleRequest,
   type ThreadCoordinationOverview,
   type ThreadCoordinationOverviewRequest,
   type ThreadCoordinationPermissionDecision,
   type ThreadCoordinationReadResult,
+  type ThreadCoordinationReviewRequest,
   type ThreadCoordinationWriteSetDecision,
 } from '@/common/types/codex/threadCoordination';
 import type { ThreadCoordinationAuditStore } from './auditStore';
@@ -33,12 +35,19 @@ export type CodexThreadListSnapshot = {
   threads: CodexThreadDescriptor[];
 };
 
+export type CodexThreadReviewStartResult = {
+  reviewThreadId: string;
+  turnId: string;
+};
+
 export type CodexThreadCoordinationPort = {
   listThreads: (request: ThreadCoordinationOverviewRequest) => Promise<CodexThreadListSnapshot>;
   readThread: (threadId: string) => Promise<CodexThreadDetail>;
   resumeThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   forkThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   archiveThread: (threadId: string) => Promise<void>;
+  unarchiveThread: (threadId: string) => Promise<CodexThreadDescriptor>;
+  startReview: (request: ThreadCoordinationReviewRequest) => Promise<CodexThreadReviewStartResult>;
   startTurn: (request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>) => Promise<string>;
   steerTurn: (
     request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>,
@@ -75,6 +84,7 @@ type FinishOptions = {
   source?: CodexThreadDescriptor;
   protocolMethod?: CodexThreadCoordinationMethod | null;
   forkedThreadId?: string | null;
+  reviewThreadId?: string | null;
   failure?: ActionFailure;
   outcome?: ThreadCoordinationAuditResult;
   policy?: PolicyAudit;
@@ -172,11 +182,41 @@ function initialDeliveryPolicy(request: Extract<ThreadCoordinationActionRequest,
   };
 }
 
+function replayAcceptedDelivery(event: ThreadCoordinationAuditEvent): ThreadCoordinationActionResult {
+  return {
+    ok: true,
+    outcome: 'accepted',
+    action: 'deliver',
+    targetThreadId: event.receiverThreadId,
+    forkedThreadId: null,
+    reviewThreadId: null,
+    protocolMethod: event.protocolMethod,
+    auditId: event.id,
+    errorCode: event.errorCode,
+    message: event.resultMessage,
+    advisories: event.advisories ?? [],
+  };
+}
+
+function reviewTargetFailure(request: ThreadCoordinationReviewRequest): ActionFailure | null {
+  if (request.target.type === 'baseBranch' && !request.target.branch.trim()) {
+    return { code: 'invalid_request', message: 'Review base branch is required.' };
+  }
+  if (request.target.type === 'commit' && !request.target.sha.trim()) {
+    return { code: 'invalid_request', message: 'Review commit SHA is required.' };
+  }
+  if (request.target.type === 'custom' && !request.target.instructions.trim()) {
+    return { code: 'invalid_request', message: 'Custom review instructions are required.' };
+  }
+  return null;
+}
+
 export class ThreadCoordinationService {
   private readonly port?: CodexThreadCoordinationPort;
   private readonly auditStore: ThreadCoordinationAuditStore;
   private readonly now: () => Date;
   private readonly createId: () => string;
+  private readonly deliveryExecutions = new Map<string, Promise<ThreadCoordinationActionResult>>();
 
   constructor(options: ServiceOptions) {
     this.port = options.port;
@@ -242,6 +282,28 @@ export class ThreadCoordinationService {
   }
 
   async execute(request: ThreadCoordinationActionRequest): Promise<ThreadCoordinationActionResult> {
+    if (request.action !== 'deliver') return this.executeOnce(request);
+    const idempotencyKey = request.idempotencyKey.trim();
+    if (!idempotencyKey) return this.executeOnce(request);
+
+    const accepted = this.auditStore.findAcceptedByIdempotencyKey(idempotencyKey);
+    if (accepted) return replayAcceptedDelivery(accepted);
+
+    const activeExecution = this.deliveryExecutions.get(idempotencyKey);
+    if (activeExecution) return activeExecution;
+
+    const execution = this.executeOnce(request);
+    this.deliveryExecutions.set(idempotencyKey, execution);
+    try {
+      return await execution;
+    } finally {
+      if (this.deliveryExecutions.get(idempotencyKey) === execution) {
+        this.deliveryExecutions.delete(idempotencyKey);
+      }
+    }
+  }
+
+  private async executeOnce(request: ThreadCoordinationActionRequest): Promise<ThreadCoordinationActionResult> {
     const targetThreadId = request.targetThreadId.trim();
     if (!targetThreadId || !request.reason.trim()) {
       return this.finish(request, {
@@ -282,12 +344,13 @@ export class ThreadCoordinationService {
       });
     }
 
-    if (request.action !== 'deliver') return this.executeLifecycle(request, target);
-    return this.executeDelivery(request, snapshot, target);
+    if (request.action === 'deliver') return this.executeDelivery(request, snapshot, target);
+    if (request.action === 'review') return this.executeReview(request, target);
+    return this.executeLifecycle(request, target);
   }
 
   private async executeLifecycle(
-    request: Exclude<ThreadCoordinationActionRequest, { action: 'deliver' }>,
+    request: ThreadCoordinationLifecycleRequest,
     target: CodexThreadDescriptor
   ): Promise<ThreadCoordinationActionResult> {
     try {
@@ -308,6 +371,14 @@ export class ThreadCoordinationService {
           statusAfter: target.status,
         });
       }
+      if (request.action === 'unarchive') {
+        const restored = await this.port?.unarchiveThread(target.id);
+        return this.finish(request, {
+          target,
+          protocolMethod: 'thread/unarchive',
+          statusAfter: restored?.status ?? 'idle',
+        });
+      }
       await this.port?.archiveThread(target.id);
       return this.finish(request, { target, protocolMethod: 'thread/archive', statusAfter: 'archived' });
     } catch (error) {
@@ -316,6 +387,37 @@ export class ThreadCoordinationService {
         failure: {
           code: 'protocol_error',
           message: error instanceof Error ? error.message : 'Codex thread action failed.',
+        },
+      });
+    }
+  }
+
+  private async executeReview(
+    request: ThreadCoordinationReviewRequest,
+    target: CodexThreadDescriptor
+  ): Promise<ThreadCoordinationActionResult> {
+    const invalidTarget = reviewTargetFailure(request);
+    if (invalidTarget) return this.finish(request, { target, failure: invalidTarget });
+    if (target.status === 'archived' || target.status === 'system_error') {
+      return this.finish(request, {
+        target,
+        failure: { code: 'thread_not_writable', message: 'Target thread cannot start a review in its current state.' },
+      });
+    }
+    try {
+      const review = await this.port?.startReview(request);
+      return this.finish(request, {
+        target,
+        protocolMethod: 'review/start',
+        reviewThreadId: review?.reviewThreadId ?? null,
+        statusAfter: request.delivery === 'inline' ? 'running' : target.status,
+      });
+    } catch (error) {
+      return this.finish(request, {
+        target,
+        failure: {
+          code: 'protocol_error',
+          message: error instanceof Error ? error.message : 'Codex review action failed.',
         },
       });
     }
@@ -446,9 +548,6 @@ export class ThreadCoordinationService {
         message: 'Cross-host delivery is not supported by this host.',
       });
     }
-    if (this.auditStore.hasIdempotencyKey(request.idempotencyKey)) {
-      return denyPermission({ code: 'duplicate_delivery', message: 'This delivery was already recorded.' });
-    }
     const writeSet = normalizedPaths(request.writeSet);
     if (target.status === 'system_error' || target.status === 'archived') {
       return denyPermission({
@@ -515,7 +614,7 @@ export class ThreadCoordinationService {
       writeSetDecision: policy.writeSet,
       threadStatusBefore: options.target?.status ?? null,
       threadStatusAfter: options.statusAfter ?? options.target?.status ?? null,
-      idempotencyKey: request.action === 'deliver' ? request.idempotencyKey : null,
+      idempotencyKey: request.action === 'deliver' ? request.idempotencyKey.trim() : null,
       errorCode: options.failure?.code ?? null,
       advisories: options.advisories ?? [],
     };
@@ -526,6 +625,7 @@ export class ThreadCoordinationService {
       action: request.action,
       targetThreadId: request.targetThreadId,
       forkedThreadId: options.forkedThreadId ?? null,
+      reviewThreadId: options.reviewThreadId ?? null,
       protocolMethod: options.protocolMethod ?? null,
       auditId,
       errorCode: options.failure?.code ?? null,

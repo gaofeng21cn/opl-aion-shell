@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Drawer, Empty, Input, Message, Select, Spin, Tag, Tooltip } from '@arco-design/web-react';
-import { BranchOne, ConnectionPoint, Fork, Inbox, Refresh, Send } from '@icon-park/react';
+import { BranchOne, ConnectionPoint, Fork, Inbox, PreviewOpen, Refresh, Send, Undo } from '@icon-park/react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -67,7 +67,9 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
       setSourceThreadId(overview.currentThreadId);
       return;
     }
-    if (sourceThreadId && !threads.some((thread) => thread.id === sourceThreadId)) setSourceThreadId(null);
+    if (sourceThreadId && !threads.some((thread) => thread.id === sourceThreadId && !thread.archived)) {
+      setSourceThreadId(null);
+    }
   }, [overview?.currentThreadId, sourceThreadId, threads]);
 
   useEffect(() => {
@@ -111,13 +113,25 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
     }
   };
 
-  const runLifecycle = (action: 'resume' | 'fork' | 'archive') => {
+  const runLifecycle = (action: 'resume' | 'fork' | 'archive' | 'unarchive') => {
     if (!selectedThread || !reason.trim()) return;
     void runAction({
       action,
       targetThreadId: selectedThread.id,
       actor: { kind: 'user', id: 'opl-app-user', threadId: sourceThreadId },
       reason: reason.trim(),
+    });
+  };
+
+  const reviewChanges = () => {
+    if (!selectedThread || !reason.trim()) return;
+    void runAction({
+      action: 'review',
+      targetThreadId: selectedThread.id,
+      actor: { kind: 'user', id: 'opl-app-user', threadId: sourceThreadId },
+      reason: reason.trim(),
+      target: { type: 'uncommittedChanges' },
+      delivery: 'inline',
     });
   };
 
@@ -342,7 +356,7 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                         aria-label={t('conversation.threadCoordination.sender')}
                       >
                         {threads
-                          .filter((thread) => thread.id !== selectedThread.id)
+                          .filter((thread) => thread.id !== selectedThread.id && !thread.archived)
                           .map((thread) => (
                             <Select.Option key={thread.id} value={thread.id}>
                               {thread.title}
@@ -357,34 +371,58 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                         disabled={actionLoading}
                       />
                       <div className='mt-10px flex flex-wrap gap-8px'>
-                        <Button
-                          size='small'
-                          icon={<BranchOne />}
-                          disabled={!reason.trim()}
-                          loading={actionLoading}
-                          onClick={() => runLifecycle('resume')}
-                        >
-                          {t('conversation.threadCoordination.resume')}
-                        </Button>
-                        <Button
-                          size='small'
-                          icon={<Fork />}
-                          disabled={!reason.trim()}
-                          loading={actionLoading}
-                          onClick={() => runLifecycle('fork')}
-                        >
-                          {t('conversation.threadCoordination.fork')}
-                        </Button>
-                        <Button
-                          size='small'
-                          status='warning'
-                          icon={<Inbox />}
-                          disabled={!reason.trim()}
-                          loading={actionLoading}
-                          onClick={() => runLifecycle('archive')}
-                        >
-                          {t('conversation.history.archive')}
-                        </Button>
+                        {selectedThread.archived ? (
+                          <Button
+                            size='small'
+                            icon={<Undo />}
+                            disabled={!reason.trim()}
+                            loading={actionLoading}
+                            onClick={() => runLifecycle('unarchive')}
+                          >
+                            {t('conversation.history.restore')}
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              size='small'
+                              icon={<BranchOne />}
+                              disabled={!reason.trim()}
+                              loading={actionLoading}
+                              onClick={() => runLifecycle('resume')}
+                            >
+                              {t('conversation.threadCoordination.resume')}
+                            </Button>
+                            <Button
+                              size='small'
+                              icon={<Fork />}
+                              disabled={!reason.trim()}
+                              loading={actionLoading}
+                              onClick={() => runLifecycle('fork')}
+                            >
+                              {t('conversation.threadCoordination.fork')}
+                            </Button>
+                            <Button
+                              size='small'
+                              status='warning'
+                              icon={<Inbox />}
+                              disabled={!reason.trim()}
+                              loading={actionLoading}
+                              onClick={() => runLifecycle('archive')}
+                            >
+                              {t('conversation.history.archive')}
+                            </Button>
+                            <Button
+                              size='small'
+                              icon={<PreviewOpen />}
+                              aria-label={t('conversation.threadCoordination.reviewChanges')}
+                              disabled={!reason.trim()}
+                              loading={actionLoading}
+                              onClick={reviewChanges}
+                            >
+                              {t('conversation.threadCoordination.reviewChanges')}
+                            </Button>
+                          </>
+                        )}
                       </div>
                       <Input.TextArea
                         className='mt-12px'
@@ -392,7 +430,7 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                         onChange={setMessage}
                         placeholder={t('conversation.threadCoordination.messagePlaceholder')}
                         autoSize={MESSAGE_TEXTAREA_AUTO_SIZE}
-                        disabled={actionLoading}
+                        disabled={actionLoading || selectedThread.archived}
                       />
                       <div className='mt-10px flex justify-end'>
                         <Button
@@ -400,7 +438,11 @@ const ThreadCoordinationSection: React.FC<ThreadCoordinationSectionProps> = ({ c
                           icon={<Send />}
                           loading={actionLoading}
                           disabled={
-                            !sourceThreadId || sourceThreadId === selectedThread.id || !reason.trim() || !message.trim()
+                            selectedThread.archived ||
+                            !sourceThreadId ||
+                            sourceThreadId === selectedThread.id ||
+                            !reason.trim() ||
+                            !message.trim()
                           }
                           onClick={deliver}
                         >

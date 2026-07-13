@@ -10,6 +10,8 @@ export const CODEX_THREAD_COORDINATION_METHODS = [
   'thread/resume',
   'thread/fork',
   'thread/archive',
+  'thread/unarchive',
+  'review/start',
   'turn/start',
   'turn/steer',
 ] as const;
@@ -19,6 +21,12 @@ export type CodexThreadCoordinationStatus = 'not_loaded' | 'idle' | 'running' | 
 export type CodexThreadTurnStatus = 'in_progress' | 'completed' | 'failed' | 'interrupted' | 'unknown';
 export type CodexThreadHistoryRole = 'user' | 'assistant' | 'system' | 'tool' | 'unknown';
 export type CodexThreadPermission = 'inherit' | 'read_only' | 'workspace_write';
+export type CodexThreadReviewDelivery = 'inline' | 'detached';
+export type CodexThreadReviewTarget =
+  | { type: 'uncommittedChanges' }
+  | { type: 'baseBranch'; branch: string }
+  | { type: 'commit'; sha: string; title: string | null }
+  | { type: 'custom'; instructions: string };
 
 export type CodexThreadDescriptor = {
   id: string;
@@ -154,10 +162,19 @@ export type ThreadCoordinationReadResult =
   | { ok: false; errorCode: ThreadCoordinationErrorCode; message: string };
 
 export type ThreadCoordinationLifecycleRequest = {
-  action: 'resume' | 'fork' | 'archive';
+  action: 'resume' | 'fork' | 'archive' | 'unarchive';
   targetThreadId: string;
   actor: ThreadCoordinationActor;
   reason: string;
+};
+
+export type ThreadCoordinationReviewRequest = {
+  action: 'review';
+  targetThreadId: string;
+  actor: ThreadCoordinationActor;
+  reason: string;
+  target: CodexThreadReviewTarget;
+  delivery: CodexThreadReviewDelivery;
 };
 
 export type ThreadCoordinationDeliveryRequest = {
@@ -178,7 +195,10 @@ export type ThreadCoordinationDeliveryRequest = {
   };
 };
 
-export type ThreadCoordinationActionRequest = ThreadCoordinationLifecycleRequest | ThreadCoordinationDeliveryRequest;
+export type ThreadCoordinationActionRequest =
+  | ThreadCoordinationLifecycleRequest
+  | ThreadCoordinationReviewRequest
+  | ThreadCoordinationDeliveryRequest;
 
 export type ThreadCoordinationExecuteRequest = {
   request: ThreadCoordinationActionRequest;
@@ -190,6 +210,7 @@ export type ThreadCoordinationActionResult = {
   action: ThreadCoordinationActionRequest['action'];
   targetThreadId: string;
   forkedThreadId: string | null;
+  reviewThreadId: string | null;
   protocolMethod: CodexThreadCoordinationMethod | null;
   auditId: string;
   errorCode: ThreadCoordinationErrorCode | null;

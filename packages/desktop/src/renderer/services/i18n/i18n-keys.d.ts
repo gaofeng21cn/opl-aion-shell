@@ -1094,6 +1094,7 @@ export type I18nKey =
   | 'conversation.threadCoordination.reasonPlaceholder'
   | 'conversation.threadCoordination.result'
   | 'conversation.threadCoordination.resume'
+  | 'conversation.threadCoordination.reviewChanges'
   | 'conversation.threadCoordination.selectThread'
   | 'conversation.threadCoordination.sender'
   | 'conversation.threadCoordination.sourcePlaceholder'

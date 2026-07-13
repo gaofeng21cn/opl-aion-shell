@@ -11,7 +11,7 @@ import type { ThreadCoordinationAuditEvent } from '@/common/types/codex/threadCo
 export type ThreadCoordinationAuditStore = {
   append: (event: ThreadCoordinationAuditEvent) => void;
   readRecent: (limit: number) => ThreadCoordinationAuditEvent[];
-  hasIdempotencyKey: (idempotencyKey: string) => boolean;
+  findAcceptedByIdempotencyKey: (idempotencyKey: string) => ThreadCoordinationAuditEvent | null;
 };
 
 function isAuditEvent(value: unknown): value is ThreadCoordinationAuditEvent {
@@ -43,8 +43,25 @@ export class JsonlThreadCoordinationAuditStore implements ThreadCoordinationAudi
     return events;
   }
 
-  hasIdempotencyKey(idempotencyKey: string): boolean {
-    if (!idempotencyKey || !fs.existsSync(this.auditPath)) return false;
-    return this.readRecent(500).some((event) => event.idempotencyKey === idempotencyKey);
+  findAcceptedByIdempotencyKey(idempotencyKey: string): ThreadCoordinationAuditEvent | null {
+    if (!idempotencyKey || !fs.existsSync(this.auditPath)) return null;
+    const lines = fs.readFileSync(this.auditPath, 'utf8').split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        const value: unknown = JSON.parse(line);
+        if (
+          isAuditEvent(value) &&
+          value.action === 'deliver' &&
+          value.result === 'accepted' &&
+          value.idempotencyKey === idempotencyKey
+        ) {
+          return value;
+        }
+      } catch {
+        // Ignore a damaged line while preserving lookup across the remaining JSONL history.
+      }
+    }
+    return null;
   }
 }

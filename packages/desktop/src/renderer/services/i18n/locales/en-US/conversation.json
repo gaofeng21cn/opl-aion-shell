@@ -697,6 +697,7 @@
     "messagePlaceholder": "Message for the receiving thread",
     "resume": "Resume",
     "fork": "Fork",
+    "reviewChanges": "Review changes",
     "audit": "Delivery audit",
     "noAudit": "No thread deliveries recorded",
     "advisory": {
