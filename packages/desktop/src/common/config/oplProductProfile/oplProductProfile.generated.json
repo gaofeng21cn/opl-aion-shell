@@ -3329,7 +3329,8 @@
           },
           "object_accent_policy": "use restrained multi-hue navigation icons and card-edge accents to distinguish access, workspace, capabilities, maintenance, and storage without tinting whole pages",
           "footer_layout": "compact",
-          "footer_controls": ["theme_switcher"],
+          "footer_controls": ["gateway_account_or_settings_entry", "theme_switcher"],
+          "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_settings_on_all_routes_and_open_models_access_or_overview",
           "footer_secondary_navigation_allowed": false,
           "theme_gallery_presentation": "recognizable_preview_tiles",
           "theme_swatch_list_allowed": false,
@@ -3606,7 +3607,7 @@
                 },
                 {
                   "testid": "settings-access-gateway-setup",
-                  "when": "desktop_account_login_selected_or_legacy_setup_requires_default_group_completion"
+                  "when": "desktop_account_login_selected"
                 },
                 {
                   "testid": "settings-access-gateway-account",

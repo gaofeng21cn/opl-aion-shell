@@ -559,9 +559,11 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.gatewayAccount.errors.invalidRequest': 'Enter the account email and password.',
         'settings.accessPage.gatewayAccount.errors.invalidCredentials': 'The email or password is incorrect.',
         'settings.accessPage.gatewayAccount.errors.authExpired': 'The Gateway session expired. Sign in again.',
-        'settings.accessPage.gatewayAccount.errors.managedKeyMissing': 'The managed key no longer exists. Run repair.',
+        'settings.accessPage.gatewayAccount.errors.managedKeyMissing':
+          'The managed key is unavailable. Refresh, then sign in again if needed.',
         'settings.accessPage.gatewayAccount.errors.managedKeyConflict': 'More than one managed key exists.',
-        'settings.accessPage.gatewayAccount.errors.managedKeyIdentityDrift': 'The managed key identity changed.',
+        'settings.accessPage.gatewayAccount.errors.managedKeyIdentityDrift':
+          'The managed key identity changed. Refresh, then sign in again if needed.',
         'settings.accessPage.gatewayAccount.errors.disconnectPending': 'The managed key has not been disabled yet.',
         'settings.accessPage.gatewayAccount.errors.generic': 'The OPL Gateway account operation failed.',
         'settings.accessPage.remote.title': 'Browser access to this computer',
@@ -983,7 +985,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
     expect(view.getByTestId('settings-access-gateway-stale')).toBeTruthy();
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
-    expect(view.queryByText('Repair')).toBeNull();
+    expect(view.queryByText('Resync')).toBeNull();
     expect(view.queryByText('Use for model access')).toBeNull();
     expect(document.body.textContent).not.toContain('Asia/Shanghai');
     expect(document.body.textContent).not.toContain('2026-07-13T10:00:00+08:00');
@@ -1001,10 +1003,10 @@ describe('AccessSettingsContent', () => {
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 
-  it('completes setup with the unique Codex group without rendering a selector', async () => {
+  it('automatically completes an exposed managed-Key setup action without rendering a control', async () => {
     const mocks = getMocks();
     mocks.gatewayAccount = makeGatewayAccount({
-      status: 'setup_required',
+      status: 'attention_needed',
       connection_mode: 'account',
       account_card_visible: true,
       account: {
@@ -1028,7 +1030,7 @@ describe('AccessSettingsContent', () => {
     });
     const view = render(<AccessSettingsContent />);
     expect(view.queryByRole('combobox', { name: /group/i })).toBeNull();
-    fireEvent.click(view.getByText('Complete connection'));
+    expect(view.queryByText('Complete connection')).toBeNull();
 
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -1037,6 +1039,36 @@ describe('AccessSettingsContent', () => {
         payloadJson: { group_id: 'group-codex' },
       })
     );
+  });
+
+  it('does not loop automatic setup when the projected action fails', async () => {
+    const mocks = getMocks();
+    mocks.executeActionInvoke.mockRejectedValueOnce(new Error('offline'));
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'setup_required',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        email: 'feng@example.com',
+        status: 'active',
+        balance: { amount: 1, currency: 'CNY' },
+      },
+      available_groups: [{ group_id: 'group-codex', label: 'Codex' }],
+      actions: {
+        complete_setup: 'gateway_account_complete_setup',
+        refresh: null,
+        repair: null,
+        use_for_model_access: null,
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+
+    const view = render(<AccessSettingsContent />);
+
+    await waitFor(() => expect(mocks.executeActionInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByText('Could not update the OPL Gateway account.')).toBeTruthy());
+    expect(mocks.executeActionInvoke).toHaveBeenCalledTimes(1);
   });
 
   it('requires confirmation before disconnecting the managed account', () => {
@@ -1069,9 +1101,17 @@ describe('AccessSettingsContent', () => {
 
   it.each([
     ['reauth_required', 'auth_expired', 'The Gateway session expired. Sign in again.'],
-    ['attention_needed', 'managed_key_missing', 'The managed key no longer exists. Run repair.'],
+    [
+      'attention_needed',
+      'managed_key_missing',
+      'The managed key is unavailable. Refresh, then sign in again if needed.',
+    ],
     ['attention_needed', 'managed_key_conflict', 'More than one managed key exists.'],
-    ['attention_needed', 'managed_key_identity_drift', 'The managed key identity changed.'],
+    [
+      'attention_needed',
+      'managed_key_identity_drift',
+      'The managed key identity changed. Refresh, then sign in again if needed.',
+    ],
     ['disconnect_pending', 'disconnect_pending', 'The managed key has not been disabled yet.'],
   ])('maps %s / %s to stable user-facing guidance', (status, errorCode, expected) => {
     const mocks = getMocks();

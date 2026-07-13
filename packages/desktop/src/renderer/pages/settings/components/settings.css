@@ -108,6 +108,8 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 20px;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .opl-settings-page-header__actions {

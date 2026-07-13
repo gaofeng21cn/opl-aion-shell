@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAppStateInvoke = vi.hoisted(() => vi.fn());
@@ -11,9 +11,14 @@ vi.mock('@/common', () => ({
   },
 }));
 
-import { resetOplAppStateLoadsForTest, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  cacheFastOplAppState,
+  resetOplAppStateLoadsForTest,
+  useOplAppState,
+} from '@/renderer/hooks/system/useOplAppState';
 
 const CACHE_KEY = 'opl.appState.fast.v1';
+const GATEWAY_CACHE_KEY = 'opl.gatewayAccount.projection.v1';
 
 function gatewayProjection(overrides: Record<string, unknown> = {}) {
   return {
@@ -74,9 +79,9 @@ function readGateway(appState: Record<string, unknown>) {
 
 function seedCachedGateway() {
   localStorage.setItem(
-    CACHE_KEY,
+    GATEWAY_CACHE_KEY,
     JSON.stringify({
-      payload: { app_state: appStateWithGateway(gatewayProjection()) },
+      projection: gatewayProjection(),
       loadedAt: '20:00:00',
     })
   );
@@ -101,6 +106,25 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('migrates a legacy full-state Gateway projection into the dedicated cache', () => {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        payload: { app_state: appStateWithGateway(gatewayProjection()) },
+        loadedAt: '20:00:00',
+      })
+    );
+    getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    expect(readGateway(result.current.appState).connection_mode).toBe('account');
+    const migrated = JSON.parse(localStorage.getItem(GATEWAY_CACHE_KEY) ?? '{}') as {
+      projection?: Record<string, unknown>;
+    };
+    expect(migrated.projection?.connection_mode).toBe('account');
+  });
+
   it('reuses the account cached by a prior page visit while the next refresh is pending', async () => {
     getAppStateInvoke.mockResolvedValue({
       ok: true,
@@ -121,6 +145,32 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(cachedGateway.connection_mode).toBe('account');
     expect((cachedGateway.account as Record<string, unknown>).email).toBe('feng@example.com');
     expect(secondVisit.result.current.loading).toBe(false);
+  });
+
+  it('updates an already-mounted consumer when another page persists the connected account', async () => {
+    const disconnected = gatewayProjection({
+      status: 'not_connected',
+      connection_mode: 'none',
+      account_card_visible: false,
+      account: null,
+      usage: null,
+      managed_key: null,
+      installation: null,
+    });
+    localStorage.setItem(GATEWAY_CACHE_KEY, JSON.stringify({ projection: disconnected, loadedAt: '20:00:00' }));
+    getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    const mountedConsumer = renderHook(() => useOplAppState('fast'));
+    expect(readGateway(mountedConsumer.result.current.appState).connection_mode).toBe('none');
+
+    act(() => {
+      cacheFastOplAppState({ app_state: appStateWithGateway(gatewayProjection()) }, '20:01:00');
+    });
+
+    await waitFor(() => expect(readGateway(mountedConsumer.result.current.appState).connection_mode).toBe('account'));
+    expect((readGateway(mountedConsumer.result.current.appState).account as Record<string, unknown>).email).toBe(
+      'feng@example.com'
+    );
   });
 
   it('keeps the account state unresolved when an older cache has no Gateway projection', () => {
@@ -149,6 +199,37 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(readGateway(result.current.appState).connection_mode).toBe('account');
   });
 
+  it('keeps the dedicated account projection when a live payload omits the Gateway field', async () => {
+    seedCachedGateway();
+    getAppStateInvoke.mockResolvedValue({
+      ok: true,
+      parsed: { app_state: { core: { status: 'ready' } } },
+    });
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    await waitFor(() => expect(result.current.appState.core).toEqual({ status: 'ready' }));
+    expect(readGateway(result.current.appState).connection_mode).toBe('account');
+    expect((readGateway(result.current.appState).account as Record<string, unknown>).email).toBe('feng@example.com');
+  });
+
+  it('keeps the last account projection when an explicit full refresh omits the Gateway field', async () => {
+    seedCachedGateway();
+    getAppStateInvoke.mockResolvedValue({
+      ok: true,
+      parsed: { app_state: { runtime: { profile: 'full' } } },
+    });
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    await waitFor(() => expect(result.current.appState.runtime).toEqual({ profile: 'full' }));
+    await act(async () => {
+      await result.current.load('full', { showRefreshing: true });
+    });
+    expect(readGateway(result.current.appState).connection_mode).toBe('account');
+    expect((readGateway(result.current.appState).account as Record<string, unknown>).email).toBe('feng@example.com');
+  });
+
   it('replaces the cached account only after a live read confirms disconnection', async () => {
     seedCachedGateway();
     const disconnected = gatewayProjection({
@@ -170,9 +251,16 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(readGateway(result.current.appState).connection_mode).toBe('account');
     await waitFor(() => expect(readGateway(result.current.appState).connection_mode).toBe('none'));
 
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as {
+    const cached = JSON.parse(localStorage.getItem(GATEWAY_CACHE_KEY) ?? '{}') as {
+      projection?: Record<string, unknown>;
+    };
+    expect(cached.projection?.connection_mode).toBe('none');
+    const fullStateCache = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as {
       payload?: { app_state?: Record<string, unknown> };
     };
-    expect(readGateway(cached.payload?.app_state ?? {}).connection_mode).toBe('none');
+    const readModel = (
+      fullStateCache.payload?.app_state?.settings_control_center as Record<string, unknown> | undefined
+    )?.app_settings_read_model as Record<string, unknown> | undefined;
+    expect(readModel?.opl_gateway_account).toBeUndefined();
   });
 });
