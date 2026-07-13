@@ -120,6 +120,81 @@ describe('mergeCanonicalThreadDirectory', () => {
     });
   });
 
+  it('keeps local canonical rows that are absent from a partial App Server response', () => {
+    const returned = {
+      id: 'local-returned',
+      name: 'Stale returned task',
+      created_at: 1,
+      type: 'acp',
+      extra: { backend: 'codex', canonical_thread_id: 'thread-returned' },
+    } as TChatConversation;
+    const missing = {
+      id: 'local-missing',
+      name: 'Locally cached task',
+      created_at: 1,
+      type: 'acp',
+      extra: { backend: 'codex', canonical_thread_id: 'thread-missing', pinned: true },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory(
+      [returned, missing],
+      overview([thread({ id: 'thread-returned', title: 'Fresh returned task' })])
+    );
+
+    expect(merged).toEqual([
+      missing,
+      expect.objectContaining({
+        id: 'local-returned',
+        name: 'Fresh returned task',
+        extra: expect.objectContaining({ canonical_thread_id: 'thread-returned' }),
+      }),
+    ]);
+  });
+
+  it('matches migrated cache rows by canonical id when the ACP session id differs', () => {
+    const cached = {
+      id: 'local-1',
+      name: 'Migrated task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        acp_session_id: 'legacy-thread-1',
+        canonical_thread_id: 'thread-1',
+        pinned: true,
+      },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([cached], overview([thread()]));
+
+    expect(merged).toEqual([
+      expect.objectContaining({
+        id: 'local-1',
+        extra: expect.objectContaining({
+          acp_session_id: 'thread-1',
+          canonical_thread_id: 'thread-1',
+          pinned: true,
+        }),
+      }),
+    ]);
+  });
+
+  it('deduplicates local canonical rows only when the App Server returns that task', () => {
+    const duplicate = (id: string): TChatConversation =>
+      ({
+        id,
+        name: 'Duplicate task',
+        created_at: 1,
+        type: 'acp',
+        extra: { backend: 'codex', canonical_thread_id: 'thread-1' },
+      }) as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([duplicate('local-1'), duplicate('local-2')], overview([thread()]));
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.name).toBe('Canonical task');
+  });
+
   it('falls back to shell cache when the canonical directory is unavailable', () => {
     const cached = { id: 'local-1' } as TChatConversation;
     const unavailable = overview([]);

@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
 import type { CodexThreadDescriptor, ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
+import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -135,11 +136,6 @@ const subscribeConversationListSync = (listener: () => void) => {
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
-const canonicalThreadId = (conversation: TChatConversation): string | undefined => {
-  if (conversation.type !== 'acp' || conversation.extra.backend !== 'codex') return undefined;
-  return conversation.extra.acp_session_id?.trim() || conversation.extra.canonical_thread_id?.trim() || undefined;
-};
-
 const threadTimestamp = (thread: CodexThreadDescriptor): number => {
   const parsed = Date.parse(thread.updatedAt);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -187,16 +183,17 @@ export const mergeCanonicalThreadDirectory = (
 ): TChatConversation[] => {
   if (!overview || overview.availability.status !== 'available') return localConversations;
 
+  const returnedThreadIds = new Set(overview.threads.map((thread) => thread.id));
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
-  const localOnly = localConversations.filter((conversation) => {
-    const threadId = canonicalThreadId(conversation);
-    if (!threadId) return true;
+  const unmatchedLocal = localConversations.filter((conversation) => {
+    const threadId = canonicalCodexThreadId(conversation);
+    if (!threadId || !returnedThreadIds.has(threadId)) return true;
     cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
     return false;
   });
 
   return [
-    ...localOnly,
+    ...unmatchedLocal,
     ...overview.threads.map((thread) => projectCanonicalThread(thread, cachedByThreadId.get(thread.id))),
   ];
 };

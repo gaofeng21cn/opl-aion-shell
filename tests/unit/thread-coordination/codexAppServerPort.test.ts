@@ -56,6 +56,33 @@ function delivery(overrides: Partial<ThreadCoordinationDeliveryRequest> = {}): T
 }
 
 describe('CodexAppServerThreadCoordinationPort', () => {
+  it('requests every source kind supported by the current app-server schema', async () => {
+    const appServer = rpc({
+      'thread/list': () => ({ data: [], nextCursor: null }),
+    });
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+
+    await port.listThreads({});
+
+    expect(appServer.requests[0]).toEqual([
+      'thread/list',
+      expect.objectContaining({
+        sourceKinds: [
+          'cli',
+          'vscode',
+          'exec',
+          'appServer',
+          'subAgent',
+          'subAgentReview',
+          'subAgentCompact',
+          'subAgentThreadSpawn',
+          'subAgentOther',
+          'unknown',
+        ],
+      }),
+    ]);
+  });
+
   it('paginates thread/list and accepts a source hint only when the opaque id exists', async () => {
     const appServer = rpc({
       'thread/list': (params) => {

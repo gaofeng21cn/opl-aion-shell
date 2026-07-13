@@ -176,7 +176,7 @@ describe('conversation archive actions', () => {
     expect(markAsRead).toHaveBeenCalledWith('thread-1');
   });
 
-  it('routes canonical rename, archive, restore, and delete through app-server lifecycle actions', async () => {
+  it('routes canonical lifecycle actions with the canonical id during ACP id migration', async () => {
     const canonical = {
       id: 'conv-1',
       name: 'Canonical task',
@@ -185,7 +185,7 @@ describe('conversation archive actions', () => {
       modified_at: 1,
       extra: {
         backend: 'codex',
-        acp_session_id: 'thread-1',
+        acp_session_id: 'legacy-thread-1',
         canonical_thread_id: 'thread-1',
       },
     } as TChatConversation;

@@ -44,6 +44,18 @@ type PortOptions = {
 
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 20;
+const OPL_VISIBLE_THREAD_SOURCE_KINDS = [
+  'cli',
+  'vscode',
+  'exec',
+  'appServer',
+  'subAgent',
+  'subAgentReview',
+  'subAgentCompact',
+  'subAgentThreadSpawn',
+  'subAgentOther',
+  'unknown',
+] as const;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -554,6 +566,7 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
           limit: this.pageSize,
           sortKey: 'updated_at',
           sortDirection: 'desc',
+          sourceKinds: OPL_VISIBLE_THREAD_SOURCE_KINDS,
           archived,
           ...(workspace ? { cwd: workspace } : {}),
         }),
