@@ -101,6 +101,28 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('reuses the account cached by a prior page visit while the next refresh is pending', async () => {
+    getAppStateInvoke.mockResolvedValue({
+      ok: true,
+      parsed: { app_state: appStateWithGateway(gatewayProjection()) },
+    });
+
+    const firstVisit = renderHook(() => useOplAppState('fast'));
+    await waitFor(() => expect(readGateway(firstVisit.result.current.appState).connection_mode).toBe('account'));
+    firstVisit.unmount();
+
+    resetOplAppStateLoadsForTest();
+    getAppStateInvoke.mockReset();
+    getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    const secondVisit = renderHook(() => useOplAppState('fast'));
+    const cachedGateway = readGateway(secondVisit.result.current.appState);
+
+    expect(cachedGateway.connection_mode).toBe('account');
+    expect((cachedGateway.account as Record<string, unknown>).email).toBe('feng@example.com');
+    expect(secondVisit.result.current.loading).toBe(false);
+  });
+
   it('keeps the account state unresolved when an older cache has no Gateway projection', () => {
     localStorage.setItem(
       CACHE_KEY,
