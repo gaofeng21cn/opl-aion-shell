@@ -18,10 +18,36 @@ type Props = {
   onResolve: (request: ThreadCoordinationResolveServerRequest) => Promise<ThreadCoordinationResolveServerRequestResult>;
 };
 
+type ResolutionFailure = Extract<ThreadCoordinationResolveServerRequestResult, { ok: false }>;
+type ServerRequestUiState =
+  | 'approval_pending'
+  | 'user_input_pending'
+  | 'mcp_elicitation_pending'
+  | 'server_request_resolving'
+  | 'server_request_declined'
+  | 'server_request_handler_unavailable'
+  | 'dispatch_failed';
+
 const JSON_TEXTAREA_AUTO_SIZE = { minRows: 3, maxRows: 8 };
 
 function requestLabel(kind: CodexThreadServerRequest['kind']): string {
   return `conversation.threadCoordination.serverRequests.kind.${kind}`;
+}
+
+function pendingState(kind: CodexThreadServerRequest['kind']): ServerRequestUiState {
+  if (kind === 'user_input') return 'user_input_pending';
+  if (kind === 'mcp_elicitation') return 'mcp_elicitation_pending';
+  return 'approval_pending';
+}
+
+function isDecline(request: ThreadCoordinationResolveServerRequest): boolean {
+  if (request.response.kind === 'approval' || request.response.kind === 'permissions') {
+    return request.response.decision === 'decline';
+  }
+  return (
+    request.response.kind === 'mcp_elicitation' &&
+    (request.response.action === 'decline' || request.response.action === 'cancel')
+  );
 }
 
 const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
@@ -29,6 +55,8 @@ const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
   const [elicitationContent, setElicitationContent] = useState<Record<string, string>>({});
+  const [resolutionFailures, setResolutionFailures] = useState<Record<string, ResolutionFailure>>({});
+  const [resolutionStates, setResolutionStates] = useState<Record<string, ServerRequestUiState>>({});
 
   const answerFor = (requestId: string, questionId: string): string => answers[requestId]?.[questionId] ?? '';
   const updateAnswer = (requestId: string, questionId: string, value: string) => {
@@ -51,11 +79,40 @@ const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
 
   const resolve = async (request: ThreadCoordinationResolveServerRequest) => {
     setResolvingId(request.requestId);
+    setResolutionFailures((current) => {
+      const next = { ...current };
+      delete next[request.requestId];
+      return next;
+    });
+    setResolutionStates((current) => ({ ...current, [request.requestId]: 'server_request_resolving' }));
     try {
       const result = await onResolve(request);
-      if (result.ok) Message.success(t('conversation.threadCoordination.serverRequests.resolved'));
-      else if ('message' in result) Message.error(result.message);
+      if (result.ok === true) {
+        setResolutionStates((current) => ({
+          ...current,
+          [request.requestId]: isDecline(request) ? 'server_request_declined' : 'server_request_resolving',
+        }));
+        Message.success(t('conversation.threadCoordination.serverRequests.resolved'));
+      } else {
+        const failure: ResolutionFailure = result;
+        setResolutionFailures((current) => ({ ...current, [request.requestId]: failure }));
+        setResolutionStates((current) => ({
+          ...current,
+          [request.requestId]:
+            failure.errorCode === 'server_request_handler_unavailable'
+              ? 'server_request_handler_unavailable'
+              : 'dispatch_failed',
+        }));
+        Message.error(failure.message);
+      }
     } catch {
+      const failure: ResolutionFailure = {
+        ok: false,
+        errorCode: 'protocol_error',
+        message: t('conversation.threadCoordination.serverRequests.resolveFailed'),
+      };
+      setResolutionFailures((current) => ({ ...current, [request.requestId]: failure }));
+      setResolutionStates((current) => ({ ...current, [request.requestId]: 'dispatch_failed' }));
       Message.error(t('conversation.threadCoordination.serverRequests.resolveFailed'));
     } finally {
       setResolvingId(null);
@@ -80,10 +137,12 @@ const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
       <div className='flex flex-col gap-12px'>
         {requests.map((request) => {
           const loading = resolvingId === request.requestId;
+          const resolutionFailure = resolutionFailures[request.requestId];
           return (
             <div
               key={request.requestId}
               data-testid={`thread-server-request-${request.requestId}`}
+              data-state={resolutionStates[request.requestId] ?? pendingState(request.kind)}
               className='border-t border-solid border-[var(--color-border-2)] pt-10px first:border-t-0 first:pt-0'
             >
               <div className='flex items-center gap-8px'>
@@ -92,6 +151,18 @@ const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
                 </span>
                 <span className='text-11px text-t-tertiary'>{request.observedAt}</span>
               </div>
+              <div
+                data-testid={`thread-server-request-context-${request.requestId}`}
+                className='mt-5px flex flex-wrap gap-x-10px gap-y-3px break-all text-11px text-t-tertiary'
+              >
+                <span>{`${t('conversation.threadCoordination.serverRequests.contextThread')}: ${request.threadId}`}</span>
+                {request.turnId && (
+                  <span>{`${t('conversation.threadCoordination.serverRequests.contextTurn')}: ${request.turnId}`}</span>
+                )}
+                {request.itemId && (
+                  <span>{`${t('conversation.threadCoordination.serverRequests.contextItem')}: ${request.itemId}`}</span>
+                )}
+              </div>
               {request.reason && <div className='mt-5px text-12px text-t-secondary'>{request.reason}</div>}
               {request.command && (
                 <pre className='m-0 mt-8px max-h-120px overflow-auto whitespace-pre-wrap break-all bg-fill-1 px-10px py-8px text-11px leading-17px text-t-primary'>
@@ -99,6 +170,14 @@ const PendingServerRequests: React.FC<Props> = ({ requests, onResolve }) => {
                 </pre>
               )}
               {request.cwd && <div className='mt-5px break-all text-11px text-t-tertiary'>{request.cwd}</div>}
+              {resolutionFailure && (
+                <Alert
+                  type='error'
+                  className='mt-8px'
+                  data-testid={`thread-server-request-error-${request.requestId}`}
+                  content={resolutionFailure.message}
+                />
+              )}
 
               {request.kind === 'user_input' && (
                 <div className='mt-10px flex flex-col gap-10px'>

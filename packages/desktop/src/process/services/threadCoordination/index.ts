@@ -301,13 +301,17 @@ export class ThreadCoordinationService {
     if (!this.port?.resolveServerRequest) {
       return {
         ok: false,
-        errorCode: 'protocol_unavailable',
+        errorCode: 'server_request_handler_unavailable',
         message: 'Codex app-server request handling is unavailable.',
       };
     }
     try {
       if (!this.port.resolveServerRequest(request)) {
-        return { ok: false, errorCode: 'thread_not_found', message: 'The Codex server request is no longer pending.' };
+        return {
+          ok: false,
+          errorCode: 'server_request_not_pending',
+          message: 'The Codex server request is no longer pending.',
+        };
       }
       return { ok: true };
     } catch (error) {

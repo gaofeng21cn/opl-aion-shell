@@ -117,6 +117,28 @@ describe('ThreadCoordinationService', () => {
     expect(overview.threads).toEqual([]);
   });
 
+  it('reports unavailable and expired interactive request handlers with typed errors', () => {
+    const request = {
+      requestId: 'number:41',
+      response: { kind: 'approval' as const, decision: 'decline' as const },
+    };
+    const unavailable = new ThreadCoordinationService({ auditStore: memoryAuditStore() });
+    const expiredPort = {
+      ...port([]),
+      resolveServerRequest: vi.fn(() => false),
+    };
+    const expired = new ThreadCoordinationService({ port: expiredPort, auditStore: memoryAuditStore() });
+
+    expect(unavailable.resolveServerRequest(request)).toMatchObject({
+      ok: false,
+      errorCode: 'server_request_handler_unavailable',
+    });
+    expect(expired.resolveServerRequest(request)).toMatchObject({
+      ok: false,
+      errorCode: 'server_request_not_pending',
+    });
+  });
+
   it('exposes only top-level threads in the overview', async () => {
     const service = new ThreadCoordinationService({
       auditStore: memoryAuditStore(),

@@ -750,6 +750,9 @@
     "serverRequests": {
       "title": "Pending Codex requests",
       "description": "This task is waiting for your Codex approval or input. The task keeps its existing permission and sandbox policy.",
+      "contextThread": "Thread",
+      "contextTurn": "Turn",
+      "contextItem": "Item",
       "kind": {
         "command_approval": "Command approval",
         "file_change_approval": "File change approval",

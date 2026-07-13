@@ -80,6 +80,8 @@ export type ThreadCoordinationErrorCode =
   | 'duplicate_delivery'
   | 'cross_host_delivery'
   | 'running_turn_unknown'
+  | 'server_request_not_pending'
+  | 'server_request_handler_unavailable'
   | 'thread_not_writable';
 
 export type ThreadCoordinationAdvisory =

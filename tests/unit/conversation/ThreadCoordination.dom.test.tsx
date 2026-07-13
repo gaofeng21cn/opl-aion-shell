@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
+import type { CodexThreadServerRequest, ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
 import ThreadCoordinationSection from '@/renderer/pages/conversation/GroupedHistory/ThreadCoordination';
 
 const mocks = vi.hoisted(() => ({
@@ -85,8 +85,17 @@ vi.mock('@arco-design/web-react', () => {
     }
   );
   return {
-    Alert: ({ title, content }: { title: React.ReactNode; content: React.ReactNode }) => (
-      <div>
+    Alert: ({
+      title,
+      content,
+      type: _type,
+      ...props
+    }: {
+      title?: React.ReactNode;
+      content: React.ReactNode;
+      type?: string;
+    } & React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props}>
         {title}
         {content}
       </div>
@@ -195,6 +204,25 @@ function renderSection() {
       </Routes>
     </MemoryRouter>
   );
+}
+
+function pendingCommandRequest(): CodexThreadServerRequest {
+  return {
+    requestId: 'number:41',
+    method: 'item/commandExecution/requestApproval',
+    kind: 'command_approval',
+    threadId: 'receiver',
+    turnId: 'turn-1',
+    itemId: 'item-1',
+    observedAt: '2026-07-13T01:00:00.000Z',
+    reason: 'Needs network access',
+    command: 'git fetch',
+    cwd: '/workspace/a',
+    availableDecisions: ['accept', 'acceptForSession', 'decline'],
+    questions: [],
+    requestedPermissions: null,
+    elicitation: null,
+  };
 }
 
 describe('ThreadCoordinationSection', () => {
@@ -391,26 +419,9 @@ describe('ThreadCoordinationSection', () => {
     });
   });
 
-  it('shows and resolves app-server approval requests without changing the target Codex policy', async () => {
+  it('shows thread, turn, and item context and forwards a native decline without changing Codex policy', async () => {
     mocks.listPendingRequests.mockResolvedValue({
-      requests: [
-        {
-          requestId: 'number:41',
-          method: 'item/commandExecution/requestApproval',
-          kind: 'command_approval',
-          threadId: 'receiver',
-          turnId: 'turn-1',
-          itemId: 'item-1',
-          observedAt: '2026-07-13T01:00:00.000Z',
-          reason: 'Needs network access',
-          command: 'git fetch',
-          cwd: '/workspace/a',
-          availableDecisions: ['accept', 'acceptForSession', 'decline'],
-          questions: [],
-          requestedPermissions: null,
-          elicitation: null,
-        },
-      ],
+      requests: [pendingCommandRequest()],
     });
     renderSection();
     fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
@@ -420,13 +431,47 @@ describe('ThreadCoordinationSection', () => {
       await screen.findByText('conversation.threadCoordination.serverRequests.kind.command_approval')
     ).toBeInTheDocument();
     expect(screen.getByText('git fetch')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('conversation.threadCoordination.serverRequests.accept'));
+    expect(screen.getByTestId('thread-server-request-context-number:41')).toHaveTextContent(
+      'conversation.threadCoordination.serverRequests.contextThread: receiver'
+    );
+    expect(screen.getByTestId('thread-server-request-context-number:41')).toHaveTextContent(
+      'conversation.threadCoordination.serverRequests.contextTurn: turn-1'
+    );
+    expect(screen.getByTestId('thread-server-request-context-number:41')).toHaveTextContent(
+      'conversation.threadCoordination.serverRequests.contextItem: item-1'
+    );
+    fireEvent.click(screen.getByText('conversation.threadCoordination.serverRequests.decline'));
 
     await waitFor(() =>
       expect(mocks.resolveServerRequest).toHaveBeenCalledWith({
         requestId: 'number:41',
-        response: { kind: 'approval', decision: 'accept' },
+        response: { kind: 'approval', decision: 'decline' },
       })
+    );
+    expect(screen.getByTestId('thread-server-request-number:41')).toHaveAttribute(
+      'data-state',
+      'server_request_declined'
+    );
+  });
+
+  it('keeps a typed handler-unavailable failure visible on the pending request', async () => {
+    mocks.listPendingRequests.mockResolvedValue({ requests: [pendingCommandRequest()] });
+    mocks.resolveServerRequest.mockResolvedValue({
+      ok: false,
+      errorCode: 'server_request_handler_unavailable',
+      message: 'Codex app-server request handling is unavailable.',
+    });
+    renderSection();
+    fireEvent.click(await screen.findByTestId('thread-coordination-entry'));
+    fireEvent.click(await screen.findByTestId('thread-coordination-thread-receiver'));
+    fireEvent.click(await screen.findByText('conversation.threadCoordination.serverRequests.accept'));
+
+    expect(await screen.findByTestId('thread-server-request-error-number:41')).toHaveTextContent(
+      'Codex app-server request handling is unavailable.'
+    );
+    expect(screen.getByTestId('thread-server-request-number:41')).toHaveAttribute(
+      'data-state',
+      'server_request_handler_unavailable'
     );
   });
 

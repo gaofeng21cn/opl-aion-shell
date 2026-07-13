@@ -750,6 +750,9 @@
     "serverRequests": {
       "title": "待处理的 Codex 请求",
       "description": "该任务正在等待你的 Codex 授权或输入，并继续沿用任务原有的权限与沙箱策略。",
+      "contextThread": "线程",
+      "contextTurn": "轮次",
+      "contextItem": "条目",
       "kind": {
         "command_approval": "命令授权",
         "file_change_approval": "文件修改授权",
