@@ -1,15 +1,24 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
-import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
+import { createRuntimeDrilldownResult, createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
 
-const bridgeMocks = vi.hoisted(() => ({ getAppStateInvoke: vi.fn() }));
+const bridgeMocks = vi.hoisted(() => ({
+  getAppStateInvoke: vi.fn(),
+  getDrilldownInvoke: vi.fn(),
+  executeActionInvoke: vi.fn(),
+  modalConfirm: vi.fn(),
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    oplRuntime: { getAppState: { invoke: bridgeMocks.getAppStateInvoke } },
+    oplRuntime: {
+      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
+      getDrilldown: { invoke: bridgeMocks.getDrilldownInvoke },
+      executeAction: { invoke: bridgeMocks.executeActionInvoke },
+    },
   },
 }));
 
@@ -33,7 +42,11 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
       ))}
     </select>
   );
-  return { ...actual, Select };
+  return {
+    ...actual,
+    Modal: { ...actual.Modal, confirm: bridgeMocks.modalConfirm },
+    Select,
+  };
 });
 
 vi.mock('react-i18next', () => ({
@@ -41,6 +54,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, values?: Record<string, string | number>) => {
       const labels: Record<string, string> = {
         'common.refresh': '刷新',
+        'common.cancel': '取消',
         'common.runtime.title': '项目运行总览',
         'common.runtime.scope.agent': '智能体',
         'common.runtime.scope.project': '项目',
@@ -101,6 +115,18 @@ vi.mock('react-i18next', () => ({
         'common.runtime.stageUsageShort': '阶段',
         'common.runtime.totalUsageShort': '累计',
         'common.runtime.actionKinds.agent': '智能体动作',
+        'common.runtime.summary': '摘要',
+        'common.runtime.fullDetail': '完整详情',
+        'common.runtime.detailFullLoaded': '完整详情已加载',
+        'common.runtime.safeActions': '安全动作',
+        'common.runtime.dryRun': '试运行',
+        'common.runtime.execute': '执行',
+        'common.runtime.actionResult': '动作结果',
+        'common.runtime.actionPreviewSummary': '预览',
+        'common.runtime.actionReceiptSummary': '回执',
+        'common.runtime.archiveTask.confirm': '归档记录',
+        'common.runtime.archiveTask.archivedTitle': '已归档运行记录',
+        'common.runtime.archiveTask.restore': '恢复',
       };
       if (labels[key]) return labels[key];
       const rendered = Object.values(values ?? {}).join(' ');
@@ -113,9 +139,22 @@ vi.mock('react-i18next', () => ({
 describe('Runtime V2 page', () => {
   beforeEach(() => {
     bridgeMocks.getAppStateInvoke.mockReset();
+    bridgeMocks.getDrilldownInvoke.mockReset();
+    bridgeMocks.executeActionInvoke.mockReset();
+    bridgeMocks.modalConfirm.mockReset();
     resetOplAppStateLoadsForTest();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: createRuntimeV2AppState() });
+    bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
+      Promise.resolve(createRuntimeDrilldownResult(detail))
+    );
+    bridgeMocks.executeActionInvoke.mockResolvedValue({
+      ok: true,
+      parsed: {
+        action_preview_summary: 'No unsafe writes detected',
+        receipt_ref: 'receipt://runtime/action',
+      },
+    });
   });
 
   it('shows the MAS three-project nine-item hierarchy without duplicate or module rows', async () => {
@@ -172,6 +211,102 @@ describe('Runtime V2 page', () => {
     expect(availability).toHaveTextContent('5');
     expect(availability).not.toHaveTextContent('9');
     expect(availability.querySelectorAll('.arco-collapse-item-active')).toHaveLength(0);
+  });
+
+  it('keeps the V2 list while exposing keyboard-reachable summary and full drilldown requests', async () => {
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
+    await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' }));
+
+    const summaryButton = await screen.findByTestId('runtime-load-summary');
+    const fullButton = screen.getByTestId('runtime-load-full');
+    expect(summaryButton.tagName).toBe('BUTTON');
+    expect(fullButton.tagName).toBe('BUTTON');
+
+    fireEvent.click(summaryButton);
+    await waitFor(() =>
+      expect(
+        bridgeMocks.getDrilldownInvoke.mock.calls.filter(([request]) => request.detail === 'summary')
+      ).toHaveLength(2)
+    );
+
+    fireEvent.click(fullButton);
+    await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'full' }));
+    expect(await screen.findByTestId('runtime-full-loaded')).toHaveTextContent('完整详情已加载');
+    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
+  });
+
+  it('requires a successful dry run before confirming and executing a safe action', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: false,
+      error: { message: 'Dry run rejected' },
+    });
+    render(<RuntimePage />);
+
+    const action = await screen.findByTestId('runtime-safe-action-runtime_reconcile_provider');
+    const dryRunButton = within(action).getByRole('button', { name: '试运行' });
+    const executeButton = within(action).getByRole('button', { name: '执行' });
+    expect(executeButton).toBeDisabled();
+
+    fireEvent.click(dryRunButton);
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'runtime_reconcile_provider',
+        dryRun: true,
+      })
+    );
+    expect(executeButton).toBeDisabled();
+
+    fireEvent.click(dryRunButton);
+    await waitFor(() => expect(executeButton).toBeEnabled());
+    fireEvent.click(executeButton);
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledTimes(1);
+
+    const confirmation = bridgeMocks.modalConfirm.mock.calls[0]?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'runtime_reconcile_provider',
+      dryRun: false,
+    });
+  });
+
+  it('archives and restores attempts only through the existing App action bridge', async () => {
+    render(<RuntimePage />);
+
+    await screen.findByTestId('runtime-archived-attempts');
+    fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
+    fireEvent.click(await screen.findByTestId('runtime-archive-attempt'));
+
+    const confirmation = bridgeMocks.modalConfirm.mock.calls[0]?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'runtime_archive_attempt',
+      payloadRefsOnlyJson: {
+        stage_attempt_id: 'attempt:dm002',
+        reason: 'user_archived_from_runtime_overview',
+      },
+      dryRun: false,
+    });
+
+    const archivedAttempts = await screen.findByTestId('runtime-archived-attempts');
+    fireEvent.click(within(archivedAttempts).getByRole('button', { name: '恢复' }));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'runtime_restore_attempt',
+        payloadRefsOnlyJson: {
+          stage_attempt_id: 'attempt:archived-dm003',
+          reason: 'user_restored_from_runtime_overview',
+        },
+        dryRun: false,
+      })
+    );
   });
 
   it('opens workflow-first details and keeps secondary evidence collapsed', async () => {

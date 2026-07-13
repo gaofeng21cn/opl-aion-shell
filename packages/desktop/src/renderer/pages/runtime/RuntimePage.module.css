@@ -773,6 +773,141 @@
   font-size: 11px;
 }
 
+.cockpit {
+  min-width: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border-2);
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.cockpitHeader,
+.cockpitRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cockpitHeader :global(.arco-typography) {
+  margin: 0;
+}
+
+.cockpitCommands,
+.cockpitRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cockpitMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-2);
+  border-radius: 6px;
+  background: var(--color-border-2);
+}
+
+.cockpitMetric {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 9px 11px;
+  background: var(--color-bg-1);
+}
+
+.cockpitMetricLabel,
+.cockpitMetricValue,
+.cockpitRowTitle,
+.cockpitRowMeta,
+.actionResultLine {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.cockpitMetricLabel,
+.cockpitRowMeta {
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.cockpitMetricValue,
+.cockpitRowTitle,
+.cockpitSectionTitle {
+  color: var(--color-text-1);
+  font-weight: 600;
+}
+
+.cockpitSections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.cockpitSection {
+  min-width: 0;
+}
+
+.cockpitSectionTitle {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.cockpitRows {
+  min-width: 0;
+  border-top: 1px solid var(--color-border-2);
+}
+
+.cockpitRow {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.cockpitRowBody {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.actionResult {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-primary-6);
+  background: var(--color-fill-1);
+}
+
+.actionResult .cockpitSectionTitle {
+  margin-bottom: 0;
+}
+
+.actionResultLine {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.detailActions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
 @container (max-width: 720px) {
   .workItemHeader {
     display: none;
@@ -849,6 +984,18 @@
 
   .metric {
     border-bottom: 1px solid var(--color-border-2);
+  }
+
+  .cockpitHeader,
+  .cockpitRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cockpitCommands,
+  .cockpitRowActions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 

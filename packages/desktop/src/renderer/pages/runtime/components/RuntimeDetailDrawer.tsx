@@ -1,4 +1,4 @@
-import { Collapse, Drawer, Empty, Tag, Typography } from '@arco-design/web-react';
+import { Button, Collapse, Drawer, Empty, Tag, Typography } from '@arco-design/web-react';
 import React from 'react';
 import {
   actionKindLabel,
@@ -32,6 +32,9 @@ type RuntimeDetailDrawerProps = {
   generatedAt: string | null;
   locale: string;
   t: RuntimeTranslate;
+  canArchive: boolean;
+  archiving: boolean;
+  onArchive: () => void;
   onClose: () => void;
 };
 
@@ -139,6 +142,9 @@ export function RuntimeDetailDrawer({
   generatedAt,
   locale,
   t,
+  canArchive,
+  archiving,
+  onArchive,
   onClose,
 }: RuntimeDetailDrawerProps) {
   return (
@@ -301,6 +307,14 @@ export function RuntimeDetailDrawer({
               <ConditionList conditions={item.conditions} t={t} />
             </Collapse.Item>
           </Collapse>
+
+          {canArchive && (
+            <div className={styles.detailActions}>
+              <Button status='warning' loading={archiving} onClick={onArchive} data-testid='runtime-archive-attempt'>
+                {t('common.runtime.archiveTask.confirm')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </Drawer>
