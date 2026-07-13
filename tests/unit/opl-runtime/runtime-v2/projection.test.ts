@@ -15,6 +15,30 @@ describe('Runtime V2 projection boundary', () => {
       '肥胖',
     ]);
     expect(result.projection?.items).toHaveLength(9);
+    expect(result.projection).toMatchObject({
+      diagnosticCount: 3,
+      diagnosticDetailPolicy: 'summary_only',
+      diagnostics: [],
+    });
+  });
+
+  it('requires full diagnostics to include every counted detail', () => {
+    const projection = createRuntimeV2Projection();
+    projection.profile = 'full';
+    projection.diagnostics = {
+      count: 2,
+      items: [{ reason: 'first_diagnostic' }],
+      detail_policy: 'included',
+    };
+
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: projection } } })
+    ).toEqual({ state: 'invalid', projection: null });
+
+    projection.diagnostics.items.push({ reason: 'second_diagnostic' });
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: projection } } }).state
+    ).toBe('ready');
   });
 
   it('recognizes V1 without consuming its task state', () => {

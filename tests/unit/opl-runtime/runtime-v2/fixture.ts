@@ -441,7 +441,7 @@ export function createRuntimeV2Projection() {
       telemetry_missing_count: 8,
     },
     items,
-    diagnostics: { count: 0, items: [], detail_policy: 'summary_only' },
+    diagnostics: { count: 3, items: [], detail_policy: 'summary_only' },
     detail_policy: {
       all_work_item_summaries_included: true,
       attempt_ref_limit_per_item: 3,
