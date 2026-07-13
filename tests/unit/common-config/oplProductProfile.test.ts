@@ -461,7 +461,7 @@ describe('OPL generated product profile', () => {
       'oma',
     ]);
     expect(getOplHomeAgentShortcuts().every((shortcut) => shortcut.user_configurable)).toBe(true);
-    expect(getOplHomeAgentShortcuts().find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(false);
+    expect(getOplHomeAgentShortcuts().find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(true);
     expect(getOplProfessionalAgentPackages().map((agentPackage) => agentPackage.package_id)).toEqual([
       'mas',
       'mag',
@@ -488,8 +488,8 @@ describe('OPL generated product profile', () => {
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
     expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(false);
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('settings_managed_home_shortcut');
     expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).toContain(
       'opl-meta-agent'
     );
@@ -504,12 +504,13 @@ describe('OPL generated product profile', () => {
   it('exposes assistant-scoped home skill profiles from the App contract', () => {
     const profiles = getOplAssistantSkillProfiles();
 
-    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'obf']);
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
     expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
       mas: ['med-autoscience'],
       mag: ['med-autogrant'],
       rca: ['redcube-ai'],
       obf: ['opl-bookforge'],
+      oma: ['opl-meta-agent'],
     });
     expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
     expect(getOplAssistantSkillProfile('mag')?.required_skills).toEqual(['med-autogrant']);

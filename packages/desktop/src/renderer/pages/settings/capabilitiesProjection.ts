@@ -666,7 +666,10 @@ function mapCapabilityStatus(
   const developerCheckout = isDeveloperCheckout(packageState, module);
   if (!packageState && !module) return 'missing';
   const dependencyReadiness = normalizeStatusToken(firstString(oplRecord(packageState?.dependency_readiness).status));
-  if (packageState?.operational_ready === false || ['repairrequired', 'blocked'].includes(dependencyReadiness ?? '')) {
+  if (
+    !developerCheckout &&
+    (packageState?.operational_ready === false || ['repairrequired', 'blocked'].includes(dependencyReadiness ?? ''))
+  ) {
     return 'repair';
   }
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
@@ -724,7 +727,6 @@ function capabilityCodexVisibility(
   status: CapabilityStatus
 ): CapabilityCodexVisibility {
   if (!packageState && !module) return 'notVisible';
-  if (packageState?.operational_ready === false) return 'notVisible';
   const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
   const codexVisible =
     packageState?.codex_visible ??
@@ -740,7 +742,9 @@ function capabilityCodexVisibility(
     firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
   );
   if (codexVisible === true || exposureStatus === 'visible' || exposureStatus === 'ready') return 'visible';
-  if (status === 'ready' || status === 'source') return 'visible';
+  if (packageState?.operational_ready === false && !isDeveloperCheckout(packageState, module)) return 'notVisible';
+  if (status === 'ready') return 'visible';
+  if (status === 'source') return 'unknown';
   if (status === 'update' || status === 'sync' || exposureStatus === 'stale' || exposureStatus === 'needssync') {
     return 'needsSync';
   }

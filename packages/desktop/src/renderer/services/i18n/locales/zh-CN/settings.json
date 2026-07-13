@@ -47,7 +47,7 @@
   "customCss": "自定义 CSS",
   "customCssDesc": "在此处输入自定义 CSS 样式以更改界面外观。系统会自动为所有样式添加 !important 以确保优先级最高，无需手动添加。修改会立即生效。",
   "assistants": "助手",
-  "agents": "Agents",
+  "agents": "智能体",
   "assistantsList": "可用助手列表",
   "assistantsEmpty": "暂无可用助手",
   "pdfToPptAssistantName": "PDF 转 PPT",
@@ -286,8 +286,8 @@
   "tools": "工具",
   "capabilities": "能力",
   "capabilitiesTab": {
-    "oplFlowManaged": "OPL Flow 托管",
-    "manualAndThirdParty": "手工与第三方",
+    "oplFlowManaged": "OPL Flow 推荐",
+    "manualAndThirdParty": "本机能力",
     "skills": "技能",
     "tools": "外部工具与语音",
     "assistants": "自定义助手"
@@ -2092,24 +2092,24 @@
   },
   "capabilitiesPage": {
     "title": "能力",
-    "description": "管理 OPL Flow 推荐能力，以及手工安装或第三方提供的 Skill 与插件。",
+    "description": "管理 OPL Flow 推荐，以及本机已安装的 Skill、插件、MCP 和图像工具。",
     "groups": {
       "oplFlowManaged": {
-        "title": "OPL Flow 托管能力",
-        "description": "推荐 Skill 与命令行能力通过已安装 OPL Flow 包的依赖闭包统一同步。",
-        "source": "来源：OPL Flow 已安装包依赖闭包",
+        "title": "OPL Flow 推荐",
+        "description": "推荐 Skill 与命令行能力由 OPL Packages 按 OPL Flow 依赖闭包统一同步和更新。",
+        "source": "来源：OPL Framework 类型化依赖目录",
         "sync": "立即同步",
         "syncComplete": "OPL Flow 能力已同步。",
         "managed": "已托管",
         "missing": "需要同步",
-        "notReported": "已安装的 OPL Flow 包尚未上报带类型的依赖明细。",
+        "notReported": "OPL Framework 尚未提供 OPL Flow 的类型化依赖目录。",
         "cliVersion": "CLI 版本：{{version}}"
       },
       "manualAndThirdParty": {
-        "title": "手工与第三方能力",
-        "description": "导入、移除或查看不由 OPL Flow 托管的 Skill 与扩展能力。",
-        "toolsTitle": "插件与本机工具",
-        "toolsDescription": "在同一入口复用 AionUI 现有的扩展、本机工具和语音能力设置。"
+        "title": "本机能力",
+        "description": "查看和管理不属于 OPL Flow 推荐范围的本机 Skill、插件与扩展。",
+        "toolsTitle": "MCP 与图像工具",
+        "toolsDescription": "管理 MCP 服务器和图像生成；语音转写继续位于偏好设置。"
       }
     },
     "developerSource": {

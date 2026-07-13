@@ -142,8 +142,8 @@ export type OplNonDefaultAssistant = {
   display_name: string;
   short_name: string;
   role: string;
-  home_entry_policy: 'explicit_or_settings_only';
-  home_default_visible: false;
+  home_entry_policy: 'explicit_or_settings_only' | 'settings_managed_home_shortcut';
+  home_default_visible: boolean;
   avatar: string;
   description_i18n: Record<string, string>;
   prompts_i18n: Record<string, string[]>;
@@ -1396,16 +1396,25 @@ function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAs
     if (!id || !displayName || !shortName || !role || !avatar) {
       throw new Error(`Invalid OPL product profile: gui.non_default_assistants[${index}] has blank identity fields`);
     }
-    if (entry.home_entry_policy !== 'explicit_or_settings_only' || entry.home_default_visible !== false) {
-      throw new Error(`Invalid OPL product profile: non-default assistant ${id} must be settings-only`);
+    const homeEntryPolicy = entry.home_entry_policy;
+    const homeDefaultVisible = entry.home_default_visible;
+    const validHomePolicy =
+      id === 'oma'
+        ? homeEntryPolicy === 'settings_managed_home_shortcut' && homeDefaultVisible === true
+        : homeEntryPolicy === 'explicit_or_settings_only' && homeDefaultVisible === false;
+    if (!validHomePolicy) {
+      throw new Error(`Invalid OPL product profile: non-default assistant ${id} has unsupported home policy`);
     }
+    const normalizedHomeEntryPolicy: OplNonDefaultAssistant['home_entry_policy'] =
+      id === 'oma' ? 'settings_managed_home_shortcut' : 'explicit_or_settings_only';
+    const normalizedHomeDefaultVisible = id === 'oma';
     return {
       id,
       display_name: displayName,
       short_name: shortName,
       role,
-      home_entry_policy: 'explicit_or_settings_only',
-      home_default_visible: false,
+      home_entry_policy: normalizedHomeEntryPolicy,
+      home_default_visible: normalizedHomeDefaultVisible,
       avatar,
       description_i18n: readStringRecord(entry.description_i18n, `gui.non_default_assistants.${id}.description_i18n`),
       prompts_i18n: readStringArrayRecord(entry.prompts_i18n, `gui.non_default_assistants.${id}.prompts_i18n`),

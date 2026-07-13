@@ -286,8 +286,8 @@
   "tools": "Tools",
   "capabilities": "Capabilities",
   "capabilitiesTab": {
-    "oplFlowManaged": "Managed by OPL Flow",
-    "manualAndThirdParty": "Manual & third-party",
+    "oplFlowManaged": "Recommended by OPL Flow",
+    "manualAndThirdParty": "Local capabilities",
     "skills": "Skills",
     "tools": "External tools & voice",
     "assistants": "Custom assistants"
@@ -2091,24 +2091,24 @@
   },
   "capabilitiesPage": {
     "title": "Capabilities",
-    "description": "Manage OPL Flow recommendations and other manually installed or third-party skills and plugins.",
+    "description": "Manage OPL Flow recommendations and locally installed skills, plugins, MCP servers, and image tools.",
     "groups": {
       "oplFlowManaged": {
-        "title": "Managed by OPL Flow",
-        "description": "Recommended skills and command-line capabilities are reconciled through the installed OPL Flow package dependency closure.",
-        "source": "Source: OPL Flow installed package dependency closure",
+        "title": "Recommended by OPL Flow",
+        "description": "OPL Packages reconciles and updates recommended skills and command-line capabilities from the OPL Flow dependency closure.",
+        "source": "Source: OPL Framework typed dependency catalog",
         "sync": "Sync now",
         "syncComplete": "OPL Flow capabilities were synced.",
         "managed": "Managed",
         "missing": "Needs sync",
-        "notReported": "The installed OPL Flow package has not reported typed dependency details yet.",
+        "notReported": "OPL Framework has not provided the typed OPL Flow dependency catalog yet.",
         "cliVersion": "CLI version: {{version}}"
       },
       "manualAndThirdParty": {
-        "title": "Manual and third-party capabilities",
-        "description": "Import, remove, or inspect skills and extension-provided capabilities that are not managed by OPL Flow.",
-        "toolsTitle": "Plugins and local tools",
-        "toolsDescription": "Manage the existing AionUI extension, local tool, and voice capability settings from this shared surface."
+        "title": "Local capabilities",
+        "description": "Inspect and manage local skills, plugins, and extensions outside the OPL Flow recommendation set.",
+        "toolsTitle": "MCP and image tools",
+        "toolsDescription": "Manage MCP servers and image generation. Speech transcription remains in Preferences."
       }
     },
     "developerSource": {

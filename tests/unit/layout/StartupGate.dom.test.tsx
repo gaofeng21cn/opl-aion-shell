@@ -162,18 +162,19 @@ describe('StartupGate', () => {
     expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
-  it('shows elapsed wait feedback instead of a fixed percent when state read is slow', () => {
+  it('continues to Home when the startup state read exceeds the soft deadline', async () => {
     vi.useFakeTimers();
     bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
 
     render(<StartupGate />);
 
     act(() => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(1500);
     });
 
-    expect(screen.getByText('common.startupPreflight.messages.stillReadingStartupState:3')).toBeInTheDocument();
-    expect(screen.queryByText('70%')).not.toBeInTheDocument();
+    await act(async () => Promise.resolve());
+    expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid');
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('lets users skip the fast startup read and enter OPL without changing readiness', () => {

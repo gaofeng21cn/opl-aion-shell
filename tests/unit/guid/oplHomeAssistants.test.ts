@@ -32,7 +32,7 @@ const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): 
 });
 
 describe('OPL home assistants', () => {
-  it('filters historical AionUI assistants and exposes only purpose-first home entries', () => {
+  it('filters historical AionUI assistants and exposes the configured home entries', () => {
     const resolved = resolveOplHomeAssistants([
       assistant({ id: 'cowork', name: 'Cowork' }),
       assistant({ id: 'mds', name: 'Med Deep Scientist' }),
@@ -44,47 +44,47 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
       'OPL Book Forge',
+      'OPL Meta Agent',
     ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
     expect(resolved.map((item) => item.id)).not.toEqual(expect.arrayContaining(['cowork', 'mds']));
-    expect(resolved.map((item) => item.id)).not.toContain('oma');
-    expect(resolved.map((item) => item.name)).not.toEqual(
-      expect.arrayContaining(['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Meta Agent'])
-    );
     expect(Object.fromEntries(resolved.map((item) => [item.id, item.enabled_skills]))).toEqual({
       mas: ['med-autoscience'],
       mag: ['med-autogrant'],
       rca: ['redcube-ai'],
       obf: ['opl-bookforge'],
+      oma: ['opl-meta-agent'],
     });
   });
 
-  it('does not re-add OMA when merging shell defaults for the Guid page', () => {
+  it('adds the default-visible OMA shortcut when merging shell defaults for the Guid page', () => {
     const resolved = withOplFoundryAssistantDefaults([
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
       'OPL Book Forge',
+      'OPL Meta Agent',
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
     expect(resolved.map((item) => item.enabled_skills)).toEqual([
       ['med-autoscience'],
       ['med-autogrant'],
       ['redcube-ai'],
       ['opl-bookforge'],
+      ['opl-meta-agent'],
     ]);
   });
 

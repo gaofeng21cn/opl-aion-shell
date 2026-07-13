@@ -36,7 +36,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       package_id: 'opl-meta-agent',
       primary_label: 'Meta agent',
       user_configurable: true,
-      default_visible: false,
+      default_visible: true,
     },
   ],
   getOplProfessionalAgentPackages: () => [
@@ -54,7 +54,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       display_name: 'OPL Meta Agent',
       short_name: 'OMA',
       codex_visible_entry: 'opl-meta-agent',
-      default_home_visible: false,
+      default_home_visible: true,
       required_skill_ids: ['opl-meta-agent'],
       optional_skill_ids: [],
     },
@@ -213,6 +213,47 @@ describe('buildCapabilitiesViewModel', () => {
       expect(capability.codexVisibility).toBe('notVisible');
     }
   );
+
+  it('keeps a visible developer checkout usable when the managed package closure is stale', () => {
+    const [research] = buildCapabilitiesViewModel(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              mas: {
+                package_id: 'mas',
+                status: 'update_available',
+                operational_ready: false,
+                dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
+              },
+            },
+          },
+        },
+        modules: {
+          items: [
+            {
+              module_id: 'medautoscience',
+              installed: true,
+              health_status: 'dirty',
+              install_origin: 'sibling_workspace',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
+              },
+              capability_exposure: { status: 'visible' },
+              git: { dirty: true, sync_status: 'behind' },
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+
+    expect(research.status).toBe('source');
+    expect(research.availabilityStatus).toBe('ready');
+    expect(research.codexVisibility).toBe('visible');
+    expect(research.actualSource).toBe('sibling_workspace');
+  });
 
   it('reports ready only when dependency closure and operational readiness are ready', () => {
     const capability = buildCapabilitiesViewModel(

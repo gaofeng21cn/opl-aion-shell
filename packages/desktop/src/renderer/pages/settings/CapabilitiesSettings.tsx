@@ -129,38 +129,45 @@ function capabilitySourceLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string | null {
-  const raw = item.actualSource ?? item.sourceKind ?? item.source;
-  if (!raw) return null;
-  const token = raw.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const tokens = [item.actualSource, item.sourceKind, item.source]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
+  if (tokens.length === 0) return null;
   if (
-    [
-      'envoverride',
-      'gitcheckout',
-      'developercheckout',
-      'developermode',
-      'developermodepackageoverride',
-      'siblingworkspace',
-    ].includes(token)
+    tokens.some((token) =>
+      [
+        'envoverride',
+        'gitcheckout',
+        'developercheckout',
+        'developermode',
+        'developermodepackageoverride',
+        'siblingworkspace',
+      ].includes(token)
+    )
   ) {
     return t('settings.capabilitiesPage.sourceLabels.developer');
   }
   if (
-    [
-      'managedroot',
-      'managed',
-      'builtin',
-      'packaged',
-      'firstparty',
-      'packagechannel',
-      'developermodemanagedoverride',
-    ].includes(token)
+    tokens.some((token) =>
+      [
+        'managedroot',
+        'managed',
+        'builtin',
+        'packaged',
+        'firstparty',
+        'packagechannel',
+        'developermodemanagedoverride',
+      ].includes(token)
+    )
   ) {
     return t('settings.capabilitiesPage.sourceLabels.managed');
   }
-  if (['manifesturl', 'registry', 'thirdparty', 'remote'].includes(token)) {
+  if (tokens.some((token) => ['manifesturl', 'registry', 'thirdparty', 'remote'].includes(token))) {
     return t('settings.capabilitiesPage.sourceLabels.registry');
   }
-  if (['local', 'manual', 'filesystem'].includes(token)) return t('settings.capabilitiesPage.sourceLabels.local');
+  if (tokens.some((token) => ['local', 'manual', 'filesystem', 'localmanifestfile'].includes(token))) {
+    return t('settings.capabilitiesPage.sourceLabels.local');
+  }
   return t('settings.capabilitiesPage.sourceLabels.other', { defaultValue: 'Other source' });
 }
 
@@ -169,7 +176,7 @@ function isCapabilityDeveloperSource(item: CapabilityPurposeViewModel): boolean 
     .filter((value): value is string => Boolean(value))
     .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
   return sourceTokens.some((token) =>
-    ['envoverride', 'gitcheckout', 'developercheckout', 'developermode'].includes(token)
+    ['envoverride', 'gitcheckout', 'developercheckout', 'developermode', 'siblingworkspace'].includes(token)
   );
 }
 
@@ -1631,7 +1638,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         >
           <Tabs.TabPane
             key='opl_flow_managed'
-            title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Managed by OPL Flow' })}
+            title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Recommended by OPL Flow' })}
           >
             <div data-testid='settings-capabilities-opl-flow-managed'>
               <div data-testid='settings-capabilities-technical-details'>
@@ -1646,7 +1653,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Tabs.TabPane>
           <Tabs.TabPane
             key='manual_and_third_party'
-            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manual & third-party' })}
+            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Local capabilities' })}
           >
             <div className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
               <SkillsHubSettings

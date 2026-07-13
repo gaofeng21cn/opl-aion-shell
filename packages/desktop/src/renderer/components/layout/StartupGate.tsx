@@ -21,6 +21,39 @@ import AppLoader, { type AppLoaderStep } from './AppLoader';
 
 type StartupCheckPhase = 'startupState' | 'routeDecision';
 
+export const STARTUP_STATE_SOFT_TIMEOUT_MS = 1500;
+
+type StartupStateRead =
+  | { kind: 'result'; value: Awaited<ReturnType<typeof ipcBridge.oplRuntime.getAppState.invoke>> | null }
+  | { kind: 'timeout' };
+
+function readStartupStateWithSoftTimeout(): Promise<StartupStateRead> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ kind: 'timeout' });
+    }, STARTUP_STATE_SOFT_TIMEOUT_MS);
+
+    void ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' }).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve({ kind: 'result', value });
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        console.error('[StartupGate] App state check threw:', error);
+        resolve({ kind: 'result', value: null });
+      }
+    );
+  });
+}
+
 const StartupGate: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -45,13 +78,16 @@ const StartupGate: React.FC = () => {
 
     const checkSystemReady = async () => {
       try {
-        let result = null;
-        try {
-          result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
-        } catch (err) {
-          console.error('[StartupGate] App state check threw:', err);
-        }
+        const startupRead = await readStartupStateWithSoftTimeout();
         if (cancelled) return;
+
+        if (startupRead.kind === 'timeout') {
+          setPhase('routeDecision');
+          setNeedsFirstRun(false);
+          return;
+        }
+
+        const result = startupRead.value;
 
         if (!result || result.ok === false) {
           console.error('[StartupGate] App state check failed:', result);

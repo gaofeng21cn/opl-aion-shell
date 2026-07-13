@@ -338,7 +338,7 @@
           "executor": "codex_cli",
           "display_policy": "purpose_first",
           "home_entry_policy": "visible_click_to_start",
-          "default_visible": false,
+          "default_visible": true,
           "user_configurable": true
         }
       ],
@@ -720,7 +720,7 @@
         "role": "opl_agent_design_and_testing_agent",
         "package_kind": "managed_professional_agent_package",
         "installed_manageable": true,
-        "default_home_visible": false,
+        "default_home_visible": true,
         "codex_visible_entry": "opl-meta-agent",
         "home_shortcut_ids": ["oma"],
         "required_skill_ids": ["opl-meta-agent"],
@@ -854,8 +854,8 @@
         "display_name": "OPL Meta Agent",
         "short_name": "OMA",
         "role": "opl_agent_design_and_testing_agent",
-        "home_entry_policy": "explicit_or_settings_only",
-        "home_default_visible": false,
+        "home_entry_policy": "settings_managed_home_shortcut",
+        "home_default_visible": true,
         "avatar": "OMA",
         "description_i18n": {
           "zh-CN": "设计、测试和改进 OPL Agent，梳理能力边界、合同和验证流程。",

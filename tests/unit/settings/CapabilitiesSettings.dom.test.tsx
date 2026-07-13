@@ -366,7 +366,7 @@ vi.mock('@/common/config/oplProductProfile', () => {
       package_id: 'opl-meta-agent',
       primary_label: 'Meta agent',
       user_configurable: true,
-      default_visible: false,
+      default_visible: true,
     },
   ];
   const professionalAgentPackages = [
@@ -411,7 +411,7 @@ vi.mock('@/common/config/oplProductProfile', () => {
       display_name: 'OPL Meta Agent',
       short_name: 'OMA',
       codex_visible_entry: 'opl-meta-agent',
-      default_home_visible: false,
+      default_home_visible: true,
       required_skill_ids: ['opl-meta-agent'],
       optional_skill_ids: [],
     },
@@ -636,8 +636,8 @@ vi.mock('react-i18next', () => ({
           'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
-        'settings.capabilitiesTab.oplFlowManaged': 'Managed by OPL Flow',
-        'settings.capabilitiesTab.manualAndThirdParty': 'Manual & third-party',
+        'settings.capabilitiesTab.oplFlowManaged': 'Recommended by OPL Flow',
+        'settings.capabilitiesTab.manualAndThirdParty': 'Local capabilities',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -675,8 +675,8 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
-    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('3 / 6');
-    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('4 / 6');
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 6');
+    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 6');
     const catalog = screen.getByTestId('agent-package-catalog');
     expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(6);
     expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
@@ -710,7 +710,7 @@ describe('Agents and capabilities settings', () => {
     expect(within(oma).getByText('Ready')).toBeInTheDocument();
     expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
-    expect(omaHomeSwitch).not.toHaveClass('arco-switch-checked');
+    expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
     expect(omaHomeSwitch).not.toBeDisabled();
     fireEvent.click(omaHomeSwitch);
     await waitFor(() =>
@@ -720,7 +720,7 @@ describe('Agents and capabilities settings', () => {
           payloadRefsOnlyJson: expect.objectContaining({
             package_id: 'opl-meta-agent',
             shortcut_id: 'oma',
-            visible: true,
+            visible: false,
           }),
         })
       )
@@ -856,7 +856,7 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Manual & third-party' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Local capabilities' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
