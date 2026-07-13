@@ -43,8 +43,25 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
-  default: ({ activeCapabilityLabel }: { activeCapabilityLabel?: string }) => (
-    <div data-testid='workspace-footnote'>{activeCapabilityLabel}</div>
+  default: ({
+    activeCapabilityLabel,
+    launchMode,
+    selectedStartRef,
+    worktreeError,
+  }: {
+    activeCapabilityLabel?: string;
+    launchMode: string;
+    selectedStartRef: string;
+    worktreeError?: string | null;
+  }) => (
+    <div
+      data-testid='workspace-footnote'
+      data-launch-mode={launchMode}
+      data-start-ref={selectedStartRef}
+      data-worktree-error={worktreeError || ''}
+    >
+      {activeCapabilityLabel}
+    </div>
   ),
 }));
 
@@ -54,6 +71,9 @@ function createCard(
     fileAccessEnabled?: boolean;
     onPaste?: React.ClipboardEventHandler;
     dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
+    launchMode?: 'local' | 'worktree';
+    selectedStartRef?: string;
+    worktreeError?: string;
   } = {}
 ) {
   return (
@@ -80,6 +100,12 @@ function createCard(
       workspaceDir=''
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
+      launchMode={options.launchMode ?? 'local'}
+      onLaunchModeChange={vi.fn()}
+      branchOptions={[]}
+      selectedStartRef={options.selectedStartRef ?? ''}
+      onSelectedStartRefChange={vi.fn()}
+      worktreeError={options.worktreeError}
       activeCapabilityLabel='Research'
       fileAccessEnabled={options.fileAccessEnabled}
     />
@@ -119,6 +145,18 @@ describe('GuidInputCard compact home composer', () => {
     renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
 
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
+  });
+
+  it('forwards the Worktree draft controls and visible error to the workspace footnote', () => {
+    renderCard({
+      launchMode: 'worktree',
+      selectedStartRef: 'refs/heads/main',
+      worktreeError: 'worktree failed',
+    });
+
+    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-launch-mode', 'worktree');
+    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-start-ref', 'refs/heads/main');
+    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-worktree-error', 'worktree failed');
   });
 
   it('accepts file paste and drop without a selected workspace', () => {

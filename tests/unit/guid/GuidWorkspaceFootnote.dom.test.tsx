@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import GuidWorkspaceFootnote from '@/renderer/pages/guid/components/GuidWorkspaceFootnote';
 
@@ -31,16 +32,26 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+function createLaunchProps(
+  overrides: Partial<React.ComponentProps<typeof GuidWorkspaceFootnote>> = {}
+): React.ComponentProps<typeof GuidWorkspaceFootnote> {
+  return {
+    workspaceDir: '',
+    onSelectWorkspace: vi.fn(),
+    onClearWorkspace: vi.fn(),
+    launchMode: 'local',
+    onLaunchModeChange: vi.fn(),
+    branchOptions: [],
+    selectedStartRef: '',
+    onSelectedStartRefChange: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('GuidWorkspaceFootnote', () => {
   it('exposes a disabled project selector while workspace setup is incomplete', () => {
     render(
-      <GuidWorkspaceFootnote
-        workspaceDir=''
-        onSelectWorkspace={vi.fn()}
-        onClearWorkspace={vi.fn()}
-        accessDisabled
-        accessDisabledReason='complete workspace setup'
-      />
+      <GuidWorkspaceFootnote {...createLaunchProps()} accessDisabled accessDisabledReason='complete workspace setup' />
     );
 
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
@@ -48,18 +59,50 @@ describe('GuidWorkspaceFootnote', () => {
   });
 
   it('describes projectless context without implying a file restriction', () => {
-    render(<GuidWorkspaceFootnote workspaceDir='' onSelectWorkspace={vi.fn()} onClearWorkspace={vi.fn()} />);
+    render(<GuidWorkspaceFootnote {...createLaunchProps()} />);
 
     expect(screen.getByTestId('guid-projectless-context')).toHaveTextContent('guid.workspace.noProject');
+  });
+
+  it('renders a wrapping Local/Worktree control, starting branch selector, and inline failure', async () => {
+    const onLaunchModeChange = vi.fn();
+    const onSelectedStartRefChange = vi.fn();
+    render(
+      <GuidWorkspaceFootnote
+        {...createLaunchProps({
+          workspaceDir: '/workspace/research',
+          launchMode: 'worktree',
+          onLaunchModeChange,
+          branchOptions: [
+            { value: 'refs/heads/main', label: 'main', current: true },
+            { value: 'refs/heads/feature/research', label: 'feature/research', current: false },
+          ],
+          selectedStartRef: 'refs/heads/main',
+          onSelectedStartRefChange,
+          worktreeError: 'worktree failed',
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('guid-task-location-controls')).toHaveClass('min-w-0', 'flex-wrap');
+    expect(screen.getByTestId('guid-starting-branch-wrap')).toHaveClass('min-w-0');
+    expect(screen.getByTestId('guid-starting-branch-selector')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('worktree failed');
+    await screen.findByTestId('guid-branch-context');
+
+    await userEvent.click(screen.getByTestId('guid-launch-mode-local'));
+    expect(onLaunchModeChange).toHaveBeenCalledWith('local');
+
+    await userEvent.click(screen.getByTestId('guid-starting-branch-selector'));
+    fireEvent.click(screen.getByRole('option', { name: 'feature/research' }));
+    expect(onSelectedStartRefChange).toHaveBeenCalledWith('refs/heads/feature/research');
   });
 
   it('shows Home project, local, branch, capability, and removable project refs in the top strip', async () => {
     const onRemove = vi.fn();
     render(
       <GuidWorkspaceFootnote
-        workspaceDir='/workspace/research'
-        onSelectWorkspace={vi.fn()}
-        onClearWorkspace={vi.fn()}
+        {...createLaunchProps({ workspaceDir: '/workspace/research' })}
         activeCapabilityLabel='Research'
         projectContextRefs={[
           {
@@ -87,8 +130,7 @@ describe('GuidWorkspaceFootnote', () => {
     const onClearWorkspace = vi.fn();
     render(
       <GuidWorkspaceFootnote
-        workspaceDir='/workspace/research'
-        onSelectWorkspace={vi.fn()}
+        {...createLaunchProps({ workspaceDir: '/workspace/research' })}
         onClearWorkspace={onClearWorkspace}
       />
     );

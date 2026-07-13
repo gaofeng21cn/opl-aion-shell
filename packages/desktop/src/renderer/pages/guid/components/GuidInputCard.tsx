@@ -12,7 +12,10 @@ import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
 import { Input } from '@arco-design/web-react';
 import React from 'react';
 import styles from '../index.module.css';
-import GuidWorkspaceFootnote from './GuidWorkspaceFootnote';
+import GuidWorkspaceFootnote, {
+  type GuidStartingBranchOption,
+  type GuidWorkspaceLaunchMode,
+} from './GuidWorkspaceFootnote';
 
 const MOBILE_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 8 };
 const DESKTOP_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 20 };
@@ -51,6 +54,14 @@ type GuidInputCardProps = {
   workspaceDir: string;
   onSelectWorkspace: (dir: string) => void;
   onClearWorkspace: () => void;
+  launchMode: GuidWorkspaceLaunchMode;
+  onLaunchModeChange: (mode: GuidWorkspaceLaunchMode) => void;
+  branchOptions: GuidStartingBranchOption[];
+  selectedStartRef: string;
+  onSelectedStartRefChange: (startRef: string) => void;
+  worktreeLoading?: boolean;
+  worktreeControlsDisabled?: boolean;
+  worktreeError?: string | null;
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
   activeCapabilityLabel?: string;
@@ -82,6 +93,14 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   workspaceDir,
   onSelectWorkspace,
   onClearWorkspace,
+  launchMode,
+  onLaunchModeChange,
+  branchOptions,
+  selectedStartRef,
+  onSelectedStartRefChange,
+  worktreeLoading,
+  worktreeControlsDisabled,
+  worktreeError,
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
   activeCapabilityLabel,
@@ -138,6 +157,14 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           workspaceDir={workspaceDir}
           onSelectWorkspace={onSelectWorkspace}
           onClearWorkspace={onClearWorkspace}
+          launchMode={launchMode}
+          onLaunchModeChange={onLaunchModeChange}
+          branchOptions={branchOptions}
+          selectedStartRef={selectedStartRef}
+          onSelectedStartRefChange={onSelectedStartRefChange}
+          worktreeLoading={worktreeLoading}
+          worktreeControlsDisabled={worktreeControlsDisabled}
+          worktreeError={worktreeError}
           accessDisabled={workspaceAccessDisabled}
           accessDisabledReason={workspaceAccessDisabledReason}
           activeCapabilityLabel={activeCapabilityLabel}

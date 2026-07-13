@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   setDir: vi.fn(),
   setLoading: vi.fn(),
   ensureBackendMcpCatalog: vi.fn(),
+  inspectGitWorkspace: vi.fn(),
+  ensureManagedWorktree: vi.fn(),
   appState: {
     value: {
       schema_version: 'opl_app_state.v1',
@@ -178,6 +180,10 @@ vi.mock('@/common', () => ({
     },
     assistants: {
       update: { invoke: vi.fn().mockResolvedValue(undefined) },
+    },
+    gitWorkspace: {
+      inspect: { invoke: mocks.inspectGitWorkspace },
+      ensureManagedWorktree: { invoke: mocks.ensureManagedWorktree },
     },
   },
 }));
@@ -386,6 +392,12 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     projectContextRefs,
     onRemoveProjectContextRef,
     onClearWorkspace,
+    launchMode,
+    onLaunchModeChange,
+    branchOptions,
+    selectedStartRef,
+    onSelectedStartRefChange,
+    worktreeError,
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
@@ -396,14 +408,32 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     projectContextRefs?: Array<{ path: string; name: string }>;
     onRemoveProjectContextRef?: (path: string) => void;
     onClearWorkspace: () => void;
+    launchMode: 'local' | 'worktree';
+    onLaunchModeChange: (mode: 'local' | 'worktree') => void;
+    branchOptions: Array<{ value: string; label: string }>;
+    selectedStartRef: string;
+    onSelectedStartRefChange: (startRef: string) => void;
+    worktreeError?: string | null;
   }) => (
-    <div data-testid='guid-input-card'>
+    <div data-testid='guid-input-card' data-launch-mode={launchMode} data-selected-start-ref={selectedStartRef}>
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {activeCapabilityLabel ? <div data-testid='guid-active-capability'>{activeCapabilityLabel}</div> : null}
       {actionRow}
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
       {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
+      <button data-testid='guid-select-local' onClick={() => onLaunchModeChange('local')} />
+      <button data-testid='guid-select-worktree' onClick={() => onLaunchModeChange('worktree')} />
+      {branchOptions.map((option) => (
+        <button
+          key={option.value}
+          data-testid={`guid-select-branch-${option.value}`}
+          onClick={() => onSelectedStartRefChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+      {worktreeError ? <div data-testid='guid-worktree-error'>{worktreeError}</div> : null}
       <button data-testid='guid-clear-workspace' onClick={onClearWorkspace} />
       {projectContextRefs?.map((ref) => (
         <button
@@ -434,6 +464,8 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setDir.mockClear();
     mocks.setLoading.mockClear();
     mocks.ensureBackendMcpCatalog.mockReset();
+    mocks.inspectGitWorkspace.mockReset();
+    mocks.ensureManagedWorktree.mockReset();
     mocks.appState.value = {
       schema_version: 'opl_app_state.v1',
       core: {
@@ -493,6 +525,65 @@ describe('GuidPage selected purpose assistant surface', () => {
           original_json: '{}',
         },
       ],
+    });
+    mocks.inspectGitWorkspace.mockResolvedValue({
+      cwd: '/workspace/research',
+      root: '/workspace/research',
+      head: '1111111111111111111111111111111111111111',
+      currentBranch: 'main',
+      dirty: false,
+      staged: false,
+      branches: [
+        {
+          name: 'main',
+          fullRef: 'refs/heads/main',
+          head: '1111111111111111111111111111111111111111',
+          kind: 'local',
+          current: true,
+          upstream: 'origin/main',
+          upstreamTrack: null,
+          checkedOutAt: '/workspace/research',
+        },
+        {
+          name: 'feature/research',
+          fullRef: 'refs/heads/feature/research',
+          head: '2222222222222222222222222222222222222222',
+          kind: 'local',
+          current: false,
+          upstream: null,
+          upstreamTrack: null,
+          checkedOutAt: null,
+        },
+      ],
+      worktrees: [],
+      pullRequest: { status: 'unavailable', reason: 'no_current_pull_request' },
+    });
+    mocks.ensureManagedWorktree.mockResolvedValue({
+      status: 'created',
+      repositoryRoot: '/workspace/research',
+      targetPath: '/Users/example/.codex/worktrees/research-task',
+      startRef: 'refs/heads/main',
+      startCommit: '1111111111111111111111111111111111111111',
+      worktree: {
+        path: '/Users/example/.codex/worktrees/research-task',
+        head: '1111111111111111111111111111111111111111',
+        branch: null,
+        branchRef: null,
+        detached: true,
+        bare: false,
+        lockedReason: null,
+        prunableReason: null,
+      },
+      handoff: {
+        status: 'not_needed',
+        source: { staged: false, unstaged: false, unmerged: false, untrackedCount: 0 },
+        ignoredFiles: {
+          policy: 'worktreeinclude_and_agents_override_only',
+          copied: [],
+          skippedExisting: [],
+          skippedSymlinks: [],
+        },
+      },
     });
     mocks.useGuidSend.mockClear();
   });
@@ -776,8 +867,11 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
     expect(screen.getByTestId('opl-guid-file-inputs-disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-location', 'local');
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
+    expect(mocks.inspectGitWorkspace).not.toHaveBeenCalled();
+    expect(mocks.ensureManagedWorktree).not.toHaveBeenCalled();
     expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
   });
 
@@ -816,6 +910,114 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
       expect.objectContaining({ files: ['/outside/project/evidence.pdf'] })
     );
+  });
+
+  it('creates the selected detached Worktree, sends with targetPath, and reuses one draft task id', async () => {
+    mocks.guidInput.input = '在隔离工作树中推进';
+    mocks.guidInput.dir = '/workspace/research';
+    mocks.sendDisabled.value = false;
+    mocks.ensureManagedWorktree
+      .mockResolvedValueOnce({
+        status: 'created',
+        targetPath: '/Users/example/.codex/worktrees/research-task',
+      })
+      .mockResolvedValueOnce({
+        status: 'reused',
+        targetPath: '/Users/example/.codex/worktrees/research-task',
+      });
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-select-worktree'));
+
+    await waitFor(() => expect(mocks.inspectGitWorkspace).toHaveBeenCalledWith({ cwd: '/workspace/research' }));
+    await userEvent.click(await screen.findByTestId('guid-select-branch-refs/heads/feature/research'));
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+
+    await waitFor(() => expect(mocks.ensureManagedWorktree).toHaveBeenCalledTimes(1));
+    const firstRequest = mocks.ensureManagedWorktree.mock.calls[0][0];
+    expect(firstRequest).toMatchObject({
+      repositoryPath: '/workspace/research',
+      startRef: 'refs/heads/feature/research',
+    });
+    expect(firstRequest).not.toHaveProperty('newBranch');
+    expect(firstRequest.taskId).toMatch(/^guid-/);
+    await waitFor(() => {
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ dir: '/Users/example/.codex/worktrees/research-task' })
+      );
+      expect(mocks.sendMessageHandler).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute(
+      'data-opl-task-workspace-path',
+      '/Users/example/.codex/worktrees/research-task'
+    );
+
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    await waitFor(() => expect(mocks.ensureManagedWorktree).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.sendMessageHandler).toHaveBeenCalledTimes(2));
+    expect(mocks.ensureManagedWorktree.mock.calls[1][0].taskId).toBe(firstRequest.taskId);
+  });
+
+  it('keeps Worktree creation failures visible and never falls back to Local send', async () => {
+    mocks.guidInput.input = '不要静默降级';
+    mocks.guidInput.dir = '/workspace/research';
+    mocks.sendDisabled.value = false;
+    mocks.ensureManagedWorktree.mockResolvedValueOnce({
+      status: 'unsupported',
+      targetPath: '/Users/example/.codex/worktrees/research-task',
+      handoff: {
+        status: 'unsupported',
+        reason: 'unmerged_changes',
+        detail: 'unmerged',
+        source: { staged: false, unstaged: false, unmerged: true, untrackedCount: 0 },
+      },
+    });
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-select-worktree'));
+    await waitFor(() => expect(mocks.inspectGitWorkspace).toHaveBeenCalledOnce());
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+
+    expect(await screen.findByTestId('guid-worktree-error')).toHaveTextContent('guid.worktree.errors.unmergedChanges');
+    expect(mocks.ensureManagedWorktree).toHaveBeenCalledOnce();
+    expect(mocks.sendMessageHandler).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-location', 'worktree');
+    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-workspace-path', '/workspace/research');
+  });
+
+  it('surfaces a rejected Worktree bridge call without invoking the Local create flow', async () => {
+    mocks.guidInput.input = '桥接失败也不要降级';
+    mocks.guidInput.dir = '/workspace/research';
+    mocks.sendDisabled.value = false;
+    mocks.ensureManagedWorktree.mockRejectedValueOnce(new Error('git worktree add failed'));
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-select-worktree'));
+    await waitFor(() => expect(mocks.inspectGitWorkspace).toHaveBeenCalledOnce());
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+
+    expect(await screen.findByTestId('guid-worktree-error')).toHaveTextContent('guid.worktree.errors.createFailed');
+    expect(mocks.ensureManagedWorktree).toHaveBeenCalledOnce();
+    expect(mocks.sendMessageHandler).not.toHaveBeenCalled();
+  });
+
+  it('requires a repository for Worktree mode while Local projectless send remains available', async () => {
+    mocks.guidInput.input = '无项目文字任务';
+    mocks.guidInput.dir = '';
+    mocks.sendDisabled.value = false;
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-select-worktree'));
+
+    expect(await screen.findByTestId('guid-worktree-error')).toHaveTextContent('guid.worktree.errors.projectRequired');
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    expect(mocks.inspectGitWorkspace).not.toHaveBeenCalled();
+    expect(mocks.ensureManagedWorktree).not.toHaveBeenCalled();
+    expect(mocks.sendMessageHandler).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId('guid-select-local'));
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
   });
 
   it('blocks the /open file command without clearing the draft when workspace setup is incomplete', async () => {

@@ -7,8 +7,8 @@
 import { ipcBridge } from '@/common';
 import type { ProjectContextRef } from '@/common/config/configKeys';
 import { addRecentWorkspace, getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
-import { Button, Modal, Tooltip, Typography } from '@arco-design/web-react';
-import { BranchOne, Close, CloseSmall, Down, FileText, FolderClose } from '@icon-park/react';
+import { Button, Modal, Radio, Select, Tooltip, Typography } from '@arco-design/web-react';
+import { Attention, BranchOne, Close, CloseSmall, Computer, Down, FileText, FolderClose, Fork } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -18,11 +18,27 @@ type GuidWorkspaceFootnoteProps = {
   workspaceDir: string;
   onSelectWorkspace: (dir: string) => void;
   onClearWorkspace: () => void;
+  launchMode: GuidWorkspaceLaunchMode;
+  onLaunchModeChange: (mode: GuidWorkspaceLaunchMode) => void;
+  branchOptions: GuidStartingBranchOption[];
+  selectedStartRef: string;
+  onSelectedStartRefChange: (startRef: string) => void;
+  worktreeLoading?: boolean;
+  worktreeControlsDisabled?: boolean;
+  worktreeError?: string | null;
   accessDisabled?: boolean;
   accessDisabledReason?: string;
   activeCapabilityLabel?: string;
   projectContextRefs?: ProjectContextRef[];
   onRemoveProjectContextRef?: (path: string) => void;
+};
+
+export type GuidWorkspaceLaunchMode = 'local' | 'worktree';
+
+export type GuidStartingBranchOption = {
+  value: string;
+  label: string;
+  current: boolean;
 };
 
 const FolderIcon = ({ size = 12 }: { size?: number }) => (
@@ -57,6 +73,14 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   workspaceDir,
   onSelectWorkspace,
   onClearWorkspace,
+  launchMode,
+  onLaunchModeChange,
+  branchOptions,
+  selectedStartRef,
+  onSelectedStartRefChange,
+  worktreeLoading = false,
+  worktreeControlsDisabled = false,
+  worktreeError,
   accessDisabled = false,
   accessDisabledReason,
   activeCapabilityLabel,
@@ -289,6 +313,71 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
       className={styles.workspaceFootnote}
       data-testid={accessDisabled ? 'opl-guid-workspace-access-disabled' : undefined}
     >
+      <div className='flex w-full min-w-0 flex-wrap items-center gap-8px' data-testid='guid-task-location-controls'>
+        <Radio.Group
+          type='button'
+          size='mini'
+          value={launchMode}
+          disabled={worktreeControlsDisabled}
+          aria-label={t('guid.worktree.modeLabel')}
+          onChange={(value) => onLaunchModeChange(value === 'worktree' ? 'worktree' : 'local')}
+        >
+          <Radio value='local' data-testid='guid-launch-mode-local'>
+            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
+              <Computer size={12} />
+              {t('guid.home.localContext')}
+            </span>
+          </Radio>
+          <Radio value='worktree' data-testid='guid-launch-mode-worktree'>
+            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
+              <Fork size={12} />
+              {t('guid.worktree.worktreeLabel')}
+            </span>
+          </Radio>
+        </Radio.Group>
+
+        {launchMode === 'worktree' ? (
+          <div className='min-w-0' style={{ flex: '1 1 180px', maxWidth: 360 }} data-testid='guid-starting-branch-wrap'>
+            <Select
+              size='mini'
+              value={selectedStartRef || undefined}
+              placeholder={t('guid.worktree.startingBranch')}
+              loading={worktreeLoading}
+              disabled={worktreeControlsDisabled || !workspaceDir}
+              showSearch
+              allowClear={false}
+              aria-label={t('guid.worktree.startingBranch')}
+              data-testid='guid-starting-branch-selector'
+              style={{ width: '100%', minWidth: 0 }}
+              onChange={(value) => onSelectedStartRefChange(String(value))}
+            >
+              {branchOptions.map((option) => (
+                <Select.Option key={option.value} value={option.value}>
+                  <span className='flex min-w-0 items-center gap-6px'>
+                    <BranchOne size={12} className='shrink-0' />
+                    <span className='min-w-0 flex-1 truncate'>{option.label}</span>
+                    {option.current ? (
+                      <span className='shrink-0 text-11px text-t-tertiary'>{t('guid.worktree.currentBranch')}</span>
+                    ) : null}
+                  </span>
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+
+        {worktreeError ? (
+          <div
+            className='flex w-full min-w-0 items-start gap-6px text-12px leading-18px text-danger'
+            role='alert'
+            data-testid='guid-worktree-error'
+          >
+            <Attention className='mt-2px shrink-0' size={13} />
+            <span className='min-w-0 break-words'>{worktreeError}</span>
+          </div>
+        ) : null}
+      </div>
+
       {workspaceDir ? (
         <>
           <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>

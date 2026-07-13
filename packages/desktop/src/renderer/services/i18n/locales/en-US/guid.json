@@ -8,6 +8,22 @@
     "launchBlocked": "This capability cannot start work yet ({{reason}}). Available maintenance actions: {{actions}}.",
     "operationalNotReady": "operational readiness is blocked"
   },
+  "worktree": {
+    "modeLabel": "Task location",
+    "worktreeLabel": "Worktree",
+    "startingBranch": "Starting branch",
+    "currentBranch": "Current",
+    "errors": {
+      "projectRequired": "Select a project folder to start this task in a Worktree.",
+      "noBranches": "No starting branch is available for this repository.",
+      "inspectFailed": "Git branches could not be read for this project. The task was not started.",
+      "createFailed": "The task Worktree could not be created. The task was not started and did not fall back to Local.",
+      "existingTaskChanges": "This task Worktree already exists, so new tracked changes from the project folder cannot be added automatically.",
+      "selectedBranchDiffers": "Tracked local changes can only be applied when the starting branch points to the current local HEAD.",
+      "unpatchableChanges": "Git reported tracked local changes that could not be applied safely to the task Worktree.",
+      "unmergedChanges": "Resolve unmerged changes before starting this task in a Worktree."
+    }
+  },
   "capabilities": {
     "title": "Capabilities",
     "description": "Choose the OPL capability that should own this task. Installation and configuration remain in Settings."
