@@ -285,6 +285,10 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
     return mapThread(parseThread(response.thread), false, [threadId], undefined, this.host);
   }
 
+  async renameThread(threadId: string, name: string): Promise<void> {
+    await this.rpc.request('thread/name/set', { threadId, name });
+  }
+
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
     this.activeCoordination.delete(threadId);
@@ -296,6 +300,11 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
       'thread unarchive response'
     );
     return mapThread(parseThread(response.thread), false, [], this.activeCoordination.get(threadId), this.host);
+  }
+
+  async deleteThread(threadId: string): Promise<void> {
+    await this.rpc.request('thread/delete', { threadId });
+    this.activeCoordination.delete(threadId);
   }
 
   async startReview(request: ThreadCoordinationReviewRequest): Promise<CodexThreadReviewStartResult> {

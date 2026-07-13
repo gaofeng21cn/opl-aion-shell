@@ -15,9 +15,14 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { isConversationPinned } from '../utils/groupingHelpers';
+import {
+  executeCanonicalThreadLifecycle,
+  finishCanonicalLifecycleWithLocalProjection,
+} from './canonicalThreadLifecycle';
 
 type UseConversationActionsParams = {
   batchMode: boolean;
+  conversations: TChatConversation[];
   onSessionClick?: () => void;
   onBatchModeChange?: (value: boolean) => void;
   selectedConversationIds: Set<string>;
@@ -28,6 +33,7 @@ type UseConversationActionsParams = {
 
 export const useConversationActions = ({
   batchMode,
+  conversations,
   onSessionClick,
   onBatchModeChange,
   selectedConversationIds,
@@ -93,14 +99,18 @@ export const useConversationActions = ({
   );
 
   const removeConversation = useCallback(
-    async (conversation_id: string) => {
-      const success = await ipcBridge.conversation.remove.invoke({ id: conversation_id });
-      if (!success) {
-        return false;
-      }
+    async (conversation: TChatConversation) => {
+      const canonicalResult = await executeCanonicalThreadLifecycle(conversation, {
+        action: 'delete',
+        reason: 'Delete task from the task directory',
+      });
+      const success = await finishCanonicalLifecycleWithLocalProjection(canonicalResult, () =>
+        ipcBridge.conversation.remove.invoke({ id: conversation.id })
+      );
+      if (!success) return false;
 
-      emitter.emit('conversation.deleted', conversation_id);
-      if (id === conversation_id) {
+      emitter.emit('conversation.deleted', conversation.id);
+      if (id === conversation.id) {
         void navigate('/');
       }
       return true;
@@ -110,6 +120,8 @@ export const useConversationActions = ({
 
   const handleDeleteClick = useCallback(
     (conversation_id: string) => {
+      const conversation = conversations.find((candidate) => candidate.id === conversation_id);
+      if (!conversation) return;
       Modal.confirm({
         title: t('conversation.history.deleteTitle'),
         content: t('conversation.history.deleteConfirm'),
@@ -118,7 +130,7 @@ export const useConversationActions = ({
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const success = await removeConversation(conversation_id);
+            const success = await removeConversation(conversation);
             if (success) {
               emitter.emit('chat.history.refresh');
               Message.success(t('conversation.history.deleteSuccess'));
@@ -135,7 +147,7 @@ export const useConversationActions = ({
         getPopupContainer: () => document.body,
       });
     },
-    [removeConversation, t]
+    [conversations, removeConversation, t]
   );
 
   const handleBatchDelete = useCallback(() => {
@@ -153,7 +165,8 @@ export const useConversationActions = ({
       onOk: async () => {
         const selectedIds = Array.from(selectedConversationIds);
         try {
-          const results = await Promise.all(selectedIds.map((conversation_id) => removeConversation(conversation_id)));
+          const selected = conversations.filter((conversation) => selectedIds.includes(conversation.id));
+          const results = await Promise.all(selected.map((conversation) => removeConversation(conversation)));
           const successCount = results.filter(Boolean).length;
           emitter.emit('chat.history.refresh');
           if (successCount > 0) {
@@ -173,7 +186,7 @@ export const useConversationActions = ({
       alignCenter: true,
       getPopupContainer: () => document.body,
     });
-  }, [onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]);
+  }, [conversations, onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]);
 
   const handleEditStart = useCallback((conversation: TChatConversation) => {
     setRenameModalId(conversation.id);
@@ -186,10 +199,18 @@ export const useConversationActions = ({
 
     setRenameLoading(true);
     try {
-      const success = await ipcBridge.conversation.update.invoke({
-        id: renameModalId,
-        updates: { name: renameModalName.trim() },
+      const conversation = conversations.find((candidate) => candidate.id === renameModalId);
+      const canonicalResult = await executeCanonicalThreadLifecycle(conversation, {
+        action: 'rename',
+        name: renameModalName.trim(),
+        reason: 'Rename task from the task directory',
       });
+      const success = await finishCanonicalLifecycleWithLocalProjection(canonicalResult, () =>
+        ipcBridge.conversation.update.invoke({
+          id: renameModalId,
+          updates: { name: renameModalName.trim() },
+        })
+      );
 
       if (success) {
         await refreshConversationCache(renameModalId);
@@ -207,7 +228,7 @@ export const useConversationActions = ({
     } finally {
       setRenameLoading(false);
     }
-  }, [renameModalId, renameModalName, t]);
+  }, [conversations, renameModalId, renameModalName, t]);
 
   const handleRenameCancel = useCallback(() => {
     setRenameModalVisible(false);
@@ -220,16 +241,30 @@ export const useConversationActions = ({
       const pinned = isConversationPinned(conversation);
 
       try {
-        const success = await ipcBridge.conversation.update.invoke({
-          id: conversation.id,
-          updates: {
-            extra: {
-              pinned: !pinned,
-              pinned_at: pinned ? undefined : Date.now(),
-            } as Partial<TChatConversation['extra']>,
-          } as Partial<TChatConversation>,
-          merge_extra: true,
-        });
+        const pinUpdate = {
+          pinned: !pinned,
+          pinned_at: pinned ? undefined : Date.now(),
+        } as Partial<TChatConversation['extra']>;
+        let success: boolean;
+        if (conversation.type === 'acp' && conversation.extra.canonical_thread_stub) {
+          await ipcBridge.conversation.createWithConversation.invoke({
+            conversation: {
+              ...conversation,
+              extra: {
+                ...conversation.extra,
+                ...pinUpdate,
+                canonical_thread_stub: false,
+              },
+            },
+          });
+          success = true;
+        } else {
+          success = await ipcBridge.conversation.update.invoke({
+            id: conversation.id,
+            updates: { extra: pinUpdate } as Partial<TChatConversation>,
+            merge_extra: true,
+          });
+        }
 
         if (success) {
           emitter.emit('chat.history.refresh');
@@ -247,16 +282,22 @@ export const useConversationActions = ({
   const setArchivedState = useCallback(
     async (conversation: TChatConversation, archived: boolean) => {
       try {
-        const success = await ipcBridge.conversation.update.invoke({
-          id: conversation.id,
-          updates: {
-            extra: {
-              archived,
-              archived_at: archived ? Date.now() : undefined,
-            } as Partial<TChatConversation['extra']>,
-          } as Partial<TChatConversation>,
-          merge_extra: true,
+        const canonicalResult = await executeCanonicalThreadLifecycle(conversation, {
+          action: archived ? 'archive' : 'unarchive',
+          reason: archived ? 'Archive task from the task directory' : 'Restore task to the task directory',
         });
+        const success = await finishCanonicalLifecycleWithLocalProjection(canonicalResult, () =>
+          ipcBridge.conversation.update.invoke({
+            id: conversation.id,
+            updates: {
+              extra: {
+                archived,
+                archived_at: archived ? Date.now() : undefined,
+              } as Partial<TChatConversation['extra']>,
+            } as Partial<TChatConversation>,
+            merge_extra: true,
+          })
+        );
         if (!success) {
           Message.error(t(archived ? 'conversation.history.archiveFailed' : 'conversation.history.restoreFailed'));
           return;
@@ -346,7 +387,9 @@ export const useConversationActions = ({
     if (!removeProjectTarget) return;
     setRemoveProjectLoading(true);
     try {
-      const results = await Promise.all(removeProjectTarget.conversations.map((c) => removeConversation(c.id)));
+      const results = await Promise.all(
+        removeProjectTarget.conversations.map((conversation) => removeConversation(conversation))
+      );
       const successCount = results.filter(Boolean).length;
       emitter.emit('chat.history.refresh');
       if (successCount > 0) {

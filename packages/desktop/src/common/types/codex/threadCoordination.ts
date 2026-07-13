@@ -9,8 +9,10 @@ export const CODEX_THREAD_COORDINATION_METHODS = [
   'thread/read',
   'thread/resume',
   'thread/fork',
+  'thread/name/set',
   'thread/archive',
   'thread/unarchive',
+  'thread/delete',
   'review/start',
   'turn/start',
   'turn/steer',
@@ -161,12 +163,20 @@ export type ThreadCoordinationReadResult =
   | { ok: true; detail: CodexThreadDetail }
   | { ok: false; errorCode: ThreadCoordinationErrorCode; message: string };
 
-export type ThreadCoordinationLifecycleRequest = {
-  action: 'resume' | 'fork' | 'archive' | 'unarchive';
+type ThreadCoordinationLifecycleRequestBase = {
   targetThreadId: string;
   actor: ThreadCoordinationActor;
   reason: string;
 };
+
+export type ThreadCoordinationLifecycleRequest =
+  | (ThreadCoordinationLifecycleRequestBase & {
+      action: 'resume' | 'fork' | 'archive' | 'unarchive' | 'delete';
+    })
+  | (ThreadCoordinationLifecycleRequestBase & {
+      action: 'rename';
+      name: string;
+    });
 
 export type ThreadCoordinationReviewRequest = {
   action: 'review';

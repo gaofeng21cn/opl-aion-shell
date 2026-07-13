@@ -155,6 +155,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     handleRemoveProjectConfirm,
   } = useConversationActions({
     batchMode,
+    conversations,
     onSessionClick,
     onBatchModeChange,
     selectedConversationIds,

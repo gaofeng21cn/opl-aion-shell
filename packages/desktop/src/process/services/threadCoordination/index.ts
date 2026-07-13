@@ -45,8 +45,10 @@ export type CodexThreadCoordinationPort = {
   readThread: (threadId: string) => Promise<CodexThreadDetail>;
   resumeThread: (threadId: string) => Promise<CodexThreadDescriptor>;
   forkThread: (threadId: string) => Promise<CodexThreadDescriptor>;
+  renameThread: (threadId: string, name: string) => Promise<void>;
   archiveThread: (threadId: string) => Promise<void>;
   unarchiveThread: (threadId: string) => Promise<CodexThreadDescriptor>;
+  deleteThread: (threadId: string) => Promise<void>;
   startReview: (request: ThreadCoordinationReviewRequest) => Promise<CodexThreadReviewStartResult>;
   startTurn: (request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>) => Promise<string>;
   steerTurn: (
@@ -371,12 +373,35 @@ export class ThreadCoordinationService {
           statusAfter: target.status,
         });
       }
+      if (request.action === 'rename') {
+        const name = request.name.trim();
+        if (!name) {
+          return this.finish(request, {
+            target,
+            failure: { code: 'invalid_request', message: 'Thread name is required.' },
+          });
+        }
+        await this.port?.renameThread(target.id, name);
+        return this.finish(request, {
+          target,
+          protocolMethod: 'thread/name/set',
+          statusAfter: target.status,
+        });
+      }
       if (request.action === 'unarchive') {
         const restored = await this.port?.unarchiveThread(target.id);
         return this.finish(request, {
           target,
           protocolMethod: 'thread/unarchive',
           statusAfter: restored?.status ?? 'idle',
+        });
+      }
+      if (request.action === 'delete') {
+        await this.port?.deleteThread(target.id);
+        return this.finish(request, {
+          target,
+          protocolMethod: 'thread/delete',
+          statusAfter: null,
         });
       }
       await this.port?.archiveThread(target.id);

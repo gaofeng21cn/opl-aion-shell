@@ -71,6 +71,7 @@ function port(threads: CodexThreadDescriptor[]): CodexThreadCoordinationPort {
       })
     ),
     forkThread: vi.fn().mockResolvedValue(thread({ id: 'forked-thread' })),
+    renameThread: vi.fn().mockResolvedValue(undefined),
     archiveThread: vi.fn().mockResolvedValue(undefined),
     unarchiveThread: vi.fn().mockImplementation(async (threadId: string) =>
       thread({
@@ -80,6 +81,7 @@ function port(threads: CodexThreadDescriptor[]): CodexThreadCoordinationPort {
         archived: false,
       })
     ),
+    deleteThread: vi.fn().mockResolvedValue(undefined),
     startReview: vi.fn().mockResolvedValue({ reviewThreadId: 'receiver', turnId: 'review-turn' }),
     startTurn: vi.fn().mockResolvedValue('new-turn'),
     steerTurn: vi.fn().mockResolvedValue('active-turn'),
@@ -351,6 +353,32 @@ describe('ThreadCoordinationService', () => {
     expect(archived.ok).toBe(true);
     expect(archived.protocolMethod).toBe('thread/archive');
     expect(adapter.archiveThread).toHaveBeenCalledWith('receiver');
+  });
+
+  it('renames and deletes canonical tasks through Codex App Server lifecycle methods', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const renamed = await service.execute({
+      action: 'rename',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'receiver' },
+      reason: 'Rename task',
+      name: 'New task name',
+    });
+    const deleted = await service.execute({
+      action: 'delete',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'receiver' },
+      reason: 'Delete task',
+    });
+
+    expect(renamed.ok).toBe(true);
+    expect(renamed.protocolMethod).toBe('thread/name/set');
+    expect(adapter.renameThread).toHaveBeenCalledWith('receiver', 'New task name');
+    expect(deleted.ok).toBe(true);
+    expect(deleted.protocolMethod).toBe('thread/delete');
+    expect(adapter.deleteThread).toHaveBeenCalledWith('receiver');
   });
 
   it('restores an archived top-level thread through thread/unarchive', async () => {

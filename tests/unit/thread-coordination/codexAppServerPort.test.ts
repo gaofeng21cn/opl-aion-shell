@@ -144,8 +144,10 @@ describe('CodexAppServerThreadCoordinationPort', () => {
     const appServer = rpc({
       'thread/resume': () => ({ thread: rawThread('target') }),
       'thread/fork': () => ({ thread: rawThread('forked', { forkedFromId: 'target' }) }),
+      'thread/name/set': () => ({}),
       'thread/archive': () => ({}),
       'thread/unarchive': () => ({ thread: rawThread('target') }),
+      'thread/delete': () => ({}),
       'turn/start': () => ({ turn: { id: 'turn-started' } }),
       'turn/steer': () => ({ turnId: 'turn-active' }),
     });
@@ -153,23 +155,28 @@ describe('CodexAppServerThreadCoordinationPort', () => {
 
     await port.resumeThread('target');
     await port.forkThread('target');
+    await port.renameThread('target', 'Renamed task');
     await port.archiveThread('target');
     await port.unarchiveThread('target');
+    await port.deleteThread('target');
     await port.startTurn(delivery({ writeSet: ['/workspace/target/src'] }));
     await port.steerTurn(delivery({ idempotencyKey: 'steer-id' }), 'turn-active');
 
     expect(appServer.requests.map(([method]) => method)).toEqual([
       'thread/resume',
       'thread/fork',
+      'thread/name/set',
       'thread/archive',
       'thread/unarchive',
+      'thread/delete',
       'turn/start',
       'turn/steer',
     ]);
-    expect(appServer.requests[4][1]).toMatchObject({ threadId: 'target' });
-    expect(appServer.requests[4][1]).not.toHaveProperty('approvalPolicy');
-    expect(appServer.requests[4][1]).not.toHaveProperty('sandboxPolicy');
-    expect(appServer.requests[5][1]).toMatchObject({ threadId: 'target', expectedTurnId: 'turn-active' });
+    expect(appServer.requests[2]).toEqual(['thread/name/set', { threadId: 'target', name: 'Renamed task' }]);
+    expect(appServer.requests[6][1]).toMatchObject({ threadId: 'target' });
+    expect(appServer.requests[6][1]).not.toHaveProperty('approvalPolicy');
+    expect(appServer.requests[6][1]).not.toHaveProperty('sandboxPolicy');
+    expect(appServer.requests[7][1]).toMatchObject({ threadId: 'target', expectedTurnId: 'turn-active' });
   });
 
   it('routes every generated review/start target shape and delivery mode without Git side effects', async () => {

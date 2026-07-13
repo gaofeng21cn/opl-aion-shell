@@ -2,24 +2,32 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@/common/config/storage';
 import { useConversationActions } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationActions';
+import { useTitleRename } from '@/renderer/pages/conversation/hooks/useTitleRename';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  get: vi.fn(),
   update: vi.fn(),
   createWithConversation: vi.fn(),
+  remove: vi.fn(),
   reset: vi.fn(),
   emit: vi.fn(),
   modalConfirm: vi.fn(),
   messageError: vi.fn(),
+  threadExecute: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
     conversation: {
+      get: { invoke: mocks.get },
       update: { invoke: mocks.update },
       createWithConversation: { invoke: mocks.createWithConversation },
-      remove: { invoke: vi.fn() },
+      remove: { invoke: mocks.remove },
       reset: { invoke: mocks.reset },
+    },
+    threadCoordination: {
+      execute: { invoke: mocks.threadExecute },
     },
   },
 }));
@@ -59,6 +67,7 @@ const renderActions = () =>
   renderHook(() =>
     useConversationActions({
       batchMode: false,
+      conversations: [target],
       selectedConversationIds: new Set(),
       setSelectedConversationIds: vi.fn(),
       toggleSelectedConversation: vi.fn(),
@@ -69,12 +78,15 @@ const renderActions = () =>
 describe('conversation archive actions', () => {
   beforeEach(() => {
     mocks.navigate.mockClear();
+    mocks.get.mockReset();
     mocks.update.mockReset();
     mocks.createWithConversation.mockReset();
+    mocks.remove.mockReset();
     mocks.reset.mockReset();
     mocks.emit.mockClear();
     mocks.modalConfirm.mockClear();
     mocks.messageError.mockClear();
+    mocks.threadExecute.mockReset();
   });
 
   it('persists archive and restore through merge_extra without deleting the conversation', async () => {
@@ -129,15 +141,6 @@ describe('conversation archive actions', () => {
   it('materializes an App Server task projection before opening it', async () => {
     mocks.createWithConversation.mockResolvedValue(undefined);
     const markAsRead = vi.fn();
-    const { result } = renderHook(() =>
-      useConversationActions({
-        batchMode: false,
-        selectedConversationIds: new Set(),
-        setSelectedConversationIds: vi.fn(),
-        toggleSelectedConversation: vi.fn(),
-        markAsRead,
-      })
-    );
     const canonicalStub = {
       id: 'thread-1',
       name: 'Canonical task',
@@ -151,7 +154,16 @@ describe('conversation archive actions', () => {
         canonical_thread_stub: true,
       },
     } as TChatConversation;
-
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [canonicalStub],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead,
+      })
+    );
     act(() => result.current.handleConversationClick(canonicalStub));
 
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/conversation/thread-1'));
@@ -162,5 +174,87 @@ describe('conversation archive actions', () => {
       }),
     });
     expect(markAsRead).toHaveBeenCalledWith('thread-1');
+  });
+
+  it('routes canonical rename, archive, restore, and delete through app-server lifecycle actions', async () => {
+    const canonical = {
+      id: 'conv-1',
+      name: 'Canonical task',
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: {
+        backend: 'codex',
+        acp_session_id: 'thread-1',
+        canonical_thread_id: 'thread-1',
+      },
+    } as TChatConversation;
+    mocks.threadExecute.mockResolvedValue({ ok: true });
+    mocks.update.mockResolvedValue(true);
+    mocks.remove.mockResolvedValue(true);
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [canonical],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    act(() => result.current.handleEditStart(canonical));
+    act(() => result.current.setRenameModalName('Renamed canonical task'));
+    await act(() => result.current.handleRenameConfirm());
+    act(() => result.current.handleArchive(canonical));
+    act(() => result.current.handleRestore(canonical));
+
+    await waitFor(() => expect(mocks.threadExecute).toHaveBeenCalledTimes(3));
+    expect(mocks.threadExecute.mock.calls.map(([value]) => value.request.action)).toEqual([
+      'rename',
+      'archive',
+      'unarchive',
+    ]);
+    expect(mocks.threadExecute.mock.calls[0][0].request).toMatchObject({
+      targetThreadId: 'thread-1',
+      name: 'Renamed canonical task',
+    });
+
+    act(() => result.current.handleDeleteClick(canonical.id));
+    const confirmation = mocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    await act(() => confirmation.onOk());
+    expect(mocks.threadExecute.mock.calls.at(-1)?.[0].request).toMatchObject({
+      action: 'delete',
+      targetThreadId: 'thread-1',
+    });
+  });
+
+  it('routes the open canonical task title rename through thread/name/set', async () => {
+    mocks.get.mockResolvedValue({
+      id: 'conv-1',
+      name: 'Canonical task',
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: {
+        backend: 'codex',
+        acp_session_id: 'thread-1',
+        canonical_thread_id: 'thread-1',
+      },
+    } as TChatConversation);
+    mocks.threadExecute.mockResolvedValue({ ok: true });
+    mocks.update.mockResolvedValue(true);
+    const { result } = renderHook(() => useTitleRename({ title: 'Canonical task', conversation_id: 'conv-1' }));
+
+    act(() => result.current.setTitleDraft('Renamed from transcript'));
+    await act(() => result.current.submitTitleRename());
+
+    expect(mocks.threadExecute).toHaveBeenCalledWith({
+      request: expect.objectContaining({
+        action: 'rename',
+        targetThreadId: 'thread-1',
+        name: 'Renamed from transcript',
+      }),
+    });
   });
 });

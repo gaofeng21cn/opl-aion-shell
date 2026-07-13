@@ -1,6 +1,10 @@
 import { ipcBridge } from '@/common';
 import { refreshConversationCache } from '@/renderer/pages/conversation/utils/conversationCache';
 import { emitter } from '@/renderer/utils/emitter';
+import {
+  executeCanonicalThreadLifecycle,
+  finishCanonicalLifecycleWithLocalProjection,
+} from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { Message } from '@arco-design/web-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -63,11 +67,18 @@ export function useTitleRename({ title, conversation_id, onRename }: UseTitleRen
       if (onRename) {
         success = await onRename(nextTitle);
       } else {
-        const result = await ipcBridge.conversation.update.invoke({
-          id: conversation_id!,
-          updates: { name: nextTitle },
+        const conversation = await ipcBridge.conversation.get.invoke({ id: conversation_id! });
+        const canonicalResult = await executeCanonicalThreadLifecycle(conversation, {
+          action: 'rename',
+          name: nextTitle,
+          reason: 'Rename the open task',
         });
-        success = Boolean(result);
+        success = await finishCanonicalLifecycleWithLocalProjection(canonicalResult, () =>
+          ipcBridge.conversation.update.invoke({
+            id: conversation_id!,
+            updates: { name: nextTitle },
+          })
+        );
         if (success) {
           await refreshConversationCache(conversation_id!);
           emitter.emit('chat.history.refresh');
