@@ -580,6 +580,7 @@ export async function executeManagedUpdateReconciliation(
     let result = await invokeRead('check');
     let lastFailure = resultErrorMessage(result);
     let planResult: IOplRuntimeCommandResult | null = null;
+    let applyResult: IOplRuntimeCommandResult | null = null;
     let eligibleComponentIds: ManagedUpdateComponentId[] = [];
 
     if (!lastFailure) {
@@ -596,26 +597,35 @@ export async function executeManagedUpdateReconciliation(
 
     if (!lastFailure && eligibleComponentIds.length > 0) {
       emit({ operation: 'apply', busyAction: 'auto_apply:managed_update_plan' });
-      result = await ipcBridge.oplRuntime.applyUpdatePlan.invoke();
-      lastFailure = resultErrorMessage(result);
+      applyResult = await ipcBridge.oplRuntime.applyUpdatePlan.invoke();
+      result = applyResult;
+      lastFailure = resultErrorMessage(applyResult);
       const actionAt = isoNow();
-      const reloadGuidance = readReloadGuidance(result) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance;
+      const reloadGuidance =
+        readReloadGuidance(applyResult) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance;
       emit({
         lastAction: managedUpdateAction({
           kind: 'auto_apply',
           componentId: eligibleComponentIds[0],
           componentIds: eligibleComponentIds,
-          status: summarizeResultStatus(result),
+          status: summarizeResultStatus(applyResult),
           at: actionAt,
-          receiptRef: eligibleComponentIds.map((componentId) => readReceiptRef(result, componentId)).find(Boolean),
+          receiptRef: eligibleComponentIds.map((componentId) => readReceiptRef(applyResult, componentId)).find(Boolean),
           reloadGuidance,
         }),
         reloadGuidance,
       });
     }
 
+    if (!lastFailure && applyResult) {
+      emit({ operation: 'status', busyAction: null });
+      result = await invokeRead('status');
+      lastFailure = resultErrorMessage(result);
+    }
+
     retryCount = lastFailure ? retryCount + 1 : 0;
-    const restartRequired = readRestartRequired(result) || readRestartRequired(planResult);
+    const restartRequired =
+      readRestartRequired(result) || readRestartRequired(applyResult) || readRestartRequired(planResult);
     emit({
       running: false,
       operation: null,
@@ -624,7 +634,11 @@ export async function executeManagedUpdateReconciliation(
       lastRunAt: isoNow(),
       lastFailure,
       lockStatus: readLockStatus(result),
-      reloadGuidance: readReloadGuidance(result) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance,
+      reloadGuidance:
+        readReloadGuidance(result) ??
+        readReloadGuidance(applyResult) ??
+        readReloadGuidance(planResult) ??
+        snapshot.reloadGuidance,
       restartRequired,
       ...(lastFailure ? {} : { lastReconciledCarrierCheckpoint: currentCarrierCheckpoint() }),
       result,

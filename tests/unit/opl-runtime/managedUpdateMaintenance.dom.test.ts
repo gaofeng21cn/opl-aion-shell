@@ -108,11 +108,45 @@ const managedUpdatePlanResult = {
   },
 };
 
+const managedUpdateStatusResult = {
+  surface: 'update_status',
+  command: 'opl update status --json',
+  stdout: '{}',
+  parsed: {
+    managed_update: {
+      operation: 'status',
+      idempotency_lock: { status: 'released' },
+      execution: { status: 'completed' },
+      components: [
+        {
+          component_id: 'opl_base',
+          state: 'current',
+          current: {
+            dependency_catalog: {
+              lifecycle_owner: 'opl_base',
+              flow_dependencies: [
+                {
+                  dependency_id: 'officecli',
+                  dependency_kind: 'codex_skill',
+                  installed: true,
+                },
+              ],
+              dependencies: [],
+            },
+          },
+        },
+        { component_id: 'opl_packages', state: 'current' },
+      ],
+    },
+  },
+};
+
 describe('managed update background maintenance scheduler', () => {
   beforeEach(() => {
     resetManagedUpdateMaintenanceForTest();
     localStorage.clear();
     vi.clearAllMocks();
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValue(managedUpdateStatusResult);
     bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateCheckResult);
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdatePlanResult);
     bridgeMocks.applyUpdatePlanInvoke.mockResolvedValue({
@@ -155,6 +189,7 @@ describe('managed update background maintenance scheduler', () => {
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.applyUpdatePlanInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().lastRunAt).not.toBeNull());
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
@@ -162,7 +197,23 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastTrigger).toBe('app_carrier_changed');
     expect(snapshot.lastFailure).toBeNull();
     expect(snapshot.lockStatus).toBe('released');
-    expect(snapshot.result?.surface).toBe('update_apply');
+    expect(snapshot.result?.surface).toBe('update_status');
+    expect(snapshot.result?.parsed).toEqual(
+      expect.objectContaining({
+        managed_update: expect.objectContaining({
+          components: expect.arrayContaining([
+            expect.objectContaining({
+              component_id: 'opl_base',
+              current: expect.objectContaining({
+                dependency_catalog: expect.objectContaining({
+                  flow_dependencies: expect.arrayContaining([expect.objectContaining({ dependency_id: 'officecli' })]),
+                }),
+              }),
+            }),
+          ]),
+        }),
+      })
+    );
     expect(snapshot.lastAction?.componentIds).toEqual(['opl_base', 'opl_packages']);
     expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
     expect(snapshot.restartRequired).toBe(true);
@@ -172,6 +223,9 @@ describe('managed update background maintenance scheduler', () => {
     );
     expect(bridgeMocks.getUpdatePlanInvoke.mock.invocationCallOrder[0]).toBeLessThan(
       bridgeMocks.applyUpdatePlanInvoke.mock.invocationCallOrder[0]
+    );
+    expect(bridgeMocks.applyUpdatePlanInvoke.mock.invocationCallOrder[0]).toBeLessThan(
+      bridgeMocks.getUpdateStatusInvoke.mock.invocationCallOrder[0]
     );
 
     stop();
@@ -295,6 +349,29 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastFailure).toBe('Framework plan unavailable');
     expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
     expect(bridgeMocks.applyUpdatePlanInvoke).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('keeps the carrier checkpoint pending when terminal status readback fails after apply', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      ok: false,
+      surface: 'update_status',
+      command: 'opl update status --json',
+      stdout: '',
+      parsed: null,
+      error: { message: 'Framework status readback unavailable' },
+    });
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(bridgeMocks.applyUpdatePlanInvoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+
+    const snapshot = getManagedUpdateMaintenanceSnapshot();
+    expect(snapshot.executionStatus).toBe('failed');
+    expect(snapshot.lastAction?.status).toBe('completed');
+    expect(snapshot.lastFailure).toBe('Framework status readback unavailable');
+    expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
     stop();
   });
 
