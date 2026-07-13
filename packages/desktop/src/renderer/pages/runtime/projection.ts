@@ -10,6 +10,7 @@ import {
   type RuntimePrimaryStatus,
   type RuntimeProject,
   type RuntimeProjectionDiagnostic,
+  type RuntimeProjectionDiagnosticDetailPolicy,
   type RuntimeProjectionReadResult,
   type RuntimeSourceRef,
   type RuntimeStage,
@@ -70,6 +71,7 @@ const STAGE_STATES = new Set<RuntimeStageState>([
   'failed',
 ]);
 const SOURCE_REF_KINDS = new Set<RuntimeSourceRef['kind']>(['file', 'sqlite', 'projection']);
+const DIAGNOSTIC_DETAIL_POLICIES = new Set<RuntimeProjectionDiagnosticDetailPolicy>(['summary_only', 'included']);
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -411,7 +413,10 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
     diagnostics.push({ reason });
   }
   const diagnosticCount = nonNegativeInteger(diagnosticEnvelope?.count);
-  if (diagnosticCount === null || diagnosticCount !== diagnostics.length) return null;
+  const diagnosticDetailPolicy = enumValue(diagnosticEnvelope?.detail_policy, DIAGNOSTIC_DETAIL_POLICIES);
+  if (diagnosticCount === null || !diagnosticDetailPolicy) return null;
+  if (diagnosticDetailPolicy === 'included' && diagnosticCount !== diagnostics.length) return null;
+  if (diagnosticDetailPolicy === 'summary_only' && diagnostics.length > diagnosticCount) return null;
 
   return {
     schemaVersion: WORK_ITEM_PROJECTION_V2_SCHEMA,
@@ -421,6 +426,8 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
     projects,
     items,
     diagnostics,
+    diagnosticCount,
+    diagnosticDetailPolicy,
   };
 }
 
