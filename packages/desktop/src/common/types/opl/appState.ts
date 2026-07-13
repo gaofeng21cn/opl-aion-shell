@@ -35,8 +35,8 @@ export type OplGatewayAccountReadModel = {
   connection_mode: 'none' | 'manual_key' | 'account';
   account_card_visible: boolean;
   account: {
-    display_name: string;
-    masked_email: string;
+    display_name: string | null;
+    email: string | null;
     status: string;
     balance: { amount: number | null; currency: string };
   } | null;
@@ -48,7 +48,7 @@ export type OplGatewayAccountReadModel = {
     currency: string;
     day_timezone: string;
   } | null;
-  managed_key: { name: string; status: string; ownership: string } | null;
+  managed_key: { name: string; status: string | null; ownership: string } | null;
   installation: { device_label: string; short_id: string } | null;
   available_groups: Array<{ group_id: string; label: string }>;
   freshness: {

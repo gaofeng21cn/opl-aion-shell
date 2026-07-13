@@ -109,6 +109,22 @@ describe('HomeStarters', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('makes the active capability unmistakable without relying on color alone', () => {
+    render(
+      <HomeStarters
+        assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
+        localeKey='en-US'
+        activeCapabilityId='oma'
+        onSelect={vi.fn()}
+      />
+    );
+
+    const activeStarter = screen.getByTestId('home-starter-oma');
+    expect(activeStarter).toHaveAttribute('data-opl-active', 'true');
+    expect(activeStarter).toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
+    expect(activeStarter.querySelector('[data-icon="check"]')).not.toBeNull();
+  });
+
   it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {
     const appState = readyAppState();
     appState.agent_packages.status_index.packages.mag = {

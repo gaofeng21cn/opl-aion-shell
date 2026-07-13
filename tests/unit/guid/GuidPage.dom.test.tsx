@@ -538,7 +538,19 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
   });
 
-  it('migrates a persisted OPL preset into an active shortcut and restores the Codex executor', async () => {
+  it('does not turn a persisted professional preset into an active Home shortcut', async () => {
+    mocks.locationState.value = null;
+    mocks.isPresetAgent.value = true;
+    render(<GuidPage />);
+
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ activeShortcut: null }))
+    );
+    expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
+  });
+
+  it('converts an explicitly preselected professional agent into a visible shortcut and restores Codex', async () => {
     mocks.locationState.value = { selectedAgentKey: 'custom:mas' };
     mocks.isPresetAgent.value = true;
     render(<GuidPage />);

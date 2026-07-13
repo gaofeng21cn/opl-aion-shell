@@ -548,6 +548,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('Med Auto Science');
     expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('OPL Book Forge');
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
+    expect(screen.getByTestId('opl-managed-update-refresh')).toHaveAccessibleName(
+      'settings.oplEnvironmentPage.updates.actions.refreshStatus'
+    );
+    expect(screen.getByTestId('opl-managed-update-refresh')).toHaveTextContent('');
     expect(screen.getByTestId('opl-base-dependency-catalog')).toBeInTheDocument();
     expect(screen.getByTestId('opl-base-dependency-codex-cli')).toHaveTextContent('1.2.3');
     expect(screen.getByTestId('opl-base-dependency-temporal-runtime')).toHaveTextContent('client 1.11.0');

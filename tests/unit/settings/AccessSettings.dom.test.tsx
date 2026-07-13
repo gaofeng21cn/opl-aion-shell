@@ -2,7 +2,12 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { JSDOM } from 'jsdom';
-import { AccessSettingsContent, readGatewayAccountProjection } from '@/renderer/pages/settings/sections/AccessSettings';
+import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
+import {
+  formatGatewayTokenCount,
+  readGatewayAccountProjection,
+  resolveDefaultGatewayGroup,
+} from '@/renderer/pages/settings/accessProjection';
 
 type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
@@ -296,6 +301,16 @@ vi.mock('@/common/config/configService', () => ({
 }));
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplCodexAutoModelPolicy: () => ({
+    unknown_default_model_policy: 'accept_catalog_default_even_when_not_in_frontier_model_preference_order',
+    unknown_model_reasoning_effort_policy: 'highest_supported_reasoning_effort_from_catalog',
+    catalog_hidden_model_policy: 'exclude_hidden_models_from_auto_and_fixed_options',
+    frontier_model_preference_order: ['gpt-5.6-sol', 'gpt-5.5'],
+  }),
+  getOplDefaultCodexModel: () => 'gpt-5.6-sol',
+  getOplDefaultCodexModelDisplayLabel: () => '5.6 Sol',
+  getOplDefaultCodexReasoningEffort: () => 'max',
+  getOplRetiredCodexModels: () => [],
   getOplCodexModelDisplayOptions: () => ({
     auto_option: { id: '__auto', label_zh: '自动（推荐）', label_en: 'Auto (recommended)' },
     default_reasoning_effort: 'max',
@@ -306,7 +321,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     user_reasoning_effort_options: ['high', 'max'],
     reasoning_labels: {
       high: { zh: '推理高', en: 'High reasoning' },
-      max: { zh: '推理最大', en: 'Maximum reasoning' },
+      max: { zh: '推理最高', en: 'Maximum reasoning' },
     },
   }),
 }));
@@ -506,6 +521,15 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.gatewayAccount.devicePlaceholder': 'Optional device name',
         'settings.accessPage.gatewayAccount.loginButton': 'Sign in',
         'settings.accessPage.gatewayAccount.loginSuccess': 'OPL Gateway account connected.',
+        'settings.accessPage.gatewayAccount.unknownAccount': 'Gateway user',
+        'settings.accessPage.gatewayAccount.status.active': 'Active',
+        'settings.accessPage.gatewayAccount.status.unknown': 'Unknown',
+        'settings.accessPage.gatewayAccount.status.other': `${options?.status}`,
+        'settings.accessPage.gatewayAccount.metrics.balance': 'Account balance',
+        'settings.accessPage.gatewayAccount.metrics.todayTokens': 'Tokens today',
+        'settings.accessPage.gatewayAccount.metrics.todayCost': 'Cost today',
+        'settings.accessPage.gatewayAccount.metrics.totalTokens': 'Total tokens',
+        'settings.accessPage.gatewayAccount.metrics.totalCost': 'Total cost',
         'settings.accessPage.gatewayAccount.accountStatus': `Account status: ${options?.status}`,
         'settings.accessPage.gatewayAccount.balance': `Balance: ${options?.amount} ${options?.currency}`,
         'settings.accessPage.gatewayAccount.todayTokens': `Today: ${options?.value} tokens`,
@@ -522,10 +546,10 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.gatewayAccount.actionFailed': 'Could not update the OPL Gateway account.',
         'settings.accessPage.gatewayAccount.disconnectConfirmTitle': 'Disconnect OPL Gateway account?',
         'settings.accessPage.gatewayAccount.disconnectConfirmDescription': 'The managed key will be disabled.',
-        'settings.accessPage.gatewayAccount.actions.completeSetup': 'Continue',
+        'settings.accessPage.gatewayAccount.actions.completeSetup': 'Complete connection',
         'settings.accessPage.gatewayAccount.actions.signInAgain': 'Sign in again',
         'settings.accessPage.gatewayAccount.actions.refresh': 'Refresh',
-        'settings.accessPage.gatewayAccount.actions.repair': 'Repair',
+        'settings.accessPage.gatewayAccount.actions.repair': 'Resync',
         'settings.accessPage.gatewayAccount.actions.useForModelAccess': 'Use for model access',
         'settings.accessPage.gatewayAccount.actions.disconnect': 'Disconnect',
         'settings.accessPage.gatewayAccount.errors.invalidRequest': 'Enter the account email and password.',
@@ -598,6 +622,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.statusLabels.unknown': 'Not read',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
+        'settings.accessPage.modelPreference.autoCurrent': `Auto (current: ${options?.model})`,
         'common.cancel': 'Cancel',
         'settings.oplEnvironmentPage.status.ready': 'ready',
         'agentMode.full-access': 'Full Access',
@@ -658,6 +683,25 @@ describe('AccessSettingsContent', () => {
     ).toBe(gateway);
   });
 
+  it('uses compact decimal token units and resolves the unique Codex group', () => {
+    expect(formatGatewayTokenCount(212_960_931_822, 'en-US')).toBe('212.96B');
+    expect(formatGatewayTokenCount(4_097_481_683, 'en-US')).toBe('4.1B');
+    expect(formatGatewayTokenCount(null, 'en-US')).toBe('--');
+    expect(
+      resolveDefaultGatewayGroup([
+        { group_id: 'agi', label: 'AGI' },
+        { group_id: 'codex', label: 'Codex (Dedicated)' },
+        { group_id: 'gemini', label: 'Gemini' },
+      ])
+    ).toBe('codex');
+    expect(
+      resolveDefaultGatewayGroup([
+        { group_id: 'codex-a', label: 'Codex A' },
+        { group_id: 'codex-b', label: 'Codex B' },
+      ])
+    ).toBeNull();
+  });
+
   it('renders model access, Codex CLI, and progressive Gateway configuration without resource entries', () => {
     const view = render(<AccessSettingsContent />);
 
@@ -711,6 +755,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
     expect(view.getByTestId('settings-access-model-preference')).toBeTruthy();
     expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto');
+    expect(view.getByTestId('settings-access-preferred-model')).toHaveTextContent('Auto (current: 5.5)');
     expect(view.getByTestId('settings-access-preferred-reasoning')).toBeDisabled();
     expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
     expect(document.querySelector('#model')).toBeTruthy();
@@ -885,13 +930,13 @@ describe('AccessSettingsContent', () => {
       account_card_visible: true,
       account: {
         display_name: 'Feng',
-        masked_email: 'f***@example.com',
+        email: 'feng@example.com',
         status: 'active',
         balance: { amount: 18.5, currency: 'CNY' },
       },
       usage: {
         today_tokens: null,
-        total_tokens: 123456,
+        total_tokens: 212960931822,
         today_actual_cost: 1.25,
         total_actual_cost: 88.4,
         currency: 'CNY',
@@ -907,21 +952,29 @@ describe('AccessSettingsContent', () => {
       actions: {
         complete_setup: null,
         refresh: 'gateway_account_refresh',
-        repair: null,
-        use_for_model_access: null,
+        repair: 'gateway_account_repair',
+        use_for_model_access: 'gateway_account_use_for_model_access',
         disconnect: 'gateway_account_disconnect',
       },
     });
     const view = render(<AccessSettingsContent />);
 
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('f***@example.com');
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Balance: 18.5 CNY');
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Today: -- tokens');
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('feng@example.com');
+    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Active');
+    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('18.5 CNY');
+    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('212.96B');
+    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('--');
     expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
     expect(view.getByTestId('settings-access-gateway-stale')).toBeTruthy();
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
+    expect(view.queryByText('Repair')).toBeNull();
+    expect(view.queryByText('Use for model access')).toBeNull();
+    expect(document.body.textContent).not.toContain('Asia/Shanghai');
+    expect(document.body.textContent).not.toContain('2026-07-13T10:00:00+08:00');
 
-    fireEvent.click(view.getByRole('button', { name: 'Refresh' }));
+    const refreshButton = view.getByRole('button', { name: 'Refresh' });
+    expect(refreshButton).toHaveTextContent('');
+    fireEvent.click(refreshButton);
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'gateway_account_refresh',
@@ -931,12 +984,23 @@ describe('AccessSettingsContent', () => {
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 
-  it('completes group selection through the canonical App action payload', async () => {
+  it('completes setup with the unique Codex group without rendering a selector', async () => {
     const mocks = getMocks();
     mocks.gatewayAccount = makeGatewayAccount({
       status: 'setup_required',
       connection_mode: 'account',
-      available_groups: [{ group_id: 'group-openai', label: 'OpenAI' }],
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        email: 'feng@example.com',
+        status: 'active',
+        balance: { amount: 1, currency: 'CNY' },
+      },
+      available_groups: [
+        { group_id: 'group-agi', label: 'AGI' },
+        { group_id: 'group-codex', label: 'Codex (Dedicated)' },
+        { group_id: 'group-gemini', label: 'Gemini' },
+      ],
       actions: {
         complete_setup: 'gateway_account_complete_setup',
         refresh: null,
@@ -946,18 +1010,14 @@ describe('AccessSettingsContent', () => {
       },
     });
     const view = render(<AccessSettingsContent />);
-    const setup = view.getByTestId('settings-access-gateway-setup');
-    const select = setup.querySelector('select');
-    expect(select).toBeTruthy();
-
-    fireEvent.change(select!, { target: { value: 'group-openai' } });
-    fireEvent.click(view.getByText('Continue'));
+    expect(view.queryByRole('combobox', { name: /group/i })).toBeNull();
+    fireEvent.click(view.getByText('Complete connection'));
 
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'gateway_account_complete_setup',
         dryRun: false,
-        payloadJson: { group_id: 'group-openai' },
+        payloadJson: { group_id: 'group-codex' },
       })
     );
   });
@@ -970,7 +1030,7 @@ describe('AccessSettingsContent', () => {
       account_card_visible: true,
       account: {
         display_name: 'Feng',
-        masked_email: 'f***@example.com',
+        email: 'feng@example.com',
         status: 'active',
         balance: { amount: 1, currency: 'CNY' },
       },

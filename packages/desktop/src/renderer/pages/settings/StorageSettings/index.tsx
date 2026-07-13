@@ -17,7 +17,7 @@ import type {
   LocalDataLifecycleUpdaterCachePlan,
 } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
+import OplRefreshIconButton from '@/renderer/components/settings/OplRefreshIconButton';
 import {
   buildStorageSettingsViewModel,
   formatStorageBytes,

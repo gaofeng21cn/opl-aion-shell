@@ -219,6 +219,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最高/ });
     expect(autoButton).not.toHaveTextContent('自动（推荐）');
+    expect(autoButton.querySelector('[data-icon="brain"], .i-icon-brain')).toBeNull();
 
     await userEvent.click(autoButton);
 

@@ -7,8 +7,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
-import { faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React from 'react';
 import { useMemo } from 'react';
@@ -80,7 +79,11 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               {active ? (
                 <FontAwesomeIcon icon={faCheck} className='shrink-0 text-13px' aria-hidden='true' />
               ) : (
-                <Right theme='outline' size='12' fill='currentColor' className='shrink-0 text-t-tertiary' />
+                <FontAwesomeIcon
+                  icon={faChevronRight}
+                  className='shrink-0 text-12px text-t-tertiary'
+                  aria-hidden='true'
+                />
               )}
             </Button>
           );

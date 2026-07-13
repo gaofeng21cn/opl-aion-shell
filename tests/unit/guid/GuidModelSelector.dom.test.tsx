@@ -65,6 +65,7 @@ describe('GuidModelSelector Codex display', () => {
     const selector = screen.getByTestId('guid-model-selector');
     expect(selector).toHaveTextContent('5.6 Sol 最高');
     expect(selector).not.toHaveTextContent('自动（推荐）');
+    expect(selector.querySelector('[data-icon="brain"], .i-icon-brain')).toBeNull();
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(selector);

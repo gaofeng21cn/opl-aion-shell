@@ -89,7 +89,7 @@ vi.mock('@/renderer/pages/guid/hooks/useAgentAvailability', () => ({
   }),
 }));
 
-describe('useGuidAgentSelection Codex model preference', () => {
+describe('useGuidAgentSelection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     catalogAssistants[0].agent_id = 'codex-managed';
@@ -209,5 +209,43 @@ describe('useGuidAgentSelection Codex model preference', () => {
     expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(
       expect.arrayContaining(['gpt-5.5', 'gpt-5.6-sol'])
     );
+  });
+
+  it('starts ordinary Home from Codex when the saved selection is a professional preset', async () => {
+    configGetMock.mockImplementation((key: string) => {
+      if (key === 'acp.config') return configStore.acp;
+      if (key === 'guid.lastSelectedAgent') return 'custom:mas';
+      return undefined;
+    });
+
+    const { result } = renderHook(() =>
+      useGuidAgentSelection({
+        modelList: [],
+        isGoogleAuth: false,
+        localeKey: 'zh-CN',
+      })
+    );
+
+    await waitFor(() => expect(configGetMock).toHaveBeenCalledWith('guid.lastSelectedAgent'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.selectedAgentKey).toBe('codex');
+    expect(result.current.is_presetAgent).toBe(false);
+  });
+
+  it('honors an explicitly preselected professional agent route', async () => {
+    const { result } = renderHook(() =>
+      useGuidAgentSelection({
+        modelList: [],
+        isGoogleAuth: false,
+        localeKey: 'zh-CN',
+        preselectAgentKey: 'custom:mas',
+      })
+    );
+
+    await waitFor(() => expect(result.current.selectedAgentKey).toBe('custom:mas'));
+    expect(result.current.is_presetAgent).toBe(true);
+    expect(configSetMock).toHaveBeenCalledWith('guid.lastSelectedAgent', 'custom:mas');
   });
 });
