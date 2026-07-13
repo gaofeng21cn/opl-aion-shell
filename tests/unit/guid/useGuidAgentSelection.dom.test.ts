@@ -187,7 +187,7 @@ describe('useGuidAgentSelection Codex model preference', () => {
       name: 'Codex',
     });
     expect(result.current.availableAgents?.map((agent) => agent.assistant_id)).toEqual(
-      expect.arrayContaining(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'])
+      expect.arrayContaining(['mas', 'mag', 'rca', 'obf'])
     );
     expect(result.current.availableAgents?.some((agent) => agent.name === 'Managed Codex')).toBe(false);
     expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(

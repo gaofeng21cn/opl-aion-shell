@@ -46,6 +46,22 @@ const mocks = vi.hoisted(() => ({
           health_status: 'ready',
         },
       },
+      agent_packages: {
+        status_index: {
+          packages: Object.fromEntries(
+            ['mas', 'mag', 'rca', 'obf'].map((packageId) => [
+              packageId,
+              {
+                package_id: packageId,
+                operational_ready: true,
+                launch_allowed: true,
+                launch_blocked_reason: null,
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
+              },
+            ])
+          ),
+        },
+      },
     } as Record<string, unknown>,
   },
   guidInput: {
@@ -166,6 +182,10 @@ vi.mock('@/renderer/hooks/chat/useInputFocusRing', () => ({
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: mocks.isMobileLayout.value }),
+}));
+
+vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: mocks.appState.value }),
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -541,7 +561,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setDir).toHaveBeenCalledTimes(dirCalls);
   });
 
-  it('applies a capability selected from the ordinary Capabilities route', () => {
+  it('applies a capability selected through compatibility redirect state', () => {
     mocks.locationState.value = { selectedCapabilityId: 'mag' };
 
     render(<GuidPage />);

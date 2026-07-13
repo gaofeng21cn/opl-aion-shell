@@ -63,14 +63,9 @@ describe('useCustomAgentsLoader', () => {
     const { result } = renderHook(() => useCustomAgentsLoader());
 
     expect(result.current.catalogAssistants).toBe(assistantCatalog);
-    expect(result.current.assistants.map((assistant) => assistant.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(result.current.assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
     expect(result.current.assistants[0]).toMatchObject({
-      id: 'med-autoscience',
+      id: 'mas',
       agent_id: 'codex-managed',
       agent: { acp_backend: 'codex' },
     });
