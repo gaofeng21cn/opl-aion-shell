@@ -1,15 +1,26 @@
 import type { IDesktopNavigationCommand } from '@/common/adapter/ipcBridge';
-import { buildApplicationMenuTemplate, updateApplicationMenuNavigationState } from '@/process/utils/appMenu';
+import {
+  buildApplicationMenuTemplate,
+  setupApplicationMenu,
+  updateApplicationMenuNavigationState,
+} from '@/process/utils/appMenu';
 import type { MenuItemConstructorOptions } from 'electron';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electron = vi.hoisted(() => ({
+  buildFromTemplate: vi.fn(),
+  getFocusedWindow: vi.fn(),
   getApplicationMenu: vi.fn(),
+  setApplicationMenu: vi.fn(),
+}));
+
+const bridge = vi.hoisted(() => ({
+  emitNavigationCommand: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    application: { desktopNavigationCommand: { emit: vi.fn() } },
+    application: { desktopNavigationCommand: { emit: bridge.emitNavigationCommand } },
     update: { open: { emit: vi.fn() } },
   },
 }));
@@ -20,11 +31,11 @@ vi.mock('@process/services/i18n', () => ({
 
 vi.mock('electron', () => ({
   app: { name: 'One Person Lab' },
-  BrowserWindow: { getFocusedWindow: vi.fn() },
+  BrowserWindow: { getFocusedWindow: electron.getFocusedWindow },
   Menu: {
-    buildFromTemplate: vi.fn(),
+    buildFromTemplate: electron.buildFromTemplate,
     getApplicationMenu: electron.getApplicationMenu,
-    setApplicationMenu: vi.fn(),
+    setApplicationMenu: electron.setApplicationMenu,
   },
 }));
 
@@ -81,6 +92,14 @@ const buildTemplate = (labels: typeof englishLabels, state = enabledState) => {
 };
 
 describe('desktop application menu', () => {
+  beforeEach(() => {
+    bridge.emitNavigationCommand.mockClear();
+    electron.buildFromTemplate.mockReset();
+    electron.getFocusedWindow.mockReset();
+    electron.getApplicationMenu.mockReset();
+    electron.setApplicationMenu.mockReset();
+  });
+
   it.each([
     [englishLabels, ['File', 'Edit', 'View', 'Help'], ['New Window', 'Back', 'Forward', 'Previous Task', 'Next Task']],
     [chineseLabels, ['文件', '编辑', '显示', '帮助'], ['新建窗口', '后退', '前进', '上一个任务', '下一个任务']],
@@ -147,5 +166,39 @@ describe('desktop application menu', () => {
     });
 
     expect([...items.values()].map((item) => item.enabled)).toEqual([true, false, true, false]);
+  });
+
+  it('creates a new window without requiring an existing focused window', () => {
+    let installedTemplate: MenuItemConstructorOptions[] = [];
+    const createWindow = vi.fn();
+    electron.buildFromTemplate.mockImplementation((template: MenuItemConstructorOptions[]) => {
+      installedTemplate = template;
+      return {};
+    });
+    electron.getFocusedWindow.mockReturnValue(null);
+
+    setupApplicationMenu({ createWindow });
+    submenu(installedTemplate, 'common.appMenu.file')[0]?.click?.({} as never, {} as never, {} as never);
+
+    expect(createWindow).toHaveBeenCalledOnce();
+  });
+
+  it('emits navigation commands only while a desktop window is focused', () => {
+    let installedTemplate: MenuItemConstructorOptions[] = [];
+    electron.buildFromTemplate.mockImplementation((template: MenuItemConstructorOptions[]) => {
+      installedTemplate = template;
+      return {};
+    });
+    electron.getFocusedWindow.mockReturnValue(null);
+    setupApplicationMenu({ createWindow: vi.fn() });
+    const [back] = submenu(installedTemplate, 'common.appMenu.view');
+
+    back?.click?.({} as never, {} as never, {} as never);
+    expect(bridge.emitNavigationCommand).not.toHaveBeenCalled();
+
+    electron.getFocusedWindow.mockReturnValue({ id: 42 });
+    back?.click?.({} as never, {} as never, {} as never);
+    expect(bridge.emitNavigationCommand).toHaveBeenCalledOnce();
+    expect(bridge.emitNavigationCommand).toHaveBeenCalledWith({ command: 'back' });
   });
 });
