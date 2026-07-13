@@ -114,6 +114,29 @@ export type OplHomeAgentShortcut = {
   user_configurable: boolean;
 };
 
+export type OplHomeComposerStateContract = {
+  contract_id: 'opl_home_composer_state.v1';
+  executor: 'codex';
+  shortcut_package_ids: Array<string | null>;
+  viewports: ['desktop', 'mobile'];
+  availability_states: ['available', 'unavailable'];
+  invariants: {
+    model_reasoning_visible: true;
+    permission_access_visible: true;
+    executor_selector_visible: false;
+    active_shortcut_changes_executor: false;
+    default_visibility_governs_execution: false;
+  };
+  semantic_probe: {
+    root_test_id: 'opl-guid-entry';
+    state_attributes: Record<string, string>;
+    desktop_required_controls: string[];
+    mobile_required_controls: string[];
+    forbidden_controls: string[];
+    failure_field: 'missing_controls';
+  };
+};
+
 export type OplNonDefaultAssistant = {
   id: string;
   display_name: string;
@@ -459,6 +482,7 @@ type AppProductProfile = {
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
       permission_mode_selector_visible: true;
+      home_composer_state_contract: OplHomeComposerStateContract;
       conversation_backend_selector_visible: false;
       conversation_model_selector_visible: boolean;
       conversation_permission_mode_selector_visible: true;
@@ -1153,6 +1177,69 @@ function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentS
     throw new Error('Invalid OPL product profile: home agent shortcuts must be user configurable');
   }
   return shortcuts;
+}
+
+function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHomeComposerStateContract {
+  const value = guiHome.home_composer_state_contract;
+  if (!isRecord(value) || !isRecord(value.invariants) || !isRecord(value.semantic_probe)) {
+    throw new Error('Invalid OPL product profile: gui.home.home_composer_state_contract must be an object');
+  }
+  const semanticProbe = value.semantic_probe;
+  const stateAttributes = semanticProbe.state_attributes;
+  const shortcutPackageIds = value.shortcut_package_ids;
+  if (
+    value.contract_id !== 'opl_home_composer_state.v1' ||
+    value.executor !== 'codex' ||
+    JSON.stringify(shortcutPackageIds) !== JSON.stringify([null, 'mas', 'mag', 'rca', 'obf', 'oma']) ||
+    JSON.stringify(value.viewports) !== JSON.stringify(['desktop', 'mobile']) ||
+    JSON.stringify(value.availability_states) !== JSON.stringify(['available', 'unavailable']) ||
+    value.invariants.model_reasoning_visible !== true ||
+    value.invariants.permission_access_visible !== true ||
+    value.invariants.executor_selector_visible !== false ||
+    value.invariants.active_shortcut_changes_executor !== false ||
+    value.invariants.default_visibility_governs_execution !== false ||
+    semanticProbe.root_test_id !== 'opl-guid-entry' ||
+    !isRecord(stateAttributes) ||
+    stateAttributes.executor !== 'data-opl-composer-executor' ||
+    stateAttributes.active_shortcut_id !== 'data-opl-active-shortcut' ||
+    stateAttributes.model_reasoning_visible !== 'data-opl-model-reasoning-visible' ||
+    stateAttributes.permission_access_visible !== 'data-opl-permission-access-visible' ||
+    stateAttributes.executor_selector_visible !== 'data-opl-executor-selector-visible' ||
+    JSON.stringify(semanticProbe.desktop_required_controls) !==
+      JSON.stringify(['guid-model-selector', 'agent-mode-selector-*']) ||
+    JSON.stringify(semanticProbe.mobile_required_controls) !==
+      JSON.stringify([
+        'mobile-action-sheet-model',
+        'mobile-action-sheet-reasoning',
+        'mobile-action-sheet-permission',
+      ]) ||
+    JSON.stringify(semanticProbe.forbidden_controls) !== JSON.stringify(['agent-pill-*']) ||
+    semanticProbe.failure_field !== 'missing_controls'
+  ) {
+    throw new Error('Invalid OPL product profile: Home composer state contract drifted from fixed Codex controls');
+  }
+  return {
+    contract_id: 'opl_home_composer_state.v1',
+    executor: 'codex',
+    shortcut_package_ids: [...(shortcutPackageIds as Array<string | null>)],
+    viewports: ['desktop', 'mobile'],
+    availability_states: ['available', 'unavailable'],
+    invariants: {
+      model_reasoning_visible: true,
+      permission_access_visible: true,
+      executor_selector_visible: false,
+      active_shortcut_changes_executor: false,
+      default_visibility_governs_execution: false,
+    },
+    semantic_probe: {
+      root_test_id: 'opl-guid-entry',
+      state_attributes: { ...(stateAttributes as Record<string, string>) },
+      desktop_required_controls: [...(semanticProbe.desktop_required_controls as string[])],
+      mobile_required_controls: [...(semanticProbe.mobile_required_controls as string[])],
+      forbidden_controls: [...(semanticProbe.forbidden_controls as string[])],
+      failure_field: 'missing_controls',
+    },
+  };
 }
 
 function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfessionalAgentPackage[] {
@@ -1866,6 +1953,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
+  const homeComposerStateContract = readHomeComposerStateContract(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const agentPackageInvocationReceiptPolicy = readAgentPackageInvocationReceiptPolicy(gui);
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
@@ -2029,6 +2117,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
         permission_mode_selector_visible: true,
+        home_composer_state_contract: homeComposerStateContract,
         conversation_backend_selector_visible: false,
         conversation_model_selector_visible: true,
         conversation_permission_mode_selector_visible: true,
@@ -2541,6 +2630,24 @@ export function shouldShowOplHomeExecutorSelector(): boolean {
 
 export function shouldShowOplHomePermissionModeSelector(): boolean {
   return OPL_PRODUCT_PROFILE.gui.home.permission_mode_selector_visible;
+}
+
+export function getOplHomeComposerStateContract(): OplHomeComposerStateContract {
+  const contract = OPL_PRODUCT_PROFILE.gui.home.home_composer_state_contract;
+  return {
+    ...contract,
+    shortcut_package_ids: [...contract.shortcut_package_ids],
+    viewports: [...contract.viewports],
+    availability_states: [...contract.availability_states],
+    invariants: { ...contract.invariants },
+    semantic_probe: {
+      ...contract.semantic_probe,
+      state_attributes: { ...contract.semantic_probe.state_attributes },
+      desktop_required_controls: [...contract.semantic_probe.desktop_required_controls],
+      mobile_required_controls: [...contract.semantic_probe.mobile_required_controls],
+      forbidden_controls: [...contract.semantic_probe.forbidden_controls],
+    },
+  };
 }
 
 export function shouldShowOplConversationBackendSelector(): boolean {

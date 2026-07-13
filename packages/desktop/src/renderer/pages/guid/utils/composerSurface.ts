@@ -1,7 +1,4 @@
-import {
-  shouldShowOplCodexModelSelector,
-  shouldShowOplHomePermissionModeSelector,
-} from '@/common/config/oplProductProfile';
+import { getOplHomeComposerStateContract } from '@/common/config/oplProductProfile';
 import type { OplActiveShortcut } from './activeShortcut';
 
 export type OplHomeComposerSurface = {
@@ -14,13 +11,14 @@ export type OplHomeComposerSurface = {
 };
 
 export function resolveOplHomeComposerSurface(activeShortcut: OplActiveShortcut | null): OplHomeComposerSurface {
+  const contract = getOplHomeComposerStateContract();
   return {
-    executor: 'codex',
+    executor: contract.executor,
     active_shortcut_id: activeShortcut?.shortcut_id ?? null,
     active_package_id: activeShortcut?.package_id ?? null,
-    model_reasoning_visible: shouldShowOplCodexModelSelector(),
-    permission_access_visible: shouldShowOplHomePermissionModeSelector(),
-    executor_selector_visible: false,
+    model_reasoning_visible: contract.invariants.model_reasoning_visible,
+    permission_access_visible: contract.invariants.permission_access_visible,
+    executor_selector_visible: contract.invariants.executor_selector_visible,
   };
 }
 

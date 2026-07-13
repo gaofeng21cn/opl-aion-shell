@@ -224,10 +224,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState.value }),
 }));
 
-vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
-  useOplAppState: () => ({ appState: mocks.appState.value }),
-}));
-
 vi.mock('@/renderer/utils/platform', () => ({
   openExternalUrl: vi.fn().mockResolvedValue(undefined),
   resolveExtensionAssetUrl: (value?: string) => value,

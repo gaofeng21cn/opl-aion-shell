@@ -15,6 +15,7 @@ import {
   getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
   getOplHomeAgentShortcuts,
+  getOplHomeComposerStateContract,
   getOplProfessionalAgentPackages,
   getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
@@ -149,6 +150,19 @@ describe('OPL generated product profile', () => {
     expect(isOplCodexCliFixedExecutor()).toBe(true);
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
     expect(shouldShowOplHomePermissionModeSelector()).toBe(true);
+    expect(getOplHomeComposerStateContract()).toMatchObject({
+      contract_id: 'opl_home_composer_state.v1',
+      executor: 'codex',
+      shortcut_package_ids: [null, 'mas', 'mag', 'rca', 'obf', 'oma'],
+      invariants: {
+        model_reasoning_visible: true,
+        permission_access_visible: true,
+        executor_selector_visible: false,
+        active_shortcut_changes_executor: false,
+        default_visibility_governs_execution: false,
+      },
+      semantic_probe: { failure_field: 'missing_controls' },
+    });
     expect(shouldShowOplConversationBackendSelector()).toBe(false);
     expect(shouldShowOplConversationModelSelector()).toBe(true);
     expect(shouldShowOplConversationPermissionModeSelector()).toBe(true);
@@ -232,6 +246,20 @@ describe('OPL generated product profile', () => {
       'gpt-5.1-codex-max',
       'gpt-5.1-codex-mini',
     ]);
+  });
+
+  it('rejects a generated Home composer contract that hides executor-owned controls', async () => {
+    const driftedProfile = structuredClone(generatedProfile);
+    driftedProfile.gui.home.home_composer_state_contract.invariants.model_reasoning_visible = false;
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: driftedProfile,
+    }));
+
+    await expect(import('@/common/config/oplProductProfile')).rejects.toThrow(
+      'Home composer state contract drifted from fixed Codex controls'
+    );
   });
 
   it('exposes App-owned settings navigation and runtime environment profile slices', () => {
