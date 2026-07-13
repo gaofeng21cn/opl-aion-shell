@@ -1,4 +1,4 @@
-import type { ElectronApplication, Page } from '@playwright/test';
+import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { closeRuntimeE2EFixture, launchRuntimeE2EFixture, type RuntimeE2EFixture } from './runtimeFixture';
@@ -9,6 +9,8 @@ const VIEWPORTS = [
   { width: 768, height: 900, columns: 2 },
   { width: 375, height: 812, columns: 1 },
 ] as const;
+
+const WRAP_REGRESSION_VIEWPORT = { width: 1370, height: 900, columns: 2 } as const;
 
 const WORK_ITEM_NAMES = [
   '001 DM CVD Mortality Risk',
@@ -22,7 +24,11 @@ const WORK_ITEM_NAMES = [
   'Obesity Paper 1',
 ] as const;
 
-async function setViewport(page: Page, app: ElectronApplication, viewport: (typeof VIEWPORTS)[number]): Promise<void> {
+async function setViewport(
+  page: Page,
+  app: ElectronApplication,
+  viewport: { width: number; height: number }
+): Promise<void> {
   await app.evaluate(({ BrowserWindow }, size) => {
     const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
     if (!window) throw new Error('Runtime V2 E2E could not resolve the main BrowserWindow.');
@@ -39,6 +45,46 @@ async function setViewport(page: Page, app: ElectronApplication, viewport: (type
     .poll(() => page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })))
     .toEqual({ width: viewport.width, height: viewport.height });
   await page.locator('[data-testid="runtime-scope-bar"]').scrollIntoViewIfNeeded();
+}
+
+async function assertTextWrapsAtWordBoundaries(locator: Locator): Promise<void> {
+  const splitWords = await locator.evaluate((element) => {
+    const words: string[] = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      const textNode = currentNode as Text;
+      const value = textNode.textContent ?? '';
+      for (const match of value.matchAll(/[A-Za-z]+/g)) {
+        if (match.index === undefined) continue;
+        const range = document.createRange();
+        range.setStart(textNode, match.index);
+        range.setEnd(textNode, match.index + match[0].length);
+        const lineTops = new Set(Array.from(range.getClientRects(), (rect) => Math.round(rect.top)));
+        if (lineTops.size > 1) words.push(match[0]);
+      }
+      currentNode = walker.nextNode();
+    }
+    return words;
+  });
+  expect(splitWords, `Words split across lines in ${await locator.textContent()}`).toEqual([]);
+}
+
+async function assertLongTokenUsesFallbackWrapping(locator: Locator): Promise<void> {
+  const metrics = await locator.evaluate((element, longToken) => {
+    element.textContent = longToken;
+    const row = element.closest<HTMLElement>('[data-testid="runtime-task-row"]');
+    if (!row) throw new Error('Runtime title is not inside a task row.');
+    const rowRect = row.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const rects = Array.from(range.getClientRects());
+    return {
+      wraps: new Set(rects.map((rect) => Math.round(rect.top))).size > 1,
+      fits: rects.every((rect) => rect.left >= rowRect.left - 1 && rect.right <= rowRect.right + 1),
+    };
+  }, 'RuntimeProjectionIdentifier'.repeat(12));
+  expect(metrics).toEqual({ wraps: true, fits: true });
 }
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {
@@ -280,4 +326,47 @@ test('keeps Runtime V2 cognitively scoped and responsive at all acceptance width
     path: path.join(screenshotDir, 'runtime-v2-1440-detail-disclosure.png'),
     fullPage: true,
   });
+});
+
+test('keeps ordinary words intact while wrapping unbroken identifiers as a fallback', async () => {
+  if (!fixture) throw new Error('Runtime V2 E2E fixture was not launched.');
+  const { app, page, screenshotDir } = fixture;
+
+  await page.evaluate(() => localStorage.setItem('i18nextLng', 'en-US'));
+  await page.reload();
+  await expect(page.locator('[data-testid="runtime-task-row"]')).toHaveCount(9, { timeout: 30_000 });
+  await setViewport(page, app, WRAP_REGRESSION_VIEWPORT);
+  await expect.poll(() => gridColumnCount(page)).toBe(WRAP_REGRESSION_VIEWPORT.columns);
+
+  const description = page.getByText(
+    "Choose an agent and project, then see each work item's status, current progress, next action, and observed usage.",
+    { exact: true }
+  );
+  const missingUsage = page.getByText('Usage not recorded', { exact: true }).first();
+  await expect(description).toBeVisible();
+  await expect(missingUsage).toBeVisible();
+  await expect
+    .poll(() =>
+      missingUsage.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { overflowWrap: style.overflowWrap, wordBreak: style.wordBreak };
+      })
+    )
+    .toEqual({ overflowWrap: 'break-word', wordBreak: 'normal' });
+  await assertTextWrapsAtWordBoundaries(description);
+  await assertTextWrapsAtWordBoundaries(missingUsage);
+  await Promise.all(
+    WORK_ITEM_NAMES.map((name) => assertTextWrapsAtWordBoundaries(page.getByText(name, { exact: true })))
+  );
+  await assertNoHorizontalOverflow(page);
+  await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1370-en.png'), fullPage: true });
+
+  await setViewport(page, app, VIEWPORTS[3]);
+  const firstRow = page.locator('[data-testid="runtime-task-row"]').first();
+  const firstTitle = firstRow.getByText(WORK_ITEM_NAMES[0], { exact: true });
+  await assertLongTokenUsesFallbackWrapping(firstTitle);
+  await assertNoHorizontalOverflow(page);
+  await firstRow.scrollIntoViewIfNeeded();
+  await expect(firstRow).toBeInViewport();
+  await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-375-long-token.png') });
 });
