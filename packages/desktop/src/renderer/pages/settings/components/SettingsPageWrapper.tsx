@@ -45,14 +45,14 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const { resolveExtTabName } = useExtI18n();
 
   const menuItems = useMemo(() => {
-    const builtins = getBuiltinSettingsNavItems(isDesktop, t);
+    const builtins = getBuiltinSettingsNavItems(isDesktop, t, language);
     return buildSettingsNavItems({
       builtinItems: builtins,
       extensionTabs,
       resolveExtTabName,
       extensionIconClassName: 'w-16px h-16px object-contain',
     });
-  }, [isDesktop, t, extensionTabs, resolveExtTabName]);
+  }, [isDesktop, language, t, extensionTabs, resolveExtTabName]);
 
   const searchResults = useMemo(() => {
     const query = normalizeSearchText(searchQuery);

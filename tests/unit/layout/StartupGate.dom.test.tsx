@@ -2,9 +2,9 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import StartupGate from '@/renderer/components/layout/StartupGate';
+import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 
 const bridgeMocks = vi.hoisted(() => ({
-  getInitializeInvoke: vi.fn(),
   getAppStateInvoke: vi.fn(),
   navigate: vi.fn(),
 }));
@@ -13,7 +13,6 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
-      getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
     },
   },
 }));
@@ -106,44 +105,11 @@ const existingCodexAccessResult = {
   },
 };
 
-const readyInitializeResult = {
-  surface: 'system_initialize',
-  command: 'opl system initialize --events --json',
-  stdout: '{}',
-  parsed: {
-    system_initialize: {
-      setup_flow: {
-        phase: 'ready_to_finalize',
-        ready_to_launch: true,
-        progress: {
-          ready_required_count: 3,
-          total_required_count: 3,
-          ready_full_readiness_count: 0,
-          total_full_readiness_count: 0,
-          ready_optional_count: 0,
-          total_optional_count: 0,
-        },
-        blocking_items: [],
-        maintenance_items: [],
-      },
-      checklist: ['workspace_root', 'codex', 'codex_config'].map((itemId) => ({
-        item_id: itemId,
-        label: itemId,
-        status: 'ready',
-        required: true,
-        blocking: false,
-        readiness_layer: 'core_launch',
-        severity: 'info',
-        next_visible_step: 'Continue.',
-        detail_summary: 'Ready',
-      })),
-    },
-  },
-};
-
 describe('StartupGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetOplAppStateLoadsForTest();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -159,7 +125,6 @@ describe('StartupGate', () => {
     expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.startupPreflight.steps.startupState');
     expect(screen.getByText('common.startupPreflight.skipCheck')).toBeInTheDocument();
     expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' });
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('continues to Home when the startup state read exceeds the soft deadline', async () => {
@@ -174,7 +139,6 @@ describe('StartupGate', () => {
 
     await act(async () => Promise.resolve());
     expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid');
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('lets users skip the fast startup read and enter OPL without changing readiness', () => {
@@ -193,7 +157,6 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('routes existing Codex model access directly to guid without OPL Gateway setup', async () => {
@@ -202,7 +165,6 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('routes blocked installs to first-run', async () => {
@@ -213,7 +175,7 @@ describe('StartupGate', () => {
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
   });
 
-  it('routes app state failures to first-run', async () => {
+  it('continues to Home when app state recovery is still unavailable', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       ...readyAppStateResult,
       ok: false,
@@ -222,20 +184,17 @@ describe('StartupGate', () => {
 
     render(<StartupGate />);
 
-    await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
+    await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
   });
 
-  it('recovers completed setup from initialize when fast app state exceeds the output limit', async () => {
+  it('does not run deep initialize when fast app state exceeds the output limit', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       ...readyAppStateResult,
       ok: false,
       error: { message: 'OPL runtime command output exceeded 5242880 bytes' },
     });
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(readyInitializeResult);
-
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
-    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
   });
 });

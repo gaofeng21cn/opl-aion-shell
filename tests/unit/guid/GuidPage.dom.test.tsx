@@ -216,10 +216,6 @@ vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: mocks.isMobileLayout.value }),
 }));
 
-vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
-  useOplAppState: () => ({ appState: mocks.appState.value }),
-}));
-
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState.value }),
 }));

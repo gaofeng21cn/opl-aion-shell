@@ -15,17 +15,16 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import { isCoreLaunchReadyFromAppState, readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
+import type { OplAppStatePayload } from '@/common/types/opl/appState';
+import { isCoreLaunchReadyFromAppState } from '@/renderer/pages/FirstRun/initializeModel';
+import { cacheFastOplAppState, loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 
 type StartupCheckPhase = 'startupState' | 'routeDecision';
 
 export const STARTUP_STATE_SOFT_TIMEOUT_MS = 1500;
 
-type StartupStateRead =
-  | { kind: 'result'; value: Awaited<ReturnType<typeof ipcBridge.oplRuntime.getAppState.invoke>> | null }
-  | { kind: 'timeout' };
+type StartupStateRead = { kind: 'result'; value: OplAppStatePayload | null } | { kind: 'timeout' };
 
 function readStartupStateWithSoftTimeout(): Promise<StartupStateRead> {
   return new Promise((resolve) => {
@@ -36,8 +35,9 @@ function readStartupStateWithSoftTimeout(): Promise<StartupStateRead> {
       resolve({ kind: 'timeout' });
     }, STARTUP_STATE_SOFT_TIMEOUT_MS);
 
-    void ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' }).then(
+    void loadOplAppStateFromBridge('fast').then(
       (value) => {
+        if (value) cacheFastOplAppState(value, new Date().toLocaleTimeString());
         if (settled) return;
         settled = true;
         window.clearTimeout(timeoutId);
@@ -59,7 +59,6 @@ const StartupGate: React.FC = () => {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
   const [needsFirstRun, setNeedsFirstRun] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<StartupCheckPhase>('startupState');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -87,29 +86,23 @@ const StartupGate: React.FC = () => {
           return;
         }
 
-        const result = startupRead.value;
-
-        if (!result || result.ok === false) {
-          console.error('[StartupGate] App state check failed:', result);
-          const initializeResult = await ipcBridge.oplRuntime.getInitialize.invoke();
-          if (cancelled) return;
-
+        const appStatePayload = startupRead.value;
+        if (!appStatePayload) {
+          console.error('[StartupGate] App state check failed; continuing while background recovery runs.');
           setPhase('routeDecision');
-          const initialize = initializeResult?.ok === false ? null : readInitializePayload(initializeResult?.parsed);
-          setNeedsFirstRun(initialize?.setup_flow.ready_to_launch !== true);
+          setNeedsFirstRun(false);
           return;
         }
 
         setPhase('routeDecision');
-        const launchReady = isCoreLaunchReadyFromAppState(result.parsed);
+        const launchReady = isCoreLaunchReadyFromAppState(appStatePayload);
 
         setNeedsFirstRun(!launchReady);
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
         console.error('[StartupGate] Check error:', message);
-        setError(message);
-        setNeedsFirstRun(true); // 出错时进入配置页面
+        setNeedsFirstRun(false);
       } finally {
         window.clearInterval(elapsedTimer);
         if (!cancelled) {
@@ -164,11 +157,6 @@ const StartupGate: React.FC = () => {
   }
 
   // 检查完成，根据结果导航
-  if (error) {
-    // 出错时仍然进入配置页面，让用户看到详细信息
-    return <Navigate to='/first-run' replace />;
-  }
-
   if (needsFirstRun) {
     return <Navigate to='/first-run' replace />;
   }

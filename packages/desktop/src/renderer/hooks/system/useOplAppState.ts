@@ -91,7 +91,7 @@ function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undef
   return payload as OplAppStatePayload;
 }
 
-function loadAppStateFromBridge(profile: OplAppStateProfile): Promise<OplAppStatePayload | null> {
+export function loadOplAppStateFromBridge(profile: OplAppStateProfile): Promise<OplAppStatePayload | null> {
   const inflight = inflightAppStateLoads.get(profile);
   if (inflight) return inflight;
 
@@ -128,7 +128,7 @@ function readCachedFastState(): OplAppStateCache | null {
   }
 }
 
-function writeCachedFastState(payload: OplAppStatePayload, loadedAt: string): void {
+export function cacheFastOplAppState(payload: OplAppStatePayload, loadedAt: string): void {
   try {
     localStorage.setItem(
       APP_STATE_FAST_CACHE_KEY,
@@ -167,7 +167,7 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
       }
       setError(null);
       try {
-        const nextPayload = await loadAppStateFromBridge(profile);
+        const nextPayload = await loadOplAppStateFromBridge(profile);
         if (requestSeq.current !== requestId) return null;
         if (!nextPayload) {
           throw new Error('Invalid OPL App state payload');
@@ -175,7 +175,7 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
         const nextLoadedAt = new Date().toLocaleTimeString();
         setPayload(nextPayload);
         setLoadedAt(nextLoadedAt);
-        if (profile === 'fast') writeCachedFastState(nextPayload, nextLoadedAt);
+        if (profile === 'fast') cacheFastOplAppState(nextPayload, nextLoadedAt);
         return nextPayload;
       } catch (caughtError) {
         if (requestSeq.current === requestId) setError(errorMessage(caughtError));

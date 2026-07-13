@@ -33,6 +33,7 @@ function makeCaskReceipt(caskroomRoot: string, token = 'one-person-lab'): void {
 }
 
 afterEach(() => {
+  __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -379,6 +380,53 @@ describe('OPL runtime bridge command whitelist', () => {
       args: ['/opt/One Person Lab/opl-install.sh', '--headless', '--skip-packages'],
       redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
     });
+  });
+
+  it('deduplicates concurrent standard bootstrap requests and retries after failure', async () => {
+    __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
+    let completeBootstrap!: () => void;
+    const bootstrap = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          completeBootstrap = resolve;
+        })
+    );
+
+    const first = __oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(bootstrap);
+    const second = __oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(bootstrap);
+    expect(second).toBe(first);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+    completeBootstrap();
+    await Promise.all([first, second]);
+
+    await __oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(bootstrap);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+
+    __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
+    const retryableBootstrap = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('git index lock'))
+      .mockResolvedValueOnce();
+    await expect(__oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(retryableBootstrap)).rejects.toThrow(
+      'git index lock'
+    );
+    await expect(__oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(retryableBootstrap)).resolves.toBeUndefined();
+    expect(retryableBootstrap).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retain a synchronously failed standard bootstrap request', async () => {
+    const retryableBootstrap = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => {
+        throw new Error('installer missing');
+      })
+      .mockResolvedValueOnce();
+
+    await expect(__oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(retryableBootstrap)).rejects.toThrow(
+      'installer missing'
+    );
+    await expect(__oplRuntimeBridgeTest.runStandardBootstrapSingleFlight(retryableBootstrap)).resolves.toBeUndefined();
+    expect(retryableBootstrap).toHaveBeenCalledTimes(2);
   });
 
   it('adds the managed OPL checkout and managed Node toolchain to PATH after standard bootstrap', () => {

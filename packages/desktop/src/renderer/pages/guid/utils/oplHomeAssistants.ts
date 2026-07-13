@@ -54,14 +54,7 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
       canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
   );
   if (!status) {
-    return getOplProfessionalAgentPackage(canonicalPackageId)
-      ? {
-          launchAllowed: false,
-          launchBlockedReason: 'package_not_installed',
-          allowedWhenBlocked: [...BLOCKED_PACKAGE_ACTIONS],
-          activationRequired: false,
-        }
-      : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
+    return { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
   }
   const operationalReady = typeof status.operational_ready === 'boolean' ? status.operational_ready : null;
   const projectedLaunchAllowed = typeof status.launch_allowed === 'boolean' ? status.launch_allowed : null;

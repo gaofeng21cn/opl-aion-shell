@@ -55,6 +55,7 @@ const { controlPlane } = vi.hoisted(() => ({
         path: '/settings/agents',
         label_key: 'settings.agents',
         default_label_en: 'Agents',
+        default_label_zh: '智能体',
         slot_id: 'settings_agents',
       },
       {
@@ -260,6 +261,10 @@ describe('settingsNav App-owned tabs', () => {
       'Preferences',
       'Personalization',
     ]);
+  });
+
+  it('uses the App contract Chinese label as the navigation fallback', () => {
+    expect(getBuiltinSettingsNavItems(true, t, 'zh-CN').find((item) => item.id === 'agents')?.label).toBe('智能体');
   });
 
   it('redirects legacy settings routes to App-owned settings pages', () => {

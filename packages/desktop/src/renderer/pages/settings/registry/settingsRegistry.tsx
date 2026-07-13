@@ -230,11 +230,11 @@ const SETTINGS_ICON_COLORS: Record<string, string> = {
   about: 'rgb(var(--blue-6))',
 };
 
-export function getSettingsTabLabel(tabId: string, t: TranslateFn): string {
+export function getSettingsTabLabel(tabId: string, t: TranslateFn, language = 'en'): string {
   const route = ordinaryRoutesById.get(tabId);
+  const defaultLabel = language.toLowerCase().startsWith('zh') ? route?.default_label_zh : route?.default_label_en;
   return t(OPL_SETTINGS_TAB_LABEL_KEYS[tabId] ?? `settings.${tabId}`, {
-    defaultValue:
-      OPL_SETTINGS_TAB_DEFAULT_LABELS[tabId] ?? route?.default_label_en ?? secondaryPagesById.get(tabId)?.id ?? tabId,
+    defaultValue: defaultLabel ?? OPL_SETTINGS_TAB_DEFAULT_LABELS[tabId] ?? secondaryPagesById.get(tabId)?.id ?? tabId,
   });
 }
 
@@ -447,10 +447,10 @@ type BuildNavOptions = {
   extensionIconClassName: string;
 };
 
-export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): SettingsNavItem[] {
+export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn, language = 'en'): SettingsNavItem[] {
   const slot: SettingsIconSlot = isDesktop ? 'siderDesktop' : 'siderMobile';
   return BUILTIN_TAB_IDS.map((id) => {
-    const label = getSettingsTabLabel(id, t);
+    const label = getSettingsTabLabel(id, t, language);
     const path = routePathFor(id).replace(/^\/settings\/?/, '');
     return {
       id,

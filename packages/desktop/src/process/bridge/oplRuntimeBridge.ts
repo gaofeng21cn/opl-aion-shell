@@ -68,6 +68,7 @@ const OPL_MODULE_PATH_ENV_KEYS = [
   'OPL_MODULE_PATH_OPLBOOKFORGE',
 ] as const;
 let standardBootstrapCompleted = false;
+let standardBootstrapInFlight: Promise<void> | null = null;
 let oplAppProcessInstanceId = randomUUID();
 let cachedDeveloperModeGithubIdentity: {
   key: string;
@@ -1478,24 +1479,59 @@ function buildOplSpawnCommand(
   };
 }
 
-async function runPackagedStandardBootstrap(): Promise<void> {
+function runStandardBootstrapSingleFlight(runBootstrap: () => Promise<void>): Promise<void> {
   if (standardBootstrapCompleted) {
-    return;
+    return Promise.resolve();
   }
-  const installerPath = resolvePackagedStandardInstaller();
-  if (!installerPath) {
-    throw new Error('Packaged OPL installer is missing; cannot run App-managed standard bootstrap.');
+  if (standardBootstrapInFlight) {
+    return standardBootstrapInFlight;
   }
-  const bootstrap = buildStandardBootstrapCommand(installerPath);
-  await runSpawnJsonCommand({
-    ...bootstrap,
-    surface: 'install_prep',
-    env: buildOplCommandEnv(),
-    timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
-    parseOutput: false,
-    maxStdoutBytes: OPL_BOOTSTRAP_MAX_STDOUT_BYTES,
+
+  let bootstrap: Promise<void>;
+  try {
+    bootstrap = Promise.resolve(runBootstrap());
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  const task = bootstrap.then(
+    () => {
+      standardBootstrapCompleted = true;
+      if (standardBootstrapInFlight === task) {
+        standardBootstrapInFlight = null;
+      }
+    },
+    (error: unknown) => {
+      if (standardBootstrapInFlight === task) {
+        standardBootstrapInFlight = null;
+      }
+      throw error;
+    }
+  );
+  standardBootstrapInFlight = task;
+  return task;
+}
+
+function resetStandardBootstrapForTest(): void {
+  standardBootstrapCompleted = false;
+  standardBootstrapInFlight = null;
+}
+
+function runPackagedStandardBootstrap(): Promise<void> {
+  return runStandardBootstrapSingleFlight(async () => {
+    const installerPath = resolvePackagedStandardInstaller();
+    if (!installerPath) {
+      throw new Error('Packaged OPL installer is missing; cannot run App-managed standard bootstrap.');
+    }
+    const bootstrap = buildStandardBootstrapCommand(installerPath);
+    await runSpawnJsonCommand({
+      ...bootstrap,
+      surface: 'install_prep',
+      env: buildOplCommandEnv(),
+      timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
+      parseOutput: false,
+      maxStdoutBytes: OPL_BOOTSTRAP_MAX_STDOUT_BYTES,
+    });
   });
-  standardBootstrapCompleted = true;
 }
 
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
@@ -1621,6 +1657,8 @@ export const __oplRuntimeBridgeTest = {
   parseJson,
   runInitializeEventsCommand,
   runOplCommand,
+  runStandardBootstrapSingleFlight,
+  resetStandardBootstrapForTest,
   isInitializeEventsUnsupportedError,
   shouldAutoBootstrapAfterOplCommandError,
   shouldAutoBootstrapOplCommand,

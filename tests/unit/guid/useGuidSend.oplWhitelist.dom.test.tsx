@@ -322,7 +322,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.messageError).toHaveBeenCalledWith(expect.stringContaining('package_not_installed'));
   });
 
-  it('blocks ordinary canonical package launch when its Framework status entry is missing', async () => {
+  it('continues package launch while its Framework status entry is still loading', async () => {
     mocks.appState = { agent_packages: { status_index: { packages: {} } } };
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
@@ -331,10 +331,10 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       await result.current.handleSend();
     });
 
-    expect(mocks.createConversation).not.toHaveBeenCalled();
-    expect(mocks.activatePackage).not.toHaveBeenCalled();
-    expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
-    expect(mocks.messageError).toHaveBeenCalledWith(expect.stringContaining('package_not_installed'));
+    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(deps.resolvePresetRulesAndSkills).toHaveBeenCalledTimes(1);
+    expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
   it('activates a scope-required package before creating its workspace conversation', async () => {

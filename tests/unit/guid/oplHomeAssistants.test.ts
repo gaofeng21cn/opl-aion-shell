@@ -8,12 +8,6 @@ import {
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
 import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
-import {
-  OPL_PACKAGE_STATE_MAX_REFRESHES,
-  OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS,
-  resolveOplPackageStateRefreshInterval,
-  shouldRefreshOplPackageState,
-} from '@/renderer/hooks/opl/useOplAppState';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -171,50 +165,13 @@ describe('OPL home assistants', () => {
     });
   });
 
-  it('refreshes a transient package install snapshot until launch readiness changes', () => {
-    const runtimeResult = (launchBlockedReason: string | null) => ({
-      surface: 'app_state_fast' as const,
-      command: 'opl app state --profile fast --json',
-      stdout: '',
-      ok: true as const,
-      parsed: {
-        app_state: {
-          schema_version: 'opl_app_state.v1',
-          agent_packages: {
-            status_index: {
-              packages: {
-                'med-autoscience': {
-                  package_id: 'med-autoscience',
-                  launch_blocked_reason: launchBlockedReason,
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    expect(shouldRefreshOplPackageState(runtimeResult('package_not_installed'))).toBe(true);
-    expect(shouldRefreshOplPackageState(runtimeResult(null))).toBe(false);
-    expect(resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), 0)).toBe(
-      OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS
-    );
-    expect(
-      resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), OPL_PACKAGE_STATE_MAX_REFRESHES - 1)
-    ).toBe(OPL_PACKAGE_STATE_REFRESH_INTERVAL_MS);
-    expect(
-      resolveOplPackageStateRefreshInterval(runtimeResult('package_not_installed'), OPL_PACKAGE_STATE_MAX_REFRESHES)
-    ).toBe(0);
-    expect(resolveOplPackageStateRefreshInterval(runtimeResult(null), 0)).toBe(0);
-  });
-
-  it('fails closed when a known professional package is absent from the runtime status index', () => {
+  it('keeps missing package readout unknown until Framework returns a status record', () => {
     expect(
       resolveOplPackageLaunchGate({ agent_packages: { status_index: { packages: {} } } }, 'med-autoscience')
     ).toEqual({
-      launchAllowed: false,
-      launchBlockedReason: 'package_not_installed',
-      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      launchAllowed: null,
+      launchBlockedReason: null,
+      allowedWhenBlocked: [],
       activationRequired: false,
     });
     expect(resolveOplPackageLaunchGate({}, 'unknown-agent')).toEqual({

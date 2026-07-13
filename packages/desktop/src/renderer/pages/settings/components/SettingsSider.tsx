@@ -39,7 +39,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { resolveExtTabName } = useExtI18n();
 
   const { menus, secondaryMenus, searchMatches } = useMemo(() => {
-    const builtins = getBuiltinSettingsNavItems(isDesktop, t);
+    const builtins = getBuiltinSettingsNavItems(isDesktop, t, language);
     const result = buildSettingsNavItems({
       builtinItems: builtins,
       extensionTabs,
@@ -73,7 +73,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       : [];
     const searchResult = [...itemMatches, ...extensionMatches];
     const secondaryItems = OPL_SEARCHABLE_SECONDARY_TAB_IDS.map((id) => {
-      const label = getSettingsTabLabel(id, t);
+      const label = getSettingsTabLabel(id, t, language);
       return {
         id,
         label,

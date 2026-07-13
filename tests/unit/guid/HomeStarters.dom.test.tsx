@@ -37,7 +37,7 @@ vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', async (importOriginal) 
   };
 });
 
-vi.mock('@/renderer/hooks/opl/useOplAppState', () => ({
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
@@ -147,5 +147,16 @@ describe('HomeStarters', () => {
     expect(activationStarter).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(activationStarter);
     expect(onSelect).toHaveBeenCalledWith('mas');
+  });
+
+  it('keeps starters selectable while package state is still loading', async () => {
+    mocks.appState = {};
+    const onSelect = vi.fn();
+    render(<HomeStarters assistants={[assistant('oma')]} localeKey='en-US' onSelect={onSelect} />);
+
+    const starter = screen.getByTestId('home-starter-oma');
+    expect(starter).not.toBeDisabled();
+    await userEvent.click(starter);
+    expect(onSelect).toHaveBeenCalledWith('oma');
   });
 });
