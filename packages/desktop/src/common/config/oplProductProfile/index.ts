@@ -38,6 +38,14 @@ export type OplCodexAutoModelPolicy = {
     stale_fixed_model: 'preserve_fixed_selection_as_unavailable_until_user_restores_auto_or_selects_available_model';
   };
 };
+export type OplGlobalFeedbackAction = {
+  placement: 'titlebar_trailing_utility';
+  icon: 'comment';
+  target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new';
+  open_mode: 'external_browser_user_review_and_submit';
+  prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'];
+  shell_local_delivery_forbidden: true;
+};
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
 export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
 export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
@@ -496,6 +504,13 @@ type AppProductProfile = {
         user_can_override_reasoning_effort?: boolean;
         user_can_restore_auto: boolean;
         selection_persists_into_conversation: true;
+      };
+      utility_icon_policy: {
+        library: 'font_awesome_free_for_opl_owned_utility_icons';
+        refresh_actions: 'icon_only_with_tooltip_and_accessible_name';
+        model_reasoning_control: 'text_and_disclosure_without_brain_icon';
+        global_feedback_action: OplGlobalFeedbackAction;
+        scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body';
       };
       codex_model_display_options: OplCodexModelDisplayOptions;
       home_purpose_entries: OplHomePurposeEntry[];
@@ -1920,6 +1935,28 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   ) {
     throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
+  const utilityIconPolicy = guiHome.utility_icon_policy;
+  const globalFeedbackAction = isRecord(utilityIconPolicy) ? utilityIconPolicy.global_feedback_action : null;
+  const globalFeedbackPrefillFields = isRecord(globalFeedbackAction)
+    ? readStringArray(globalFeedbackAction, 'prefill_fields', 'gui.home.utility_icon_policy.global_feedback_action')
+    : [];
+  if (
+    !isRecord(utilityIconPolicy) ||
+    utilityIconPolicy.library !== 'font_awesome_free_for_opl_owned_utility_icons' ||
+    utilityIconPolicy.refresh_actions !== 'icon_only_with_tooltip_and_accessible_name' ||
+    utilityIconPolicy.model_reasoning_control !== 'text_and_disclosure_without_brain_icon' ||
+    utilityIconPolicy.scope !== 'opl_owned_overlay_surfaces_not_upstream_fork_body' ||
+    !isRecord(globalFeedbackAction) ||
+    globalFeedbackAction.placement !== 'titlebar_trailing_utility' ||
+    globalFeedbackAction.icon !== 'comment' ||
+    globalFeedbackAction.target_url !== 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new' ||
+    globalFeedbackAction.open_mode !== 'external_browser_user_review_and_submit' ||
+    JSON.stringify(globalFeedbackPrefillFields) !==
+      JSON.stringify(['localized_title', 'localized_body', 'current_route', 'app_release_version']) ||
+    globalFeedbackAction.shell_local_delivery_forbidden !== true
+  ) {
+    throw new Error('Invalid OPL product profile: global feedback must route to the App-owned GitHub issue page');
+  }
   if (
     guiHome.codex_default_model !== model ||
     guiHome.codex_default_reasoning_effort !== codexReasoningEffort ||
@@ -2144,6 +2181,20 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
             : {}),
           user_can_restore_auto: true,
           selection_persists_into_conversation: true,
+        },
+        utility_icon_policy: {
+          library: 'font_awesome_free_for_opl_owned_utility_icons',
+          refresh_actions: 'icon_only_with_tooltip_and_accessible_name',
+          model_reasoning_control: 'text_and_disclosure_without_brain_icon',
+          global_feedback_action: {
+            placement: 'titlebar_trailing_utility',
+            icon: 'comment',
+            target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new',
+            open_mode: 'external_browser_user_review_and_submit',
+            prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'],
+            shell_local_delivery_forbidden: true,
+          },
+          scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body',
         },
         codex_model_display_options: codexModelDisplayOptions,
         home_purpose_entries: homePurposeEntries,
@@ -2561,6 +2612,10 @@ export function getOplProductDisplayName(): string {
 
 export function getOplOrdinaryChromeName(): string {
   return OPL_PRODUCT_PROFILE.product.ordinary_chrome_name;
+}
+
+export function getOplGlobalFeedbackIssueUrl(): string {
+  return OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy.global_feedback_action.target_url;
 }
 
 export function getOplDefaultCodexModel(): string {

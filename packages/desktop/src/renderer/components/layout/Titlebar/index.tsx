@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ipcBridge } from '@/common';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
-import { getOplOrdinaryChromeName } from '@/common/config/oplProductProfile';
+import { getOplGlobalFeedbackIssueUrl, getOplOrdinaryChromeName } from '@/common/config/oplProductProfile';
 import MobileConversationBrand from './MobileConversationBrand';
 import WindowControls from '../WindowControls';
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspace/workspaceEvents';
@@ -20,10 +20,8 @@ interface TitlebarProps {
   workspaceAvailable: boolean;
 }
 
-const OPL_APP_ISSUES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new';
-
-export function buildOplAppIssueUrl(title: string, body: string): string {
-  const url = new URL(OPL_APP_ISSUES_URL);
+export function buildOplAppIssueUrl(baseUrl: string, title: string, body: string): string {
+  const url = new URL(baseUrl);
   url.searchParams.set('title', title);
   url.searchParams.set('body', body);
   return url.toString();
@@ -144,6 +142,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     const route = `${location.pathname}${location.search}`;
     const version = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
     const issueUrl = buildOplAppIssueUrl(
+      getOplGlobalFeedbackIssueUrl(),
       t('settings.githubIssue.title'),
       t('settings.githubIssue.body', { route, version })
     );

@@ -10,6 +10,7 @@ import {
   getOplAgentPackageInvocationReceiptPolicy,
   getOplProductDisplayName,
   getOplOrdinaryChromeName,
+  getOplGlobalFeedbackIssueUrl,
   getOplAssistantSkillProfile,
   getOplAssistantSkillProfiles,
   getOplBuiltinAssistantRouteReceiptPolicy,
@@ -75,6 +76,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.product.display_name).toBe('One Person Lab App');
     expect(getOplOrdinaryChromeName()).toBe('One Person Lab');
     expect(OPL_PRODUCT_PROFILE.product.ordinary_chrome_name).toBe('One Person Lab');
+    expect(getOplGlobalFeedbackIssueUrl()).toBe('https://github.com/gaofeng21cn/one-person-lab-app/issues/new');
     expect(
       OPL_PRODUCT_PROFILE.first_run.beginner_presentation.post_install_ai_self_check_entry.target_state_checks
     ).toContain('session_scoped_opl_app_context');

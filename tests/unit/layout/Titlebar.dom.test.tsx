@@ -20,6 +20,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
   return {
     ...actual,
     getOplOrdinaryChromeName: () => 'One Person Lab',
+    getOplGlobalFeedbackIssueUrl: () => 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new',
   };
 });
 
