@@ -72,6 +72,7 @@ const mocks = vi.hoisted(() => ({
   sendMessageHandler: vi.fn(),
   sendDisabled: { value: true },
   slashExecuteBuiltin: { value: undefined as ((name: string) => void) | undefined },
+  slashCommands: { value: [] as Array<{ name: string }> },
   useGuidSend: vi.fn(() => ({
     handleSend: vi.fn().mockResolvedValue(undefined),
     sendMessageHandler: mocks.sendMessageHandler,
@@ -347,8 +348,12 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidSend', () => ({
 }));
 
 vi.mock('@/renderer/hooks/chat/useSlashCommandController', () => ({
-  useSlashCommandController: (options: { onExecuteBuiltin?: (name: string) => void }) => {
+  useSlashCommandController: (options: {
+    commands: Array<{ name: string }>;
+    onExecuteBuiltin?: (name: string) => void;
+  }) => {
     mocks.slashExecuteBuiltin.value = options.onExecuteBuiltin;
+    mocks.slashCommands.value = options.commands;
     return {
       query: null,
       isOpen: false,
@@ -377,18 +382,20 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     activeCapabilityLabel,
     fileAccessDisabled,
     workspaceAccessDisabled,
-    fileContextEnabled,
+    fileAccessEnabled,
     projectContextRefs,
     onRemoveProjectContextRef,
+    onClearWorkspace,
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
     activeCapabilityLabel?: string;
     fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
-    fileContextEnabled?: boolean;
+    fileAccessEnabled?: boolean;
     projectContextRefs?: Array<{ path: string; name: string }>;
     onRemoveProjectContextRef?: (path: string) => void;
+    onClearWorkspace: () => void;
   }) => (
     <div data-testid='guid-input-card'>
       <div data-testid='guid-placeholder'>{placeholder}</div>
@@ -396,7 +403,8 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       {actionRow}
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
-      {fileContextEnabled === false ? <div data-testid='opl-guid-projectless-file-context-disabled' /> : null}
+      {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
+      <button data-testid='guid-clear-workspace' onClick={onClearWorkspace} />
       {projectContextRefs?.map((ref) => (
         <button
           key={ref.path}
@@ -462,6 +470,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setCodexModelSelection.mockClear();
     mocks.sendDisabled.value = true;
     mocks.slashExecuteBuiltin.value = undefined;
+    mocks.slashCommands.value = [];
     mocks.ensureBackendMcpCatalog.mockResolvedValue({
       allServers: [
         {
@@ -766,23 +775,47 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-guid-file-inputs-disabled')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
     expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
   });
 
-  it('keeps projectless text conversations available while disabling attachments', async () => {
+  it('keeps attachments and /open available without a selected workspace', async () => {
     mocks.isPresetAgent.value = false;
     mocks.guidInput.input = '只进行文字对话';
     mocks.sendDisabled.value = false;
 
+    const { ipcBridge } = await import('@/common');
+    vi.mocked(ipcBridge.dialog.showOpen.invoke).mockClear();
     render(<GuidPage />);
 
-    expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-file-access-disabled')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-guid-workspace-access-disabled')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-guid-projectless-file-context-disabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-file-inputs-disabled')).not.toBeInTheDocument();
+    expect(screen.getByTestId('file-upload-btn')).toBeEnabled();
+    expect(mocks.slashCommands.value).toContainEqual(expect.objectContaining({ name: 'open' }));
+
+    await act(async () => mocks.slashExecuteBuiltin.value?.('open'));
+    await waitFor(() => expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledOnce());
+
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
+  });
+
+  it('keeps send-scoped attachments when the selected workspace is cleared', async () => {
+    mocks.guidInput.dir = '/workspace/research';
+    mocks.guidInput.files = ['/outside/project/evidence.pdf'];
+    render(<GuidPage />);
+    const setFilesCallCount = mocks.setFiles.mock.calls.length;
+
+    await userEvent.click(screen.getByTestId('guid-clear-workspace'));
+
+    expect(mocks.setDir).toHaveBeenCalledWith('');
+    expect(mocks.setFiles).toHaveBeenCalledTimes(setFilesCallCount);
+    expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ files: ['/outside/project/evidence.pdf'] })
+    );
   });
 
   it('blocks the /open file command without clearing the draft when workspace setup is incomplete', async () => {

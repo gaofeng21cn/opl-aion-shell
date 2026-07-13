@@ -364,8 +364,8 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         </span>
       )}
       {!workspaceDir && (
-        <span className={styles.contextStripMeta} data-testid='guid-projectless-limit'>
-          {t('guid.home.projectlessTextOnly')}
+        <span className={styles.contextStripMeta} data-testid='guid-projectless-context'>
+          {t('guid.workspace.noProject')}
         </span>
       )}
       {activeCapabilityLabel && (

@@ -3,9 +3,7 @@
     "question": "今天要推进什么？",
     "capabilityQuestion": "要让 {{capability}} 推进什么？",
     "startersLabel": "选择一个能力开始",
-    "projectRequiredForAttachments": "选择项目后才能添加文件",
     "localContext": "本地",
-    "projectlessTextOnly": "无项目 · 仅文本",
     "activeCapability": "能力：{{capability}}",
     "launchBlocked": "此能力暂时不能开始工作（{{reason}}）。仍可使用的维护动作：{{actions}}。",
     "operationalNotReady": "运行就绪状态受阻"

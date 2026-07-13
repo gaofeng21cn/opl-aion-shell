@@ -47,6 +47,12 @@ describe('GuidWorkspaceFootnote', () => {
     expect(screen.getByTestId('workspace-selector-btn')).toBeDisabled();
   });
 
+  it('describes projectless context without implying a file restriction', () => {
+    render(<GuidWorkspaceFootnote workspaceDir='' onSelectWorkspace={vi.fn()} onClearWorkspace={vi.fn()} />);
+
+    expect(screen.getByTestId('guid-projectless-context')).toHaveTextContent('guid.workspace.noProject');
+  });
+
   it('shows Home project, local, branch, capability, and removable project refs in the top strip', async () => {
     const onRemove = vi.fn();
     render(

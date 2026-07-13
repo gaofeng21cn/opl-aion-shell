@@ -27,11 +27,35 @@ describe('OPL artifact preview adapter', () => {
   });
 
   it.each([
+    ['/outside/project/report.md', workspace, '/outside/project/report.md', 'report.md', 'markdown'],
+    ['/Users/example/Downloads/result.json', undefined, '/Users/example/Downloads/result.json', 'result.json', 'code'],
+    ['C:\\Users\\example\\report.pdf', undefined, 'C:/Users/example/report.pdf', 'report.pdf', 'pdf'],
+  ])(
+    'maps explicit absolute path %s without treating workspace as an authorization boundary',
+    (ref, targetWorkspace, filePath, fileName, contentType) => {
+      expect(resolveOplArtifactPreviewTarget(ref, targetWorkspace)).toEqual({
+        ok: true,
+        target: {
+          ref,
+          filePath,
+          fileName,
+          contentType,
+        },
+      });
+    }
+  );
+
+  it.each([
     ['', 'path_missing'],
     ['artifact://', 'path_missing'],
     ['artifact://../secret.md', 'unsafe_ref'],
     ['artifact://%2e%2e/secret.md', 'unsafe_ref'],
-    ['/outside/project/report.md', 'unsafe_ref'],
+    ['/outside/../secret.md', 'unsafe_ref'],
+    ['/%2e%2e/secret.md', 'unsafe_ref'],
+    ['%2Foutside/project/report.md', 'unsafe_ref'],
+    ['//server/share/report.md', 'unsafe_ref'],
+    ['\\server\\share\\report.md', 'unsafe_ref'],
+    ['file:///outside/project/report.md', 'unsupported_ref'],
     ['https://example.com/report.md', 'unsupported_ref'],
     ['https:example.com/report.md', 'unsupported_ref'],
     ['artifact://candidate/archive.zip', 'unsupported_ref'],
@@ -46,6 +70,13 @@ describe('OPL artifact preview adapter', () => {
       reason: 'path_missing',
     });
   });
+
+  it.each(['artifact://candidate/result.md', 'candidate/result.md'])(
+    'does not guess a base path for workspace-relative ref %s',
+    (ref) => {
+      expect(resolveOplArtifactPreviewTarget(ref)).toEqual({ ok: false, reason: 'path_missing' });
+    }
+  );
 
   it('opens canonical text content read-only through the existing PreviewContext target', async () => {
     const openPreview = vi.fn();
@@ -68,6 +99,29 @@ describe('OPL artifact preview adapter', () => {
       file_name: 'result.md',
       file_path: '/workspace/project/candidate/result.md',
       workspace,
+      editable: false,
+      truncated: false,
+    });
+  });
+
+  it('opens an explicit absolute path outside the workspace without adding workspace scope', async () => {
+    const openPreview = vi.fn();
+    const io = {
+      getFileMetadata: vi.fn().mockResolvedValue({ isDirectory: false }),
+      readFile: vi.fn().mockResolvedValue('# External result'),
+      getImageBase64: vi.fn(),
+    };
+
+    await expect(
+      openOplArtifactPreview({ ref: '/outside/project/result.md', workspace, openPreview, io })
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(io.getFileMetadata).toHaveBeenCalledWith({ path: '/outside/project/result.md' });
+    expect(io.readFile).toHaveBeenCalledWith({ path: '/outside/project/result.md' });
+    expect(openPreview).toHaveBeenCalledWith('# External result', 'markdown', {
+      title: 'result.md',
+      file_name: 'result.md',
+      file_path: '/outside/project/result.md',
       editable: false,
       truncated: false,
     });

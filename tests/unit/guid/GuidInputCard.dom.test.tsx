@@ -51,7 +51,7 @@ vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
 function createCard(
   options: {
     slashCommandMenu?: React.ReactNode;
-    fileContextEnabled?: boolean;
+    fileAccessEnabled?: boolean;
     onPaste?: React.ClipboardEventHandler;
     dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
   } = {}
@@ -81,7 +81,7 @@ function createCard(
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
       activeCapabilityLabel='Research'
-      fileContextEnabled={options.fileContextEnabled}
+      fileAccessEnabled={options.fileAccessEnabled}
     />
   );
 }
@@ -121,10 +121,22 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
   });
 
-  it('keeps projectless text input available without accepting file paste or drop', () => {
+  it('accepts file paste and drop without a selected workspace', () => {
     const onPaste = vi.fn();
     const onDrop = vi.fn();
-    renderCard({ fileContextEnabled: false, onPaste, dragHandlers: { onDrop } });
+    renderCard({ onPaste, dragHandlers: { onDrop } });
+
+    fireEvent.paste(screen.getByTestId('guid-input'));
+    fireEvent.drop(screen.getByTestId('guid-input-card-shell'));
+
+    expect(onPaste).toHaveBeenCalledOnce();
+    expect(onDrop).toHaveBeenCalledOnce();
+  });
+
+  it('keeps text input available while runtime file access is blocked', () => {
+    const onPaste = vi.fn();
+    const onDrop = vi.fn();
+    renderCard({ fileAccessEnabled: false, onPaste, dragHandlers: { onDrop } });
 
     fireEvent.paste(screen.getByTestId('guid-input'));
     fireEvent.drop(screen.getByTestId('guid-input-card-shell'));

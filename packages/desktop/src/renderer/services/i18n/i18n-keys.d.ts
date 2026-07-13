@@ -1359,8 +1359,6 @@ export type I18nKey =
   | 'guid.home.launchBlocked'
   | 'guid.home.localContext'
   | 'guid.home.operationalNotReady'
-  | 'guid.home.projectRequiredForAttachments'
-  | 'guid.home.projectlessTextOnly'
   | 'guid.home.question'
   | 'guid.home.startersLabel'
   | 'guid.inspector.automations'

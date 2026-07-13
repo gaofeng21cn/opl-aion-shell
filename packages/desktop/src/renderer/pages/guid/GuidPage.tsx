@@ -291,7 +291,7 @@ const GuidPage: React.FC = () => {
   );
   const guidBuiltinSlashCommands = useMemo<SlashCommandItem[]>(
     () =>
-      fileAccessBlocked || !guidInput.dir
+      fileAccessBlocked
         ? []
         : [
             {
@@ -301,7 +301,7 @@ const GuidPage: React.FC = () => {
               source: 'builtin',
             },
           ],
-    [fileAccessBlocked, guidInput.dir, t]
+    [fileAccessBlocked, t]
   );
   const guidSlashCommands = useMemo(
     () =>
@@ -716,12 +716,8 @@ const GuidPage: React.FC = () => {
     <GuidActionRow
       files={guidInput.files}
       onFilesUploaded={guidInput.handleFilesUploaded}
-      fileAccessDisabled={fileAccessBlocked || !guidInput.dir}
-      fileAccessDisabledReason={
-        fileAccessBlocked
-          ? t('common.firstRunRecovery.fileAccessUnavailable')
-          : t('guid.home.projectRequiredForAttachments')
-      }
+      fileAccessDisabled={fileAccessBlocked}
+      fileAccessDisabledReason={t('common.firstRunRecovery.fileAccessUnavailable')}
       modelSelectorNode={modelSelectorNode}
       mobileCodexModelSelection={
         composerSurface.executor === 'codex' && modelSelectorNode
@@ -857,7 +853,6 @@ const GuidPage: React.FC = () => {
             }}
             onClearWorkspace={() => {
               guidInput.setDir('');
-              guidInput.setFiles([]);
               setProjectContextRefs([]);
             }}
             workspaceAccessDisabled={fileAccessBlocked}
@@ -867,7 +862,7 @@ const GuidPage: React.FC = () => {
             onRemoveProjectContextRef={(path) => {
               setProjectContextRefs((current) => current.filter((ref) => ref.path !== path));
             }}
-            fileContextEnabled={!fileAccessBlocked && Boolean(guidInput.dir)}
+            fileAccessEnabled={!fileAccessBlocked}
           />
 
           {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}

@@ -56,7 +56,7 @@ type GuidInputCardProps = {
   activeCapabilityLabel?: string;
   projectContextRefs?: ProjectContextRef[];
   onRemoveProjectContextRef?: (path: string) => void;
-  fileContextEnabled?: boolean;
+  fileAccessEnabled?: boolean;
 };
 
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
@@ -87,7 +87,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   activeCapabilityLabel,
   projectContextRefs,
   onRemoveProjectContextRef,
-  fileContextEnabled = true,
+  fileAccessEnabled = true,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -99,7 +99,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
     onKeyDown(e);
   };
 
-  const fileDraggingActive = fileContextEnabled && isFileDragging;
+  const fileDraggingActive = fileAccessEnabled && isFileDragging;
   const borderColor = fileDraggingActive
     ? 'rgb(var(--primary-3))'
     : isInputActive
@@ -124,7 +124,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
             }
           : {}),
       }}
-      {...(fileContextEnabled ? dragHandlers : {})}
+      {...(fileAccessEnabled ? dragHandlers : {})}
     >
       <div
         className={`${styles.guidInputInner} relative p-12px flex flex-col bg-dialog-fill-0`}
@@ -151,7 +151,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           className={`text-14px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !py-0 !pr-0 !pl-7px ${styles.lightPlaceholder}`}
           value={input}
           onChange={onInputChange}
-          onPaste={fileContextEnabled ? onPaste : undefined}
+          onPaste={fileAccessEnabled ? onPaste : undefined}
           onFocus={onFocus}
           onBlur={onBlur}
           {...compositionHandlers}

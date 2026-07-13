@@ -3,9 +3,7 @@
     "question": "What do you want to move forward?",
     "capabilityQuestion": "What should {{capability}} move forward?",
     "startersLabel": "Start with a capability",
-    "projectRequiredForAttachments": "Choose a project before adding files",
     "localContext": "Local",
-    "projectlessTextOnly": "Projectless · text only",
     "activeCapability": "Capability: {{capability}}",
     "launchBlocked": "This capability cannot start work yet ({{reason}}). Available maintenance actions: {{actions}}.",
     "operationalNotReady": "operational readiness is blocked"

@@ -69,11 +69,11 @@ export type OplArtifactPreviewFailureReason = 'path_missing' | 'unsafe_ref' | 'u
 
 export type OplArtifactPreviewTarget = {
   ref: string;
-  relativePath: string;
+  relativePath?: string;
   filePath: string;
   fileName: string;
   contentType: PreviewContentType;
-  workspace: string;
+  workspace?: string;
 };
 
 export type OplArtifactPreviewResolution =
@@ -154,16 +154,24 @@ const workspaceContainsPath = (workspace: string, filePath: string): boolean => 
 export const resolveOplArtifactPreviewTarget = (ref: string, workspace?: string): OplArtifactPreviewResolution => {
   const normalizedWorkspace = normalizeWorkspace(workspace);
   const sourceRef = typeof ref === 'string' ? ref.trim() : '';
-  if (!sourceRef || !normalizedWorkspace) return { ok: false, reason: 'path_missing' };
+  if (!sourceRef) return { ok: false, reason: 'path_missing' };
   if (sourceRef.length > PATH_MAX_LENGTH || hasUnsafePathCharacters(sourceRef)) {
+    return { ok: false, reason: 'unsafe_ref' };
+  }
+  if (sourceRef.startsWith('//') || sourceRef.startsWith('\\')) {
     return { ok: false, reason: 'unsafe_ref' };
   }
 
   const extracted = extractRefPath(sourceRef);
   if (!extracted) return { ok: false, reason: 'unsupported_ref' };
+  const rawPath = extracted.path ?? '';
+  if (!extracted.schemeRef && /%(?:2f|5c)/i.test(rawPath)) {
+    return { ok: false, reason: 'unsafe_ref' };
+  }
   const decodedPath = extracted.path ? decodeRefPath(extracted.path) : undefined;
   if (!decodedPath) return { ok: false, reason: 'path_missing' };
 
+  const rawNormalizedPath = normalizeSeparators(rawPath).replace(/^\.\//, '');
   const normalizedPath = normalizeSeparators(decodedPath).replace(/^\.\//, '');
   if (
     !normalizedPath ||
@@ -176,24 +184,29 @@ export const resolveOplArtifactPreviewTarget = (ref: string, workspace?: string)
   }
 
   const isAbsolute = normalizedPath.startsWith('/') || /^[a-z]:\//i.test(normalizedPath);
+  const rawIsAbsolute = rawNormalizedPath.startsWith('/') || /^[a-z]:\//i.test(rawNormalizedPath);
   if (extracted.schemeRef && isAbsolute) return { ok: false, reason: 'unsafe_ref' };
+  if (!extracted.schemeRef && isAbsolute && !rawIsAbsolute) return { ok: false, reason: 'unsafe_ref' };
+  if (!isAbsolute && !normalizedWorkspace) return { ok: false, reason: 'path_missing' };
 
   const filePath = isAbsolute ? normalizedPath : `${normalizedWorkspace}/${normalizedPath}`;
-  if (!workspaceContainsPath(normalizedWorkspace, filePath)) return { ok: false, reason: 'unsafe_ref' };
-
-  const relativePath = filePath.slice(normalizedWorkspace.length).replace(/^\/+/, '');
-  const contentType = pathTypeForRef(relativePath);
-  if (!relativePath || !contentType) return { ok: false, reason: 'unsupported_ref' };
+  const scopedWorkspace =
+    normalizedWorkspace && workspaceContainsPath(normalizedWorkspace, filePath) ? normalizedWorkspace : undefined;
+  const relativePath = scopedWorkspace ? filePath.slice(scopedWorkspace.length).replace(/^\/+/, '') : undefined;
+  const contentType = pathTypeForRef(relativePath ?? filePath);
+  if ((scopedWorkspace && !relativePath) || !contentType) return { ok: false, reason: 'unsupported_ref' };
+  const fileName = filePath.split('/').pop();
+  if (!fileName) return { ok: false, reason: 'unsupported_ref' };
 
   return {
     ok: true,
     target: {
       ref: sourceRef,
-      relativePath,
       filePath,
-      fileName: relativePath.split('/').pop() ?? relativePath,
+      fileName,
       contentType,
-      workspace: normalizedWorkspace,
+      ...(relativePath ? { relativePath } : {}),
+      ...(scopedWorkspace ? { workspace: scopedWorkspace } : {}),
     },
   };
 };
@@ -208,7 +221,8 @@ export const openOplArtifactPreview = async ({
   if (!resolution.ok) return resolution;
 
   const { target } = resolution;
-  const request = { path: target.filePath, workspace: target.workspace };
+  const request: { path: string; workspace?: string } = { path: target.filePath };
+  if (target.workspace) request.workspace = target.workspace;
   try {
     const metadata = await io.getFileMetadata(request);
     if (!metadata || metadata.isDirectory) return { ok: false, reason: 'unavailable' };
@@ -230,9 +244,9 @@ export const openOplArtifactPreview = async ({
       title: target.fileName,
       file_name: target.fileName,
       file_path: target.filePath,
-      workspace: target.workspace,
       editable: false,
       truncated,
+      ...(target.workspace ? { workspace: target.workspace } : {}),
     });
     return resolution;
   } catch {

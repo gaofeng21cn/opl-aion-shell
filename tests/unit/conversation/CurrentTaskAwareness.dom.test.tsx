@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CurrentTaskAwareness from '@/renderer/pages/conversation/runtime/CurrentTaskAwareness';
 
 const mocks = vi.hoisted(() => ({
+  workspace: { value: '/workspace/project' as string | undefined },
   openPreview: vi.fn(),
   getFileMetadata: vi.fn(),
   readFile: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('@/common', () => ({
 }));
 
 vi.mock('@/renderer/hooks/context/ConversationContext', () => ({
-  useConversationContextSafe: () => ({ workspace: '/workspace/project' }),
+  useConversationContextSafe: () => ({ workspace: mocks.workspace.value }),
 }));
 
 vi.mock('@/renderer/pages/conversation/Preview/context/PreviewContext', () => ({
@@ -118,6 +119,7 @@ vi.mock('react-i18next', () => ({
 
 describe('CurrentTaskAwareness', () => {
   beforeEach(() => {
+    mocks.workspace.value = '/workspace/project';
     mocks.openPreview.mockReset();
     mocks.getFileMetadata.mockReset();
     mocks.readFile.mockReset();
@@ -340,6 +342,35 @@ describe('CurrentTaskAwareness', () => {
         file_name: 'result.md',
         file_path: '/workspace/project/candidate/result.md',
         workspace: '/workspace/project',
+        editable: false,
+        truncated: false,
+      })
+    );
+  });
+
+  it('opens an explicit absolute artifact path when the conversation has no workspace', async () => {
+    mocks.workspace.value = undefined;
+    mocks.getFileMetadata.mockResolvedValue({ isDirectory: false });
+    mocks.readFile.mockResolvedValue('# Standalone result');
+
+    render(
+      <CurrentTaskAwareness
+        task={
+          {
+            title: 'Standalone artifact',
+            latest_artifact_ref: '/Users/example/Downloads/result.md',
+          } as never
+        }
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview: /Users/example/Downloads/result.md' }));
+
+    await waitFor(() =>
+      expect(mocks.openPreview).toHaveBeenCalledWith('# Standalone result', 'markdown', {
+        title: 'result.md',
+        file_name: 'result.md',
+        file_path: '/Users/example/Downloads/result.md',
         editable: false,
         truncated: false,
       })
