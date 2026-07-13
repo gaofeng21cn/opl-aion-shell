@@ -158,6 +158,7 @@ vi.mock('react-i18next', () => ({
         'settings.overview': 'Overview',
         'settings.maintenance': 'Maintenance',
         'settings.workspace': 'Workspace',
+        'settings.workspacePersonalization': 'Workspace & Personalization',
         'settings.localServices': 'Local Services',
         'settings.storage': 'Storage',
         'settings.capabilities': 'Capabilities',
@@ -216,13 +217,14 @@ describe('SettingsModal OPL App navigation', () => {
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Personalization')).toBeInTheDocument();
+    expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
@@ -242,13 +244,14 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Personalization')).toBeInTheDocument();
+    expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
@@ -387,7 +390,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'packages' } });
 
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Local Environment')).toBeInTheDocument();
     expect(screen.getByText('Updates')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
@@ -396,7 +399,7 @@ describe('SettingsModal OPL App navigation', () => {
   it('keeps Resources ordinary while surfacing Advanced through Settings search', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
 

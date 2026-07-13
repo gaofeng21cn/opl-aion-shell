@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
+import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
@@ -595,17 +596,13 @@ function ManagedUpdatesPanel({
                   ? t('settings.oplEnvironmentPage.updates.actions.recommendedApply')
                   : t('settings.oplEnvironmentPage.updates.actions.recommendedCheck')}
             </Button>
-            <Tooltip content={updateReadActionHelp('status', t)}>
-              <Button
-                data-testid='opl-managed-update-refresh'
-                icon={<UpdateRotation theme='outline' />}
-                loading={refreshLoading}
-                disabled={maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'status')}
-                onClick={onRefresh}
-              >
-                {t('settings.oplEnvironmentPage.updates.actions.refreshStatus')}
-              </Button>
-            </Tooltip>
+            <OplRefreshIconButton
+              data-testid='opl-managed-update-refresh'
+              label={t('settings.oplEnvironmentPage.updates.actions.refreshStatus')}
+              loading={refreshLoading}
+              disabled={maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'status')}
+              onClick={onRefresh}
+            />
           </Space>
         </div>
 

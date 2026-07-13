@@ -1778,7 +1778,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'environment',
     'storage',
     'appearance',
-    'personalization',
   ];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');

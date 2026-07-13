@@ -276,7 +276,6 @@ describe('OPL generated product profile', () => {
       'environment',
       'storage',
       'appearance',
-      'personalization',
     ]);
     expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about']);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
@@ -305,7 +304,7 @@ describe('OPL generated product profile', () => {
     expect(controlPlane.extension_anchor_remap['skills-hub']).toBe('capabilities');
     expect(controlPlane.ordinary_routes.find((route) => route.id === 'workspace')).toMatchObject({
       path: '/settings/workspace',
-      label_key: 'settings.workspace',
+      label_key: 'settings.workspacePersonalization',
       icon_token: 'workspace',
       scope: 'workspace',
       intent: 'configure',
