@@ -432,7 +432,7 @@
 
 .stageAttemptId {
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--color-text-1);
   font-size: 12px;
 }
@@ -710,7 +710,7 @@
 }
 
 .detailAttemptId {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--color-text-1);
   font-size: 12px;
 }
