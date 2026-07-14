@@ -23,7 +23,7 @@ interface SiderFooterProps {
   updateAvailable?: boolean;
   account?: SiderFooterAccount | null;
   siderTooltipProps: SiderTooltipProps;
-  onSettingsClick: (target: 'general' | 'access') => void;
+  onSettingsClick: (target: 'general' | 'gateway') => void;
   onUpdateClick: () => void;
 }
 
@@ -54,7 +54,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
               collapsed ? '!w-26px !justify-center !px-0' : '!flex-1 !justify-start !px-8px',
               isMobile && 'sider-footer-btn-mobile !h-44px'
             )}
-            onClick={() => onSettingsClick(account ? 'access' : 'general')}
+            onClick={() => onSettingsClick(account ? 'gateway' : 'general')}
             data-testid={account ? 'sider-footer-account' : 'sider-footer-settings'}
             aria-label={accountLabel}
           >

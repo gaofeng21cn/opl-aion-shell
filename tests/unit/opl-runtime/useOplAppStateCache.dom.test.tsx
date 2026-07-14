@@ -13,6 +13,7 @@ vi.mock('@/common', () => ({
 
 import {
   cacheFastOplAppState,
+  OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES,
   resetOplAppStateLoadsForTest,
   useOplAppState,
 } from '@/renderer/hooks/system/useOplAppState';
@@ -153,6 +154,43 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(secondVisit.result.current.loading).toBe(false);
   });
 
+  it('shares the completed fast payload without reloading when another page mounts', async () => {
+    getAppStateInvoke.mockResolvedValue({
+      ok: true,
+      parsed: { app_state: { core: { codex: { installed: true } } } },
+    });
+
+    const firstPage = renderHook(() => useOplAppState('fast'));
+    await waitFor(() => expect(firstPage.result.current.appState.core).toEqual({ codex: { installed: true } }));
+    firstPage.unmount();
+
+    const secondPage = renderHook(() => useOplAppState('fast'));
+    expect(secondPage.result.current.appState.core).toEqual({ codex: { installed: true } });
+    expect(secondPage.result.current.loading).toBe(false);
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists only the bounded startup projection while keeping the full payload in memory', async () => {
+    const privateWorkItems = Array.from({ length: 2_000 }, (_, index) => ({ index, body: 'x'.repeat(512) }));
+    getAppStateInvoke.mockResolvedValue({
+      ok: true,
+      parsed: {
+        app_state: {
+          schema_version: 'opl_app_state.v1',
+          core: { codex: { installed: true, model_access_ready: true } },
+          work_items: privateWorkItems,
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+    await waitFor(() => expect(result.current.appState.work_items).toBe(privateWorkItems));
+
+    const persisted = localStorage.getItem(CACHE_KEY) ?? '';
+    expect(new TextEncoder().encode(persisted).byteLength).toBeLessThanOrEqual(OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES);
+    expect(persisted).not.toContain('work_items');
+  });
+
   it('updates an already-mounted consumer when another page persists the connected account', async () => {
     const disconnected = gatewayProjection({
       status: 'not_connected',
@@ -179,11 +217,11 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     );
   });
 
-  it('keeps the account state unresolved when an older cache has no Gateway projection', () => {
+  it('renders an older narrow cache immediately even when it has no Gateway projection', () => {
     localStorage.setItem(
       CACHE_KEY,
       JSON.stringify({
-        payload: { app_state: { core: { status: 'ready' } } },
+        payload: { app_state: { core: { codex: { installed: true, version_status: 'compatible' } } } },
         loadedAt: '20:00:00',
       })
     );
@@ -191,8 +229,21 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
 
     const { result } = renderHook(() => useOplAppState('fast'));
 
-    expect(result.current.appState.core).toEqual({ status: 'ready' });
-    expect(result.current.loading).toBe(true);
+    expect(result.current.appState.core).toEqual({ codex: { installed: true, version_status: 'compatible' } });
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('retries one failed automatic hydration and then stops without a request loop', async () => {
+    getAppStateInvoke.mockRejectedValue(new Error('offline'));
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    await waitFor(() => expect(getAppStateInvoke).toHaveBeenCalledTimes(2), { timeout: 1_000 });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBe('offline');
+    expect(result.current.loading).toBe(false);
   });
 
   it('keeps the cached account visible when the background refresh fails', async () => {

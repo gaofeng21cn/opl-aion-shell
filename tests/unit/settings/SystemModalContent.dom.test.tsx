@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
+import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -45,6 +46,8 @@ vi.mock('react-i18next', () => ({
 
 describe('SystemModalContent read-only Advanced page', () => {
   beforeEach(() => {
+    localStorage.clear();
+    resetOplAppStateLoadsForTest();
     vi.clearAllMocks();
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       surface: 'app_state_fast',

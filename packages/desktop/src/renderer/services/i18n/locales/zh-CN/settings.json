@@ -1397,7 +1397,8 @@
       "description": "处理完成后，本页会自动恢复为安静的正常状态。",
       "workspaceTitle": "选择工作目录",
       "codexTitle": "恢复 Codex 访问",
-      "capabilitiesTitle": "检查能力包"
+      "capabilitiesTitle": "检查能力包",
+      "capabilitiesDescription": "打开“能力”页，检查不可用或需要更新的托管能力包。"
     },
     "shortcuts": {
       "title": "常用设置",
@@ -1478,6 +1479,9 @@
         "manualKey": "手工密钥",
         "notConnected": "未连接",
         "needsAttention": "需要处理"
+      },
+      "metrics": {
+        "availability": "可用性"
       }
     },
     "technical": {
@@ -1691,6 +1695,11 @@
       "missing": "缺失",
       "noRoots": "未发现存储位置。",
       "notLoaded": "正在读取存储信息。",
+      "unknownSize": "占用尚不可用",
+      "awaitingSnapshot": "正在读取上次存储快照",
+      "freshness": "采集于 {{observedAt}} · 用时 {{duration}} 毫秒 · {{state}}",
+      "current": "当前数据",
+      "stale": "数据已过期",
       "silentDeleteAllowed": "可直接清理",
       "silentDeleteBlocked": "需要先准备",
       "cleanupModes": {
@@ -2207,7 +2216,7 @@
   },
   "capabilitiesPage": {
     "title": "能力",
-    "description": "管理 OPL Flow 推荐，以及本机已安装的 Skill、插件、MCP 和图像工具。",
+    "description": "管理 OPL Flow 推荐，以及本机 Skill、插件、MCP、图像工具和语音输入。",
     "groups": {
       "oplFlowManaged": {
         "title": "OPL Flow 推荐",
@@ -2224,7 +2233,7 @@
         "title": "本机能力",
         "description": "查看和管理不属于 OPL Flow 推荐范围的本机 Skill、插件与扩展。",
         "toolsTitle": "MCP 与图像工具",
-        "toolsDescription": "管理 MCP 服务器和图像生成；语音转写继续位于偏好设置。"
+        "toolsDescription": "在这里管理 MCP 服务器和图像生成；语音输入可在下方配置。"
       }
     },
     "developerSource": {
@@ -2236,11 +2245,44 @@
         "auto": "自动",
         "developer": "开发"
       },
-      "safeMaintenance": "允许安全开发维护",
-      "safeMaintenanceDescription": "允许在已确认仓库权限时执行受监督的修复和维护；不会覆盖未提交改动。",
+      "safeMaintenance": "允许维护已授权的开发仓库",
+      "safeMaintenanceDescription": "自动模式会先检查身份与仓库权限，再允许受监督的修复；现有改动与受保护分支始终受到保护。",
+      "maintenanceModeLabel": "已授权开发仓库维护",
+      "maintenanceModes": {
+        "auto": "自动",
+        "off": "关闭"
+      },
+      "effectiveStates": {
+        "inactive": "当前不生效",
+        "automatic": "已自动生效",
+        "manual": "已手动生效",
+        "off": "已关闭"
+      },
       "workspace": "开发工作区",
-      "identity": "GitHub 身份",
-      "authority": "可直接维护仓库",
+      "identity": "GitHub 登录身份",
+      "authority": "已授权仓库范围",
+      "authoritySummary": "可直接维护 {{direct}} 个 · 走 PR {{pullRequest}} 个 · 共 {{total}} 个",
+      "configurationSource": "配置来源",
+      "configurationSources": {
+        "default": "自动默认值",
+        "user_config": "用户配置"
+      },
+      "inspectionPending": "正在检查 GitHub 身份和仓库权限，尚未判定为身份不匹配。",
+      "protection": "仓库保护",
+      "protectionSummary": "{{dirty}} · {{branch}}",
+      "protectionValues": {
+        "isolatedWorktree": "脏工作区改用独立 worktree",
+        "topicBranch": "受保护分支必须使用 topic branch",
+        "notReported": "尚未上报"
+      },
+      "inactiveReason": "当前不生效原因",
+      "inactiveReasons": {
+        "developer_mode_disabled": "开发仓库维护已关闭。",
+        "authority_inspection_pending": "仍在检查仓库权限。",
+        "github_identity_unavailable": "尚未确认 GitHub 登录身份。",
+        "auto_identity_mismatch": "当前 GitHub 登录身份与配置的开发者身份不匹配。",
+        "repo_authority_blocked": "当前没有可用的授权维护路径。"
+      },
       "packageTitle": "此能力的运行来源",
       "packageDescription": "自动跟随全局模式，也可以固定使用托管版或本地开发仓库。",
       "packageModes": {
@@ -2263,6 +2305,7 @@
       "update": "可更新",
       "sync": "需同步",
       "source": "开发源",
+      "verification": "待验证",
       "attention": "需关注",
       "repair": "需修复",
       "missing": "缺失"
@@ -2314,6 +2357,7 @@
       "conversationAvailable": "可使用",
       "conversationNeedsSync": "需同步",
       "conversationUnavailable": "不可使用",
+      "conversationVerificationPending": "待验证",
       "conversationUnverified": "未验证"
     },
     "detailLabels": {
@@ -2326,6 +2370,8 @@
       "sourceKind": "来源类型",
       "packageLockRef": "包锁定回执",
       "actionReceiptRef": "动作回执",
+      "installActionRef": "安装动作",
+      "activationActionRef": "激活动作",
       "rollbackRef": "恢复引用",
       "manifestUrl": "Manifest 地址",
       "registryUrl": "注册表地址",
@@ -2340,6 +2386,17 @@
       "source": "来源",
       "lastSync": "最后同步",
       "failureReason": "失败原因",
+      "publisher": "发布者",
+      "packageRole": "包角色",
+      "trustTier": "信任状态",
+      "installedVersion": "已安装版本",
+      "selectedVersion": "选定版本",
+      "stableVersion": "稳定版本",
+      "sourceSummary": "来源说明",
+      "installability": "安装状态",
+      "readiness": "就绪状态",
+      "verificationPending": "待验证",
+      "nextStep": "下一步",
       "dependencyReadiness": "依赖就绪状态",
       "dependencyReadinessCount": "已就绪依赖",
       "operationalReady": "可正常运行",
@@ -2352,9 +2409,8 @@
       "uninstallDisabledReason": "无法卸载",
       "repairCommandRef": "修复命令引用",
       "dependencyClosureTransactionId": "闭包事务",
-      "dependencyClosureGenerationId": "闭包代次",
       "dependencyClosureDigest": "闭包摘要",
-      "dependencyClosureLastKnownGoodGenerationId": "最近正常代次",
+      "dependencyClosureLastKnownGoodTransactionId": "最近正常事务",
       "dependencyClosureLastKnownGoodDigest": "最近正常闭包摘要",
       "connectorReadinessRefs": "连接器就绪情况",
       "workflowRefs": "可复用工作流",
@@ -2378,14 +2434,18 @@
       "version_incompatible": "已安装的依赖版本不兼容",
       "required_by_installed_package": "被其他已安装包依赖",
       "dependency_closure_not_ready": "依赖闭包尚未就绪",
-      "package_not_installed": "该包尚未安装"
+      "package_not_installed": "请先安装该包",
+      "package_activation_required": "请为当前工作区激活该包",
+      "scope_materialization_missing": "请为当前工作区激活该包",
+      "live_verification_deferred": "后台将继续完成实时验证",
+      "status_read_error": "Framework 无法读取包状态"
     },
     "sourceLabels": {
       "developer": "本地开发源",
       "managed": "OPL 托管包",
       "registry": "注册表安装",
       "local": "本地安装",
-      "other": "其他受支持来源"
+      "other": "其他来源"
     },
     "candidateReports": {
       "title": "待审阅建议",
@@ -2435,7 +2495,22 @@
       "management": "管理能力",
       "refreshRegistry": "检查新能力",
       "searchPlaceholder": "搜索能力、用途或标签",
+      "searchLabel": "搜索智能体包",
+      "roleFilter": "按包角色筛选",
+      "statusFilter": "按包状态筛选",
+      "sourceFilter": "按来源筛选",
+      "allRoles": "全部角色",
       "allStatuses": "所有状态",
+      "allSources": "全部来源",
+      "resetFilters": "重置",
+      "loading": "正在加载智能体包目录...",
+      "refreshing": "正在刷新智能体包目录...",
+      "stale": "正在显示上次目录快照，新的读取仍在进行。",
+      "staleWithReason": "目录刷新失败，正在显示上次快照：{{reason}}",
+      "failed": "智能体包目录刷新失败：{{reason}}",
+      "noFilterResults": "没有符合当前筛选条件的包。",
+      "workspaceRequired": "激活该包前，请先选择工作区。",
+      "openWorkspace": "打开工作区设置",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "安装 manifest",
       "addCapability": "添加能力",
@@ -2454,6 +2529,8 @@
       "empty": "没有匹配的智能体包。",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
+      "projectedActionConfirmTitle": "{{action}}包",
+      "projectedActionConfirmContent": "OPL 将严格执行 Framework 投影的动作，并在完成后刷新目录。",
       "uninstallConfirmTitle": "卸载能力",
       "uninstallConfirmContent": "此操作会路由到 App 包管理器执行卸载；动作后的回执和恢复指引仍会保留可见。",
       "tableHeaders": {
@@ -2467,6 +2544,8 @@
         "actions": "操作"
       },
       "actions": {
+        "install": "安装",
+        "activate": "激活",
         "update": "更新",
         "repair": "修复",
         "rollback": "回滚",
@@ -2475,7 +2554,17 @@
         "disable": "停用",
         "hide": "隐藏",
         "show": "显示",
-        "unhide": "取消隐藏"
+        "unhide": "取消隐藏",
+        "refresh": "刷新",
+        "run": "执行"
+      },
+      "filterValues": {
+        "not_installed": "未安装",
+        "installable": "可安装",
+        "installed": "已安装",
+        "activation_required": "待激活",
+        "verification_deferred": "待验证",
+        "ready": "已就绪"
       }
     },
     "supporting": {

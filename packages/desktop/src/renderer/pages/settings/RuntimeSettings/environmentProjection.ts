@@ -276,14 +276,29 @@ export function buildRuntimeEnvironmentProjection({
   const codex = oplRecord(core.codex);
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const statusSummary = oplRecord(settingsControlCenter.status_summary);
+  const codexModelPolicy = oplRecord(appSettingsReadModel.codex_model_policy);
+  const workspaceServices = oplRecord(appSettingsReadModel.workspace_services);
+  const projectedWorkspaceRoot = oplRecord(workspaceServices.workspace_root);
+  const projectedFamilyWorkspaceRoot = oplRecord(workspaceServices.family_workspace_root);
+  const localEnvironment = oplRecord(appSettingsReadModel.local_environment);
   const paths = oplRecord(appState.paths);
   const runtimeSourceCarriers = oplRecord(appState.runtime_source_carriers);
   const modulesSourcePayload = oplRecord(runtimeSourceCarriers.source);
   const release = oplRecord(appState.release);
-  const familyWorkspaceRoot = oplPathString(paths.family_workspace_root);
+  const familyWorkspaceRoot = oplPathString(projectedFamilyWorkspaceRoot) ?? oplPathString(paths.family_workspace_root);
   const workspaceRoot =
-    oplString(paths.workspace_root_path) ?? oplPathString(paths.workspace_root) ?? familyWorkspaceRoot;
-  const logsRoot = oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir);
+    oplPathString(projectedWorkspaceRoot) ??
+    oplString(paths.workspace_root_path) ??
+    oplPathString(paths.workspace_root) ??
+    familyWorkspaceRoot;
+  const logsRoot =
+    oplString(localEnvironment.logs_dir) ??
+    oplString(paths.logs_dir) ??
+    oplString(paths.logs_root) ??
+    oplString(paths.log_dir);
   const modulesSourceMode = oplString(modulesSourcePayload.mode);
   const modulesRoot =
     oplString(modulesSourcePayload.runtime_sources_root) ??
@@ -304,11 +319,24 @@ export function buildRuntimeEnvironmentProjection({
           installed: moduleInstalledCount,
           total: modules.length,
         });
-  const codexStatus = oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : 'unknown');
+  const codexStatus =
+    oplString(codexModelPolicy.access_status) ??
+    oplString(statusSummary.model_access) ??
+    oplString(codex.status) ??
+    (oplString(statusSummary.codex_version) || oplString(codex.version) ? 'ready' : 'unknown');
   const temporalStatus =
-    oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status) ?? 'unknown';
+    oplString(localEnvironment.temporal_provider) ??
+    oplString(temporal.health_status) ??
+    oplString(temporal.status) ??
+    oplString(temporal.worker_status) ??
+    'unknown';
   const workspaceStatus = workspaceRoot ? 'ready' : 'unknown';
-  const releaseChannel = oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable';
+  const releaseChannel =
+    oplString(localEnvironment.release_channel) ??
+    oplString(statusSummary.release_channel) ??
+    oplString(release.channel) ??
+    oplString(release.release_channel) ??
+    'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
   const attentionCount = [
     workspaceStatus !== 'ready',

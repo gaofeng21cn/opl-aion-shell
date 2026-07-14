@@ -263,7 +263,12 @@ function BaseDependencyCatalog({
   if (!catalog || catalog.dependencies.length === 0) return null;
 
   return (
-    <div className='opl-settings-technical-subgroup' data-testid='opl-base-dependency-catalog'>
+    <section
+      className='opl-settings-section opl-settings-surface--status'
+      id='managed-dependencies'
+      data-testid='settings-maintenance-managed-dependencies'
+    >
+      <span data-testid='opl-base-dependency-catalog' aria-hidden='true' />
       <div>
         <Typography.Text className='block font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.dependencies.title')}
@@ -337,7 +342,7 @@ function BaseDependencyCatalog({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -511,8 +516,6 @@ function ManagedUpdatesPanel({
   onRequestAction,
   onCancelAction,
   onConfirmAction,
-  busyDependencyId,
-  onRequestExternalUpdate,
   t,
 }: {
   plane: ManagedUpdatePlane;
@@ -526,8 +529,6 @@ function ManagedUpdatesPanel({
   onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
   onCancelAction: () => void;
   onConfirmAction: () => void;
-  busyDependencyId: string | null;
-  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
@@ -716,14 +717,6 @@ function ManagedUpdatesPanel({
                   )}
                 </Space>
                 <HostRouteDetail component={component} t={t} />
-                {component.id === 'opl_base' && (
-                  <BaseDependencyCatalog
-                    component={component}
-                    busyDependencyId={busyDependencyId}
-                    onRequestExternalUpdate={onRequestExternalUpdate}
-                    t={t}
-                  />
-                )}
                 {(component.conditions.length > 0 ||
                   component.substatuses.length > 0 ||
                   component.receiptRef ||
@@ -1216,12 +1209,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     [appStateQuery.load, busyDependencyId, message, t]
   );
 
-  React.useEffect(() => {
-    if (!managedUpdateMaintenance.result && !managedUpdateMaintenance.running) {
-      void runManagedUpdateRead('status', false);
-    }
-  }, [managedUpdateMaintenance.result, managedUpdateMaintenance.running, runManagedUpdateRead]);
-
   const runSettingsAppAction = useCallback(
     async (actionId: SettingsAppActionId, successText: string) => {
       if (!beginMaintenanceOperation()) return;
@@ -1291,6 +1278,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       moduleManualMaintenanceCount,
       healthSummaryItems,
       runtimeCards,
+      oplBaseComponent,
     },
     maintenanceHubItems,
   } = viewModel;
@@ -1343,6 +1331,15 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </div>
           <RuntimeHealthSummary items={healthSummaryItems} />
         </section>
+
+        {oplBaseComponent && (
+          <BaseDependencyCatalog
+            component={oplBaseComponent}
+            busyDependencyId={busyDependencyId}
+            onRequestExternalUpdate={requestExternalDependencyUpdate}
+            t={t}
+          />
+        )}
 
         <div className='flex flex-col gap-14px' data-testid='settings-maintenance-primary'>
           <div className='flex flex-col gap-12px' data-testid='opl-maintenance-hub'>
@@ -1526,8 +1523,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   onRequestAction={requestManagedUpdateAction}
                   onCancelAction={cancelManagedUpdateAction}
                   onConfirmAction={confirmManagedUpdateAction}
-                  busyDependencyId={busyDependencyId}
-                  onRequestExternalUpdate={requestExternalDependencyUpdate}
                   t={t}
                 />
               </div>

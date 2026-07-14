@@ -24,6 +24,9 @@ const AgentPackagesSettings = React.lazy(() =>
   import('@renderer/pages/settings/CapabilitiesSettings').then((module) => ({ default: module.AgentPackagesSettings }))
 );
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
+const GatewaySettings = React.lazy(() =>
+  import('@renderer/pages/settings/sections/AccessSettings').then((module) => ({ default: module.GatewaySettings }))
+);
 const ResourcesSettings = React.lazy(() => import('@renderer/pages/settings/sections/ResourcesSettings'));
 const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
@@ -49,6 +52,7 @@ const SETTINGS_COMPONENTS = {
   StorageSettings,
   CapabilitiesSettingsContent: CapabilitiesSettings,
   AgentPackagesSettingsContent: AgentPackagesSettings,
+  GatewaySettingsContent: GatewaySettings,
   AccessSettingsContent: AccessSettings,
   ResourcesSettingsContent: ResourcesSettings,
   AppearanceModalContent: AppearanceSettings,

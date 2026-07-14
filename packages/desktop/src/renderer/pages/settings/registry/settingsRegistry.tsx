@@ -30,6 +30,7 @@ import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'general',
+  'gateway',
   'access',
   'workspace',
   'agents',
@@ -218,11 +219,13 @@ export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 const SETTINGS_FONT_AWESOME_ICONS: Record<string, IconDefinition> = {
   dashboard: faGaugeHigh,
   general: faGaugeHigh,
+  gateway: faCloud,
   access: faKey,
   workspace: faFolderOpen,
   agents: faRobot,
   capabilities: faPuzzlePiece,
   resources: faLink,
+  maintenance: faScrewdriverWrench,
   'local-services': faScrewdriverWrench,
   environment: faScrewdriverWrench,
   storage: faHardDrive,
@@ -300,7 +303,10 @@ export type SettingsCapabilityDetailTab = 'opl_flow_managed' | 'manual_and_third
 const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['opl_flow_managed', 'manual_and_third_party']);
 
 const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
-  if (value === 'skills' || value === 'tools' || value === 'assistants') return 'manual_and_third_party';
+  if (value === 'opl-flow-managed') return 'opl_flow_managed';
+  if (value === 'third-party' || value === 'skills' || value === 'tools' || value === 'assistants') {
+    return 'manual_and_third_party';
+  }
   return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;
 };
 
@@ -322,11 +328,12 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
   const slot = getSettingsRenderSlot(routeId);
   const subrouteParam = slot?.subrouteQueryParam ?? 'tab';
   const tabFromRoute = normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);
+  const tabFromAnchor = normalizeCapabilityDetailTab(routeTarget.anchor);
   const tabFromLegacySlot = normalizeCapabilityDetailTab(slot?.legacySubroutes?.[tabId]);
 
   return {
     routeId,
-    capabilitiesTab: tabFromRoute ?? tabFromLegacySlot ?? 'opl_flow_managed',
+    capabilitiesTab: tabFromRoute ?? tabFromAnchor ?? tabFromLegacySlot ?? 'opl_flow_managed',
     ...(routeTarget.anchor ? { anchor: routeTarget.anchor } : {}),
   };
 }
@@ -541,6 +548,7 @@ for (const page of secondaryPages) {
 
 type SettingsRouteComponentKey =
   | 'OverviewSettings'
+  | 'GatewaySettingsContent'
   | 'WorkspaceSettings'
   | 'LocalServicesSettings'
   | 'AccessSettingsContent'
@@ -557,6 +565,7 @@ const SHELL_SLOT_REGISTRY: OplSettingsControlPlane['slot_registry'] = {};
 
 const ROUTE_COMPONENT_KEYS = new Set<string>([
   'OverviewSettings',
+  'GatewaySettingsContent',
   'WorkspaceSettings',
   'LocalServicesSettings',
   'AccessSettingsContent',

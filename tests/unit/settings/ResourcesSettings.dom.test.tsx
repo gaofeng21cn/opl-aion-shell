@@ -705,12 +705,12 @@ describe('ResourcesSettingsContent', () => {
     expect(await view.findByText('已在浏览器中打开工作台。')).toBeTruthy();
   });
 
-  it('routes model access setup to the Access page anchor without executing an action', () => {
+  it('routes model access setup to the Gateway page without executing an action', () => {
     const view = renderResources();
 
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_configure_webui_api_key'));
 
-    expect(getMocks().navigate).toHaveBeenCalledWith('/settings/access?section=opl-gateway');
+    expect(getMocks().navigate).toHaveBeenCalledWith('/settings/gateway');
     expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();
   });
 

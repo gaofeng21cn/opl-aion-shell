@@ -71,10 +71,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     }
   };
 
-  const handleSettingsClick = (target: 'general' | 'access') => {
+  const handleSettingsClick = (target: 'general' | 'gateway') => {
     cleanupSiderTooltips();
     blurActiveElement();
-    Promise.resolve(navigate(target === 'access' ? '/settings/access' : SETTINGS_DEFAULT_ROUTE)).catch((error) => {
+    Promise.resolve(navigate(target === 'gateway' ? '/settings/gateway' : SETTINGS_DEFAULT_ROUTE)).catch((error) => {
       console.error('Navigation failed:', error);
     });
     if (onSessionClick) {

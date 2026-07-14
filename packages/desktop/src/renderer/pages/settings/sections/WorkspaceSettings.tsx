@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { Button, Message, Modal, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import React, { useCallback, useEffect } from 'react';
+import { Button, Message, Tag, Typography } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -14,18 +14,7 @@ import OplPersonalizationSettings from '@/renderer/components/settings/SettingsM
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import {
-  formatStatus,
-  isReadyStatus,
-  moduleDisplayLabel,
-  moduleId,
-  modulePath,
-  modulePathSource,
-  moduleRecords,
-  moduleStatus,
-  normalizeModule,
-  oplPathString,
-} from './runtimeStateView';
+import { oplPathString } from './runtimeStateView';
 
 type WorkspaceSettingsProps = {
   withWrapper?: boolean;
@@ -39,7 +28,6 @@ type SystemDirectoryInfo = {
   arch: string;
 };
 
-const WORKSPACE_PERMISSION_ATTENTION_MODES = new Set(['read-only', 'plan']);
 const AVAILABLE_WORKSPACE_HEALTH = new Set(['available', 'healthy', 'ok', 'ready']);
 const UNKNOWN_WORKSPACE_HEALTH = new Set(['not_reported', 'unknown']);
 
@@ -54,56 +42,27 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const [logDirectoryAction, setLogDirectoryAction] = React.useState<'choose' | null>(null);
   const [systemDirectories, setSystemDirectories] = React.useState<SystemDirectoryInfo | null>(null);
   const [systemDirectoryLoadFailed, setSystemDirectoryLoadFailed] = React.useState(false);
-  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
   const isDesktop = isElectronDesktop();
   const appStateQuery = useOplAppState('fast');
-  const appState = appStateQuery.appState;
-  const paths = oplRecord(appState.paths);
-  const workspaceRootRecord = oplRecord(paths.workspace_root);
-  const core = oplRecord(appState.core);
-  const executor = oplRecord(core.executor);
-  const codex = oplRecord(core.codex);
-  const modulesPayload = oplRecord(appState.modules);
-  const modulesSourcePayload = oplRecord(modulesPayload.source);
-  const familyWorkspaceRoot = oplPathString(paths.family_workspace_root);
+  const settingsControlCenter = oplRecord(appStateQuery.appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const workspaceServices = oplRecord(appSettingsReadModel.workspace_services);
+  const paths = oplRecord(appStateQuery.appState.paths);
+  const projectedWorkspaceRoot = oplRecord(workspaceServices.workspace_root);
+  const workspaceRootRecord =
+    Object.keys(projectedWorkspaceRoot).length > 0 ? projectedWorkspaceRoot : oplRecord(paths.workspace_root);
+  const projectedFamilyWorkspaceRoot = oplRecord(workspaceServices.family_workspace_root);
+  const familyWorkspaceRoot = oplPathString(projectedFamilyWorkspaceRoot) ?? oplPathString(paths.family_workspace_root);
   const workspaceRoot =
-    oplString(paths.workspace_root_path) ?? oplPathString(paths.workspace_root) ?? familyWorkspaceRoot;
-  const frameworkLogsRoot = oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir);
-  const logsRoot = systemDirectories?.logDir ?? null;
-  const modulesRoot =
-    oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
-  const modulesSourceMode = oplString(modulesSourcePayload.mode) ?? oplString(modulesPayload.source);
-  const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'unknown';
+    oplPathString(projectedWorkspaceRoot) ??
+    oplString(paths.workspace_root_path) ??
+    oplPathString(paths.workspace_root) ??
+    familyWorkspaceRoot;
   const workspaceRootHealth = oplString(workspaceRootRecord.health_status) ?? oplString(workspaceRootRecord.status);
   const workspaceExistsFlag =
     workspaceRootRecord.exists === true ? true : workspaceRootRecord.exists === false ? false : null;
   const workspaceWritableFlag =
     workspaceRootRecord.writable === true ? true : workspaceRootRecord.writable === false ? false : null;
-
-  const modules = useMemo(
-    () => moduleRecords(modulesPayload.items ?? modulesPayload.modules).map(normalizeModule),
-    [modulesPayload.items, modulesPayload.modules]
-  );
-
-  const openFolder = (path: string | null) => {
-    if (!path || !isDesktop) return;
-    void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' });
-  };
-
-  const loadSystemDirectories = useCallback(async () => {
-    try {
-      const next = await ipcBridge.application.systemInfo.invoke();
-      setSystemDirectories(next);
-      setSystemDirectoryLoadFailed(false);
-    } catch {
-      setSystemDirectories(null);
-      setSystemDirectoryLoadFailed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadSystemDirectories();
-  }, [loadSystemDirectories]);
 
   const workspaceHealthState =
     !workspaceRootHealth || UNKNOWN_WORKSPACE_HEALTH.has(workspaceRootHealth)
@@ -123,22 +82,36 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
       : workspaceWritableFlag === true || workspaceHealthState === 'ready'
         ? 'ready'
         : 'unknown';
-  const permissionState = !workspaceRoot
-    ? 'unknown'
-    : workspaceAccessState === 'needsAction' || WORKSPACE_PERMISSION_ATTENTION_MODES.has(permissionMode)
-      ? 'needsAction'
-      : workspaceAccessState !== 'ready' || permissionMode === 'unknown'
-        ? 'unknown'
-        : 'ready';
-  const workspaceReady =
-    workspaceExistsState === 'ready' && workspaceAccessState === 'ready' && permissionState === 'ready';
-  const workspaceNeedsAction =
-    workspaceExistsState === 'needsAction' ||
-    workspaceAccessState === 'needsAction' ||
-    permissionState === 'needsAction';
+  const workspaceReady = workspaceExistsState === 'ready' && workspaceAccessState === 'ready';
+  const workspaceNeedsAction = workspaceExistsState === 'needsAction' || workspaceAccessState === 'needsAction';
   const workspaceSummary = workspaceRoot
     ? t('settings.workspacePage.root.current', { path: workspaceRoot })
     : t('settings.workspacePage.root.missing');
+  const logsRoot = systemDirectories?.logDir ?? null;
+
+  const openFolder = (path: string | null) => {
+    if (!path || !isDesktop) return;
+    void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' });
+  };
+
+  useEffect(() => {
+    let active = true;
+    void ipcBridge.application.systemInfo.invoke().then(
+      (directories) => {
+        if (!active) return;
+        setSystemDirectories(directories);
+        setSystemDirectoryLoadFailed(false);
+      },
+      () => {
+        if (!active) return;
+        setSystemDirectories(null);
+        setSystemDirectoryLoadFailed(true);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const chooseWorkspaceRoot = useCallback(async () => {
     setWorkspaceAction('choose');
@@ -177,12 +150,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
       });
       const selectedPath = files?.[0];
       if (!selectedPath) return;
-      await ipcBridge.application.updateSystemInfo.invoke({
-        cacheDir: systemDirectories.cacheDir,
-        workDir: systemDirectories.workDir,
-        logDir: selectedPath,
-      });
-      setSystemDirectories({ ...systemDirectories, logDir: selectedPath });
+
+      const result = await ipcBridge.application.setLogDirectory.invoke({ path: selectedPath });
+      setSystemDirectories({ ...systemDirectories, logDir: result.hostLogDir });
       message.success(t('settings.workspacePage.logs.saved'));
     } catch {
       message.error(t('settings.workspacePage.logs.saveFailed'));
@@ -190,10 +160,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
       setLogDirectoryAction(null);
     }
   }, [isDesktop, logsRoot, message, systemDirectories, t]);
-
-  const openMaintenance = () => {
-    window.location.hash = '#/settings/environment';
-  };
 
   const content = (
     <>
@@ -216,62 +182,58 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           >
             <span id='work-directory' aria-hidden='true' />
             <span id='permissions' aria-hidden='true' />
-            <span id='artifacts' aria-hidden='true' />
-            {permissionState !== 'ready' && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
-            <div className='flex min-w-0 flex-1 flex-col'>
-              <div className='flex min-w-0 flex-col gap-16px p-16px'>
-                <div className='flex min-w-0 items-start gap-10px'>
-                  <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                    <FolderOpen theme='outline' />
-                  </span>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {t('settings.workspacePage.root.title')}
-                    </Typography.Text>
-                    <Typography.Text className='block break-all text-12px text-t-secondary'>
-                      {workspaceSummary}
-                    </Typography.Text>
-                  </div>
+            {!workspaceReady && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
+            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
+              <div className='flex min-w-0 items-start gap-10px'>
+                <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                  <FolderOpen theme='outline' />
+                </span>
+                <div className='min-w-0'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.workspacePage.root.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block break-all text-12px text-t-secondary'>
+                    {workspaceSummary}
+                  </Typography.Text>
                 </div>
-                <div className='flex flex-wrap items-center gap-8px'>
-                  {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.root.dockerMount')}</Tag>}
-                  <span
-                    className={`opl-settings-status ${
-                      workspaceReady
-                        ? 'opl-settings-status--ready'
-                        : workspaceNeedsAction
-                          ? 'opl-settings-status--attention'
-                          : ''
-                    }`}
-                  >
-                    {workspaceReady
-                      ? t('settings.workspacePage.status.writable')
+              </div>
+              <div className='flex flex-wrap items-center gap-8px'>
+                {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.root.dockerMount')}</Tag>}
+                <span
+                  className={`opl-settings-status ${
+                    workspaceReady
+                      ? 'opl-settings-status--ready'
                       : workspaceNeedsAction
-                        ? t('settings.workspacePage.status.needsAction')
-                        : t('settings.oplEnvironmentPage.status.unknown')}
-                  </span>
-                  {isDesktop && (
-                    <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
-                      {t('settings.workspacePage.actions.openWorkspace')}
-                    </Button>
-                  )}
-                  <Button data-testid='settings-workspace-diagnostics-action' onClick={() => setDiagnosticsOpen(true)}>
-                    {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+                        ? 'opl-settings-status--attention'
+                        : ''
+                  }`}
+                >
+                  {workspaceReady
+                    ? t('settings.workspacePage.status.writable')
+                    : workspaceNeedsAction
+                      ? t('settings.workspacePage.status.needsAction')
+                      : t('settings.oplEnvironmentPage.status.unknown')}
+                </span>
+                {isDesktop && (
+                  <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
+                    {t('settings.workspacePage.actions.openWorkspace')}
                   </Button>
-                  {permissionState !== 'ready' && (
-                    <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
-                  )}
-                  {isDesktop && (
-                    <Button
-                      type='primary'
-                      loading={workspaceAction === 'choose'}
-                      onClick={chooseWorkspaceRoot}
-                      data-testid='settings-workspace-primary-action'
-                    >
-                      {t('settings.workspacePage.actions.changeWorkspace')}
-                    </Button>
-                  )}
-                </div>
+                )}
+                {!workspaceReady && (
+                  <Button onClick={() => (window.location.hash = '#/settings/environment')}>
+                    {t('settings.workspacePage.actions.openMaintenance')}
+                  </Button>
+                )}
+                {isDesktop && (
+                  <Button
+                    type='primary'
+                    loading={workspaceAction === 'choose'}
+                    onClick={chooseWorkspaceRoot}
+                    data-testid='settings-workspace-primary-action'
+                  >
+                    {t('settings.workspacePage.actions.changeWorkspace')}
+                  </Button>
+                )}
               </div>
             </div>
           </section>
@@ -308,9 +270,11 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
               </div>
               <div className='flex flex-wrap items-center gap-8px'>
                 {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.logs.dockerMount')}</Tag>}
-                <Button disabled={!isDesktop || !logsRoot} onClick={() => openFolder(logsRoot)}>
-                  {t('settings.workspacePage.actions.openLogs')}
-                </Button>
+                {isDesktop && (
+                  <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
+                    {t('settings.workspacePage.actions.openLogs')}
+                  </Button>
+                )}
                 {isDesktop && (
                   <Button
                     loading={logDirectoryAction === 'choose'}
@@ -337,101 +301,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
             <OplPersonalizationSettings />
           </section>
         </div>
-
-        <Modal
-          visible={diagnosticsOpen}
-          title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-          footer={null}
-          onCancel={() => setDiagnosticsOpen(false)}
-          unmountOnExit
-        >
-          <div
-            className='opl-settings-surface--diagnostic'
-            id='technical-paths'
-            data-testid='settings-workspace-technical-details'
-          >
-            <Typography.Text className='block pb-10px text-12px text-t-secondary'>
-              {t('settings.workspacePage.technical.description')}
-            </Typography.Text>
-            <div className='opl-settings-technical-group'>
-              <div className='opl-settings-list'>
-                <div className='opl-settings-row' data-testid='opl-workspace-settings-modules-root'>
-                  <div className='opl-settings-row__main'>
-                    <Typography.Text className='font-500 text-t-primary'>
-                      {t('settings.workspacePage.modulesRoot.title')}
-                    </Typography.Text>
-                    <Typography.Text className='break-all text-12px text-t-secondary'>
-                      {modulesRoot
-                        ? t('settings.workspacePage.modulesRoot.current', { path: modulesRoot })
-                        : t('settings.workspacePage.modulesRoot.missing')}
-                    </Typography.Text>
-                  </div>
-                  <div className='opl-settings-row__meta'>
-                    <Button disabled={!modulesRoot} onClick={() => openFolder(modulesRoot)}>
-                      {t('common.open', { defaultValue: 'Open' })}
-                    </Button>
-                  </div>
-                </div>
-                <div className='opl-settings-row' data-testid='opl-workspace-settings-framework-logs'>
-                  <div className='opl-settings-row__main'>
-                    <Typography.Text className='font-500 text-t-primary'>
-                      {t('settings.workspacePage.frameworkLogs.title')}
-                    </Typography.Text>
-                    <Typography.Text className='break-all text-12px text-t-secondary'>
-                      {frameworkLogsRoot
-                        ? t('settings.workspacePage.frameworkLogs.current', { path: frameworkLogsRoot })
-                        : t('settings.workspacePage.frameworkLogs.missing')}
-                    </Typography.Text>
-                  </div>
-                  <div className='opl-settings-row__meta'>
-                    <Button disabled={!isDesktop || !frameworkLogsRoot} onClick={() => openFolder(frameworkLogsRoot)}>
-                      {t('settings.workspacePage.actions.openLogs')}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              className='mt-14px flex flex-col divide-y divide-border-1'
-              data-testid='opl-workspace-settings-modules'
-            >
-              {modules.map((module, index) => {
-                const id = moduleId(module) || `module-${index + 1}`;
-                const status = moduleStatus(module);
-                const path = modulePath(module);
-                return (
-                  <div
-                    key={id}
-                    className='flex flex-col gap-6px py-12px md:flex-row md:items-center md:justify-between'
-                  >
-                    <div className='min-w-0'>
-                      <Typography.Text className='block font-500 text-t-primary'>
-                        {moduleDisplayLabel(module)}
-                      </Typography.Text>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
-                      </Typography.Text>
-                      {path ? (
-                        <Tooltip content={path}>
-                          <Typography.Text className='block break-all text-12px text-t-secondary'>
-                            {path}
-                          </Typography.Text>
-                        </Tooltip>
-                      ) : null}
-                    </div>
-                    <Tag color={isReadyStatus(status) ? 'gray' : 'orange'}>{formatStatus(status, t)}</Tag>
-                  </div>
-                );
-              })}
-              {modules.length === 0 && (
-                <Typography.Text className='py-12px text-13px text-t-secondary'>
-                  {t('settings.workspacePage.modules.empty')}
-                </Typography.Text>
-              )}
-            </div>
-          </div>
-        </Modal>
       </div>
     </>
   );

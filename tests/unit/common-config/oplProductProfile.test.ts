@@ -8,6 +8,7 @@ import {
   getOplCodexModelDisplayOptions,
   getOplFlowContextPolicy,
   getOplAgentPackageInvocationReceiptPolicy,
+  getOplAgentPackageRegistryUrl,
   getOplProductDisplayName,
   getOplOrdinaryChromeName,
   getOplGlobalFeedbackIssueUrl,
@@ -24,6 +25,7 @@ import {
   getOplCodexAutoModelPolicy,
   getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
+  getOplDeveloperProfileSettings,
   getOplGuiDefaultCssThemeId,
   getOplGuiSettingsControlPlane,
   getOplGuiLegacySettingsRouteRedirects,
@@ -286,6 +288,7 @@ describe('OPL generated product profile', () => {
   it('exposes App-owned settings navigation and runtime environment profile slices', () => {
     expect(getOplGuiSettingsVisibleTabs()).toEqual([
       'general',
+      'gateway',
       'access',
       'workspace',
       'agents',
@@ -295,16 +298,17 @@ describe('OPL generated product profile', () => {
       'storage',
       'appearance',
     ]);
-    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about']);
+    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['about']);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',
       runtime: 'environment',
-      system: 'advanced',
-      model: 'environment',
+      system: 'environment#diagnostics',
+      advanced: 'environment#diagnostics',
+      model: 'access',
       agent: 'agents',
-      assistants: 'capabilities?tab=skills',
-      'skills-hub': 'capabilities?tab=skills',
-      tools: 'capabilities?tab=tools',
+      assistants: 'capabilities#third-party',
+      'skills-hub': 'capabilities#third-party',
+      tools: 'capabilities#third-party',
       display: 'appearance',
       webui: 'resources',
       pet: 'appearance',
@@ -376,6 +380,13 @@ describe('OPL generated product profile', () => {
       'opl-meta-agent',
       'app',
     ]);
+    expect(getOplAgentPackageRegistryUrl()).toBe(
+      'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json'
+    );
+    expect(getOplDeveloperProfileSettings()).toMatchObject({
+      default_profile: 'standard_user',
+      opt_in_policy: 'automatic_for_matching_identity_and_authorized_repositories_with_explicit_off',
+    });
   });
 
   it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {

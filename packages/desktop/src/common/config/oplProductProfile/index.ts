@@ -458,6 +458,12 @@ export type OplSettingsControlPlaneActionContract = {
   shell_must_not_own: string[];
 };
 
+export type OplAgentPackageRegistry = {
+  default_registry_url: string;
+  source_ref: string;
+  shell_consumption_policy: string;
+};
+
 type AppProductProfile = {
   schema_version: 2;
   owner: 'one-person-lab-app';
@@ -531,6 +537,7 @@ type AppProductProfile = {
     agent_package_invocation_receipt_policy: OplAgentPackageInvocationReceiptPolicy;
     builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
     ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
+    agent_package_registry: OplAgentPackageRegistry;
     professional_agent_packages: OplProfessionalAgentPackage[];
     default_assistants: OplHomeAssistant[];
     assistant_skill_profiles: OplAssistantSkillProfile[];
@@ -1054,7 +1061,7 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
   if (
     developerProfile.source !== 'app_state.developer_profile + app_state.modules[].source_policy' ||
     developerProfile.default_profile !== 'standard_user' ||
-    developerProfile.opt_in_policy !== 'explicit_opt_in_only'
+    developerProfile.opt_in_policy !== 'automatic_for_matching_identity_and_authorized_repositories_with_explicit_off'
   ) {
     throw new Error('Invalid OPL product profile: Developer Profile source and defaults must match OPL App');
   }
@@ -1268,6 +1275,24 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
       forbidden_controls: [...(semanticProbe.forbidden_controls as string[])],
       failure_field: 'missing_controls',
     },
+  };
+}
+
+function readAgentPackageRegistry(gui: Record<string, unknown>): OplAgentPackageRegistry {
+  const value = gui.agent_package_registry;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: gui.agent_package_registry must be an object');
+  }
+  const defaultRegistryUrl = readString(value, 'default_registry_url', 'gui.agent_package_registry');
+  try {
+    if (new URL(defaultRegistryUrl).protocol !== 'https:') throw new Error('unsupported protocol');
+  } catch {
+    throw new Error('Invalid OPL product profile: gui.agent_package_registry.default_registry_url must be HTTPS');
+  }
+  return {
+    default_registry_url: defaultRegistryUrl,
+    source_ref: readString(value, 'source_ref', 'gui.agent_package_registry'),
+    shell_consumption_policy: readString(value, 'shell_consumption_policy', 'gui.agent_package_registry'),
   };
 }
 
@@ -1796,6 +1821,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const developerProfile = readDeveloperProfileSettings(settings);
   const expectedTabs = [
     'general',
+    'gateway',
     'access',
     'workspace',
     'agents',
@@ -1814,7 +1840,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const secondaryPageIds = settingsIa
     ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
     : [];
-  if (secondaryPageIds.join(',') !== 'advanced,about') {
+  if (secondaryPageIds.join(',') !== 'about') {
     throw new Error('Invalid OPL product profile: GUI secondary settings pages must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');
@@ -1825,12 +1851,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const expectedLegacySettingsRouteRedirects: Record<string, string> = {
     overview: 'general',
     runtime: 'environment',
-    system: 'advanced',
-    model: 'environment',
+    system: 'environment#diagnostics',
+    advanced: 'environment#diagnostics',
+    model: 'access',
     agent: 'agents',
-    assistants: 'capabilities',
-    'skills-hub': 'capabilities',
-    tools: 'capabilities',
+    assistants: 'capabilities#third-party',
+    'skills-hub': 'capabilities#third-party',
+    tools: 'capabilities#third-party',
     display: 'appearance',
     webui: 'resources',
     pet: 'appearance',
@@ -2029,6 +2056,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const agentPackageInvocationReceiptPolicy = readAgentPackageInvocationReceiptPolicy(gui);
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
+  const agentPackageRegistry = readAgentPackageRegistry(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
   const oplAppSessionContext = readOplAppSessionContextPolicy(codex);
   const sessionContextI18n = isRecord(codex.session_context_i18n)
@@ -2236,6 +2264,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       agent_package_invocation_receipt_policy: agentPackageInvocationReceiptPolicy,
       builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
       ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
+      agent_package_registry: agentPackageRegistry,
       professional_agent_packages: professionalAgentPackages,
       default_assistants: defaultHomeAssistants,
       assistant_skill_profiles: assistantSkillProfiles,
@@ -2795,6 +2824,10 @@ export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
     ...shortcut,
     required_skill_ids: [...shortcut.required_skill_ids],
   }));
+}
+
+export function getOplAgentPackageRegistryUrl(): string {
+  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.default_registry_url;
 }
 
 export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[] {

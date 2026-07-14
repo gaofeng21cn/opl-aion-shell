@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
   LocalDataLifecycleInventory,
+  LocalDataLifecycleInventorySnapshot,
   LocalDataLifecycleLogRetentionPlan,
   LocalDataLifecycleReceipt,
   LocalDataLifecycleRuntimePrunePlan,
@@ -78,9 +79,9 @@ const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> 
 
 const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = {
   updater_cache: 'installer-cache',
-  user_data_artifacts: 'conversation-archives',
+  user_data_artifacts: 'archives',
   runtime_substrate: 'runtime-cache',
-  logs: 'logs',
+  logs: 'log-cleanup',
 };
 
 const LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY = 'opl.storage.latestConversationArchiveReceipt.v1';
@@ -131,7 +132,8 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
 }) => {
   const { t } = useTranslation();
   const meta = SECTION_META[item.id];
-  const isEmpty = item.bytes <= 0;
+  const hasInventory = item.section !== null;
+  const isEmpty = hasInventory && item.bytes <= 0;
 
   return (
     <section
@@ -145,18 +147,20 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
           <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
         </div>
         <Typography.Text className='text-16px font-600 text-t-primary'>
-          {formatStorageBytes(item.bytes)}
+          {hasInventory ? formatStorageBytes(item.bytes) : t('settings.storagePage.inventory.unknownSize')}
         </Typography.Text>
         {isEmpty && (
           <div className='opl-settings-action-result'>{t('settings.storagePage.inventory.noCleanupNeeded')}</div>
         )}
         {!isEmpty && status && <div className='opl-settings-action-result'>{status}</div>}
-        {!item.section && (
+        {!hasInventory && (
           <Typography.Text className='block text-12px text-t-secondary'>
             {t('settings.storagePage.inventory.notLoaded')}
           </Typography.Text>
         )}
-        {(!isEmpty || actionsWhenEmpty) && <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>}
+        {hasInventory && (!isEmpty || actionsWhenEmpty) && (
+          <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>
+        )}
       </div>
     </section>
   );
@@ -165,6 +169,7 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const [inventory, setInventory] = React.useState<LocalDataLifecycleInventory | null>(null);
+  const [inventorySnapshot, setInventorySnapshot] = React.useState<LocalDataLifecycleInventorySnapshot | null>(null);
   const [lastReceipt, setLastReceipt] = React.useState<LocalDataLifecycleReceipt | null>(null);
   const [conversationProofReceipt, setConversationProofReceipt] = React.useState<LocalDataLifecycleReceipt | null>(
     null
@@ -191,17 +196,23 @@ export const StorageSettingsContent: React.FC = () => {
     [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
   const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
-  const cleanupCandidatesAvailable = viewModel.sections.some(
-    (section) => section.id !== 'user_data_artifacts' && section.bytes > 0
-  );
-  const conversationFilesAvailable =
-    (viewModel.sections.find((section) => section.id === 'user_data_artifacts')?.bytes ?? 0) > 0;
-  const conversationArchiveCanRestore = Boolean(viewModel.conversationProof.receiptPath) && !conversationFilesAvailable;
+  const cleanupCandidatesAvailable =
+    Boolean(inventory) &&
+    viewModel.sections.some((section) => section.id !== 'user_data_artifacts' && section.bytes > 0);
+  const conversationSection = viewModel.sections.find((section) => section.id === 'user_data_artifacts');
+  const conversationFilesAvailable = (conversationSection?.bytes ?? 0) > 0;
+  const conversationArchiveCanRestore =
+    Boolean(conversationSection?.section) &&
+    Boolean(viewModel.conversationProof.receiptPath) &&
+    !conversationFilesAvailable;
   const interactionLocked = loading !== null || pendingDangerAction !== null;
 
-  const refreshInventory = React.useCallback(async () => {
-    const result = await ipcBridge.localDataLifecycle.getInventory.invoke();
-    setInventory(result);
+  const applyInventorySnapshot = React.useCallback((snapshot: LocalDataLifecycleInventorySnapshot) => {
+    setInventorySnapshot(snapshot);
+    setInventory(snapshot.inventory);
+  }, []);
+
+  const restoreRememberedConversationProof = React.useCallback(async () => {
     const receiptPath = readLatestConversationArchiveReceiptPath();
     if (!receiptPath) return;
     try {
@@ -212,6 +223,11 @@ export const StorageSettingsContent: React.FC = () => {
       setConversationProofReceipt(null);
     }
   }, []);
+
+  const refreshInventory = React.useCallback(async () => {
+    const snapshot = await ipcBridge.localDataLifecycle.refreshInventory.invoke();
+    applyInventorySnapshot(snapshot);
+  }, [applyInventorySnapshot]);
 
   const runAction = React.useCallback(
     async <Result,>(
@@ -246,8 +262,24 @@ export const StorageSettingsContent: React.FC = () => {
   }, [refreshInventory, runAction]);
 
   React.useEffect(() => {
-    loadInventory();
-  }, [loadInventory]);
+    let active = true;
+    const unsubscribe = ipcBridge.localDataLifecycle.inventoryUpdated.on((snapshot) => {
+      if (active) applyInventorySnapshot(snapshot);
+    });
+    void ipcBridge.localDataLifecycle.getInventorySnapshot.invoke().then(
+      (snapshot) => {
+        if (active) applyInventorySnapshot(snapshot);
+      },
+      (snapshotError) => {
+        if (active) setError(snapshotError instanceof Error ? snapshotError.message : String(snapshotError));
+      }
+    );
+    void restoreRememberedConversationProof();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [applyInventorySnapshot, restoreRememberedConversationProof]);
 
   React.useEffect(() => {
     if (!pendingDangerAction) return;
@@ -659,7 +691,21 @@ export const StorageSettingsContent: React.FC = () => {
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
           <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
-            {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
+            {t('settings.storagePage.overview.total')}:{' '}
+            {inventory ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
+          </Typography.Text>
+          <Typography.Text className='mt-2px block text-12px text-t-tertiary' data-testid='storage-inventory-freshness'>
+            {inventorySnapshot?.observed_at
+              ? t('settings.storagePage.inventory.freshness', {
+                  observedAt: new Date(inventorySnapshot.observed_at).toLocaleString(),
+                  duration: inventorySnapshot.scan_duration_ms ?? 0,
+                  state: t(
+                    inventorySnapshot.stale
+                      ? 'settings.storagePage.inventory.stale'
+                      : 'settings.storagePage.inventory.current'
+                  ),
+                })
+              : t('settings.storagePage.inventory.awaitingSnapshot')}
           </Typography.Text>
         </div>
         <div className='opl-settings-page-header__actions'>
@@ -735,6 +781,8 @@ export const StorageSettingsContent: React.FC = () => {
           ))}
         </div>
       </div>
+
+      <span id='cleanup-history' aria-hidden='true' />
 
       <div className='flex justify-end' data-testid='storage-research-lifecycle'>
         <Button data-testid='settings-storage-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>

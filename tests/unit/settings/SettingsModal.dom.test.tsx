@@ -54,6 +54,7 @@ vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
       Runtime content {withWrapper === false ? 'embedded' : 'wrapped'}
       <section id='updates'>Updates target</section>
       <section id='services'>Services target</section>
+      <section id='diagnostics'>Diagnostics target</section>
     </div>
   ),
 }));
@@ -92,6 +93,7 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent
 
 vi.mock('@/renderer/pages/settings/sections/AccessSettings', () => ({
   AccessSettingsContent: () => <div data-testid='access-content'>Model & Account remote Docker WebUI access</div>,
+  GatewaySettingsContent: () => <div data-testid='gateway-content'>Account & Gateway</div>,
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
     <div data-testid='access-content'>Access content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
   ),
@@ -155,8 +157,10 @@ vi.mock('react-i18next', () => ({
         'settings.workspace': 'Workspace',
         'settings.workspacePersonalization': 'Workspace & Personalization',
         'settings.localServices': 'Local Services',
-        'settings.storage': 'Storage',
+        'settings.storage': 'Data & Storage',
         'settings.capabilities': 'Capabilities',
+        'settings.gateway': 'Account & Gateway',
+        'settings.models': 'Models',
         'settings.onboarding': 'Access',
         'settings.resources': 'Resources & Connections',
         'settings.preferences': 'Preferences',
@@ -207,25 +211,39 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('runtime-content')).not.toBeInTheDocument();
   });
 
+  it('renders Account & Gateway and Models as separate owner pages', () => {
+    const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='gateway' />);
+
+    expect(screen.getByTestId('gateway-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('access-content')).not.toBeInTheDocument();
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='access' />);
+
+    expect(screen.getByTestId('access-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('gateway-content')).not.toBeInTheDocument();
+  });
+
   it('shows only App-owned ordinary settings tabs', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     const overviewButton = screen.getByRole('button', { name: 'Overview' });
     expect(overviewButton).toBeInTheDocument();
     expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).not.toBeNull();
-    expect(screen.getByText('Access')).toBeInTheDocument();
+    expect(screen.getByText('Account & Gateway')).toBeInTheDocument();
+    expect(screen.getByText('Models')).toBeInTheDocument();
     expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(screen.getByText('Data & Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
+    expect(screen.queryByText('Access')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
     expect(screen.queryByText('Tools')).not.toBeInTheDocument();
@@ -240,13 +258,14 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('settings-search-input')).toBeInTheDocument();
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Access')).toBeInTheDocument();
+    expect(screen.getByText('Account & Gateway')).toBeInTheDocument();
+    expect(screen.getByText('Models')).toBeInTheDocument();
     expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(screen.getByText('Data & Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
@@ -273,25 +292,21 @@ describe('SettingsModal OPL App navigation', () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('keeps Advanced and About after a Settings secondary-group divider', () => {
+  it('keeps retired Advanced out and places secondary About after a divider', () => {
     render(
       <MemoryRouter initialEntries={['/settings/general']}>
         <SettingsSider />
       </MemoryRouter>
     );
 
-    const divider = screen.getByTestId('settings-sider-secondary-divider');
     const preferences = screen.getByRole('button', { name: 'Preferences' });
-    const advanced = screen.getByRole('button', { name: 'Advanced' });
+    const divider = screen.getByTestId('settings-sider-secondary-divider');
     const about = screen.getByRole('button', { name: 'About' });
 
+    expect(preferences).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Advanced' })).not.toBeInTheDocument();
     expect(preferences.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(divider.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(advanced.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working directories' } });
-
-    expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
+    expect(divider.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it('keeps the connected account as the single Settings footer entry', () => {
@@ -309,7 +324,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.click(screen.getByTestId('sider-footer-account'));
 
-    expect(onSettingsClick).toHaveBeenCalledWith('access');
+    expect(onSettingsClick).toHaveBeenCalledWith('gateway');
     expect(screen.queryByTestId('sider-footer-theme')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-settings')).not.toBeInTheDocument();
     expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
@@ -317,7 +332,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 
-  it('shows the connected Gateway account compactly and opens Models & Access', () => {
+  it('shows the connected Gateway account compactly and opens Account & Gateway', () => {
     const onSettingsClick = vi.fn();
 
     render(
@@ -335,7 +350,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('sider-footer-account')).toHaveAccessibleName('Feng Gao');
     fireEvent.click(screen.getByTestId('sider-footer-account'));
 
-    expect(onSettingsClick).toHaveBeenCalledWith('access');
+    expect(onSettingsClick).toHaveBeenCalledWith('gateway');
   });
 
   it('shows Settings when no Gateway account is connected and opens Overview', () => {
@@ -378,39 +393,39 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'packages' } });
 
-    expect(screen.getByText('Local Environment')).toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Updates')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
-    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
+    expect(screen.queryByText('Data & Storage')).not.toBeInTheDocument();
   });
 
-  it('keeps Resources ordinary while surfacing Advanced through Settings search', () => {
+  it('keeps Resources ordinary while routing diagnostics search to Maintenance', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
-    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working directories' } });
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working paths' } });
 
-    expect(screen.getByText('Advanced')).toBeInTheDocument();
-    expect(screen.getByText('Working directories')).toBeInTheDocument();
-    expect(screen.queryByText('Access')).not.toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Diagnostics and working paths')).toBeInTheDocument();
+    expect(screen.queryByText('Models')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Working directories'));
+    fireEvent.click(screen.getByText('Diagnostics and working paths'));
 
-    expect(screen.getByTestId('system-content')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
   });
 
   it('uses Enter to open and focus the first matching Settings item', async () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     const input = screen.getByTestId('settings-search-input');
-    fireEvent.change(input, { target: { value: 'working directories' } });
+    fireEvent.change(input, { target: { value: 'working paths' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    await waitFor(() => expect(screen.getByTestId('system-content')).toBeInTheDocument());
-    await waitFor(() => expect(document.getElementById('working-directories')).toHaveFocus());
+    await waitFor(() => expect(screen.getByTestId('runtime-content')).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById('diagnostics')).toHaveFocus());
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
@@ -452,13 +467,13 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='model' />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+      expect(screen.getByTestId('access-content')).toBeInTheDocument();
     });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='system' />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('system-content')).toBeInTheDocument();
+      expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
     });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='storage' />);
@@ -486,20 +501,20 @@ describe('SettingsModal OPL App navigation', () => {
     });
   });
 
-  it('redirects legacy agent and tools requests to their separated owner pages', () => {
-    render(<SettingsModal visible onCancel={() => {}} defaultTab='model' />);
+  it('redirects legacy agent and tools requests to their separated owner pages', async () => {
+    const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='model' />);
 
-    expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    expect(screen.getByTestId('access-content')).toBeInTheDocument();
     expect(screen.queryByTestId('system-content')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
-    const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='agent' />);
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='agent' />);
 
-    expect(screen.getByTestId('agents-content')).toHaveTextContent('MAS');
+    await waitFor(() => expect(screen.getByTestId('agents-content')).toHaveTextContent('MAS'));
     expect(screen.queryByTestId('capabilities-content')).not.toBeInTheDocument();
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='tools' />);
 
-    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Skills');
+    await waitFor(() => expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Skills'));
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Tools');
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:manual_and_third_party');
 

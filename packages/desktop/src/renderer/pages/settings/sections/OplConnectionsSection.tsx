@@ -39,6 +39,8 @@ const EMPTY_CONNECTION_FORM: ConnectionFormValue = {
   disabled: false,
 };
 const ENV_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+const OPL_GATEWAY_CONNECTION_ID = 'opl-gateway-account';
+const OPL_GATEWAY_CREDENTIAL_HANDLE = 'credential-store:opl-gateway-account';
 
 function isHttpEndpoint(value: string): boolean {
   try {
@@ -56,7 +58,15 @@ export function buildConnectionRegistry(appState: Record<string, unknown>): Conn
     ? registry.connections.flatMap((value): OplConnection[] => {
         const connection = oplRecord(value);
         const connectionId = typeof connection.connection_id === 'string' ? connection.connection_id.trim() : '';
-        if (!connectionId) return [];
+        const credentialHandle =
+          typeof connection.credential_handle === 'string' ? connection.credential_handle.trim() : '';
+        if (
+          !connectionId ||
+          connectionId === OPL_GATEWAY_CONNECTION_ID ||
+          credentialHandle === OPL_GATEWAY_CREDENTIAL_HANDLE
+        ) {
+          return [];
+        }
         const statusValue = typeof connection.status === 'string' ? connection.status : 'untested';
         const status: ConnectionStatus = ['untested', 'ready', 'attention_needed', 'disabled'].includes(statusValue)
           ? (statusValue as ConnectionStatus)
@@ -67,7 +77,7 @@ export function buildConnectionRegistry(appState: Record<string, unknown>): Conn
             name: typeof connection.name === 'string' && connection.name.trim() ? connection.name.trim() : connectionId,
             connectionType: typeof connection.connection_type === 'string' ? connection.connection_type : '',
             endpoint: typeof connection.endpoint === 'string' ? connection.endpoint : '',
-            credentialHandle: typeof connection.credential_handle === 'string' ? connection.credential_handle : '',
+            credentialHandle,
             status,
             statusCode: typeof connection.status_code === 'string' ? connection.status_code : '',
             disabled: connection.disabled === true || status === 'disabled',
@@ -75,11 +85,12 @@ export function buildConnectionRegistry(appState: Record<string, unknown>): Conn
         ];
       })
     : [];
+  const configuredDefaultConnectionId =
+    typeof registry.default_connection_id === 'string' ? registry.default_connection_id.trim() : '';
   return {
-    defaultConnectionId:
-      typeof registry.default_connection_id === 'string' && registry.default_connection_id.trim()
-        ? registry.default_connection_id.trim()
-        : null,
+    defaultConnectionId: connections.some((connection) => connection.connectionId === configuredDefaultConnectionId)
+      ? configuredDefaultConnectionId
+      : null,
     connections,
   };
 }

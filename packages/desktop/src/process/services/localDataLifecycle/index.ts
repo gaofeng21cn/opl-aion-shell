@@ -171,7 +171,7 @@ type LogRetentionPlanInput = {
   maxTotalBytes: number;
 };
 
-type LocalDataLifecycleInventoryInput = {
+export type LocalDataLifecycleInventoryInput = {
   dataRoot: string;
   updaterCacheRoots?: string[];
   conversationRoots?: string[];

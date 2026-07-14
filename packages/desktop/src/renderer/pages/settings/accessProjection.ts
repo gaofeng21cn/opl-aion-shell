@@ -66,17 +66,23 @@ export function readGatewayAccountProjection(appState: unknown): OplGatewayAccou
 }
 
 export function readCodexModelResolution(appState: unknown): CodexModelResolution {
-  const codex = oplRecord(oplRecord(oplRecord(appState).core).codex);
+  const appStateRecord = oplRecord(appState);
+  const settingsControlCenter = oplRecord(appStateRecord.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const codexModelPolicy = oplRecord(appSettingsReadModel.codex_model_policy);
+  const codex = oplRecord(oplRecord(appStateRecord.core).codex);
   const codexConfig = oplRecord(codex.config);
   const defaultProfile = oplRecord(codex.default_profile);
   return {
     modelId:
+      oplString(codexModelPolicy.model) ??
       oplString(codex.default_model) ??
       oplString(codex.model) ??
       oplString(codexConfig.default_model) ??
       oplString(defaultProfile.model) ??
       oplString(codexConfig.model),
     reasoningEffort:
+      oplString(codexModelPolicy.reasoning_effort) ??
       oplString(codex.default_reasoning_effort) ??
       oplString(defaultProfile.model_reasoning_effort) ??
       oplString(codexConfig.reasoning_effort),
@@ -406,20 +412,32 @@ export function buildAccessProjection(
   const codex = oplRecord(core.codex);
   const codexConfig = oplRecord(codex.config);
   const codexDefaultProfile = oplRecord(codex.default_profile);
-  const codexStateAvailable = Object.keys(codex).length > 0;
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const codexModelPolicy = oplRecord(appSettingsReadModel.codex_model_policy);
+  const statusSummary = oplRecord(settingsControlCenter.status_summary);
+  const codexStateAvailable = Object.keys(codexModelPolicy).length > 0 || Object.keys(codex).length > 0;
 
   const codexStatus = normalizeAccessStatus(
-    oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : null),
+    oplString(codexModelPolicy.access_status) ??
+      oplString(codex.status) ??
+      (oplString(statusSummary.codex_version) || oplString(codex.version) ? 'ready' : null),
     'unknown'
   );
   const apiKeyPresent =
-    codex.api_key_present === true || codexConfig.api_key_present === true || oplString(codexConfig.status) === 'ready';
-  const oplGatewayConfigured = codex.opl_gateway_configured === true;
-  const modelAccessReady = codex.model_access_ready === true || apiKeyPresent;
-  const modelAccessSource = oplString(codex.model_access_source);
+    codexModelPolicy.api_key_present === true ||
+    codex.api_key_present === true ||
+    codexConfig.api_key_present === true ||
+    oplString(codexConfig.status) === 'ready';
+  const oplGatewayConfigured =
+    codexModelPolicy.opl_gateway_configured === true || codex.opl_gateway_configured === true;
+  const modelAccessReady =
+    codexModelPolicy.model_access_ready === true || codex.model_access_ready === true || apiKeyPresent;
+  const modelAccessSource = oplString(codexModelPolicy.model_access_source) ?? oplString(codex.model_access_source);
   const modelFallback = t('settings.accessPage.cards.model.fallback');
 
   const modelName =
+    oplString(codexModelPolicy.model) ??
     oplString(codex.default_model) ??
     oplString(codexConfig.default_model) ??
     oplString(codexDefaultProfile.model) ??
@@ -434,8 +452,9 @@ export function buildAccessProjection(
         : t('settings.accessPage.cards.account.missing');
   const accountSourceLabel = modelAccessSourceLabel(modelAccessSource, t);
   const modelLine = t('settings.accessPage.cards.codexCli.model', { model: modelName });
-  const codexVersionLine = oplString(codex.version)
-    ? t('settings.accessPage.cards.codexCli.version', { version: oplString(codex.version) ?? '' })
+  const codexVersion = oplString(statusSummary.codex_version) ?? oplString(codex.version);
+  const codexVersionLine = codexVersion
+    ? t('settings.accessPage.cards.codexCli.version', { version: codexVersion })
     : null;
 
   const cards: StatusCard[] = [

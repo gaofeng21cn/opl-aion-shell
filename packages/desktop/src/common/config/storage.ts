@@ -198,6 +198,9 @@ export interface IEnvStorageRefer {
     workDir: string;
     cacheDir: string;
     logDir?: string;
+    dockerDataRoot?: '/data';
+    dockerLogDir?: '/data/logs';
+    dockerLogVolumeSource?: string;
   };
 }
 

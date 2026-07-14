@@ -89,6 +89,8 @@ class AutoUpdaterService extends EventEmitter {
   private _eventHandlersSetup = false;
   private _allowPrerelease = false;
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
+  private _statusSnapshot: AutoUpdateStatus | null = null;
+  private _startupCheckStarted = false;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
   private readonly _updaterCacheRoot = getDefaultAutoUpdateCacheRoot({
@@ -152,6 +154,10 @@ class AutoUpdaterService extends EventEmitter {
     return this._isInitialized;
   }
 
+  getStatusSnapshot(): AutoUpdateStatus | null {
+    return this._statusSnapshot ? structuredClone(this._statusSnapshot) : null;
+  }
+
   /**
    * Reset the service state (for production use)
    */
@@ -160,6 +166,8 @@ class AutoUpdaterService extends EventEmitter {
     // Note: _eventHandlersSetup is NOT reset to avoid duplicate handler registration
     this._allowPrerelease = false;
     this._statusBroadcastCallback = null;
+    this._statusSnapshot = null;
+    this._startupCheckStarted = false;
   }
 
   /**
@@ -171,6 +179,8 @@ class AutoUpdaterService extends EventEmitter {
     this._eventHandlersSetup = false;
     this._allowPrerelease = false;
     this._statusBroadcastCallback = null;
+    this._statusSnapshot = null;
+    this._startupCheckStarted = false;
     // Remove listeners from this EventEmitter instance
     this.removeAllListeners();
     // Remove each registered handler from autoUpdater to prevent
@@ -291,6 +301,7 @@ class AutoUpdaterService extends EventEmitter {
    * Broadcast status to both EventEmitter listeners and the registered callback
    */
   private broadcastStatus(status: AutoUpdateStatus): void {
+    this._statusSnapshot = structuredClone(status);
     recordAutoUpdateStatus(status, {
       currentAppVersion: app.getVersion(),
       userDataPath: app.getPath('userData'),
@@ -327,9 +338,11 @@ class AutoUpdaterService extends EventEmitter {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
       }
+      this.broadcastStatus({ status: 'checking' });
       const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
       if (missingConfigPath) {
         log.warn('Packaged auto-update config is unavailable; using manual release checks only:', missingConfigPath);
+        this.broadcastStatus({ status: 'not-available' });
         return { success: true };
       }
 
@@ -342,8 +355,15 @@ class AutoUpdaterService extends EventEmitter {
       // When isUpdateAvailable is false, updateInfoAndProvider is NOT set internally,
       // so a subsequent downloadUpdate() call would fail with "Please check update first".
       if (!result.isUpdateAvailable) {
+        this.broadcastStatus({ status: 'not-available' });
         return { success: true };
       }
+      this.broadcastStatus({
+        status: 'available',
+        version: result.updateInfo.version,
+        releaseDate: result.updateInfo.releaseDate,
+        releaseNotes: typeof result.updateInfo.releaseNotes === 'string' ? result.updateInfo.releaseNotes : undefined,
+      });
       return {
         success: true,
         updateInfo: result.updateInfo,
@@ -352,9 +372,11 @@ class AutoUpdaterService extends EventEmitter {
       const message = error instanceof Error ? error.message : String(error);
       if (isMissingPackagedUpdaterConfigError(message)) {
         log.warn('Packaged auto-update config is unavailable; using manual release checks only:', message);
+        this.broadcastStatus({ status: 'not-available' });
         return { success: true };
       }
       log.error('Check for updates failed:', message);
+      this.broadcastStatus({ status: 'error', error: message });
       return {
         success: false,
         error: message,
@@ -420,7 +442,10 @@ class AutoUpdaterService extends EventEmitter {
    * Check for updates and notify (for startup)
    */
   async checkForUpdatesAndNotify(): Promise<void> {
+    if (this._startupCheckStarted) return;
+    this._startupCheckStarted = true;
     try {
+      this.broadcastStatus({ status: 'checking' });
       const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
       if (missingConfigPath) {
         log.warn(
@@ -441,6 +466,7 @@ class AutoUpdaterService extends EventEmitter {
         return;
       }
       log.error('Auto-update check failed:', error);
+      this.broadcastStatus({ status: 'error', error: message });
     }
   }
 }

@@ -528,6 +528,8 @@ export function createAutoUpdateStatusBroadcast(): (
 }
 
 export function initUpdateBridge(): void {
+  ipcBridge.autoUpdate.getStatusSnapshot.provider(() => Promise.resolve(autoUpdaterService.getStatusSnapshot()));
+
   ipcBridge.update.check.provider(
     async (params): Promise<{ success: boolean; data?: UpdateCheckResult; msg?: string }> => {
       try {

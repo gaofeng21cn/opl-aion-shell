@@ -709,78 +709,30 @@ describe('AccessSettingsContent', () => {
     ).toBeNull();
   });
 
-  it('renders model access, Codex CLI, and progressive Gateway configuration without resource entries', () => {
+  it('keeps the models surface focused on model access, Codex CLI, and conversation defaults', () => {
     const view = render(<AccessSettingsContent />);
 
     expect(view.getByText('Access')).toBeTruthy();
-    expect(view.getByText('Model access')).toBeTruthy();
-    expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
-    expect(
-      view.getByText('Confirm the active access source and default model before changing configuration.')
-    ).toBeTruthy();
-    expect(view.getByText('Codex CLI')).toBeTruthy();
-    expect(document.body.textContent).toContain('Installed: 0.125.0');
-    expect(document.body.textContent).toContain('Default model: gpt-5.5');
-    expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
-    expect(document.body.textContent).toContain('Connected');
-    expect(document.body.textContent).not.toContain('Currently using OPL Gateway.');
-    expect(document.body.textContent).not.toContain('Background Task Service');
-    expect(document.body.textContent).not.toContain('local OPL scheduling');
-    expect(document.body.textContent).not.toContain('Background task service is available.');
-    expect(document.body.textContent).not.toContain('Model service is reachable.');
-    expect(document.body.textContent).not.toContain('127.0.0.1:7233');
-    expect(document.body.textContent).not.toContain('temporal · ready');
-    expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
-    expect(document.body.textContent).not.toContain('Fix issue');
-    expect(view.queryByText('Browser access to this computer')).toBeNull();
-    expect(view.queryByTestId('settings-access-browser-access')).toBeNull();
-    expect(view.queryByText('Connection details')).toBeNull();
-    expect(view.queryByText('Port: 25808')).toBeNull();
-    expect(view.queryByTestId('opl-settings-open-native-remote-settings')).toBeNull();
-    expect(view.queryByTestId('opl-settings-open-resources-connections')).toBeNull();
-    expect(document.body.textContent).not.toContain('Docker WebUI actions are not available yet.');
-    expect(document.body.textContent).not.toContain('Install Docker WebUI');
-    expect(document.body.textContent).not.toContain('Other resource entry points');
-    expect(document.body.textContent).not.toContain('Status: action_available');
-    expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
-    expect(document.body.textContent).not.toContain('Recovery: available');
-    expect(document.body.textContent).not.toContain('action_available');
-    expect(document.body.textContent).not.toContain('diagnose_with_doctor');
-    expect(document.body.textContent).not.toContain('Recovery: available');
-    expect(document.body.textContent).not.toContain('Install Docker WebUI');
-    expect(document.body.textContent).not.toContain('Select WebUI image seed');
-    expect(document.body.textContent).not.toContain('Diagnose Docker WebUI');
-    expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
-    expect(view.queryByTestId('opl-settings-codex-api-key-input')).toBeNull();
-    expect(view.getByTestId('opl-settings-show-gateway-config-button')).toBeTruthy();
-    expect(document.body.textContent).not.toContain('Permission Mode');
-    expect(document.body.textContent).not.toContain('Full Auto');
-    expect(document.body.textContent).not.toContain('Access Keys');
-    expect(document.body.textContent).not.toContain('Local Background Service');
-    expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
-    expect(view.getByTestId('settings-access-codex-cli')).toBeTruthy();
-    expect(view.getByTestId('settings-access-summary-grid')).toHaveClass('grid-cols-1', 'xl:grid-cols-2');
-    expect(view.getByTestId('settings-access-summary-grid')).not.toHaveClass('md:grid-cols-2');
-    expect(view.getByTestId('settings-access-gateway')).toBeTruthy();
-    expect(view.getByTestId('settings-access-model-preference')).toBeTruthy();
-    expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto');
-    expect(view.getByTestId('settings-access-preferred-model')).toHaveTextContent('Auto (current: 5.5)');
-    expect(view.getByTestId('settings-access-preferred-reasoning')).toBeDisabled();
-    expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
-    expect(document.querySelector('#model')).toBeTruthy();
+    expect(view.getByTestId('settings-models-primary')).toHaveClass('grid-cols-1', 'xl:grid-cols-2');
+    expect(view.getByTestId('settings-models-codex-cli')).toHaveTextContent('Default model: gpt-5.5');
+    expect(view.getByTestId('settings-models-model-preference')).toBeTruthy();
+    expect(view.getByTestId('settings-models-preferred-model')).toHaveValue('__auto');
+    expect(view.getByTestId('settings-models-preferred-reasoning')).toBeDisabled();
+    expect(view.getByTestId('settings-models-gateway-link')).toBeTruthy();
+    expect(view.queryByTestId('settings-gateway-primary')).toBeNull();
   });
 
   it('persists a fixed built-in model and reasoning preference for new conversations', async () => {
     const view = render(<AccessSettingsContent />);
 
-    fireEvent.change(view.getByTestId('settings-access-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
+    fireEvent.change(view.getByTestId('settings-models-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
     await waitFor(() =>
       expect(getMocks().configSet).toHaveBeenCalledWith('acp.config', {
         codex: { preferredModelId: 'gpt-5.6-sol', preferredReasoningEffort: 'max' },
       })
     );
 
-    fireEvent.change(view.getByTestId('settings-access-preferred-reasoning'), { target: { value: 'high' } });
+    fireEvent.change(view.getByTestId('settings-models-preferred-reasoning'), { target: { value: 'high' } });
     await waitFor(() =>
       expect(getMocks().configSet).toHaveBeenLastCalledWith('acp.config', {
         codex: { preferredModelId: 'gpt-5.6-sol', preferredReasoningEffort: 'high' },
@@ -792,18 +744,18 @@ describe('AccessSettingsContent', () => {
     getMocks().configSet.mockRejectedValueOnce(new Error('write failed'));
     const view = render(<AccessSettingsContent />);
 
-    fireEvent.change(view.getByTestId('settings-access-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
+    fireEvent.change(view.getByTestId('settings-models-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
 
-    await waitFor(() => expect(view.getByTestId('settings-access-preferred-model')).toHaveValue('__auto'));
+    await waitFor(() => expect(view.getByTestId('settings-models-preferred-model')).toHaveValue('__auto'));
     expect(document.body.textContent).toContain('Could not save model preference.');
   });
 
   it('does not repeat already visible access facts in a diagnostics modal', async () => {
     const view = render(<AccessSettingsContent />);
 
-    expect(view.queryByTestId('settings-access-technical-details')).toBeNull();
-    expect(view.queryByTestId('settings-access-diagnostics-action')).toBeNull();
-    expect(view.getByTestId('settings-access-codex-cli')).toHaveTextContent('gpt-5.5');
+    expect(view.queryByTestId('settings-models-technical-details')).toBeNull();
+    expect(view.queryByTestId('settings-models-diagnostics-action')).toBeNull();
+    expect(view.getByTestId('settings-models-codex-cli')).toHaveTextContent('gpt-5.5');
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {
@@ -823,10 +775,10 @@ describe('AccessSettingsContent', () => {
 
     const view = render(<AccessSettingsContent />);
 
-    expect(view.getByTestId('settings-access-model-status')).toHaveTextContent('Not read');
-    expect(view.getByTestId('settings-access-model-status')).not.toHaveClass('opl-settings-status--attention');
-    expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
-    expect(view.queryByTestId('settings-access-exception')).toBeNull();
+    expect(view.getByTestId('settings-models-model-status')).toHaveTextContent('Not read');
+    expect(view.getByTestId('settings-models-model-status')).not.toHaveClass('opl-settings-status--attention');
+    expect(view.getByTestId('settings-models-model-access')).not.toHaveClass('opl-settings-section--attention');
+    expect(view.queryByTestId('settings-models-exception')).toBeNull();
   });
 
   it('does not flash the signed-out Gateway action while account state is still resolving', () => {
@@ -834,10 +786,10 @@ describe('AccessSettingsContent', () => {
     mocks.appStateLoading = true;
     mocks.gatewayAccount = null;
 
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
-    expect(view.queryByTestId('settings-access-gateway-account')).toBeNull();
+    expect(view.queryByTestId('settings-gateway-account')).toBeNull();
   });
 
   it('does not promote OPL Gateway configuration when only Codex CLI needs attention', () => {
@@ -845,11 +797,10 @@ describe('AccessSettingsContent', () => {
     mocks.codexStatus = 'attention_required';
     mocks.modelAccessReady = true;
 
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
-    expect(view.getByText('Connected')).toBeTruthy();
-    expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
-    expect(view.queryByTestId('settings-access-exception')).toBeNull();
+    expect(view.getByTestId('settings-gateway-primary')).not.toHaveClass('opl-settings-section--attention');
+    expect(view.queryByTestId('settings-gateway-exception')).toBeNull();
     expect(view.getByTestId('opl-settings-show-gateway-config-button')).toHaveAttribute(
       'data-button-type',
       'secondary'
@@ -857,7 +808,7 @@ describe('AccessSettingsContent', () => {
   });
 
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
@@ -883,7 +834,7 @@ describe('AccessSettingsContent', () => {
         message: 'configure failed',
       },
     });
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
@@ -897,7 +848,7 @@ describe('AccessSettingsContent', () => {
   });
 
   it('does not call the bridge when the OPL Gateway access key is empty', async () => {
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     fireEvent.input(view.getByTestId('opl-settings-codex-api-key-input'), { target: { value: '   ' } });
@@ -918,7 +869,7 @@ describe('AccessSettingsContent', () => {
       errorCode: 'invalid_credentials',
       stateRefreshRequired: false,
     });
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     fireEvent.input(view.getByTestId('opl-settings-gateway-email-input'), {
@@ -977,15 +928,15 @@ describe('AccessSettingsContent', () => {
         disconnect: 'gateway_account_disconnect',
       },
     });
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('feng@example.com');
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('Active');
-    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('18.5 CNY');
-    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('212.96B');
-    expect(view.getByTestId('settings-access-gateway-metrics')).toHaveTextContent('--');
-    expect(view.getByTestId('settings-access-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
-    expect(view.getByTestId('settings-access-gateway-stale')).toBeTruthy();
+    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('feng@example.com');
+    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('Active');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('18.5 CNY');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('212.96B');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('--');
+    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
+    expect(view.getByTestId('settings-gateway-stale')).toBeTruthy();
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
     expect(view.queryByText('Resync')).toBeNull();
     expect(view.queryByText('Use for model access')).toBeNull();
@@ -1003,6 +954,33 @@ describe('AccessSettingsContent', () => {
       })
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+  });
+
+  it('does not run Gateway setup while only the models surface is open', () => {
+    const mocks = getMocks();
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'setup_required',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        email: 'feng@example.com',
+        status: 'active',
+        balance: { amount: 1, currency: 'CNY' },
+      },
+      available_groups: [{ group_id: 'group-codex', label: 'Codex' }],
+      actions: {
+        complete_setup: 'gateway_account_complete_setup',
+        refresh: null,
+        repair: null,
+        use_for_model_access: null,
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+
+    render(<AccessSettingsContent />);
+
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('automatically completes an exposed managed-Key setup action without rendering a control', async () => {
@@ -1030,7 +1008,7 @@ describe('AccessSettingsContent', () => {
         disconnect: 'gateway_account_disconnect',
       },
     });
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
     expect(view.queryByRole('combobox', { name: /group/i })).toBeNull();
     expect(view.queryByText('Complete connection')).toBeNull();
 
@@ -1066,7 +1044,7 @@ describe('AccessSettingsContent', () => {
       },
     });
 
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     await waitFor(() => expect(mocks.executeActionInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(view.getByText('Could not update the OPL Gateway account.')).toBeTruthy());
@@ -1093,11 +1071,11 @@ describe('AccessSettingsContent', () => {
         disconnect: 'gateway_account_disconnect',
       },
     });
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByText('Disconnect'));
 
-    expect(view.getByTestId('settings-access-gateway-disconnect-confirm')).toBeTruthy();
+    expect(view.getByTestId('settings-gateway-disconnect-confirm')).toBeTruthy();
     expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -1128,7 +1106,7 @@ describe('AccessSettingsContent', () => {
       },
     });
 
-    const view = render(<AccessSettingsContent />);
+    const view = render(<AccessSettingsContent surface='gateway' />);
 
     expect(view.getByText(expected)).toBeTruthy();
   });

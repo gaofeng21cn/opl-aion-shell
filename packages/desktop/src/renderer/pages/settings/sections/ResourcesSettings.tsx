@@ -223,7 +223,7 @@ export const ResourcesSettingsContent: React.FC = () => {
     if (actionInFlightRef.current) return;
     const kind = dockerActionKind(action);
     if (kind === 'modelAccess') {
-      void navigate('/settings/access?section=opl-gateway');
+      void navigate('/settings/gateway');
       return;
     }
     if (action.payloadRequired && !payload) {

@@ -2,10 +2,36 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeOplAppStatePayloadForCache } from '@/renderer/hooks/system/useOplAppState';
 
 describe('OPL App state cache privacy boundary', () => {
-  it('keeps the public Gateway account projection while removing undeclared and secret fields', () => {
+  it('keeps only bounded startup read models and the public Gateway projection', () => {
     const sanitized = sanitizeOplAppStatePayloadForCache({
       app_state: {
-        core: { status: 'ready' },
+        schema_version: 'opl_app_state.v1',
+        core: {
+          codex: {
+            installed: true,
+            version_status: 'compatible',
+            model_access_ready: true,
+            binary_path: '/private/bin/codex',
+            candidates: [{ path: '/private/bin/codex' }],
+          },
+        },
+        paths: {
+          workspace_root_path: '/Users/example/OPL',
+          workspace_root: {
+            selected_path: '/Users/example/OPL',
+            exists: true,
+            writable: true,
+            secret: 'private',
+          },
+          logs_dir: '/private/logs',
+        },
+        release: {
+          version: '26.7.14',
+          channel: 'stable',
+          repo: 'gaofeng21cn/one-person-lab-app',
+          stable_release_api: 'https://private.example/api',
+        },
+        agent_packages: { private_manifest: 'private' },
         settings_control_center: {
           app_settings_read_model: {
             opl_gateway_account: {
@@ -50,8 +76,69 @@ describe('OPL App state cache privacy boundary', () => {
               },
               password: 'private',
             },
+            codex_model_policy: {
+              source_ref: 'app_state.core.codex',
+              model: 'gpt-5.6-sol',
+              reasoning_effort: 'max',
+              model_provider: 'gflab',
+              provider_name: 'gflab',
+              provider_base_url: 'https://gflabtoken.cn/v1',
+              config_path: '/private/config.toml',
+              api_key_present: true,
+              model_access_ready: true,
+              access_status: 'ready',
+            },
+            workspace_services: {
+              workspace_root: {
+                source_ref: 'app_state.paths.workspace_root',
+                selected_path: '/Users/example/OPL',
+                exists: true,
+                writable: true,
+                health_status: 'ready',
+                secret: 'private',
+              },
+              runtime_source_carriers: {
+                source_mode: 'developer_workspace',
+                default_carriers_count: 5,
+                healthy_default_carriers_count: 5,
+                capability_health_refs: [
+                  { id: 'mas', title: 'MAS', status: 'ready', ref: 'app_state.runtime_source_carriers.items.mas' },
+                ],
+                private_manifest: 'private',
+              },
+              local_services: {
+                temporal_provider: 'ready',
+                service_action_ids: ['settings_sync_capabilities'],
+                token: 'private',
+              },
+            },
+            local_environment: {
+              state_dir: '/Users/example/Library/Application Support/OPL/state',
+              logs_dir: '/Users/example/Library/Application Support/OPL/state/logs',
+              release_channel: 'stable',
+              temporal_provider: 'ready',
+              private_key: 'private',
+            },
             docker_webui: { status: 'ready' },
           },
+          status_summary: {
+            model_access: 'ready',
+            codex_version: '0.144.3',
+            runtime_source_carrier_health: '5/5',
+            temporal_provider: 'ready',
+            release_channel: 'stable',
+            issue_count: 1,
+            private_detail: 'private',
+          },
+          issue_queue: [
+            {
+              issue_id: 'developer_profile_active',
+              severity: 'info',
+              recommended_action_id: 'settings_repair_model_access',
+              user_message: 'Developer Mode is active.',
+              authority_flags: { can_write_domain_truth: false },
+            },
+          ],
         },
       },
     });
@@ -76,8 +163,75 @@ describe('OPL App state cache privacy boundary', () => {
     expect(actions.login).toBeUndefined();
     expect(gatewayAccount.password).toBeUndefined();
     expect(account.access_token).toBeUndefined();
-    expect(readModel.docker_webui).toEqual({ status: 'ready' });
-    expect(appState.core).toEqual({ status: 'ready' });
+    expect(readModel.docker_webui).toBeUndefined();
+    expect(readModel.codex_model_policy).toEqual({
+      source_ref: 'app_state.core.codex',
+      model: 'gpt-5.6-sol',
+      reasoning_effort: 'max',
+      model_provider: 'gflab',
+      provider_name: 'gflab',
+      provider_base_url: 'https://gflabtoken.cn/v1',
+      api_key_present: true,
+      model_access_ready: true,
+      access_status: 'ready',
+    });
+    expect(readModel.workspace_services).toMatchObject({
+      workspace_root: { selected_path: '/Users/example/OPL', writable: true },
+      runtime_source_carriers: {
+        default_carriers_count: 5,
+        capability_health_refs: [{ id: 'mas', title: 'MAS', status: 'ready' }],
+      },
+      local_services: { temporal_provider: 'ready', service_action_ids: ['settings_sync_capabilities'] },
+    });
+    expect(readModel.local_environment).toEqual({
+      state_dir: '/Users/example/Library/Application Support/OPL/state',
+      logs_dir: '/Users/example/Library/Application Support/OPL/state/logs',
+      release_channel: 'stable',
+      temporal_provider: 'ready',
+    });
+    expect(settings.status_summary).toEqual({
+      model_access: 'ready',
+      codex_version: '0.144.3',
+      runtime_source_carrier_health: '5/5',
+      temporal_provider: 'ready',
+      release_channel: 'stable',
+      issue_count: 1,
+    });
+    expect(settings.issue_queue).toEqual([
+      {
+        issue_id: 'developer_profile_active',
+        severity: 'info',
+        recommended_action_id: 'settings_repair_model_access',
+        user_message: 'Developer Mode is active.',
+      },
+    ]);
+    expect(appState.core).toEqual({
+      codex: { installed: true, version_status: 'compatible', model_access_ready: true },
+    });
+    expect(appState.paths).toEqual({
+      workspace_root_path: '/Users/example/OPL',
+      workspace_root: { selected_path: '/Users/example/OPL', exists: true, writable: true },
+    });
+    expect(appState.release).toEqual({
+      version: '26.7.14',
+      channel: 'stable',
+      repo: 'gaofeng21cn/one-person-lab-app',
+    });
+    expect(appState.agent_packages).toBeUndefined();
+  });
+
+  it('keeps the persistent projection below the 256 KiB budget when live state is large', () => {
+    const sanitized = sanitizeOplAppStatePayloadForCache({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        core: { codex: { installed: true, model_access_ready: true } },
+        release: { version: '26.7.14', channel: 'stable' },
+        work_items: Array.from({ length: 2_000 }, (_, index) => ({ index, body: 'x'.repeat(512) })),
+      },
+    });
+
+    expect(new TextEncoder().encode(JSON.stringify(sanitized)).byteLength).toBeLessThanOrEqual(262_144);
+    expect((sanitized.app_state as Record<string, unknown>).work_items).toBeUndefined();
   });
 
   it('does not mutate the live App state payload', () => {

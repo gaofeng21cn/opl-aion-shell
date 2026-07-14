@@ -106,7 +106,7 @@
         "composer_primary": true,
         "workspace_selector_visible": true,
         "purpose_entries_visible": ["research", "grant", "ppt", "book"],
-        "purpose_entry_placement": "home_starters_with_management_in_settings_capabilities_not_persistent_composer_selector",
+        "purpose_entry_placement": "home_starters_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
         "starter_limit": null,
         "starter_visibility_policy": "all_user_visible_configured_shortcuts",
@@ -677,6 +677,11 @@
           "rollback_or_receipt"
         ]
       }
+    },
+    "agent_package_registry": {
+      "default_registry_url": "https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json",
+      "source_ref": "contracts/agent-package-registry.json#registry_url",
+      "shell_consumption_policy": "generated_product_profile_only_no_renderer_literal"
     },
     "professional_agent_packages": [
       {
@@ -1289,6 +1294,7 @@
   "settings": {
     "visible_tabs": [
       "general",
+      "gateway",
       "access",
       "workspace",
       "agents",
@@ -1301,12 +1307,13 @@
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",
-      "system": "advanced",
-      "model": "environment",
+      "system": "environment#diagnostics",
+      "advanced": "environment#diagnostics",
+      "model": "access",
       "agent": "agents",
-      "assistants": "capabilities",
-      "skills-hub": "capabilities",
-      "tools": "capabilities",
+      "assistants": "capabilities#third-party",
+      "skills-hub": "capabilities#third-party",
+      "tools": "capabilities#third-party",
       "display": "appearance",
       "webui": "resources",
       "pet": "appearance"
@@ -1326,10 +1333,24 @@
       "hide_machine_status": true,
       "source": "app_state.developer_profile + app_state.modules[].source_policy",
       "default_profile": "standard_user",
-      "opt_in_policy": "explicit_opt_in_only",
+      "opt_in_policy": "automatic_for_matching_identity_and_authorized_repositories_with_explicit_off",
       "settings_page": "settings_agents",
-      "global_control": "automatic_managed_developer_segmented_control",
-      "safe_maintenance_control": "switch",
+      "global_control": "automatic_managed_developer_source_segmented_control",
+      "safe_maintenance_control": "auto_or_off_control_with_effective_state_readback",
+      "safe_maintenance_label_zh": "允许维护已授权的开发仓库",
+      "safe_maintenance_label_en": "Maintain authorized development repositories",
+      "safe_maintenance_default": "auto",
+      "safe_maintenance_auto_policy": "matching developer identity plus successful full repository authority inspection activates developer_apply_safe for authorized repositories",
+      "safe_maintenance_fast_policy": "show inspection pending without claiming identity mismatch",
+      "safe_maintenance_required_readback": [
+        "effective_state",
+        "configuration_source",
+        "github_login",
+        "authorized_repository_scope",
+        "dirty_worktree_and_branch_protection",
+        "inactive_reason"
+      ],
+      "shared_runtime_mutation_boundary": "enabled=on + mode=developer_apply_safe + source=user_config",
       "safe_maintenance_independent_from_source_selection": true,
       "package_source_control": "auto_managed_developer_segmented_control_in_package_details",
       "fallback_policy": "developer_checkout_missing_falls_back_to_managed_with_visible_reason",
@@ -1380,24 +1401,39 @@
         "id": "control_center",
         "label_zh": "控制中心",
         "label_en": "Control Center",
-        "positioning": "single App-owned OPL Control Center for overview, access, workspace and personalization, agents, capabilities, resources and connections, maintenance and updates, data and storage, and preferences; advanced diagnostics stay secondary"
+        "positioning": "single App-owned OPL Control Center for overview, account and Gateway, models, workspace, agents, capabilities, resources and connections, maintenance, data and storage, and preferences; diagnostics live under Maintenance and About is the only secondary page"
       },
       "ordinary_groups": [
         {
           "id": "overview",
           "label_zh": "概览",
           "label_en": "Overview",
-          "role": "control_center_summary_and_workspace_personalization",
-          "ordinary_entries": ["settings_general", "workspace"],
-          "required_prominence": "workspace_is_independent_ordinary_entry"
+          "role": "control_center_summary",
+          "ordinary_entries": ["settings_general"]
         },
         {
-          "id": "setup_access",
-          "label_zh": "模型与访问",
-          "label_en": "Models & Access",
-          "role": "model_source_default_gateway_codex_cli_and_authentication",
+          "id": "gateway",
+          "label_zh": "账户与 Gateway",
+          "label_en": "Account & Gateway",
+          "role": "gateway_login_identity_usage_and_access_lifecycle",
+          "ordinary_entries": ["settings_gateway"],
+          "primary_tasks": ["gateway_account", "gateway_usage", "gateway_access"]
+        },
+        {
+          "id": "models",
+          "label_zh": "模型",
+          "label_en": "Models",
+          "role": "model_source_default_reasoning_and_codex_cli",
           "ordinary_entries": ["settings_access"],
-          "primary_tasks": ["model_access", "codex_cli", "authentication"]
+          "primary_tasks": ["model_access", "codex_cli"]
+        },
+        {
+          "id": "workspace",
+          "label_zh": "工作区与个性化",
+          "label_en": "Workspace & Personalization",
+          "role": "workspace_log_paths_and_new_conversation_personalization_single_owner",
+          "ordinary_entries": ["workspace"],
+          "primary_tasks": ["workspace", "log_directory", "codex_user_instructions", "opl_app_session_context"]
         },
         {
           "id": "agents",
@@ -1437,29 +1473,26 @@
           "anchors": ["health", "updates", "services", "packages"]
         },
         {
-          "id": "data_storage",
+          "id": "storage",
           "label_zh": "数据与存储",
           "label_en": "Data & Storage",
-          "role": "safe_local_data_lifecycle_inventory_and_cleanup",
+          "role": "cached_local_and_Docker_usage_and_safe_cleanup",
           "ordinary_entries": ["settings_storage"],
-          "owns": ["storage_inventory", "conversation_archives", "runtime_cache", "logs", "safe_cleanup"]
+          "owns": [
+            "storage_inventory",
+            "Docker_usage_projection",
+            "conversation_archives",
+            "runtime_cache",
+            "safe_cleanup"
+          ]
         },
         {
           "id": "preferences",
           "label_zh": "偏好",
           "label_en": "Preferences",
-          "role": "user_preferences_not_runtime_health",
+          "role": "App_behavior_notifications_display_fonts_and_themes_only",
           "ordinary_entries": ["settings_theme"],
           "anchors": ["behavior", "tray", "hardware", "themes"]
-        },
-        {
-          "id": "advanced",
-          "label_zh": "高级",
-          "label_en": "Advanced",
-          "role": "read_only_working_directories_and_about",
-          "ordinary_entries": ["settings_advanced", "about"],
-          "diagnostics_default_state": "collapsed",
-          "route_scope": "secondary_or_deep_link"
         }
       ],
       "primary_tabs": {
@@ -1471,20 +1504,28 @@
           "ia_group": "overview",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
+        "gateway": {
+          "label_zh": "账户与 Gateway",
+          "label_en": "Account & Gateway",
+          "role": "gateway_login_identity_usage_and_access_lifecycle",
+          "primary_question": "Which Gateway account is connected, what usage is available, and how is model access authorized?",
+          "ia_group": "gateway",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
         "access": {
-          "label_zh": "模型与访问",
-          "label_en": "Models & Access",
-          "role": "model_source_default_gateway_codex_cli_and_authentication",
-          "primary_question": "Which model source, default model, CLI, and credential does OPL use, and what must I change if model access cannot work?",
-          "ia_group": "setup_access",
+          "label_zh": "模型",
+          "label_en": "Models",
+          "role": "model_source_default_reasoning_and_codex_cli",
+          "primary_question": "Which model source, default model, reasoning preference, and Codex CLI does OPL use?",
+          "ia_group": "models",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
         "workspace": {
           "label_zh": "工作区与个性化",
           "label_en": "Workspace & Personalization",
-          "role": "selected_workspace_paths_permissions_log_directory_user_instructions_and_conversation_context",
-          "primary_question": "Where is my current work and App data, can the App access it, and what instructions should new tasks receive?",
-          "ia_group": "overview",
+          "role": "selected_workspace_path_writability_and_new_conversation_context",
+          "primary_question": "Which workspace is active, can the App write to it, and what context should new conversations inherit?",
+          "ia_group": "workspace",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
         "agents": {
@@ -1524,7 +1565,7 @@
           "label_en": "Data & Storage",
           "role": "safe_local_data_lifecycle_inventory_and_cleanup",
           "primary_question": "Which local data roots are using space, and which cleanup actions are safe after preview or proof?",
-          "ia_group": "data_storage",
+          "ia_group": "storage",
           "ordinary_entry_policy": "top_level_control_center_group_entry"
         },
         "appearance": {
@@ -1535,31 +1576,24 @@
           "ia_group": "preferences",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
-        "advanced": {
-          "label_zh": "高级",
-          "label_en": "Advanced",
-          "role": "read_only_working_directories",
-          "primary_question": "Where are the App working directories?",
-          "ia_group": "advanced",
-          "ordinary_entry_policy": "secondary_page_or_deep_link_under_diagnostics"
-        },
         "about": {
           "label_zh": "关于",
           "label_en": "About",
           "role": "version_channel_and_update_status",
           "primary_question": "Which version and channel are active, and is an update available?",
-          "ia_group": "advanced",
-          "ordinary_entry_policy": "secondary_page_under_advanced"
+          "ia_group": "about",
+          "ordinary_entry_policy": "independent_secondary_page"
         }
       },
-      "secondary_page_ids": ["advanced", "about"],
+      "secondary_page_ids": ["about"],
       "task_entry_policy": {
         "ordinary_entry_model": "user_task_first_sections_inside_the_ten_OPL_Control_Center_entries",
         "top_level_tab_policy": "do_not_add_new_shell_route_tabs_for_model_updates_web_tools_developer_profile_or_advanced_diagnostics; workspace_and_resources_are_user_visible_top_level_entries",
         "p0_entries": [
+          "gateway_account",
           "model_access",
           "local_runtime_ability",
-          "workspace_entry",
+          "workspace",
           "maintenance_hub",
           "capability_status"
         ],
@@ -1591,7 +1625,9 @@
           "slot_id": "settings_agents",
           "component_key": "AgentPackagesSettingsContent",
           "owns": [
-            "runnable_agent_package_directory",
+            "public_agent_package_directory_entries",
+            "agent_package_catalog_search_and_filters",
+            "projected_agent_package_actions",
             "agent_package_lifecycle",
             "agent_home_visibility_and_order",
             "agent_launch_and_dependency_readiness"
@@ -1603,7 +1639,7 @@
           "path": "/settings/capabilities",
           "slot_id": "settings_capabilities",
           "component_key": "CapabilitiesSettingsContent",
-          "entity_kinds": ["skill", "plugin"],
+          "entity_kinds": ["skill", "plugin", "mcp_server", "image_generation", "voice_input"],
           "groups": {
             "opl_flow_managed": {
               "label_zh": "OPL Flow 推荐",
@@ -1619,8 +1655,10 @@
             "manual_and_third_party": {
               "label_zh": "本机能力",
               "label_en": "Local capabilities",
-              "source": "codex_and_shell_skill_plugin_registries",
-              "membership_policy": "show_user_managed_and_third_party_skills_and_plugins_without_reclassifying_them_as_opl_flow_managed",
+              "source": "codex_and_shell_skill_plugin_registries_plus_aionui_mcp_image_voice_configuration",
+              "membership_policy": "show_user_managed_and_third_party_skills_plugins_MCP_image_and_voice_controls_without_reclassifying_them_as_opl_flow_managed",
+              "display_name_policy": "use_product_profile_display_names_and_never_raw_provider_ids_as_primary_labels",
+              "aionui_native_policy": "keep_AionUI_native_skills_tools_assistants_MCP_helpers_image_controls_and_voice_input_controls_in_local_or_third_party_ownership_never_OPL_Flow_managed",
               "lifecycle_owner": "detected_install_source_or_user",
               "mutation_policy": "explicit_user_action_only"
             }
@@ -1698,7 +1736,7 @@
       "configuration_catalog_projection": {
         "schema": "opl_app_settings_configuration_catalog_projection.v1",
         "policy": "merge_owner_backed_configuration_without_copying_runtime_truth_or_secret_bodies",
-        "framework_source_ref": "app_state.settings_control_center.configuration_catalog.items",
+        "framework_source_ref": "app_state.settings_control_center.configuration_catalog.items + app_state.settings_control_center.configuration_catalog.host_owned_configuration_surfaces",
         "connection_source_ref": "app_state.settings_control_center.connection_registry",
         "owner_classes": ["framework", "app_local", "credential_connection"],
         "required_fields": [
@@ -1781,14 +1819,14 @@
             "verify_ref": "app_state.settings_control_center.configuration_catalog.items#developer_supervisor.verify_action_id",
             "risk": "low",
             "confirmation_required": false,
-            "editable_reason": "The Framework owns developer supervision policy and its refresh proof."
+            "editable_reason": "The Framework owns developer supervision policy and its refresh proof. Auto mode activates authorized repository maintenance after identity and repository authority inspection; the user retains an explicit off choice."
           },
           {
             "stable_id": "settings.configuration.preferred_model",
             "configuration_id": "preferred_model",
             "owner_class": "app_local",
             "truth_owner": "one-person-lab-app",
-            "page_id": "access",
+            "page_id": "models",
             "anchor": "model",
             "lifecycle": "persistent_configuration",
             "value_type": "model_id_or_auto",
@@ -1806,7 +1844,7 @@
             "configuration_id": "preferred_reasoning_effort",
             "owner_class": "app_local",
             "truth_owner": "one-person-lab-app",
-            "page_id": "access",
+            "page_id": "models",
             "anchor": "model",
             "lifecycle": "persistent_configuration",
             "value_type": "enum_or_auto",
@@ -1829,10 +1867,10 @@
             "lifecycle": "persistent_per_capability_configuration",
             "value_type": "boolean",
             "sensitivity": "ordinary",
-            "current_value_source_ref": "app_state.modules.items.home_shortcut_visible",
+            "current_value_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
             "write_route": "capability package Home shortcut preference action",
             "persistence_target_ref": "agent_package_home_shortcut_preferences_file",
-            "verify_ref": "app_state.modules.items.home_shortcut_visible",
+            "verify_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
             "risk": "low",
             "confirmation_required": false,
             "editable_reason": "Home visibility is an OPL package preference already exposed to users."
@@ -1872,6 +1910,24 @@
             "risk": "low",
             "confirmation_required": false,
             "editable_reason": "The user controls which local completion notifications are shown."
+          },
+          {
+            "stable_id": "settings.configuration.log_directory",
+            "configuration_id": "log_directory",
+            "owner_class": "app_local",
+            "truth_owner": "one-person-lab-app",
+            "page_id": "workspace",
+            "anchor": "logs",
+            "lifecycle": "persistent_configuration",
+            "value_type": "path",
+            "sensitivity": "ordinary",
+            "current_value_source_ref": "application.systemInfo.logDir",
+            "write_route": "application.updateSystemInfo typed IPC with logDir while preserving the current cacheDir and workDir",
+            "persistence_target_ref": "desktop_client_system_info",
+            "verify_ref": "application.systemInfo.logDir readback",
+            "risk": "low",
+            "confirmation_required": false,
+            "editable_reason": "Workspace & Personalization owns the desktop App log root; WebUI /data/logs is a read-only projection of the existing OnePersonLab/data -> /data volume and Settings never rewires that volume."
           },
           {
             "stable_id": "settings.configuration.codex_user_instructions",
@@ -1952,8 +2008,8 @@
             "configuration_id": "model_access_credential",
             "owner_class": "credential_connection",
             "truth_owner": "codex_or_gateway_credential_owner",
-            "page_id": "access",
-            "anchor": "authentication",
+            "page_id": "gateway",
+            "anchor": "access",
             "lifecycle": "delegated_credential_configuration",
             "value_type": "credential_handle",
             "sensitivity": "secret_ref_only",
@@ -2023,7 +2079,7 @@
           {
             "id": "secondary_pages",
             "owner_surface": "contracts/app-settings-control-plane.json#secondary_pages",
-            "validator_guard": "advanced_and_about_only"
+            "validator_guard": "about_only"
           },
           {
             "id": "compatibility_redirects",
@@ -2084,6 +2140,7 @@
       },
       "ordinary_visible_tabs": [
         "general",
+        "gateway",
         "access",
         "workspace",
         "agents",
@@ -2116,23 +2173,42 @@
           "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.overview"
         },
         {
-          "id": "access",
-          "path": "/settings/access",
-          "label_key": "settings.onboarding",
-          "default_label_en": "Models & Access",
-          "default_label_zh": "模型与访问",
-          "icon_token": "access",
-          "ia_group": "setup_access",
-          "slot_id": "settings_access",
-          "state_source": "opl app state --profile fast --json#app_state.core.codex.model_access_ready + app_state.core.codex.model_access_source + app_state.core.codex.model + app_state.access.api_key_present + app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
+          "id": "gateway",
+          "path": "/settings/gateway",
+          "label_key": "settings.gateway",
+          "default_label_en": "Account & Gateway",
+          "default_label_zh": "账户与 Gateway",
+          "icon_token": "gateway",
+          "ia_group": "gateway",
+          "slot_id": "settings_gateway",
+          "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "user",
           "intent": "configure",
           "risk": "reversible",
-          "frequency": "first_run_or_when_access_changes",
-          "product_page_id": "access",
+          "frequency": "first_run_or_when_gateway_access_changes",
+          "product_page_id": "gateway",
+          "page_state_id": "gateway",
+          "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.gateway"
+        },
+        {
+          "id": "access",
+          "path": "/settings/access",
+          "label_key": "settings.models",
+          "default_label_en": "Models",
+          "default_label_zh": "模型",
+          "icon_token": "access",
+          "ia_group": "models",
+          "slot_id": "settings_access",
+          "state_source": "opl app state --profile fast --json#app_state.core.codex.model_access_ready + app_state.core.codex.model_access_source + app_state.core.codex.model + app_state.access.api_key_present",
+          "refresh_source": "opl app state --profile fast --json",
+          "scope": "user",
+          "intent": "configure",
+          "risk": "reversible",
+          "frequency": "first_run_or_when_model_changes",
+          "product_page_id": "models",
           "page_state_id": "access",
-          "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.access"
+          "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.models"
         },
         {
           "id": "workspace",
@@ -2141,10 +2217,10 @@
           "default_label_en": "Workspace & Personalization",
           "default_label_zh": "工作区与个性化",
           "icon_token": "workspace",
-          "ia_group": "overview",
+          "ia_group": "workspace",
           "slot_id": "workspace",
-          "state_source": "opl app state --profile fast --json",
-          "refresh_source": "opl app state --profile fast --json",
+          "state_source": "opl app state --profile fast --json#app_state.paths + app_state.codex_personalization + app_state.settings_control_center.app_settings_read_model.workspace_services.app_log_directory + application.systemInfo",
+          "refresh_source": "cached workspace and personalization snapshot followed by background fast App state hydration",
           "scope": "workspace",
           "intent": "configure",
           "risk": "confirmation_required",
@@ -2162,7 +2238,7 @@
           "icon_token": "agents",
           "ia_group": "agents",
           "slot_id": "settings_agents",
-          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts",
+          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path + home_agent_shortcuts",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "user",
           "intent": "manage",
@@ -2182,7 +2258,7 @@
           "ia_group": "capabilities",
           "slot_id": "settings_capabilities",
           "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
-          "refresh_source": "opl app state --profile fast --json",
+          "refresh_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
           "scope": "user",
           "intent": "view_status",
           "risk": "reversible",
@@ -2214,8 +2290,8 @@
           "id": "environment",
           "path": "/settings/environment",
           "label_key": "settings.maintenance",
-          "default_label_en": "Local Environment",
-          "default_label_zh": "本机环境",
+          "default_label_en": "Maintenance",
+          "default_label_zh": "维护",
           "icon_token": "maintenance",
           "ia_group": "maintenance",
           "slot_id": "settings_environment",
@@ -2236,10 +2312,10 @@
           "default_label_en": "Data & Storage",
           "default_label_zh": "数据与存储",
           "icon_token": "storage",
-          "ia_group": "data_storage",
+          "ia_group": "storage",
           "slot_id": "settings_storage",
           "state_source": "active shell local data lifecycle service + contracts/app-release-channel.json#local_data_lifecycle",
-          "refresh_source": "Settings / Storage refresh inventory",
+          "refresh_source": "cached local data inventory followed by background refresh and local-data-lifecycle inventory-updated events",
           "scope": "machine",
           "intent": "data_safety",
           "risk": "confirmation_required",
@@ -2270,23 +2346,9 @@
       ],
       "secondary_pages": [
         {
-          "id": "advanced",
-          "path": "/settings/advanced",
-          "ia_group": "advanced",
-          "slot_id": "settings_advanced",
-          "visibility": "secondary_or_deep_link",
-          "scope": "developer",
-          "intent": "diagnose",
-          "risk": "read_only",
-          "frequency": "expert_or_exception",
-          "product_page_id": "advanced",
-          "page_state_id": "advanced",
-          "experience_contract_ref": "contracts/app-settings-control-plane.json#experience_contract.page_contracts.advanced"
-        },
-        {
           "id": "about",
           "path": "/settings/about",
-          "ia_group": "advanced",
+          "ia_group": "about",
           "slot_id": "about",
           "visibility": "secondary_or_deep_link",
           "scope": "machine",
@@ -2301,12 +2363,13 @@
       "legacy_route_redirects": {
         "overview": "general",
         "runtime": "environment",
-        "system": "advanced",
-        "model": "environment",
+        "system": "environment#diagnostics",
+        "advanced": "environment#diagnostics",
+        "model": "access",
         "agent": "agents",
-        "assistants": "capabilities?tab=skills",
-        "skills-hub": "capabilities?tab=skills",
-        "tools": "capabilities?tab=tools",
+        "assistants": "capabilities#third-party",
+        "skills-hub": "capabilities#third-party",
+        "tools": "capabilities#third-party",
         "display": "appearance",
         "webui": "resources",
         "pet": "appearance"
@@ -2314,8 +2377,9 @@
       "extension_anchor_remap": {
         "overview": "general",
         "runtime": "environment",
-        "system": "advanced",
-        "model": "environment",
+        "system": "environment",
+        "advanced": "environment",
+        "model": "access",
         "agent": "agents",
         "assistants": "capabilities",
         "skills-hub": "capabilities",
@@ -2328,7 +2392,7 @@
         "opl_app_product_surface": false,
         "ordinary_navigation_entry_allowed": false,
         "entry_may_be_hidden": true,
-        "legacy_assistants_target": "capabilities?tab=skills",
+        "legacy_assistants_target": "capabilities#third-party",
         "underlying_user_data_owner": "aionui",
         "underlying_user_data_deletion_policy": "forbidden_without_explicit_app_contract_and_migration_or_deletion_evidence",
         "route_or_entry_removal_proves_data_migration": false
@@ -2349,6 +2413,10 @@
           "component_key": "OverviewSettings",
           "wrapper_policy": "host_provides_wrapper"
         },
+        "settings_gateway": {
+          "component_key": "GatewaySettingsContent",
+          "wrapper_policy": "host_provides_wrapper"
+        },
         "settings_access": {
           "component_key": "AccessSettingsContent",
           "wrapper_policy": "host_provides_wrapper"
@@ -2360,11 +2428,8 @@
         "settings_capabilities": {
           "component_key": "CapabilitiesSettingsContent",
           "wrapper_policy": "host_provides_wrapper",
-          "subroute_query_param": "tab",
-          "legacy_subroutes": {
-            "skills-hub": "skills",
-            "tools": "tools"
-          }
+          "subroute_query_param": "section",
+          "declared_subroutes": ["opl-flow-managed", "third-party"]
         },
         "settings_environment": {
           "component_key": "RuntimeSettings",
@@ -2380,10 +2445,6 @@
         },
         "settings_personalization": {
           "component_key": "WorkspaceSettings",
-          "wrapper_policy": "host_provides_wrapper"
-        },
-        "settings_advanced": {
-          "component_key": "SystemModalContent",
           "wrapper_policy": "host_provides_wrapper"
         },
         "about": {
@@ -2411,7 +2472,42 @@
       "state_action_policy": {
         "default_state_source": "opl app state --profile fast --json",
         "default_refresh_source": "opl app state --profile fast --json",
-        "full_profile_policy": "diagnostic_or_release_evidence_only",
+        "full_profile_policy": "explicit_settings_page_drilldown_or_diagnostic_or_release_evidence_only_never_first_window_or_route_mount_polling",
+        "startup_performance_policy": {
+          "schema": "settings_startup_performance.v1",
+          "first_window_state_source": "persisted_narrow_settings_snapshot_or_loading_shell",
+          "background_state_source": "opl app state --profile fast --json",
+          "first_window_blocking_policy": "never_wait_for_complete_fast_state_or_page_drilldowns",
+          "first_window_failure_policy": "render_recoverable_nonblank_shell_never_fatal_or_blank_candidate_window",
+          "cold_budget_ms": 1500,
+          "warm_budget_ms": 1500,
+          "budget_scope": "stable_shell_first_paint_and_interactive_settings_shell_only_background_hydration_reported_separately",
+          "timing_milestones": ["stable_shell_first_paint", "background_hydration_complete"],
+          "startup_projection_payload_budget_bytes": 262144,
+          "lazy_drilldown_routes": ["agents", "capabilities", "storage", "about"],
+          "single_flight_background_refresh": true,
+          "global_refresh_on_route_mount": false,
+          "persisted_snapshot": {
+            "schema": "opl_settings_startup_snapshot.v1",
+            "source": "desktop_main_process_persisted_narrow_cache",
+            "version": 1,
+            "freshness_policy": "stale_while_revalidate_with_observed_at_and_stale_fields",
+            "invalidation": [
+              "schema_or_version_mismatch",
+              "App_release_identity_change",
+              "explicit_sign_out_or_cache_clear"
+            ],
+            "secret_boundary": "allowlisted_read_models_only_no_tokens_passwords_raw_receipts_or_unredacted_errors"
+          },
+          "background_hydration_retry": {
+            "max_attempts": 2,
+            "retry_delay_ms": 250,
+            "clear_single_flight_marker_after_failure": true,
+            "remount_or_manual_retry_after_exhaustion": true
+          },
+          "framework_projection_claim": "not_proven_by_ui_contract_or_shell_gate",
+          "live_measurement_gate": "installed_App_launch_to_first_window_and_settings_readiness_after_owner_absorption"
+        },
         "action_route": "opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json",
         "request_exclusivity_policy": "single_inflight_read_or_action_per_settings_surface",
         "result_binding_policy": "visible_progress_and_result_remain_bound_to_the_triggering_operation",
@@ -2459,15 +2555,31 @@
       "page_adapter_policy": {
         "policy": "settings_pages_consume_explicit_view_model_adapters",
         "required_pages": {
+          "gateway": {
+            "route_id": "gateway",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/accessProjection.ts",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/GatewaySettings.tsx",
+            "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
+            "forbidden_sources": [
+              "secret bodies in App state or generic action payloads",
+              "browser WebUI password login",
+              "Gateway account duplication on Models or Resources"
+            ],
+            "opl_gateway_account_source": "app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
+            "opl_gateway_account_projection_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_projection",
+            "opl_gateway_account_secret_bridge_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_secret_bridge",
+            "secret_boundary": "account_password_only_through_typed_desktop_ipc_and_dedicated_stdin_never_generic_action_payload",
+            "webui_boundary": "status_and_manual_api_key_only_no_gateway_account_password_login"
+          },
           "access": {
             "route_id": "access",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/accessProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/AccessSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.core.codex.model_access_ready + app_state.core.codex.model_access_source + app_state.core.codex.model + app_state.access.api_key_present + app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
+            "state_source": "opl app state --profile fast --json#app_state.core.codex.model_access_ready + app_state.core.codex.model_access_source + app_state.core.codex.model + app_state.access.api_key_present",
             "normal_state_presentation": {
-              "user_facing_groups": ["model_access", "opl_gateway_access"],
-              "supporting_details": ["codex_cli", "authentication", "gateway_account_freshness"],
-              "default_policy": "real_provider_source_model_cli_authentication_and_necessary_action_first",
+              "user_facing_groups": ["model_access", "model_preference"],
+              "supporting_details": ["codex_cli", "gateway_navigation"],
+              "default_policy": "real_provider_source_selected_and_default_model_and_codex_cli_first",
               "details_policy": "base_url_token_paths_cli_and_provider_internals_only_in_details_or_abnormal_state",
               "hidden_normal_state_terms": [
                 "repeated OPL Gateway summary lines",
@@ -2481,7 +2593,7 @@
             },
             "cloud_remote_boundary": {
               "required_boundary_terms": ["App", "Workspace", "Gateway", "Fabric", "Console"],
-              "display_policy": "model access stays on Models & Access; browser, resource, and deployment refs route to Settings Resources",
+              "display_policy": "model selection stays on Models; Gateway credentials route to Account & Gateway; browser, resource, and deployment refs route to Settings Resources",
               "refs_only": true,
               "forbidden_claims": [
                 "runtime_truth",
@@ -2496,12 +2608,7 @@
               "direct provider implementation reads",
               "domain truth writes"
             ],
-            "model_access_source": "app_state.core.codex.model_access_source",
-            "opl_gateway_account_source": "app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
-            "opl_gateway_account_projection_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_projection",
-            "opl_gateway_account_secret_bridge_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_secret_bridge",
-            "secret_boundary": "account_password_only_through_typed_desktop_ipc_and_dedicated_stdin_never_generic_action_payload",
-            "webui_boundary": "status_and_manual_api_key_only_no_gateway_account_password_login"
+            "model_access_source": "app_state.core.codex.model_access_source"
           },
           "environment": {
             "route_id": "environment",
@@ -2512,31 +2619,134 @@
               "raw runtime projection as layout source",
               "owner receipt writes",
               "release readiness claims"
-            ]
+            ],
+            "managed_dependency_summary": {
+              "source_ref": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.dependencies[]",
+              "required_ids": ["codex-cli", "temporal-runtime", "temporal-system-cli"],
+              "required_fields": [
+                "dependency_id",
+                "dependency_kind",
+                "installed",
+                "version",
+                "latest_version",
+                "currentness",
+                "ownership",
+                "update_policy",
+                "update_mode",
+                "update_action",
+                "activation_policy",
+                "binary_path",
+                "status"
+              ],
+              "optional_fields_by_dependency_id": {
+                "codex-cli": ["external_installations"],
+                "temporal-runtime": [],
+                "temporal-system-cli": ["note"]
+              },
+              "localized_display_names": {
+                "codex-cli": {
+                  "label_zh": "Codex CLI",
+                  "label_en": "Codex CLI"
+                },
+                "temporal-runtime": {
+                  "label_zh": "OPL 托管 Temporal 运行时",
+                  "label_en": "OPL-managed Temporal Runtime"
+                },
+                "temporal-system-cli": {
+                  "label_zh": "系统 Temporal CLI",
+                  "label_en": "System Temporal CLI"
+                }
+              },
+              "currentness_values": ["current", "update_available", "unknown", "missing"],
+              "update_mode_values": ["silent_managed", "explicit_owner_delegated", "detect_only_guidance"],
+              "display_policy": "show active Codex CLI, OPL-managed Temporal Runtime, and optional system Temporal CLI directly on Maintenance with version, source, currentness, and owner-specific update guidance",
+              "path_deduplication_policy": "deduplicate Codex PATH candidates by realpath and retain shadowed candidates in diagnostics",
+              "external_update_policy": "OPL-managed roots use the existing OPL Base update route; identified external owners require confirmation; unknown owners receive guidance only",
+              "manual_operation_policy": {
+                "silent_managed": "route to the existing OPL Base update or repair action and never synthesize a per-dependency action",
+                "explicit_owner_delegated": "render the Framework update_action only after explicit confirmation",
+                "detect_only_guidance": "show owner guidance without a fake update action"
+              },
+              "unknown_value_policy": "show not checked or unknown and never synthesize current, missing, or zero values",
+              "diagnostics_boundary": "binary paths, shadowed installations, raw actions, and raw catalog records stay in technical details",
+              "external_installations_policy": {
+                "row_key": "dependency_id_plus_normalized_realpath_with_stable_index_suffix_only_for_duplicate_paths",
+                "required_fields": [
+                  "dependency_id",
+                  "binary_path",
+                  "ownership",
+                  "installed",
+                  "version",
+                  "latest_version",
+                  "currentness",
+                  "update_mode",
+                  "update_action",
+                  "guidance"
+                ],
+                "path_policy": "normalize_realpath_before_deduplication_and_keep_shadowed_rows_in_diagnostics"
+              },
+              "temporal_component_version_policy": {
+                "runtime_component_id": "temporal-runtime",
+                "cli_component_id": "temporal-system-cli",
+                "normalization": "normalize_semver_without_v_prefix_and_never_compare_runtime_bundle_version_to_system_cli_version"
+              }
+            }
           },
           "storage": {
             "route_id": "storage",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/storageProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/StorageSettings/index.tsx",
             "state_source": "active shell local data lifecycle service + contracts/app-release-channel.json#local_data_lifecycle",
-            "forbidden_sources": ["silent user artifact deletion", "cleanup without receipt policy"]
+            "forbidden_sources": ["silent user artifact deletion", "cleanup without receipt policy"],
+            "inventory_cache_policy": {
+              "startup": "read last persisted snapshot immediately then refresh in the background after startup",
+              "rendering": "never render unknown inventory as zero bytes",
+              "freshness_fields": ["observed_at", "scan_duration_ms", "stale"],
+              "event": "local-data-lifecycle.inventory-updated",
+              "manual_refresh": "force background rescan",
+              "watch_policy": "no recursive long-lived fs.watch for large storage roots",
+              "ttl_seconds": 300
+            },
+            "configuration_owner": false,
+            "log_directory_ref": {
+              "mode": "read_only",
+              "owner_route": "workspace#logs"
+            },
+            "docker_storage_projection": {
+              "owner": "desktop_App_carrier_and_Docker_Engine",
+              "required_fields": [
+                "engine_status",
+                "image_bytes",
+                "container_bytes",
+                "volume_bytes",
+                "build_cache_bytes",
+                "reclaimable_bytes",
+                "data_volume_source",
+                "data_volume_destination"
+              ],
+              "data_volume_mapping": "OnePersonLab/data -> /data",
+              "preview_before_prune": true,
+              "generic_prune_allowed": false
+            }
           },
           "capabilities": {
             "route_id": "capabilities",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/capabilitiesProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.agent_packages.status_index.packages[opl-flow].dependency_readiness.closure + Codex and shell skill/plugin registries",
+            "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.capabilities",
             "groups": ["opl_flow_managed", "manual_and_third_party"],
-            "entity_kinds": ["skill", "plugin"],
-            "forbidden_sources": ["hardcoded App skill allowlist", "runnable Agent package directory"]
-          },
-          "agents": {
-            "route_id": "agents",
-            "adapter_entry": "packages/desktop/src/renderer/pages/settings/agentPackagesProjection.ts",
-            "renderer_entry": "packages/desktop/src/renderer/pages/settings/AgentPackagesSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
-            "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.agents",
+            "entity_kinds": ["skill", "plugin", "mcp_server", "image_generation", "voice_input"],
+            "local_configuration_source": "AionUI local configuration#MCP servers + image generation + voice input",
+            "flow_projection_policy": {
+              "source_ref": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies",
+              "nonempty_policy": "when_flow_dependencies_contains_entries_the_opl_flow_managed_group_must_project_at_least_one_row",
+              "empty_state_policy": "empty_is_valid_only_when_the_canonical_flow_dependencies_projection_is_empty_or_unavailable_with_a_visible_reason"
+            },
+            "third_party_projection_policy": {
+              "display_name_policy": "use_product_profile_display_names_and_never_raw_provider_ids_as_primary_labels",
+              "aionui_native_policy": "keep_AionUI_native_skills_tools_assistants_MCP_helpers_image_controls_and_voice_input_controls_in_local_or_third_party_ownership_never_OPL_Flow_managed"
+            },
             "resource_grouping_surface": {
               "surface": "settings_capabilities",
               "source": "same_task_awareness_projection_refs_aggregated_for_capabilities",
@@ -2573,17 +2783,37 @@
               "domain_verdict_authority": false,
               "candidate_policy": "report_first_candidate_refs_review_needs_changes_continue_in_conversation_no_auto_enable_no_skill_body_write"
             },
+            "forbidden_sources": [
+              "hardcoded App skill allowlist",
+              "runnable Agent package directory",
+              "Preferences-owned voice input configuration"
+            ]
+          },
+          "agents": {
+            "route_id": "agents",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/agentPackagesProjection.ts",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/AgentPackagesSettings.tsx",
+            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path + home_agent_shortcuts",
+            "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.agents",
             "directory_projection_surface": {
               "surface": "settings_agents",
-              "primary_identity": "installed_package_directory",
+              "primary_identity": "public_agent_package_directory_entries",
               "purpose_role": "secondary_tag_filter_only",
               "home_shortcut_integration": "inline_visibility_and_order_controls_on_package_rows",
-              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[]",
+              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path",
+              "directory_collection_source": "app_state.agent_packages.directory.entries",
+              "directory_collection_policy": "render every canonical entry including uninstalled, OMA, all first-party, framework capability, and workflow profile packages",
+              "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.professional_agent_packages",
+              "static_metadata_overlay_policy": "package_id keyed optional UI enrichment only; never collection membership, seed, status, readiness, or action authority",
               "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
-              "source_semantics_policy": "agent package state owns installation truth; runtime source carriers own active run source; runtime source presence alone is not package installation truth",
-              "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[] + home_agent_shortcuts + app_state.operator.workbench.task_drilldowns",
-              "normalization_policy": "shell must use agent_packages for installation truth, overlay runtime_source_carriers for active run source, and only fall back to modules.items when older runtime payloads or partial projections are still in circulation",
-              "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.package_projection_contract.activation_preparation_policy",
+              "source_semantics_policy": "directory entries own discovery and projected actions; status_index owns installation and activation truth; runtime source carriers own active run source; the shell infers none of them",
+              "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[] + home_agent_shortcuts",
+              "normalization_policy": "shell uses directory.entries as the complete collection, joins status_index and runtime_source_carriers by canonical package_id, and may enrich UI metadata only from the static profile overlay",
+              "catalog_interaction_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.directory_controls",
+              "package_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.canonical_action_contract",
+              "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.workspace_activation_contract",
+              "workspace_path_source": "app_state.paths.workspace_root_path",
+              "workspace_missing_policy": "disable activation with workspace_root_not_configured and route to /settings/workspace#workspace",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
                 "axes": [
@@ -2615,26 +2845,79 @@
                   "activation_action",
                   "dependent_guard",
                   "dependency_closure",
-                  "physical_surface",
-                  "workflow_refs",
-                  "connector_readiness_refs",
-                  "resource_source_refs",
-                  "environment_refs"
+                  "physical_surface"
                 ],
-                "first_screen_policy": "dependency_readiness_operational_ready_launch_gate_and_dependent_guard_are_normal_detail_fields_while_receipts_dependency_closure_digests_physical_surface_and_workflow_connector_resource_refs_are_advanced_only_not_primary_row_density",
+                "first_screen_policy": "dependency_readiness_operational_ready_launch_gate_and_dependent_guard_are_normal_detail_fields_while_receipts_dependency_closure_digests_and_physical_surface_are_advanced_only_not_primary_row_density",
                 "rollback_display_policy": "rollback_ref_is_diagnostic_recovery_reference_not_an_app_owned_rollback_button_or_runtime_truth"
               },
-              "completion_boundary": "this control-plane contract requires agent_packages installation truth plus runtime_source_carriers active run source and allows modules.items fallback only as rollout compatibility"
+              "completion_boundary": "this control-plane contract requires canonical public directory entries, projected actions, workspace activation payloads, status_index truth, and runtime_source_carriers; legacy modules may enrich source diagnostics only and never define catalog membership or actions"
             },
-            "forbidden_sources": ["upstream unified catalog without allowlist", "Team MCP ordinary surface"]
+            "forbidden_sources": [
+              "professional_agent_packages as directory collection or OMA seed",
+              "shell-inferred package status or action payload",
+              "Team MCP ordinary surface"
+            ]
+          },
+          "general": {
+            "route_id": "general",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/sections/OverviewSettings.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/OverviewSettings.tsx",
+            "state_source": "persisted narrow fast-state snapshot + background opl app state --profile fast --json",
+            "forbidden_sources": ["full App state before first paint", "duplicate owner-page action controls"]
+          },
+          "workspace": {
+            "route_id": "workspace",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/sections/WorkspaceSettings.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/WorkspaceSettings.tsx",
+            "state_source": "opl app state --profile fast --json#app_state.paths + app_state.codex_personalization + app_state.settings_control_center.app_settings_read_model.workspace_services.app_log_directory + application.systemInfo",
+            "forbidden_sources": [
+              "Storage-owned log configuration",
+              "repository AGENTS.md writes",
+              "Docker volume rewiring from Settings"
+            ],
+            "log_directory": {
+              "owner_page": "workspace",
+              "typed_action": "application.updateSystemInfo",
+              "typed_action_payload_fields": ["cacheDir", "workDir", "logDir"],
+              "preserved_fields": ["cacheDir", "workDir"],
+              "host_projection": "application.systemInfo.logDir",
+              "persistence_target": "desktop_client_system_info",
+              "readback_ref": "application.systemInfo.logDir",
+              "desktop_change_supported": true,
+              "webui_log_projection": "/data/logs",
+              "docker_volume_mapping": "OnePersonLab/data -> /data",
+              "docker_volume_rewire_allowed": false
+            }
+          },
+          "resources": {
+            "route_id": "resources",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/sections/ResourcesSettings.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/ResourcesSettings.tsx",
+            "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.connections",
+            "forbidden_sources": ["built-in Gateway account duplication", "raw deployment truth claims"]
+          },
+          "appearance": {
+            "route_id": "appearance",
+            "adapter_entry": "packages/desktop/src/renderer/pages/settings/sections/AppearanceSettings.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/AppearanceSettings.tsx",
+            "state_source": "desktop App preference store + cached UI defaults",
+            "forbidden_sources": ["Codex personalization editors", "workspace and log paths"]
+          },
+          "about": {
+            "route_id": "about",
+            "adapter_entry": "packages/desktop/src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx",
+            "state_source": "desktop main-process app metadata + single shared updater state store",
+            "forbidden_sources": ["update check on page mount", "Framework state as App version authority"]
           }
         }
       },
       "visual_qa_policy": {
         "policy": "settings_control_center_visual_qa_is_shell_behavior_evidence",
-        "required_viewports": ["desktop"],
+        "required_viewports": ["desktop", "mobile"],
         "required_routes": [
           "/settings/general",
+          "/settings/gateway",
           "/settings/access",
           "/settings/workspace",
           "/settings/agents",
@@ -2644,7 +2927,7 @@
           "/settings/storage",
           "/settings/appearance"
         ],
-        "required_secondary_routes": ["/settings/advanced", "/settings/about"],
+        "required_secondary_routes": ["/settings/about"],
         "required_status_anchors": [
           "single_global_search",
           "diagnostics_collapsed_by_default",
@@ -2665,8 +2948,8 @@
             "baseline_ref",
             "hierarchy_comparison_result"
           ],
-          "viewport_policy": "each required route is checked once at the default desktop viewport",
-          "secondary_route_policy": "advanced and about are captured as independent secondary pages",
+          "viewport_policy": "each required route is checked at both the default desktop and narrow mobile viewports",
+          "secondary_route_policy": "about is captured as the only independent secondary page",
           "compatibility_route_policy": "update, theme, local-services, and personalization are captured as redirect landing evidence on their owner route and anchor"
         },
         "evidence_command": "E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/specs/navigation.e2e.ts --grep \"Settings Pages|Sidebar Navigation\"",
@@ -2852,24 +3135,24 @@
             ]
           },
           {
-            "id": "nine_entry_ia",
+            "id": "ten_entry_ia",
             "track": "ia_routes",
-            "goal": "The ordinary Settings IA has exactly nine product pages, with Workspace and Personalization merged while Agents and Capabilities remain separate.",
+            "goal": "The ordinary Settings IA has exactly ten product pages, with Gateway separate from Models and Personalization owned by Workspace.",
             "evidence_required": [
-              "top_level_entries contains overview/access/workspace/agents/capabilities/resources/maintenance/storage/preferences",
+              "top_level_entries contains overview/gateway/models/workspace/agents/capabilities/resources/maintenance/storage/preferences",
               "ordinary carrier routes map one-to-one to those product pages",
-              "personalization redirects to workspace plus the personalization anchor",
-              "Advanced is not an ordinary route"
+              "personalization redirects to Workspace plus the personalization anchor",
+              "Advanced resolves to Maintenance diagnostics and is not a product page"
             ]
           },
           {
             "id": "secondary_route_strategy",
             "track": "ia_routes",
-            "goal": "Only Advanced and About are secondary product pages.",
+            "goal": "About is the only secondary product page.",
             "evidence_required": [
-              "secondary_pages contains advanced and about only",
+              "secondary_pages contains about only",
               "About resolves directly to /settings/about",
-              "visual QA covers both secondary routes"
+              "visual QA covers the About secondary route"
             ]
           },
           {
@@ -2908,7 +3191,7 @@
             "track": "control_plane",
             "goal": "Every product page declares primary information, primary action, exception state, technical-detail boundary, DOM, anchors, and search entries.",
             "evidence_required": [
-              "experience_contract lists eleven product pages: nine ordinary pages plus Advanced and About",
+              "experience_contract lists eleven product pages: ten ordinary pages plus About",
               "matrix mirrors each page experience",
               "validators reject missing page fields or anchors"
             ]
@@ -2918,7 +3201,7 @@
             "track": "shell_adapter",
             "goal": "Pages with state/action semantics consume explicit view models rather than raw payloads.",
             "evidence_required": [
-              "Access uses model_access_source",
+              "Models uses model_access_source and Gateway uses the canonical account projection",
               "Capabilities uses canonical package projection",
               "Maintenance and Storage keep raw details collapsed"
             ]
@@ -2938,7 +3221,7 @@
             "track": "user_task_ux",
             "goal": "Maintenance leads with impact and one recommended action instead of raw ids, statuses, or duplicate navigation.",
             "evidence_required": [
-              "maintenance page contract defines health/updates/services/packages anchors",
+              "maintenance page contract defines health/managed-dependencies/updates/services/diagnostics anchors",
               "technical details collapse raw action and component ids",
               "visual QA checks the primary-action limit"
             ]
@@ -2954,11 +3237,32 @@
             ]
           },
           {
+            "id": "workspace_personalization_owner",
+            "track": "user_task_ux",
+            "goal": "Workspace & Personalization is the single owner for workspace path, log path, AGENTS.md, and OPL App context.",
+            "evidence_required": [
+              "log_directory configuration page_id is workspace",
+              "application.updateSystemInfo preserves cacheDir/workDir, persists desktop client system info, and never rewires the existing OnePersonLab/data -> /data volume",
+              "Storage and Preferences contain no duplicate path or personalization controls"
+            ]
+          },
+          {
+            "id": "gateway_single_owner",
+            "track": "user_task_ux",
+            "goal": "Account & Gateway is the single owner for OPL Gateway identity, balance, usage, credentials, refresh, and disconnect.",
+            "evidence_required": [
+              "Overview contains only an account summary and a link to Account & Gateway",
+              "Models contains only a Gateway source summary and a link to Account & Gateway",
+              "Resources excludes the built-in OPL Gateway connection and its count"
+            ]
+          },
+          {
             "id": "model_access_source",
             "track": "user_task_ux",
-            "goal": "Models & Access owns model source, default model, Gateway, Codex CLI, and account or API-key configuration without mixing browser deployment entries.",
+            "goal": "Models owns source and default model while Account & Gateway owns account and credential lifecycle.",
             "evidence_required": [
-              "Access is labeled Models & Access / 模型与访问",
+              "Access carrier is labeled Models / 模型",
+              "Gateway has an independent ordinary route and owner contract",
               "provider source path is machine-readable",
               "local browser access is owned by Resources & Connections",
               "base URL and token paths remain technical details"
@@ -2983,6 +3287,7 @@
               "local browser access is a visible Resources entry",
               "resource and action readiness use separate anchors",
               "selected workspace controls stay on Workspace",
+              "built-in OPL Gateway and its count stay off Resources",
               "Open navigates to browser_url and Diagnose renders an executed diagnostic result",
               "mutating actions require precheck and explicit confirmation before execution",
               "dry-run success is precheck evidence only and never an opened or deployed completion claim"
@@ -2991,31 +3296,45 @@
           {
             "id": "data_storage_safety",
             "track": "user_task_ux",
-            "goal": "Storage uses one category list and user language for preview, cleanup, archive, restore, and history.",
+            "goal": "Storage owns cached local and Docker usage plus previewed cleanup, while path configuration remains on Workspace & Personalization.",
             "evidence_required": [
               "storage-categories is the primary list",
-              "cleanup-preview precedes destructive action",
-              "dry-run terminology stays technical"
+              "cached inventory renders before background refresh without synthetic zero bytes",
+              "log directory is read-only and links to Workspace",
+              "Docker usage includes images/containers/volumes/build cache/reclaimable bytes",
+              "cleanup-preview precedes destructive action and generic prune is forbidden"
+            ]
+          },
+          {
+            "id": "docker_storage_projection",
+            "track": "user_task_ux",
+            "goal": "Storage projects Docker disk usage without unsafe generic prune behavior.",
+            "evidence_required": [
+              "typed fields cover image/container/volume/build-cache/reclaimable bytes",
+              "data volume mapping is visible",
+              "cleanup always starts with preview",
+              "generic prune is forbidden"
             ]
           },
           {
             "id": "preferences_user_language",
             "track": "user_task_ux",
-            "goal": "Preferences explains timeout, tray, hardware acceleration, and themes in user language.",
+            "goal": "Preferences explains App behavior, timeout, notifications, display, fonts, and themes while Workspace owns personalization.",
             "evidence_required": [
-              "preferences anchors include behavior/notifications/models-performance/display-fonts/themes; workspace anchors include logs/personalization/system-agents/opl-app-context",
+              "preferences anchors contain behavior/notifications/models-performance/display-fonts/themes only",
+              "workspace anchors contain workspace/logs/personalization/system-agents/opl-app-context",
               "raw milliseconds and Electron flags stay collapsed",
               "Preferences has inline controls and no page-level primary action"
             ]
           },
           {
-            "id": "advanced_read_only_paths",
+            "id": "maintenance_diagnostics",
             "track": "user_task_ux",
-            "goal": "Advanced is a read-only working-directories page.",
+            "goal": "Maintenance diagnostics is the single owner for Framework and raw working paths.",
             "evidence_required": [
-              "Advanced primary information is working directories",
-              "no Developer Mode or mutable profile controls appear",
-              "raw refs are copy-only technical details"
+              "Advanced is removed as an independent page",
+              "Workspace and Storage each show only their user-facing path once",
+              "Framework paths and raw refs are read-only Maintenance diagnostics"
             ]
           },
           {
@@ -3024,8 +3343,43 @@
             "goal": "About keeps version, channel, and update status on the main surface with technical details collapsed.",
             "evidence_required": [
               "About remains /settings/about",
+              "About reads startup-cached updater state and does not check on mount",
               "check_updates is the only primary action",
               "shell/framework build details stay collapsed"
+            ]
+          },
+          {
+            "id": "startup_cache_hydration",
+            "track": "state_action_protocol",
+            "goal": "The first window renders from a bounded secret-free snapshot and background hydration can recover after failure.",
+            "evidence_required": [
+              "snapshot schema/version/freshness/invalidation are explicit",
+              "first paint does not await full fast state",
+              "automatic failure clears the single-flight marker",
+              "retry is bounded and remount/manual retry remains possible"
+            ]
+          },
+          {
+            "id": "managed_dependency_currentness",
+            "track": "user_task_ux",
+            "goal": "Maintenance shows managed Codex and Temporal currentness with stable external installation rows.",
+            "evidence_required": [
+              "Codex CLI and both Temporal components use canonical ids",
+              "external rows have stable identity and required fields",
+              "Temporal runtime and CLI versions are normalized but never compared across components",
+              "manual actions remain owner-routed"
+            ]
+          },
+          {
+            "id": "ownership_no_duplicates",
+            "track": "control_plane",
+            "goal": "Every Settings surface has one product owner and cross-page references remain read-only.",
+            "evidence_required": [
+              "Agents and Capabilities fields are disjoint",
+              "Workspace owns log and personalization configuration",
+              "Storage only references the log path read-only",
+              "Preferences owns App behavior/display only",
+              "validators reject duplicate configuration ids across pages"
             ]
           },
           {
@@ -3063,7 +3417,7 @@
           {
             "id": "screenshot_qa",
             "track": "visual_qa",
-            "goal": "Screenshot evidence covers ordinary pages, Advanced/About, compatibility redirects, and key interaction states.",
+            "goal": "Screenshot evidence covers ordinary pages, About, compatibility redirects, and key interaction states.",
             "evidence_required": [
               "visual_qa_policy lists ordinary and secondary routes",
               "compatibility redirects are captured as landing evidence",
@@ -3104,8 +3458,8 @@
       },
       "validation_policy": {
         "contract_checks": [
-          "ordinary carrier routes map to exactly nine product pages",
-          "secondary_pages contains only advanced and about",
+          "ordinary carrier routes map to exactly ten product pages",
+          "secondary_pages contains only about",
           "compatibility redirects resolve update, theme, local-services, and personalization to owner routes and anchors",
           "legacy redirects never redirect about to advanced",
           "bilingual item search entries target declared page anchors",
@@ -3128,19 +3482,23 @@
       "settings_projection": {
         "schema": "settings_projection.v1",
         "owner": "one-person-lab-app",
-        "source": "opl app state --profile fast --json#settings",
+        "source": "opl app state --profile full --json#app_state.settings_control_center.settings_projection",
         "policy": "summary_first_settings_items_with_scope_owner_risk_action_details_and_editability_reason",
         "section_ids": [
-          "summary",
-          "access",
+          "overview",
+          "gateway",
+          "models",
           "workspace",
+          "agents",
           "capabilities",
           "resources",
           "maintenance",
           "storage",
-          "diagnostics"
+          "preferences"
         ],
         "item_required_fields": [
+          "item_id",
+          "surface_class",
           "scope",
           "owner",
           "risk",
@@ -3151,125 +3509,165 @@
         ],
         "live_evidence_policy": "contract_docs_tests_do_not_prove_live_installed_release_runtime_currentness_or_owner_acceptance",
         "sections": {
-          "summary": {
-            "id": "summary",
+          "overview": {
             "items": [
               {
-                "id": "overall_status",
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "read_only",
                 "normal_summary": "Overview shows overall usability and one next useful action without copying the sidebar.",
                 "next_action": "open the page that owns the item needing attention",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_general",
-                "editable_reason": "read-only summary; edits happen on the owning page"
+                "editable_reason": "read-only summary; edits happen on the owning page",
+                "surface_class": "status",
+                "item_id": "overall_status"
               }
-            ]
+            ],
+            "section_id": "overview"
           },
-          "access": {
-            "id": "access",
+          "gateway": {
             "items": [
               {
-                "id": "model_access",
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Models & Access shows the real model source, selected and default model, Gateway, Codex CLI, and authentication state.",
-                "next_action": "configure model access only when the source or credential needs attention",
-                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_access",
-                "editable_reason": "access key changes are user-initiated and reversible"
+                "normal_summary": "Account & Gateway owns login, identity, balance, usage, managed Key status, and manual API-key access.",
+                "next_action": "connect, refresh, or disconnect Gateway access on its owner page",
+                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_gateway",
+                "editable_reason": "Gateway credentials and account lifecycle are user-initiated and reversible",
+                "surface_class": "configuration",
+                "item_id": "gateway_account"
               }
-            ]
+            ],
+            "section_id": "gateway"
           },
-          "workspace": {
-            "id": "workspace",
+          "models": {
             "items": [
               {
-                "id": "workspace_root",
+                "scope": "user",
+                "owner": "one-person-lab-app",
+                "risk": "reversible",
+                "normal_summary": "Models shows the real model source, selected and default model, and active Codex CLI without duplicating Gateway account details.",
+                "next_action": "change the model preference or open Account & Gateway when credentials need attention",
+                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_access",
+                "editable_reason": "model and reasoning preferences are local and reversible",
+                "surface_class": "configuration",
+                "item_id": "model_access"
+              }
+            ],
+            "section_id": "models"
+          },
+          "workspace": {
+            "items": [
+              {
                 "scope": "workspace",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
-                "normal_summary": "Workspace merges the current folder, writability, and permission state into one normal summary.",
-                "next_action": "open, choose, or verify the workspace when needed",
+                "normal_summary": "Workspace & Personalization owns workspace and App log paths plus Codex AGENTS.md and OPL App context; desktop log changes preserve cache/work directories and do not rewire the Docker data volume.",
+                "next_action": "change workspace, log directory, or new-conversation personalization on the single owner page",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_workspace",
-                "editable_reason": "workspace mutations require explicit user action and confirmation"
+                "editable_reason": "workspace mutations require explicit user action and confirmation while user instruction changes keep stale-write and backup guards",
+                "surface_class": "configuration",
+                "item_id": "workspace_root"
               }
-            ]
+            ],
+            "section_id": "workspace"
           },
-          "capabilities": {
-            "id": "capabilities",
+          "agents": {
             "items": [
               {
-                "id": "capability_directory",
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Capabilities separate availability, source, and Home visibility while keeping upstream custom assistants out of OPL Settings.",
-                "next_action": "open capability details or Maintenance for updates and repairs",
-                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_capabilities",
-                "editable_reason": "visibility and setup actions are user configurable"
+                "normal_summary": "Agents renders every Framework directory entry, keeps static professional package data as metadata only, and owns package search, role/status/source filters, registry refresh, projected lifecycle actions, Developer Mode, and Home visibility.",
+                "next_action": "search or filter the directory, refresh it, or execute the package row action projected by Framework",
+                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_agents",
+                "editable_reason": "Framework owns directory and action truth; the App only renders canonical payloads and routes missing workspace activation to Workspace & Personalization",
+                "surface_class": "configuration",
+                "item_id": "agent_package_directory"
               }
-            ]
+            ],
+            "section_id": "agents"
           },
-          "resources": {
-            "id": "resources",
+          "capabilities": {
             "items": [
               {
-                "id": "resource_connections",
+                "scope": "user",
+                "owner": "one-person-lab-app",
+                "risk": "reversible",
+                "normal_summary": "Capabilities groups OPL Flow managed and local Skills or Plugins by canonical owner without duplicating Agent package or Home shortcut lifecycle.",
+                "next_action": "open capability details or Maintenance for owner-routed updates and repairs",
+                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_capabilities",
+                "editable_reason": "manual and third-party capability mutations require explicit user action while OPL Flow reconciliation remains package-owned",
+                "surface_class": "status",
+                "item_id": "capability_directory"
+              }
+            ],
+            "section_id": "capabilities"
+          },
+          "resources": {
+            "items": [
+              {
                 "scope": "resource",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
                 "normal_summary": "Resources owns local browser access, WebUI, OPL Workspace, and external connections while separating readiness from action executability.",
                 "next_action": "open an available resource action only when the projected action is executable",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_resources",
-                "editable_reason": "resource deployment actions require dry-run or input confirmation"
+                "editable_reason": "resource deployment actions require dry-run or input confirmation",
+                "surface_class": "configuration",
+                "item_id": "resource_connections"
               }
-            ]
+            ],
+            "section_id": "resources"
           },
           "maintenance": {
-            "id": "maintenance",
             "items": [
               {
-                "id": "maintenance_hub",
                 "scope": "machine",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
                 "normal_summary": "Maintenance groups health, updates, services, and packages by user impact and shows one recommended action.",
                 "next_action": "run the recommended check, repair, or update action",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_environment",
-                "editable_reason": "state-changing maintenance requires action routes and confirmation"
+                "editable_reason": "state-changing maintenance requires action routes and confirmation",
+                "surface_class": "action",
+                "item_id": "maintenance_hub"
               }
-            ]
+            ],
+            "section_id": "maintenance"
           },
           "storage": {
-            "id": "storage",
             "items": [
               {
-                "id": "data_storage_safety",
                 "scope": "machine",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
-                "normal_summary": "Storage uses one category list and previews cleanup before any destructive change.",
-                "next_action": "preview cleanup and review protection or recovery information",
+                "normal_summary": "Storage shows cached local and Docker usage, read-only log-path context, and previewed cleanup without owning path configuration.",
+                "next_action": "refresh usage or preview owner-scoped cleanup before confirmation",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_storage",
-                "editable_reason": "cleanup requires preview, confirmation, and receipt"
+                "editable_reason": "cleanup requires preview, confirmation, and receipt",
+                "surface_class": "action",
+                "item_id": "data_storage_safety"
               }
-            ]
+            ],
+            "section_id": "storage"
           },
-          "diagnostics": {
-            "id": "diagnostics",
+          "preferences": {
             "items": [
               {
-                "id": "advanced_diagnostics",
-                "scope": "developer",
+                "scope": "user",
                 "owner": "one-person-lab-app",
-                "risk": "read_only",
-                "normal_summary": "Advanced shows read-only working directories; page-specific technical details stay collapsed.",
-                "next_action": "copy diagnostics or inspect raw refs only when troubleshooting",
-                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_advanced",
-                "editable_reason": "diagnostic fields are read-only unless an explicit App action route exists"
+                "risk": "reversible",
+                "normal_summary": "Preferences owns App behavior, notifications, display, fonts, and themes only.",
+                "next_action": "change App behavior or display preferences inline",
+                "details_ref": "contracts/app-gui-product-contract.json#pages.settings_theme",
+                "editable_reason": "App preferences are local, reversible, and do not own workspace or conversation context",
+                "surface_class": "configuration",
+                "item_id": "app_preferences"
               }
-            ]
+            ],
+            "section_id": "preferences"
           }
         }
       },
@@ -3356,7 +3754,7 @@
           "object_accent_policy": "use restrained multi-hue navigation icons and card-edge accents to distinguish access, workspace, capabilities, maintenance, and storage without tinting whole pages",
           "footer_layout": "compact",
           "footer_controls": ["gateway_account_or_settings_entry", "theme_switcher"],
-          "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_settings_on_all_routes_and_open_models_access_or_overview",
+          "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_settings_on_all_routes_and_open_account_gateway_or_overview",
           "footer_secondary_navigation_allowed": false,
           "theme_gallery_presentation": "recognizable_preview_tiles",
           "theme_swatch_list_allowed": false,
@@ -3404,10 +3802,10 @@
             "maintenance_and_storage_are_settings": false
           },
           "diagnostic": {
-            "presentation": "advanced_page_or_explicit_summary_first_modal_or_drawer",
+            "presentation": "explicit_summary_first_modal_or_drawer_from_the_owning_page",
             "interaction": "read_copy_export_or_open_detail_without_implicit_mutation",
             "visual_rule": "secondary_technical_hierarchy_with_raw_fields_after_plain_language_summary",
-            "ownership_rule": "owns_paths_refs_receipts_runtime_enums_payloads_logs_and_advanced_page_content",
+            "ownership_rule": "owns_paths_refs_receipts_runtime_enums_payloads_and_logs_on_the_relevant_owner_page",
             "ordinary_page_inline_allowed": false,
             "entry_presentation": "explicit_diagnostics_action",
             "container": "modal_or_drawer",
@@ -3415,7 +3813,7 @@
             "raw_details_secondary": true,
             "raw_fields": ["paths", "refs", "action_ids", "receipts", "runtime_enums", "payloads", "logs"]
           },
-          "advanced_page_type": "diagnostic",
+          "advanced_page_type": "retired_redirect_to_maintenance_diagnostics",
           "desktop_layout_policy": "use_columns_only_for_independent_groups_with_comparable_density",
           "default_layout_policy": "full_width_vertical_groups"
         },
@@ -3445,10 +3843,11 @@
             "label_en": "Overview",
             "primary_information": [
               "one overall usability summary led by Codex CLI and model-access readiness",
-              "OPL Gateway connection, signed-in account identity, current usage, and freshness when available",
+              "signed-in Gateway identity, connection and availability with compact today token, cost, and balance summaries",
               "issue queue ordered by user impact and limited to actionable exceptions",
               "one next useful action",
-              "workspace path stays on Workspace and is not a primary Overview card"
+              "workspace path stays on Workspace & Personalization and is not a primary Overview card",
+              "necessary Codex and Gateway technical rows remain directly visible after duplicate fields are removed"
             ],
             "first_viewport_groups": ["system_status", "attention_queue", "codex_and_gateway"],
             "surface_inventory": {
@@ -3463,11 +3862,11 @@
                   "owner": "overview"
                 },
                 {
-                  "id": "codex_status",
+                  "id": "codex_status_and_technical_rows",
                   "owner": "overview"
                 },
                 {
-                  "id": "gateway_account_and_usage",
+                  "id": "gateway_identity_usage_availability_and_technical_rows",
                   "owner": "overview"
                 }
               ],
@@ -3477,12 +3876,7 @@
                   "owner": "overview"
                 }
               ],
-              "diagnostic": [
-                {
-                  "id": "compact_overview_technical_details",
-                  "owner": "overview"
-                }
-              ]
+              "diagnostic": []
             },
             "primary_action": {
               "id": "open_first_attention_item",
@@ -3492,14 +3886,13 @@
               "label_en": "Review attention item"
             },
             "exception_state": "emphasize only the highest-priority item that needs user action",
-            "technical_details_boundary": "the small read-only Codex, Gateway freshness, background-service, and capability summary is always visible inline; raw paths, receipts, and payloads remain outside Overview",
+            "technical_details_boundary": "show only short non-duplicated Codex and Gateway version/source/freshness rows directly; account operations, raw paths, receipts, payloads, and full usage stay on owner pages",
             "required_dom": {
               "always": [
                 "settings-page-overview",
                 "settings-overview-primary",
                 "settings-overview-card-codex",
-                "settings-overview-card-gateway",
-                "settings-overview-technical-details"
+                "settings-overview-card-gateway"
               ],
               "conditional": [
                 {
@@ -3512,79 +3905,65 @@
                 }
               ]
             },
-            "required_anchors": ["status", "attention", "next-action", "common-actions"],
+            "required_anchors": ["status", "attention", "next-action", "codex", "gateway"],
             "search_entry_ids": [
               "overview.status",
               "overview.attention",
               "overview.next_action",
-              "overview.common_actions"
+              "overview.codex",
+              "overview.gateway"
             ]
           },
-          "access": {
-            "product_page_id": "access",
-            "route_id": "access",
-            "matrix_page_id": "access",
-            "label_zh": "模型与访问",
-            "label_en": "Models & Access",
+          "gateway": {
+            "product_page_id": "gateway",
+            "route_id": "gateway",
+            "matrix_page_id": "gateway",
+            "label_zh": "账户与 Gateway",
+            "label_en": "Account & Gateway",
             "primary_information": [
-              "model access readiness",
-              "real access source from app_state.core.codex.model_access_source",
-              "selected and default model, with Auto showing its current resolved friendly model",
               "OPL Gateway account login and manual API-key paths",
               "connected Gateway account balance, usage, managed Key status, and freshness",
-              "Codex CLI installation and version",
+              "signed-in identity and connection state",
               "account or API-key authentication state"
             ],
-            "first_viewport_groups": ["model_access", "opl_gateway_access", "codex_cli", "authentication"],
+            "first_viewport_groups": ["gateway_connection", "gateway_account", "gateway_usage_and_access"],
             "surface_inventory": {
               "configuration": [
                 {
-                  "id": "preferred_model",
-                  "owner": "access"
-                },
-                {
-                  "id": "preferred_reasoning_effort",
-                  "owner": "access"
-                },
-                {
                   "id": "gateway_account_login",
-                  "owner": "access"
+                  "owner": "gateway"
                 },
                 {
                   "id": "manual_api_key",
-                  "owner": "access"
+                  "owner": "gateway"
                 }
               ],
               "status": [
                 {
-                  "id": "model_access_readiness",
-                  "owner": "access"
+                  "id": "gateway_connection",
+                  "owner": "gateway"
                 },
                 {
                   "id": "gateway_account_card",
-                  "owner": "access"
+                  "owner": "gateway"
                 },
                 {
                   "id": "gateway_account_freshness",
-                  "owner": "access"
-                },
-                {
-                  "id": "codex_cli_and_authentication",
-                  "owner": "access"
+                  "owner": "gateway"
                 }
               ],
               "action": [
                 {
                   "id": "gateway_account_refresh",
-                  "owner": "access"
+                  "owner": "gateway"
                 },
                 {
                   "id": "gateway_account_complete_or_repair_exception",
-                  "owner": "access"
+                  "owner": "gateway"
                 },
                 {
                   "id": "gateway_account_disconnect",
-                  "owner": "access"
+                  "owner": "gateway"
                 }
               ],
               "diagnostic": []
@@ -3617,57 +3996,124 @@
               "generic_action_secret_payload_allowed": false
             },
             "primary_action": {
-              "id": "configure_model_access",
-              "availability": "missing_or_user_requested_change",
+              "id": "configure_gateway_access",
+              "availability": "disconnected_or_user_requested_change",
               "max_visible": 1,
-              "label_zh": "配置模型访问",
-              "label_en": "Configure model access"
+              "label_zh": "连接 Gateway",
+              "label_en": "Connect Gateway"
             },
-            "exception_state": "highlight missing, expired, or unreachable model access and the one corrective action",
-            "technical_details_boundary": "no dedicated diagnostic disclosure; model, source, CLI version, authentication state, and corrective action are already shown on the owner surface",
+            "exception_state": "highlight missing, expired, or unreachable Gateway access and the one corrective action",
+            "technical_details_boundary": "account identity, usage, managed Key, freshness, and corrective action are already shown on the owner surface; secret bodies and raw responses are never rendered",
             "required_dom": {
               "always": [
-                "settings-page-access",
-                "settings-access-primary",
-                "settings-access-model-preference",
-                "settings-access-gateway",
-                "settings-access-gateway-manual-key"
+                "settings-page-gateway",
+                "settings-gateway-primary",
+                "settings-gateway-access",
+                "settings-gateway-manual-key"
               ],
               "conditional": [
                 {
-                  "testid": "settings-access-exception",
+                  "testid": "settings-gateway-exception",
                   "when": "attention_required"
                 },
                 {
-                  "testid": "settings-access-primary-action",
-                  "when": "missing_or_user_requested_change"
+                  "testid": "settings-gateway-primary-action",
+                  "when": "disconnected_or_user_requested_change"
                 },
                 {
-                  "testid": "settings-access-gateway-setup",
+                  "testid": "settings-gateway-setup",
                   "when": "desktop_account_login_selected"
                 },
                 {
-                  "testid": "settings-access-gateway-account",
+                  "testid": "settings-gateway-account",
                   "when": "gateway_account_connected"
                 },
                 {
-                  "testid": "settings-access-gateway-stale",
+                  "testid": "settings-gateway-stale",
                   "when": "gateway_account_projection_stale"
                 },
                 {
-                  "testid": "settings-access-gateway-disconnect-confirm",
+                  "testid": "settings-gateway-disconnect-confirm",
                   "when": "gateway_account_disconnect_requested"
                 }
               ]
             },
-            "required_anchors": ["provider-source", "opl-gateway", "model", "codex-cli", "authentication"],
-            "search_entry_ids": [
-              "access.provider_source",
-              "access.opl_gateway",
-              "access.model",
-              "access.codex_cli",
-              "access.authentication"
-            ]
+            "required_anchors": ["connection", "account", "usage", "access"],
+            "search_entry_ids": ["gateway.connection", "gateway.account", "gateway.usage", "gateway.access"]
+          },
+          "models": {
+            "product_page_id": "models",
+            "route_id": "access",
+            "matrix_page_id": "access",
+            "label_zh": "模型",
+            "label_en": "Models",
+            "primary_information": [
+              "model access readiness and real source from app_state.core.codex.model_access_source",
+              "selected and default model, with Auto showing its resolved friendly model",
+              "persistent default model and reasoning effort for new conversations",
+              "active Codex CLI version as the model execution prerequisite",
+              "one visible route to Account & Gateway when credentials need attention"
+            ],
+            "first_viewport_groups": ["model_access", "model_preference", "codex_cli"],
+            "surface_inventory": {
+              "configuration": [
+                {
+                  "id": "preferred_model",
+                  "owner": "models"
+                },
+                {
+                  "id": "preferred_reasoning_effort",
+                  "owner": "models"
+                }
+              ],
+              "status": [
+                {
+                  "id": "model_access_readiness",
+                  "owner": "models"
+                },
+                {
+                  "id": "codex_cli_execution_status",
+                  "owner": "models"
+                }
+              ],
+              "action": [
+                {
+                  "id": "open_gateway_settings",
+                  "owner": "models"
+                }
+              ],
+              "diagnostic": []
+            },
+            "primary_action": {
+              "id": "open_gateway_settings",
+              "availability": "model_access_attention_only",
+              "max_visible": 1,
+              "label_zh": "前往账户与 Gateway",
+              "label_en": "Open Account & Gateway"
+            },
+            "exception_state": "highlight unavailable model access and route credential repair to Account & Gateway",
+            "technical_details_boundary": "Gateway account, balance, usage, Key management, raw provider ids, paths, and update actions stay on Gateway or Maintenance",
+            "required_dom": {
+              "always": [
+                "settings-page-models",
+                "settings-models-primary",
+                "settings-models-model-preference",
+                "settings-models-codex-cli",
+                "settings-models-gateway-link"
+              ],
+              "conditional": [
+                {
+                  "testid": "settings-models-exception",
+                  "when": "attention_required"
+                },
+                {
+                  "testid": "settings-models-primary-action",
+                  "when": "model_access_attention_only"
+                }
+              ]
+            },
+            "required_anchors": ["provider-source", "model", "codex-cli"],
+            "search_entry_ids": ["models.provider_source", "models.model", "models.codex_cli"]
           },
           "workspace": {
             "product_page_id": "workspace",
@@ -3679,7 +4125,7 @@
               "current workspace identity, path, and writability merged into one normal-state summary",
               "permission or trust explanation only when attention is required",
               "where project and task artifacts are stored",
-              "desktop App log directory from application.systemInfo with an explicit change action",
+              "desktop App log directory through the existing typed system-info action; WebUI /data/logs remains read-only under the existing Docker data volume",
               "system-level Codex user instructions with stale-write protection and backup",
               "read-only generated OPL App context plus editable additional instructions",
               "open workspace as an inline action and change workspace as the sole page-level primary action"
@@ -3745,13 +4191,17 @@
               "maintenance_action_visibility": "attention_only",
               "diagnostics_entry": "explicit_modal_action",
               "log_directory_source": "application.systemInfo.logDir_not_Framework_app_state.paths.logs_dir",
-              "log_directory_mutation": "application.updateSystemInfo_preserves_cacheDir_and_workDir_and_switches_main_process_log_root_immediately",
+              "log_directory_mutation": "application.updateSystemInfo_preserves_current_cacheDir_and_workDir_and_persists_desktop_client_system_info",
+              "log_directory_webui_policy": "read_only_/data/logs_projection_from_existing_OnePersonLab/data_to_/data_volume",
               "desktop_directory_mapping": "project_workspace_is_Framework_workspace_root_while_App_data_and_logs_are_shell_system_directories",
-              "docker_mapping": "host_managed_/projects_for_project_workspace_and_/data_for_App_data_logs_no_volume_rewire_from_Settings",
+              "docker_mapping": "OnePersonLab/data_maps_to_/data_and_Settings_does_not_rewire_the_volume",
+              "docker_volume_rewire_allowed": false,
               "generated_base_context_editable": false,
               "additional_instructions_editable": true,
               "restore_default_confirmation_required": true,
-              "personalization_changes_apply_to": "next_new_conversation"
+              "personalization_changes_apply_to": "next_new_conversation",
+              "storage_reference_policy": "Storage_may_show_the_resolved_log_path_read_only_but_has_no_log_configuration_control",
+              "path_instance_count": 1
             },
             "readiness_precedence": "filesystem_writability_and_health_override_executor_permission_mode",
             "primary_action": {
@@ -3762,7 +4212,7 @@
               "label_en": "Change workspace"
             },
             "exception_state": "highlight inaccessible, read-only, or untrusted workspace conditions",
-            "technical_details_boundary": "raw path JSON, trust refs, and repair commands stay collapsed",
+            "technical_details_boundary": "workspace and log paths are shown once; raw Framework path JSON, Docker mount internals, trust refs, and repair commands open through an explicit diagnostic action",
             "required_dom": {
               "always": [
                 "settings-page-workspace",
@@ -3812,11 +4262,21 @@
             "primary_information": [
               "OPL Flow managed and recommended Skills and Plugins derived from installed package dependency closure",
               "manual and third-party Skills and Plugins from Codex and shell registries",
+              "local MCP servers, image generation, and voice input configuration owned by Capabilities",
               "source, owner, currentness, and explicit lifecycle actions"
             ],
             "first_viewport_groups": ["opl_flow_managed", "manual_and_third_party"],
             "surface_inventory": {
-              "configuration": [],
+              "configuration": [
+                {
+                  "id": "local_mcp_image_configuration",
+                  "owner": "capabilities"
+                },
+                {
+                  "id": "voice_input_configuration",
+                  "owner": "capabilities"
+                }
+              ],
               "status": [
                 {
                   "id": "capability_currentness",
@@ -3857,7 +4317,8 @@
                 "settings-page-capabilities",
                 "settings-capabilities-primary",
                 "settings-capabilities-opl-flow-managed",
-                "settings-capabilities-third-party"
+                "settings-capabilities-third-party",
+                "settings-capabilities-voice-input"
               ],
               "conditional": [
                 {
@@ -3876,21 +4337,63 @@
             "label_zh": "智能体",
             "label_en": "Agents",
             "primary_information": [
-              "runnable Agent package catalog with availability and user-facing source labels",
+              "all discoverable Agent, Framework capability, and workflow profile packages from app_state.agent_packages.directory.entries",
+              "dedicated package catalog search with package role, install or activation status, and source filters",
+              "visible registry refresh and projected per-row install or activation actions",
+              "workspace-scoped activation payload from app_state.paths.workspace_root_path with a disabled reason and Workspace route when missing",
+              "professional_agent_packages as package_id-keyed UI metadata only, never directory membership or status truth",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
+              "Developer Mode auto activation state, authorized repository scope, and dirty-worktree protection",
               "per-package automatic, managed, or developer source selection in package details",
               "Home visibility, shortcut order, launch readiness, and lifecycle management on Agent rows",
               "Skills and Plugins excluded and routed to Capabilities",
               "AionUI custom assistants excluded from the OPL product surface"
             ],
             "management_discoverability": {
-              "primary_row_controls": ["home_visibility", "manage"],
-              "lifecycle_actions": ["update", "repair", "enable", "disable", "uninstall"],
+              "primary_row_controls": ["home_visibility", "recommended_action", "manage"],
+              "lifecycle_actions": [
+                "install",
+                "activate",
+                "update",
+                "repair",
+                "enable",
+                "disable",
+                "hide",
+                "unhide",
+                "uninstall"
+              ],
+              "catalog_search_is_settings_global_search": false,
+              "registry_refresh_visibility": "ordinary_visible_action",
+              "manifest_url_install_visibility": "advanced_only",
+              "projected_action_policy": "execute only Framework action_id and payload; never infer status, readiness, action ids, or payload fields in the Shell",
               "raw_source_fallback_allowed": false,
               "diagnostic_refs_location": "diagnostics_modal",
               "home_preference_policy": "single_reactive_owner_with_success_commit_and_failure_rollback"
             },
-            "first_viewport_groups": ["capability_catalog", "capability_details"],
+            "developer_mode_surface": {
+              "label_zh": "允许维护已授权的开发仓库",
+              "label_en": "Maintain authorized development repositories",
+              "default_enabled": "auto",
+              "auto_policy": "identity_match_then_full_repository_authority_inspection_activates_developer_apply_safe_for_authorized_repositories",
+              "fast_profile_policy": "show_auto_inspection_pending_without_claiming_identity_mismatch",
+              "full_profile_policy": "show_effective_or_inactive_state_from_identity_and_repository_authority",
+              "effective_state_labels": ["当前不生效", "已自动生效", "已手动生效", "已关闭"],
+              "must_show": [
+                "effective state",
+                "configuration source",
+                "GitHub login",
+                "authorized repository scope",
+                "dirty-worktree and branch protection",
+                "reason when inactive"
+              ],
+              "explicit_user_choices": ["auto", "off"],
+              "shared_runtime_mutation_boundary": "still requires enabled=on, mode=developer_apply_safe, and source=user_config"
+            },
+            "first_viewport_groups": [
+              "agent_package_catalog_controls",
+              "agent_package_directory_entries",
+              "agent_package_details"
+            ],
             "surface_inventory": {
               "configuration": [
                 {
@@ -3914,6 +4417,10 @@
               ],
               "action": [
                 {
+                  "id": "agent_registry_refresh",
+                  "owner": "agents"
+                },
+                {
                   "id": "agent_lifecycle_operations",
                   "owner": "agents"
                 }
@@ -3926,11 +4433,11 @@
               ]
             },
             "primary_action": {
-              "id": "add_agent",
+              "id": "refresh_agent_registry",
               "availability": "always",
               "max_visible": 1,
-              "label_zh": "添加智能体",
-              "label_en": "Add agent"
+              "label_zh": "刷新目录",
+              "label_en": "Refresh catalog"
             },
             "tab_contract": {
               "surface_label_zh": "智能体",
@@ -3939,12 +4446,17 @@
               "default_tab": "agents",
               "on_demand_tab_ids": []
             },
-            "exception_state": "highlight failed or blocked capabilities and keep normal packages visually quiet",
+            "exception_state": "highlight failed or blocked Agent packages and keep normal packages visually quiet",
             "technical_details_boundary": "package ids, receipts, paths, manifests, and raw status axes stay collapsed",
             "required_dom": {
               "always": [
                 "settings-page-agents",
                 "settings-agents-primary",
+                "settings-agents-catalog-search",
+                "settings-agents-role-filter",
+                "settings-agents-status-filter",
+                "settings-agents-source-filter",
+                "settings-agents-registry-refresh",
                 "settings-agents-technical-details",
                 "settings-agents-primary-action",
                 "opl-developer-profile-control"
@@ -3953,11 +4465,27 @@
                 {
                   "testid": "settings-agents-exception",
                   "when": "attention_required"
+                },
+                {
+                  "testid": "settings-agents-loading",
+                  "when": "catalog_loading_or_refreshing"
+                },
+                {
+                  "testid": "settings-agents-empty",
+                  "when": "directory_entries_empty"
+                },
+                {
+                  "testid": "settings-agents-error",
+                  "when": "catalog_failed"
+                },
+                {
+                  "testid": "settings-agents-workspace-required",
+                  "when": "activation_recommended_and_workspace_root_missing"
                 }
               ]
             },
-            "required_anchors": ["availability", "source", "home-visibility"],
-            "search_entry_ids": ["agents.availability", "agents.source", "agents.home_visibility"]
+            "required_anchors": ["catalog", "package-role", "availability", "source", "home-visibility"],
+            "search_entry_ids": ["agents.catalog", "agents.availability", "agents.source", "agents.home_visibility"]
           },
           "resources": {
             "product_page_id": "resources",
@@ -3970,7 +4498,8 @@
               "Docker WebUI and OPL Workspace deployment entries",
               "resource readiness",
               "whether the related operation is executable",
-              "SSH, HPC, cloud, and external resources with owner or management mode without duplicating the selected Workspace page"
+              "SSH, HPC, cloud, and external resources with owner or management mode without duplicating the selected Workspace page",
+              "only external connections; the built-in OPL Gateway is owned by Account & Gateway"
             ],
             "first_viewport_groups": ["local_browser_access", "deployed_web_access", "external_resources"],
             "surface_inventory": {
@@ -4007,6 +4536,7 @@
               "action_policy": "open_existing_local_browser_access_settings",
               "implementation_provenance_visibility": "technical_details_only"
             },
+            "connection_filter_policy": "exclude the built-in OPL Gateway connection and count; show only user-managed external connections",
             "primary_action": {
               "id": "open_selected_resource_action",
               "availability": "executable_action_available",
@@ -4086,16 +4616,23 @@
             "product_page_id": "maintenance",
             "route_id": "environment",
             "matrix_page_id": "environment",
-            "label_zh": "本机环境",
-            "label_en": "Local Environment",
+            "label_zh": "维护",
+            "label_en": "Maintenance",
             "primary_information": [
               "health summary",
+              "direct managed dependency summary for the active Codex CLI, OPL-managed Temporal Runtime, and optional system Temporal CLI",
               "updates and local services grouped by user impact",
               "repair and rollback choices with impact explained before action",
               "service status and receipts without duplicating capability package management",
-              "one recommended maintenance action"
+              "one recommended maintenance action",
+              "Framework and raw working paths in diagnostics after Advanced is retired"
             ],
-            "first_viewport_groups": ["health_and_services", "updates", "repair_rollback_receipts"],
+            "first_viewport_groups": [
+              "health_and_services",
+              "managed_dependencies",
+              "updates",
+              "repair_rollback_receipts"
+            ],
             "surface_inventory": {
               "configuration": [
                 {
@@ -4107,6 +4644,10 @@
                 {
                   "id": "health_updates_and_services",
                   "owner": "maintenance"
+                },
+                {
+                  "id": "managed_dependency_currentness",
+                  "owner": "maintenance"
                 }
               ],
               "action": [
@@ -4117,7 +4658,7 @@
               ],
               "diagnostic": [
                 {
-                  "id": "maintenance_receipts_and_raw_details",
+                  "id": "maintenance_receipts_paths_and_raw_details",
                   "owner": "maintenance"
                 }
               ]
@@ -4127,7 +4668,9 @@
               "management_surface": "component_apply_repair_rollback_and_capability_sync_live_in_an_explicit_management_modal",
               "diagnostic_surface": "read_only_status_paths_receipts_and_raw_projection_only",
               "diagnostic_mutation_controls_allowed": false,
-              "unknown_state_copy": "distinguish_checking_not_checked_not_applicable_and_needs_attention"
+              "unknown_state_copy": "distinguish_checking_not_checked_not_applicable_and_needs_attention",
+              "managed_dependency_primary_visibility": "managed_dependency_summary_is_visible_without_opening_diagnostics",
+              "working_path_owner": "Framework and raw paths live only in Maintenance diagnostics"
             },
             "primary_action": {
               "id": "run_recommended_maintenance",
@@ -4142,6 +4685,7 @@
               "always": [
                 "settings-page-maintenance",
                 "settings-maintenance-primary",
+                "settings-maintenance-managed-dependencies",
                 "settings-maintenance-management-action",
                 "settings-maintenance-diagnostics-action"
               ],
@@ -4164,13 +4708,13 @@
                 }
               ]
             },
-            "required_anchors": ["health", "updates", "services", "repair-rollback", "receipts"],
+            "required_anchors": ["health", "managed-dependencies", "updates", "services", "diagnostics"],
             "search_entry_ids": [
               "maintenance.health",
+              "maintenance.managed_dependencies",
               "maintenance.updates",
               "maintenance.services",
-              "maintenance.repair_rollback",
-              "maintenance.receipts"
+              "maintenance.diagnostics"
             ]
           },
           "storage": {
@@ -4181,6 +4725,9 @@
             "label_en": "Data & Storage",
             "primary_information": [
               "storage usage by conversations, runtime data, logs, updater data, and user artifacts",
+              "last persisted inventory snapshot rendered immediately and refreshed in the background",
+              "typed Docker Engine usage for images, containers, volumes, and build cache",
+              "the Workspace-owned log directory may be referenced read-only without a duplicate setting",
               "archives and restore availability",
               "cleanup preview before any destructive action",
               "plain-language archive, restore, and cleanup history"
@@ -4218,7 +4765,26 @@
               "zero_byte_policy": "show_nothing_to_clean_and_hide_actions",
               "cleanup_action_policy": "single_progressive_action_preview_then_confirm",
               "conversation_archive_policy": "archive_receipt_is_required_before_delete_and_the_same_archive_exposes_a_confirmed_restore_action",
-              "restore_collision_policy": "never_overwrite_an_existing_conversation_without_an_explicit_collision_decision"
+              "restore_collision_policy": "never_overwrite_an_existing_conversation_without_an_explicit_collision_decision",
+              "inventory_initial_state": "last_persisted_snapshot_or_loading_placeholder_never_synthetic_zero_bytes",
+              "inventory_refresh_policy": "startup_delayed_background_scan_with_300_second_ttl_manual_force_refresh_and_push_update_after_scan",
+              "inventory_cache_ttl_seconds": 300,
+              "inventory_freshness_fields": ["observed_at", "scan_duration_ms", "stale"],
+              "inventory_event": "local-data-lifecycle.inventory-updated",
+              "log_directory_reference": "read_only_link_to_workspace#logs",
+              "docker_storage_owner": "desktop_App_carrier_and_Docker_Engine",
+              "docker_required_fields": [
+                "engine_status",
+                "image_bytes",
+                "container_bytes",
+                "volume_bytes",
+                "build_cache_bytes",
+                "reclaimable_bytes",
+                "data_volume_source",
+                "data_volume_destination"
+              ],
+              "docker_data_volume_mapping": "OnePersonLab/data -> /data",
+              "docker_cleanup_policy": "preview_before_prune_no_generic_prune"
             },
             "primary_action": {
               "id": "preview_cleanup",
@@ -4297,7 +4863,9 @@
               "extension_themes_default_visible": false,
               "custom_theme_management": "preserved",
               "interactive_controls_inside_diagnostic_surface_allowed": false,
-              "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure"
+              "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure",
+              "voice_input_configuration_allowed": false,
+              "voice_input_configuration_owner": "capabilities"
             },
             "primary_action": {
               "id": "none",
@@ -4328,49 +4896,18 @@
               "preferences.themes"
             ]
           },
-          "advanced": {
-            "product_page_id": "advanced",
-            "route_id": "advanced",
-            "matrix_page_id": "advanced",
-            "label_zh": "高级",
-            "label_en": "Advanced",
-            "primary_information": [
-              "read-only diagnostic paths with user-facing labels and direct open actions",
-              "no duplicate summary or disclosure for the same paths"
-            ],
-            "first_viewport_groups": ["diagnostic_paths"],
-            "surface_inventory": {
-              "configuration": [],
-              "status": [],
-              "action": [],
-              "diagnostic": [
-                {
-                  "id": "working_directories",
-                  "owner": "advanced"
-                }
-              ]
-            },
-            "primary_action": {
-              "id": "none",
-              "availability": "read_only_page",
-              "max_visible": 1
-            },
-            "exception_state": "show missing or inaccessible directories without offering shell-owned repair controls",
-            "technical_details_boundary": "paths are already the purpose of this expert page and are shown directly without a second disclosure",
-            "required_dom": {
-              "always": ["settings-page-advanced", "settings-advanced-primary"],
-              "conditional": []
-            },
-            "required_anchors": ["working-directories"],
-            "search_entry_ids": ["advanced.directories"]
-          },
           "about": {
             "product_page_id": "about",
             "route_id": "about",
             "matrix_page_id": "about",
             "label_zh": "关于",
             "label_en": "About",
-            "primary_information": ["App version", "update channel", "update status", "help and feedback entry points"],
+            "primary_information": [
+              "App version from desktop main-process metadata",
+              "update channel",
+              "cached update status from the one startup check or the last manual check in the shared updater store",
+              "help and feedback entry points"
+            ],
             "first_viewport_groups": ["version_channel_and_updates", "help_and_feedback"],
             "surface_inventory": {
               "configuration": [],
@@ -4399,8 +4936,14 @@
             },
             "surface_rules": {
               "version_update_card_count": 1,
-              "update_action_placement": "same_row_as_update_status",
-              "help_link_layout": "full_width_row_with_trailing_icon_at_container_edge"
+              "version_channel_layout": "one compact row",
+              "update_action_placement": "dedicated row below version and channel",
+              "help_link_layout": "full_width_row_with_trailing_icon_at_container_edge",
+              "automatic_check_policy": "check once after App startup and publish the result to a shared updater state store",
+              "mount_policy": "About reads cached updater state and never starts a check on mount",
+              "manual_check_policy": "the Check for updates action refreshes the same shared updater state",
+              "state_source": "desktop_main_process_app_metadata + single_main_process_updater_state_store",
+              "framework_state_role": "diagnostic_supplement_only"
             },
             "primary_action": {
               "id": "check_updates",
@@ -4437,121 +4980,76 @@
           "schema": "settings_bilingual_item_search_index.v1",
           "entries": [
             {
-              "id": "overview.status",
-              "page_id": "overview",
-              "anchor": "status",
-              "label_zh": "整体状态",
-              "label_en": "Overall status",
-              "keywords_zh": ["状态", "可用", "概览"],
-              "keywords_en": ["status", "ready", "overview"]
+              "id": "gateway.connection",
+              "page_id": "gateway",
+              "anchor": "connection",
+              "label_zh": "连接状态",
+              "label_en": "Connection",
+              "keywords_zh": ["Gateway", "连接", "登录", "状态"],
+              "keywords_en": ["gateway", "connection", "login", "status"]
             },
             {
-              "id": "overview.attention",
-              "page_id": "overview",
-              "anchor": "attention",
-              "label_zh": "需要处理",
-              "label_en": "Needs attention",
-              "keywords_zh": ["问题", "异常", "待处理"],
-              "keywords_en": ["issue", "attention", "problem"]
+              "id": "gateway.account",
+              "page_id": "gateway",
+              "anchor": "account",
+              "label_zh": "账户",
+              "label_en": "Account",
+              "keywords_zh": ["Gateway", "账户", "身份", "邮箱"],
+              "keywords_en": ["gateway", "account", "identity", "email"]
             },
             {
-              "id": "overview.next_action",
-              "page_id": "overview",
-              "anchor": "next-action",
-              "label_zh": "下一步",
-              "label_en": "Next action",
-              "keywords_zh": ["下一步", "处理", "异常"],
-              "keywords_en": ["next action", "attention", "issue"]
+              "id": "gateway.usage",
+              "page_id": "gateway",
+              "anchor": "usage",
+              "label_zh": "余额与用量",
+              "label_en": "Balance and usage",
+              "keywords_zh": ["余额", "用量", "Token", "费用"],
+              "keywords_en": ["balance", "usage", "tokens", "cost"]
             },
             {
-              "id": "overview.common_actions",
-              "page_id": "overview",
-              "anchor": "common-actions",
-              "label_zh": "常用入口",
-              "label_en": "Common entries",
-              "keywords_zh": ["常用", "入口", "配置"],
-              "keywords_en": ["common", "entry", "configure"]
+              "id": "gateway.access",
+              "page_id": "gateway",
+              "anchor": "access",
+              "label_zh": "登录与访问密钥",
+              "label_en": "Login and API key",
+              "keywords_zh": ["登录", "访问密钥", "托管 Key", "认证"],
+              "keywords_en": ["login", "api key", "managed key", "authentication"]
             },
             {
-              "id": "access.provider_source",
-              "page_id": "access",
+              "id": "models.provider_source",
+              "page_id": "models",
               "anchor": "provider-source",
-              "label_zh": "访问来源",
-              "label_en": "Access source",
-              "keywords_zh": ["来源", "供应商", "登录", "密钥"],
-              "keywords_en": ["source", "provider", "login", "api key"]
+              "label_zh": "模型来源",
+              "label_en": "Model source",
+              "keywords_zh": ["模型", "来源", "供应商"],
+              "keywords_en": ["model", "source", "provider"]
             },
             {
-              "id": "access.opl_gateway",
-              "page_id": "access",
-              "anchor": "opl-gateway",
-              "label_zh": "OPL Gateway 账户",
-              "label_en": "OPL Gateway account",
-              "keywords_zh": ["Gateway", "账户", "余额", "用量", "访问密钥"],
-              "keywords_en": ["gateway", "account", "balance", "usage", "api key"]
-            },
-            {
-              "id": "access.model",
-              "page_id": "access",
+              "id": "models.model",
+              "page_id": "models",
               "anchor": "model",
-              "label_zh": "模型",
-              "label_en": "Model",
-              "keywords_zh": ["模型", "推理"],
-              "keywords_en": ["model", "reasoning"]
+              "label_zh": "默认模型",
+              "label_en": "Default model",
+              "keywords_zh": ["模型", "默认", "推理"],
+              "keywords_en": ["model", "default", "reasoning"]
             },
             {
-              "id": "access.codex_cli",
-              "page_id": "access",
+              "id": "models.codex_cli",
+              "page_id": "models",
               "anchor": "codex-cli",
               "label_zh": "Codex CLI",
               "label_en": "Codex CLI",
-              "keywords_zh": ["Codex CLI", "版本", "安装"],
-              "keywords_en": ["codex cli", "version", "installed"]
+              "keywords_zh": ["Codex CLI", "版本", "执行"],
+              "keywords_en": ["codex cli", "version", "execution"]
             },
             {
-              "id": "access.authentication",
-              "page_id": "access",
-              "anchor": "authentication",
-              "label_zh": "账号与访问密钥",
-              "label_en": "Account and API key",
-              "keywords_zh": ["认证", "密钥", "账号"],
-              "keywords_en": ["authentication", "credential", "account"]
-            },
-            {
-              "id": "workspace.current",
-              "page_id": "workspace",
-              "anchor": "current-workspace",
-              "label_zh": "当前工作区",
-              "label_en": "Current workspace",
-              "keywords_zh": ["工作区", "目录", "项目"],
-              "keywords_en": ["workspace", "folder", "project"]
-            },
-            {
-              "id": "workspace.permissions",
-              "page_id": "workspace",
-              "anchor": "permissions",
-              "label_zh": "访问权限",
-              "label_en": "Access permissions",
-              "keywords_zh": ["权限", "可写", "信任"],
-              "keywords_en": ["permissions", "writable", "trust"]
-            },
-            {
-              "id": "workspace.artifacts",
-              "page_id": "workspace",
-              "anchor": "artifacts",
-              "label_zh": "任务产物位置",
-              "label_en": "Artifact location",
-              "keywords_zh": ["产物", "文件", "保存位置"],
-              "keywords_en": ["artifact", "files", "location"]
-            },
-            {
-              "id": "workspace.logs",
-              "page_id": "workspace",
-              "anchor": "logs",
-              "label_zh": "日志目录",
-              "label_en": "Log directory",
-              "keywords_zh": ["日志", "目录", "保存位置"],
-              "keywords_en": ["logs", "directory", "location"]
+              "id": "agents.catalog",
+              "page_id": "agents",
+              "anchor": "catalog",
+              "label_zh": "智能体包目录",
+              "label_en": "Agent package catalog",
+              "keywords_zh": ["智能体", "目录", "能力包", "刷新"],
+              "keywords_en": ["agent", "package", "catalog", "refresh"]
             },
             {
               "id": "agents.availability",
@@ -4653,6 +5151,15 @@
               "keywords_en": ["health", "repair", "status"]
             },
             {
+              "id": "maintenance.managed_dependencies",
+              "page_id": "maintenance",
+              "anchor": "managed-dependencies",
+              "label_zh": "托管依赖",
+              "label_en": "Managed dependencies",
+              "keywords_zh": ["Codex CLI", "Temporal", "依赖", "更新"],
+              "keywords_en": ["codex cli", "temporal", "dependencies", "updates"]
+            },
+            {
               "id": "maintenance.updates",
               "page_id": "maintenance",
               "anchor": "updates",
@@ -4671,130 +5178,13 @@
               "keywords_en": ["services", "codex", "background"]
             },
             {
-              "id": "maintenance.repair_rollback",
+              "id": "maintenance.diagnostics",
               "page_id": "maintenance",
-              "anchor": "repair-rollback",
-              "label_zh": "修复与回滚",
-              "label_en": "Repair and rollback",
-              "keywords_zh": ["修复", "回滚", "恢复"],
-              "keywords_en": ["repair", "rollback", "recovery"]
-            },
-            {
-              "id": "maintenance.receipts",
-              "page_id": "maintenance",
-              "anchor": "receipts",
-              "label_zh": "操作结果",
-              "label_en": "Action results",
-              "keywords_zh": ["结果", "回执", "记录"],
-              "keywords_en": ["result", "receipt", "history"]
-            },
-            {
-              "id": "storage.categories",
-              "page_id": "storage",
-              "anchor": "storage-categories",
-              "label_zh": "存储分类",
-              "label_en": "Storage categories",
-              "keywords_zh": ["存储", "分类", "占用"],
-              "keywords_en": ["storage", "category", "usage"]
-            },
-            {
-              "id": "storage.archives",
-              "page_id": "storage",
-              "anchor": "archives",
-              "label_zh": "归档与恢复",
-              "label_en": "Archives and restore",
-              "keywords_zh": ["归档", "恢复", "备份"],
-              "keywords_en": ["archive", "restore", "backup"]
-            },
-            {
-              "id": "storage.preview",
-              "page_id": "storage",
-              "anchor": "cleanup-preview",
-              "label_zh": "清理预览",
-              "label_en": "Cleanup preview",
-              "keywords_zh": ["预览", "清理", "释放空间"],
-              "keywords_en": ["preview", "cleanup", "reclaim space"]
-            },
-            {
-              "id": "storage.history",
-              "page_id": "storage",
-              "anchor": "cleanup-history",
-              "label_zh": "清理记录",
-              "label_en": "Cleanup history",
-              "keywords_zh": ["记录", "回执", "恢复"],
-              "keywords_en": ["history", "receipt", "restore"]
-            },
-            {
-              "id": "preferences.behavior",
-              "page_id": "preferences",
-              "anchor": "behavior",
-              "label_zh": "应用行为",
-              "label_en": "App behavior",
-              "keywords_zh": ["启动", "窗口", "上传", "行为"],
-              "keywords_en": ["startup", "window", "uploads", "behavior"]
-            },
-            {
-              "id": "preferences.notifications",
-              "page_id": "preferences",
-              "anchor": "notifications",
-              "label_zh": "通知",
-              "label_en": "Notifications",
-              "keywords_zh": ["通知", "任务完成", "提醒"],
-              "keywords_en": ["notification", "task complete", "alert"]
-            },
-            {
-              "id": "preferences.performance",
-              "page_id": "preferences",
-              "anchor": "models-performance",
-              "label_zh": "性能与后台活动",
-              "label_en": "Performance and background activity",
-              "keywords_zh": ["等待时间", "超时", "硬件加速", "空闲助手"],
-              "keywords_en": ["waiting time", "timeout", "hardware acceleration", "idle assistant"]
-            },
-            {
-              "id": "preferences.display_fonts",
-              "page_id": "preferences",
-              "anchor": "display-fonts",
-              "label_zh": "显示与字体",
-              "label_en": "Display and fonts",
-              "keywords_zh": ["显示", "字体", "缩放", "硬件加速", "语言"],
-              "keywords_en": ["display", "font", "scale", "hardware acceleration", "language"]
-            },
-            {
-              "id": "personalization.system_agents",
-              "page_id": "workspace",
-              "anchor": "system-agents",
-              "label_zh": "系统级 AGENTS.md",
-              "label_en": "System AGENTS.md",
-              "keywords_zh": ["指令", "系统提示", "AGENTS.md", "个性化"],
-              "keywords_en": ["instructions", "system prompt", "AGENTS.md", "personalization"]
-            },
-            {
-              "id": "personalization.opl_app_context",
-              "page_id": "workspace",
-              "anchor": "opl-app-context",
-              "label_zh": "OPL App 会话上下文",
-              "label_en": "OPL App session context",
-              "keywords_zh": ["会话上下文", "智能体路由", "新对话", "OPL"],
-              "keywords_en": ["session context", "agent routing", "new conversation", "OPL"]
-            },
-            {
-              "id": "preferences.themes",
-              "page_id": "preferences",
-              "anchor": "themes",
-              "label_zh": "主题",
-              "label_en": "Themes",
-              "keywords_zh": ["主题", "外观", "明暗"],
-              "keywords_en": ["theme", "appearance", "light", "dark"]
-            },
-            {
-              "id": "advanced.directories",
-              "page_id": "advanced",
-              "anchor": "working-directories",
-              "label_zh": "工作目录",
-              "label_en": "Working directories",
-              "keywords_zh": ["工作目录", "日志目录", "运行目录"],
-              "keywords_en": ["working directory", "logs path", "runtime path"]
+              "anchor": "diagnostics",
+              "label_zh": "诊断与工作路径",
+              "label_en": "Diagnostics and working paths",
+              "keywords_zh": ["诊断", "工作目录", "路径", "回执"],
+              "keywords_en": ["diagnostics", "working directory", "paths", "receipts"]
             },
             {
               "id": "about.version",
@@ -4831,6 +5221,186 @@
               "label_en": "Update status",
               "keywords_zh": ["更新", "检查更新"],
               "keywords_en": ["update", "check updates"]
+            },
+            {
+              "id": "overview.status",
+              "page_id": "overview",
+              "anchor": "status",
+              "label_zh": "整体状态",
+              "label_en": "Overall status",
+              "keywords_zh": ["状态", "可用"],
+              "keywords_en": ["status", "ready"]
+            },
+            {
+              "id": "overview.attention",
+              "page_id": "overview",
+              "anchor": "attention",
+              "label_zh": "需要处理",
+              "label_en": "Needs attention",
+              "keywords_zh": ["处理", "异常"],
+              "keywords_en": ["attention", "issue"]
+            },
+            {
+              "id": "overview.next_action",
+              "page_id": "overview",
+              "anchor": "next-action",
+              "label_zh": "下一步",
+              "label_en": "Next action",
+              "keywords_zh": ["下一步"],
+              "keywords_en": ["next", "action"]
+            },
+            {
+              "id": "overview.codex",
+              "page_id": "overview",
+              "anchor": "codex",
+              "label_zh": "Codex 可用性",
+              "label_en": "Codex availability",
+              "keywords_zh": ["Codex", "模型"],
+              "keywords_en": ["Codex", "model", "availability"]
+            },
+            {
+              "id": "overview.gateway",
+              "page_id": "overview",
+              "anchor": "gateway",
+              "label_zh": "Gateway 用量与可用性",
+              "label_en": "Gateway usage and availability",
+              "keywords_zh": ["Gateway", "用量", "余额"],
+              "keywords_en": ["Gateway", "usage", "balance"]
+            },
+            {
+              "id": "workspace.current",
+              "page_id": "workspace",
+              "anchor": "current-workspace",
+              "label_zh": "当前工作区",
+              "label_en": "Current workspace",
+              "keywords_zh": ["工作区", "目录"],
+              "keywords_en": ["workspace", "folder"]
+            },
+            {
+              "id": "workspace.permissions",
+              "page_id": "workspace",
+              "anchor": "permissions",
+              "label_zh": "工作区权限",
+              "label_en": "Workspace permissions",
+              "keywords_zh": ["权限", "可写"],
+              "keywords_en": ["permission", "writable"]
+            },
+            {
+              "id": "workspace.artifacts",
+              "page_id": "workspace",
+              "anchor": "artifacts",
+              "label_zh": "项目与任务文件",
+              "label_en": "Project and task files",
+              "keywords_zh": ["项目", "任务", "文件"],
+              "keywords_en": ["project", "task", "artifact"]
+            },
+            {
+              "id": "workspace.logs",
+              "page_id": "workspace",
+              "anchor": "logs",
+              "label_zh": "日志目录",
+              "label_en": "Log directory",
+              "keywords_zh": ["日志", "Docker"],
+              "keywords_en": ["logs", "Docker", "volume"]
+            },
+            {
+              "id": "personalization.system_agents",
+              "page_id": "workspace",
+              "anchor": "system-agents",
+              "label_zh": "用户级 AGENTS.md",
+              "label_en": "User AGENTS.md",
+              "keywords_zh": ["个性化", "指令"],
+              "keywords_en": ["personalization", "instructions"]
+            },
+            {
+              "id": "personalization.opl_app_context",
+              "page_id": "workspace",
+              "anchor": "opl-app-context",
+              "label_zh": "OPL App 上下文",
+              "label_en": "OPL App context",
+              "keywords_zh": ["上下文", "对话"],
+              "keywords_en": ["context", "conversation"]
+            },
+            {
+              "id": "storage.categories",
+              "page_id": "storage",
+              "anchor": "storage-categories",
+              "label_zh": "存储用量",
+              "label_en": "Storage usage",
+              "keywords_zh": ["存储", "用量"],
+              "keywords_en": ["storage", "usage"]
+            },
+            {
+              "id": "storage.archives",
+              "page_id": "storage",
+              "anchor": "archives",
+              "label_zh": "归档与恢复",
+              "label_en": "Archives and restore",
+              "keywords_zh": ["归档", "恢复"],
+              "keywords_en": ["archive", "restore"]
+            },
+            {
+              "id": "storage.preview",
+              "page_id": "storage",
+              "anchor": "cleanup-preview",
+              "label_zh": "清理预览",
+              "label_en": "Cleanup preview",
+              "keywords_zh": ["清理", "预览"],
+              "keywords_en": ["cleanup", "preview"]
+            },
+            {
+              "id": "storage.history",
+              "page_id": "storage",
+              "anchor": "cleanup-history",
+              "label_zh": "清理历史",
+              "label_en": "Cleanup history",
+              "keywords_zh": ["清理", "历史"],
+              "keywords_en": ["cleanup", "history"]
+            },
+            {
+              "id": "preferences.behavior",
+              "page_id": "preferences",
+              "anchor": "behavior",
+              "label_zh": "应用行为",
+              "label_en": "App behavior",
+              "keywords_zh": ["启动", "窗口"],
+              "keywords_en": ["startup", "window"]
+            },
+            {
+              "id": "preferences.notifications",
+              "page_id": "preferences",
+              "anchor": "notifications",
+              "label_zh": "通知",
+              "label_en": "Notifications",
+              "keywords_zh": ["通知"],
+              "keywords_en": ["notification"]
+            },
+            {
+              "id": "preferences.performance",
+              "page_id": "preferences",
+              "anchor": "models-performance",
+              "label_zh": "性能与等待",
+              "label_en": "Performance and waiting",
+              "keywords_zh": ["性能", "等待"],
+              "keywords_en": ["performance", "waiting"]
+            },
+            {
+              "id": "preferences.display_fonts",
+              "page_id": "preferences",
+              "anchor": "display-fonts",
+              "label_zh": "显示与字体",
+              "label_en": "Display and fonts",
+              "keywords_zh": ["显示", "字体"],
+              "keywords_en": ["display", "font"]
+            },
+            {
+              "id": "preferences.themes",
+              "page_id": "preferences",
+              "anchor": "themes",
+              "label_zh": "主题",
+              "label_en": "Themes",
+              "keywords_zh": ["主题"],
+              "keywords_en": ["theme"]
             }
           ]
         },

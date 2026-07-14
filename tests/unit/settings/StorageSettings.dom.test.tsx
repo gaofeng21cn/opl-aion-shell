@@ -1,10 +1,17 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StorageSettingsContent } from '@/renderer/pages/settings/StorageSettings';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInventory: vi.fn(),
+  getInventorySnapshot: vi.fn(),
+  refreshInventory: vi.fn(),
+  inventoryUpdatedOn: vi.fn(),
+  systemInfo: vi.fn(),
+  updateSystemInfo: vi.fn(),
+  showOpen: vi.fn(),
+  openFolder: vi.fn(),
   archiveConversations: vi.fn(),
   restoreConversationProof: vi.fn(),
   restoreConversationArchive: vi.fn(),
@@ -29,6 +36,9 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     localDataLifecycle: {
       getInventory: { invoke: bridgeMocks.getInventory },
+      getInventorySnapshot: { invoke: bridgeMocks.getInventorySnapshot },
+      refreshInventory: { invoke: bridgeMocks.refreshInventory },
+      inventoryUpdated: { on: bridgeMocks.inventoryUpdatedOn },
       archiveConversations: { invoke: bridgeMocks.archiveConversations },
       restoreConversationProof: { invoke: bridgeMocks.restoreConversationProof },
       restoreConversationArchive: { invoke: bridgeMocks.restoreConversationArchive },
@@ -39,6 +49,16 @@ vi.mock('@/common', () => ({
       executeLogRotation: { invoke: bridgeMocks.executeLogRotation },
       planUpdaterCacheCleanup: { invoke: bridgeMocks.planUpdaterCacheCleanup },
       executeUpdaterCacheCleanup: { invoke: bridgeMocks.executeUpdaterCacheCleanup },
+    },
+    application: {
+      systemInfo: { invoke: bridgeMocks.systemInfo },
+      updateSystemInfo: { invoke: bridgeMocks.updateSystemInfo },
+    },
+    dialog: {
+      showOpen: { invoke: bridgeMocks.showOpen },
+    },
+    shell: {
+      openFolderWith: { invoke: bridgeMocks.openFolder },
     },
   },
 }));
@@ -86,6 +106,10 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.missing': 'missing',
     'settings.storagePage.inventory.noRoots': 'No roots reported.',
     'settings.storagePage.inventory.notLoaded': 'Storage details are not loaded yet.',
+    'settings.storagePage.inventory.unknownSize': 'Size unavailable',
+    'settings.storagePage.inventory.awaitingSnapshot': 'Waiting for the cached inventory',
+    'settings.storagePage.inventory.stale': 'Out of date',
+    'settings.storagePage.inventory.current': 'Current',
     'settings.storagePage.inventory.silentDeleteAllowed': 'Ready to clean',
     'settings.storagePage.inventory.silentDeleteBlocked': 'Preparation required',
     'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Ready to clean',
@@ -131,10 +155,20 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.plans.updater.required': 'Preview required before installer cache cleanup can run.',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
+    'settings.workspacePage.logs.title': 'Logs directory',
+    'settings.workspacePage.logs.description': 'Choose where the desktop App stores logs.',
+    'settings.workspacePage.logs.unavailable': 'Log directory unavailable',
+    'settings.workspacePage.logs.saved': 'Logs directory saved',
+    'settings.workspacePage.actions.openLogs': 'Open logs directory',
+    'settings.workspacePage.actions.changeLogs': 'Change logs directory',
     'common.runtime.archiveTask.restore': 'Restore',
     'settings.updateConfirm': 'Confirm Changes',
     'common.cancel': 'Cancel',
   };
+  if (key === 'settings.storagePage.inventory.freshness') {
+    return `Observed ${values?.observedAt} in ${values?.duration} ms · ${values?.state}`;
+  }
+  if (key === 'settings.workspacePage.logs.current') return `Current: ${values?.path}`;
   const renderedValues = Object.values(values ?? {})
     .filter((value) => value !== undefined && value !== null && String(value).length > 0)
     .map(String)
@@ -182,6 +216,20 @@ const inventory = {
     },
   ],
 };
+
+const inventorySnapshot = {
+  schema: 'opl_local_data_lifecycle_inventory_snapshot.v1',
+  inventory,
+  observed_at: '2026-07-14T08:00:00.000Z',
+  scan_duration_ms: 42,
+  stale: false,
+  error: null,
+} as const;
+
+const snapshotWithInventory = (nextInventory: typeof inventory | null) => ({
+  ...inventorySnapshot,
+  inventory: nextInventory,
+});
 
 const receipt = {
   schema: 'opl_conversation_archive_receipt.v1',
@@ -255,7 +303,19 @@ describe('StorageSettingsContent', () => {
       value: scrollIntoView,
       configurable: true,
     });
-    bridgeMocks.getInventory.mockResolvedValue(inventory);
+    bridgeMocks.getInventorySnapshot.mockResolvedValue(inventorySnapshot);
+    bridgeMocks.refreshInventory.mockResolvedValue(inventorySnapshot);
+    bridgeMocks.inventoryUpdatedOn.mockReturnValue(() => undefined);
+    bridgeMocks.systemInfo.mockResolvedValue({
+      cacheDir: '/Users/example/Library/Caches/One Person Lab App',
+      workDir: '/Users/example/Library/Application Support/One Person Lab App',
+      logDir: '/Users/example/Library/Logs/One Person Lab App',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+    bridgeMocks.updateSystemInfo.mockResolvedValue(undefined);
+    bridgeMocks.showOpen.mockResolvedValue(['/Users/example/OPL Logs']);
+    bridgeMocks.openFolder.mockResolvedValue(undefined);
     bridgeMocks.archiveConversations.mockResolvedValue(receipt);
     bridgeMocks.restoreConversationProof.mockResolvedValue(receipt);
     bridgeMocks.restoreConversationArchive.mockResolvedValue(restoreReceipt);
@@ -272,12 +332,16 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.getInventory).not.toHaveBeenCalled();
+    expect(bridgeMocks.refreshInventory).not.toHaveBeenCalled();
 
     const categoryList = screen.getByTestId('storage-category-list');
     expect(categoryList).toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
+    expect(screen.getByTestId('storage-inventory-freshness')).toHaveTextContent('42 ms');
+    expect(screen.queryByTestId('settings-storage-log-directory')).not.toBeInTheDocument();
     expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
     expect(
       categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
@@ -307,16 +371,18 @@ describe('StorageSettingsContent', () => {
   });
 
   it('hides the page cleanup action when only protected conversation data remains', async () => {
-    bridgeMocks.getInventory.mockResolvedValue({
-      ...inventory,
-      total_bytes: 20,
-      sections: inventory.sections.map((section) =>
-        section.id === 'user_data_artifacts' ? section : { ...section, bytes: 0, roots: [] }
-      ),
-    });
+    bridgeMocks.getInventorySnapshot.mockResolvedValue(
+      snapshotWithInventory({
+        ...inventory,
+        total_bytes: 20,
+        sections: inventory.sections.map((section) =>
+          section.id === 'user_data_artifacts' ? section : { ...section, bytes: 0, roots: [] }
+        ),
+      })
+    );
 
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
     expect(screen.getByTestId('storage-refresh')).toBeInTheDocument();
@@ -324,17 +390,70 @@ describe('StorageSettingsContent', () => {
 
   it('renders inventory refresh as an accessible icon-only action', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     const refreshButton = screen.getByRole('button', { name: 'Refresh' });
     expect(refreshButton).toHaveTextContent('');
     expect(refreshButton.querySelector('svg')).not.toBeNull();
+
+    fireEvent.click(refreshButton);
+    await waitFor(() => expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.getInventory).not.toHaveBeenCalled();
+  });
+
+  it('keeps unknown inventory values as placeholders instead of synthetic zero bytes', async () => {
+    bridgeMocks.getInventorySnapshot.mockResolvedValueOnce({
+      ...inventorySnapshot,
+      inventory: null,
+      observed_at: null,
+      scan_duration_ms: null,
+      stale: true,
+    });
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Size unavailable');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('Nothing to clean');
+    expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
+  });
+
+  it('applies inventory update events without remounting or rescanning from the page', async () => {
+    let inventoryListener: ((snapshot: typeof inventorySnapshot) => void) | undefined;
+    bridgeMocks.getInventorySnapshot.mockResolvedValueOnce({ ...inventorySnapshot, inventory: null });
+    bridgeMocks.inventoryUpdatedOn.mockImplementationOnce((listener) => {
+      inventoryListener = listener;
+      return () => undefined;
+    });
+
+    render(<StorageSettingsContent />);
+    expect(await screen.findByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+
+    act(() => inventoryListener?.(inventorySnapshot));
+    await waitFor(() => expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B'));
+    expect(bridgeMocks.refreshInventory).not.toHaveBeenCalled();
+  });
+
+  it('keeps the App log directory read-only under storage diagnostics', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    expect(screen.queryByTestId('settings-storage-log-directory')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-storage-log-directory-action')).not.toBeInTheDocument();
+    expect(bridgeMocks.systemInfo).not.toHaveBeenCalled();
+    expect(bridgeMocks.updateSystemInfo).not.toHaveBeenCalled();
+    expect(bridgeMocks.showOpen).not.toHaveBeenCalled();
+    expect(bridgeMocks.openFolder).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Diagnostics'));
+    expect(screen.getByTestId('settings-storage-technical-details')).toHaveTextContent('/tmp/logs');
   });
 
   it('shows work data safety context as read-only App projection data', async () => {
     render(<StorageSettingsContent />);
 
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
     expect(lifecycle).toHaveTextContent('Diagnostics');
@@ -365,7 +484,7 @@ describe('StorageSettingsContent', () => {
   it('reveals delete and execute actions only after receipt or dry-run plan exists', async () => {
     render(<StorageSettingsContent />);
 
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
     expect(screen.queryByTestId('storage-runtime-execute')).not.toBeInTheDocument();
@@ -387,7 +506,7 @@ describe('StorageSettingsContent', () => {
 
   it('executes runtime and log cleanup with the dry-run plan object', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
@@ -414,7 +533,7 @@ describe('StorageSettingsContent', () => {
 
   it('executes updater cache cleanup only after a dry-run plan is confirmed', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByText('Review installer cache cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled());
@@ -432,7 +551,7 @@ describe('StorageSettingsContent', () => {
 
   it('requires a conversation archive receipt before deleting conversation artifacts', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     expect(screen.queryByTestId('storage-conversation-delete')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Create archive'));
@@ -478,7 +597,7 @@ describe('StorageSettingsContent', () => {
 
   it('keeps archive proof in diagnostics instead of adding another ordinary action', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByText('Create archive'));
     await waitFor(() => expect(screen.getByTestId('storage-conversation-delete')).toBeEnabled());
@@ -497,7 +616,8 @@ describe('StorageSettingsContent', () => {
       ),
     };
     localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', receipt.receipt_path);
-    bridgeMocks.getInventory.mockResolvedValueOnce(emptyConversationInventory);
+    bridgeMocks.getInventorySnapshot.mockResolvedValueOnce(snapshotWithInventory(emptyConversationInventory));
+    bridgeMocks.refreshInventory.mockResolvedValueOnce(inventorySnapshot);
     const mutation = deferred<typeof restoreReceipt>();
     bridgeMocks.restoreConversationArchive.mockReturnValueOnce(mutation.promise);
 
@@ -513,7 +633,7 @@ describe('StorageSettingsContent', () => {
     expect(bridgeMocks.restoreConversationArchive).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.restoreConversationArchive).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path });
     mutation.resolve(restoreReceipt);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1));
     expect(screen.queryByTestId('storage-conversation-restore')).not.toBeInTheDocument();
   });
 
@@ -526,7 +646,7 @@ describe('StorageSettingsContent', () => {
       ),
     };
     localStorage.setItem('opl.storage.latestConversationArchiveReceipt.v1', receipt.receipt_path);
-    bridgeMocks.getInventory.mockResolvedValue(emptyConversationInventory);
+    bridgeMocks.getInventorySnapshot.mockResolvedValue(snapshotWithInventory(emptyConversationInventory));
     bridgeMocks.restoreConversationArchive.mockRejectedValueOnce(
       new Error('Restore stopped because the target already exists. Existing files were not changed.')
     );
@@ -541,15 +661,15 @@ describe('StorageSettingsContent', () => {
 
   it('keeps every storage action single-flight through mutation and inventory refresh', async () => {
     render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
 
     const mutation = deferred<typeof receipt>();
-    const inventoryRefresh = deferred<typeof inventory>();
+    const inventoryRefresh = deferred<typeof inventorySnapshot>();
     bridgeMocks.executeRuntimePrune.mockReturnValueOnce(mutation.promise);
-    bridgeMocks.getInventory.mockReturnValueOnce(inventoryRefresh.promise);
+    bridgeMocks.refreshInventory.mockReturnValueOnce(inventoryRefresh.promise);
 
     fireEvent.click(screen.getByTestId('storage-runtime-execute'));
     const confirm = screen.getByTestId('storage-action-confirm');
@@ -561,15 +681,15 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-refresh')).toBeDisabled();
 
     mutation.resolve(receipt);
-    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('settings-storage-primary-action')).toBeDisabled();
     fireEvent.click(screen.getByTestId('storage-logs-execute'));
     fireEvent.click(screen.getByTestId('storage-refresh'));
     expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
-    expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1);
 
-    inventoryRefresh.resolve(inventory);
+    inventoryRefresh.resolve(inventorySnapshot);
     await waitFor(() => expect(screen.getByTestId('settings-storage-primary-action')).not.toBeDisabled());
     expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledTimes(1);
   });

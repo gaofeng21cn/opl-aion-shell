@@ -1,8 +1,8 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import {
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import CapabilitiesSettings, {
   AgentPackagesSettingsContent,
   CapabilitiesSettingsContent,
   type CapabilitiesTab,
@@ -10,11 +10,52 @@ import {
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
+const appStateOverrides = vi.hoisted(() => ({
+  developerMode: undefined as Record<string, unknown> | undefined,
+  appState: undefined as Record<string, unknown> | undefined,
+  loading: false,
+  refreshing: false,
+  error: null as string | null,
+}));
+
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
   loadAppState: vi.fn(),
   modalConfirm: vi.fn((config: { onOk?: () => unknown }) => config.onOk?.()),
 }));
+
+const actionFixture = (
+  actionId: string,
+  payload: Record<string, unknown>,
+  requiredPayloadFields: string[],
+  confirmationRequired = false
+) => ({
+  action_id: actionId,
+  action_ref: `app_state.actions#${actionId}`,
+  payload,
+  required_payload_fields: requiredPayloadFields,
+  confirmation_required: confirmationRequired,
+});
+
+const appStateWithDirectory = (
+  entries: Record<string, unknown>[],
+  options: {
+    workspaceRootPath?: string | null;
+    directoryStatus?: string;
+    directoryStatusReadError?: unknown;
+    statusEntries?: Record<string, unknown>[];
+  } = {}
+) => ({
+  paths: options.workspaceRootPath === null ? {} : { workspace_root_path: options.workspaceRootPath ?? '/workspace' },
+  agent_packages: {
+    directory: {
+      status: options.directoryStatus ?? 'available',
+      status_read_error: options.directoryStatusReadError ?? null,
+      entries,
+    },
+    status_index: { packages: options.statusEntries ?? [] },
+  },
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -114,236 +155,353 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent
   default: () => <div data-testid='tools-detail'>Tools detail</div>,
 }));
 
-vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
-  default: () => null,
+vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent/VoiceInputSection', () => ({
+  default: () => <div data-testid='voice-input-detail'>Voice input detail</div>,
 }));
 
-vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
-  oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
-  oplRecordList: (value: unknown) =>
-    Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
-  oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
-  useOplAppState: () => ({
-    appState: {
-      developer_mode: {
-        enabled: 'on',
-        mode: 'developer_apply_safe',
-        developer_workspace: {
-          selected_path: '/Users/test/workspace',
-          source: 'state',
-          exists: true,
+vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => {
+  const packageAction = (
+    actionId: string,
+    payload: Record<string, unknown>,
+    requiredPayloadFields: string[],
+    confirmationRequired = false
+  ) => ({
+    action_id: actionId,
+    action_ref: `app_state.actions#${actionId}`,
+    payload,
+    required_payload_fields: requiredPayloadFields,
+    confirmation_required: confirmationRequired,
+  });
+  const preferenceAction = (packageId: string) =>
+    packageAction('agent_package_preferences_set', { package_id: packageId }, [
+      'package_id',
+      'exposure_action or shortcut_id',
+    ]);
+  return {
+    oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+    oplRecordList: (value: unknown) =>
+      Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
+    oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
+    useOplAppState: () => ({
+      appState: appStateOverrides.appState ?? {
+        paths: { workspace_root_path: '/Users/test/OPL Workspace' },
+        developer_mode: appStateOverrides.developerMode ?? {
+          enabled: 'auto',
+          mode: 'developer_apply_safe',
+          effective_state: 'active_direct',
+          inactive_reason: null,
+          config_source: 'default',
+          developer_workspace: {
+            selected_path: '/Users/test/workspace',
+            source: 'state',
+            exists: true,
+          },
+          github_identity: { status: 'ready', login: 'gaofeng21cn' },
+          repo_authority: {
+            status: 'ready',
+            direct_write_repo_count: 7,
+            pr_route_repo_count: 0,
+            required_repo_count: 7,
+          },
+          repository_maintenance_protection: {
+            status: 'ready',
+            dirty_worktree: { requires_isolated_worktree: true },
+            branch: { direct_push_to_protected_branch: false },
+          },
         },
-        github_identity: { status: 'ready', login: 'gaofeng21cn' },
-        repo_authority: { status: 'ready', direct_write_repo_count: 7, required_repo_count: 7 },
-      },
-      agent_packages: {
-        directory: {
-          installed_packages: [
-            {
-              package_id: 'opl-flow',
-              bundled_required_skill_ids: ['opl-flow', 'codex-ops-kit'],
-              physical_surface: {
-                workflow_policy_migration: {
-                  dependency_sync: {
-                    items: [{ skill_id: 'officecli-docx', status: 'synced' }],
-                    tools: [{ tool_id: 'officecli', binary_path: '/usr/local/bin/officecli', status: 'ready' }],
+        agent_packages: {
+          directory: {
+            status: 'available',
+            entries: [
+              {
+                package_id: 'med-autoscience',
+                package_role: 'standard_agent',
+                installed: true,
+                status: 'dirty',
+                version: '1.2.3',
+                codex_visible: true,
+                readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
+                capability_exposure: { status: 'visible', last_sync_at: '2026-06-30T01:00:00Z' },
+                source_explanation: {
+                  kind: 'first_party_release_catalog',
+                  source: 'first_party',
+                  summary: 'First-party release catalog',
+                },
+                available_actions: [
+                  preferenceAction('med-autoscience'),
+                  packageAction('agent_package_update', { package_id: 'med-autoscience' }, [
+                    'package_id',
+                    'manifest_url',
+                  ]),
+                ],
+                package_lock: {
+                  ref: 'opl://agent-package-lock/mas/0.1.0a4',
+                  physical_surface: {
+                    status: 'materialized',
+                    plugin_id: 'mas',
+                    marketplace_id: 'opl-agent-mas-local',
+                    codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
+                    marketplace_path:
+                      '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
+                    codex_config_path: '/tmp/codex/config.toml',
+                    reload_required: true,
                   },
                 },
               },
-            },
-          ],
+              {
+                package_id: 'med-autogrant',
+                package_role: 'standard_agent',
+                installed: true,
+                status: 'update_available',
+                readiness: { status: 'update_available', operational_ready: true, launch_allowed: true },
+                source_explanation: {
+                  kind: 'agent_package_registry_cache',
+                  source: 'third_party',
+                  summary: 'Public registry',
+                },
+                available_actions: [
+                  preferenceAction('med-autogrant'),
+                  packageAction(
+                    'agent_package_update',
+                    { package_id: 'med-autogrant', manifest_url: 'https://example.test/mag.json' },
+                    ['package_id', 'manifest_url']
+                  ),
+                  packageAction('agent_package_repair', { package_id: 'med-autogrant' }, ['package_id']),
+                  packageAction('agent_package_uninstall', { package_id: 'med-autogrant' }, ['package_id'], true),
+                ],
+              },
+              {
+                package_id: 'redcube-ai',
+                package_role: 'standard_agent',
+                installed: true,
+                status: 'failed_with_repair',
+                failure_reason: 'receipt missing',
+                source_explanation: {
+                  kind: 'agent_package_registry_cache',
+                  source: 'third_party',
+                  summary: 'Public registry',
+                },
+                available_actions: [preferenceAction('redcube-ai')],
+              },
+              {
+                package_id: 'opl-bookforge',
+                package_role: 'standard_agent',
+                installed: true,
+                status: 'ready',
+                codex_visible: true,
+                readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
+                source_explanation: {
+                  kind: 'first_party_release_catalog',
+                  source: 'first_party',
+                  summary: 'First-party release catalog',
+                },
+                available_actions: [preferenceAction('opl-bookforge')],
+              },
+              {
+                package_id: 'opl-meta-agent',
+                package_role: 'standard_agent',
+                installed: true,
+                status: 'ready',
+                available_actions: [preferenceAction('opl-meta-agent')],
+              },
+              {
+                package_id: 'example-agent',
+                package_role: 'framework_capability_package',
+                installed: true,
+                status: 'ready',
+                source_explanation: {
+                  kind: 'agent_package_registry_cache',
+                  source: 'manifest_url',
+                  summary: 'Public registry',
+                },
+                available_actions: [
+                  preferenceAction('example-agent'),
+                  packageAction('agent_package_uninstall', { package_id: 'example-agent' }, ['package_id'], true),
+                ],
+              },
+            ],
+          },
+          status_index: {
+            packages: [
+              {
+                package_id: 'med-autoscience',
+                capability_exposure: {
+                  status: 'visible',
+                  last_sync_at: '2026-06-30T01:00:00Z',
+                },
+                source_kind: 'registry',
+              },
+              {
+                package_id: 'med-autogrant',
+                capability_exposure: { status: 'disabled' },
+                manifest_url: 'https://example.test/mag.json',
+                package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
+              },
+              {
+                package_id: 'example-agent',
+                status: 'ready',
+                capability_exposure: { status: 'visible' },
+                package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
+                operational_ready: false,
+                launch_allowed: false,
+                launch_blocked_reason: 'required_export_missing',
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
+                package_dependency_readiness: {
+                  status: 'repair_required',
+                  required_count: 1,
+                  ready_count: 0,
+                  checks: [
+                    { package_id: 'example-provider', ready: false, failure_reasons: ['required_export_missing'] },
+                  ],
+                  closure: {
+                    transaction_id: 'tx-example-1',
+                    closure_digest: 'sha256:example-current',
+                    last_known_good_transaction_id: 'tx-example-0',
+                    last_known_good_closure_digest: 'sha256:example-previous',
+                  },
+                },
+                repair_action: {
+                  action_id: 'agent_package_repair',
+                  command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
+                  enabled: true,
+                  reason_code: 'required_export_missing',
+                },
+                dependent_guard: {
+                  required_by_package_ids: ['consumer-agent'],
+                  disable: { allowed: false, reason_code: 'required_by_installed_package' },
+                  uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
+                },
+              },
+            ],
+          },
         },
-        status_index: {
-          packages: [
+        runtime_source_carriers: {
+          items: [
             {
               package_id: 'med-autoscience',
-              enabled: true,
-              hidden: false,
-              source_kind: 'registry',
+              carrier_id: 'medautoscience',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
+                source_preference: 'auto',
+                developer_checkout_path: '/Users/test/workspace/med-autoscience',
+              },
+              source_origin: 'sibling_workspace',
+              source_path: '/Users/test/workspace/med-autoscience',
+              managed_source_path: '/Users/test/Library/Application Support/OPL/state/modules/med-autoscience',
+              git: {
+                dirty: true,
+                sync_status: 'behind',
+                short_sha: '1a2b3c4',
+              },
             },
             {
-              package_id: 'med-autogrant',
-              enabled: false,
-              hidden: true,
-              manifest_url: 'https://example.test/mag.json',
-              package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
+              package_id: 'opl-bookforge',
+              carrier_id: 'oplbookforge',
+              source_origin: 'sibling_workspace',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
+              },
+              git: { sync_status: 'behind', dirty: false },
             },
             {
-              package_id: 'example-agent',
-              status: 'ready',
-              package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
-              operational_ready: false,
-              launch_allowed: false,
-              launch_blocked_reason: 'required_export_missing',
-              allowed_when_blocked: ['status', 'doctor', 'repair'],
-              dependency_readiness: {
-                status: 'repair_required',
-                required_count: 1,
-                ready_count: 0,
-                checks: [
-                  { package_id: 'example-provider', ready: false, failure_reasons: ['required_export_missing'] },
-                ],
-                closure: {
-                  transaction_id: 'tx-example-1',
-                  generation_id: 'generation-example-1',
-                  closure_digest: 'sha256:example-current',
-                  last_known_good_generation_id: 'generation-example-0',
-                  last_known_good_closure_digest: 'sha256:example-previous',
-                },
+              package_id: 'opl-meta-agent',
+              carrier_id: 'oplmetaagent',
+              source_origin: 'sibling_workspace',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
               },
-              repair_action: {
-                action_id: 'repair_dependency_closure',
-                command_ref: 'opl packages repair example-agent --json',
-                enabled: true,
-                reason_code: 'required_export_missing',
-              },
-              dependent_guard: {
-                required_by_package_ids: ['consumer-agent'],
-                disable: { allowed: false, reason_code: 'required_by_installed_package' },
-                uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
-              },
+              git: { sync_status: 'behind', dirty: false },
             },
           ],
         },
-      },
-      modules: {
-        items: [
-          {
-            module_id: 'medautoscience',
-            health_status: 'dirty',
-            source_policy: {
-              effective_install_update_source: 'git_checkout',
-              configured_by: 'developer_mode',
-              source_preference: 'auto',
-              developer_checkout_path: '/Users/test/workspace/med-autoscience',
-            },
-            install_origin: 'sibling_workspace',
-            checkout_path: '/Users/test/workspace/med-autoscience',
-            managed_checkout_path: '/Users/test/Library/Application Support/OPL/state/modules/med-autoscience',
-            version: '1.2.3',
-            source: 'git_checkout',
-            git: {
-              dirty: true,
-              sync_status: 'behind',
-              short_sha: '1a2b3c4',
-            },
-            package_lock: {
-              ref: 'opl://agent-package-lock/mas/0.1.0a4',
-              physical_surface: {
-                status: 'materialized',
-                plugin_id: 'mas',
-                marketplace_id: 'opl-agent-mas-local',
-                codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
-                marketplace_path:
-                  '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
-                codex_config_path: '/tmp/codex/config.toml',
-                reload_required: true,
+        operator: {
+          workbench: {
+            task_drilldowns: {
+              medautoscience: {
+                status: 'blocked',
+                next_owner: 'opl_framework',
+                next_visible_step: 'repair connector',
+                workflow_refs: [
+                  {
+                    id: 'module-runtime-repair',
+                    title: 'Module runtime repair',
+                    status: 'available',
+                    ref: 'opl://workflow/medautoscience/module-runtime-repair',
+                    owner: 'opl_framework',
+                    next_action: 'run dry-run first',
+                  },
+                ],
+                candidate_reports: [
+                  {
+                    id: 'openscience-artifact-graph',
+                    title: 'OpenScience artifact graph review',
+                    status: 'candidate_report_ready',
+                    ref: 'candidate://openscience/artifact-graph',
+                    owner: 'opl_ledger',
+                    next_action: 'review report before enabling any skill',
+                    candidate_purpose: 'Review OpenScience artifact graph before enabling any skill.',
+                    report_ref: 'report://openscience/artifact-graph',
+                    decision_status: 'review_pending',
+                    decision_actions: ['review', 'needs_changes', 'continue_in_conversation'],
+                    body: 'must not render',
+                  },
+                ],
+                connector_readiness_refs: [
+                  'opl://connect/pubmed/readiness',
+                  'opl://connector/generic/readiness',
+                  {
+                    id: 'fabric-storage',
+                    title: 'Fabric storage readiness',
+                    ref: 'opl://fabric/storage/readiness',
+                    status: 'refs_only',
+                  },
+                ],
+                gateway_status_ref: 'opl://gateway/status/gflabtoken',
+                environment_ref: 'opl://environment/python-r-quarto',
+                environment_template_ref: 'opl://environment-template/python-r-quarto',
+                environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
+                task_applicability_ref: 'opl://task-applicability/mas',
+                storage_ref: 'opl://storage/workspace-volume/medautoscience',
+                resource_source_refs: ['opl://resource-source/opl-cloud/managed-compute'],
+                resource_receipt_ref: 'receipt://resource/latest',
+                cost_estimate_ref: 'opl://cost-estimate/mas/latest',
+                export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
+                action_receipt: {
+                  dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
+                  latest_receipt_ref: 'receipt://export/latest',
+                },
               },
-            },
-            capability_exposure: { status: 'visible', last_sync_at: '2026-06-30T01:00:00Z' },
-          },
-          { module_id: 'medautogrant', status: 'update_available', exposure_status: 'needs_sync' },
-          { module_id: 'redcube', status: 'failed_with_repair', failure_reason: 'receipt missing' },
-          {
-            module_id: 'oplbookforge',
-            status: 'ready',
-            codex_visible: true,
-            recommended_action: 'update',
-            source_policy: {
-              effective_install_update_source: 'git_checkout',
-              configured_by: 'developer_mode',
-            },
-            git: { sync_status: 'behind', dirty: false },
-          },
-          {
-            module_id: 'oplmetaagent',
-            status: 'ready',
-            recommended_action: 'update',
-            source_policy: {
-              effective_install_update_source: 'git_checkout',
-              configured_by: 'developer_mode',
-            },
-            git: { sync_status: 'behind', dirty: false },
-          },
-        ],
-      },
-      operator: {
-        workbench: {
-          task_drilldowns: {
-            medautoscience: {
-              status: 'blocked',
-              next_owner: 'opl_framework',
-              next_visible_step: 'repair connector',
-              workflow_refs: [
-                {
-                  id: 'module-runtime-repair',
-                  title: 'Module runtime repair',
-                  status: 'available',
-                  ref: 'opl://workflow/medautoscience/module-runtime-repair',
-                  owner: 'opl_framework',
-                  next_action: 'run dry-run first',
-                },
-              ],
-              candidate_reports: [
-                {
-                  id: 'openscience-artifact-graph',
-                  title: 'OpenScience artifact graph review',
-                  status: 'candidate_report_ready',
-                  ref: 'candidate://openscience/artifact-graph',
-                  owner: 'opl_ledger',
-                  next_action: 'review report before enabling any skill',
-                  candidate_purpose: 'Review OpenScience artifact graph before enabling any skill.',
-                  report_ref: 'report://openscience/artifact-graph',
-                  decision_status: 'review_pending',
-                  decision_actions: ['review', 'needs_changes', 'continue_in_conversation'],
-                  body: 'must not render',
-                },
-              ],
-              connector_readiness_refs: [
-                'opl://connect/pubmed/readiness',
-                'opl://connector/generic/readiness',
-                {
-                  id: 'fabric-storage',
-                  title: 'Fabric storage readiness',
-                  ref: 'opl://fabric/storage/readiness',
-                  status: 'refs_only',
-                },
-              ],
-              gateway_status_ref: 'opl://gateway/status/gflabtoken',
-              environment_ref: 'opl://environment/python-r-quarto',
-              environment_template_ref: 'opl://environment-template/python-r-quarto',
-              environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
-              task_applicability_ref: 'opl://task-applicability/mas',
-              storage_ref: 'opl://storage/workspace-volume/medautoscience',
-              resource_source_refs: ['opl://resource-source/opl-cloud/managed-compute'],
-              resource_receipt_ref: 'receipt://resource/latest',
-              cost_estimate_ref: 'opl://cost-estimate/mas/latest',
-              export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
-              action_receipt: {
-                dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
-                latest_receipt_ref: 'receipt://export/latest',
+              medautogrant: {
+                status: 'ready',
+                next_owner: 'grant_owner',
+                next_visible_step: 'review reusable grant workflow first',
+                workflow_refs: [
+                  {
+                    id: 'grant-workflow',
+                    title: 'Grant workflow candidate',
+                    status: 'refs_available',
+                    ref: 'opl://workflow/medautogrant/grant-draft',
+                  },
+                ],
               },
-            },
-            medautogrant: {
-              status: 'ready',
-              next_owner: 'grant_owner',
-              next_visible_step: 'review reusable grant workflow first',
-              workflow_refs: [
-                {
-                  id: 'grant-workflow',
-                  title: 'Grant workflow candidate',
-                  status: 'refs_available',
-                  ref: 'opl://workflow/medautogrant/grant-draft',
-                },
-              ],
             },
           },
         },
       },
-    },
-    load: bridgeMocks.loadAppState,
-  }),
-}));
+      loading: appStateOverrides.loading,
+      refreshing: appStateOverrides.refreshing,
+      error: appStateOverrides.error,
+      load: bridgeMocks.loadAppState,
+    }),
+  };
+});
 
 vi.mock('@/common/config/oplProductProfile', () => {
   const homeAgentShortcuts = [
@@ -440,10 +598,27 @@ vi.mock('@/common/config/oplProductProfile', () => {
     },
   ];
   return {
-    canonicalizeOplProfessionalAgentId: (id: string) => id,
+    canonicalizeOplProfessionalAgentId: (id: string) => {
+      const normalized = id.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const aliases: Record<string, string> = {
+        mas: 'med-autoscience',
+        medautoscience: 'med-autoscience',
+        mag: 'med-autogrant',
+        medautogrant: 'med-autogrant',
+        rca: 'redcube-ai',
+        redcubeai: 'redcube-ai',
+        obf: 'opl-bookforge',
+        oplbookforge: 'opl-bookforge',
+        oma: 'opl-meta-agent',
+        oplmetaagent: 'opl-meta-agent',
+      };
+      return aliases[normalized] ?? id;
+    },
     getOplAssistantSkillProfile: () => null,
     getOplDefaultExecutorAgentKey: () => 'codex',
     getOplDefaultHomeAssistants: () => [],
+    getOplAgentPackageRegistryUrl: () =>
+      'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
     getOplHomeAgentShortcuts: () => homeAgentShortcuts,
     getOplProfessionalAgentPackage: (id: string) =>
       professionalAgentPackages.find((agentPackage) => agentPackage.package_id === id),
@@ -469,11 +644,34 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.modes.managed': 'Managed',
         'settings.capabilitiesPage.developerSource.modes.auto': 'Automatic',
         'settings.capabilitiesPage.developerSource.modes.developer': 'Developer',
-        'settings.capabilitiesPage.developerSource.safeMaintenance': 'Allow safe developer maintenance',
+        'settings.capabilitiesPage.developerSource.safeMaintenance': 'Maintain authorized development repositories',
         'settings.capabilitiesPage.developerSource.safeMaintenanceDescription': 'Use supervised maintenance.',
+        'settings.capabilitiesPage.developerSource.maintenanceModeLabel': 'Authorized repository maintenance',
+        'settings.capabilitiesPage.developerSource.maintenanceModes.auto': 'Automatic maintenance',
+        'settings.capabilitiesPage.developerSource.maintenanceModes.off': 'Off',
+        'settings.capabilitiesPage.developerSource.effectiveStates.inactive': 'Currently inactive',
+        'settings.capabilitiesPage.developerSource.effectiveStates.automatic': 'Automatically active',
+        'settings.capabilitiesPage.developerSource.effectiveStates.manual': 'Manually active',
+        'settings.capabilitiesPage.developerSource.effectiveStates.off': 'Off',
         'settings.capabilitiesPage.developerSource.workspace': 'Developer workspace',
         'settings.capabilitiesPage.developerSource.identity': 'GitHub identity',
         'settings.capabilitiesPage.developerSource.authority': 'Directly maintainable repositories',
+        'settings.capabilitiesPage.developerSource.authoritySummary': `${options?.direct ?? ''} direct · ${options?.pullRequest ?? ''} pull request · ${options?.total ?? ''} total`,
+        'settings.capabilitiesPage.developerSource.configurationSource': 'Configuration source',
+        'settings.capabilitiesPage.developerSource.configurationSources.default': 'Automatic default',
+        'settings.capabilitiesPage.developerSource.configurationSources.user_config': 'User configuration',
+        'settings.capabilitiesPage.developerSource.inspectionPending':
+          'Checking GitHub identity and repository authority. No mismatch has been inferred.',
+        'settings.capabilitiesPage.developerSource.protection': 'Repository protection',
+        'settings.capabilitiesPage.developerSource.protectionSummary': `${options?.dirty ?? ''} · ${options?.branch ?? ''}`,
+        'settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree':
+          'dirty worktrees use an isolated worktree',
+        'settings.capabilitiesPage.developerSource.protectionValues.topicBranch':
+          'protected branches require a topic branch',
+        'settings.capabilitiesPage.developerSource.protectionValues.notReported': 'not reported',
+        'settings.capabilitiesPage.developerSource.inactiveReason': 'Why it is inactive',
+        'settings.capabilitiesPage.developerSource.inactiveReasons.authority_inspection_pending':
+          'Repository authority inspection is still running.',
         'settings.capabilitiesPage.developerSource.packageTitle': 'Runtime source for this capability',
         'settings.capabilitiesPage.developerSource.packageDescription': 'Follow global or select a source.',
         'settings.capabilitiesPage.developerSource.packageModes.auto': 'Follow global',
@@ -488,6 +686,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.sync': 'Needs sync',
         'settings.capabilitiesPage.status.source': 'Developer source',
+        'settings.capabilitiesPage.status.verification': 'Verification pending',
         'settings.capabilitiesPage.status.attention': 'Needs attention',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
@@ -498,6 +697,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailsHeader': 'Capability details',
         'settings.capabilitiesPage.codexVisibilitySummary': `Codex visibility: ${options?.value ?? ''}`,
         'settings.capabilitiesPage.codexVisibility.visible': 'Visible in Codex',
+        'settings.capabilitiesPage.codexVisibility.verificationPending': 'Verification pending',
         'settings.capabilitiesPage.codexVisibility.needsSync': 'Needs sync before Codex sees the latest version',
         'settings.capabilitiesPage.codexVisibility.notVisible': 'Not visible to Codex yet',
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
@@ -507,6 +707,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync needed',
         'settings.capabilitiesPage.visibility.conversationUnavailable': 'Not available',
         'settings.capabilitiesPage.visibility.conversationUnverified': 'Not verified',
+        'settings.capabilitiesPage.visibility.conversationVerificationPending': 'Verification pending',
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
         'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
         'settings.capabilitiesPage.detailLabels.packageId': 'Package ID',
@@ -540,10 +741,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.uninstallDisabledReason': 'Cannot uninstall',
         'settings.capabilitiesPage.detailLabels.repairCommandRef': 'Repair command reference',
         'settings.capabilitiesPage.detailLabels.dependencyClosureTransactionId': 'Closure transaction',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureGenerationId': 'Closure generation',
         'settings.capabilitiesPage.detailLabels.dependencyClosureDigest': 'Closure digest',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodGenerationId':
-          'Last known good generation',
+        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodTransactionId':
+          'Last known good transaction',
         'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodDigest': 'Last known good closure digest',
         'settings.capabilitiesPage.dependencyReadiness.ready': 'Ready',
         'settings.capabilitiesPage.dependencyReadiness.repair_required': 'Repair required',
@@ -599,7 +799,22 @@ vi.mock('react-i18next', () => ({
           'Manage install state and Home visibility from one compact list.',
         'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
         'settings.capabilitiesPage.packageManager.searchPlaceholder': 'Search package, tag, or description',
+        'settings.capabilitiesPage.packageManager.searchLabel': 'Search agent packages',
+        'settings.capabilitiesPage.packageManager.roleFilter': 'Filter by package role',
+        'settings.capabilitiesPage.packageManager.statusFilter': 'Filter by package status',
+        'settings.capabilitiesPage.packageManager.sourceFilter': 'Filter by source',
+        'settings.capabilitiesPage.packageManager.allRoles': 'All roles',
         'settings.capabilitiesPage.packageManager.allStatuses': 'All statuses',
+        'settings.capabilitiesPage.packageManager.allSources': 'All sources',
+        'settings.capabilitiesPage.packageManager.resetFilters': 'Reset',
+        'settings.capabilitiesPage.packageManager.loading': 'Loading the agent package directory...',
+        'settings.capabilitiesPage.packageManager.refreshing': 'Refreshing the agent package directory...',
+        'settings.capabilitiesPage.packageManager.staleWithReason': `Showing the last directory snapshot: ${options?.reason ?? ''}`,
+        'settings.capabilitiesPage.packageManager.failed': `Directory failed: ${options?.reason ?? ''}`,
+        'settings.capabilitiesPage.packageManager.noFilterResults': 'No packages match these filters.',
+        'settings.capabilitiesPage.packageManager.workspaceRequired':
+          'Choose a Workspace before activating this package.',
+        'settings.capabilitiesPage.packageManager.openWorkspace': 'Open Workspace',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
         'settings.capabilitiesPage.packageManager.addCapability': 'Add capability',
@@ -631,6 +846,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.tableHeaders.home': 'Home shortcut',
         'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Action',
         'settings.capabilitiesPage.packageManager.actions.update': 'Update',
+        'settings.capabilitiesPage.packageManager.actions.install': 'Install',
+        'settings.capabilitiesPage.packageManager.actions.activate': 'Activate',
         'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
         'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
         'settings.capabilitiesPage.packageManager.actions.uninstall': 'Uninstall',
@@ -639,6 +856,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.actions.hide': 'Hide',
         'settings.capabilitiesPage.packageManager.actions.show': 'Show',
         'settings.capabilitiesPage.packageManager.actions.unhide': 'Unhide',
+        'settings.capabilitiesPage.packageManager.actions.run': 'Run',
+        'settings.retry': 'Retry',
+        'common.cancel': 'Cancel',
         'settings.capabilitiesPage.purposes.automation.title': 'Meta agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -658,17 +878,36 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const renderCapabilities = (ui: React.ReactElement, isMobile = false) =>
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid='current-location'>{`${location.pathname}${location.hash}`}</output>;
+};
+
+const renderCapabilities = (ui: React.ReactElement, isMobile = false, initialEntry = '/') =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <LayoutContext.Provider value={{ isMobile, siderCollapsed: false, setSiderCollapsed: vi.fn() }}>
         {ui}
+        <LocationProbe />
       </LayoutContext.Provider>
     </MemoryRouter>
   );
 
+const chooseSelectOption = async (testId: string, label: string) => {
+  fireEvent.click(screen.getByTestId(testId));
+  const matches = await screen.findAllByText(label);
+  const option = matches.find((match) => match.closest('.arco-select-option')) ?? matches.at(-1);
+  if (!option) throw new Error(`Missing select option: ${label}`);
+  fireEvent.click(option);
+};
+
 describe('Agents and capabilities settings', () => {
   beforeEach(() => {
+    appStateOverrides.developerMode = undefined;
+    appStateOverrides.appState = undefined;
+    appStateOverrides.loading = false;
+    appStateOverrides.refreshing = false;
+    appStateOverrides.error = null;
     bridgeMocks.executeActionInvoke.mockReset();
     bridgeMocks.executeActionInvoke.mockResolvedValue({
       ok: true,
@@ -720,7 +959,7 @@ describe('Agents and capabilities settings', () => {
     expect(within(bookforge).getByText('Ready')).toBeInTheDocument();
     expect(within(bookforge).getByText('Local developer source')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-obf'));
-    expect(screen.getByTestId('agent-package-update-obf')).toBeDisabled();
+    expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByText('Meta agent')).toBeInTheDocument();
     expect(within(oma).getByText('Ready')).toBeInTheDocument();
@@ -836,6 +1075,352 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('tools-detail')).not.toBeInTheDocument();
   });
 
+  it('searches the canonical directory, reports visible counts, and resets a filter-empty result', () => {
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const search = screen.getByTestId('settings-agents-catalog-search');
+    fireEvent.change(search, { target: { value: 'grant' } });
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'no-such-package' } });
+    expect(screen.getByTestId('settings-agents-filter-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
+    expect(screen.queryByTestId('settings-agents-filter-empty')).not.toBeInTheDocument();
+  });
+
+  it('filters canonical package roles, statuses, and source explanation kinds', async () => {
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'med-autoscience',
+        package_role: 'standard_agent',
+        installed: true,
+        readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
+        source_explanation: {
+          kind: 'first_party_release_catalog',
+          source: 'first_party',
+          summary: 'First-party release catalog',
+        },
+      },
+      {
+        package_id: 'med-autogrant',
+        package_role: 'standard_agent',
+        installed: true,
+        readiness: { status: 'update_available', operational_ready: true, launch_allowed: true },
+        source_explanation: {
+          kind: 'agent_package_registry_cache',
+          source: 'third_party',
+          summary: 'Public registry',
+        },
+      },
+      {
+        package_id: 'opl-meta-agent',
+        package_role: 'framework_capability_package',
+        installed: true,
+        readiness: {
+          status: 'verification_deferred',
+          operational_ready: false,
+          launch_allowed: false,
+          verification_deferred: true,
+          reason: 'live_verification_deferred',
+        },
+        source_explanation: {
+          kind: 'installed_package_lock',
+          source: 'developer_checkout_override',
+          summary: 'Installed from a developer checkout',
+        },
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(within(screen.getByTestId('capability-purpose-mas')).getByText('OPL managed package')).toBeInTheDocument();
+    expect(within(screen.getByTestId('capability-purpose-mag')).getByText('Registry install')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('capability-purpose-oma')).getByText('Local developer source')
+    ).toBeInTheDocument();
+
+    await chooseSelectOption('settings-agents-role-filter', 'framework_capability_package');
+    expect(screen.getByTestId('capability-purpose-oma')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
+
+    await chooseSelectOption('settings-agents-status-filter', 'verification_deferred');
+    expect(screen.getByTestId('capability-purpose-oma')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mag')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
+
+    await chooseSelectOption('settings-agents-source-filter', 'Registry install');
+    expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes loading, refreshing, canonical empty, failed, and stale-with-last-good states', () => {
+    appStateOverrides.appState = appStateWithDirectory([]);
+    appStateOverrides.loading = true;
+    const loadingView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-loading')).toHaveAttribute('data-state', 'loading');
+    expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
+    loadingView.unmount();
+
+    appStateOverrides.loading = false;
+    appStateOverrides.refreshing = true;
+    appStateOverrides.appState = appStateWithDirectory([
+      { package_id: 'example-agent', display_name: 'Example Agent', installed: true, status: 'ready' },
+    ]);
+    const refreshingView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-loading')).toHaveAttribute('data-state', 'refreshing');
+    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    refreshingView.unmount();
+
+    appStateOverrides.refreshing = false;
+    appStateOverrides.appState = appStateWithDirectory([]);
+    const emptyView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
+    emptyView.unmount();
+
+    appStateOverrides.error = 'app state unavailable';
+    const failedView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-error')).toHaveTextContent('app state unavailable');
+    fireEvent.click(screen.getByTestId('settings-agents-retry'));
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
+    failedView.unmount();
+
+    appStateOverrides.appState = appStateWithDirectory([
+      { package_id: 'example-agent', display_name: 'Example Agent', installed: true, status: 'ready' },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-stale')).toHaveTextContent('app state unavailable');
+    expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+  });
+
+  it('keeps a row status read error local to that package and exposes its failure detail', () => {
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'example-agent',
+        display_name: 'Example Agent',
+        installed: true,
+        readiness: {
+          status: 'failed',
+          operational_ready: false,
+          launch_allowed: false,
+          verification_deferred: false,
+          reason: 'status_read_error',
+          status_read_error: { message: 'package status unavailable' },
+        },
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Needs repair')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
+    expect(screen.getByTestId('capability-details-example')).toHaveTextContent('package status unavailable');
+  });
+
+  it('executes install and activation only from exact projected action objects', async () => {
+    const installAction = actionFixture(
+      'agent_package_install',
+      { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
+      ['manifest_url_ref']
+    );
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'example-agent',
+        display_name: 'Example Agent',
+        installed: false,
+        installability: { status: 'installable', installable: true },
+        readiness: {
+          status: 'not_installed',
+          operational_ready: false,
+          launch_allowed: false,
+          verification_deferred: false,
+          reason: 'package_not_installed',
+        },
+        recommended_action: 'agent_package_install',
+        recommended_action_ref: installAction,
+        available_actions: [installAction],
+      },
+    ]);
+    const installView = renderCapabilities(<AgentPackagesSettingsContent />);
+    fireEvent.click(screen.getByTestId('agent-package-install-example'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_install',
+        dryRun: false,
+        payloadRefsOnlyJson: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
+      })
+    );
+    expect(bridgeMocks.executeActionInvoke.mock.calls[0]?.[0]?.payloadRefsOnlyJson).not.toHaveProperty('package_id');
+    installView.unmount();
+
+    bridgeMocks.executeActionInvoke.mockClear();
+    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
+      'package_id',
+      'scope',
+      'target_workspace or target_quest',
+    ]);
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          display_name: 'Example Agent',
+          installed: true,
+          readiness: {
+            status: 'activation_required',
+            operational_ready: false,
+            launch_allowed: false,
+            verification_deferred: false,
+            reason: 'package_activation_required',
+          },
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: activationAction,
+          available_actions: [activationAction],
+        },
+      ],
+      { workspaceRootPath: '/workspace/selected' }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+    fireEvent.click(screen.getByTestId('agent-package-activate-example'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_activate',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: 'example-agent',
+          scope: 'workspace',
+          target_workspace: '/workspace/selected',
+        },
+      })
+    );
+  });
+
+  it('renders canonical recommended update, repair, and registry refresh actions on package rows', async () => {
+    const updateAction = actionFixture('agent_package_update', { package_id: 'med-autogrant' }, ['package_id']);
+    const repairAction = actionFixture('agent_package_repair', { package_id: 'redcube-ai' }, ['package_id']);
+    const refreshAction = actionFixture('refresh_registry', { registry_url: 'https://example.test/registry.json' }, [
+      'registry_url',
+    ]);
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'med-autogrant',
+        installed: true,
+        status: 'update_available',
+        recommended_action: 'agent_package_update',
+        recommended_action_ref: updateAction,
+        available_actions: [updateAction],
+      },
+      {
+        package_id: 'redcube-ai',
+        installed: true,
+        status: 'failed_with_repair',
+        recommended_action: 'agent_package_repair',
+        recommended_action_ref: repairAction,
+        available_actions: [repairAction],
+      },
+      {
+        package_id: 'example-agent',
+        installed: true,
+        status: 'ready',
+        recommended_action: 'refresh_registry',
+        recommended_action_ref: refreshAction,
+        available_actions: [refreshAction],
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('agent-package-update-mag'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_update',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
+      })
+    );
+    fireEvent.click(screen.getByTestId('agent-package-repair-rca'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_repair',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'redcube-ai' },
+      })
+    );
+    fireEvent.click(screen.getByTestId('agent-package-refresh-example'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'refresh_registry',
+        dryRun: false,
+        payloadRefsOnlyJson: { registry_url: 'https://example.test/registry.json' },
+      })
+    );
+  });
+
+  it('disables activation without a Workspace and routes its accessible reason to the Workspace anchor', () => {
+    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
+      'package_id',
+      'scope',
+      'target_workspace or target_quest',
+    ]);
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          display_name: 'Example Agent',
+          installed: true,
+          readiness: {
+            status: 'activation_required',
+            operational_ready: false,
+            launch_allowed: false,
+            verification_deferred: false,
+            reason: 'package_activation_required',
+          },
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: activationAction,
+          available_actions: [activationAction],
+        },
+      ],
+      { workspaceRootPath: null }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const activation = screen.getByTestId('agent-package-activate-example');
+    expect(activation).toBeDisabled();
+    expect(activation).toHaveAttribute('data-disabled-reason', 'workspace_root_not_configured');
+    expect(activation).toHaveAttribute('aria-describedby', 'agent-package-workspace-required');
+    expect(screen.getByTestId('settings-agents-workspace-required')).toHaveAttribute(
+      'data-disabled-reason',
+      'workspace_root_not_configured'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }));
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/settings/workspace#workspace');
+  });
+
+  it('fails soft when a projected row action has fields outside the exact ABI', () => {
+    const malformedAction = {
+      ...actionFixture('agent_package_install', { package_id: 'example-agent' }, ['package_id']),
+      locally_inferred: true,
+    };
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'example-agent',
+        display_name: 'Example Agent',
+        installed: false,
+        recommended_action: 'agent_package_install',
+        recommended_action_ref: malformedAction,
+        available_actions: [malformedAction],
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-example')).not.toBeInTheDocument();
+  });
+
   it('keeps skills and third-party tools on the capabilities page', async () => {
     const onTabChange = vi.fn();
     const Harness = () => {
@@ -880,6 +1465,20 @@ describe('Agents and capabilities settings', () => {
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-capabilities-voice-input')).toBeInTheDocument();
+    expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
+  });
+
+  it('opens the local capabilities tab from the full third-party section route', async () => {
+    renderCapabilities(<CapabilitiesSettings />, false, '/settings/capabilities?section=third-party');
+
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Local capabilities' })).toHaveAttribute('aria-selected', 'true')
+    );
+    expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument();
+    expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-capabilities-opl-flow-managed')).not.toBeInTheDocument();
   });
 
   it('configures the global developer profile and per-package runtime source through App actions', async () => {
@@ -887,13 +1486,22 @@ describe('Agents and capabilities settings', () => {
 
     const profile = screen.getByTestId('opl-developer-profile-control');
     expect(profile).toHaveTextContent('/Users/test/workspace');
-    expect(profile).toHaveTextContent('7 / 7');
     expect(
       within(profile)
         .getAllByRole('radio')
         .map((control) => control.getAttribute('value'))
-    ).toEqual(['auto', 'off', 'on']);
-    expect(within(profile).getByTestId('opl-developer-profile-maintenance')).toHaveClass('arco-switch-small');
+    ).toEqual(['auto', 'off', 'on', 'auto', 'off']);
+    const maintenance = within(profile).getByTestId('opl-developer-profile-maintenance');
+    expect(
+      within(maintenance)
+        .getAllByRole('radio')
+        .map((control) => control.getAttribute('value'))
+    ).toEqual(['auto', 'off']);
+    expect(profile).toHaveTextContent('Maintain authorized development repositories');
+    expect(profile).toHaveTextContent('Automatically active');
+    expect(profile).toHaveTextContent('Automatic default');
+    expect(profile).toHaveTextContent('7 direct · 0 pull request · 7 total');
+    expect(screen.getByTestId('opl-developer-profile-protection')).toHaveTextContent('isolated worktree');
     expect(screen.getByTestId('capability-purpose-mas')).toHaveClass('opl-settings-capability-row');
 
     fireEvent.click(within(profile).getByText('Managed'));
@@ -909,12 +1517,13 @@ describe('Agents and capabilities settings', () => {
     );
 
     bridgeMocks.executeActionInvoke.mockClear();
-    fireEvent.click(within(profile).getByTestId('opl-developer-profile-maintenance'));
+    fireEvent.click(within(maintenance).getByText('Off'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'developer_supervisor',
         dryRun: false,
         payloadRefsOnlyJson: {
+          developerSupervisorEnabled: 'off',
           developerSupervisorMode: 'external_observe',
         },
       })
@@ -937,6 +1546,36 @@ describe('Agents and capabilities settings', () => {
         },
       })
     );
+  });
+
+  it('shows fast developer inspection as pending without claiming an identity mismatch', () => {
+    appStateOverrides.developerMode = {
+      enabled: 'auto',
+      mode: 'developer_apply_safe',
+      effective_state: 'inspection_pending',
+      inactive_reason: 'authority_inspection_pending',
+      config_source: 'default',
+      developer_workspace: { selected_path: '/Users/test/workspace' },
+      github_identity: { status: 'skipped', login: null },
+      repo_authority: {
+        status: 'not_checked',
+        direct_write_repo_count: 0,
+        pr_route_repo_count: 0,
+        required_repo_count: 0,
+      },
+      repository_maintenance_protection: {
+        status: 'ready',
+        dirty_worktree: { requires_isolated_worktree: true },
+        branch: { direct_push_to_protected_branch: false },
+      },
+    };
+
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const pending = screen.getByTestId('opl-developer-profile-inspection-pending');
+    expect(pending).toHaveTextContent('Checking GitHub identity and repository authority');
+    expect(screen.queryByText(/identity mismatch/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-developer-profile-inactive-reason')).not.toBeInTheDocument();
   });
 
   it('keeps raw package identifiers out of the directory and restores focus after closing the desktop panel', async () => {
@@ -1141,15 +1780,6 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-mag'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_preferences_set',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autogrant', exposure_action: 'unhide' },
-      })
-    );
-
     fireEvent.click(screen.getByTestId('agent-package-uninstall-mag'));
     expect(bridgeMocks.modalConfirm).toHaveBeenCalled();
     await waitFor(() =>
@@ -1157,6 +1787,72 @@ describe('Agents and capabilities settings', () => {
         actionId: 'agent_package_uninstall',
         dryRun: false,
         payloadRefsOnlyJson: { package_id: 'med-autogrant' },
+      })
+    );
+  });
+
+  it.each([
+    ['disabled', 'Enable', null],
+    ['enabled', 'Disable', 'Hide'],
+    ['hidden', 'Disable', 'Show'],
+    ['visible', 'Disable', 'Hide'],
+  ] as const)(
+    'renders enable and visibility controls from refreshed capability exposure state %s',
+    (exposureStatus, enabledLabel, hiddenLabel) => {
+      const preferenceAction = actionFixture('agent_package_preferences_set', { package_id: 'example-agent' }, [
+        'package_id',
+        'exposure_action or shortcut_id',
+      ]);
+      appStateOverrides.appState = appStateWithDirectory(
+        [
+          {
+            package_id: 'example-agent',
+            installed: true,
+            status: 'ready',
+            available_actions: [preferenceAction],
+          },
+        ],
+        {
+          statusEntries: [{ package_id: 'example-agent', capability_exposure: { status: exposureStatus } }],
+        }
+      );
+      renderCapabilities(<AgentPackagesSettingsContent />);
+
+      fireEvent.click(screen.getByTestId('capability-open-details-example'));
+      expect(screen.getByTestId('agent-package-enabled-toggle-example')).toHaveTextContent(enabledLabel);
+      if (hiddenLabel) {
+        expect(screen.getByTestId('agent-package-hidden-toggle-example')).toHaveTextContent(hiddenLabel);
+      } else {
+        expect(screen.queryByTestId('agent-package-hidden-toggle-example')).not.toBeInTheDocument();
+      }
+    }
+  );
+
+  it('routes Show from a refreshed hidden exposure state through the producer action', async () => {
+    const preferenceAction = actionFixture('agent_package_preferences_set', { package_id: 'example-agent' }, [
+      'package_id',
+      'exposure_action or shortcut_id',
+    ]);
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          installed: true,
+          status: 'ready',
+          available_actions: [preferenceAction],
+        },
+      ],
+      { statusEntries: [{ package_id: 'example-agent', capability_exposure: { status: 'hidden' } }] }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-example'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'example-agent', exposure_action: 'unhide' },
       })
     );
   });
@@ -1178,7 +1874,7 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByTestId('agent-package-repair-example'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'repair_dependency_closure',
+        actionId: 'agent_package_repair',
         dryRun: false,
         payloadRefsOnlyJson: { package_id: 'example-agent' },
       })
@@ -1224,7 +1920,6 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() => {
       expect(screen.getByTestId('agent-package-repair-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-enabled-toggle-mag')).toBeDisabled();
-      expect(screen.getByTestId('agent-package-hidden-toggle-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-uninstall-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-home-toggle-details-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-home-down-details-mag')).toBeDisabled();
@@ -1251,7 +1946,6 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() => {
       expect(screen.getByTestId('agent-package-repair-mag')).not.toBeDisabled();
       expect(screen.getByTestId('agent-package-enabled-toggle-mag')).not.toBeDisabled();
-      expect(screen.getByTestId('agent-package-hidden-toggle-mag')).not.toBeDisabled();
       expect(screen.getByTestId('agent-package-uninstall-mag')).not.toBeDisabled();
       expect(screen.getByTestId('agent-package-home-toggle-details-mag')).not.toBeDisabled();
       expect(screen.getByTestId('agent-package-home-down-details-mag')).not.toBeDisabled();

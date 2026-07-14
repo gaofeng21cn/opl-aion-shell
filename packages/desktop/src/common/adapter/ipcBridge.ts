@@ -451,6 +451,16 @@ export interface IAppRestartResult {
   reason?: 'dev-mode';
 }
 
+export type IAppLogDirectoryUpdateResult = {
+  schema: 'opl_app_log_directory_update.v1';
+  hostLogDir: string;
+  dockerVolume: {
+    sourcePath: string;
+    dataRoot: '/data';
+    logDir: '/data/logs';
+  };
+};
+
 export type IRendererLogLevel = 'info' | 'warn' | 'error';
 
 export interface IRendererLogEntry {
@@ -495,6 +505,7 @@ export const application = {
   updateSystemInfo: bridge.buildProvider<void, { cacheDir: string; workDir: string; logDir?: string }>(
     'update-system-info'
   ),
+  setLogDirectory: bridge.buildProvider<IAppLogDirectoryUpdateResult, { path: string }>('app.set-log-directory'),
   getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),
   setZoomFactor: bridge.buildProvider<number, { factor: number }>('app.set-zoom-factor'),
   getCdpStatus: bridge.buildProvider<IBridgeResponse<ICdpStatus>, void>('app.get-cdp-status'),
@@ -777,6 +788,15 @@ export type LocalDataLifecycleInventory = {
   sections: LocalDataLifecycleInventorySection[];
 };
 
+export type LocalDataLifecycleInventorySnapshot = {
+  schema: 'opl_local_data_lifecycle_inventory_snapshot.v1';
+  inventory: LocalDataLifecycleInventory | null;
+  observed_at: string | null;
+  scan_duration_ms: number | null;
+  stale: boolean;
+  error: string | null;
+};
+
 export type LocalDataLifecycleReceipt =
   | LocalDataLifecycleConversationArchiveReceipt
   | LocalDataLifecycleConversationDeleteReceipt
@@ -898,6 +918,13 @@ export type LocalDataLifecycleUpdaterCacheReceipt = {
 
 export const localDataLifecycle = {
   getInventory: bridge.buildProvider<LocalDataLifecycleInventory, void>('local-data-lifecycle.get-inventory'),
+  getInventorySnapshot: bridge.buildProvider<LocalDataLifecycleInventorySnapshot, void>(
+    'local-data-lifecycle.get-inventory-snapshot'
+  ),
+  refreshInventory: bridge.buildProvider<LocalDataLifecycleInventorySnapshot, void>(
+    'local-data-lifecycle.refresh-inventory'
+  ),
+  inventoryUpdated: bridge.buildEmitter<LocalDataLifecycleInventorySnapshot>('local-data-lifecycle.inventory-updated'),
   archiveConversations: bridge.buildProvider<LocalDataLifecycleConversationArchiveReceipt, void>(
     'local-data-lifecycle.archive-conversations'
   ),
@@ -954,6 +981,7 @@ export const autoUpdate = {
     }>,
     { channel?: 'stable' | 'nightly'; includeNightly?: boolean; includePrerelease?: boolean }
   >('auto-update.check'),
+  getStatusSnapshot: bridge.buildProvider<AutoUpdateStatus | null, void>('auto-update.get-status-snapshot'),
   download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
   quitAndInstall: bridge.buildProvider<void, AutoUpdateInstallRequest>('auto-update.quit-and-install'),
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),

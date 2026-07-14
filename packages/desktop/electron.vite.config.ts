@@ -140,6 +140,7 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           input: {
             index: resolve('packages/desktop/src/mainBootstrap.ts'),
+            localDataInventoryWorker: resolve('packages/desktop/src/process/worker/localDataInventoryWorker.ts'),
             // Built-in MCP server entry points (compiled by scripts/build-mcp-servers.js via esbuild,
             // not vite — esbuild bundles all deps for self-contained execution by external node processes)
           },

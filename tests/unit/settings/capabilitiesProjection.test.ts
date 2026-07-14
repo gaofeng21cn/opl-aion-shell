@@ -61,16 +61,39 @@ vi.mock('@/common/config/oplProductProfile', () => ({
   ],
 }));
 
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  oplRecordList: (value: unknown) =>
+    Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
+  oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
+}));
+
+type PackageFixture = Record<string, unknown>;
+
+function appStateWithPackageDirectory(
+  entries: PackageFixture[],
+  statuses: PackageFixture[] = [],
+  rest: Record<string, unknown> = {}
+) {
+  return {
+    ...rest,
+    agent_packages: {
+      directory: { entries },
+      status_index: { packages: statuses },
+    },
+  };
+}
+
 describe('buildCapabilitiesViewModel', () => {
   it('treats dirty developer checkouts as source instead of repair', () => {
     const [research] = buildCapabilitiesViewModel(
-      {
-        modules: {
+      appStateWithPackageDirectory([{ package_id: 'med-autoscience', installed: true }], [], {
+        runtime_source_carriers: {
           items: [
             {
-              module_id: 'medautoscience',
-              installed: true,
-              health_status: 'dirty',
+              package_id: 'med-autoscience',
+              carrier_id: 'medautoscience',
+              source_origin: 'sibling_workspace',
               source_policy: {
                 effective_install_update_source: 'git_checkout',
                 configured_by: 'developer_mode',
@@ -83,7 +106,7 @@ describe('buildCapabilitiesViewModel', () => {
             },
           ],
         },
-      },
+      }),
       'en-US'
     );
 
@@ -94,17 +117,15 @@ describe('buildCapabilitiesViewModel', () => {
     expect(research.description).toBe('Research');
   });
 
-  it('treats legacy managed-root git update hints as source maintenance, not package updates', () => {
+  it('treats managed-root git update hints as source maintenance, not package updates', () => {
     const capabilities = buildCapabilitiesViewModel(
-      {
-        modules: {
+      appStateWithPackageDirectory([{ package_id: 'opl-meta-agent', installed: true }], [], {
+        runtime_source_carriers: {
           items: [
             {
-              module_id: 'oplmetaagent',
-              installed: true,
-              install_origin: 'managed_root',
-              health_status: 'ready',
-              recommended_action: 'update',
+              package_id: 'opl-meta-agent',
+              carrier_id: 'oplmetaagent',
+              source_origin: 'managed_root',
               git: {
                 dirty: false,
                 sync_status: 'behind',
@@ -113,7 +134,7 @@ describe('buildCapabilitiesViewModel', () => {
             },
           ],
         },
-      },
+      }),
       'en-US'
     );
     const oma = capabilities.find((capability) => capability.packageId === 'opl-meta-agent');
@@ -123,8 +144,8 @@ describe('buildCapabilitiesViewModel', () => {
     expect(oma?.version).toBe('712b006');
   });
 
-  it('prefers package-native projection when app_state exposes opl_agent_package_status', () => {
-    const [research] = buildCapabilitiesViewModel(
+  it('ignores legacy package and module projections without canonical directory entries', () => {
+    const capabilities = buildCapabilitiesViewModel(
       {
         opl_agent_package_status: {
           items: [
@@ -147,53 +168,52 @@ describe('buildCapabilitiesViewModel', () => {
             },
           ],
         },
+        agent_packages: {
+          status_index: {
+            packages: [{ package_id: 'mas', status: 'ready' }],
+          },
+        },
       },
       'en-US'
     );
 
-    expect(research.status).toBe('sync');
-    expect(research.primaryAction).toBe('maintenance');
-    expect(research.source).toBe('package_projection');
-    expect(research.version).toBe('9.9.9');
+    expect(capabilities).toEqual([]);
   });
 
   it.each(['repair_required', 'blocked'] as const)(
     'does not report ready when dependency readiness is %s',
     (dependencyStatus) => {
       const capability = buildCapabilitiesViewModel(
-        {
-          agent_packages: {
-            status_index: {
-              packages: {
-                'example-agent': {
-                  package_id: 'example-agent',
-                  status: 'ready',
-                  operational_ready: false,
-                  dependency_readiness: {
-                    status: dependencyStatus,
-                    required_count: 1,
-                    ready_count: 0,
-                    checks: [
-                      {
-                        package_id: 'example-provider',
-                        ready: false,
-                        failure_reasons: [
-                          dependencyStatus === 'blocked' ? 'version_incompatible' : 'required_export_missing',
-                        ],
-                      },
+        appStateWithPackageDirectory(
+          [{ package_id: 'example-agent', display_name: 'Example agent', installed: true }],
+          [
+            {
+              package_id: 'example-agent',
+              status: 'ready',
+              operational_ready: false,
+              dependency_readiness: {
+                status: dependencyStatus,
+                required_count: 1,
+                ready_count: 0,
+                checks: [
+                  {
+                    package_id: 'example-provider',
+                    ready: false,
+                    failure_reasons: [
+                      dependencyStatus === 'blocked' ? 'version_incompatible' : 'required_export_missing',
                     ],
                   },
-                  repair_action: {
-                    action_id: 'repair_dependency_closure',
-                    command_ref: 'opl packages repair example-agent --json',
-                    enabled: true,
-                    reason_code: 'dependency_closure_not_ready',
-                  },
-                },
+                ],
+              },
+              repair_action: {
+                action_id: 'agent_package_repair',
+                command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
+                enabled: true,
+                reason_code: 'dependency_closure_not_ready',
               },
             },
-          },
-        },
+          ]
+        ),
         'en-US',
         [
           {
@@ -214,79 +234,75 @@ describe('buildCapabilitiesViewModel', () => {
     }
   );
 
-  it('keeps a visible developer checkout usable when the managed package closure is stale', () => {
+  it('does not treat a physically visible developer checkout as operationally ready', () => {
     const [research] = buildCapabilitiesViewModel(
-      {
-        agent_packages: {
-          status_index: {
-            packages: {
-              mas: {
-                package_id: 'mas',
-                status: 'update_available',
-                operational_ready: false,
-                dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
-              },
-            },
+      appStateWithPackageDirectory(
+        [{ package_id: 'mas', installed: true, codex_visible: true }],
+        [
+          {
+            package_id: 'mas',
+            status: 'update_available',
+            operational_ready: false,
+            dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
           },
-        },
-        modules: {
-          items: [
-            {
-              module_id: 'medautoscience',
-              installed: true,
-              health_status: 'dirty',
-              install_origin: 'sibling_workspace',
-              source_policy: {
-                effective_install_update_source: 'git_checkout',
-                configured_by: 'developer_mode',
+        ],
+        {
+          runtime_source_carriers: {
+            items: [
+              {
+                package_id: 'mas',
+                carrier_id: 'medautoscience',
+                source_origin: 'sibling_workspace',
+                source_policy: {
+                  effective_install_update_source: 'git_checkout',
+                  configured_by: 'developer_mode',
+                },
+                git: { dirty: true, sync_status: 'behind' },
               },
-              capability_exposure: { status: 'visible' },
-              git: { dirty: true, sync_status: 'behind' },
-            },
-          ],
-        },
-      },
+            ],
+          },
+        }
+      ),
       'en-US'
     );
 
-    expect(research.status).toBe('source');
-    expect(research.availabilityStatus).toBe('ready');
-    expect(research.codexVisibility).toBe('visible');
+    expect(research.status).toBe('repair');
+    expect(research.availabilityStatus).toBe('repair');
+    expect(research.codexVisibility).toBe('notVisible');
     expect(research.actualSource).toBe('sibling_workspace');
   });
 
   it('uses the runtime carrier as run source without replacing package installation truth', () => {
     const [research] = buildCapabilitiesViewModel(
-      {
-        agent_packages: {
-          status_index: {
-            packages: {
-              mas: {
-                package_id: 'mas',
-                status: 'installed',
-                source_kind: 'local_manifest_file',
-                codex_visible: true,
-              },
-            },
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'mas',
+            status: 'installed',
+            source_kind: 'local_manifest_file',
+            codex_visible: true,
           },
-        },
-        runtime_source_carriers: {
-          items: [
-            {
-              package_id: 'mas',
-              carrier_id: 'medautoscience',
-              source_origin: 'sibling_workspace',
-              source_path: '/workspace/med-autoscience',
-              managed_source_path: '/managed/med-autoscience',
-              source_policy: {
-                effective_install_update_source: 'git_checkout',
-                configured_by: 'developer_mode',
+        ],
+        [],
+        {
+          runtime_source_carriers: {
+            items: [
+              {
+                package_id: 'mas',
+                carrier_id: 'medautoscience',
+                source_origin: 'sibling_workspace',
+                source_path: '/workspace/med-autoscience',
+                managed_source_path: '/managed/med-autoscience',
+                source_policy: {
+                  effective_install_update_source: 'git_checkout',
+                  configured_by: 'developer_mode',
+                },
+                git: { dirty: false, sync_status: 'synced', short_sha: 'abc1234' },
               },
-              git: { dirty: false, sync_status: 'synced', short_sha: 'abc1234' },
-            },
-          ],
-        },
-      },
+            ],
+          },
+        }
+      ),
       'en-US'
     );
 
@@ -296,11 +312,8 @@ describe('buildCapabilitiesViewModel', () => {
   });
 
   it('does not treat an uninstalled runtime carrier as package installation truth', () => {
-    const [research] = buildCapabilitiesViewModel(
-      {
-        agent_packages: {
-          status_index: { packages: {} },
-        },
+    const capabilities = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([], [], {
         runtime_source_carriers: {
           items: [
             {
@@ -311,31 +324,28 @@ describe('buildCapabilitiesViewModel', () => {
             },
           ],
         },
-      },
+      }),
       'en-US'
     );
 
-    expect(research.status).toBe('missing');
-    expect(research.actualSource).toBeNull();
+    expect(capabilities).toEqual([]);
   });
 
   it('reports ready only when dependency closure and operational readiness are ready', () => {
     const capability = buildCapabilitiesViewModel(
-      {
-        agent_packages: {
-          status_index: {
-            packages: {
-              'example-agent': {
-                package_id: 'example-agent',
-                status: 'ready',
-                operational_ready: true,
-                codex_visible: true,
-                dependency_readiness: { status: 'ready', required_count: 1, ready_count: 1, checks: [] },
-              },
-            },
+      appStateWithPackageDirectory(
+        [{ package_id: 'example-agent', display_name: 'Example agent', installed: true }],
+        [
+          {
+            package_id: 'example-agent',
+            status: 'ready',
+            operational_ready: true,
+            launch_allowed: true,
+            codex_visible: true,
+            dependency_readiness: { status: 'ready', required_count: 1, ready_count: 1, checks: [] },
           },
-        },
-      },
+        ]
+      ),
       'en-US',
       [
         {
@@ -351,6 +361,8 @@ describe('buildCapabilitiesViewModel', () => {
 
     expect(capability.status).toBe('ready');
     expect(capability.operationalReady).toBe(true);
+    expect(capability.launchAllowed).toBe(true);
+    expect(capability.codexVisibility).toBe('visible');
   });
 
   it('normalizes generic repair, dependent guard, and closure diagnostics', () => {
@@ -358,14 +370,13 @@ describe('buildCapabilitiesViewModel', () => {
       {
         agent_packages: {
           directory: {
-            installed_packages: [
+            entries: [
               {
                 package_id: 'example-agent',
                 dependency_closure: {
                   transaction_id: 'tx-1',
-                  generation_id: 'generation-2',
                   closure_digest: 'sha256:current',
-                  last_known_good_generation_id: 'generation-1',
+                  last_known_good_transaction_id: 'tx-0',
                   last_known_good_closure_digest: 'sha256:previous',
                 },
               },
@@ -382,8 +393,8 @@ describe('buildCapabilitiesViewModel', () => {
                 allowed_when_blocked: ['status', 'doctor', 'repair'],
                 dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
                 repair_action: {
-                  action_id: 'repair_dependency_closure',
-                  command_ref: 'opl packages repair example-agent --json',
+                  action_id: 'agent_package_repair',
+                  command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
                   enabled: true,
                   reason_code: 'required_export_missing',
                 },
@@ -410,7 +421,7 @@ describe('buildCapabilitiesViewModel', () => {
       ]
     ).find((item) => item.packageId === 'example-agent')!;
 
-    expect(capability.repairAction).toMatchObject({ actionId: 'repair_dependency_closure', enabled: true });
+    expect(capability.repairAction).toMatchObject({ actionId: 'agent_package_repair', enabled: true });
     expect(capability).toMatchObject({
       launchAllowed: false,
       launchBlockedReason: 'required_export_missing',
@@ -422,20 +433,15 @@ describe('buildCapabilitiesViewModel', () => {
     });
     expect(capability.dependencyClosure).toEqual({
       transactionId: 'tx-1',
-      generationId: 'generation-2',
       closureDigest: 'sha256:current',
-      lastKnownGoodGenerationId: 'generation-1',
+      lastKnownGoodTransactionId: 'tx-0',
       lastKnownGoodClosureDigest: 'sha256:previous',
     });
   });
 
   it('deduplicates extra purpose overlays when the package already exists', () => {
     const capabilities = buildCapabilitiesViewModel(
-      {
-        modules: {
-          items: [{ module_id: 'oplmetaagent', status: 'ready' }],
-        },
-      },
+      appStateWithPackageDirectory([{ package_id: 'opl-meta-agent', status: 'ready', installed: true }]),
       'en-US',
       [
         {
@@ -452,55 +458,459 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capabilities.filter((item) => item.key === 'oma')).toHaveLength(1);
   });
 
+  it('projects only actions that satisfy the exact five-field ABI', () => {
+    const action = {
+      action_id: 'agent_package_install',
+      action_ref: 'app_state.actions#agent_package_install',
+      payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
+      required_payload_fields: ['manifest_url_ref'],
+      confirmation_required: true,
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'example-agent',
+          display_name: 'Example agent',
+          installability: { status: 'available', installable: true },
+          available_actions: [
+            action,
+            {
+              action_id: 'agent_package_activate',
+              action_ref: 'app_state.actions#agent_package_activate',
+              payload: {},
+              required_payload_fields: [],
+            },
+            {
+              action_id: 'agent_package_update',
+              action_ref: 'app_state.actions#agent_package_update',
+              payload: { package_id: 'example-agent' },
+              required_payload_fields: ['package_id'],
+              confirmation_required: false,
+              locally_inferred: true,
+            },
+            {
+              action_id: 'agent_package_repair',
+              action_ref: 'app_state.actions#wrong_action',
+              payload: { package_id: 'example-agent' },
+              required_payload_fields: ['package_id'],
+              confirmation_required: false,
+            },
+            {
+              action_id: 'refresh_registry',
+              action_ref: 'app_state.actions#refresh_registry',
+              payload: {},
+              required_payload_fields: [null],
+              confirmation_required: false,
+            },
+          ],
+          recommended_action: 'agent_package_install',
+          recommended_action_ref: action,
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.installAction).toEqual({
+      actionId: 'agent_package_install',
+      actionRef: 'app_state.actions#agent_package_install',
+      payloadRefsOnlyJson: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
+      requiredPayloadFields: ['manifest_url_ref'],
+      confirmationRequired: true,
+    });
+    expect(capability.activationAction).toBeNull();
+    expect(capability.availableActions.agent_package_update).toBeUndefined();
+    expect(capability.availableActions.agent_package_repair).toBeUndefined();
+    expect(capability.availableActions.refresh_registry).toBeUndefined();
+    expect(capability.recommendedAction).toEqual(capability.installAction);
+  });
+
+  it('does not synthesize package_id into projected action payloads', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'example-agent',
+          available_actions: [
+            {
+              action_id: 'agent_package_install',
+              action_ref: 'app_state.actions#agent_package_install',
+              payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
+              required_payload_fields: ['manifest_url_ref'],
+              confirmation_required: false,
+            },
+          ],
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.installAction?.payloadRefsOnlyJson).toEqual({
+      manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable',
+    });
+    expect(capability.installAction?.payloadRefsOnlyJson).not.toHaveProperty('package_id');
+  });
+
+  it('requires the recommended action ref to exactly match its available action', () => {
+    const availableAction = {
+      action_id: 'agent_package_activate',
+      action_ref: 'app_state.actions#agent_package_activate',
+      payload: { package_id: 'example-agent' },
+      required_payload_fields: ['package_id', 'scope', 'target_workspace or target_quest'],
+      confirmation_required: false,
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'example-agent',
+          installed: true,
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: {
+            ...availableAction,
+            payload: { package_id: 'different-package' },
+          },
+          available_actions: [availableAction],
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.availableActions.agent_package_activate?.payloadRefsOnlyJson).toEqual({
+      package_id: 'example-agent',
+    });
+    expect(capability.activationAction).toBeNull();
+    expect(capability.recommendedAction).toBeNull();
+  });
+
+  it('keeps directory-owned catalog metadata and actions authoritative over status-index overlays', () => {
+    const directoryAction = {
+      action_id: 'agent_package_update',
+      action_ref: 'app_state.actions#agent_package_update',
+      payload: { package_id: 'example-agent' },
+      required_payload_fields: ['package_id'],
+      confirmation_required: false,
+    };
+    const statusAction = {
+      action_id: 'agent_package_uninstall',
+      action_ref: 'app_state.actions#agent_package_uninstall',
+      payload: { package_id: 'wrong-package' },
+      required_payload_fields: ['package_id'],
+      confirmation_required: true,
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'example-agent',
+            display_name: 'Directory title',
+            publisher: 'Directory publisher',
+            package_role: 'standard_agent',
+            installed: true,
+            available_actions: [directoryAction],
+          },
+        ],
+        [
+          {
+            package_id: 'example-agent',
+            display_name: 'Status title',
+            publisher: 'Status publisher',
+            package_role: 'workflow_profile',
+            status: 'ready',
+            available_actions: [statusAction],
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability).toMatchObject({
+      title: 'Directory title',
+      publisher: 'Directory publisher',
+      packageRole: 'standard_agent',
+    });
+    expect(Object.keys(capability.availableActions)).toEqual(['agent_package_update']);
+  });
+
+  it('keeps deferred physical exposure non-runnable without reporting a failure', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'example-agent',
+          installed: true,
+          codex_visible: true,
+          readiness: {
+            status: 'verification_deferred',
+            operational_ready: false,
+            launch_allowed: false,
+            verification_deferred: true,
+            reason: 'live_verification_deferred',
+          },
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('verification');
+    expect(capability.codexVisibility).toBe('verificationPending');
+    expect(capability.operationalReady).toBe(false);
+    expect(capability.launchAllowed).toBe(false);
+    expect(capability.failureReason).toBeNull();
+  });
+
+  it('preserves a package status read error as a row failure', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'example-agent',
+          installed: true,
+          readiness: {
+            status: 'failed',
+            operational_ready: false,
+            launch_allowed: false,
+            verification_deferred: false,
+            reason: 'status_read_error',
+            status_read_error: { message: 'package status unavailable' },
+          },
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('repair');
+    expect(capability.failureReason).toBe('package status unavailable');
+  });
+
+  it('projects canonical producer dependency readiness and exposure state without changing directory actions', () => {
+    const preferenceAction = {
+      action_id: 'agent_package_preferences_set',
+      action_ref: 'app_state.actions#agent_package_preferences_set',
+      payload: { package_id: 'example-agent' },
+      required_payload_fields: ['package_id', 'exposure_action or shortcut_id'],
+      confirmation_required: false,
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'example-agent',
+            installed: true,
+            available_actions: [preferenceAction],
+          },
+        ],
+        [
+          {
+            package_id: 'example-agent',
+            status: 'ready',
+            dependency_readiness: {
+              status: 'repair_required',
+              required_count: 2,
+              ready_count: 1,
+              checks: [{ package_id: 'provider', ready: false, failure_reasons: ['required_export_missing'] }],
+            },
+            capability_exposure: { status: 'disabled' },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('repair');
+    expect(capability.dependencyReadiness).toMatchObject({
+      status: 'repair_required',
+      requiredCount: 2,
+      readyCount: 1,
+    });
+    expect(capability.enabled).toBe(false);
+    expect(Object.keys(capability.availableActions)).toEqual(['agent_package_preferences_set']);
+  });
+
+  it('prefers canonical dependency readiness over the bounded legacy Framework fallback', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [{ package_id: 'example-agent', installed: true }],
+        [
+          {
+            package_id: 'example-agent',
+            status: 'ready',
+            dependency_readiness: { status: 'ready', required_count: 1, ready_count: 1, checks: [] },
+            package_dependency_readiness: {
+              status: 'repair_required',
+              required_count: 1,
+              ready_count: 0,
+              checks: [{ package_id: 'stale-provider', ready: false, failure_reasons: ['stale_fallback'] }],
+            },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('ready');
+    expect(capability.dependencyReadiness).toMatchObject({ status: 'ready', readyCount: 1 });
+  });
+
+  it('uses raw package dependency readiness only as a bounded legacy Framework fallback', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [{ package_id: 'example-agent', installed: true }],
+        [
+          {
+            package_id: 'example-agent',
+            status: 'ready',
+            package_dependency_readiness: {
+              status: 'repair_required',
+              required_count: 1,
+              ready_count: 0,
+              checks: [{ package_id: 'provider', ready: false, failure_reasons: ['required_export_missing'] }],
+            },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('repair');
+    expect(capability.dependencyReadiness?.status).toBe('repair_required');
+  });
+
+  it('accepts only complete producer activation and dependent-guard projections', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'example-agent',
+            installed: true,
+            activation_action: {
+              action_id: 'agent_package_activate',
+              command_ref: 'directory must not own activation status',
+              enabled: true,
+              preparation_status: 'ready',
+              reason_code: 'wrong_owner',
+            },
+          },
+        ],
+        [
+          {
+            package_id: 'example-agent',
+            activation_action: {
+              action_id: 'agent_package_activate',
+              command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+              enabled: true,
+              preparation_status: 'prepare_required',
+              reason_code: 'scope_reconciliation_required',
+            },
+            dependent_guard: {
+              required_by_package_ids: ['consumer-agent'],
+              disable: { allowed: false, reason_code: 'required_by_installed_package' },
+              uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
+            },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.activationAction).toMatchObject({
+      enabled: true,
+      preparationStatus: 'prepare_required',
+      reasonCode: 'scope_reconciliation_required',
+    });
+    expect(capability.dependentGuard?.requiredByPackageIds).toEqual(['consumer-agent']);
+  });
+
+  it('ignores incomplete producer activation and dependent-guard projections', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [{ package_id: 'example-agent', installed: true }],
+        [
+          {
+            package_id: 'example-agent',
+            activation_action: {
+              action_id: 'agent_package_activate',
+              enabled: true,
+              preparation_status: 'ready',
+              reason_code: 'use_boundary_reconciliation_ready',
+            },
+            dependent_guard: {
+              required_by_package_ids: [],
+              disable: { allowed: true, reason_code: null },
+            },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.activationAction).toBeNull();
+    expect(capability.dependentGuard).toBeNull();
+  });
+
+  it.each([
+    ['visible', true, false],
+    ['hidden', true, true],
+    ['enabled', true, false],
+    ['disabled', false, true],
+  ] as const)('maps capability exposure %s into stable enabled and hidden readback', (status, enabled, hidden) => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [{ package_id: 'example-agent', installed: true }],
+        [{ package_id: 'example-agent', capability_exposure: { status } }]
+      ),
+      'en-US'
+    );
+
+    expect(capability.enabled).toBe(enabled);
+    expect(capability.hidden).toBe(hidden);
+  });
+
   it('projects workflow, connector, and export action refs without skill bodies or domain action execution', () => {
     const [research] = buildCapabilitiesViewModel(
-      {
-        modules: {
-          items: [{ module_id: 'medautoscience', status: 'ready', codex_visible: true }],
-        },
-        operator: {
-          workbench: {
-            task_drilldowns: {
-              medautoscience: {
-                status: 'blocked',
-                next_owner: 'opl_framework',
-                next_visible_step: 'repair connector',
-                workflow_refs: [
-                  {
-                    id: 'module-runtime-repair',
-                    title: 'Module runtime repair',
+      appStateWithPackageDirectory(
+        [{ package_id: 'med-autoscience', status: 'ready', installed: true, codex_visible: true }],
+        [],
+        {
+          operator: {
+            workbench: {
+              task_drilldowns: {
+                medautoscience: {
+                  status: 'blocked',
+                  next_owner: 'opl_framework',
+                  next_visible_step: 'repair connector',
+                  workflow_refs: [
+                    {
+                      id: 'module-runtime-repair',
+                      title: 'Module runtime repair',
+                      status: 'available',
+                      ref: 'opl://workflow/medautoscience/module-runtime-repair',
+                      owner: 'opl_framework',
+                      next_action: 'run dry-run first',
+                      body: 'must not render',
+                    },
+                  ],
+                  connector_readiness_refs: ['opl://connect/pubmed/readiness', 'opl://fabric/storage/readiness'],
+                  gateway_status_ref: 'opl://gateway/status/gflabtoken',
+                  environment_ref: {
+                    id: 'python-r-quarto',
+                    title: 'Python/R/Quarto',
+                    ref: 'opl://environment/python-r-quarto',
                     status: 'available',
-                    ref: 'opl://workflow/medautoscience/module-runtime-repair',
-                    owner: 'opl_framework',
-                    next_action: 'run dry-run first',
-                    body: 'must not render',
                   },
-                ],
-                connector_readiness_refs: ['opl://connect/pubmed/readiness', 'opl://fabric/storage/readiness'],
-                gateway_status_ref: 'opl://gateway/status/gflabtoken',
-                environment_ref: {
-                  id: 'python-r-quarto',
-                  title: 'Python/R/Quarto',
-                  ref: 'opl://environment/python-r-quarto',
-                  status: 'available',
-                },
-                environment_template_ref: 'opl://environment-template/python-r-quarto',
-                environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
-                task_applicability_ref: 'opl://task-applicability/mas',
-                storage_ref: 'opl://storage/workspace-volume/medautoscience',
-                resource_source_refs: ['opl://resource-source/opl-cloud/managed-compute'],
-                resource_receipt_ref: 'receipt://resource/latest',
-                cost_estimate_ref: 'opl://cost-estimate/mas/latest',
-                export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
-                action_receipt: {
-                  dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
-                  latest_receipt_ref: 'receipt://export/latest',
+                  environment_template_ref: 'opl://environment-template/python-r-quarto',
+                  environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
+                  task_applicability_ref: 'opl://task-applicability/mas',
+                  storage_ref: 'opl://storage/workspace-volume/medautoscience',
+                  resource_source_refs: ['opl://resource-source/opl-cloud/managed-compute'],
+                  resource_receipt_ref: 'receipt://resource/latest',
+                  cost_estimate_ref: 'opl://cost-estimate/mas/latest',
+                  export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
+                  action_receipt: {
+                    dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
+                    latest_receipt_ref: 'receipt://export/latest',
+                  },
                 },
               },
             },
           },
-        },
-      },
+        }
+      ),
       'en-US'
     );
 

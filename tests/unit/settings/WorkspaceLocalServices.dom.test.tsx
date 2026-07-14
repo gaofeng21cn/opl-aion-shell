@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   executeAction: vi.fn().mockResolvedValue({ ok: true, parsed: { ok: true } }),
   systemInfo: vi.fn(),
   updateSystemInfo: vi.fn(),
+  setLogDirectory: vi.fn(),
   isDesktop: true,
   workspaceRootPath: '/Users/example/OPL Workspace',
   workspaceExists: true as boolean | null,
@@ -31,6 +32,7 @@ vi.mock('@/common', () => ({
     application: {
       systemInfo: { invoke: mocks.systemInfo },
       updateSystemInfo: { invoke: mocks.updateSystemInfo },
+      setLogDirectory: { invoke: mocks.setLogDirectory },
     },
     shell: {
       openFolderWith: { invoke: mocks.openFolder },
@@ -222,6 +224,13 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       arch: 'arm64',
     });
     mocks.updateSystemInfo.mockResolvedValue(undefined);
+    mocks.setLogDirectory.mockImplementation(({ path }: { path: string }) =>
+      Promise.resolve({
+        schema: 'opl_app_log_directory_update.v1',
+        hostLogDir: path,
+        dockerVolume: { sourcePath: path, dataRoot: '/data', logDir: '/data/logs' },
+      })
+    );
     mocks.showOpen.mockResolvedValue(['/Users/example/New Workspace']);
   });
 
@@ -249,13 +258,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     await waitFor(() =>
       expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab App')).toBeInTheDocument()
     );
-    expect(screen.getByText('Diagnostics')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('Diagnostics'));
-    expect(screen.getByTestId('settings-workspace-technical-details')).toBeInTheDocument();
-    expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
-    expect(screen.getByText('Framework logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
-    expect(screen.queryByText('1 / 2 ready in technical paths.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument();
+    expect(screen.queryByText('Modules root: /Users/example/workspace/modules')).not.toBeInTheDocument();
+    expect(screen.queryByText('Framework logs: /Users/example/Library/Logs/One Person Lab')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({
@@ -270,7 +276,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     });
   });
 
-  it('updates the desktop App log directory without changing cache or work directories', async () => {
+  it('updates the desktop App log directory and Docker projection through one local typed action', async () => {
     mocks.showOpen.mockResolvedValueOnce(['/Users/example/OPL Logs']);
 
     render(<WorkspaceSettings withWrapper={false} />);
@@ -278,28 +284,25 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
     fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
 
-    await waitFor(() =>
-      expect(mocks.updateSystemInfo).toHaveBeenCalledWith({
-        cacheDir: '/Users/example/Library/Application Support/One Person Lab/config',
-        workDir: '/Users/example/Library/Application Support/One Person Lab',
-        logDir: '/Users/example/OPL Logs',
-      })
-    );
+    await waitFor(() => expect(mocks.setLogDirectory).toHaveBeenCalledWith({ path: '/Users/example/OPL Logs' }));
+    expect(mocks.updateSystemInfo).not.toHaveBeenCalled();
+    expect(mocks.executeAction).not.toHaveBeenCalled();
     expect(await screen.findByText('Logs: /Users/example/OPL Logs')).toBeInTheDocument();
   });
 
   it('keeps the existing log directory visible when the desktop update fails', async () => {
     mocks.showOpen.mockResolvedValueOnce(['/Users/example/Broken Logs']);
-    mocks.updateSystemInfo.mockRejectedValueOnce(new Error('write failed'));
+    mocks.setLogDirectory.mockRejectedValueOnce(new Error('write failed'));
 
     render(<WorkspaceSettings withWrapper={false} />);
 
     await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
     fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
 
-    await waitFor(() => expect(mocks.updateSystemInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.setLogDirectory).toHaveBeenCalledTimes(1));
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab App')).toBeInTheDocument();
     expect(screen.queryByText('Logs: /Users/example/Broken Logs')).not.toBeInTheDocument();
+    expect(mocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('projects Docker paths read-only from /projects and /data', async () => {

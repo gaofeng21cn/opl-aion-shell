@@ -239,6 +239,14 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: appState });
   });
 
+  it('does not probe update status, check, or plan when the page mounts without a startup snapshot', () => {
+    maintenanceSnapshot.result = null;
+
+    render(<RuntimeSettings />);
+
+    expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
   it('renders quiet status rows and explicit action surfaces while gating diagnostics in a modal', () => {
     render(<RuntimeSettings />);
 

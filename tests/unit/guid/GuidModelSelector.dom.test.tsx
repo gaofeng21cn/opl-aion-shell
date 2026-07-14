@@ -187,7 +187,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
   });
 
-  it('routes Gemini add-model actions through the App-owned environment settings page', async () => {
+  it('routes Gemini add-model actions through the App-owned model access settings page', async () => {
     render(
       <GuidModelSelector
         backend='gemini'
@@ -204,7 +204,7 @@ describe('GuidModelSelector Codex display', () => {
     await userEvent.click(screen.getByTestId('guid-model-selector'));
     fireEvent.click(await screen.findByRole('menuitem', { name: /settings.addModel/ }));
 
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
     expect(mocks.navigate).not.toHaveBeenCalledWith('/settings/model');
   });
 });

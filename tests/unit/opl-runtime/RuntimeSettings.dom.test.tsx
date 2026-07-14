@@ -552,6 +552,8 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.updates.actions.refreshStatus'
     );
     expect(screen.getByTestId('opl-managed-update-refresh')).toHaveTextContent('');
+    fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalled());
     expect(screen.getByTestId('opl-base-dependency-catalog')).toBeInTheDocument();
     expect(screen.getByTestId('opl-base-dependency-codex-cli')).toHaveTextContent('1.2.3');
     expect(screen.getByTestId('opl-base-dependency-temporal-runtime')).toHaveTextContent('client 1.11.0');

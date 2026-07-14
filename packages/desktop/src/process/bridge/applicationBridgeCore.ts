@@ -15,6 +15,7 @@ import { ipcBridge } from '@/common';
 import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePath } from '@process/utils';
 import { setConsoleLogRoot } from '@process/utils/configureConsoleLog';
+import { applyAppLogDirectoryUpdate } from '../services/appLogDirectory';
 
 export const OPL_APP_RELEASE_REPO = 'gaofeng21cn/one-person-lab-app';
 
@@ -34,6 +35,17 @@ export function initApplicationBridgeCore(): void {
     await ProcessEnv.set('aionui.dir', { cacheDir: safeCacheDir, workDir: safeWorkDir, logDir: safeLogDir });
     setConsoleLogRoot(safeLogDir);
   });
+
+  ipcBridge.application.setLogDirectory.provider(({ path: requestedPath }) =>
+    applyAppLogDirectoryUpdate(requestedPath, {
+      getDirectories: getSystemDir,
+      resolvePath: resolveCliSafePath,
+      persistDirectories: async (directories) => {
+        await ProcessEnv.set('aionui.dir', directories);
+      },
+      setLogRoot: setConsoleLogRoot,
+    })
+  );
 
   ipcBridge.application.getPath.provider(({ name }) => {
     // Resolve common paths without Electron

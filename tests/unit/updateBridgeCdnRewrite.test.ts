@@ -382,10 +382,47 @@ describe('updateBridge auto-update config handling', () => {
 
     expect(autoUpdater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
     expect(statusListener).toHaveBeenCalledWith({ status: 'not-available' });
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'not-available' });
     expect(log.warn).toHaveBeenCalledWith(
       'Startup auto-update config is unavailable; manual update checks remain available:',
       '/Applications/One Person Lab.app/Contents/Resources/app-update.yml'
     );
+  });
+
+  it('runs the startup update check at most once and preserves the shared status snapshot', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+
+    await autoUpdaterService.checkForUpdatesAndNotify();
+    await autoUpdaterService.checkForUpdatesAndNotify();
+
+    expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'checking' });
+  });
+
+  it('returns a defensive copy of the latest updater status', async () => {
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    autoUpdaterService.triggerEventForTest('update-available', {
+      version: '26.7.15',
+      releaseDate: '2026-07-15T00:00:00.000Z',
+      releaseNotes: 'notes',
+    });
+
+    const snapshot = autoUpdaterService.getStatusSnapshot();
+    expect(snapshot).toEqual({
+      status: 'available',
+      version: '26.7.15',
+      releaseDate: '2026-07-15T00:00:00.000Z',
+      releaseNotes: 'notes',
+    });
+    if (snapshot) snapshot.status = 'error';
+    expect(autoUpdaterService.getStatusSnapshot()?.status).toBe('available');
   });
 
   it('suppresses missing packaged config error events as manual-update-only', async () => {

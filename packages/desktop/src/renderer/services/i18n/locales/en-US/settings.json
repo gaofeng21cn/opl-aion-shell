@@ -1396,7 +1396,8 @@
       "description": "This section disappears when the blocking settings are resolved.",
       "workspaceTitle": "Choose a work directory",
       "codexTitle": "Restore Codex access",
-      "capabilitiesTitle": "Check capability packages"
+      "capabilitiesTitle": "Check capability packages",
+      "capabilitiesDescription": "Open Capabilities to review unavailable or outdated managed packages."
     },
     "shortcuts": {
       "title": "Common settings",
@@ -1477,6 +1478,9 @@
         "manualKey": "Manual key",
         "notConnected": "Not connected",
         "needsAttention": "Needs attention"
+      },
+      "metrics": {
+        "availability": "Availability"
       }
     },
     "technical": {
@@ -1690,6 +1694,11 @@
       "missing": "missing",
       "noRoots": "No storage locations found.",
       "notLoaded": "Reading storage information.",
+      "unknownSize": "Size unavailable",
+      "awaitingSnapshot": "Waiting for the cached inventory",
+      "freshness": "Observed {{observedAt}} · {{duration}} ms · {{state}}",
+      "current": "Current",
+      "stale": "Out of date",
       "silentDeleteAllowed": "Ready to clean",
       "silentDeleteBlocked": "Preparation required",
       "cleanupModes": {
@@ -2206,7 +2215,7 @@
   },
   "capabilitiesPage": {
     "title": "Capabilities",
-    "description": "Manage OPL Flow recommendations and locally installed skills, plugins, MCP servers, and image tools.",
+    "description": "Manage OPL Flow recommendations and local skills, plugins, MCP servers, image tools, and voice input.",
     "groups": {
       "oplFlowManaged": {
         "title": "Recommended by OPL Flow",
@@ -2223,7 +2232,7 @@
         "title": "Local capabilities",
         "description": "Inspect and manage local skills, plugins, and extensions outside the OPL Flow recommendation set.",
         "toolsTitle": "MCP and image tools",
-        "toolsDescription": "Manage MCP servers and image generation. Speech transcription remains in Preferences."
+        "toolsDescription": "Manage MCP servers and image generation here; voice input is configured below."
       }
     },
     "developerSource": {
@@ -2235,11 +2244,44 @@
         "auto": "Automatic",
         "developer": "Developer"
       },
-      "safeMaintenance": "Allow safe developer maintenance",
-      "safeMaintenanceDescription": "Allows supervised repair and maintenance when repository authority is confirmed; uncommitted changes are never overwritten.",
+      "safeMaintenance": "Maintain authorized development repositories",
+      "safeMaintenanceDescription": "Automatic mode enables supervised repair only after identity and repository authority checks. Existing changes and protected branches remain protected.",
+      "maintenanceModeLabel": "Authorized repository maintenance",
+      "maintenanceModes": {
+        "auto": "Automatic",
+        "off": "Off"
+      },
+      "effectiveStates": {
+        "inactive": "Currently inactive",
+        "automatic": "Automatically active",
+        "manual": "Manually active",
+        "off": "Off"
+      },
       "workspace": "Developer workspace",
-      "identity": "GitHub identity",
-      "authority": "Directly maintainable repositories",
+      "identity": "GitHub login",
+      "authority": "Authorized repository scope",
+      "authoritySummary": "{{direct}} direct · {{pullRequest}} pull request · {{total}} total",
+      "configurationSource": "Configuration source",
+      "configurationSources": {
+        "default": "Automatic default",
+        "user_config": "User configuration"
+      },
+      "inspectionPending": "Checking GitHub identity and repository authority. No mismatch has been inferred.",
+      "protection": "Repository protection",
+      "protectionSummary": "{{dirty}} · {{branch}}",
+      "protectionValues": {
+        "isolatedWorktree": "dirty worktrees use an isolated worktree",
+        "topicBranch": "protected branches require a topic branch",
+        "notReported": "not reported"
+      },
+      "inactiveReason": "Why it is inactive",
+      "inactiveReasons": {
+        "developer_mode_disabled": "Repository maintenance is off.",
+        "authority_inspection_pending": "Repository authority inspection is still running.",
+        "github_identity_unavailable": "A GitHub login could not be confirmed.",
+        "auto_identity_mismatch": "The current GitHub login does not match the configured developer identity.",
+        "repo_authority_blocked": "No authorized maintenance route is currently available."
+      },
       "packageTitle": "Runtime source for this capability",
       "packageDescription": "Follow the global mode or pin this capability to the managed copy or local developer repository.",
       "packageModes": {
@@ -2262,6 +2304,7 @@
       "update": "Update available",
       "sync": "Needs sync",
       "source": "Developer source",
+      "verification": "Verification pending",
       "attention": "Needs attention",
       "repair": "Needs repair",
       "missing": "Missing"
@@ -2313,6 +2356,7 @@
       "conversationAvailable": "Available",
       "conversationNeedsSync": "Sync needed",
       "conversationUnavailable": "Not available",
+      "conversationVerificationPending": "Verification pending",
       "conversationUnverified": "Not verified"
     },
     "detailLabels": {
@@ -2325,6 +2369,8 @@
       "sourceKind": "Source kind",
       "packageLockRef": "Package lock receipt",
       "actionReceiptRef": "Action receipt",
+      "installActionRef": "Install action",
+      "activationActionRef": "Activation action",
       "rollbackRef": "Recovery reference",
       "manifestUrl": "Manifest URL",
       "registryUrl": "Registry URL",
@@ -2339,6 +2385,17 @@
       "source": "Source",
       "lastSync": "Last sync",
       "failureReason": "Failure reason",
+      "publisher": "Publisher",
+      "packageRole": "Package role",
+      "trustTier": "Trust",
+      "installedVersion": "Installed version",
+      "selectedVersion": "Selected version",
+      "stableVersion": "Stable version",
+      "sourceSummary": "Source summary",
+      "installability": "Installation state",
+      "readiness": "Readiness",
+      "verificationPending": "Verification pending",
+      "nextStep": "Next step",
       "dependencyReadiness": "Dependency readiness",
       "dependencyReadinessCount": "Ready dependencies",
       "operationalReady": "Operationally ready",
@@ -2351,9 +2408,8 @@
       "uninstallDisabledReason": "Cannot uninstall",
       "repairCommandRef": "Repair command reference",
       "dependencyClosureTransactionId": "Closure transaction",
-      "dependencyClosureGenerationId": "Closure generation",
       "dependencyClosureDigest": "Closure digest",
-      "dependencyClosureLastKnownGoodGenerationId": "Last known good generation",
+      "dependencyClosureLastKnownGoodTransactionId": "Last known good transaction",
       "dependencyClosureLastKnownGoodDigest": "Last known good closure digest",
       "connectorReadinessRefs": "Connector readiness",
       "workflowRefs": "Reusable workflows",
@@ -2377,7 +2433,11 @@
       "version_incompatible": "An installed dependency version is incompatible",
       "required_by_installed_package": "Required by another installed package",
       "dependency_closure_not_ready": "The dependency closure is not ready",
-      "package_not_installed": "The package is not installed"
+      "package_not_installed": "Install this package to continue",
+      "package_activation_required": "Activate this package for the current Workspace",
+      "scope_materialization_missing": "Activate this package for the current Workspace",
+      "live_verification_deferred": "Live verification will complete in the background",
+      "status_read_error": "Framework could not read the package status"
     },
     "sourceLabels": {
       "developer": "Local developer source",
@@ -2434,7 +2494,22 @@
       "management": "Manage capabilities",
       "refreshRegistry": "Check for new capabilities",
       "searchPlaceholder": "Search capability, purpose, or tag",
+      "searchLabel": "Search agent packages",
+      "roleFilter": "Filter by package role",
+      "statusFilter": "Filter by package status",
+      "sourceFilter": "Filter by source",
+      "allRoles": "All roles",
       "allStatuses": "All statuses",
+      "allSources": "All sources",
+      "resetFilters": "Reset",
+      "loading": "Loading the agent package directory...",
+      "refreshing": "Refreshing the agent package directory...",
+      "stale": "Showing the last directory snapshot while a fresh read is pending.",
+      "staleWithReason": "Showing the last directory snapshot because refresh failed: {{reason}}",
+      "failed": "The agent package directory could not be refreshed: {{reason}}",
+      "noFilterResults": "No packages match these filters.",
+      "workspaceRequired": "Choose a Workspace before activating this package.",
+      "openWorkspace": "Open Workspace",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "Install from manifest",
       "addCapability": "Add capability",
@@ -2453,6 +2528,8 @@
       "empty": "No matching agent packages.",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
+      "projectedActionConfirmTitle": "{{action}} package",
+      "projectedActionConfirmContent": "OPL will execute the exact Framework-projected action and refresh this directory afterward.",
       "uninstallConfirmTitle": "Uninstall capability",
       "uninstallConfirmContent": "This routes uninstall to the App package manager. Receipts and recovery guidance stay visible after the action.",
       "tableHeaders": {
@@ -2466,6 +2543,8 @@
         "actions": "Action"
       },
       "actions": {
+        "install": "Install",
+        "activate": "Activate",
         "update": "Update",
         "repair": "Repair",
         "rollback": "Rollback",
@@ -2474,7 +2553,17 @@
         "disable": "Disable",
         "hide": "Hide",
         "show": "Show",
-        "unhide": "Unhide"
+        "unhide": "Unhide",
+        "refresh": "Refresh",
+        "run": "Run"
+      },
+      "filterValues": {
+        "not_installed": "Not installed",
+        "installable": "Installable",
+        "installed": "Installed",
+        "activation_required": "Activation required",
+        "verification_deferred": "Verification pending",
+        "ready": "Ready"
       }
     },
     "supporting": {

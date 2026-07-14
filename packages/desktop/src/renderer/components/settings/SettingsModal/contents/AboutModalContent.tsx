@@ -5,7 +5,8 @@
  */
 
 import { ipcBridge } from '@/common';
-import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import type { AutoUpdateStatus } from '@/common/update/updateTypes';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import { Button, Modal, Typography } from '@arco-design/web-react';
 import { Help, Info, Refresh, Right } from '@icon-park/react';
@@ -83,11 +84,9 @@ const AboutModalContent: React.FC = () => {
   const isElectron = isElectronDesktop();
   const currentAppVersion = localAppVersion();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [latestStableVersion, setLatestStableVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(isElectron ? 'checking' : 'unknown');
+  const [updaterStatus, setUpdaterStatus] = useState<AutoUpdateStatus | null>(null);
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const appStateQuery = useOplAppState('fast', { autoLoad: false });
-  const loadAppState = appStateQuery.load;
   const release = oplRecord(appStateQuery.appState.release);
   const appVersions: AppVersions = {
     appVersion: currentAppVersion,
@@ -104,34 +103,60 @@ const AboutModalContent: React.FC = () => {
     releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
   };
 
+  const updateStatus: UpdateStatus =
+    updaterStatus?.status === 'checking'
+      ? 'checking'
+      : updaterStatus?.status === 'available' ||
+          updaterStatus?.status === 'downloading' ||
+          updaterStatus?.status === 'downloaded'
+        ? 'available'
+        : updaterStatus?.status === 'not-available'
+          ? 'current'
+          : 'unknown';
+  const latestStableVersion = updaterStatus?.version ?? '';
+
   const checkForUpdates = useCallback(async () => {
     if (!isElectron) {
-      setUpdateStatus('unknown');
       return;
     }
-    setUpdateStatus('checking');
+    setUpdaterStatus({ status: 'checking' });
     try {
-      const channel = resolveUpdaterChannel(getAppState(await loadAppState('fast', { background: true })));
-      const result = await ipcBridge.update.check.invoke({ channel });
+      const channel = resolveUpdaterChannel(appStateQuery.appState);
+      const result = await ipcBridge.autoUpdate.check.invoke({ channel });
       if (!result?.success) {
-        setLatestStableVersion('');
-        setUpdateStatus('unknown');
+        setUpdaterStatus({ status: 'error' });
         return;
       }
-      const candidate = result.data?.latest?.version || '';
-      const updateAvailable =
-        Boolean(candidate) && (result.data?.updateAvailable === true || isNewerVersion(candidate, currentAppVersion));
-      setLatestStableVersion(updateAvailable ? candidate : '');
-      setUpdateStatus(updateAvailable ? 'available' : 'current');
+      const candidate = result.data?.updateInfo?.version || '';
+      setUpdaterStatus(
+        candidate && isNewerVersion(candidate, currentAppVersion)
+          ? { status: 'available', version: candidate }
+          : { status: 'not-available' }
+      );
     } catch {
-      setLatestStableVersion('');
-      setUpdateStatus('unknown');
+      setUpdaterStatus({ status: 'error' });
     }
-  }, [currentAppVersion, isElectron, loadAppState]);
+  }, [appStateQuery.appState, currentAppVersion, isElectron]);
 
   useEffect(() => {
-    void checkForUpdates();
-  }, [checkForUpdates]);
+    if (!isElectron) return;
+    let active = true;
+    const unsubscribe = ipcBridge.autoUpdate.status.on((status) => {
+      if (active) setUpdaterStatus(status);
+    });
+    void ipcBridge.autoUpdate.getStatusSnapshot.invoke().then(
+      (status) => {
+        if (active) setUpdaterStatus(status);
+      },
+      () => {
+        if (active) setUpdaterStatus({ status: 'error' });
+      }
+    );
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [isElectron]);
 
   const openLink = async (url: string) => {
     try {
@@ -183,7 +208,9 @@ const AboutModalContent: React.FC = () => {
 
           <div className='flex min-w-0 flex-col gap-12px' data-testid='settings-about-primary'>
             <section className='opl-settings-section' id='version' data-testid='about-version-section'>
-              {updateStatus === 'unknown' && <span data-testid='settings-about-exception' aria-hidden='true' />}
+              {(updateStatus === 'available' || updaterStatus?.status === 'error') && (
+                <span data-testid='settings-about-exception' aria-hidden='true' />
+              )}
               <div className='opl-settings-section__header'>
                 <div className='flex min-w-0 items-start gap-12px'>
                   <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
@@ -199,24 +226,26 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className='grid min-w-0 border-t border-solid border-[var(--border-base)] sm:grid-cols-3'>
-                <div className='min-w-0 p-16px'>
-                  <div className='text-12px text-t-tertiary'>{t('settings.aboutAppVersion')}</div>
-                  <div className='mt-6px break-words text-16px font-medium text-t-primary'>
-                    {appVersions.appVersion}
+              <div className='min-w-0 border-t border-solid border-[var(--border-base)]'>
+                <div className='grid min-w-0 sm:grid-cols-2'>
+                  <div className='min-w-0 p-16px'>
+                    <div className='text-12px text-t-tertiary'>{t('settings.aboutAppVersion')}</div>
+                    <div className='mt-6px break-words text-16px font-medium text-t-primary'>
+                      {appVersions.appVersion}
+                    </div>
+                  </div>
+                  <div
+                    className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
+                    id='channel'
+                  >
+                    <div className='text-12px text-t-tertiary'>{t('settings.aboutReleaseChannel')}</div>
+                    <div className='mt-6px break-words text-16px font-medium text-t-primary'>
+                      {formatReleaseChannel(appVersions.releaseChannel, t)}
+                    </div>
                   </div>
                 </div>
                 <div
-                  className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
-                  id='channel'
-                >
-                  <div className='text-12px text-t-tertiary'>{t('settings.aboutReleaseChannel')}</div>
-                  <div className='mt-6px break-words text-16px font-medium text-t-primary'>
-                    {formatReleaseChannel(appVersions.releaseChannel, t)}
-                  </div>
-                </div>
-                <div
-                  className='flex min-w-0 flex-col justify-center gap-10px border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
+                  className='flex min-w-0 flex-col gap-12px border-t border-solid border-[var(--border-base)] p-16px sm:flex-row sm:items-center sm:justify-between'
                   id='updates'
                   data-testid='about-update-section'
                 >
@@ -226,8 +255,8 @@ const AboutModalContent: React.FC = () => {
                       {updateStatusLabel}
                     </div>
                   </div>
-                  {isElectron && (
-                    <span data-testid='settings-about-primary-action'>
+                  <span data-testid='settings-about-primary-action'>
+                    {isElectron && (
                       <Button
                         type='primary'
                         icon={<Refresh />}
@@ -237,8 +266,8 @@ const AboutModalContent: React.FC = () => {
                       >
                         {t('settings.checkForUpdates')}
                       </Button>
-                    </span>
-                  )}
+                    )}
+                  </span>
                 </div>
               </div>
             </section>

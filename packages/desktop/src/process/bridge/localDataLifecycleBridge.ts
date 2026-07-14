@@ -5,13 +5,13 @@
  */
 
 import * as path from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import { getSystemDir } from '../utils/initStorage';
 import { getDefaultAutoUpdateCacheRoot } from '../services/autoUpdateCacheCleanup';
 import {
   archiveConversationArtifacts,
-  buildLocalDataLifecycleInventory,
   deleteArchivedConversationArtifacts,
   executeLogRetentionPlan,
   executeRuntimePointerPrunePlan,
@@ -22,10 +22,15 @@ import {
   restoreConversationArchiveArtifacts,
   verifyConversationArchiveReceipt,
 } from '../services/localDataLifecycle';
+import type { LocalDataLifecycleInventory, LocalDataLifecycleInventoryInput } from '../services/localDataLifecycle';
+import { LocalDataLifecycleInventorySnapshotStore } from '../services/localDataLifecycle/inventorySnapshot';
+import type { LocalDataInventoryWorkerResponse } from '../worker/localDataInventoryProtocol';
 
 const RETAIN_DAYS = 30;
 const RETAIN_LOG_FILES = 7;
 const MAX_TOTAL_LOG_BYTES = 10 * 1024 * 1024;
+const INVENTORY_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
+const INVENTORY_STARTUP_SCAN_DELAY_MS = 2000;
 
 function appCacheName(): string {
   return process.env.OPL_APP_UPDATER_CACHE_DIR_NAME?.trim() || 'one-person-lab-aion-shell-updater';
@@ -45,6 +50,10 @@ function archiveRoot(): string {
 
 function receiptRoot(): string {
   return path.join(lifecycleRoot(), 'receipts');
+}
+
+function inventorySnapshotPath(): string {
+  return path.join(lifecycleRoot(), 'inventory-snapshot.json');
 }
 
 function shellToolchainRuntimeRoot(): string {
@@ -86,18 +95,63 @@ function receiptPathFromRequest(value: string): string {
   return normalized;
 }
 
+function inventoryInput(): LocalDataLifecycleInventoryInput {
+  return {
+    dataRoot: getSystemDir().workDir,
+    updaterCacheRoots: [updaterCacheRoot(), ...retiredUpdaterCacheRoots()],
+    conversationRoots: [conversationRoot()],
+    runtimeRoots: [shellToolchainRuntimeRoot(), managedOplRuntimeRoot()],
+    logsRoot: getSystemDir().logDir,
+  };
+}
+
+function scanInventoryInWorker(input: LocalDataLifecycleInventoryInput): Promise<LocalDataLifecycleInventory> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'localDataInventoryWorker.js'), { workerData: input });
+    let settled = false;
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    worker.once('message', (response: LocalDataInventoryWorkerResponse) => {
+      if (settled) return;
+      settled = true;
+      if ('error' in response) {
+        reject(new Error(response.error));
+        return;
+      }
+      resolve(response.inventory);
+    });
+    worker.once('error', rejectOnce);
+    worker.once('exit', (code) => {
+      if (code !== 0) rejectOnce(new Error(`Local data inventory worker exited with code ${code}.`));
+    });
+  });
+}
+
 export function initLocalDataLifecycleBridge(): void {
-  ipcBridge.localDataLifecycle.getInventory.provider(() =>
-    Promise.resolve(
-      buildLocalDataLifecycleInventory({
-        dataRoot: getSystemDir().workDir,
-        updaterCacheRoots: [updaterCacheRoot(), ...retiredUpdaterCacheRoots()],
-        conversationRoots: [conversationRoot()],
-        runtimeRoots: [shellToolchainRuntimeRoot(), managedOplRuntimeRoot()],
-        logsRoot: getSystemDir().logDir,
-      })
-    )
-  );
+  const inventoryStore = new LocalDataLifecycleInventorySnapshotStore({
+    snapshotPath: inventorySnapshotPath(),
+    ttlMs: INVENTORY_SNAPSHOT_TTL_MS,
+    scan: () => scanInventoryInWorker(inventoryInput()),
+    onUpdated: (snapshot) => ipcBridge.localDataLifecycle.inventoryUpdated.emit(snapshot),
+  });
+
+  ipcBridge.localDataLifecycle.getInventorySnapshot.provider(() => Promise.resolve(inventoryStore.getSnapshot()));
+  ipcBridge.localDataLifecycle.refreshInventory.provider(() => inventoryStore.refresh({ force: true }));
+  ipcBridge.localDataLifecycle.getInventory.provider(async () => {
+    const snapshot = await inventoryStore.refresh({ force: true });
+    if (!snapshot.inventory) throw new Error('Local data lifecycle inventory is unavailable.');
+    return snapshot.inventory;
+  });
+
+  const startupScan = setTimeout(() => {
+    void inventoryStore.refresh().catch((error) => {
+      console.warn('[LocalDataLifecycle] Delayed inventory scan failed:', error);
+    });
+  }, INVENTORY_STARTUP_SCAN_DELAY_MS);
+  startupScan.unref?.();
 
   ipcBridge.localDataLifecycle.archiveConversations.provider(() =>
     Promise.resolve(

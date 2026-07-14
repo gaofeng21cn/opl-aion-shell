@@ -11,6 +11,7 @@ import {
   Message,
   Modal,
   Radio,
+  Select,
   Space,
   Switch,
   Tag,
@@ -25,9 +26,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
+import VoiceInputSection from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent/VoiceInputSection';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
+import { getOplAgentPackageRegistryUrl } from '@/common/config/oplProductProfile';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
@@ -43,11 +46,13 @@ import {
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
+  formatCapabilityDisplayToken,
   type CapabilityActionRefViewModel,
   type CapabilityAvailabilityStatus,
   type CapabilityCandidateReportViewModel,
   type CapabilityDecisionAction,
   type CapabilityPurposeViewModel,
+  type CapabilityPackageActionViewModel,
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
@@ -61,8 +66,14 @@ export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
   value === 'opl_flow_managed' || value === 'manual_and_third_party';
-const DEFAULT_AGENT_REGISTRY_URL =
-  'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json';
+
+const normalizeCapabilitiesTab = (value: string | null): CapabilitiesTab | null => {
+  if (value === 'opl-flow-managed') return 'opl_flow_managed';
+  if (value === 'third-party' || value === 'skills' || value === 'tools' || value === 'assistants') {
+    return 'manual_and_third_party';
+  }
+  return isCapabilitiesTab(value) ? value : null;
+};
 
 function capabilityStatusColor(status: CapabilityAvailabilityStatus): 'orange' | 'red' | 'gray' {
   if (status === 'sync' || status === 'update' || status === 'attention' || status === 'missing') return 'orange';
@@ -83,6 +94,9 @@ function capabilityConversationAvailabilityLabel(
 ): string {
   if (item.codexVisibility === 'visible') {
     return t('settings.capabilitiesPage.visibility.conversationAvailable', { defaultValue: 'Available' });
+  }
+  if (item.codexVisibility === 'verificationPending') {
+    return t('settings.capabilitiesPage.visibility.conversationVerificationPending');
   }
   if (item.codexVisibility === 'needsSync') {
     return t('settings.capabilitiesPage.visibility.conversationNeedsSync', { defaultValue: 'Sync needed' });
@@ -132,7 +146,13 @@ function capabilitySourceLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string | null {
-  const tokens = [item.actualSource, item.sourceKind, item.source]
+  const tokens = [
+    item.sourceExplanation.kind,
+    item.sourceExplanation.source,
+    item.actualSource,
+    item.sourceKind,
+    item.source,
+  ]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
   if (tokens.length === 0) return null;
@@ -145,6 +165,7 @@ function capabilitySourceLabel(
         'developermode',
         'developermodepackageoverride',
         'siblingworkspace',
+        'developercheckoutoverride',
       ].includes(token)
     )
   ) {
@@ -160,12 +181,17 @@ function capabilitySourceLabel(
         'firstparty',
         'packagechannel',
         'developermodemanagedoverride',
+        'firstpartyreleasecatalog',
       ].includes(token)
     )
   ) {
     return t('settings.capabilitiesPage.sourceLabels.managed');
   }
-  if (tokens.some((token) => ['manifesturl', 'registry', 'thirdparty', 'remote'].includes(token))) {
+  if (
+    tokens.some((token) =>
+      ['agentpackageregistrycache', 'manifesturl', 'registry', 'thirdparty', 'remote'].includes(token)
+    )
+  ) {
     return t('settings.capabilitiesPage.sourceLabels.registry');
   }
   if (tokens.some((token) => ['local', 'manual', 'filesystem', 'localmanifestfile'].includes(token))) {
@@ -174,13 +200,98 @@ function capabilitySourceLabel(
   return t('settings.capabilitiesPage.sourceLabels.other', { defaultValue: 'Other source' });
 }
 
-function isCapabilityDeveloperSource(item: CapabilityPurposeViewModel): boolean {
-  const sourceTokens = [item.actualSource, item.sourceKind, item.source]
+function capabilitySourceCategory(item: CapabilityPurposeViewModel): string {
+  const tokens = [
+    item.sourceExplanation.kind,
+    item.sourceExplanation.source,
+    item.sourceKind,
+    item.actualSource,
+    item.source,
+  ]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
-  return sourceTokens.some((token) =>
-    ['envoverride', 'gitcheckout', 'developercheckout', 'developermode', 'siblingworkspace'].includes(token)
-  );
+  if (
+    tokens.some((token) =>
+      ['gitcheckout', 'developercheckout', 'developercheckoutoverride', 'developermode', 'siblingworkspace'].includes(
+        token
+      )
+    )
+  ) {
+    return 'developer';
+  }
+  if (
+    tokens.some((token) =>
+      ['managed', 'managedroot', 'builtin', 'packaged', 'firstparty', 'firstpartyreleasecatalog'].includes(token)
+    )
+  ) {
+    return 'managed';
+  }
+  if (
+    tokens.some((token) =>
+      ['agentpackageregistrycache', 'registry', 'manifesturl', 'remote', 'thirdparty'].includes(token)
+    )
+  )
+    return 'registry';
+  if (tokens.some((token) => ['local', 'filesystem', 'localmanifestfile'].includes(token))) return 'local';
+  return 'other';
+}
+
+function capabilityCatalogStatus(item: CapabilityPurposeViewModel): string {
+  return item.readiness.status ?? item.installState ?? item.availabilityStatus;
+}
+
+function capabilityCatalogStatusLabel(
+  status: string,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  return t(`settings.capabilitiesPage.packageManager.filterValues.${status}`, {
+    defaultValue: formatCapabilityDisplayToken(status),
+  });
+}
+
+function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
+  const action = item.recommendedAction;
+  if (!action) return null;
+  return [
+    'agent_package_install',
+    'install_from_manifest_url',
+    'agent_package_activate',
+    'agent_package_update',
+    'agent_package_repair',
+    'refresh_registry',
+  ].includes(action.actionId)
+    ? action
+    : null;
+}
+
+function capabilityProjectedActionTestId(actionId: string): string {
+  if (actionId === 'agent_package_activate') return 'activate';
+  if (actionId === 'agent_package_install' || actionId === 'install_from_manifest_url') return 'install';
+  if (actionId === 'agent_package_update') return 'update';
+  if (actionId === 'agent_package_repair') return 'repair';
+  if (actionId === 'refresh_registry') return 'refresh';
+  return 'run';
+}
+
+function capabilityProjectedActionLabel(
+  actionId: string,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  const key =
+    actionId === 'refresh_registry'
+      ? 'refresh'
+      : actionId === 'agent_package_activate'
+        ? 'activate'
+        : actionId === 'agent_package_install' || actionId === 'install_from_manifest_url'
+          ? 'install'
+          : actionId === 'agent_package_update'
+            ? 'update'
+            : actionId === 'agent_package_repair'
+              ? 'repair'
+              : actionId === 'agent_package_uninstall'
+                ? 'uninstall'
+                : 'run';
+  return t(`settings.capabilitiesPage.packageManager.actions.${key}`);
 }
 
 function capabilityUserDetailRows(
@@ -188,6 +299,69 @@ function capabilityUserDetailRows(
   t: (key: string, options?: Record<string, string>) => string
 ): CapabilityDetailRow[] {
   return [
+    hasTextValue(item.publisher)
+      ? {
+          key: 'publisher',
+          label: t('settings.capabilitiesPage.detailLabels.publisher'),
+          value: item.publisher,
+        }
+      : null,
+    hasTextValue(item.packageRole)
+      ? {
+          key: 'packageRole',
+          label: t('settings.capabilitiesPage.detailLabels.packageRole'),
+          value: item.packageRole,
+        }
+      : null,
+    hasTextValue(item.trustTier)
+      ? {
+          key: 'trustTier',
+          label: t('settings.capabilitiesPage.detailLabels.trustTier'),
+          value: item.trustTier,
+        }
+      : null,
+    hasTextValue(item.installedVersion)
+      ? {
+          key: 'installedVersion',
+          label: t('settings.capabilitiesPage.detailLabels.installedVersion'),
+          value: item.installedVersion,
+        }
+      : null,
+    hasTextValue(item.selectedVersion)
+      ? {
+          key: 'selectedVersion',
+          label: t('settings.capabilitiesPage.detailLabels.selectedVersion'),
+          value: item.selectedVersion,
+        }
+      : null,
+    hasTextValue(item.stableVersion)
+      ? {
+          key: 'stableVersion',
+          label: t('settings.capabilitiesPage.detailLabels.stableVersion'),
+          value: item.stableVersion,
+        }
+      : null,
+    hasTextValue(item.sourceExplanation.summary)
+      ? {
+          key: 'sourceSummary',
+          label: t('settings.capabilitiesPage.detailLabels.sourceSummary'),
+          value: item.sourceExplanation.summary,
+        }
+      : null,
+    hasTextValue(item.installability.status)
+      ? {
+          key: 'installability',
+          label: t('settings.capabilitiesPage.detailLabels.installability'),
+          value: item.installability.status,
+        }
+      : null,
+    hasTextValue(item.readiness.status)
+      ? {
+          key: 'readiness',
+          label: t('settings.capabilitiesPage.detailLabels.readiness'),
+          value: capabilityCatalogStatusLabel(item.readiness.status, t),
+        }
+      : null,
     hasTextValue(item.version)
       ? {
           key: 'version',
@@ -218,7 +392,20 @@ function capabilityReadinessDetailRows(
 ): CapabilityDetailRow[] {
   const readiness = item.dependencyReadiness;
   const dependencyFailures = readiness?.checks.flatMap((check) => check.failureReasons) ?? [];
+  const readinessReason = item.readiness.reason ?? item.launchBlockedReason;
+  const isNextStepReason = [
+    'package_not_installed',
+    'package_activation_required',
+    'scope_materialization_missing',
+  ].includes(readinessReason ?? '');
   return [
+    item.readiness.verificationDeferred === true && readinessReason
+      ? {
+          key: 'verificationPending',
+          label: t('settings.capabilitiesPage.detailLabels.verificationPending'),
+          value: capabilityReasonLabel(readinessReason, t),
+        }
+      : null,
     readiness?.status
       ? {
           key: 'dependencyReadiness',
@@ -254,11 +441,15 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
-    item.launchAllowed === false && item.launchBlockedReason
+    item.readiness.verificationDeferred !== true && item.launchAllowed === false && readinessReason
       ? {
           key: 'launchBlockedReason',
-          label: t('settings.capabilitiesPage.detailLabels.launchBlockedReason'),
-          value: capabilityReasonLabel(item.launchBlockedReason, t),
+          label: t(
+            isNextStepReason
+              ? 'settings.capabilitiesPage.detailLabels.nextStep'
+              : 'settings.capabilitiesPage.detailLabels.launchBlockedReason'
+          ),
+          value: capabilityReasonLabel(readinessReason, t),
         }
       : null,
     item.launchAllowed === false && item.allowedWhenBlocked.length > 0
@@ -354,6 +545,16 @@ function capabilityDiagnosticRows(
       value: item.rollbackRef,
     },
     {
+      key: 'installActionRef',
+      label: t('settings.capabilitiesPage.detailLabels.installActionRef'),
+      value: item.installAction?.actionRef,
+    },
+    {
+      key: 'activationActionRef',
+      label: t('settings.capabilitiesPage.detailLabels.activationActionRef'),
+      value: item.activationAction?.commandRef,
+    },
+    {
       key: 'repairCommandRef',
       label: t('settings.capabilitiesPage.detailLabels.repairCommandRef'),
       value: item.repairAction?.commandRef,
@@ -364,19 +565,14 @@ function capabilityDiagnosticRows(
       value: item.dependencyClosure?.transactionId,
     },
     {
-      key: 'dependencyClosureGenerationId',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureGenerationId'),
-      value: item.dependencyClosure?.generationId,
-    },
-    {
       key: 'dependencyClosureDigest',
       label: t('settings.capabilitiesPage.detailLabels.dependencyClosureDigest'),
       value: item.dependencyClosure?.closureDigest,
     },
     {
-      key: 'dependencyClosureLastKnownGoodGenerationId',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodGenerationId'),
-      value: item.dependencyClosure?.lastKnownGoodGenerationId,
+      key: 'dependencyClosureLastKnownGoodTransactionId',
+      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodTransactionId'),
+      value: item.dependencyClosure?.lastKnownGoodTransactionId,
     },
     {
       key: 'dependencyClosureLastKnownGoodDigest',
@@ -604,6 +800,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const [advancedAddOpen, setAdvancedAddOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const shortcutPreferences = useOplHomeShortcutPreferences();
   const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
   const shortcutByPackageId = React.useMemo(
@@ -615,34 +815,104 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     [orderedShortcuts]
   );
   const purposeCapabilities = React.useMemo(
-    () =>
-      buildCapabilitiesViewModel(appStateQuery.appState, i18n.language, [
-        {
-          key: 'oma',
-          title: t('settings.capabilitiesPage.purposes.automation.title'),
-          description: t('settings.capabilitiesPage.purposes.automation.description'),
-          tags: ['OMA', 'Skills', 'Tools'],
-          moduleIds: ['oplmetaagent', 'opl-meta-agent', 'oma'],
-          packageId: 'opl-meta-agent',
-        },
-      ]),
-    [appStateQuery.appState, i18n.language, t]
+    () => buildCapabilitiesViewModel(appStateQuery.appState, i18n.language),
+    [appStateQuery.appState, i18n.language]
   );
+  const paths = oplRecord(appStateQuery.appState.paths);
+  const workspaceRootPath = oplString(paths.workspace_root_path);
+  const agentPackages = oplRecord(appStateQuery.appState.agent_packages);
+  const directory = oplRecord(agentPackages.directory);
+  const directoryStatus = oplString(directory.status);
+  const directoryStatusReadError = (() => {
+    const value = directory.status_read_error;
+    if (typeof value === 'string') return oplString(value);
+    const record = oplRecord(value);
+    return oplString(record.message) ?? oplString(record.code) ?? oplString(record.reason);
+  })();
+  const directoryError =
+    directoryStatusReadError ?? (directoryStatus === 'attention_required' ? directoryStatus : null);
+  const catalogReadError = appStateQuery.error ?? directoryError ?? null;
+  const catalogError = purposeCapabilities.length === 0 ? catalogReadError : null;
+  const catalogStaleReason = purposeCapabilities.length > 0 ? catalogReadError : null;
+  const catalogLoading = appStateQuery.loading && purposeCapabilities.length === 0;
+  const catalogRefreshing = appStateQuery.refreshing;
+  const catalogEmpty = !catalogLoading && !catalogError && purposeCapabilities.length === 0;
+  const agentPackageRegistryUrl = getOplAgentPackageRegistryUrl();
+  const roleOptions = React.useMemo(
+    () =>
+      [
+        ...new Set(
+          purposeCapabilities.map((item) => item.packageRole).filter((value): value is string => Boolean(value))
+        ),
+      ].sort(),
+    [purposeCapabilities]
+  );
+  const statusOptions = React.useMemo(
+    () => [...new Set(purposeCapabilities.map(capabilityCatalogStatus))].sort(),
+    [purposeCapabilities]
+  );
+  const sourceOptions = React.useMemo(
+    () => [...new Set(purposeCapabilities.map(capabilitySourceCategory))].sort(),
+    [purposeCapabilities]
+  );
+  const visibleCapabilities = React.useMemo(() => {
+    const query = catalogSearch.trim().toLowerCase();
+    return purposeCapabilities.filter((item) => {
+      if (roleFilter !== 'all' && item.packageRole !== roleFilter) return false;
+      if (statusFilter !== 'all' && capabilityCatalogStatus(item) !== statusFilter) return false;
+      if (sourceFilter !== 'all' && capabilitySourceCategory(item) !== sourceFilter) return false;
+      if (!query) return true;
+      return [
+        item.title,
+        item.description,
+        item.packageId,
+        item.packageRole,
+        item.publisher,
+        item.sourceExplanation.summary,
+        item.sourceExplanation.source,
+        item.trustTier,
+        ...item.tags,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(query));
+    });
+  }, [catalogSearch, purposeCapabilities, roleFilter, sourceFilter, statusFilter]);
+  const hasActiveCatalogFilters =
+    Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
+  const catalogFilterEmpty = purposeCapabilities.length > 0 && visibleCapabilities.length === 0;
   const developerMode = oplRecord(appStateQuery.appState.developer_mode);
   const developerWorkspace = oplRecord(developerMode.developer_workspace);
   const developerIdentity = oplRecord(developerMode.github_identity);
   const developerAuthority = oplRecord(developerMode.repo_authority);
+  const developerMaintenanceProtection = oplRecord(developerMode.repository_maintenance_protection);
+  const developerDirtyProtection = oplRecord(developerMaintenanceProtection.dirty_worktree);
+  const developerBranchProtection = oplRecord(developerMaintenanceProtection.branch);
   const developerModeEnabled = (() => {
     const value = oplString(developerMode.enabled);
     return value === 'on' || value === 'off' ? value : 'auto';
   })();
-  const developerSafeMaintenance = oplString(developerMode.mode) === 'developer_apply_safe';
+  const developerModeMode = oplString(developerMode.mode) ?? 'developer_apply_safe';
+  const developerSafeMaintenance = developerModeMode === 'developer_apply_safe';
+  const developerMaintenanceChoice =
+    developerModeEnabled === 'off' || developerModeMode === 'external_observe' ? 'off' : 'auto';
+  const developerEffectiveState = oplString(developerMode.effective_state) ?? 'inspection_pending';
+  const developerConfigSource = oplString(developerMode.config_source) ?? 'default';
+  const developerInactiveReason = oplString(developerMode.inactive_reason);
   const developerWorkspacePath = oplString(developerWorkspace.selected_path);
   const developerIdentityLogin = oplString(developerIdentity.login);
   const developerIdentityStatus = oplString(developerIdentity.status);
   const developerAuthorityStatus = oplString(developerAuthority.status);
   const directWriteRepoCount = Number(developerAuthority.direct_write_repo_count ?? 0);
+  const prRouteRepoCount = Number(developerAuthority.pr_route_repo_count ?? 0);
   const requiredRepoCount = Number(developerAuthority.required_repo_count ?? 0);
+  const developerInspectionPending = developerEffectiveState === 'inspection_pending';
+  const developerMaintenanceEffectiveLabel = (() => {
+    if (developerModeEnabled === 'off' || developerEffectiveState === 'disabled') return 'off';
+    if (developerEffectiveState.startsWith('active_')) {
+      return developerConfigSource === 'user_config' || developerModeEnabled === 'on' ? 'manual' : 'automatic';
+    }
+    return 'inactive';
+  })();
   const showDeveloperIdentity = developerIdentityStatus === 'ready' && Boolean(developerIdentityLogin);
   const showDeveloperAuthority =
     Boolean(developerAuthorityStatus) &&
@@ -651,6 +921,15 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const selectedCapability = React.useMemo(
     () => purposeCapabilities.find((item) => item.key === selectedCapabilityKey) ?? null,
     [purposeCapabilities, selectedCapabilityKey]
+  );
+  const selectedUpdateAction = selectedCapability?.availableActions.agent_package_update ?? null;
+  const selectedRepairAction = selectedCapability?.availableActions.agent_package_repair ?? null;
+  const selectedPreferenceAction = selectedCapability?.availableActions.agent_package_preferences_set ?? null;
+  const selectedUninstallAction = selectedCapability?.availableActions.agent_package_uninstall ?? null;
+  const selectedRepairFallbackAvailable = Boolean(
+    selectedCapability?.packageId &&
+    selectedCapability.repairAction?.actionId === 'agent_package_repair' &&
+    selectedCapability.repairAction.enabled === true
   );
   const selectedShortcut = selectedCapability?.packageId ? shortcutByPackageId.get(selectedCapability.packageId) : null;
   const selectedShortcutId = selectedShortcut?.shortcut_id ?? '';
@@ -722,21 +1001,71 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
   };
 
-  const executeLifecycleAction = (
-    item: CapabilityPurposeViewModel,
-    actionId: string,
-    payloadRefsOnlyJson: Record<string, unknown> = {}
-  ): Promise<boolean> => {
-    if (!item.packageId) return Promise.resolve(false);
-    const packageSelection =
-      actionId === 'agent_package_update'
-        ? {
-            package_id: item.packageId,
-            ...(item.manifestUrl ? { manifest_url: item.manifestUrl } : {}),
-            ...(!item.manifestUrl && item.registryUrl ? { registry_url: item.registryUrl } : {}),
-          }
-        : { package_id: item.packageId };
-    return executePackageAction(actionId, { ...packageSelection, ...payloadRefsOnlyJson });
+  const projectedActionPayload = (
+    action: CapabilityPackageActionViewModel,
+    activation: boolean,
+    explicitInput: Record<string, unknown> = {}
+  ): Record<string, unknown> => {
+    const payload = { ...action.payloadRefsOnlyJson, ...explicitInput };
+    if (activation) {
+      if (!payload.scope) payload.scope = 'workspace';
+      if (!payload.target_workspace && workspaceRootPath) payload.target_workspace = workspaceRootPath;
+    }
+    return payload;
+  };
+
+  const projectedActionMissingFields = (
+    action: CapabilityPackageActionViewModel,
+    payload: Record<string, unknown>
+  ): string[] => {
+    const hasValue = (field: string) =>
+      payload[field] !== undefined && payload[field] !== null && payload[field] !== '';
+    return action.requiredPayloadFields.filter((requirement) => {
+      const alternatives = requirement
+        .split(/\s+or\s+/i)
+        .map((field) => field.trim())
+        .filter(Boolean);
+      return alternatives.length === 0 || !alternatives.some(hasValue);
+    });
+  };
+
+  const projectedActionExecutable = (
+    action: CapabilityPackageActionViewModel,
+    options: { activation?: boolean; explicitInput?: Record<string, unknown> } = {}
+  ): boolean => {
+    const activation = options.activation === true;
+    if (activation && !workspaceRootPath) return false;
+    const payload = projectedActionPayload(action, activation, options.explicitInput);
+    if (activation && payload.scope !== 'workspace') return false;
+    return projectedActionMissingFields(action, payload).length === 0;
+  };
+
+  const executeProjectedAction = (
+    action: CapabilityPackageActionViewModel,
+    options: {
+      activation?: boolean;
+      explicitInput?: Record<string, unknown>;
+      danger?: boolean;
+    } = {}
+  ) => {
+    const activation = options.activation === true;
+    if (!projectedActionExecutable(action, options)) return;
+    const payload = projectedActionPayload(action, activation, options.explicitInput);
+    const execute = () => executePackageAction(action.actionId, payload);
+    if (!action.confirmationRequired) {
+      void execute();
+      return;
+    }
+    Modal.confirm({
+      title: t('settings.capabilitiesPage.packageManager.projectedActionConfirmTitle', {
+        action: capabilityProjectedActionLabel(action.actionId, t),
+      }),
+      content: t('settings.capabilitiesPage.packageManager.projectedActionConfirmContent'),
+      okButtonProps: options.danger ? { status: 'danger' } : undefined,
+      okText: capabilityProjectedActionLabel(action.actionId, t),
+      cancelText: t('common.cancel'),
+      onOk: execute,
+    });
   };
 
   const updateDeveloperMode = (enabled: 'auto' | 'on' | 'off') =>
@@ -745,9 +1074,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       developerSupervisorMode: developerSafeMaintenance ? 'developer_apply_safe' : 'external_observe',
     });
 
-  const updateDeveloperMaintenance = (enabled: boolean) =>
+  const updateDeveloperMaintenance = (enabled: 'auto' | 'off') =>
     executePackageAction('developer_supervisor', {
-      developerSupervisorMode: enabled ? 'developer_apply_safe' : 'external_observe',
+      developerSupervisorEnabled: enabled,
+      developerSupervisorMode: enabled === 'auto' ? 'developer_apply_safe' : 'external_observe',
     });
 
   const updatePackageSource = (item: CapabilityPurposeViewModel, source: 'auto' | 'managed' | 'developer') => {
@@ -758,43 +1088,49 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     });
   };
 
-  const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
-    if (!item.packageId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
-    Modal.confirm({
-      title: t('settings.capabilitiesPage.packageManager.uninstallConfirmTitle'),
-      content: t('settings.capabilitiesPage.packageManager.uninstallConfirmContent'),
-      okButtonProps: { status: 'danger' },
-      okText: t('settings.capabilitiesPage.packageManager.actions.uninstall'),
-      cancelText: t('common.cancel'),
-      onOk: () => executeLifecycleAction(item, 'agent_package_uninstall'),
-    });
+  const executeRepairAction = (item: CapabilityPurposeViewModel) => {
+    const projectedAction = item.availableActions.agent_package_repair;
+    if (projectedAction) {
+      executeProjectedAction(projectedAction);
+      return;
+    }
+    if (
+      item.packageId &&
+      item.repairAction?.actionId === 'agent_package_repair' &&
+      item.repairAction.enabled === true
+    ) {
+      void executePackageAction(item.repairAction.actionId, { package_id: item.packageId });
+    }
   };
 
   const executeShortcutPreferenceAction = async (
+    item: CapabilityPurposeViewModel,
     shortcutId: string,
     preferences: OplHomeShortcutPreferences
   ): Promise<boolean> => {
     if (packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return false;
     const shortcutOrder = getOplOrderedHomeAgentShortcuts();
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
-    if (!shortcut) return false;
+    const action = item.availableActions.agent_package_preferences_set;
+    if (!shortcut || !action) return false;
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
+    const payload = projectedActionPayload(action, false, {
+      shortcut_id: shortcut.shortcut_id,
+      visible: isOplHomeShortcutVisible(shortcut, preferences),
+      sort_order:
+        preferenceSortOrder >= 0
+          ? preferenceSortOrder
+          : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
+    });
+    if (projectedActionMissingFields(action, payload).length > 0) return false;
     const actionToken = Symbol(shortcutId);
     shortcutActionTokensRef.current.set(shortcutId, actionToken);
     setPendingShortcutIds((current) => new Set(current).add(shortcutId));
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: 'agent_package_preferences_set',
+        actionId: action.actionId,
         dryRun: false,
-        payloadRefsOnlyJson: {
-          package_id: shortcut.package_id,
-          shortcut_id: shortcut.shortcut_id,
-          visible: isOplHomeShortcutVisible(shortcut, preferences),
-          sort_order:
-            preferenceSortOrder >= 0
-              ? preferenceSortOrder
-              : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
-        },
+        payloadRefsOnlyJson: payload,
       });
       if (result.ok === false) throw new Error(result.error?.message || result.command);
       await appStateQuery.load('fast', { background: true });
@@ -815,21 +1151,21 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
   };
 
-  const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
+  const updateShortcutHidden = (item: CapabilityPurposeViewModel, shortcutId: string, hidden: boolean) => {
     if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return;
     const previousPreferences = getOplHomeShortcutPreferences();
     const wasHidden = previousPreferences.hiddenShortcutIds.includes(shortcutId);
     const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
-    void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
+    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((succeeded) => {
       if (!succeeded) setOplHomeShortcutHidden(shortcutId, wasHidden);
     });
   };
 
-  const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
+  const moveShortcut = (item: CapabilityPurposeViewModel, shortcutId: string, direction: -1 | 1) => {
     if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     const previousPreferences = getOplHomeShortcutPreferences();
     const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
-    void executeShortcutPreferenceAction(shortcutId, nextPreferences).then((succeeded) => {
+    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((succeeded) => {
       if (!succeeded) replaceOplHomeShortcutPreferences(previousPreferences);
     });
   };
@@ -842,21 +1178,26 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     setAdvancedDetailsOpen(true);
   };
 
-  const packageLifecycleDisabled = (item: CapabilityPurposeViewModel, actionId: string) => {
-    if (!item.packageId || isCapabilityDeveloperSource(item)) return true;
-    if (actionId === 'agent_package_update') return !item.manifestUrl && !item.registryUrl;
-    if (actionId === 'repair_dependency_closure') {
-      return !item.repairAction?.actionId || item.repairAction.enabled !== true;
-    }
-    if (actionId === 'agent_package_uninstall' && item.dependentGuard?.uninstallAllowed === false) return true;
-    return !item.packageLockRef;
-  };
-  const hasCapabilityIssue = purposeCapabilities.some((item) => item.availabilityStatus !== 'ready');
+  const hasCapabilityIssue =
+    Boolean(catalogError || catalogStaleReason) ||
+    purposeCapabilities.some((item) =>
+      ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
+    );
   const conversationReadyCount = purposeCapabilities.filter((item) => item.codexVisibility === 'visible').length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
     const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
     return shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
   }).length;
+  const workspaceActivationRequired =
+    !workspaceRootPath &&
+    purposeCapabilities.some((item) => capabilityRowAction(item)?.actionId === 'agent_package_activate');
+
+  const resetCatalogFilters = () => {
+    setCatalogSearch('');
+    setRoleFilter('all');
+    setStatusFilter('all');
+    setSourceFilter('all');
+  };
 
   const openAddCapability = () => {
     setManagementOpen(true);
@@ -940,30 +1281,80 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 </Typography.Text>
               </div>
               <div className='opl-settings-row__meta'>
-                <Switch
-                  size='small'
-                  checked={developerSafeMaintenance}
-                  loading={busyAction === 'developer_supervisor'}
-                  disabled={packageMutationBusy}
-                  onChange={(checked) => void updateDeveloperMaintenance(checked)}
-                  data-testid='opl-developer-profile-maintenance'
-                />
+                <div className='flex flex-col items-end gap-6px'>
+                  <Tag data-testid='opl-developer-profile-effective-state'>
+                    {t(
+                      `settings.capabilitiesPage.developerSource.effectiveStates.${developerMaintenanceEffectiveLabel}`
+                    )}
+                  </Tag>
+                  <Radio.Group
+                    type='button'
+                    size='small'
+                    value={developerMaintenanceChoice}
+                    disabled={packageMutationBusy}
+                    onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
+                    aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
+                    data-testid='opl-developer-profile-maintenance'
+                  >
+                    <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}</Radio>
+                    <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
+                  </Radio.Group>
+                </div>
               </div>
             </div>
           </div>
-          <div className='flex flex-wrap gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'>
+          <div className='grid gap-x-18px gap-y-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary sm:grid-cols-2'>
             <span>
               {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
               {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
             </span>
-            {showDeveloperIdentity && (
+            <span>
+              {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
+              {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
+                defaultValue: developerConfigSource,
+              })}
+            </span>
+            {developerInspectionPending && (
+              <span data-testid='opl-developer-profile-inspection-pending'>
+                {t('settings.capabilitiesPage.developerSource.inspectionPending')}
+              </span>
+            )}
+            {!developerInspectionPending && showDeveloperIdentity && (
               <span>
                 {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
               </span>
             )}
-            {showDeveloperAuthority && (
+            {!developerInspectionPending && showDeveloperAuthority && (
               <span>
-                {t('settings.capabilitiesPage.developerSource.authority')}: {directWriteRepoCount} / {requiredRepoCount}
+                {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
+                {t('settings.capabilitiesPage.developerSource.authoritySummary', {
+                  direct: String(directWriteRepoCount),
+                  pullRequest: String(prRouteRepoCount),
+                  total: String(requiredRepoCount),
+                })}
+              </span>
+            )}
+            {developerMaintenanceProtection.status === 'ready' && (
+              <span data-testid='opl-developer-profile-protection'>
+                {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
+                {t('settings.capabilitiesPage.developerSource.protectionSummary', {
+                  dirty:
+                    developerDirtyProtection.requires_isolated_worktree === true
+                      ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
+                      : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                  branch:
+                    developerBranchProtection.direct_push_to_protected_branch === false
+                      ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
+                      : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                })}
+              </span>
+            )}
+            {!developerInspectionPending && developerInactiveReason && (
+              <span data-testid='opl-developer-profile-inactive-reason'>
+                {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
+                {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
+                  defaultValue: developerInactiveReason,
+                })}
               </span>
             )}
           </div>
@@ -974,7 +1365,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           id='availability'
           data-testid='agent-package-catalog'
         >
-          {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
+          {hasCapabilityIssue && <span data-testid='settings-agents-exception' aria-hidden='true' />}
           <span id='home-visibility' aria-hidden='true' />
           <div className='opl-settings-section__header'>
             <div>
@@ -985,13 +1376,133 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 {t('settings.capabilitiesPage.packageManager.catalogDescription')}
               </Typography.Text>
             </div>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.packageCount', {
-                count: purposeCapabilities.length,
-                total: purposeCapabilities.length,
-              })}
-            </Typography.Text>
+            <div className='flex items-center gap-8px'>
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.packageManager.packageCount', {
+                  count: visibleCapabilities.length,
+                  total: purposeCapabilities.length,
+                })}
+              </Typography.Text>
+              <span data-testid='settings-agents-registry-refresh'>
+                <OplRefreshIconButton
+                  size='small'
+                  label={t('settings.capabilitiesPage.packageManager.refreshRegistry')}
+                  loading={busyAction === 'refresh_registry' || catalogRefreshing}
+                  disabled={packageMutationBusy}
+                  onClick={() => executePackageAction('refresh_registry', { registry_url: agentPackageRegistryUrl })}
+                  data-testid='agent-package-refresh-registry'
+                />
+              </span>
+            </div>
           </div>
+
+          <div className='grid gap-8px border-t border-solid border-[var(--border-base)] px-16px py-12px md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(132px,0.45fr))_auto]'>
+            <Input
+              allowClear
+              value={catalogSearch}
+              onChange={setCatalogSearch}
+              placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
+              aria-label={t('settings.capabilitiesPage.packageManager.searchLabel')}
+              data-testid='settings-agents-catalog-search'
+            />
+            <Select
+              value={roleFilter}
+              onChange={setRoleFilter}
+              aria-label={t('settings.capabilitiesPage.packageManager.roleFilter')}
+              data-testid='settings-agents-role-filter'
+            >
+              <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allRoles')}</Select.Option>
+              {roleOptions.map((role) => (
+                <Select.Option key={role} value={role}>
+                  {formatCapabilityDisplayToken(role)}
+                </Select.Option>
+              ))}
+            </Select>
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              aria-label={t('settings.capabilitiesPage.packageManager.statusFilter')}
+              data-testid='settings-agents-status-filter'
+            >
+              <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allStatuses')}</Select.Option>
+              {statusOptions.map((status) => (
+                <Select.Option key={status} value={status}>
+                  {capabilityCatalogStatusLabel(status, t)}
+                </Select.Option>
+              ))}
+            </Select>
+            <Select
+              value={sourceFilter}
+              onChange={setSourceFilter}
+              aria-label={t('settings.capabilitiesPage.packageManager.sourceFilter')}
+              data-testid='settings-agents-source-filter'
+            >
+              <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allSources')}</Select.Option>
+              {sourceOptions.map((source) => (
+                <Select.Option key={source} value={source}>
+                  {t(`settings.capabilitiesPage.sourceLabels.${source}`)}
+                </Select.Option>
+              ))}
+            </Select>
+            <Button
+              disabled={!hasActiveCatalogFilters}
+              onClick={resetCatalogFilters}
+              data-testid='settings-agents-reset-filters'
+            >
+              {t('settings.capabilitiesPage.packageManager.resetFilters')}
+            </Button>
+          </div>
+
+          {(catalogLoading || catalogRefreshing) && (
+            <div
+              className='border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+              data-state={catalogLoading ? 'loading' : 'refreshing'}
+              data-testid='settings-agents-loading'
+            >
+              {t(
+                catalogLoading
+                  ? 'settings.capabilitiesPage.packageManager.loading'
+                  : 'settings.capabilitiesPage.packageManager.refreshing'
+              )}
+            </div>
+          )}
+          {catalogStaleReason && (
+            <div
+              className='border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+              data-testid='settings-agents-stale'
+            >
+              {t('settings.capabilitiesPage.packageManager.staleWithReason', { reason: catalogStaleReason })}
+            </div>
+          )}
+          {catalogError && (
+            <div
+              className='flex flex-wrap items-center justify-between gap-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-[rgb(var(--red-6))]'
+              data-testid='settings-agents-error'
+            >
+              <span>{t('settings.capabilitiesPage.packageManager.failed', { reason: catalogError })}</span>
+              <Button
+                size='mini'
+                onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
+                data-testid='settings-agents-retry'
+              >
+                {t('settings.retry')}
+              </Button>
+            </div>
+          )}
+          {workspaceActivationRequired && (
+            <div
+              className='flex flex-wrap items-center justify-between gap-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+              data-disabled-reason='workspace_root_not_configured'
+              data-testid='settings-agents-workspace-required'
+            >
+              <span id='agent-package-workspace-required'>
+                {t('settings.capabilitiesPage.packageManager.workspaceRequired')}
+              </span>
+              <Button size='mini' onClick={() => navigate('/settings/workspace#workspace')}>
+                {t('settings.capabilitiesPage.packageManager.openWorkspace')}
+              </Button>
+            </div>
+          )}
 
           <div
             className='flex flex-wrap items-center gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
@@ -999,7 +1510,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           >
             <span data-testid='capability-summary-catalog'>
               {t('settings.capabilitiesPage.packageManager.packageCount', {
-                count: purposeCapabilities.length,
+                count: visibleCapabilities.length,
                 total: purposeCapabilities.length,
               })}
             </span>
@@ -1020,11 +1531,19 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           </div>
 
           <div className='opl-settings-list'>
-            {purposeCapabilities.map((item) => {
+            {visibleCapabilities.map((item) => {
               const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
               const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
               const sourceLabel =
                 capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
+              const rowAction = capabilityRowAction(item);
+              const rowActivation = rowAction?.actionId === 'agent_package_activate';
+              const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
+              const rowActionDisabled = Boolean(
+                packageMutationBusy ||
+                (rowActivation && !workspaceRootPath) ||
+                (rowAction && rowActionPayload && projectedActionMissingFields(rowAction, rowActionPayload).length > 0)
+              );
               return (
                 <div
                   className={`opl-settings-row opl-settings-capability-row ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
@@ -1042,6 +1561,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                       <Typography.Text className='block break-words text-13px text-t-secondary'>
                         {item.description}
                       </Typography.Text>
+                      <div className='mt-4px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
+                        {item.packageRole && <Tag>{formatCapabilityDisplayToken(item.packageRole)}</Tag>}
+                        {item.publisher && <span>{item.publisher}</span>}
+                        {item.version && <span>{item.version}</span>}
+                        {item.trustState && <span>{formatCapabilityDisplayToken(item.trustState)}</span>}
+                      </div>
                     </div>
                   </div>
                   <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
@@ -1080,8 +1605,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                           size='small'
                           checked={shortcutVisible}
                           loading={pendingShortcutIds.has(shortcut.shortcut_id)}
-                          disabled={packageActionBusy || pendingShortcutIds.has(shortcut.shortcut_id)}
-                          onChange={(checked) => updateShortcutHidden(shortcut.shortcut_id, !checked)}
+                          disabled={
+                            packageActionBusy ||
+                            pendingShortcutIds.has(shortcut.shortcut_id) ||
+                            !item.availableActions.agent_package_preferences_set
+                          }
+                          onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
                           data-testid={`agent-package-home-toggle-details-${item.key}`}
                         />
                       ) : (
@@ -1090,6 +1619,24 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                         </Typography.Text>
                       )}
                     </div>
+                    {rowAction && (
+                      <Button
+                        size='small'
+                        type='primary'
+                        loading={busyAction === rowAction.actionId}
+                        disabled={rowActionDisabled}
+                        aria-describedby={
+                          rowActivation && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
+                        }
+                        data-disabled-reason={
+                          rowActivation && !workspaceRootPath ? 'workspace_root_not_configured' : undefined
+                        }
+                        onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
+                        data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
+                      >
+                        {capabilityProjectedActionLabel(rowAction.actionId, t)}
+                      </Button>
+                    )}
                     <Button
                       size='small'
                       type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
@@ -1104,11 +1651,23 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 </div>
               );
             })}
-            {purposeCapabilities.length === 0 && (
-              <div className='opl-settings-empty' data-testid='agent-package-empty'>
+            {catalogEmpty && (
+              <div className='opl-settings-empty' data-testid='settings-agents-empty'>
+                <span data-testid='agent-package-empty'>
+                  <Typography.Text className='text-t-secondary'>
+                    {t('settings.capabilitiesPage.packageManager.empty')}
+                  </Typography.Text>
+                </span>
+              </div>
+            )}
+            {catalogFilterEmpty && (
+              <div className='opl-settings-empty' data-testid='settings-agents-filter-empty'>
                 <Typography.Text className='text-t-secondary'>
-                  {t('settings.capabilitiesPage.packageManager.empty')}
+                  {t('settings.capabilitiesPage.packageManager.noFilterResults')}
                 </Typography.Text>
+                <Button size='small' className='mt-8px' onClick={resetCatalogFilters}>
+                  {t('settings.capabilitiesPage.packageManager.resetFilters')}
+                </Button>
               </div>
             )}
           </div>
@@ -1286,7 +1845,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     <Button
                       size='mini'
                       disabled={packageMutationBusy || selectedShortcutIndex <= 0}
-                      onClick={() => moveShortcut(selectedShortcutId, -1)}
+                      onClick={() => moveShortcut(selectedCapability, selectedShortcutId, -1)}
                       data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
                     >
                       {t('settings.capabilitiesPage.packageManager.moveUp')}
@@ -1298,7 +1857,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                         selectedShortcutIndex < 0 ||
                         selectedShortcutIndex >= orderedShortcuts.length - 1
                       }
-                      onClick={() => moveShortcut(selectedShortcutId, 1)}
+                      onClick={() => moveShortcut(selectedCapability, selectedShortcutId, 1)}
                       data-testid={`agent-package-home-down-details-${selectedCapability.key}`}
                     >
                       {t('settings.capabilitiesPage.packageManager.moveDown')}
@@ -1308,93 +1867,116 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
                 {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
 
-                <div data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
-                  <Typography.Text className='block text-13px font-600 text-t-primary'>
-                    {t('settings.capabilitiesPage.packageManager.management')}
-                  </Typography.Text>
-                  <Space wrap size={6} className='mt-8px'>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_update'}
-                      disabled={
-                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_update')
-                      }
-                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
-                      data-testid={`agent-package-update-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.update')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === (selectedCapability.repairAction?.actionId ?? 'agent_package_repair')}
-                      disabled={
-                        packageMutationBusy ||
-                        packageLifecycleDisabled(
-                          selectedCapability,
-                          selectedCapability.repairAction?.actionId ??
-                            (selectedCapability.repairAction ? 'repair_dependency_closure' : 'agent_package_repair')
-                        )
-                      }
-                      onClick={() =>
-                        void executeLifecycleAction(
-                          selectedCapability,
-                          selectedCapability.repairAction?.actionId ??
-                            (selectedCapability.repairAction ? 'repair_dependency_closure' : 'agent_package_repair')
-                        )
-                      }
-                      data-testid={`agent-package-repair-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.repair')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={
-                        packageMutationBusy ||
-                        !selectedCapability.packageLockRef ||
-                        (selectedCapability.enabled !== false &&
-                          selectedCapability.dependentGuard?.disableAllowed === false)
-                      }
-                      onClick={() =>
-                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                          exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
-                        })
-                      }
-                      data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.enabled === false
-                        ? t('settings.capabilitiesPage.packageManager.actions.enable')
-                        : t('settings.capabilitiesPage.packageManager.actions.disable')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={packageMutationBusy || !selectedCapability.packageLockRef}
-                      onClick={() =>
-                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                          exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
-                        })
-                      }
-                      data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.hidden === true
-                        ? t('settings.capabilitiesPage.packageManager.actions.unhide')
-                        : t('settings.capabilitiesPage.packageManager.actions.hide')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      status='danger'
-                      loading={busyAction === 'agent_package_uninstall'}
-                      disabled={
-                        packageMutationBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')
-                      }
-                      onClick={() => confirmUninstallPackage(selectedCapability)}
-                      data-testid={`agent-package-uninstall-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
-                    </Button>
-                  </Space>
-                </div>
+                {(selectedUpdateAction ||
+                  selectedRepairAction ||
+                  selectedRepairFallbackAvailable ||
+                  selectedPreferenceAction ||
+                  selectedUninstallAction) && (
+                  <div data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
+                    <Typography.Text className='block text-13px font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.packageManager.management')}
+                    </Typography.Text>
+                    <Space wrap size={6} className='mt-8px'>
+                      {selectedUpdateAction && (
+                        <Button
+                          size='mini'
+                          loading={busyAction === selectedUpdateAction.actionId}
+                          disabled={packageMutationBusy || !projectedActionExecutable(selectedUpdateAction)}
+                          onClick={() => executeProjectedAction(selectedUpdateAction)}
+                          data-testid={`agent-package-update-${selectedCapability.key}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.actions.update')}
+                        </Button>
+                      )}
+                      {(selectedRepairAction || selectedRepairFallbackAvailable) && (
+                        <Button
+                          size='mini'
+                          loading={
+                            busyAction === (selectedRepairAction?.actionId ?? selectedCapability.repairAction?.actionId)
+                          }
+                          disabled={
+                            packageMutationBusy ||
+                            (selectedRepairAction ? !projectedActionExecutable(selectedRepairAction) : false)
+                          }
+                          onClick={() => executeRepairAction(selectedCapability)}
+                          data-testid={`agent-package-repair-${selectedCapability.key}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.actions.repair')}
+                        </Button>
+                      )}
+                      {selectedPreferenceAction && selectedCapability.enabled !== null && (
+                        <Button
+                          size='mini'
+                          loading={busyAction === selectedPreferenceAction.actionId}
+                          disabled={
+                            packageMutationBusy ||
+                            !projectedActionExecutable(selectedPreferenceAction, {
+                              explicitInput: {
+                                exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
+                              },
+                            }) ||
+                            (selectedCapability.enabled !== false &&
+                              selectedCapability.dependentGuard?.disableAllowed === false)
+                          }
+                          onClick={() =>
+                            executeProjectedAction(selectedPreferenceAction, {
+                              explicitInput: {
+                                exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
+                              },
+                            })
+                          }
+                          data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
+                        >
+                          {selectedCapability.enabled === false
+                            ? t('settings.capabilitiesPage.packageManager.actions.enable')
+                            : t('settings.capabilitiesPage.packageManager.actions.disable')}
+                        </Button>
+                      )}
+                      {selectedPreferenceAction && selectedCapability.enabled === true && (
+                        <Button
+                          size='mini'
+                          loading={busyAction === selectedPreferenceAction.actionId}
+                          disabled={
+                            packageMutationBusy ||
+                            !projectedActionExecutable(selectedPreferenceAction, {
+                              explicitInput: {
+                                exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
+                              },
+                            })
+                          }
+                          onClick={() =>
+                            executeProjectedAction(selectedPreferenceAction, {
+                              explicitInput: {
+                                exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
+                              },
+                            })
+                          }
+                          data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
+                        >
+                          {selectedCapability.hidden === true
+                            ? t('settings.capabilitiesPage.packageManager.actions.show')
+                            : t('settings.capabilitiesPage.packageManager.actions.hide')}
+                        </Button>
+                      )}
+                      {selectedUninstallAction && (
+                        <Button
+                          size='mini'
+                          status='danger'
+                          loading={busyAction === selectedUninstallAction.actionId}
+                          disabled={
+                            packageMutationBusy ||
+                            !projectedActionExecutable(selectedUninstallAction) ||
+                            selectedCapability.dependentGuard?.uninstallAllowed === false
+                          }
+                          onClick={() => executeProjectedAction(selectedUninstallAction, { danger: true })}
+                          data-testid={`agent-package-uninstall-${selectedCapability.key}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
+                        </Button>
+                      )}
+                    </Space>
+                  </div>
+                )}
 
                 <Button
                   size='small'
@@ -1503,24 +2085,15 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             id='capability-management'
             open={managementOpen}
             onToggle={(event) => setManagementOpen(event.currentTarget.open)}
-            data-testid='settings-capabilities-technical-details'
+            data-testid='settings-agents-technical-details'
           >
+            <span data-testid='settings-capabilities-technical-details' aria-hidden='true' />
             <span data-testid='capability-management-entry' aria-hidden='true' />
             <summary className='cursor-pointer text-12px font-500 text-t-secondary'>
               {t('settings.capabilitiesPage.packageManager.management', { defaultValue: 'Manage capabilities' })}
             </summary>
             <div className='mt-10px flex flex-col gap-10px'>
-              <Space wrap size={8}>
-                <OplRefreshIconButton
-                  size='small'
-                  label={t('settings.capabilitiesPage.packageManager.refreshRegistry')}
-                  loading={busyAction === 'refresh_registry'}
-                  disabled={packageMutationBusy}
-                  onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
-                  data-testid='agent-package-refresh-registry'
-                />
-                <span data-testid='agent-package-add-capability' aria-hidden='true' />
-              </Space>
+              <span data-testid='agent-package-add-capability' aria-hidden='true' />
               {advancedAddOpen && (
                 <div
                   className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_auto]'
@@ -1641,7 +2214,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             key='opl_flow_managed'
             title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Recommended by OPL Flow' })}
           >
-            <div data-testid='settings-capabilities-opl-flow-managed'>
+            <div id='opl-flow-managed' data-testid='settings-capabilities-opl-flow-managed'>
               <div data-testid='settings-capabilities-technical-details'>
                 <SkillsHubSettings
                   withWrapper={false}
@@ -1657,7 +2230,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             key='manual_and_third_party'
             title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Local capabilities' })}
           >
-            <div className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
+            <div id='third-party' className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
               <SkillsHubSettings
                 withWrapper={false}
                 displayGroup='manual'
@@ -1676,6 +2249,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 </div>
                 <ToolsModalContent />
               </section>
+              <div data-testid='settings-capabilities-voice-input'>
+                <VoiceInputSection />
+              </div>
             </div>
           </Tabs.TabPane>
         </Tabs>
@@ -1687,9 +2263,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 const CapabilitiesSettings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'skills' || tabParam === 'tools' || tabParam === 'assistants') return 'manual_and_third_party';
-    return isCapabilitiesTab(tabParam) ? tabParam : 'opl_flow_managed';
+    return (
+      normalizeCapabilitiesTab(searchParams.get('tab')) ??
+      normalizeCapabilitiesTab(searchParams.get('section')) ??
+      'opl_flow_managed'
+    );
   });
 
   useEffect(() => {
@@ -1707,8 +2285,9 @@ const CapabilitiesSettings: React.FC = () => {
       if (activeTab !== 'manual_and_third_party') setActiveTab('manual_and_third_party');
       return;
     }
-    if (isCapabilitiesTab(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
+    const routeTab = normalizeCapabilitiesTab(tabParam) ?? normalizeCapabilitiesTab(searchParams.get('section'));
+    if (routeTab && routeTab !== activeTab) {
+      setActiveTab(routeTab);
     }
   }, [searchParams, activeTab]);
 

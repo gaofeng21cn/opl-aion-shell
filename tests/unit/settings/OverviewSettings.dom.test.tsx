@@ -5,11 +5,8 @@ import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSetting
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  workspaceRoot: '/Users/example/OPL Workspace' as string | null,
   modelAccessReady: true,
-  temporalStatus: 'ready',
-  moduleSourceMode: 'sibling_workspace',
-  moduleStatus: 'dirty',
+  issueQueue: [] as Array<Record<string, unknown>>,
   gatewayConnectionMode: 'account' as 'none' | 'manual_key' | 'account',
   gatewayStatus: 'connected',
   gatewayError: null as string | null,
@@ -32,21 +29,15 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             model_access_ready: mocks.modelAccessReady,
           },
         },
-        provider: {
-          temporal: { health_status: mocks.temporalStatus },
-        },
-        paths: {
-          workspace_root_path: mocks.workspaceRoot,
-        },
-        modules: {
-          summary: {
-            default_modules_count: 4,
-            healthy_default_modules_count: 3,
-          },
-          source: { mode: mocks.moduleSourceMode },
-          items: [{ module_id: 'medautoscience', status: mocks.moduleStatus }],
-        },
         settings_control_center: {
+          status_summary: {
+            model_access: mocks.modelAccessReady ? 'ready' : 'attention_required',
+            codex_version: '0.142.4',
+            temporal_provider: 'ready',
+            runtime_source_carrier_health: '5/5',
+            issue_count: mocks.issueQueue.length,
+          },
+          issue_queue: mocks.issueQueue,
           app_settings_read_model: {
             opl_gateway_account: {
               surface_kind: 'opl_gateway_account_read_model.v1',
@@ -116,6 +107,7 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.attention.description': 'Only blocking items are shown.',
         'settings.overviewPage.attention.codexTitle': 'Restore Codex access',
         'settings.overviewPage.attention.capabilitiesTitle': 'Check capability packages',
+        'settings.overviewPage.attention.capabilitiesDescription': 'Review the affected capability settings.',
         'settings.overviewPage.codexTitle': 'Codex CLI',
         'settings.overviewPage.codexDescription': 'Codex is the execution entry.',
         'settings.overviewPage.quickEntries.modelAccount.description': 'Check Codex and model access.',
@@ -131,6 +123,7 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.gateway.status.manualKey': 'Manual key',
         'settings.overviewPage.gateway.status.notConnected': 'Not connected',
         'settings.overviewPage.gateway.status.needsAttention': 'Needs attention',
+        'settings.overviewPage.gateway.metrics.availability': 'Availability',
         'settings.overviewPage.technical.description': 'Compact read-only details.',
         'settings.overviewPage.technical.codex': 'Codex',
         'settings.overviewPage.technical.gatewayFreshness': 'Gateway data',
@@ -154,6 +147,7 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
         'settings.oplEnvironmentPage.healthSummary.values.count': `${options?.count ?? 0} item(s)`,
         'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready ?? 0} / ${options?.total ?? 0} ready`,
+        'settings.oplEnvironmentPage.status.unknown': 'Unknown',
       };
       if (key === 'settings.overviewPage.overall.attentionCount') return `${options?.count ?? 0} item(s)`;
       return labels[key] ?? String(options?.defaultValue ?? key);
@@ -164,17 +158,14 @@ vi.mock('react-i18next', () => ({
 describe('OverviewSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.workspaceRoot = '/Users/example/OPL Workspace';
     mocks.modelAccessReady = true;
-    mocks.temporalStatus = 'ready';
-    mocks.moduleSourceMode = 'sibling_workspace';
-    mocks.moduleStatus = 'dirty';
+    mocks.issueQueue = [];
     mocks.gatewayConnectionMode = 'account';
     mocks.gatewayStatus = 'connected';
     mocks.gatewayError = null;
   });
 
-  it('shows Codex, Gateway account usage, and compact technical details on the overview', () => {
+  it('shows compact Gateway usage and the direct technical readback needed for an overview', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-icon')).toBeInTheDocument();
@@ -184,13 +175,22 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-gateway-account')).toHaveTextContent('Gao Feng');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('1.25M');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('2.5 USD');
-    expect(screen.getByTestId('settings-overview-technical-details')).toHaveTextContent('Background service');
-    expect(screen.queryByText('/Users/example/OPL Workspace')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('42 USD');
+    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('AvailabilityConnected');
+    expect(screen.getByTestId('settings-overview-technical-codex')).toHaveTextContent('0.142.4 · Connected');
+    expect(screen.getByTestId('settings-overview-technical-background')).toHaveTextContent('ready');
+    expect(screen.getByTestId('settings-overview-technical-capabilities')).toHaveTextContent('5/5');
     expect(screen.queryByTestId('settings-overview-diagnostics-action')).not.toBeInTheDocument();
   });
 
-  it('does not treat a missing work directory as an overview failure', () => {
-    mocks.workspaceRoot = null;
+  it('does not treat an informational Framework issue as an actionable exception', () => {
+    mocks.issueQueue = [
+      {
+        issue_id: 'developer_profile_active',
+        severity: 'info',
+        recommended_action_id: 'settings_repair_model_access',
+      },
+    ];
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
@@ -208,23 +208,39 @@ describe('OverviewSettings', () => {
   });
 
   it('routes an actionable capability issue to Maintenance', () => {
-    mocks.moduleSourceMode = 'managed';
+    mocks.issueQueue = [
+      {
+        issue_id: 'runtime_source_carrier_attention_required',
+        severity: 'warning',
+        recommended_action_id: 'settings_sync_capabilities',
+      },
+    ];
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=packages');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/capabilities');
   });
 
   it('prioritizes Codex access when access and background services both fail', () => {
     mocks.modelAccessReady = false;
-    mocks.temporalStatus = 'attention_required';
-    mocks.moduleStatus = 'ready';
+    mocks.issueQueue = [
+      {
+        issue_id: 'model_access_manual_required',
+        severity: 'warning',
+        recommended_action_id: 'settings_configure_webui_api_key',
+      },
+      {
+        issue_id: 'provider_failed_with_repair',
+        severity: 'error',
+        recommended_action_id: 'settings_sync_capabilities',
+      },
+    ];
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('2 item(s)');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/gateway');
     expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
   });
 
@@ -232,6 +248,6 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     fireEvent.click(within(screen.getByTestId('settings-overview-card-gateway')).getByRole('button', { name: 'Open' }));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/gateway');
   });
 });

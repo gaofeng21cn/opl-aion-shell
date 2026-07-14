@@ -6,29 +6,18 @@
 
 import React from 'react';
 import { Button, Typography } from '@arco-design/web-react';
-import { faCircleInfo, faCloud, faGaugeHigh, faTerminal } from '@fortawesome/free-solid-svg-icons';
+import { faCloud, faGaugeHigh, faTerminal } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
-  buildAccessProjection,
   formatGatewayObservedAt,
   formatGatewayTokenCount,
   gatewayAccountInitials,
   readGatewayAccountProjection,
 } from '../accessProjection';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import { isReadyStatus, moduleRecords, moduleSource, moduleStatus } from './runtimeStateView';
-
-const DEVELOPER_SOURCE_MODES = new Set([
-  'developer_checkout',
-  'developer_mode',
-  'env_override',
-  'local_checkout',
-  'sibling_workspace',
-  'source_checkout',
-]);
 
 type OverviewSettingsProps = {
   withWrapper?: boolean;
@@ -42,9 +31,19 @@ type AttentionItem = {
   route: string;
 };
 
-function formatGatewayNumber(value: number | null | undefined, locale?: string): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
-  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
+function issueSettingsRoute(issue: Record<string, unknown>): string {
+  const issueId = oplString(issue.issue_id) ?? '';
+  const actionId = oplString(issue.recommended_action_id) ?? '';
+  if (issueId === 'provider_failed_with_repair') return '/settings/environment';
+  if (actionId === 'settings_configure_webui_api_key' || actionId === 'settings_repair_model_access') {
+    return '/settings/gateway';
+  }
+  if (actionId === 'settings_verify_workspace') return '/settings/workspace';
+  if (actionId === 'settings_sync_capabilities') return '/settings/capabilities';
+  if (actionId === 'settings_apply_opl_packages' || actionId === 'agent_package_activate') return '/settings/agents';
+  if (actionId === 'settings_check_app_update') return '/settings/about';
+  if (actionId === 'settings_prune_runtime_roots_dry_run') return '/settings/storage';
+  return '/settings/environment';
 }
 
 const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true }) => {
@@ -52,32 +51,26 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
-  const core = oplRecord(appState.core);
-  const provider = oplRecord(appState.provider);
-  const temporal = oplRecord(provider.temporal);
-  const modules = oplRecord(appState.modules);
-  const modulesSummary = oplRecord(modules.summary);
-  const moduleItems = moduleRecords(modules.items ?? modules.modules);
-  const totalModules = Number(modulesSummary.default_modules_count ?? modulesSummary.total ?? 0);
-  const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
-  const modulesSourceMode = oplString(oplRecord(modules.source).mode) ?? oplString(modules.source);
-  const developerSourceActive =
-    Boolean(modulesSourceMode && DEVELOPER_SOURCE_MODES.has(modulesSourceMode)) ||
-    moduleItems.some((module) => {
-      const source = moduleSource(module);
-      return Boolean(source && DEVELOPER_SOURCE_MODES.has(source));
-    });
-  const actionableModuleIssue = moduleItems.some((module) => {
-    const source = moduleSource(module) ?? modulesSourceMode;
-    return !isReadyStatus(moduleStatus(module)) && !(source && DEVELOPER_SOURCE_MODES.has(source));
+  const coreCodex = oplRecord(oplRecord(appState.core).codex);
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const statusSummary = oplRecord(settingsControlCenter.status_summary);
+  const issueQueue = oplRecordList(settingsControlCenter.issue_queue);
+  const actionableIssues = issueQueue.filter((issue) => {
+    const severity = oplString(issue.severity);
+    return severity !== 'info' && oplString(issue.issue_id) !== 'developer_profile_active';
   });
-  const modulesNeedAction =
-    actionableModuleIssue ||
-    (moduleItems.length === 0 && totalModules > 0 && readyModules < totalModules && !developerSourceActive);
-
-  const { cards: accessCards } = buildAccessProjection(appState, t);
-  const codexCard = accessCards.find((card) => card.key === 'model');
-  const modelAccessCard = accessCards.find((card) => card.key === 'account');
+  const codexVersion = oplString(statusSummary.codex_version) ?? oplString(coreCodex.version);
+  const modelAccessStatus = oplString(statusSummary.model_access);
+  const codexReady =
+    modelAccessStatus === 'ready' ||
+    (coreCodex.installed === true &&
+      coreCodex.model_access_ready === true &&
+      oplString(coreCodex.version_status) !== 'incompatible');
+  const codexNeedsAction =
+    (Boolean(modelAccessStatus) && modelAccessStatus !== 'ready') ||
+    coreCodex.installed === false ||
+    coreCodex.model_access_ready === false ||
+    oplString(coreCodex.version_status) === 'incompatible';
   const gatewayAccount = readGatewayAccountProjection(appState);
   const gatewayConnected = Boolean(
     gatewayAccount?.connection_mode === 'account' && gatewayAccount.account_card_visible && gatewayAccount.account
@@ -89,59 +82,41 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       gatewayAccount.status === 'disconnect_pending' ||
       gatewayAccount.freshness.last_error_code)
   );
-  const accessNeedsAction = codexCard?.tone === 'orange' || modelAccessCard?.tone === 'orange' || gatewayNeedsAction;
-  const temporalStatus =
-    oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status);
-  const temporalNeedsAction = Boolean(temporalStatus && !isReadyStatus(temporalStatus));
-  const attentionCount = Number(accessNeedsAction) + Number(temporalNeedsAction) + Number(modulesNeedAction);
+  const attentionItems: AttentionItem[] = actionableIssues.map((issue, index) => {
+    const issueId = oplString(issue.issue_id) ?? `issue-${index}`;
+    const route = issueSettingsRoute(issue);
+    const isModelAccessIssue = route === '/settings/gateway';
+    const isProviderIssue = issueId === 'provider_failed_with_repair';
+    return {
+      key: issueId,
+      title: isModelAccessIssue
+        ? t('settings.overviewPage.attention.codexTitle')
+        : isProviderIssue
+          ? t('settings.overviewPage.quickEntries.localServices.title')
+          : t('settings.overviewPage.attention.capabilitiesTitle'),
+      description: isModelAccessIssue
+        ? t('settings.overviewPage.quickEntries.modelAccount.description')
+        : isProviderIssue
+          ? t('settings.overviewPage.quickEntries.localServices.description')
+          : t('settings.overviewPage.attention.capabilitiesDescription'),
+      label: t('common.open'),
+      route,
+    };
+  });
+  const attentionCount = attentionItems.length;
   const overviewNeedsAction = attentionCount > 0;
-
-  const attentionItems = [
-    accessNeedsAction
-      ? {
-          key: 'codex-access',
-          title: t('settings.overviewPage.attention.codexTitle'),
-          description: t('settings.overviewPage.quickEntries.modelAccount.description'),
-          label: t('common.open'),
-          route: '/settings/access',
-        }
-      : null,
-    temporalNeedsAction
-      ? {
-          key: 'local-services',
-          title: t('settings.overviewPage.quickEntries.localServices.title'),
-          description: t('settings.overviewPage.quickEntries.localServices.description'),
-          label: t('settings.overviewPage.actions.openRuntimeSettings'),
-          route: '/settings/environment',
-        }
-      : null,
-    modulesNeedAction
-      ? {
-          key: 'capabilities',
-          title: t('settings.overviewPage.attention.capabilitiesTitle'),
-          description: t('settings.oplEnvironmentPage.modulesReadyCount', {
-            ready: readyModules,
-            total: totalModules,
-          }),
-          label: t('settings.overviewPage.actions.openRuntimeSettings'),
-          route: '/settings/environment?section=packages',
-        }
-      : null,
-  ].filter((item): item is AttentionItem => item !== null);
   const nextAction = attentionItems[0] ?? null;
 
-  const codexStatusLabel =
-    codexCard?.tone === 'green'
-      ? t('settings.accessPage.statusLabels.connected')
-      : codexCard?.tone === 'orange'
-        ? t('settings.accessPage.statusLabels.needsAttention')
-        : t('settings.accessPage.statusLabels.unknown');
-  const codexStatusClass =
-    codexCard?.tone === 'green'
-      ? 'opl-settings-status--ready'
-      : codexCard?.tone === 'orange'
-        ? 'opl-settings-status--attention'
-        : '';
+  const codexStatusLabel = codexReady
+    ? t('settings.accessPage.statusLabels.connected')
+    : codexNeedsAction
+      ? t('settings.accessPage.statusLabels.needsAttention')
+      : t('settings.accessPage.statusLabels.unknown');
+  const codexStatusClass = codexReady
+    ? 'opl-settings-status--ready'
+    : codexNeedsAction
+      ? 'opl-settings-status--attention'
+      : '';
   const gatewayStatusLabel = gatewayNeedsAction
     ? t('settings.overviewPage.gateway.status.needsAttention')
     : gatewayConnected
@@ -154,31 +129,40 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     : gatewayConnected || gatewayAccount?.connection_mode === 'manual_key'
       ? 'opl-settings-status--ready'
       : '';
-  const gatewayObservedAt = formatGatewayObservedAt(
-    gatewayAccount?.freshness.observed_at ?? null,
-    i18n.resolvedLanguage
-  );
   const gatewayAccountName =
     gatewayAccount?.account?.display_name ||
     gatewayAccount?.account?.email ||
     t('settings.accessPage.gatewayAccount.unknownAccount');
-
+  const gatewayObservedAt = formatGatewayObservedAt(
+    gatewayAccount?.freshness.observed_at ?? null,
+    i18n.resolvedLanguage
+  );
+  const formatGatewayAmount = (value: number | null | undefined, currency: string | null | undefined): string => {
+    if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+    const amount = new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 2 }).format(value);
+    return `${amount}${currency ? ` ${currency}` : ''}`;
+  };
+  const technicalUnknown = t('settings.oplEnvironmentPage.status.unknown');
   const technicalRows = [
     {
+      id: 'codex',
       label: t('settings.overviewPage.technical.codex'),
-      value: codexCard?.detail || t('settings.accessPage.statusLabels.unknown'),
+      value: [codexVersion, codexStatusLabel].filter(Boolean).join(' · ') || technicalUnknown,
     },
     {
+      id: 'gateway',
       label: t('settings.overviewPage.technical.gatewayFreshness'),
-      value: gatewayObservedAt ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
+      value: gatewayObservedAt ?? technicalUnknown,
     },
     {
+      id: 'background',
       label: t('settings.overviewPage.technical.backgroundService'),
-      value: temporalStatus ?? t('settings.accessPage.statusLabels.unknown'),
+      value: oplString(statusSummary.temporal_provider) ?? technicalUnknown,
     },
     {
+      id: 'capabilities',
       label: t('settings.overviewPage.technical.capabilities'),
-      value: t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules }),
+      value: oplString(statusSummary.runtime_source_carrier_health) ?? technicalUnknown,
     },
   ];
 
@@ -286,10 +270,12 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
             </div>
             <div className='min-w-0 flex-1'>
               <Typography.Text className='block font-600 text-t-primary'>
-                {codexCard?.title ?? t('settings.overviewPage.codexTitle')}
+                {t('settings.overviewPage.codexTitle')}
               </Typography.Text>
               <Typography.Text className='block break-words text-12px text-t-secondary'>
-                {codexCard?.detail || t('settings.overviewPage.codexDescription')}
+                {codexVersion
+                  ? t('settings.accessPage.cards.codexCli.version', { version: codexVersion })
+                  : t('settings.overviewPage.codexDescription')}
               </Typography.Text>
             </div>
             <Button type='text' className='self-start px-0' onClick={() => navigate('/settings/access')}>
@@ -341,47 +327,54 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                     )}
                   </div>
                 </div>
-                <div
-                  className='grid grid-cols-1 border-t border-solid border-[var(--border-base)] sm:grid-cols-3'
-                  data-testid='settings-overview-gateway-metrics'
-                >
-                  <div className='min-w-0 px-16px py-11px'>
-                    <Typography.Text className='block text-16px font-600 text-t-primary'>
-                      {formatGatewayTokenCount(gatewayAccount.usage?.today_tokens ?? null, i18n.resolvedLanguage)}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.metrics.todayTokens')}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 px-16px py-11px'>
-                    <Typography.Text className='block text-16px font-600 text-t-primary'>
-                      {formatGatewayNumber(gatewayAccount.usage?.today_actual_cost, i18n.resolvedLanguage)}{' '}
-                      {gatewayAccount.usage?.currency ?? ''}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.metrics.todayCost')}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 px-16px py-11px'>
-                    <Typography.Text className='block text-16px font-600 text-t-primary'>
-                      {formatGatewayNumber(gatewayAccount.account.balance.amount, i18n.resolvedLanguage)}{' '}
-                      {gatewayAccount.account.balance.currency}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.metrics.balance')}
-                    </Typography.Text>
-                  </div>
-                </div>
               </div>
             )}
 
-            <div className='mt-auto flex justify-between gap-12px border-t border-solid border-[var(--border-base)] px-16px py-10px'>
-              <Typography.Text className='min-w-0 break-words text-12px text-t-secondary'>
-                {t('settings.overviewPage.gateway.updatedAt', {
-                  observedAt: gatewayObservedAt ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
-                })}
-              </Typography.Text>
-              <Button type='text' className='shrink-0 px-0' onClick={() => navigate('/settings/access')}>
+            {gatewayConnected && gatewayAccount?.account && (
+              <div
+                className='grid grid-cols-2 border-t border-solid border-[var(--border-base)]'
+                data-testid='settings-overview-gateway-metrics'
+              >
+                {[
+                  {
+                    id: 'today-tokens',
+                    label: t('settings.accessPage.gatewayAccount.metrics.todayTokens'),
+                    value: formatGatewayTokenCount(gatewayAccount.usage?.today_tokens ?? null, i18n.resolvedLanguage),
+                  },
+                  {
+                    id: 'today-cost',
+                    label: t('settings.accessPage.gatewayAccount.metrics.todayCost'),
+                    value: formatGatewayAmount(gatewayAccount.usage?.today_actual_cost, gatewayAccount.usage?.currency),
+                  },
+                  {
+                    id: 'balance',
+                    label: t('settings.accessPage.gatewayAccount.metrics.balance'),
+                    value: formatGatewayAmount(
+                      gatewayAccount.account.balance.amount,
+                      gatewayAccount.account.balance.currency
+                    ),
+                  },
+                  {
+                    id: 'availability',
+                    label: t('settings.overviewPage.gateway.metrics.availability'),
+                    value: gatewayStatusLabel,
+                  },
+                ].map((metric) => (
+                  <div
+                    key={metric.id}
+                    className='min-w-0 border-b border-r border-solid border-[var(--border-base)] px-16px py-10px last:border-r-0'
+                  >
+                    <Typography.Text className='block truncate text-12px text-t-secondary'>
+                      {metric.label}
+                    </Typography.Text>
+                    <Typography.Text className='block truncate font-600 text-t-primary'>{metric.value}</Typography.Text>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className='mt-auto border-t border-solid border-[var(--border-base)] px-16px py-10px'>
+              <Button type='text' className='px-0' onClick={() => navigate('/settings/gateway')}>
                 {t('common.open')}
               </Button>
             </div>
@@ -389,33 +382,17 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         </section>
       </div>
 
-      <section
-        className='opl-settings-section opl-settings-surface--diagnostic'
-        id='technical-details'
-        data-testid='settings-overview-technical-details'
-      >
+      <section className='opl-settings-section' data-testid='settings-overview-technical-details'>
         <div className='opl-settings-section__header'>
-          <div className='flex min-w-0 items-start gap-10px'>
-            <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-              <FontAwesomeIcon icon={faCircleInfo} className='text-14px' aria-hidden='true' />
-            </span>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('common.technical_details')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.overviewPage.technical.description')}
-              </Typography.Text>
-            </div>
-          </div>
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.overviewPage.technical.description')}
+          </Typography.Text>
         </div>
         <div className='opl-settings-list'>
           {technicalRows.map((row) => (
-            <div className='opl-settings-row' key={row.label}>
-              <Typography.Text className='text-12px text-t-secondary'>{row.label}</Typography.Text>
-              <Typography.Text className='min-w-0 break-words text-right text-12px text-t-primary'>
-                {row.value}
-              </Typography.Text>
+            <div className='opl-settings-row' key={row.id} data-testid={`settings-overview-technical-${row.id}`}>
+              <Typography.Text className='font-500 text-t-primary'>{row.label}</Typography.Text>
+              <Typography.Text className='break-all text-right text-12px text-t-secondary'>{row.value}</Typography.Text>
             </div>
           ))}
         </div>

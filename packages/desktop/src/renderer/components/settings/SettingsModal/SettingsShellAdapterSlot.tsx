@@ -7,20 +7,35 @@
 import React from 'react';
 import type { SettingsShellRenderSlot } from '@/renderer/pages/settings/registry/settingsRegistry';
 import AppearanceModalContent from './contents/AppearanceModalContent';
-import AboutModalContent from './contents/AboutModalContent';
 import SystemModalContent from './contents/SystemModalContent';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
-import StorageSettings from '@/renderer/pages/settings/StorageSettings';
-import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
+import { AccessSettingsContent, GatewaySettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
 import { ResourcesSettingsContent } from '@/renderer/pages/settings/sections/ResourcesSettings';
-import {
-  AgentPackagesSettingsContent,
-  CapabilitiesSettingsContent,
-  type CapabilitiesTab,
-} from '@/renderer/pages/settings/CapabilitiesSettings';
+import type { CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
+
+const AboutModalContent = React.lazy(() => import('./contents/AboutModalContent'));
+const StorageSettings = React.lazy(() => import('@/renderer/pages/settings/StorageSettings'));
+const AgentPackagesSettingsContent = React.lazy(() =>
+  import('@/renderer/pages/settings/CapabilitiesSettings').then((module) => ({
+    default: module.AgentPackagesSettingsContent,
+  }))
+);
+const CapabilitiesSettingsContent = React.lazy(() =>
+  import('@/renderer/pages/settings/CapabilitiesSettings').then((module) => ({
+    default: module.CapabilitiesSettingsContent,
+  }))
+);
+
+const withLazySettingsFallback = (content: React.ReactNode) => (
+  <React.Suspense
+    fallback={<div className='min-h-160px w-full' data-testid='settings-slot-loading' aria-busy='true' />}
+  >
+    {content}
+  </React.Suspense>
+);
 
 export type SettingsShellAdapterSlotProps = {
   slot: SettingsShellRenderSlot | null;
@@ -37,16 +52,18 @@ const settingsSlotRenderers: Record<string, SettingsSlotRenderer> = {
   WorkspaceSettings: () => <WorkspaceSettings withWrapper={false} />,
   LocalServicesSettings: () => <LocalServicesSettings withWrapper={false} />,
   RuntimeSettings: () => <RuntimeSettings withWrapper={false} />,
-  CapabilitiesSettingsContent: ({ capabilitiesTab, onCapabilitiesTabChange }) => (
-    <CapabilitiesSettingsContent activeTab={capabilitiesTab} onTabChange={onCapabilitiesTabChange} />
-  ),
-  AgentPackagesSettingsContent: () => <AgentPackagesSettingsContent />,
+  CapabilitiesSettingsContent: ({ capabilitiesTab, onCapabilitiesTabChange }) =>
+    withLazySettingsFallback(
+      <CapabilitiesSettingsContent activeTab={capabilitiesTab} onTabChange={onCapabilitiesTabChange} />
+    ),
+  AgentPackagesSettingsContent: () => withLazySettingsFallback(<AgentPackagesSettingsContent />),
+  GatewaySettingsContent: () => <GatewaySettingsContent />,
   AccessSettingsContent: () => <AccessSettingsContent />,
   ResourcesSettingsContent: () => <ResourcesSettingsContent />,
   AppearanceModalContent: () => <AppearanceModalContent />,
-  AboutModalContent: () => <AboutModalContent />,
+  AboutModalContent: () => withLazySettingsFallback(<AboutModalContent />),
   SystemModalContent: () => <SystemModalContent />,
-  StorageSettings: () => <StorageSettings withWrapper={false} />,
+  StorageSettings: () => withLazySettingsFallback(<StorageSettings withWrapper={false} />),
 };
 
 const SettingsShellAdapterSlot: React.FC<SettingsShellAdapterSlotProps> = ({
