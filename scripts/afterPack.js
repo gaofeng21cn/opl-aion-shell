@@ -45,6 +45,20 @@ function verifyBundledResources(resourcesDir, electronPlatformName, targetArch) 
   }
 }
 
+function pruneNonTargetBundledRuntimes(resourcesDir, electronPlatformName, targetArch) {
+  const bundledRoot = path.join(resourcesDir, 'bundled-aioncore');
+  if (!fs.existsSync(bundledRoot)) return [];
+
+  const runtimeKey = `${electronPlatformName}-${targetArch}`;
+  const removed = [];
+  for (const entry of fs.readdirSync(bundledRoot, { withFileTypes: true })) {
+    if (entry.name === runtimeKey || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
+    fs.rmSync(path.join(bundledRoot, entry.name), { recursive: true, force: true });
+    removed.push(entry.name);
+  }
+  return removed.sort();
+}
+
 module.exports = async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
   const targetArch = normalizeArch(typeof arch === 'string' ? arch : Arch[arch] || process.arch);
@@ -66,6 +80,11 @@ module.exports = async function afterPack(context) {
         projectRoot: path.resolve(__dirname, '..'),
       });
       console.log(`   ✓ Packaged updater config verified: ${configPath}`);
+    }
+
+    const removedRuntimes = pruneNonTargetBundledRuntimes(resourcesDir, electronPlatformName, targetArch);
+    if (removedRuntimes.length > 0) {
+      console.log(`   ✓ Removed non-target bundled runtimes: ${removedRuntimes.join(', ')}`);
     }
 
     const resourcesContents = fs.readdirSync(resourcesDir);
@@ -239,3 +258,5 @@ module.exports = async function afterPack(context) {
 
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
 };
+
+module.exports.__test__ = { pruneNonTargetBundledRuntimes };

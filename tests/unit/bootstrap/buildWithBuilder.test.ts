@@ -5,12 +5,19 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(__dirname, '../../..');
+const require = createRequire(import.meta.url);
+const afterPack = require('../../../scripts/afterPack.js') as {
+  __test__: {
+    pruneNonTargetBundledRuntimes: (resourcesDir: string, electronPlatformName: string, targetArch: string) => string[];
+  };
+};
 
 function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out')): T {
   const tempDir = mkdtempSync(join(tmpdir(), 'aionui-out-backup-'));
@@ -50,6 +57,24 @@ function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out'
 }
 
 describe('build-with-builder', () => {
+  it('packages only the bundled runtime for the target platform and architecture', () => {
+    const resourcesDir = mkdtempSync(join(tmpdir(), 'aionui-packaged-runtimes-test-'));
+    const bundledRoot = join(resourcesDir, 'bundled-aioncore');
+    mkdirSync(join(bundledRoot, 'darwin-arm64'), { recursive: true });
+    mkdirSync(join(bundledRoot, 'linux-arm64'), { recursive: true });
+    mkdirSync(join(bundledRoot, 'linux-x64'), { recursive: true });
+    writeFileSync(join(bundledRoot, 'manifest.json'), '{}');
+
+    try {
+      const removed = afterPack.__test__.pruneNonTargetBundledRuntimes(resourcesDir, 'darwin', 'arm64');
+
+      expect(removed).toEqual(['linux-arm64', 'linux-x64']);
+      expect(readdirSync(bundledRoot).sort()).toEqual(['darwin-arm64', 'manifest.json']);
+    } finally {
+      rmSync(resourcesDir, { recursive: true, force: true });
+    }
+  });
+
   it('restores the incremental build hash after an isolated build test', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'aionui-build-cache-test-'));
     const cachePath = join(outDir, '.build-hash');
