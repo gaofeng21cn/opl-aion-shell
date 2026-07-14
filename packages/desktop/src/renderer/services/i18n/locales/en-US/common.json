@@ -446,6 +446,7 @@
   "runtime.loadedAt": "Loaded at {{time}}",
   "runtime.refreshFailed": "Could not refresh runtime status",
   "runtime.telemetryMissing": "Usage not recorded",
+  "runtime.telemetryNotApplicable": "Not applicable",
   "runtime.telemetryStale": "Usage record is stale",
   "runtime.timeNotRecorded": "Time not recorded",
   "runtime.tokenCount": "{{count}} tokens",

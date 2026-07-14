@@ -456,4 +456,14 @@ describe('Runtime V2 token display', () => {
     expect(value).toBe('common.runtime.telemetryMissing');
     expect(value).not.toContain('0');
   });
+
+  it('shows not applicable when there is no current stage', () => {
+    const value = formatTokenObservation(
+      { state: 'missing', reason: 'current_stage_not_applicable' },
+      'en-US',
+      (key) => key
+    );
+
+    expect(value).toBe('common.runtime.telemetryNotApplicable');
+  });
 });

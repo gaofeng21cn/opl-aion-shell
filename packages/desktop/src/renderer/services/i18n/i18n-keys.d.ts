@@ -619,6 +619,7 @@ export type I18nKey =
   | 'common.runtime.taskProgress'
   | 'common.runtime.taskProgressSummaryText'
   | 'common.runtime.telemetryMissing'
+  | 'common.runtime.telemetryNotApplicable'
   | 'common.runtime.telemetryStale'
   | 'common.runtime.timeNotRecorded'
   | 'common.runtime.title'

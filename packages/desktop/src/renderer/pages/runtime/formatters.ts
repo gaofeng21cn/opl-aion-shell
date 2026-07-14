@@ -239,6 +239,9 @@ export function formatTokenObservation(
     });
   }
   if (observation.state === 'stale') return t('common.runtime.telemetryStale');
+  if (observation.reason === 'current_stage_not_applicable') {
+    return t('common.runtime.telemetryNotApplicable');
+  }
   return t('common.runtime.telemetryMissing');
 }
 

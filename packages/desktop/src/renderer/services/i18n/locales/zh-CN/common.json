@@ -440,6 +440,7 @@
   "runtime.loadedAt": "加载时间：{{time}}",
   "runtime.refreshFailed": "运行状态刷新失败",
   "runtime.telemetryMissing": "用量未记录",
+  "runtime.telemetryNotApplicable": "不适用",
   "runtime.telemetryStale": "用量记录已过期",
   "runtime.timeNotRecorded": "时间未记录",
   "runtime.tokenCount": "{{count}} tokens",
