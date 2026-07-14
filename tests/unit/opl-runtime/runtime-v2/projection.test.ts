@@ -36,9 +36,9 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.state).toBe('ready');
     expect(result.projection?.agents).toHaveLength(5);
     expect(result.projection?.projects.map((project) => project.displayName)).toEqual([
-      '糖尿病',
-      '无功能垂体瘤',
-      '肥胖',
+      'DM-CVD-Mortality-Risk',
+      'NF-PitNET',
+      'Obesity',
     ]);
     expect(result.projection?.items).toHaveLength(9);
     expect(result.projection?.items[0]).toMatchObject({
@@ -111,7 +111,14 @@ describe('Runtime V2 projection boundary', () => {
   it('parses visibility generation without guessing from lifecycle generation', () => {
     const projection = createRuntimeV2Projection();
     const legacyGenerationItem = projection.items.find((item) => item.identity.work_item_id === 'dm002')!;
+    const controlledVisibilityItem = projection.items.find((item) => item.identity.work_item_id === 'nf004')!;
     legacyGenerationItem.lifecycle.observed_generation = 'generation:should-not-be-used';
+    controlledVisibilityItem.visibility = {
+      ...controlledVisibilityItem.visibility,
+      source: 'work_item_visibility_control',
+      control_ref: 'visibility-control://mas/nf-pitnet/nf004',
+      generation: 7,
+    };
 
     const result = readRuntimeWorkItemProjectionV2({
       operator: { workbench: { work_item_projection_v2: projection } },
@@ -120,7 +127,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.state).toBe('ready');
     expect(result.projection?.items.find((item) => item.workItemId === 'dm002')?.visibility.generation).toBeNull();
     expect(result.projection?.items.find((item) => item.workItemId === 'nf004')?.visibility).toMatchObject({
-      state: 'archived',
+      state: 'visible',
       generation: 7,
     });
   });
