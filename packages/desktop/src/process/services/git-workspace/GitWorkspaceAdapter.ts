@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -12,7 +12,11 @@ import path from 'node:path';
 import type {
   GitCommitStagedRequest,
   GitCommitStagedResult,
+  GitManagedWorktreeCleanupRequest,
+  GitManagedWorktreeCleanupResult,
   GitManagedWorktreeRequest,
+  GitManagedWorktreeRestoreRequest,
+  GitManagedWorktreeRestoreResult,
   GitManagedWorktreeResult,
   GitPullRequestContext,
   GitPushCurrentBranchRequest,
@@ -20,6 +24,7 @@ import type {
   GitSourceChangeSummary,
   GitWorkspaceInspectRequest,
   GitWorkspaceInspection,
+  GitWorktreeSnapshotReceipt,
   GitWorktreeSummary,
 } from '@/common/types/platform/gitWorkspace';
 import {
@@ -58,6 +63,11 @@ type SourceSnapshot = {
   summary: GitSourceChangeSummary;
   stagedPatch: string;
   unstagedPatch: string;
+};
+
+type RestoredWorktree = {
+  createdBranch: boolean;
+  worktree: GitWorktreeSummary;
 };
 
 export class GitWorkspaceAdapter {
@@ -110,10 +120,7 @@ export class GitWorkspaceAdapter {
   }
 
   async ensureManagedWorktree(request: GitManagedWorktreeRequest): Promise<GitManagedWorktreeResult> {
-    const taskId = request.taskId.trim();
-    if (!taskId) {
-      throw new GitWorkspaceAdapterError('INVALID_TASK_ID', 'A non-empty task id is required.');
-    }
+    const taskId = this.normalizeTaskId(request.taskId);
     this.assertAbsolutePath(this.managedWorktreeRoot, 'Managed worktree root');
 
     const repositoryRoot = await this.resolveRepository(request.repositoryPath);
@@ -270,6 +277,77 @@ export class GitWorkspaceAdapter {
     }
   }
 
+  async cleanupManagedWorktree(request: GitManagedWorktreeCleanupRequest): Promise<GitManagedWorktreeCleanupResult> {
+    const taskId = this.normalizeTaskId(request.taskId);
+    const repositoryRoot = await this.resolveRepository(request.repositoryPath);
+    await this.assertManagedWorktreePath(repositoryRoot, taskId, request.worktreePath);
+
+    const worktree = await this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), request.worktreePath);
+    if (!worktree || !(await this.pathExists(request.worktreePath))) {
+      throw new GitWorkspaceAdapterError(
+        'MANAGED_WORKTREE_REQUIRED',
+        'Cleanup is only available for an existing deterministic managed worktree.',
+        request.worktreePath
+      );
+    }
+
+    const liveWorktree = await this.readLiveWorktree(worktree);
+    const snapshot = await this.createWorktreeSnapshot(repositoryRoot, taskId, liveWorktree, request.worktreePath);
+    try {
+      await this.git(
+        ['-C', repositoryRoot, 'worktree', 'remove', '--force', request.worktreePath],
+        { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+        'remove managed worktree'
+      );
+      const [registered, targetExists] = await Promise.all([
+        this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), request.worktreePath),
+        this.pathExists(request.worktreePath),
+      ]);
+      if (registered || targetExists) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_CLEANUP_FAILED',
+          'Git did not completely remove the managed worktree.',
+          request.worktreePath
+        );
+      }
+    } catch (error) {
+      try {
+        await this.restoreSnapshotAfterCleanupFailure(repositoryRoot, snapshot);
+      } catch (rollbackError) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_ROLLBACK_FAILED',
+          'Managed worktree cleanup failed and the original state could not be restored.',
+          `${commandErrorDetail(error) ?? String(error)}; rollback: ${commandErrorDetail(rollbackError) ?? String(rollbackError)}`
+        );
+      }
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_CLEANUP_FAILED',
+        'Managed worktree cleanup failed; the original worktree state was restored.',
+        commandErrorDetail(error)
+      );
+    }
+
+    return {
+      status: 'removed',
+      repositoryRoot,
+      worktreePath: request.worktreePath,
+      snapshot,
+    };
+  }
+
+  async restoreManagedWorktree(request: GitManagedWorktreeRestoreRequest): Promise<GitManagedWorktreeRestoreResult> {
+    const repositoryRoot = await this.resolveRepository(request.repositoryPath);
+    await this.validateSnapshotReceipt(repositoryRoot, request.snapshot);
+
+    const restored = await this.restoreSnapshotAtPath(repositoryRoot, request.snapshot);
+    return {
+      status: 'restored',
+      repositoryRoot,
+      worktree: restored.worktree,
+      snapshot: request.snapshot,
+    };
+  }
+
   async createWorktreePrimitive(request: GitWorktreeCreatePrimitiveRequest): Promise<GitWorktreeCreatePrimitiveResult> {
     const repositoryRoot = await this.resolveRepository(request.repositoryPath);
     const startCommit = await this.resolveStartCommit(repositoryRoot, request.startRef);
@@ -367,9 +445,599 @@ export class GitWorkspaceAdapter {
     };
   }
 
+  private normalizeTaskId(value: string): string {
+    const taskId = value.trim();
+    if (!taskId) {
+      throw new GitWorkspaceAdapterError('INVALID_TASK_ID', 'A non-empty task id is required.');
+    }
+    return taskId;
+  }
+
+  private managedWorktreeIdentity(repositoryRoot: string, taskId: string): string {
+    return createHash('sha256').update(repositoryRoot).update('\0').update(taskId).digest('hex').slice(0, 16);
+  }
+
+  private async assertManagedWorktreePath(repositoryRoot: string, taskId: string, worktreePath: string): Promise<void> {
+    this.assertAbsolutePath(worktreePath, 'Managed worktree path');
+    const expectedPath = this.deriveManagedWorktreePath(repositoryRoot, taskId);
+    if (!(await this.pathsReferToSameLocation(expectedPath, worktreePath))) {
+      throw new GitWorkspaceAdapterError(
+        'MANAGED_WORKTREE_REQUIRED',
+        'The requested path is not the deterministic managed worktree for this task.',
+        `expected=${expectedPath}; actual=${worktreePath}`
+      );
+    }
+  }
+
+  private async createWorktreeSnapshot(
+    repositoryRoot: string,
+    taskId: string,
+    worktree: GitWorktreeSummary,
+    receiptPath: string
+  ): Promise<GitWorktreeSnapshotReceipt> {
+    const source = await this.readSourceSnapshot(worktree.path, false);
+    if (source.summary.unmerged) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_SNAPSHOT_CONFLICT',
+        'A worktree with unmerged paths cannot be snapshotted for cleanup.'
+      );
+    }
+
+    const snapshotId = randomUUID();
+    const createdAt = new Date().toISOString();
+    const snapshotRef = `refs/opl/worktree-snapshots/${this.managedWorktreeIdentity(repositoryRoot, taskId)}/${snapshotId}`;
+    const hasChanges = source.summary.staged || source.summary.unstaged || source.summary.untrackedCount > 0;
+    let snapshotObject = worktree.head;
+    let snapshotKind: GitWorktreeSnapshotReceipt['snapshotKind'] = 'head';
+    const receipt = (): GitWorktreeSnapshotReceipt => ({
+      schema: 'opl_worktree_snapshot_receipt.v1',
+      snapshotId,
+      createdAt,
+      repositoryRoot,
+      taskId,
+      worktreePath: receiptPath,
+      head: worktree.head,
+      branch: worktree.branch,
+      branchRef: worktree.branchRef,
+      detached: worktree.detached,
+      staged: source.summary.staged,
+      trackedUnstaged: source.summary.unstaged,
+      untrackedCount: source.summary.untrackedCount,
+      snapshotKind,
+      snapshotRef,
+      snapshotObject,
+    });
+
+    if (hasChanges) {
+      const previousStash = await this.readOptionalCommitRef(repositoryRoot, 'refs/stash');
+      const message = `opl-worktree-snapshot:${snapshotId}`;
+      try {
+        await this.git(
+          ['-C', worktree.path, 'stash', 'push', '--include-untracked', '--message', message],
+          { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+          'snapshot managed worktree'
+        );
+      } catch (error) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_SNAPSHOT_FAILED',
+          'Git could not create a complete managed worktree snapshot.',
+          commandErrorDetail(error)
+        );
+      }
+
+      snapshotObject = await this.findStashObject(worktree.path, message);
+      snapshotKind = 'stash';
+      let safeToDetachStash = false;
+      let originalStateRestored = false;
+      try {
+        await this.persistSnapshotReceiptRef(repositoryRoot, receipt());
+        safeToDetachStash = true;
+        const residual = (await this.readSourceSnapshot(worktree.path, false)).summary;
+        if (residual.staged || residual.unstaged || residual.unmerged || residual.untrackedCount > 0) {
+          await this.applySnapshotObject(worktree.path, snapshotObject);
+          await this.verifySnapshotChanges(worktree.path, worktree, source.summary);
+          originalStateRestored = true;
+          throw new GitWorkspaceAdapterError(
+            'WORKTREE_SNAPSHOT_FAILED',
+            'Git did not capture every required worktree change; the original state was restored.'
+          );
+        }
+      } catch (error) {
+        if (!originalStateRestored) {
+          try {
+            await this.applySnapshotObject(worktree.path, snapshotObject);
+            await this.verifySnapshotChanges(worktree.path, worktree, source.summary);
+            safeToDetachStash = true;
+          } catch (rollbackError) {
+            throw new GitWorkspaceAdapterError(
+              'WORKTREE_ROLLBACK_FAILED',
+              'Snapshot persistence failed and the original worktree state could not be restored.',
+              `${commandErrorDetail(error) ?? String(error)}; rollback: ${commandErrorDetail(rollbackError) ?? String(rollbackError)}`
+            );
+          }
+        }
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_SNAPSHOT_FAILED',
+          'Snapshot persistence failed; the original worktree state was restored.',
+          commandErrorDetail(error)
+        );
+      } finally {
+        if (safeToDetachStash) {
+          await this.restorePreviousStashRef(repositoryRoot, previousStash, snapshotObject);
+        }
+      }
+    } else {
+      try {
+        await this.persistSnapshotReceiptRef(repositoryRoot, receipt());
+      } catch (error) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_SNAPSHOT_FAILED',
+          'Git could not persist the clean managed worktree snapshot.',
+          commandErrorDetail(error)
+        );
+      }
+    }
+
+    return receipt();
+  }
+
+  private async findStashObject(worktreePath: string, message: string): Promise<string> {
+    const result = await this.git(
+      ['-C', worktreePath, 'stash', 'list', '--format=%H%x00%gs', '-z'],
+      {},
+      'locate managed worktree snapshot'
+    );
+    const fields = splitNul(result.stdout);
+    for (let index = 0; index + 1 < fields.length; index += 2) {
+      const object = fields[index];
+      const subject = fields[index + 1];
+      if (subject.includes(message) && /^[0-9a-f]{40,64}$/i.test(object)) return object;
+    }
+    const top = await this.readOptionalCommitRef(worktreePath, 'refs/stash');
+    if (top) {
+      const body = await this.git(['-C', worktreePath, 'log', '-1', '--format=%B', top], {}, 'inspect snapshot stash');
+      if (body.stdout.includes(message)) return top;
+    }
+    throw new GitWorkspaceAdapterError(
+      'WORKTREE_ROLLBACK_FAILED',
+      'Git cleaned the managed worktree but did not report the matching snapshot object.'
+    );
+  }
+
+  private async restorePreviousStashRef(
+    repositoryRoot: string,
+    previousStash: string | null,
+    snapshotObject: string
+  ): Promise<void> {
+    const args = previousStash
+      ? ['-C', repositoryRoot, 'update-ref', 'refs/stash', previousStash, snapshotObject]
+      : ['-C', repositoryRoot, 'update-ref', '-d', 'refs/stash', snapshotObject];
+    try {
+      await this.commandRunner('git', args, { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS });
+    } catch {
+      // A concurrent stash owns refs/stash now. The dedicated snapshot ref is already durable.
+    }
+  }
+
+  private async persistSnapshotReceiptRef(repositoryRoot: string, snapshot: GitWorktreeSnapshotReceipt): Promise<void> {
+    const timestamp = Math.floor(Date.parse(snapshot.createdAt) / 1000);
+    const tagPayload = [
+      `object ${snapshot.snapshotObject}`,
+      'type commit',
+      `tag opl-worktree-snapshot-${snapshot.snapshotId}`,
+      `tagger One Person Lab <opl-worktree-snapshot@local.invalid> ${timestamp} +0000`,
+      '',
+      JSON.stringify(snapshot),
+      '',
+    ].join('\n');
+    const tag = await this.git(
+      ['-C', repositoryRoot, 'mktag'],
+      { input: tagPayload, timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+      'write managed worktree snapshot receipt'
+    );
+    const tagObject = tag.stdout.trim();
+    if (!/^[0-9a-f]{40,64}$/i.test(tagObject)) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_SNAPSHOT_FAILED',
+        'Git returned an invalid snapshot receipt object.'
+      );
+    }
+
+    await this.git(
+      ['-C', repositoryRoot, 'update-ref', snapshot.snapshotRef, tagObject, ''],
+      { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+      'persist managed worktree snapshot receipt'
+    );
+    const [persistedTag, persistedSnapshot, persistedObject] = await Promise.all([
+      this.readOptionalObjectId(repositoryRoot, snapshot.snapshotRef),
+      this.readPersistedSnapshotReceipt(repositoryRoot, snapshot.snapshotRef),
+      this.readOptionalCommitRef(repositoryRoot, snapshot.snapshotRef),
+    ]);
+    if (
+      persistedTag !== tagObject ||
+      !persistedSnapshot ||
+      !this.snapshotReceiptsEqual(persistedSnapshot, snapshot) ||
+      persistedObject !== snapshot.snapshotObject
+    ) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_SNAPSHOT_FAILED',
+        'The durable Git snapshot receipt did not match the captured worktree state.'
+      );
+    }
+  }
+
+  private async readPersistedSnapshotReceipt(
+    repositoryRoot: string,
+    snapshotRef: string
+  ): Promise<GitWorktreeSnapshotReceipt | null> {
+    try {
+      const tag = await this.git(
+        ['-C', repositoryRoot, 'cat-file', 'tag', snapshotRef],
+        {},
+        'read managed worktree snapshot receipt'
+      );
+      const messageOffset = tag.stdout.indexOf('\n\n');
+      if (messageOffset < 0) return null;
+      const parsed: unknown = JSON.parse(tag.stdout.slice(messageOffset + 2).trim());
+      return parsed && typeof parsed === 'object' ? (parsed as GitWorktreeSnapshotReceipt) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private snapshotReceiptsEqual(left: GitWorktreeSnapshotReceipt, right: GitWorktreeSnapshotReceipt): boolean {
+    return (
+      left.schema === right.schema &&
+      left.snapshotId === right.snapshotId &&
+      left.createdAt === right.createdAt &&
+      left.repositoryRoot === right.repositoryRoot &&
+      left.taskId === right.taskId &&
+      left.worktreePath === right.worktreePath &&
+      left.head === right.head &&
+      left.branch === right.branch &&
+      left.branchRef === right.branchRef &&
+      left.detached === right.detached &&
+      left.staged === right.staged &&
+      left.trackedUnstaged === right.trackedUnstaged &&
+      left.untrackedCount === right.untrackedCount &&
+      left.snapshotKind === right.snapshotKind &&
+      left.snapshotRef === right.snapshotRef &&
+      left.snapshotObject === right.snapshotObject
+    );
+  }
+
+  private async validateSnapshotReceipt(repositoryRoot: string, snapshot: GitWorktreeSnapshotReceipt): Promise<void> {
+    const invalid = (detail: string): never => {
+      throw new GitWorkspaceAdapterError(
+        'INVALID_SNAPSHOT_RECEIPT',
+        'The worktree snapshot receipt is invalid.',
+        detail
+      );
+    };
+    if (snapshot.schema !== 'opl_worktree_snapshot_receipt.v1') invalid('schema');
+    if (!snapshot.snapshotId || snapshot.snapshotId !== snapshot.snapshotId.trim()) invalid('snapshotId');
+    if (!snapshot.taskId || snapshot.taskId !== snapshot.taskId.trim()) invalid('taskId');
+    if (!path.isAbsolute(snapshot.repositoryRoot) || !path.isAbsolute(snapshot.worktreePath)) invalid('path');
+    if (!(await this.pathsReferToSameLocation(repositoryRoot, snapshot.repositoryRoot))) invalid('repositoryRoot');
+    await this.assertManagedWorktreePath(repositoryRoot, snapshot.taskId, snapshot.worktreePath);
+    if (!/^[0-9a-f]{40,64}$/i.test(snapshot.head) || !/^[0-9a-f]{40,64}$/i.test(snapshot.snapshotObject)) {
+      invalid('commit');
+    }
+    if (Number.isNaN(Date.parse(snapshot.createdAt))) invalid('createdAt');
+    if (!Number.isInteger(snapshot.untrackedCount) || snapshot.untrackedCount < 0) invalid('untrackedCount');
+    if (snapshot.branch === null) {
+      if (!snapshot.detached || snapshot.branchRef !== null) invalid('detached');
+    } else if (snapshot.detached || snapshot.branchRef !== `refs/heads/${snapshot.branch}`) {
+      invalid('branch');
+    }
+
+    const expectedPrefix = `refs/opl/worktree-snapshots/${this.managedWorktreeIdentity(repositoryRoot, snapshot.taskId)}/`;
+    if (snapshot.snapshotRef !== `${expectedPrefix}${snapshot.snapshotId}`) invalid('snapshotRef');
+    const [persistedReceipt, persistedObject] = await Promise.all([
+      this.readPersistedSnapshotReceipt(repositoryRoot, snapshot.snapshotRef),
+      this.readOptionalCommitRef(repositoryRoot, snapshot.snapshotRef),
+    ]);
+    if (!persistedReceipt || !this.snapshotReceiptsEqual(persistedReceipt, snapshot)) invalid('persisted receipt');
+    if (persistedObject !== snapshot.snapshotObject) invalid('snapshotObject');
+
+    const hasChanges = snapshot.staged || snapshot.trackedUnstaged || snapshot.untrackedCount > 0;
+    if (snapshot.snapshotKind === 'head') {
+      if (hasChanges || snapshot.snapshotObject !== snapshot.head) invalid('clean snapshot');
+      return;
+    }
+    if (snapshot.snapshotKind !== 'stash' || !hasChanges) invalid('stash snapshot');
+    const firstParent = await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^1`);
+    if (firstParent !== snapshot.head) invalid('stash parent');
+    await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^2`);
+    if (snapshot.untrackedCount > 0) await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^3`);
+  }
+
+  private async restoreSnapshotAtPath(
+    repositoryRoot: string,
+    snapshot: GitWorktreeSnapshotReceipt
+  ): Promise<RestoredWorktree> {
+    const [registered, targetExists] = await Promise.all([
+      this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), snapshot.worktreePath),
+      this.pathExists(snapshot.worktreePath),
+    ]);
+    if (registered || targetExists) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_RESTORE_CONFLICT',
+        'The snapshot path is already occupied and cannot be restored automatically.',
+        snapshot.worktreePath
+      );
+    }
+
+    let restored: RestoredWorktree | null = null;
+    try {
+      restored = await this.createWorktreeFromSnapshot(repositoryRoot, snapshot);
+      await this.applySnapshotReceipt(snapshot);
+      const worktree = await this.verifySnapshotReceiptState(snapshot);
+      return { ...restored, worktree };
+    } catch (error) {
+      if (restored) {
+        try {
+          await this.rollbackRestoredWorktree(
+            repositoryRoot,
+            snapshot.worktreePath,
+            snapshot.branch,
+            restored.createdBranch
+          );
+        } catch (rollbackError) {
+          throw new GitWorkspaceAdapterError(
+            'WORKTREE_ROLLBACK_FAILED',
+            'Worktree restore failed and its partial checkout could not be removed.',
+            `${commandErrorDetail(error) ?? String(error)}; rollback: ${commandErrorDetail(rollbackError) ?? String(rollbackError)}`
+          );
+        }
+      }
+      if (error instanceof GitWorkspaceAdapterError && error.code === 'WORKTREE_RESTORE_CONFLICT') throw error;
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_RESTORE_CONFLICT',
+        'The worktree snapshot could not be restored without conflicts.',
+        commandErrorDetail(error)
+      );
+    }
+  }
+
+  private async createWorktreeFromSnapshot(
+    repositoryRoot: string,
+    snapshot: GitWorktreeSnapshotReceipt
+  ): Promise<RestoredWorktree> {
+    let createdBranch = false;
+    const args = ['-C', repositoryRoot, 'worktree', 'add'];
+    if (snapshot.branch) {
+      const occupied = (await this.readWorktrees(repositoryRoot)).find(
+        (worktree) => worktree.branchRef === snapshot.branchRef
+      );
+      if (occupied) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_RESTORE_CONFLICT',
+          `Branch "${snapshot.branch}" is already used by another worktree.`,
+          occupied.path
+        );
+      }
+      const branchHead = await this.readOptionalCommitRef(repositoryRoot, snapshot.branchRef!);
+      if (branchHead && branchHead !== snapshot.head) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_RESTORE_CONFLICT',
+          `Branch "${snapshot.branch}" moved after the snapshot was created.`,
+          `expected=${snapshot.head}; actual=${branchHead}`
+        );
+      }
+      if (branchHead) args.push(snapshot.worktreePath, snapshot.branch);
+      else {
+        await this.validateBranchForRestore(snapshot.branch);
+        args.push('-b', snapshot.branch, snapshot.worktreePath, snapshot.head);
+        createdBranch = true;
+      }
+    } else {
+      args.push('--detach', snapshot.worktreePath, snapshot.head);
+    }
+
+    let added = false;
+    try {
+      await this.git(args, { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS }, 'restore managed worktree checkout');
+      added = true;
+      const worktree = await this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), snapshot.worktreePath);
+      if (!worktree) {
+        throw new GitWorkspaceAdapterError(
+          'WORKTREE_RESTORE_CONFLICT',
+          'Git did not report the restored managed worktree.'
+        );
+      }
+      return { createdBranch, worktree: await this.readLiveWorktree(worktree) };
+    } catch (error) {
+      if (added) {
+        try {
+          await this.rollbackRestoredWorktree(repositoryRoot, snapshot.worktreePath, snapshot.branch, createdBranch);
+        } catch (rollbackError) {
+          throw new GitWorkspaceAdapterError(
+            'WORKTREE_ROLLBACK_FAILED',
+            'Git created a partial restored worktree that could not be rolled back.',
+            `${commandErrorDetail(error) ?? String(error)}; rollback: ${commandErrorDetail(rollbackError) ?? String(rollbackError)}`
+          );
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async validateBranchForRestore(branch: string): Promise<void> {
+    try {
+      await this.commandRunner('git', ['check-ref-format', '--branch', branch]);
+    } catch {
+      throw new GitWorkspaceAdapterError(
+        'INVALID_SNAPSHOT_RECEIPT',
+        'The snapshot branch name is no longer valid.',
+        branch
+      );
+    }
+  }
+
+  private async applySnapshotReceipt(snapshot: GitWorktreeSnapshotReceipt): Promise<void> {
+    if (snapshot.snapshotKind === 'stash') {
+      await this.applySnapshotObject(snapshot.worktreePath, snapshot.snapshotObject);
+    }
+  }
+
+  private async applySnapshotObject(worktreePath: string, snapshotObject: string): Promise<void> {
+    await this.git(
+      ['-C', worktreePath, 'stash', 'apply', '--index', snapshotObject],
+      { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+      'apply managed worktree snapshot'
+    );
+  }
+
+  private async verifySnapshotReceiptState(snapshot: GitWorktreeSnapshotReceipt): Promise<GitWorktreeSummary> {
+    const worktree = await this.findWorktreeByPath(
+      await this.readWorktrees(snapshot.repositoryRoot),
+      snapshot.worktreePath
+    );
+    if (!worktree) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_RESTORE_CONFLICT',
+        'The restored worktree registration disappeared.'
+      );
+    }
+    const liveWorktree = await this.readLiveWorktree(worktree);
+    await this.verifySnapshotChanges(snapshot.worktreePath, liveWorktree, {
+      staged: snapshot.staged,
+      unstaged: snapshot.trackedUnstaged,
+      unmerged: false,
+      untrackedCount: snapshot.untrackedCount,
+    });
+    if (
+      liveWorktree.head !== snapshot.head ||
+      liveWorktree.branch !== snapshot.branch ||
+      liveWorktree.detached !== snapshot.detached
+    ) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_RESTORE_CONFLICT',
+        'The restored worktree HEAD or branch does not match the snapshot receipt.'
+      );
+    }
+    return { ...liveWorktree, path: snapshot.worktreePath };
+  }
+
+  private async verifySnapshotChanges(
+    worktreePath: string,
+    worktree: GitWorktreeSummary,
+    expected: GitSourceChangeSummary
+  ): Promise<void> {
+    const actual = (await this.readSourceSnapshot(worktreePath, false)).summary;
+    if (
+      worktree.head !== (await this.readHead(worktreePath)) ||
+      actual.staged !== expected.staged ||
+      actual.unstaged !== expected.unstaged ||
+      actual.unmerged !== expected.unmerged ||
+      actual.untrackedCount !== expected.untrackedCount
+    ) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_RESTORE_CONFLICT',
+        'The restored index or working tree does not match the snapshot receipt.'
+      );
+    }
+  }
+
+  private async restoreSnapshotAfterCleanupFailure(
+    repositoryRoot: string,
+    snapshot: GitWorktreeSnapshotReceipt
+  ): Promise<void> {
+    const [registered, targetExists] = await Promise.all([
+      this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), snapshot.worktreePath),
+      this.pathExists(snapshot.worktreePath),
+    ]);
+    if (!registered && !targetExists) {
+      await this.restoreSnapshotAtPath(repositoryRoot, snapshot);
+      return;
+    }
+    if (!registered || !targetExists) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_ROLLBACK_FAILED',
+        'Git left a partial managed worktree that cannot be restored automatically.',
+        snapshot.worktreePath
+      );
+    }
+
+    const liveWorktree = await this.readLiveWorktree(registered);
+    if (
+      liveWorktree.head !== snapshot.head ||
+      liveWorktree.branch !== snapshot.branch ||
+      liveWorktree.detached !== snapshot.detached
+    ) {
+      throw new GitWorkspaceAdapterError(
+        'WORKTREE_ROLLBACK_FAILED',
+        'The surviving managed worktree no longer matches the snapshot checkout.'
+      );
+    }
+    await this.applySnapshotReceipt(snapshot);
+    await this.verifySnapshotReceiptState(snapshot);
+  }
+
+  private async rollbackRestoredWorktree(
+    repositoryRoot: string,
+    worktreePath: string,
+    branch: string | null,
+    createdBranch: boolean
+  ): Promise<void> {
+    await this.git(
+      ['-C', repositoryRoot, 'worktree', 'remove', '--force', worktreePath],
+      { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+      'roll back restored worktree'
+    );
+    if (createdBranch && branch) {
+      await this.git(
+        ['-C', repositoryRoot, 'branch', '-D', branch],
+        { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
+        'roll back restored worktree branch'
+      );
+    }
+  }
+
+  private async readOptionalCommitRef(repositoryRoot: string, ref: string): Promise<string | null> {
+    const result = await this.git(
+      ['-C', repositoryRoot, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`],
+      { allowExitCodes: [1] },
+      'read Git ref'
+    );
+    if (result.exitCode === 1) return null;
+    const commit = result.stdout.trim();
+    if (!/^[0-9a-f]{40,64}$/i.test(commit)) {
+      throw new GitWorkspaceAdapterError('INVALID_COMMAND_OUTPUT', 'Git returned an invalid commit object.');
+    }
+    return commit;
+  }
+
+  private async readOptionalObjectId(repositoryRoot: string, ref: string): Promise<string | null> {
+    const result = await this.git(
+      ['-C', repositoryRoot, 'rev-parse', '--verify', '--quiet', ref],
+      { allowExitCodes: [1] },
+      'read Git object'
+    );
+    if (result.exitCode === 1) return null;
+    const objectId = result.stdout.trim();
+    if (!/^[0-9a-f]{40,64}$/i.test(objectId)) {
+      throw new GitWorkspaceAdapterError('INVALID_COMMAND_OUTPUT', 'Git returned an invalid object id.');
+    }
+    return objectId;
+  }
+
+  private async readRequiredCommit(repositoryRoot: string, ref: string): Promise<string> {
+    const commit = await this.readOptionalCommitRef(repositoryRoot, ref);
+    if (!commit) {
+      throw new GitWorkspaceAdapterError(
+        'INVALID_SNAPSHOT_RECEIPT',
+        'The snapshot ref does not contain the required Git object.',
+        ref
+      );
+    }
+    return commit;
+  }
+
   private deriveManagedWorktreePath(repositoryRoot: string, taskId: string): string {
     const repositoryName = path.basename(repositoryRoot).replaceAll(/[^a-zA-Z0-9._-]+/g, '-') || 'repository';
-    const identity = createHash('sha256').update(repositoryRoot).update('\0').update(taskId).digest('hex').slice(0, 16);
+    const identity = this.managedWorktreeIdentity(repositoryRoot, taskId);
     return path.join(this.managedWorktreeRoot, `${repositoryName}-${identity}`);
   }
 
