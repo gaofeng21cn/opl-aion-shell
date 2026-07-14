@@ -114,4 +114,25 @@ describe('mainBootstrap early fatal handling', () => {
 
     expect(exit).toHaveBeenCalledWith(1);
   });
+
+  it('removes both early fatal handlers after bootstrap completes', () => {
+    const removeEarlyFatalHandlers = installEarlyFatalHandlers({
+      stderrWrite: vi.fn(),
+      exitProcess: vi.fn(),
+    });
+    const installedUncaughtExceptionListeners = process
+      .listeners('uncaughtException')
+      .filter((listener) => !originalUncaughtExceptionListeners.includes(listener));
+    const installedUnhandledRejectionListeners = process
+      .listeners('unhandledRejection')
+      .filter((listener) => !originalUnhandledRejectionListeners.includes(listener));
+
+    expect(installedUncaughtExceptionListeners).toHaveLength(1);
+    expect(installedUnhandledRejectionListeners).toHaveLength(1);
+
+    removeEarlyFatalHandlers();
+
+    expect(process.listeners('uncaughtException')).toEqual(originalUncaughtExceptionListeners);
+    expect(process.listeners('unhandledRejection')).toEqual(originalUnhandledRejectionListeners);
+  });
 });

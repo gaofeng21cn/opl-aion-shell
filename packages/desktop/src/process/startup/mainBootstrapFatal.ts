@@ -147,14 +147,22 @@ function exitAfterEarlyFatal(code: number, deps: RuntimeDeps = {}): void {
   exitProcess(code);
 }
 
-export function installEarlyFatalHandlers(deps: RuntimeDeps = {}): void {
-  process.on('uncaughtException', (error) => {
+export function installEarlyFatalHandlers(deps: RuntimeDeps = {}): () => void {
+  const handleUncaughtException = (error: unknown) => {
     writeEarlyFatalRecord({ type: 'uncaughtException', error }, deps);
     exitAfterEarlyFatal(1, deps);
-  });
+  };
 
-  process.on('unhandledRejection', (error) => {
+  const handleUnhandledRejection = (error: unknown) => {
     writeEarlyFatalRecord({ type: 'unhandledRejection', error }, deps);
     exitAfterEarlyFatal(1, deps);
-  });
+  };
+
+  process.on('uncaughtException', handleUncaughtException);
+  process.on('unhandledRejection', handleUnhandledRejection);
+
+  return () => {
+    process.off('uncaughtException', handleUncaughtException);
+    process.off('unhandledRejection', handleUnhandledRejection);
+  };
 }

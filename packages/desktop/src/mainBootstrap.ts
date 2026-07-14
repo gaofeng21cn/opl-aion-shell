@@ -6,9 +6,15 @@
 
 import { installEarlyFatalHandlers, writeEarlyFatalRecord } from './process/startup/mainBootstrapFatal';
 
-installEarlyFatalHandlers();
+const removeEarlyFatalHandlers = installEarlyFatalHandlers();
 
-void import('./index').catch((error) => {
-  writeEarlyFatalRecord({ type: 'bootstrapImportFailure', error });
-  process.exit(1);
-});
+void import('./index').then(
+  () => {
+    removeEarlyFatalHandlers();
+  },
+  (error) => {
+    removeEarlyFatalHandlers();
+    writeEarlyFatalRecord({ type: 'bootstrapImportFailure', error });
+    process.exit(1);
+  }
+);
