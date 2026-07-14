@@ -157,7 +157,12 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
   it('shares the completed fast payload without reloading when another page mounts', async () => {
     getAppStateInvoke.mockResolvedValue({
       ok: true,
-      parsed: { app_state: { core: { codex: { installed: true } } } },
+      parsed: {
+        app_state: {
+          core: { codex: { installed: true } },
+          ...appStateWithGateway(gatewayProjection()),
+        },
+      },
     });
 
     const firstPage = renderHook(() => useOplAppState('fast'));
@@ -217,7 +222,7 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     );
   });
 
-  it('renders an older narrow cache immediately even when it has no Gateway projection', () => {
+  it('renders an older narrow cache while keeping hydration pending without a Gateway projection', () => {
     localStorage.setItem(
       CACHE_KEY,
       JSON.stringify({
@@ -230,7 +235,7 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     const { result } = renderHook(() => useOplAppState('fast'));
 
     expect(result.current.appState.core).toEqual({ codex: { installed: true, version_status: 'compatible' } });
-    expect(result.current.loading).toBe(false);
+    expect(result.current.loading).toBe(true);
   });
 
   it('retries one failed automatic hydration and then stops without a request loop', async () => {

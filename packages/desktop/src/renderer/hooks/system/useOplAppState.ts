@@ -368,13 +368,14 @@ function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecor
   const issueQueue = oplRecordList(settingsControlCenter.issue_queue)
     .slice(0, 50)
     .map((issue) => pickScalarCacheFields(issue, ISSUE_QUEUE_CACHE_FIELDS) ?? {});
+  const readModelCandidates = {
+    opl_gateway_account: gatewayAccount,
+    codex_model_policy: codexModelPolicy,
+    workspace_services: workspaceServices,
+    local_environment: localEnvironment,
+  };
   const sanitizedReadModel = Object.fromEntries(
-    [
-      ['opl_gateway_account', gatewayAccount],
-      ['codex_model_policy', codexModelPolicy],
-      ['workspace_services', workspaceServices],
-      ['local_environment', localEnvironment],
-    ].filter((entry): entry is [string, OplAppStateRecord] => Boolean(entry[1]))
+    Object.entries(readModelCandidates).filter((entry): entry is [string, OplAppStateRecord] => Boolean(entry[1]))
   );
   if (statusSummary || issueQueue.length > 0 || Object.keys(sanitizedReadModel).length > 0) {
     const sanitizedSettingsControlCenter: OplAppStateRecord = {};
@@ -590,7 +591,7 @@ export function useOplAppState(
   );
   const [payload, setPayload] = useState<OplAppStatePayload | null>(cached?.payload ?? null);
   const [loadedAt, setLoadedAt] = useState<string | null>(cached?.loadedAt ?? null);
-  const [loading, setLoading] = useState(!cached);
+  const [loading, setLoading] = useState(!cached || !hasGatewayAccountProjection(cached.payload));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
@@ -678,7 +679,7 @@ export function useOplAppState(
       if (!nextCached) return;
       setPayload(nextCached.payload);
       setLoadedAt(nextCached.loadedAt);
-      setLoading(false);
+      setLoading(!hasGatewayAccountProjection(nextCached.payload));
     };
     window.addEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
     return () => window.removeEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
