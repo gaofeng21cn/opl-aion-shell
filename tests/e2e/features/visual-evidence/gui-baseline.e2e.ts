@@ -223,7 +223,7 @@ async function goToRuntime(page: Page): Promise<void> {
   await page.goto(`${baseUrl}#/runtime`);
   await expect(page.locator('[data-testid="runtime-v2-page"]')).toBeVisible({ timeout: 30_000 });
   await expect(
-    page.locator('[data-testid="runtime-cockpit"], [data-testid="runtime-projection-unavailable"]').first()
+    page.locator('[data-testid="runtime-work-item-list"], [data-testid="runtime-projection-unavailable"]').first()
   ).toBeVisible({ timeout: 30_000 });
 }
 
@@ -621,24 +621,23 @@ function buildTargets(conversationId: string): VisualTarget[] {
       locale: 'en-US',
       anchors: [
         anchor('runtime_route', '[data-testid="runtime-v2-page"]'),
-        anchor('runtime_state', '[data-testid="runtime-cockpit"], [data-testid="runtime-projection-unavailable"]'),
+        anchor(
+          'runtime_state',
+          '[data-testid="runtime-work-item-list"], [data-testid="runtime-projection-unavailable"]'
+        ),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
       coverageGaps: [],
       setup: async (page) => {
         await goToRuntime(page);
         await setNavigationRailExpanded(page, true);
-        const summaryButton = page.locator('[data-testid="runtime-load-summary"]');
-        if (await summaryButton.count()) {
-          await expect(summaryButton).not.toHaveClass(/arco-btn-loading/, { timeout: 30_000 });
-        }
         return {
           route_kind: 'runtime',
           runtime_state: (await page
-            .locator('[data-testid="runtime-cockpit"]')
+            .locator('[data-testid="runtime-work-item-list"]')
             .isVisible()
             .catch(() => false))
-            ? 'work_item_projection_with_cockpit'
+            ? 'work_item_projection'
             : 'projection_unavailable',
         };
       },

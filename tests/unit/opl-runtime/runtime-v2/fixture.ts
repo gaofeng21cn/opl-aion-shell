@@ -37,6 +37,7 @@ type FixtureItemOptions = {
   stageMap: Array<{
     id: string;
     displayName: string;
+    displayNames?: Record<string, string>;
     state: 'completed' | 'current' | 'next' | 'pending' | 'waiting_user' | 'system_attention' | 'stopped';
     elapsedSeconds?: number;
     usage?: number;
@@ -185,6 +186,7 @@ function fixtureItem({
     stage_map: stageMap.map((stage) => ({
       stage_id: stage.id,
       display_name: stage.displayName,
+      display_names: stage.displayNames ?? {},
       state: stage.state,
       owner_display_name: 'Med Auto Science',
       elapsed_seconds: stage.elapsedSeconds ?? null,
@@ -281,18 +283,42 @@ export function createRuntimeV2Projection() {
         owner: 'Med Auto Science',
       },
       stageMap: [
-        { id: 'intake', displayName: '研究立项', state: 'completed' },
-        { id: 'analysis', displayName: '统计分析', state: 'completed', elapsedSeconds: 3200, usage: 900 },
+        {
+          id: 'intake',
+          displayName: '研究立项',
+          displayNames: { 'zh-CN': '研究立项', 'en-US': 'Study intake' },
+          state: 'completed',
+        },
+        {
+          id: 'analysis',
+          displayName: '统计分析',
+          displayNames: { 'zh-CN': '统计分析', 'en-US': 'Statistical analysis' },
+          state: 'completed',
+          elapsedSeconds: 3200,
+          usage: 900,
+        },
         {
           id: 'analysis_review',
           displayName: '分析结果复核',
+          displayNames: { 'zh-CN': '分析结果复核', 'en-US': 'Analysis review' },
           state: 'current',
           elapsedSeconds: 5340,
           usage: 1200,
           nextAction: '完成结果复核',
         },
-        { id: 'write', displayName: '医学写作', state: 'next', nextAction: '生成论文初稿' },
-        { id: 'review', displayName: '医学审稿', state: 'pending' },
+        {
+          id: 'write',
+          displayName: '医学写作',
+          displayNames: { 'zh-CN': '医学写作', 'en-US': 'Medical writing' },
+          state: 'next',
+          nextAction: '生成论文初稿',
+        },
+        {
+          id: 'review',
+          displayName: '医学审稿',
+          displayNames: { 'zh-CN': '医学审稿', 'en-US': 'Medical review' },
+          state: 'pending',
+        },
       ],
     }),
     fixtureItem({
@@ -507,155 +533,5 @@ export function createRuntimeV2AppState() {
         workbench: { work_item_projection_v2: createRuntimeV2Projection() },
       },
     },
-  };
-}
-
-function safeAction() {
-  return {
-    action_id: 'runtime_reconcile_provider',
-    label: 'Reconcile runtime provider',
-    owner: 'opl_framework',
-    submit_via: 'opl app action execute',
-    can_submit_to_safe_action_shell: true,
-    route_requires_domain_or_app_payload: false,
-    dry_run_supported: true,
-    payload_fields: [],
-  };
-}
-
-function runtimeTaskDrilldowns() {
-  return [
-    {
-      task_id: 'mas:diabetes:dm001',
-      title: '001 DM CVD Mortality Risk',
-      work_item_display_name: '001 DM CVD Mortality Risk',
-      domain_id: 'medautoscience',
-      project_id: 'diabetes',
-      state: 'running',
-      status: 'running',
-      stage: 'Manuscript drafting',
-      progress_label: 'Draft synthesis active',
-      next_visible_step: 'Send draft to statistical review',
-      next_owner: 'MAS review owner',
-      stage_attempt_ids: ['attempt:dm001'],
-      active_path: [
-        { id: 'analysis', label: 'Analysis', state: 'completed' },
-        { id: 'write', label: 'Manuscript drafting', state: 'current' },
-        { id: 'review', label: 'Statistical review', state: 'next' },
-      ],
-      evidence_cards: [
-        {
-          card_id: 'dm001-draft',
-          title: 'Draft manuscript bundle',
-          summary: 'Current manuscript and tables',
-          ref: '/fixtures/diabetes/studies/dm001/artifacts/draft-manuscript.docx',
-        },
-      ],
-      action_cards: [
-        {
-          card_id: 'dm001-review-action',
-          title: 'Send draft to statistical review',
-          summary: 'Route the current draft to the statistical reviewer',
-          ref: 'action://mas/statistical-review',
-        },
-      ],
-    },
-    {
-      task_id: 'mas:diabetes:dm002',
-      title: '002 DM China US Mortality Attribution',
-      work_item_display_name: '002 DM China US Mortality Attribution',
-      domain_id: 'medautoscience',
-      project_id: 'diabetes',
-      state: 'completed',
-      status: 'completed',
-      stage: 'Runtime closeout',
-      progress_label: 'Delivery accepted',
-      next_visible_step: 'No pending runtime work',
-      next_owner: 'MAS owner',
-      stage_attempt_ids: ['attempt:dm002'],
-      runtime_closeout_observed: true,
-      active_path: [{ id: 'closeout', label: 'Runtime closeout', state: 'completed' }],
-      evidence_cards: [
-        {
-          card_id: 'dm002-closeout',
-          title: 'Runtime closeout receipt',
-          summary: 'Terminal runtime evidence',
-          ref: 'receipt://runtime/dm002-closeout',
-        },
-      ],
-    },
-  ];
-}
-
-export function createRuntimeSummaryDrilldown() {
-  const action = safeAction();
-  return {
-    app_operator_drilldown: {
-      availability: 'available',
-      detail_level: 'summary',
-      summary: {
-        stage_attempt_count: 3,
-        current_control_state_blocked_count: 1,
-        safe_action_ref_count: 1,
-      },
-      attention_first_payload: {
-        provider_health: { health_status: 'healthy' },
-        next_safe_action: action,
-      },
-      app_execution_bridge: { safe_action_routes: [action] },
-      runtime_workbench: {
-        task_drilldowns: runtimeTaskDrilldowns(),
-        archived_attempts: [
-          {
-            stage_attempt_id: 'attempt:archived-dm003',
-            domain_id: 'medautoscience',
-            stage_id: 'review',
-            archived_at: '2026-07-12T09:00:00Z',
-          },
-        ],
-      },
-    },
-  };
-}
-
-export function createRuntimeFullDrilldown() {
-  const summary = createRuntimeSummaryDrilldown();
-  const taskDrilldowns = runtimeTaskDrilldowns();
-  Object.assign(taskDrilldowns[0]!, {
-    stage: 'Full statistical review',
-    progress_label: 'Full runtime reconciliation current',
-    next_visible_step: 'Inspect full runtime receipt',
-    diagnostics_refs: [
-      {
-        card_id: 'dm001-provider-diagnostic',
-        title: 'Provider diagnostic',
-        summary: 'Temporal worker heartbeat is current',
-        ref: 'diagnostic://runtime/dm001-provider',
-      },
-    ],
-  });
-  return {
-    app_operator_drilldown: {
-      ...summary.app_operator_drilldown,
-      detail_level: 'full',
-      runtime_workbench: {
-        ...summary.app_operator_drilldown.runtime_workbench,
-        task_drilldowns: taskDrilldowns,
-      },
-    },
-  };
-}
-
-export function createRuntimeDrilldownResult(detail: 'summary' | 'full') {
-  const parsed = detail === 'full' ? createRuntimeFullDrilldown() : createRuntimeSummaryDrilldown();
-  return {
-    surface: detail === 'full' ? 'runtime_full' : 'runtime_summary',
-    command:
-      detail === 'full'
-        ? 'opl runtime app-operator-drilldown --detail full --json'
-        : 'opl runtime app-operator-drilldown --json',
-    stdout: JSON.stringify(parsed),
-    parsed,
-    ok: true,
   };
 }

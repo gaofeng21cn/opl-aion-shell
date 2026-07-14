@@ -1,8 +1,7 @@
-import { Empty, Tag, Typography } from '@arco-design/web-react';
+import { Button, Empty, Tag, Typography } from '@arco-design/web-react';
 import { Right } from '@icon-park/react';
 import React from 'react';
 import {
-  currentStageLabel,
   executionStateLabel,
   formatItemElapsed,
   formatTokenObservation,
@@ -13,6 +12,7 @@ import {
 } from '../formatters';
 import type { RuntimeAgent, RuntimeProject, RuntimeWorkItem } from '../types';
 import styles from '../RuntimePage.module.css';
+import { RuntimeStagePopover } from './RuntimeStagePopover';
 
 type RuntimeWorkItemListProps = {
   items: RuntimeWorkItem[];
@@ -57,18 +57,18 @@ export function RuntimeWorkItemList({
               className={styles.workItemRow}
               data-testid='runtime-task-row'
               key={item.id}
-              role='button'
-              tabIndex={0}
-              aria-label={t('common.runtime.taskDetails.openNamed', { task: item.displayName })}
               onClick={() => onOpen(item)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onOpen(item);
-                }
-              }}
             >
-              <div className={styles.workItemIdentity}>
+              <Button
+                type='text'
+                long
+                className={styles.workItemIdentity}
+                aria-label={t('common.runtime.taskDetails.openNamed', { task: item.displayName })}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpen(item);
+                }}
+              >
                 <Typography.Text className={styles.projectName}>{project?.displayName}</Typography.Text>
                 <div className={styles.workItemTitleLine}>
                   <Typography.Text className={styles.workItemTitle}>{item.displayName}</Typography.Text>
@@ -77,7 +77,7 @@ export function RuntimeWorkItemList({
                   </span>
                 </div>
                 <Typography.Text className={styles.agentLabel}>{agent?.displayName}</Typography.Text>
-              </div>
+              </Button>
 
               <div className={styles.workItemStatus}>
                 <Tag data-runtime-status={item.primaryStatus}>{primaryStatusLabel(item.primaryStatus, t)}</Tag>
@@ -102,13 +102,9 @@ export function RuntimeWorkItemList({
               </div>
 
               <div className={styles.workItemProgress}>
-                <Typography.Text className={styles.progressLabel}>
-                  {t('common.runtime.currentStage', {
-                    stage: currentStageLabel(item, t),
-                  })}
-                </Typography.Text>
+                <RuntimeStagePopover item={item} locale={locale} t={t} />
                 <Typography.Text className={styles.nextLabel}>
-                  {t('common.runtime.nextStep', { step: nextStageLabel(item, t) })}
+                  {t('common.runtime.nextStep', { step: nextStageLabel(item, locale, t) })}
                 </Typography.Text>
                 {action && (
                   <Typography.Text className={styles.ownerLabel}>

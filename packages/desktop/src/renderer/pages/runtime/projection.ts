@@ -4,7 +4,6 @@ import {
   type RuntimeActionKind,
   type RuntimeActionOwnerKind,
   type RuntimeAgent,
-  type RuntimeAgentAvailabilityState,
   type RuntimeBusinessState,
   type RuntimeCondition,
   type RuntimeExecutionState,
@@ -51,7 +50,6 @@ const PRIMARY_STATUSES = new Set<RuntimePrimaryStatus>([
   'stopped',
   'sync_pending',
 ]);
-const AVAILABILITY_STATES = new Set<RuntimeAgentAvailabilityState>(['available', 'attention_required', 'unavailable']);
 const CONDITION_STATUSES = new Set<RuntimeCondition['status']>(['True', 'False', 'Unknown']);
 const CONDITION_SEVERITIES = new Set<RuntimeCondition['severity']>(['none', 'info', 'warning', 'error']);
 const ATTENTION_KINDS = new Set(['none', 'user', 'system']);
@@ -193,6 +191,19 @@ function parseMessageArgs(value: unknown): Record<string, string | number> | nul
   return result;
 }
 
+function parseDisplayNames(value: unknown): Record<string, string> | null {
+  if (value === null || value === undefined) return {};
+  const source = record(value);
+  if (!source) return null;
+  const result: Record<string, string> = {};
+  for (const [locale, entry] of Object.entries(source)) {
+    const displayName = requiredString(entry);
+    if (!requiredString(locale) || !displayName) return null;
+    result[locale] = displayName;
+  }
+  return result;
+}
+
 function parseAction(value: unknown): RuntimeAction | null | false {
   if (value === null || value === undefined) return null;
   const source = record(value);
@@ -237,6 +248,7 @@ function parseStageMap(value: unknown): RuntimeStage[] | null {
   for (const entry of source) {
     const id = requiredString(entry.stage_id);
     const displayName = requiredString(entry.display_name);
+    const displayNames = parseDisplayNames(entry.display_names);
     const state = enumValue(entry.state, STAGE_STATES);
     const ownerDisplayName = optionalString(entry.owner_display_name ?? entry.owner);
     const elapsedSeconds =
@@ -248,6 +260,7 @@ function parseStageMap(value: unknown): RuntimeStage[] | null {
     if (
       !id ||
       !displayName ||
+      !displayNames ||
       !state ||
       (elapsedSeconds === null && entry.elapsed_seconds !== null && entry.elapsed_seconds !== undefined)
     ) {
@@ -256,7 +269,7 @@ function parseStageMap(value: unknown): RuntimeStage[] | null {
     if (entry.owner_display_name !== null && entry.owner_display_name !== undefined && !ownerDisplayName) return null;
     if (entry.usage !== null && entry.usage !== undefined && !usage) return null;
     if (entry.next_action !== null && entry.next_action !== undefined && !nextAction) return null;
-    stages.push({ id, displayName, state, ownerDisplayName, elapsedSeconds, usage, nextAction });
+    stages.push({ id, displayName, displayNames, state, ownerDisplayName, elapsedSeconds, usage, nextAction });
   }
   return stages;
 }
@@ -324,6 +337,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const startedAt = optionalString(execution.started_at);
   const lastHeartbeatAt = optionalString(execution.last_heartbeat_at);
   const updatedAt = optionalString(execution.updated_at);
+  const attemptId = optionalString(execution.attempt_id);
   const controlUpdatedAt = optionalString(lifecycle.control_updated_at);
   const currentStageId = optionalString(execution.current_stage_id) ?? optionalString(lifecycle.current_stage_id);
   const currentStageDisplayName =
@@ -334,6 +348,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   if (execution.last_heartbeat_at !== null && execution.last_heartbeat_at !== undefined && !lastHeartbeatAt)
     return null;
   if (execution.updated_at !== null && execution.updated_at !== undefined && !updatedAt) return null;
+  if (execution.attempt_id !== null && execution.attempt_id !== undefined && !attemptId) return null;
   if (lifecycle.control_updated_at !== null && lifecycle.control_updated_at !== undefined && !controlUpdatedAt)
     return null;
   if (
@@ -371,6 +386,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     statusSyncReason,
     execution: {
       state: executionState,
+      attemptId,
       currentStageId,
       currentStageDisplayName,
       nextStageId,
@@ -395,41 +411,22 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
   const profile = value.profile === 'fast' || value.profile === 'full' ? value.profile : null;
   const generatedAt = requiredString(value.generated_at);
   const agentCatalog = records(value.agent_catalog);
-  const availabilityCatalog = records(value.agent_availability);
   const projectCatalog = records(value.project_catalog);
   const itemCatalog = records(value.items);
   const diagnosticEnvelope = record(value.diagnostics);
   const diagnosticItems = records(diagnosticEnvelope?.items);
-  if (
-    !profile ||
-    !generatedAt ||
-    !agentCatalog ||
-    !availabilityCatalog ||
-    !projectCatalog ||
-    !itemCatalog ||
-    !diagnosticItems
-  ) {
+  if (!profile || !generatedAt || !agentCatalog || !projectCatalog || !itemCatalog || !diagnosticItems) {
     return null;
-  }
-
-  const availabilityByAgent = new Map<string, { state: RuntimeAgentAvailabilityState; reason: string }>();
-  for (const entry of availabilityCatalog) {
-    const agentId = requiredString(entry.agent_id);
-    const state = enumValue(entry.availability, AVAILABILITY_STATES);
-    const reason = requiredString(entry.reason);
-    if (!agentId || !state || !reason || availabilityByAgent.has(agentId)) return null;
-    availabilityByAgent.set(agentId, { state, reason });
   }
 
   const agents: RuntimeAgent[] = [];
   for (const entry of agentCatalog) {
     const id = requiredString(entry.agent_id);
     const displayName = requiredString(entry.display_name);
-    const availability = id ? availabilityByAgent.get(id) : null;
-    if (!id || !displayName || !availability) return null;
-    agents.push({ id, displayName, availability });
+    if (!id || !displayName) return null;
+    agents.push({ id, displayName });
   }
-  if (!hasUniqueIds(agents) || availabilityByAgent.size !== agents.length) return null;
+  if (!hasUniqueIds(agents)) return null;
 
   const projects: RuntimeProject[] = [];
   for (const entry of projectCatalog) {

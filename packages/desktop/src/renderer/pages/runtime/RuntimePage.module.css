@@ -136,54 +136,13 @@
   min-width: 0;
 }
 
-.workspaceGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
-  align-items: start;
-  gap: 16px;
-  min-width: 0;
-}
-
 .statusRegion {
   min-width: 0;
   border-top: 1px solid var(--color-border-2);
   border-bottom: 1px solid var(--color-border-2);
 }
 
-.metricGrid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  min-width: 0;
-}
-
-.metric {
-  display: flex;
-  min-width: 0;
-  min-height: 66px;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  padding: 10px 14px;
-  border-right: 1px solid var(--color-border-2);
-}
-
-.metric:last-child {
-  border-right: 0;
-}
-
-.metricLabel {
-  color: var(--color-text-2);
-  font-size: 12px;
-}
-
-.metricValue {
-  color: var(--color-text-1);
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.statusViewRow {
+.taskToolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -191,24 +150,29 @@
   gap: 12px;
   min-width: 0;
   padding: 14px 0;
-  border-top: 1px solid var(--color-border-2);
 }
 
-.statusViewRow :global(.arco-typography) {
+.taskToolbar :global(.arco-typography) {
   margin: 0;
 }
 
-.statusViewRow :global(.arco-radio-group) {
+.taskToolbarCopy {
+  min-width: 0;
+}
+
+.taskToolbarActions {
   display: flex;
-  flex: 1 1 620px;
+  flex: 0 1 auto;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
 }
 
-.mobileStatusView {
-  display: none;
+.statusViewSelect {
+  width: min(220px, 100%);
 }
 
 .statusViewHint {
@@ -300,16 +264,11 @@
   background: var(--color-fill-1);
 }
 
-.workItemRow:focus-visible {
-  outline: 2px solid rgb(var(--primary-6));
-  outline-offset: -2px;
-}
-
 .workItemRow:last-child {
   border-bottom: 0;
 }
 
-.workItemRow > div {
+.workItemRow > * {
   min-width: 0;
 }
 
@@ -321,6 +280,30 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
+}
+
+.workItemIdentity {
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  background: transparent;
+  cursor: pointer;
+}
+
+.workItemIdentity :global(.arco-btn-text) {
+  white-space: normal;
+}
+
+.workItemIdentity:focus-visible,
+.stageTrigger:focus-visible {
+  outline: 2px solid rgb(var(--primary-6));
+  outline-offset: 2px;
 }
 
 .projectName,
@@ -364,7 +347,6 @@
   color: var(--color-text-3);
 }
 
-.progressLabel,
 .nextLabel {
   max-width: 100%;
   color: var(--color-text-1);
@@ -374,6 +356,157 @@
 
 .nextLabel {
   color: var(--color-text-2);
+}
+
+.stageTrigger {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 0;
+  height: auto;
+  min-height: 0;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--color-text-1);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  background: var(--color-fill-1);
+  cursor: pointer;
+}
+
+.stageTrigger span {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.stageTrigger svg {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--color-text-3);
+}
+
+.stageTrigger:hover {
+  color: rgb(var(--primary-6));
+  background: var(--color-fill-2);
+}
+
+.stagePopover {
+  display: flex;
+  width: min(360px, calc(100vw - 64px));
+  max-height: min(520px, calc(100vh - 48px));
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.stagePopoverTitle {
+  color: var(--color-text-1);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stageAttempt {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-left: 3px solid rgb(var(--primary-6));
+  background: var(--color-fill-1);
+}
+
+.stageAttemptLabel,
+.stageAttemptMissing {
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.stageAttemptId {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--color-text-1);
+  font-size: 12px;
+}
+
+.stagePopoverList {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stagePopoverItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.stagePopoverItem:last-child {
+  border-bottom: 0;
+}
+
+.stagePopoverMarker {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-border-3);
+  border-radius: 50%;
+  background: var(--color-bg-1);
+}
+
+.stagePopoverItem[data-stage-state='completed'] .stagePopoverMarker {
+  border-color: var(--color-success-6);
+  background: var(--color-success-6);
+}
+
+.stagePopoverItem[data-stage-state='current'] .stagePopoverMarker {
+  border-color: rgb(var(--primary-6));
+  box-shadow: 0 0 0 3px var(--color-primary-light-1);
+}
+
+.stagePopoverItem[data-stage-state='next'] .stagePopoverMarker {
+  border-color: rgb(var(--primary-6));
+  background: var(--color-primary-light-2);
+}
+
+.stagePopoverItem[data-stage-state='failed'] .stagePopoverMarker,
+.stagePopoverItem[data-stage-state='system_attention'] .stagePopoverMarker {
+  border-color: var(--color-danger-6);
+  background: var(--color-danger-light-1);
+}
+
+.stagePopoverName {
+  min-width: 0;
+  color: var(--color-text-1);
+  font-size: 13px;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.stagePopoverItem :global(.arco-tag) {
+  height: auto;
+  white-space: normal;
+}
+
+.stagePopoverEmpty {
+  color: var(--color-text-3);
+  font-size: 12px;
 }
 
 .attentionSummary {
@@ -441,82 +574,6 @@
   padding: 56px 16px;
 }
 
-.agentAvailability {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border-2);
-  border-radius: 6px;
-}
-
-.agentAvailability :global(.arco-collapse-item-header) {
-  padding-right: 14px;
-  padding-left: 14px;
-  background: transparent;
-}
-
-.agentAvailability :global(.arco-collapse-item-content) {
-  padding-right: 14px;
-  padding-left: 14px;
-  background: transparent;
-}
-
-.agentAvailabilityHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.agentAvailabilityIcon {
-  display: inline-flex;
-  color: var(--color-text-2);
-}
-
-.agentAvailabilitySummary {
-  min-width: 0;
-  font-weight: 600;
-}
-
-.agentAvailabilityList {
-  display: flex;
-  flex-direction: column;
-}
-
-.agentAvailabilityRow {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border-2);
-}
-
-.agentAvailabilityRow:last-child {
-  border-bottom: 0;
-}
-
-.agentAvailabilityCopy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.agentName,
-.agentMessage {
-  max-width: 100%;
-}
-
-.agentName {
-  font-weight: 500;
-}
-
-.agentMessage {
-  color: var(--color-text-3);
-  font-size: 12px;
-}
-
 .detailDrawer :global(.arco-drawer-content) {
   padding: 0;
 }
@@ -527,23 +584,6 @@
   flex-direction: column;
   gap: 20px;
   padding: 20px;
-}
-
-.detailIdentity {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.detailProject,
-.detailAgent {
-  color: var(--color-text-2);
-}
-
-.detailProject {
-  font-weight: 600;
 }
 
 .detailSection {
@@ -574,7 +614,8 @@
 }
 
 .detailFactLabel,
-.detailFactValue {
+.detailFactValue,
+.detailAttemptId {
   max-width: 100%;
 }
 
@@ -657,21 +698,6 @@
   font-weight: 600;
 }
 
-.stageMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 5px;
-}
-
-.stageMeta :global(.arco-typography) {
-  min-width: 0;
-  max-width: 100%;
-  color: var(--color-text-3);
-  font-size: 12px;
-  white-space: normal;
-}
-
 .detailFactLabel {
   color: var(--color-text-3);
   font-size: 12px;
@@ -683,11 +709,10 @@
   font-weight: 500;
 }
 
-.sectionTitleRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.detailAttemptId {
+  overflow-wrap: anywhere;
+  color: var(--color-text-1);
+  font-size: 12px;
 }
 
 .actionTitle,
@@ -738,202 +763,6 @@
   margin: 3px 0 0;
   color: var(--color-text-1);
   font-size: 13px;
-}
-
-.detailDisclosure {
-  min-width: 0;
-  border-top: 1px solid var(--color-border-2);
-}
-
-.detailDisclosure :global(.arco-collapse-item-header) {
-  padding-right: 0;
-  padding-left: 0;
-  background: transparent;
-}
-
-.detailDisclosure :global(.arco-collapse-item-content) {
-  padding-right: 0;
-  padding-left: 0;
-  background: transparent;
-}
-
-.detailEntries,
-.telemetryReasons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.telemetryReasons:empty {
-  display: none;
-}
-
-.detailEntry,
-.telemetryReason {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-border-2);
-}
-
-.detailEntryLabel,
-.detailEntrySummary,
-.detailEntryMeta,
-.detailEntryRef {
-  max-width: 100%;
-}
-
-.detailEntryLabel {
-  font-weight: 500;
-}
-
-.detailGroupLabel {
-  color: var(--color-text-2);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.detailEntrySummary,
-.detailEntryMeta {
-  color: var(--color-text-2);
-  font-size: 12px;
-}
-
-.detailEntryRef {
-  color: var(--color-text-3);
-  font-family: monospace;
-  font-size: 11px;
-}
-
-.cockpit {
-  min-width: 0;
-  padding: 16px 0;
-  border-top: 1px solid var(--color-border-2);
-  border-bottom: 1px solid var(--color-border-2);
-}
-
-.cockpitHeader,
-.cockpitRow {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.cockpitHeader :global(.arco-typography) {
-  margin: 0;
-}
-
-.cockpitCommands,
-.cockpitRowActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.cockpitMetrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 1px;
-  margin-top: 14px;
-  overflow: hidden;
-  border: 1px solid var(--color-border-2);
-  border-radius: 6px;
-  background: var(--color-border-2);
-}
-
-.cockpitMetric {
-  display: flex;
-  min-width: 0;
-  min-height: 58px;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 9px 11px;
-  background: var(--color-bg-1);
-}
-
-.cockpitMetricLabel,
-.cockpitMetricValue,
-.cockpitRowTitle,
-.cockpitRowMeta,
-.actionResultLine {
-  max-width: 100%;
-}
-
-.cockpitMetricLabel,
-.cockpitRowMeta {
-  color: var(--color-text-3);
-  font-size: 12px;
-}
-
-.cockpitMetricValue,
-.cockpitRowTitle,
-.cockpitSectionTitle {
-  color: var(--color-text-1);
-  font-weight: 600;
-}
-
-.cockpitSections {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.cockpitSection {
-  min-width: 0;
-}
-
-.cockpitSectionTitle {
-  display: block;
-  margin-bottom: 6px;
-}
-
-.cockpitRows {
-  min-width: 0;
-  border-top: 1px solid var(--color-border-2);
-}
-
-.cockpitRow {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-border-2);
-}
-
-.cockpitRowBody {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.actionResult {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-left: 3px solid var(--color-primary-6);
-  background: var(--color-fill-1);
-}
-
-.actionResult .cockpitSectionTitle {
-  margin-bottom: 0;
-}
-
-.actionResultLine {
-  color: var(--color-text-2);
-  font-size: 12px;
 }
 
 .detailActions {
@@ -989,19 +818,6 @@
     flex: 0 1 auto;
     width: 100%;
   }
-
-  .workspaceGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .desktopStatusViews {
-    display: none !important;
-  }
-
-  .mobileStatusView {
-    display: block;
-    width: min(100%, 280px);
-  }
 }
 
 @media (max-width: 820px) {
@@ -1018,26 +834,6 @@
 
   .refreshArea {
     justify-content: space-between;
-  }
-
-  .metricGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .metric {
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .cockpitHeader,
-  .cockpitRow {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .cockpitCommands,
-  .cockpitRowActions {
-    width: 100%;
-    justify-content: flex-start;
   }
 }
 
@@ -1057,17 +853,14 @@
     width: 100%;
   }
 
-  .metricGrid,
   .detailFacts,
   .systemAttentionGrid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .statusViewRow :global(.arco-radio-group) {
-    width: 100%;
-  }
-
-  .mobileStatusView {
+  .taskToolbarActions,
+  .statusViewSelect,
+  .archiveEntry {
     width: 100%;
   }
 }

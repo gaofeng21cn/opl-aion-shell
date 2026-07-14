@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readRuntimeSafeActions } from '@/renderer/pages/runtime/cockpit';
 import {
   currentStageLabel,
   formatTokenObservation,
@@ -161,27 +160,18 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items.some((item) => item.displayName === 'mas')).toBe(false);
   });
 
-  it('accepts only canonical availability and does not derive it from inventory or task counts', () => {
+  it('keeps project scope independent from module availability diagnostics', () => {
     const projection = createRuntimeV2Projection();
-    projection.agent_availability[0]!.availability = 'attention_required';
+    projection.agent_availability = [];
     projection.summary.work_item_count = 0;
-    projection.items = [];
 
     const result = readRuntimeWorkItemProjectionV2({
       operator: { workbench: { work_item_projection_v2: projection } },
     });
 
     expect(result.state).toBe('ready');
-    expect(result.projection?.agents[0]?.availability.state).toBe('attention_required');
-    expect(result.projection?.agents.slice(1).every((agent) => agent.availability.state === 'available')).toBe(true);
-
-    for (const retiredState of ['attention', 'unknown']) {
-      const invalid = createRuntimeV2Projection();
-      invalid.agent_availability[0]!.availability = retiredState;
-      expect(
-        readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalid } } })
-      ).toEqual({ state: 'invalid', projection: null });
-    }
+    expect(result.projection?.agents.map((agent) => agent.displayName)).toContain('Med Auto Science');
+    expect(result.projection?.items).toHaveLength(9);
   });
 
   it('does not claim system handling when the responsibility envelope is incomplete', () => {
@@ -229,37 +219,6 @@ describe('Runtime V2 projection boundary', () => {
     });
   });
 
-  it('exposes only explicit payload-free App safe actions', () => {
-    const actions = readRuntimeSafeActions({
-      app_operator_drilldown: {
-        app_execution_bridge: {
-          safe_action_routes: [
-            {
-              action_id: 'safe_app_action',
-              submit_via: 'opl app action execute',
-              route_requires_domain_or_app_payload: false,
-              payload_fields: [],
-            },
-            {
-              action_id: 'runtime_only_action',
-              submit_via: 'opl runtime action execute',
-              payload_fields: [],
-            },
-            {
-              action_id: 'payload_action',
-              submit_via: 'opl app action execute',
-              route_requires_domain_or_app_payload: true,
-              payload_fields: ['target_ref'],
-            },
-            { action_id: 'unmarked_action', payload_fields: [] },
-          ],
-        },
-      },
-    });
-
-    expect(actions.map((action) => action.id)).toEqual(['safe_app_action']);
-  });
-
   it('shows sync pending instead of deriving a user state when primary state is absent', () => {
     const projection = createRuntimeV2Projection();
     delete projection.items[0]!.lifecycle.primary_state;
@@ -279,6 +238,7 @@ describe('Runtime V2 projection boundary', () => {
     const item = result.projection?.items[0];
 
     expect(item?.execution).toMatchObject({
+      attemptId: 'attempt:dm001',
       currentStageDisplayName: '分析结果复核',
       nextStageDisplayName: '医学写作',
     });
@@ -326,7 +286,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(item?.primaryStatus).toBe('delivered_auto_paused');
     expect(item?.execution.currentStageId).toBeNull();
     expect(item?.execution.currentStageDisplayName).toBeNull();
-    expect(item && currentStageLabel(item, noCurrentStageTranslator)).toBe('暂无当前阶段');
+    expect(item && currentStageLabel(item, 'zh-CN', noCurrentStageTranslator)).toBe('暂无当前阶段');
     expect(item?.taskUsage).toEqual({
       state: 'observed',
       inputTokens: 1480,
@@ -339,10 +299,29 @@ describe('Runtime V2 projection boundary', () => {
 });
 
 describe('Runtime V2 semantic action formatting', () => {
-  it('keeps the actual next stage ahead of a generic localized action', () => {
+  it('uses exact stage-map display names ahead of execution labels for matching stage ids', () => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+    const withDifferentExecutionLabels = {
+      ...item,
+      execution: {
+        ...item.execution,
+        currentStageDisplayName: 'Analysis review',
+        nextStageDisplayName: 'Medical writing',
+      },
+    };
+
+    expect(currentStageLabel(withDifferentExecutionLabels, 'en-US', semanticTranslator('en-US'))).toBe(
+      'Analysis review'
+    );
+    expect(nextStageLabel(withDifferentExecutionLabels, 'en-US', semanticTranslator('en-US'))).toBe('Medical writing');
+    expect(currentStageLabel(withDifferentExecutionLabels, 'zh-CN', semanticTranslator('zh-CN'))).toBe('分析结果复核');
+    expect(nextStageLabel(withDifferentExecutionLabels, 'zh-CN', semanticTranslator('zh-CN'))).toBe('医学写作');
+  });
+
+  it('uses an explicitly projected next stage before falling back to the action', () => {
     const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
 
-    expect(nextStageLabel(item, semanticTranslator('en-US'))).toBe('医学写作');
+    expect(nextStageLabel(item, 'en-US', semanticTranslator('en-US'))).toBe('Medical writing');
 
     const withoutNextStage = {
       ...item,
@@ -352,7 +331,15 @@ describe('Runtime V2 semantic action formatting', () => {
         nextStageDisplayName: null,
       },
     };
-    expect(nextStageLabel(withoutNextStage, semanticTranslator('en-US'))).toBe('Continue advancing');
+    expect(nextStageLabel(withoutNextStage, 'en-US', semanticTranslator('en-US'))).toBe('Medical writing');
+
+    const withoutProjectedNextStage = {
+      ...withoutNextStage,
+      stageMap: withoutNextStage.stageMap.map((stage) =>
+        stage.state === 'next' ? { ...stage, state: 'pending' as const } : stage
+      ),
+    };
+    expect(nextStageLabel(withoutProjectedNextStage, 'en-US', semanticTranslator('en-US'))).toBe('Continue advancing');
   });
 
   it('localizes known semantic keys and the user owner for the active locale', () => {

@@ -13,15 +13,9 @@ export type RuntimePrimaryStatus =
 
 export type RuntimeExecutionState = 'running' | 'queued' | 'idle' | 'succeeded' | 'failed' | 'unknown';
 
-export type RuntimeAgentAvailabilityState = 'available' | 'attention_required' | 'unavailable';
-
 export type RuntimeAgent = {
   id: string;
   displayName: string;
-  availability: {
-    state: RuntimeAgentAvailabilityState;
-    reason: string;
-  };
 };
 
 export type RuntimeProject = {
@@ -80,6 +74,7 @@ export type RuntimeStageState =
 export type RuntimeStage = {
   id: string;
   displayName: string;
+  displayNames: Record<string, string>;
   state: RuntimeStageState;
   ownerDisplayName: string | null;
   elapsedSeconds: number | null;
@@ -129,6 +124,7 @@ export type RuntimeWorkItem = {
   statusSyncReason: 'incomplete_system_attention' | 'missing_primary_state' | null;
   execution: {
     state: RuntimeExecutionState;
+    attemptId: string | null;
     currentStageId: string | null;
     currentStageDisplayName: string | null;
     nextStageId: string | null;

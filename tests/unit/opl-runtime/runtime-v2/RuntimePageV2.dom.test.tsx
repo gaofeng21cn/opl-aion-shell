@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
-import { createRuntimeDrilldownResult, createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
+import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -99,6 +99,10 @@ vi.mock('react-i18next', () => ({
       'common.runtime.taskDetails.stageUnavailable': '当前投影尚未提供阶段名称',
       'common.runtime.taskDetails.noCurrentStage': '暂无当前阶段',
       'common.runtime.taskDetails.stageAndRun': '阶段与运行',
+      'common.runtime.taskDetails.currentStage': '阶段',
+      'common.runtime.taskDetails.nextStage': '下一阶段',
+      'common.runtime.taskDetails.currentAttempt': '当前尝试',
+      'common.runtime.taskDetails.heartbeat': '心跳摘要',
       'common.runtime.taskDetails.stage.completed': '已完成',
       'common.runtime.taskDetails.stage.current': '当前',
       'common.runtime.taskDetails.stage.next': '下一步',
@@ -109,6 +113,8 @@ vi.mock('react-i18next', () => ({
       'common.runtime.taskDetails.timeline': '时间线',
       'common.runtime.taskDetails.evidence': '证据',
       'common.runtime.taskDetails.diagnostics': '诊断',
+      'common.runtime.stageUsageLabel': '当前阶段 Token',
+      'common.runtime.totalUsageLabel': '累计 Token',
       'common.runtime.systemAttention.title': '系统处理',
       'common.runtime.systemAttention.responsibleComponent': '责任组件',
       'common.runtime.systemAttention.issue': '具体问题',
@@ -284,9 +290,6 @@ describe('Runtime V2 page', () => {
     resetOplAppStateLoadsForTest();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: createRuntimeV2AppState() });
-    bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
-      Promise.resolve(createRuntimeDrilldownResult(detail))
-    );
     bridgeMocks.executeActionInvoke.mockResolvedValue({
       ok: true,
       parsed: {
@@ -296,13 +299,13 @@ describe('Runtime V2 page', () => {
     });
   });
 
-  it('shows nine visible items and keeps repeated work item ids distinct by canonical item id', async () => {
+  it('shows all nine visible items and keeps repeated work item ids distinct by canonical item id', async () => {
     render(<RuntimePage />);
 
     await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
     expect(screen.getByRole('button', { name: /001 DM CVD Mortality Risk/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
-    expect(screen.getByText('NF-PitNET Paper 4')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /NF-PitNET Paper 4/ })).toBeInTheDocument();
     expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（0）');
     const agentSelect = screen.getByTestId('runtime-agent-selector');
     const projectSelect = screen.getByTestId('runtime-project-selector');
@@ -317,10 +320,9 @@ describe('Runtime V2 page', () => {
     await waitFor(() => expect(within(projectSelect).getByText('DM-CVD-Mortality-Risk')).toBeInTheDocument());
     expect(within(projectSelect).getByText('NF-PitNET')).toBeInTheDocument();
     expect(within(projectSelect).getByText('Obesity')).toBeInTheDocument();
-    expect(screen.getByTestId('runtime-status-views')).not.toHaveTextContent('Med Auto Science');
-    expect(screen.getByTestId('runtime-status-views')).toHaveTextContent(
-      '全部自动推进中等待你决定系统处理中已交付或暂停已停止状态待同步'
-    );
+    const statusSelect = screen.getByTestId('runtime-status-view-select');
+    expect(within(statusSelect).queryByText('Med Auto Science')).not.toBeInTheDocument();
+    expect(within(statusSelect).getAllByRole('option')).toHaveLength(7);
 
     fireEvent.change(projectSelect, { target: { value: 'diabetes' } });
     await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(4));
@@ -350,71 +352,40 @@ describe('Runtime V2 page', () => {
     const deliveredRow = rows.find((row) => row.textContent?.includes('002 DM China US Mortality Attribution'));
     expect(deliveredRow).toHaveTextContent('暂无当前阶段');
     expect(deliveredRow).toHaveTextContent('1,500');
-    const availability = screen.getByTestId('runtime-agent-availability');
-    expect(availability).toHaveTextContent('5');
-    expect(availability).not.toHaveTextContent('9');
-    expect(availability.querySelectorAll('.arco-collapse-item-active')).toHaveLength(0);
+    expect(screen.queryByTestId('runtime-agent-availability')).not.toBeInTheDocument();
   });
 
-  it('keeps the V2 list while exposing keyboard-reachable summary and full drilldown requests', async () => {
+  it('keeps platform maintenance actions and operator drilldown out of the project Runtime page', async () => {
     render(<RuntimePage />);
 
     await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
-    await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' }));
-
-    const summaryButton = await screen.findByTestId('runtime-load-summary');
-    const fullButton = screen.getByTestId('runtime-load-full');
-    expect(summaryButton.tagName).toBe('BUTTON');
-    expect(fullButton.tagName).toBe('BUTTON');
-
-    fireEvent.click(summaryButton);
-    await waitFor(() =>
-      expect(
-        bridgeMocks.getDrilldownInvoke.mock.calls.filter(([request]) => request.detail === 'summary')
-      ).toHaveLength(2)
-    );
-
-    fireEvent.click(fullButton);
-    await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'full' }));
-    expect(await screen.findByTestId('runtime-full-loaded')).toHaveTextContent('完整详情已加载');
+    expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('runtime-cockpit')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-safe-actions')).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('runtime_reconcile_provider');
+    expect(document.body).not.toHaveTextContent('codex_install');
     expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
   });
 
-  it('requires a successful dry run before confirming and executing a safe action', async () => {
-    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
-      ok: false,
-      error: { message: 'Dry run rejected' },
-    });
+  it('opens a stage popup with the complete stage list and current attempt', async () => {
     render(<RuntimePage />);
 
-    const action = await screen.findByTestId('runtime-safe-action-runtime_reconcile_provider');
-    const dryRunButton = within(action).getByRole('button', { name: '试运行' });
-    const executeButton = within(action).getByRole('button', { name: '执行' });
-    expect(executeButton).toBeDisabled();
+    const row = (await screen.findAllByTestId('runtime-task-row')).find((candidate) =>
+      candidate.textContent?.includes('001 DM CVD Mortality Risk')
+    )!;
+    fireEvent.click(within(row).getByTestId('runtime-stage-trigger'));
 
-    fireEvent.click(dryRunButton);
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'runtime_reconcile_provider',
-        dryRun: true,
-      })
-    );
-    expect(executeButton).toBeDisabled();
+    const popover = await screen.findByTestId('runtime-stage-popover');
+    expect(popover).toHaveTextContent('阶段图');
+    expect(popover).toHaveTextContent('当前尝试');
+    expect(popover).toHaveTextContent('attempt:dm001');
+    expect(within(popover).getAllByRole('listitem')).toHaveLength(5);
+    expect(popover).toHaveTextContent('分析结果复核');
+    expect(popover).toHaveTextContent('医学写作');
+    expect(screen.queryByTestId('runtime-task-detail')).not.toBeInTheDocument();
 
-    fireEvent.click(dryRunButton);
-    await waitFor(() => expect(executeButton).toBeEnabled());
-    fireEvent.click(executeButton);
-    expect(bridgeMocks.modalConfirm).toHaveBeenCalledTimes(1);
-
-    const confirmation = bridgeMocks.modalConfirm.mock.calls[0]?.[0] as { onOk: () => Promise<void> };
-    await act(async () => {
-      await confirmation.onOk();
-    });
-
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'runtime_reconcile_provider',
-      dryRun: false,
-    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(popover).not.toBeVisible());
   });
 
   it('keeps archived tasks in an independent library that ignores the active status saved view', async () => {
@@ -627,25 +598,6 @@ describe('Runtime V2 page', () => {
     expect(screen.getByTestId('runtime-archive-work-item')).toBeInTheDocument();
   });
 
-  it('keeps attempt restoration explicitly labeled as an execution-record diagnostic action', async () => {
-    render(<RuntimePage />);
-
-    const archivedAttempts = await screen.findByTestId('runtime-archived-attempts');
-    expect(archivedAttempts).toHaveTextContent('已归档执行记录');
-    fireEvent.click(within(archivedAttempts).getByRole('button', { name: '恢复执行记录' }));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'runtime_restore_attempt',
-        payloadRefsOnlyJson: {
-          stage_attempt_id: 'attempt:archived-dm003',
-          reason: 'user_restored_execution_record_from_runtime_cockpit',
-        },
-        dryRun: false,
-      })
-    );
-    expect(archivedAttempts).not.toHaveTextContent('归档任务');
-  });
-
   it('rerenders semantic action copy and the user owner for the active locale', async () => {
     const view = render(<RuntimePage />);
 
@@ -683,7 +635,16 @@ describe('Runtime V2 page', () => {
     expect(action).not.toHaveTextContent('框架原始摘要');
   });
 
-  it('opens workflow-first details and keeps secondary evidence collapsed', async () => {
+  it('opens minimal workflow details without evidence or diagnostic surfaces', async () => {
+    const payload = createRuntimeV2AppState();
+    const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
+      (candidate) => candidate.identity.work_item_id === '001' && candidate.identity.project_id === 'diabetes'
+    )!;
+    item.execution.current_stage_display_name = null;
+    item.lifecycle.current_stage_display_name = null;
+    item.execution.next_stage_id = null;
+    item.execution.next_stage_display_name = null;
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
     render(<RuntimePage />);
 
     const openButton = await screen.findByRole('button', {
@@ -698,19 +659,38 @@ describe('Runtime V2 page', () => {
     expect(drawer).toHaveTextContent('医学写作');
     expect(drawer).not.toHaveTextContent('当前投影尚未提供阶段图');
     expect(drawer).toHaveTextContent('阶段与运行');
-    expect(drawer).toHaveTextContent('正在运行');
+    expect(drawer).toHaveTextContent('下一阶段');
+    expect(within(drawer).getByTestId('runtime-current-stage')).toHaveTextContent('分析结果复核');
+    expect(within(drawer).getByTestId('runtime-next-stage')).toHaveTextContent('医学写作');
+    expect(within(drawer).getByTestId('runtime-current-stage')).not.toHaveTextContent('Analysis review');
+    expect(within(drawer).getByTestId('runtime-next-stage')).not.toHaveTextContent('继续推进');
+    expect(drawer).toHaveTextContent('当前尝试');
+    expect(drawer).toHaveTextContent('attempt:dm001');
+    expect(drawer).toHaveTextContent('心跳摘要');
+    expect(drawer).toHaveTextContent('当前阶段 Token');
+    expect(drawer).toHaveTextContent('累计 Token');
     expect(drawer).toHaveTextContent('1,200');
     expect(drawer).toHaveTextContent('2,400');
     expect(drawer).toHaveTextContent('下一步动作');
     expect(drawer).toHaveTextContent('继续推进');
     expect(drawer).toHaveTextContent('医学写作');
     expect(drawer).toHaveTextContent('Med Auto Science');
-    expect(drawer).toHaveTextContent('产物');
-    expect(drawer).toHaveTextContent('时间线');
-    expect(drawer).toHaveTextContent('证据');
-    expect(drawer).toHaveTextContent('诊断');
-    expect(drawer.querySelectorAll('.arco-collapse-item')).toHaveLength(4);
-    expect(drawer.querySelectorAll('.arco-collapse-item-active')).toHaveLength(0);
+    for (const forbidden of [
+      '当前进展',
+      '持续时间',
+      '产物',
+      '时间线',
+      '证据',
+      '诊断',
+      '来源引用',
+      'InventoryResolved',
+      'domain_inventory_item_resolved',
+      'STUDY_STATUS.md',
+    ]) {
+      expect(drawer).not.toHaveTextContent(forbidden);
+    }
+    expect(within(drawer).queryByTestId('runtime-detail-disclosure')).not.toBeInTheDocument();
+    expect(drawer.querySelectorAll('.arco-collapse-item')).toHaveLength(0);
   });
 
   it('shows every system responsibility field only for a complete envelope', async () => {

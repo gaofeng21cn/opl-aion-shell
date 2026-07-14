@@ -1,6 +1,5 @@
 import type {
   RuntimeActionKind,
-  RuntimeAgentAvailabilityState,
   RuntimeExecutionState,
   RuntimePrimaryStatus,
   RuntimeStage,
@@ -30,17 +29,6 @@ const EXECUTION_STATE_KEYS: Record<RuntimeExecutionState, string> = {
   succeeded: 'common.runtime.executionStates.succeeded',
   failed: 'common.runtime.executionStates.failed',
   unknown: 'common.runtime.executionStates.unknown',
-};
-
-const AVAILABILITY_KEYS: Record<RuntimeAgentAvailabilityState, string> = {
-  available: 'common.runtime.agentAvailability.available',
-  attention_required: 'common.runtime.agentAvailability.attentionRequired',
-  unavailable: 'common.runtime.agentAvailability.unavailable',
-};
-
-const AVAILABILITY_DESCRIPTION_KEYS: Record<Exclude<RuntimeAgentAvailabilityState, 'available'>, string> = {
-  attention_required: 'common.runtime.agentAvailability.description.attentionRequired',
-  unavailable: 'common.runtime.agentAvailability.description.unavailable',
 };
 
 const ACTION_KIND_KEYS: Record<RuntimeActionKind, string> = {
@@ -142,17 +130,6 @@ export function executionStateLabel(state: RuntimeExecutionState, t: RuntimeTran
   return t(EXECUTION_STATE_KEYS[state]);
 }
 
-export function availabilityLabel(state: RuntimeAgentAvailabilityState, t: RuntimeTranslate): string {
-  return t(AVAILABILITY_KEYS[state]);
-}
-
-export function availabilityDescription(
-  state: Exclude<RuntimeAgentAvailabilityState, 'available'>,
-  t: RuntimeTranslate
-): string {
-  return t(AVAILABILITY_DESCRIPTION_KEYS[state]);
-}
-
 export function actionKindLabel(kind: RuntimeActionKind, t: RuntimeTranslate): string {
   return t(ACTION_KIND_KEYS[kind]);
 }
@@ -169,15 +146,41 @@ function humanizeStageId(value: string): string {
   return normalized ? normalized[0]!.toUpperCase() + normalized.slice(1) : value;
 }
 
-export function currentStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): string {
+export function stageDisplayName(stage: RuntimeStage, locale: string): string {
+  const normalizedLocale = locale.replace('_', '-').toLowerCase();
+  const localeEntries = Object.entries(stage.displayNames);
+  const exact = localeEntries.find(
+    ([candidate]) => candidate.replace('_', '-').toLowerCase() === normalizedLocale
+  )?.[1];
+  const language = normalizedLocale.split('-')[0];
+  const languageFallback = localeEntries.find(
+    ([candidate]) => candidate.replace('_', '-').toLowerCase().split('-')[0] === language
+  )?.[1];
+  const localized = exact ?? languageFallback;
+  return localized ?? stage.displayName;
+}
+
+function stageMapDisplayName(stageMap: RuntimeStage[], stageId: string | null, locale: string): string | null {
+  if (!stageId) return null;
+  const stage = stageMap.find((candidate) => candidate.id === stageId);
+  return stage ? stageDisplayName(stage, locale) : null;
+}
+
+export function currentStageLabel(item: RuntimeWorkItem, locale: string, t: RuntimeTranslate): string {
+  const mappedDisplayName = stageMapDisplayName(item.stageMap, item.execution.currentStageId, locale);
+  if (mappedDisplayName) return mappedDisplayName;
   if (item.execution.currentStageDisplayName) return item.execution.currentStageDisplayName;
   if (item.execution.currentStageId) return humanizeStageId(item.execution.currentStageId);
   return t('common.runtime.taskDetails.noCurrentStage');
 }
 
-export function nextStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): string {
+export function nextStageLabel(item: RuntimeWorkItem, locale: string, t: RuntimeTranslate): string {
+  const mappedDisplayName = stageMapDisplayName(item.stageMap, item.execution.nextStageId, locale);
+  if (mappedDisplayName) return mappedDisplayName;
   if (item.execution.nextStageDisplayName) return item.execution.nextStageDisplayName;
   if (item.execution.nextStageId) return humanizeStageId(item.execution.nextStageId);
+  const projectedNextStage = item.stageMap.find((stage) => stage.state === 'next');
+  if (projectedNextStage) return stageDisplayName(projectedNextStage, locale);
   if (item.action) return resolveRuntimeAction(item.action, t).title;
   return t('common.runtime.noNextAction');
 }

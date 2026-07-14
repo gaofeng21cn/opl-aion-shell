@@ -20,7 +20,7 @@ const VIEWPORTS = [
   { width: 375, height: 812, columns: 1 },
 ] as const;
 
-const WRAP_REGRESSION_VIEWPORT = { width: 1370, height: 900, columns: 2 } as const;
+const WRAP_REGRESSION_VIEWPORT = { width: 1370, height: 900, columns: 4 } as const;
 const PROJECT_NAMES = ['DM-CVD-Mortality-Risk', 'NF-PitNET', 'Obesity'] as const;
 const ORAL_PROJECT_NAMES = ['糖尿病', '无功能垂体瘤', '肥胖'] as const;
 
@@ -47,6 +47,8 @@ const LOCALES = [
     actionSummary: '里程碑已交付；请补齐投稿信息，或在需要修订时重新启动任务。',
     owner: '负责人：你',
     forbiddenAction: 'Provide submission details or request a revision',
+    currentStage: '分析结果复核',
+    nextStage: '医学写作',
   },
   {
     id: 'en-US',
@@ -59,6 +61,8 @@ const LOCALES = [
       'The milestone is delivered. Provide submission details, or restart the task when a revision is needed.',
     owner: 'Owner: You',
     forbiddenAction: '补齐投稿信息或发起修订',
+    currentStage: 'Analysis review',
+    nextStage: 'Medical writing',
   },
 ] as const;
 
@@ -248,6 +252,25 @@ async function waitForSelectPopupToClose(page: Page): Promise<void> {
   await expect(page.locator('.arco-select-popup')).toHaveCount(0);
 }
 
+async function waitForStagePopoverToSettle(stagePopover: Locator): Promise<void> {
+  const popup = stagePopover.locator(
+    'xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " arco-trigger ")][1]'
+  );
+  await expect(popup).toHaveCount(1);
+  await expect
+    .poll(() =>
+      popup.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          opacity: style.opacity,
+          pointerEvents: style.pointerEvents,
+          transform: style.transform,
+        };
+      })
+    )
+    .toEqual({ opacity: '1', pointerEvents: 'auto', transform: 'none' });
+}
+
 async function selectRuntimeOption(page: Page, selectorTestId: string, label: string): Promise<void> {
   await page.locator(`[data-testid="${selectorTestId}"]`).click();
   await assertOptionIsTopmost(page, label);
@@ -348,6 +371,10 @@ test('localizes lifecycle decisions while keeping project names stable at every 
     await expect(deliveredRow).toContainText(locale.owner);
     await expect(deliveredRow).not.toContainText(locale.forbiddenAction);
 
+    const activeRow = page.locator('[data-testid="runtime-task-row"]').filter({ hasText: '001 DM CVD Mortality Risk' });
+    await expect(activeRow).toContainText(locale.currentStage);
+    await expect(activeRow).toContainText(locale.nextStage);
+
     const stoppedRow = page.locator('[data-testid="runtime-task-row"]').filter({ hasText: 'NF-PitNET Paper 1' });
     await expect(stoppedRow.locator('[data-runtime-status="stopped"]')).toHaveText(locale.stoppedStatus);
     if (locale.id === 'en-US') {
@@ -357,10 +384,6 @@ test('localizes lifecycle decisions while keeping project names stable at every 
         '当前不再推进',
         '补齐投稿信息或发起修订',
         '负责人：你',
-        '分析结果复核',
-        '医学写作',
-        '研究方向确认',
-        '研究设计',
       ]) {
         await expect(page.locator('[data-testid="runtime-v2-page"]')).not.toContainText(forbidden);
       }
@@ -371,20 +394,17 @@ test('localizes lifecycle decisions while keeping project names stable at every 
     await expect(deliveredRow).not.toContainText('runtime_token_telemetry_verification');
     await expect(page.locator('[data-testid="runtime-work-item-list"]')).not.toContainText('attempt:dm001');
     await expect(page.locator('[data-testid="runtime-work-item-list"]')).not.toContainText('workflow:dm001');
-    const availability = page.locator('[data-testid="runtime-agent-availability"]');
-    await expect(availability).toContainText(locale.id === 'zh-CN' ? '5 个智能体可用' : '5 agents available');
-    await expect(availability.locator('.arco-collapse-item-active')).toHaveCount(0);
+    await expect(page.locator('[data-testid="runtime-cockpit"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="runtime-safe-actions"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="runtime-v2-page"]')).not.toContainText('codex_install');
+    await expect(page.locator('[data-testid="runtime-agent-availability"]')).toHaveCount(0);
 
     for (const viewport of VIEWPORTS) {
       await setViewport(page, app, viewport);
-      if (viewport.width > 1180) {
-        await expect(page.locator('[data-testid="runtime-status-views"] input[type="radio"]')).toHaveCount(7);
-      } else {
-        await page.locator('[data-testid="runtime-status-view-select"]').click();
-        await expect(page.getByRole('option')).toHaveCount(7);
-        await page.keyboard.press('Escape');
-        await waitForSelectPopupToClose(page);
-      }
+      await page.locator('[data-testid="runtime-status-view-select"]').click();
+      await expect(page.getByRole('option')).toHaveCount(7);
+      await page.keyboard.press('Escape');
+      await waitForSelectPopupToClose(page);
       await resetRuntimeScroll(page);
       await expect.poll(() => gridColumnCount(page)).toBe(viewport.columns);
       await assertNoHorizontalOverflow(page);
@@ -395,7 +415,7 @@ test('localizes lifecycle decisions while keeping project names stable at every 
         '[data-testid="runtime-project-selector"]',
         '[data-testid="runtime-refresh-button"]',
         '[data-testid="runtime-status-region"]',
-        viewport.width > 1180 ? '[data-testid="runtime-status-views"]' : '[data-testid="runtime-status-view-select"]',
+        '[data-testid="runtime-status-view-select"]',
         '[data-testid="runtime-work-item-list"]',
       ]);
       await page.screenshot({
@@ -408,6 +428,26 @@ test('localizes lifecycle decisions while keeping project names stable at every 
         await expect(firstTask).toBeInViewport();
         await page.screenshot({ path: path.join(screenshotDir, `runtime-v2-${locale.id}-375-tasks.png`) });
       }
+
+      const stageTrigger = page
+        .locator('[data-testid="runtime-task-row"]')
+        .filter({ hasText: '001 DM CVD Mortality Risk' })
+        .locator('[data-testid="runtime-stage-trigger"]');
+      await stageTrigger.click();
+      const stagePopover = page.locator('[data-testid="runtime-stage-popover"]');
+      await expect(stagePopover).toBeVisible();
+      await expect(stagePopover.locator('[data-stage-state]')).toHaveCount(5);
+      await expect(stagePopover.locator('[data-stage-state="current"]')).toContainText(locale.currentStage);
+      await expect(stagePopover.locator('[data-stage-state="next"]')).toContainText(locale.nextStage);
+      await waitForStagePopoverToSettle(stagePopover);
+      await assertElementsWithinViewport(page, ['[data-testid="runtime-stage-popover"]']);
+      await assertNoHorizontalOverflow(page);
+      await page.screenshot({
+        path: path.join(screenshotDir, `runtime-v2-${locale.id}-${viewport.width}-stage-popover.png`),
+        fullPage: true,
+      });
+      await page.keyboard.press('Escape');
+      await expect(stagePopover).toBeHidden();
     }
 
     await setViewport(page, app, VIEWPORTS[0]);
@@ -585,38 +625,65 @@ test('persists archive and restore by canonical identity without changing runtim
   await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-restored-zh-CN.png'), fullPage: true });
 });
 
-test('keeps stage detail and advanced evidence progressively disclosed', async () => {
+test('keeps task details minimal without evidence or diagnostic surfaces', async () => {
   if (!fixture) throw new Error('Runtime V2 E2E fixture was not launched.');
   const { app, page, screenshotDir } = fixture;
 
   await setViewport(page, app, VIEWPORTS[0]);
-  await page.locator('[data-testid="runtime-task-row"]').filter({ hasText: '001 DM CVD Mortality Risk' }).click();
+  await expect(page.locator('.arco-message')).toHaveCount(0, { timeout: 10_000 });
+  const taskRow = page.locator('[data-testid="runtime-task-row"]').filter({ hasText: '001 DM CVD Mortality Risk' });
+  await taskRow.locator('[data-testid="runtime-stage-trigger"]').click();
+  const stagePopover = page.locator('[data-testid="runtime-stage-popover"]');
+  await expect(stagePopover).toBeVisible();
+  await expect(stagePopover.locator('[data-stage-state]')).toHaveCount(5);
+  await expect(stagePopover).toContainText('attempt:dm001');
+  await expect(stagePopover.locator('[data-stage-state="current"]')).toContainText('分析结果复核');
+  await expect(stagePopover.locator('[data-stage-state="next"]')).toContainText('医学写作');
+  await waitForStagePopoverToSettle(stagePopover);
+  await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1440-stage-popover.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(stagePopover).toBeHidden();
+
+  await taskRow.click();
   const drawer = page.locator('[data-testid="runtime-task-detail"]');
   await expect(drawer).toBeVisible();
   await waitForDrawerToDock(page, drawer);
   await expect(drawer.locator('[data-testid="runtime-stage-map"] [data-stage-state]')).toHaveCount(5);
-  await expect(drawer).toContainText('分析结果复核');
+  await expect(drawer.locator('[data-testid="runtime-current-stage"]')).toHaveText('分析结果复核');
+  await expect(drawer.locator('[data-testid="runtime-next-stage"]')).toHaveText('医学写作');
+  await expect(drawer.locator('[data-testid="runtime-current-stage"]')).not.toContainText('Analysis review');
+  await expect(drawer.locator('[data-testid="runtime-next-stage"]')).not.toContainText('继续推进');
+  await expect(drawer).toContainText('attempt:dm001');
+  await expect(drawer).toContainText('心跳摘要');
+  await expect(drawer).toContainText('当前阶段 Token');
+  await expect(drawer).toContainText('累计 Token');
+  await expect(drawer).toContainText('1,200');
+  await expect(drawer).toContainText('2,400');
   await expect(drawer.locator('[data-testid="runtime-next-action"]')).toContainText('继续推进');
-  await expect(drawer).toContainText('产物');
-  await expect(drawer).toContainText('时间线');
-  await expect(drawer).toContainText('证据');
-  await expect(drawer).toContainText('诊断');
-  const disclosure = drawer.locator('[data-testid="runtime-detail-disclosure"] .arco-collapse-item');
-  await expect(disclosure).toHaveCount(4);
-  await expect(drawer.locator('[data-testid="runtime-detail-disclosure"] .arco-collapse-item-active')).toHaveCount(0);
+  for (const forbidden of [
+    '当前进展',
+    '持续时间',
+    '产物',
+    '时间线',
+    '证据',
+    '诊断',
+    '来源引用',
+    'InventoryResolved',
+    'domain_inventory_item_resolved',
+    'STUDY_STATUS.md',
+  ]) {
+    await expect(drawer).not.toContainText(forbidden);
+  }
+  await expect(drawer.locator('[data-testid="runtime-detail-disclosure"]')).toHaveCount(0);
+  await expect(drawer.locator('.arco-collapse-item')).toHaveCount(0);
   const drawerContent = drawer.locator('.arco-drawer-content');
   const detailDimensions = await drawerContent.evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
   }));
   expect(detailDimensions.scrollWidth).toBeLessThanOrEqual(detailDimensions.clientWidth + 1);
-  await disclosure.nth(1).locator('.arco-collapse-item-header').click();
-  await disclosure.nth(2).locator('.arco-collapse-item-header').click();
-  await expect(disclosure.nth(1)).toContainText('项目清单已读取');
-  await expect(disclosure.nth(2)).toContainText('STUDY_STATUS.md');
-  await expect(drawer.locator('[data-testid="runtime-detail-disclosure"] .arco-collapse-item-active')).toHaveCount(2);
   await assertNoHorizontalOverflow(page);
-  await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1440-detail-disclosure.png'), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1440-minimal-detail.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
 });

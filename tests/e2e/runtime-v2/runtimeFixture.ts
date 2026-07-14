@@ -40,9 +40,8 @@ function createRuntimeE2EAppState(): RuntimeE2EAppState {
   const state = createRuntimeV2AppState();
   const projection = state.app_state.operator.workbench.work_item_projection_v2;
 
-  // Stage display names are package-owned. The locale acceptance fixture uses
-  // stable machine ids so semantic actions, rather than raw fallback copy,
-  // prove the renderer's locale switch.
+  // Stage display names are package-owned. Keep only the current machine id and
+  // the explicit next state so the renderer proves both Stage Map lookup paths.
   for (const item of projection.items) {
     if (item.execution.current_stage_id) {
       item.execution.current_stage_display_name = null;
