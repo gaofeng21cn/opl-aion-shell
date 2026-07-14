@@ -600,7 +600,7 @@ const handleAppReady = async (): Promise<void> => {
 
   try {
     await initializeProcess();
-    rendererInitialLanguage = ProcessConfig.getSync('language') ?? null;
+    rendererInitialLanguage = ProcessConfig.getSync('language') ?? app.getLocale();
     mark('initializeProcess');
   } catch (error) {
     console.error('Failed to initialize process:', error);

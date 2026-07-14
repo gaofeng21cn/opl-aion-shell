@@ -1385,13 +1385,14 @@
     "overall": {
       "title": "这台电脑",
       "attentionCount": "{{count}} 项需要处理",
-      "readyDescription": "工作目录和主要本机能力已可用。",
+      "readyDescription": "Codex 和主要本机能力已可用。",
       "attentionDescription": "仍有设置需要处理；下面只列出会影响使用的事项。"
     },
     "attention": {
       "title": "需要处理",
       "description": "处理完成后，本页会自动恢复为安静的正常状态。",
       "workspaceTitle": "选择工作目录",
+      "codexTitle": "恢复 Codex 访问",
       "capabilitiesTitle": "检查能力包"
     },
     "shortcuts": {
@@ -1461,6 +1462,26 @@
         "title": "偏好",
         "description": "调整界面行为、显示方式和主题外观。"
       }
+    },
+    "gateway": {
+      "title": "OPL Gateway",
+      "connectedDescription": "已登录，可用于模型访问、用量和计费信息。",
+      "manualKeyDescription": "当前由手工配置的密钥提供模型访问。",
+      "notConnectedDescription": "如果 Codex 已可正常访问模型，可以不连接。",
+      "updatedAt": "更新于 {{observedAt}}",
+      "status": {
+        "connected": "已连接",
+        "manualKey": "手工密钥",
+        "notConnected": "未连接",
+        "needsAttention": "需要处理"
+      }
+    },
+    "technical": {
+      "description": "用于排查问题的精简只读信息。",
+      "codex": "Codex",
+      "gatewayFreshness": "Gateway 数据",
+      "backgroundService": "后台服务",
+      "capabilities": "能力包"
     },
     "developerSource": {
       "title": "开发源需要手动处理",

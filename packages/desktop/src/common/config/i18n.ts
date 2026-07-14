@@ -39,6 +39,30 @@ export function normalizeLanguageCode(language: string): SupportedLanguage {
   }
 }
 
+export type InitialLanguageHints = {
+  storedLanguage?: string | null;
+  injectedLanguage?: string | null;
+  systemLanguage?: string | null;
+  preferInjected?: boolean;
+};
+
+/**
+ * Resolve the language used for the synchronous first render.
+ * Persisted user hints win, while a fresh desktop install follows the OS.
+ */
+export function resolveInitialLanguage({
+  storedLanguage,
+  injectedLanguage,
+  systemLanguage,
+  preferInjected = false,
+}: InitialLanguageHints): SupportedLanguage {
+  const candidates = preferInjected
+    ? [injectedLanguage, storedLanguage, systemLanguage]
+    : [storedLanguage, injectedLanguage, systemLanguage];
+  const language = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim() !== '');
+  return normalizeLanguageCode(language ?? DEFAULT_LANGUAGE);
+}
+
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

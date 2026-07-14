@@ -1,17 +1,20 @@
+import { Puzzle } from '@icon-park/react';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
-  Communication,
-  Dashboard,
-  Earth,
-  FolderOpen,
-  Lightning,
-  LinkCloud,
-  Puzzle,
-  Robot,
-  SettingConfig,
-  SwitchThemes,
-  System,
-  Toolkit,
-} from '@icon-park/react';
+  faCircleInfo,
+  faCloud,
+  faFolderOpen,
+  faGaugeHigh,
+  faHardDrive,
+  faKey,
+  faLink,
+  faPalette,
+  faPuzzlePiece,
+  faRobot,
+  faScrewdriverWrench,
+  faSliders,
+} from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
@@ -226,6 +229,22 @@ const SETTINGS_ICON_COLORS: Record<string, string> = {
   about: 'rgb(var(--blue-6))',
 };
 
+const SETTINGS_FONT_AWESOME_ICONS: Record<string, IconDefinition> = {
+  dashboard: faGaugeHigh,
+  general: faGaugeHigh,
+  access: faKey,
+  workspace: faFolderOpen,
+  agents: faRobot,
+  capabilities: faPuzzlePiece,
+  resources: faLink,
+  'local-services': faScrewdriverWrench,
+  environment: faScrewdriverWrench,
+  storage: faHardDrive,
+  appearance: faPalette,
+  advanced: faSliders,
+  about: faCircleInfo,
+};
+
 export function getSettingsTabLabel(tabId: string, t: TranslateFn, language = 'en'): string {
   const route = ordinaryRoutesById.get(tabId);
   const defaultLabel = language.toLowerCase().startsWith('zh') ? route?.default_label_zh : route?.default_label_en;
@@ -268,43 +287,15 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
 export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React.ReactElement {
   const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
   const iconColor = SETTINGS_ICON_COLORS[iconToken] ?? SETTINGS_ICON_COLORS[tabId] ?? iconColors.secondary;
-  if (slot === 'modal') {
-    const modalIcons: Record<string, React.ReactElement> = {
-      dashboard: <Dashboard theme='outline' size='20' fill={iconColor} />,
-      general: <Dashboard theme='outline' size='20' fill={iconColor} />,
-      workspace: <FolderOpen theme='outline' size='20' fill={iconColor} />,
-      agents: <Robot theme='outline' size='20' fill={iconColor} />,
-      'local-services': <Toolkit theme='outline' size='20' fill={iconColor} />,
-      resources: <LinkCloud theme='outline' size='20' fill={iconColor} />,
-      environment: <Toolkit theme='outline' size='20' fill={iconColor} />,
-      storage: <Toolkit theme='outline' size='20' fill={iconColor} />,
-      capabilities: <Lightning theme='outline' size='20' fill={iconColor} />,
-      access: <Earth theme='outline' size='20' fill={iconColor} />,
-      appearance: <SwitchThemes theme='outline' size='20' fill={iconColor} />,
-      advanced: <SettingConfig theme='outline' size='20' fill={iconColor} />,
-    };
-    return modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColor} />;
-  }
-
-  const siderIcons: Record<string, React.ReactElement> = {
-    dashboard: <Dashboard fill={iconColor} style={{ color: iconColor }} />,
-    general: <Dashboard fill={iconColor} style={{ color: iconColor }} />,
-    access:
-      slot === 'siderDesktop' ? (
-        <Earth fill={iconColor} style={{ color: iconColor }} />
-      ) : (
-        <Communication fill={iconColor} style={{ color: iconColor }} />
-      ),
-    workspace: <FolderOpen fill={iconColor} style={{ color: iconColor }} />,
-    agents: <Robot fill={iconColor} style={{ color: iconColor }} />,
-    capabilities: <Lightning fill={iconColor} style={{ color: iconColor }} />,
-    resources: <LinkCloud fill={iconColor} style={{ color: iconColor }} />,
-    environment: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
-    storage: <Toolkit fill={iconColor} style={{ color: iconColor }} />,
-    appearance: <SwitchThemes fill={iconColor} style={{ color: iconColor }} />,
-    advanced: <System fill={iconColor} style={{ color: iconColor }} />,
-  };
-  return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle fill={iconColor} style={{ color: iconColor }} />;
+  const icon = SETTINGS_FONT_AWESOME_ICONS[iconToken] ?? SETTINGS_FONT_AWESOME_ICONS[tabId] ?? faCloud;
+  return (
+    <FontAwesomeIcon
+      icon={icon}
+      className={slot === 'modal' ? 'text-20px' : 'text-18px'}
+      style={{ color: iconColor }}
+      aria-hidden='true'
+    />
+  );
 }
 
 export function resolveLegacySettingsAnchor(anchor: string): string {

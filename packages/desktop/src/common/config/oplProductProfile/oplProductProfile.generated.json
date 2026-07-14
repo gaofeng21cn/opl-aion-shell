@@ -40,6 +40,12 @@
       "default_css_theme_name": "Default",
       "codex_theme_default_enabled": false
     },
+    "ui_locale_policy": {
+      "explicit_user_preference": "preserve_across_launches",
+      "first_launch_without_preference": "detect_system_locale_before_first_render",
+      "supported_normalization": "zh_to_zh-CN_else_en-US",
+      "startup_must_not_overwrite_explicit_preference": true
+    },
     "home": {
       "primary_input_surface": "single_card",
       "nested_input_card_frames_allowed": false,
@@ -139,6 +145,8 @@
       },
       "utility_icon_policy": {
         "library": "font_awesome_free_for_opl_owned_utility_icons",
+        "opl_owned_settings_navigation_and_overview": "font_awesome_free",
+        "upstream_fork_body_bulk_icon_rewrite": "forbidden",
         "refresh_actions": "icon_only_with_tooltip_and_accessible_name",
         "model_reasoning_control": "text_and_disclosure_without_brain_icon",
         "global_feedback_action": {
@@ -3426,12 +3434,13 @@
             "label_zh": "概览",
             "label_en": "Overview",
             "primary_information": [
-              "one overall usability summary derived from model access, workspace, background services, capabilities, and updates",
+              "one overall usability summary led by Codex CLI and model-access readiness",
+              "OPL Gateway connection, signed-in account identity, current usage, and freshness when available",
               "issue queue ordered by user impact and limited to actionable exceptions",
               "one next useful action",
-              "at most two contextual entries selected from recent or currently relevant tasks, never a directory of Settings pages"
+              "workspace path stays on Workspace and is not a primary Overview card"
             ],
-            "first_viewport_groups": ["system_status", "attention_queue", "next_action_and_context"],
+            "first_viewport_groups": ["system_status", "attention_queue", "codex_and_gateway"],
             "surface_inventory": {
               "configuration": [],
               "status": [
@@ -3441,6 +3450,14 @@
                 },
                 {
                   "id": "attention_queue",
+                  "owner": "overview"
+                },
+                {
+                  "id": "codex_status",
+                  "owner": "overview"
+                },
+                {
+                  "id": "gateway_account_and_usage",
                   "owner": "overview"
                 }
               ],
@@ -3452,7 +3469,7 @@
               ],
               "diagnostic": [
                 {
-                  "id": "raw_overview_evidence",
+                  "id": "compact_overview_technical_details",
                   "owner": "overview"
                 }
               ]
@@ -3465,9 +3482,15 @@
               "label_en": "Review attention item"
             },
             "exception_state": "emphasize only the highest-priority item that needs user action",
-            "technical_details_boundary": "raw state keys, timestamps, paths, and receipts open in a read-only diagnostic modal; no inline details disclosure",
+            "technical_details_boundary": "the small read-only Codex, Gateway freshness, background-service, and capability summary is always visible inline; raw paths, receipts, and payloads remain outside Overview",
             "required_dom": {
-              "always": ["settings-page-overview", "settings-overview-primary", "settings-overview-diagnostics-action"],
+              "always": [
+                "settings-page-overview",
+                "settings-overview-primary",
+                "settings-overview-card-codex",
+                "settings-overview-card-gateway",
+                "settings-overview-technical-details"
+              ],
               "conditional": [
                 {
                   "testid": "settings-overview-exception",
@@ -3476,10 +3499,6 @@
                 {
                   "testid": "settings-overview-primary-action",
                   "when": "attention_only"
-                },
-                {
-                  "testid": "settings-overview-technical-details",
-                  "when": "diagnostics_open"
                 }
               ]
             },

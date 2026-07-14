@@ -1,19 +1,18 @@
 import React from 'react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   workspaceRoot: '/Users/example/OPL Workspace' as string | null,
-  workspaceExists: true as boolean | null,
-  workspaceWritable: true as boolean | null,
-  workspaceHealthStatus: 'ready' as string | null,
-  permissionMode: 'full-access',
   modelAccessReady: true,
   temporalStatus: 'ready',
   moduleSourceMode: 'sibling_workspace',
   moduleStatus: 'dirty',
+  gatewayConnectionMode: 'account' as 'none' | 'manual_key' | 'account',
+  gatewayStatus: 'connected',
+  gatewayError: null as string | null,
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -21,39 +20,80 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecordList: (value: unknown) =>
     Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
-  useOplAppState: () => ({
-    appState: {
-      core: {
-        codex: {
-          permission_mode: mocks.permissionMode,
-          status: 'ready',
-          version: '0.142.4',
-          model_access_ready: mocks.modelAccessReady,
+  useOplAppState: () => {
+    const gatewayConnected = mocks.gatewayConnectionMode === 'account';
+    return {
+      appState: {
+        core: {
+          codex: {
+            status: 'ready',
+            version: '0.142.4',
+            default_model: 'gpt-5.6',
+            model_access_ready: mocks.modelAccessReady,
+          },
         },
-        executor: { permission_mode: mocks.permissionMode },
-      },
-      provider: {
-        temporal: { health_status: mocks.temporalStatus },
-      },
-      paths: {
-        workspace_root_path: mocks.workspaceRoot,
-        workspace_root: {
-          selected_path: mocks.workspaceRoot,
-          exists: mocks.workspaceExists,
-          writable: mocks.workspaceWritable,
-          health_status: mocks.workspaceHealthStatus,
+        provider: {
+          temporal: { health_status: mocks.temporalStatus },
+        },
+        paths: {
+          workspace_root_path: mocks.workspaceRoot,
+        },
+        modules: {
+          summary: {
+            default_modules_count: 4,
+            healthy_default_modules_count: 3,
+          },
+          source: { mode: mocks.moduleSourceMode },
+          items: [{ module_id: 'medautoscience', status: mocks.moduleStatus }],
+        },
+        settings_control_center: {
+          app_settings_read_model: {
+            opl_gateway_account: {
+              surface_kind: 'opl_gateway_account_read_model.v1',
+              status: mocks.gatewayStatus,
+              connection_mode: mocks.gatewayConnectionMode,
+              account_card_visible: gatewayConnected,
+              account: gatewayConnected
+                ? {
+                    display_name: 'Gao Feng',
+                    email: 'gf@example.test',
+                    status: 'active',
+                    balance: { amount: 42, currency: 'USD' },
+                  }
+                : null,
+              usage: gatewayConnected
+                ? {
+                    today_tokens: 1_250_000,
+                    total_tokens: 12_000_000,
+                    today_actual_cost: 2.5,
+                    total_actual_cost: 30,
+                    currency: 'USD',
+                    day_timezone: 'Asia/Shanghai',
+                  }
+                : null,
+              managed_key: null,
+              installation: null,
+              available_groups: [],
+              freshness: {
+                observed_at: '2026-07-14T08:00:00+08:00',
+                stale_after: null,
+                stale: false,
+                last_error_code: mocks.gatewayError,
+              },
+              capabilities: { account_login_supported: true, manual_key_supported: true },
+              actions: {
+                complete_setup: null,
+                refresh: 'gateway_account_refresh',
+                repair: null,
+                use_for_model_access: null,
+                disconnect: gatewayConnected ? 'gateway_account_disconnect' : null,
+              },
+            },
+          },
         },
       },
-      modules: {
-        summary: {
-          default_modules_count: 4,
-          healthy_default_modules_count: 3,
-        },
-        source: { mode: mocks.moduleSourceMode },
-        items: [{ module_id: 'medautoscience', status: mocks.moduleStatus, git: { dirty: true } }],
-      },
-    },
-  }),
+    };
+  },
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -62,71 +102,61 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, string | number>) => {
+    i18n: { resolvedLanguage: 'en-US' },
+    t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
+        'common.open': 'Open',
+        'common.technical_details': 'Technical details',
         'settings.overviewPage.title': 'Overview',
-        'settings.overviewPage.description':
-          'Confirm whether this computer is usable, what needs attention, and where to go next.',
+        'settings.overviewPage.description': 'Check Codex, usage, and anything that needs attention.',
         'settings.overviewPage.overall.title': 'This computer',
-        'settings.overviewPage.overall.readyDescription': 'Primary local capabilities are available.',
+        'settings.overviewPage.overall.readyDescription': 'Codex and primary local capabilities are available.',
         'settings.overviewPage.overall.attentionDescription': 'Some settings need attention.',
         'settings.overviewPage.attention.title': 'Needs attention',
         'settings.overviewPage.attention.description': 'Only blocking items are shown.',
-        'settings.overviewPage.attention.workspaceTitle': 'Choose a work directory',
+        'settings.overviewPage.attention.codexTitle': 'Restore Codex access',
         'settings.overviewPage.attention.capabilitiesTitle': 'Check capability packages',
-        'settings.overviewPage.shortcuts.title': 'Common settings',
-        'settings.overviewPage.shortcuts.description': 'Three common destinations.',
-        'settings.overviewPage.workspace.title': 'Workspace',
-        'settings.overviewPage.workspace.currentPath': `Current path: ${options?.path}`,
-        'settings.overviewPage.workspace.notConfigured': 'No workspace root has been selected yet.',
-        'settings.overviewPage.workspace.open': 'Open Workspace',
-        'settings.overviewPage.workspace.changeOrVerify': 'Change or Verify',
-        'settings.overviewPage.workspace.openPermissions': 'View Permission Status',
-        'settings.overviewPage.workspace.permissionLabel': 'File permissions',
-        'settings.overviewPage.workspace.permissionStatus': `Permission: ${options?.mode}`,
-        'settings.overviewPage.workspace.status.ready': 'Workspace selected',
-        'settings.overviewPage.workspace.status.needsAction': 'Workspace needs setup',
-        'settings.overviewPage.quickEntries.modelAccount.title': 'Model Access',
-        'settings.overviewPage.quickEntries.modelAccount.description':
-          'Confirm whether OPL Gateway and Codex CLI are usable.',
+        'settings.overviewPage.codexTitle': 'Codex CLI',
+        'settings.overviewPage.codexDescription': 'Codex is the execution entry.',
+        'settings.overviewPage.quickEntries.modelAccount.description': 'Check Codex and model access.',
         'settings.overviewPage.quickEntries.localServices.title': 'Local Services',
-        'settings.overviewPage.quickEntries.localServices.description':
-          'Check Codex, background services, and capability pack health.',
-        'settings.overviewPage.quickEntries.capabilities.title': 'Capabilities',
-        'settings.overviewPage.quickEntries.capabilities.description':
-          'Open MAS, MAG, RCA, OMA, plus skills and tools.',
-        'settings.overviewPage.quickEntries.resources.title': 'Resources & Connections',
-        'settings.overviewPage.quickEntries.resources.description':
-          'Manage Server WebUI, OPL Workspace, cloud, and external environments.',
-        'settings.overviewPage.quickEntries.remote.title': 'Web / Remote Access',
-        'settings.overviewPage.quickEntries.remote.description':
-          'View the browser access port, account, and password for this computer.',
-        'settings.overviewPage.quickEntries.maintenance.title': 'Maintenance',
-        'settings.overviewPage.quickEntries.maintenance.description':
-          'Check, update, and repair local services and capability packs.',
-        'settings.overviewPage.quickEntries.storage.title': 'Storage',
-        'settings.overviewPage.quickEntries.storage.description':
-          'Review local data usage, archive, and cleanup entry points.',
-        'settings.overviewPage.quickEntries.preferences.title': 'Preferences',
-        'settings.overviewPage.quickEntries.preferences.description':
-          'Adjust interface behavior, display, and theme appearance.',
-        'settings.overviewPage.maintenanceTitle': 'Maintenance details',
-        'settings.overviewPage.maintenanceDescription': 'Runtime health and maintenance actions.',
-        'settings.overviewPage.actions.openRuntimeStatus': 'Open Runtime Status',
+        'settings.overviewPage.quickEntries.localServices.description': 'Check background services.',
         'settings.overviewPage.actions.openRuntimeSettings': 'Open Maintenance',
-        'settings.overviewPage.actions.openLocalServices': 'Open Local Services',
-        'settings.overviewPage.actions.openFoundryAgents': 'Open Capabilities',
-        'settings.overviewPage.developerSource.title': 'Developer source needs manual handling',
-        'settings.overviewPage.developerSource.impact': 'Automatic package updates will skip developer checkouts.',
-        'settings.overviewPage.developerSource.dirtyImpact': 'Automatic package updates will skip dirty checkouts.',
-        'settings.overviewPage.developerSource.nextStep': 'Handle the checkout, then refresh.',
+        'settings.overviewPage.gateway.title': 'OPL Gateway',
+        'settings.overviewPage.gateway.connectedDescription': 'Signed in for usage and billing.',
+        'settings.overviewPage.gateway.manualKeyDescription': 'A manual key provides access.',
+        'settings.overviewPage.gateway.notConnectedDescription': 'Optional when Codex already works.',
+        'settings.overviewPage.gateway.updatedAt': `Updated ${options?.observedAt ?? ''}`,
+        'settings.overviewPage.gateway.status.connected': 'Connected',
+        'settings.overviewPage.gateway.status.manualKey': 'Manual key',
+        'settings.overviewPage.gateway.status.notConnected': 'Not connected',
+        'settings.overviewPage.gateway.status.needsAttention': 'Needs attention',
+        'settings.overviewPage.technical.description': 'Compact read-only details.',
+        'settings.overviewPage.technical.codex': 'Codex',
+        'settings.overviewPage.technical.gatewayFreshness': 'Gateway data',
+        'settings.overviewPage.technical.backgroundService': 'Background service',
+        'settings.overviewPage.technical.capabilities': 'Capability packages',
+        'settings.accessPage.statusLabels.connected': 'Connected',
+        'settings.accessPage.statusLabels.needsAttention': 'Needs attention',
+        'settings.accessPage.statusLabels.unknown': 'Unknown',
+        'settings.accessPage.cards.codexCli.title': 'Codex CLI',
+        'settings.accessPage.cards.codexCli.version': `Version ${options?.version ?? ''}`,
+        'settings.accessPage.cards.codexCli.model': `Model ${options?.model ?? ''}`,
+        'settings.accessPage.cards.model.fallback': 'Model not reported',
+        'settings.accessPage.cards.account.title': 'Model access',
+        'settings.accessPage.cards.account.existingCodexConfigured': 'Existing Codex access',
+        'settings.accessPage.cards.account.missing': 'Missing model access',
+        'settings.accessPage.gatewayAccount.unknownAccount': 'Unknown account',
+        'settings.accessPage.gatewayAccount.unknownObservedAt': 'Not reported',
+        'settings.accessPage.gatewayAccount.metrics.todayTokens': 'Tokens today',
+        'settings.accessPage.gatewayAccount.metrics.todayCost': 'Cost today',
+        'settings.accessPage.gatewayAccount.metrics.balance': 'Balance',
         'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
-        'settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention': 'Usable with attention',
-        'settings.oplEnvironmentPage.healthSummary.values.count': `${options?.count} item(s)`,
-        'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready} / ${options?.total} ready`,
-        'agentMode.full-access': 'Full Access',
+        'settings.oplEnvironmentPage.healthSummary.values.count': `${options?.count ?? 0} item(s)`,
+        'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready ?? 0} / ${options?.total ?? 0} ready`,
       };
-      return labels[key] ?? options?.defaultValue ?? key;
+      if (key === 'settings.overviewPage.overall.attentionCount') return `${options?.count ?? 0} item(s)`;
+      return labels[key] ?? String(options?.defaultValue ?? key);
     },
   }),
 }));
@@ -135,74 +165,60 @@ describe('OverviewSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.workspaceRoot = '/Users/example/OPL Workspace';
-    mocks.workspaceExists = true;
-    mocks.workspaceWritable = true;
-    mocks.workspaceHealthStatus = 'ready';
-    mocks.permissionMode = 'full-access';
     mocks.modelAccessReady = true;
     mocks.temporalStatus = 'ready';
     mocks.moduleSourceMode = 'sibling_workspace';
     mocks.moduleStatus = 'dirty';
+    mocks.gatewayConnectionMode = 'account';
+    mocks.gatewayStatus = 'connected';
+    mocks.gatewayError = null;
   });
 
-  it('shows one quiet status summary without duplicating Settings navigation', () => {
-    mocks.workspaceRoot = '/Users/example/OPL Workspace';
+  it('shows Codex, Gateway account usage, and compact technical details on the overview', () => {
     render(<OverviewSettings withWrapper={false} />);
 
-    expect(screen.getByTestId('settings-page-overview')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-primary')).toBeInTheDocument();
-    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-icon')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
-    expect(screen.queryByTestId('settings-overview-primary-action')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('md:grid-cols-2');
-    expect(screen.getByTestId('settings-overview-card-model-access')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-card-workspace')).toBeInTheDocument();
-    expect(screen.queryByTestId('settings-overview-card-background')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('settings-overview-card-capabilities')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('settings-overview-card-updates')).not.toBeInTheDocument();
-    expect(screen.queryByText('Common settings')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-card-codex')).toHaveTextContent('Codex CLI');
+    expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('OPL Gateway');
+    expect(screen.getByTestId('settings-overview-gateway-account')).toHaveTextContent('Gao Feng');
+    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('1.25M');
+    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('2.5 USD');
+    expect(screen.getByTestId('settings-overview-technical-details')).toHaveTextContent('Background service');
+    expect(screen.queryByText('/Users/example/OPL Workspace')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-diagnostics-action')).not.toBeInTheDocument();
   });
 
-  it('keeps raw status details behind an explicit read-only diagnostics action', async () => {
-    render(<OverviewSettings withWrapper={false} />);
-
-    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('settings-overview-diagnostics-action'));
-
-    expect(await screen.findByTestId('settings-overview-technical-details')).toHaveTextContent(
-      '/Users/example/OPL Workspace'
-    );
-  });
-
-  it('shows only the highest-priority next action when the workspace is missing', () => {
+  it('does not treat a missing work directory as an overview failure', () => {
     mocks.workspaceRoot = null;
-    mocks.workspaceExists = false;
-    mocks.workspaceWritable = false;
-    mocks.workspaceHealthStatus = 'missing';
-    mocks.moduleSourceMode = 'managed';
     render(<OverviewSettings withWrapper={false} />);
 
-    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('2 item(s)');
-    expect(screen.getByTestId('settings-overview-attention-list').children).toHaveLength(2);
-    fireEvent.click(screen.getByText('Change or Verify'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
-    expect(screen.getByTestId('settings-overview-exception')).toBeInTheDocument();
-    expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
+    expect(screen.queryByTestId('settings-overview-exception')).not.toBeInTheDocument();
   });
 
-  it('counts a capability-pack issue and routes its next action to Maintenance', () => {
+  it('keeps a disconnected optional Gateway quiet when Codex access works', () => {
+    mocks.gatewayConnectionMode = 'none';
+    mocks.gatewayStatus = 'not_connected';
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
+    expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('Not connected');
+    expect(screen.queryByTestId('settings-overview-gateway-account')).not.toBeInTheDocument();
+  });
+
+  it('routes an actionable capability issue to Maintenance', () => {
     mocks.moduleSourceMode = 'managed';
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    fireEvent.click(screen.getByText('Open Maintenance'));
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=packages');
   });
 
-  it('includes model access and background services in the issue queue without inventing duplicate actions', () => {
+  it('prioritizes Codex access when access and background services both fail', () => {
     mocks.modelAccessReady = false;
     mocks.temporalStatus = 'attention_required';
-    mocks.moduleSourceMode = 'sibling_workspace';
     mocks.moduleStatus = 'ready';
     render(<OverviewSettings withWrapper={false} />);
 
@@ -210,5 +226,12 @@ describe('OverviewSettings', () => {
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
     expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
+  });
+
+  it('opens Gateway management from the Gateway summary card', () => {
+    render(<OverviewSettings withWrapper={false} />);
+
+    fireEvent.click(within(screen.getByTestId('settings-overview-card-gateway')).getByRole('button', { name: 'Open' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
   });
 });

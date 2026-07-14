@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   BUILTIN_TAB_IDS,
   LEGACY_SETTINGS_ROUTE_REDIRECTS,
   SETTINGS_DEFAULT_ROUTE,
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
+  getSettingsTabIcon,
   getSettingsTabSearchText,
 } from '@/renderer/pages/settings/sections/settingsNav';
 import { buildSettingsModalMenuItems } from '@/renderer/pages/settings/registry/settingsRegistry';
@@ -260,6 +262,12 @@ describe('settingsNav App-owned tabs', () => {
 
   it('uses the App contract Chinese label as the navigation fallback', () => {
     expect(getBuiltinSettingsNavItems(true, t, 'zh-CN').find((item) => item.id === 'agents')?.label).toBe('智能体');
+  });
+
+  it('uses Font Awesome for App-owned Settings navigation icons', () => {
+    for (const tabId of [...BUILTIN_TAB_IDS, 'advanced', 'about']) {
+      expect(getSettingsTabIcon(tabId, 'modal').type).toBe(FontAwesomeIcon);
+    }
   });
 
   it('redirects legacy settings routes to App-owned settings pages', () => {

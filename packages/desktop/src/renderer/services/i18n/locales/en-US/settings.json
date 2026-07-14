@@ -1384,13 +1384,14 @@
     "overall": {
       "title": "This computer",
       "attentionCount": "{{count}} item(s) need attention",
-      "readyDescription": "The work directory and primary local capabilities are available.",
+      "readyDescription": "Codex and the primary local capabilities are available.",
       "attentionDescription": "Some settings still need attention; only usage-blocking items are listed below."
     },
     "attention": {
       "title": "Needs attention",
       "description": "This section disappears when the blocking settings are resolved.",
       "workspaceTitle": "Choose a work directory",
+      "codexTitle": "Restore Codex access",
       "capabilitiesTitle": "Check capability packages"
     },
     "shortcuts": {
@@ -1460,6 +1461,26 @@
         "title": "Preferences",
         "description": "Adjust interface behavior, display, and theme appearance."
       }
+    },
+    "gateway": {
+      "title": "OPL Gateway",
+      "connectedDescription": "Signed in for model access, usage, and billing.",
+      "manualKeyDescription": "A manually configured key is providing model access.",
+      "notConnectedDescription": "Optional when Codex already has working model access.",
+      "updatedAt": "Updated {{observedAt}}",
+      "status": {
+        "connected": "Connected",
+        "manualKey": "Manual key",
+        "notConnected": "Not connected",
+        "needsAttention": "Needs attention"
+      }
+    },
+    "technical": {
+      "description": "Compact read-only details for troubleshooting.",
+      "codex": "Codex",
+      "gatewayFreshness": "Gateway data",
+      "backgroundService": "Background service",
+      "capabilities": "Capability packages"
     },
     "developerSource": {
       "title": "Developer source needs manual handling",

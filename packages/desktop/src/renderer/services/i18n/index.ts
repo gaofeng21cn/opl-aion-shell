@@ -7,6 +7,7 @@ import i18nConfig from '@/common/config/i18n-config.json';
 import {
   DEFAULT_LANGUAGE,
   normalizeLanguageCode,
+  resolveInitialLanguage,
   mergeWithFallback,
   ensureAndSwitch,
   type LocaleData,
@@ -61,15 +62,16 @@ function getElectronSystemLanguageHint(): string | null {
 }
 
 function getInitialLanguage(): SupportedLanguage {
-  const backendStartupFailed =
-    typeof window !== 'undefined' && (window as Window & { __backendStartupFailed?: boolean }).__backendStartupFailed;
   const localStorageLanguage = getLocalStorageLanguageHint();
   const injectedLanguage = getInjectedLanguageHint();
-  const systemLanguage = backendStartupFailed ? getElectronSystemLanguageHint() : null;
-  const hint = backendStartupFailed
-    ? injectedLanguage || localStorageLanguage || systemLanguage
-    : localStorageLanguage || injectedLanguage;
-  return normalizeLanguageCode(hint || DEFAULT_LANGUAGE);
+  return resolveInitialLanguage({
+    storedLanguage: localStorageLanguage,
+    injectedLanguage,
+    systemLanguage: getElectronSystemLanguageHint(),
+    // The main process injects the explicit preference, or the OS locale when
+    // no preference exists. localStorage is only a renderer cache.
+    preferInjected: typeof window !== 'undefined' && Boolean(window.electronAPI),
+  });
 }
 
 async function loadLocaleModules(locale: string): Promise<Record<string, unknown>> {
@@ -99,8 +101,8 @@ if (initialLanguage !== DEFAULT_LANGUAGE) {
 // In WebUI mode the browser's localStorage is on a different origin than the
 // Electron renderer, so the detector would read the wrong (or missing) value
 // and fall back to navigator.language, causing a language mismatch (Issue #1176).
-// Instead, we use localStorage and Electron's injected local config language
-// only as hints for the initial render, then let configService be the source of truth.
+// Instead, we use persisted hints first and the OS locale only for a fresh
+// Electron profile, then let configService be the source of truth.
 i18n
   .use(initReactI18next)
   .init({
