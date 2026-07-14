@@ -419,6 +419,12 @@
   white-space: normal;
 }
 
+.workItemRow :global(.arco-tag-content) {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
 .workItemRow :global(.arco-tag)[data-runtime-status='automatically_advancing'] {
   color: var(--color-success-6);
   background: var(--color-success-light-1);

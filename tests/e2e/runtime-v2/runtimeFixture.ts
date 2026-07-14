@@ -1,23 +1,248 @@
 import type { ElectronApplication, Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRuntimeV2AppState } from '../../unit/opl-runtime/runtime-v2/fixture';
+
+const APP_STATE_FILE = 'runtime-v2-app-state.json';
+const ACTION_LOG_FILE = 'runtime-v2-action-log.jsonl';
+
+export type RuntimeE2EAppState = ReturnType<typeof createRuntimeV2AppState>;
+
+export type RuntimeE2EActionLogEntry = {
+  outcome: 'applied' | 'generation_conflict' | 'not_found' | 'invalid_payload';
+  action_id: string;
+  payload: Record<string, unknown>;
+  item_id: string | null;
+  previous_generation: number | null;
+  resulting_generation: number | null;
+};
 
 export type RuntimeE2EFixture = {
   app: ElectronApplication;
   page: Page;
   root: string;
   screenshotDir: string;
+  cliPath: string;
+  stateDir: string;
 };
+
+export type RuntimeE2ELocale = 'zh-CN' | 'en-US';
 
 function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-function createFrameworkCarrier(root: string): { formulaBin: string; stateDir: string } {
+function createRuntimeE2EAppState(): RuntimeE2EAppState {
+  const state = createRuntimeV2AppState();
+  const projection = state.app_state.operator.workbench.work_item_projection_v2;
+
+  // Stage display names are package-owned. The locale acceptance fixture uses
+  // stable machine ids so semantic actions, rather than raw fallback copy,
+  // prove the renderer's locale switch.
+  for (const item of projection.items) {
+    if (item.execution.current_stage_id) {
+      item.execution.current_stage_display_name = null;
+      item.lifecycle.current_stage_display_name = null;
+    }
+    item.execution.next_stage_id = null;
+    item.execution.next_stage_display_name = null;
+  }
+  return state;
+}
+
+function fakeOplCarrierSource(): string {
+  return `
+const fs = require('node:fs');
+const path = require('node:path');
+
+const APP_STATE_FILE = ${JSON.stringify(APP_STATE_FILE)};
+const ACTION_LOG_FILE = ${JSON.stringify(ACTION_LOG_FILE)};
+const CONFLICT_REASON = 'work_item_control_generation_conflict';
+const CONFLICT_MESSAGE = 'Work item control changed after it was read; refresh before retrying.';
+const stateDir = process.env.OPL_STATE_DIR;
+if (!stateDir) throw new Error('OPL_STATE_DIR is required by the Runtime E2E carrier.');
+const statePath = path.join(stateDir, APP_STATE_FILE);
+const actionLogPath = path.join(stateDir, ACTION_LOG_FILE);
+const args = process.argv.slice(2);
+
+function emit(value) {
+  process.stdout.write(JSON.stringify(value));
+}
+
+function readState() {
+  return JSON.parse(fs.readFileSync(statePath, 'utf8'));
+}
+
+function writeState(value) {
+  const temporaryPath = statePath + '.tmp-' + process.pid;
+  fs.writeFileSync(temporaryPath, JSON.stringify(value, null, 2) + '\\n', 'utf8');
+  fs.renameSync(temporaryPath, statePath);
+}
+
+function appendAction(entry) {
+  fs.appendFileSync(actionLogPath, JSON.stringify(entry) + '\\n', 'utf8');
+}
+
+function option(name) {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+function projectionFrom(state) {
+  return state.app_state.operator.workbench.work_item_projection_v2;
+}
+
+function refreshSummary(projection) {
+  const visibleItems = projection.items.filter((item) => item.visibility.state === 'visible');
+  projection.summary.work_item_count = visibleItems.length;
+  projection.summary.visible_work_item_count = visibleItems.length;
+  projection.summary.archived_work_item_count = projection.items.length - visibleItems.length;
+  projection.summary.total_work_item_count = projection.items.length;
+  projection.summary.running_count = visibleItems.filter((item) => item.execution.state === 'running').length;
+  projection.summary.user_attention_count = visibleItems.filter((item) => item.attention.kind === 'user').length;
+  projection.summary.system_attention_count = visibleItems.filter((item) => item.attention.kind === 'system').length;
+  projection.summary.telemetry_observed_count = visibleItems.filter(
+    (item) => item.telemetry.cumulative.state === 'observed'
+  ).length;
+  projection.summary.telemetry_missing_count = visibleItems.filter(
+    (item) => item.telemetry.cumulative.state === 'missing'
+  ).length;
+}
+
+if (args[0] === 'app' && args[1] === 'state') {
+  emit(readState());
+} else if (args[0] === 'runtime' && args[1] === 'app-operator-drilldown') {
+  emit({ app_operator_drilldown: { runtime_workbench: {} } });
+} else if (args[0] === 'app' && args[1] === 'action' && args[2] === 'execute') {
+  const actionId = option('--action');
+  const rawPayload = option('--payload');
+  let payload = {};
+  try {
+    payload = rawPayload ? JSON.parse(rawPayload) : {};
+  } catch (error) {
+    appendAction({
+      outcome: 'invalid_payload',
+      action_id: actionId || '',
+      payload: {},
+      item_id: null,
+      previous_generation: null,
+      resulting_generation: null,
+    });
+    emit({ ok: false, reason_code: 'work_item_visibility_payload_invalid' });
+    process.exit(0);
+  }
+
+  if (actionId !== 'work_item_visibility_set') {
+    emit({ ok: false, reason_code: 'unsupported_runtime_e2e_action' });
+    process.exit(0);
+  }
+
+  const state = readState();
+  const projection = projectionFrom(state);
+  const item = projection.items.find(
+    (candidate) =>
+      candidate.identity.agent_id === payload.agent_id &&
+      candidate.identity.project_id === payload.project_id &&
+      candidate.identity.work_item_id === payload.work_item_id
+  );
+  if (!item) {
+    appendAction({
+      outcome: 'not_found',
+      action_id: actionId,
+      payload,
+      item_id: null,
+      previous_generation: null,
+      resulting_generation: null,
+    });
+    emit({ ok: false, reason_code: 'work_item_not_found' });
+    process.exit(0);
+  }
+
+  const currentGeneration = Number.isInteger(item.visibility.generation) ? item.visibility.generation : 0;
+  if (
+    payload.expected_generation !== undefined &&
+    (!Number.isInteger(payload.expected_generation) || payload.expected_generation !== currentGeneration)
+  ) {
+    appendAction({
+      outcome: 'generation_conflict',
+      action_id: actionId,
+      payload,
+      item_id: item.item_id,
+      previous_generation: currentGeneration,
+      resulting_generation: currentGeneration,
+    });
+    emit({
+      ok: false,
+      reason_code: CONFLICT_REASON,
+      error: {
+        message: CONFLICT_MESSAGE,
+        reason_code: CONFLICT_REASON,
+        details: {
+          reason_code: CONFLICT_REASON,
+          expected_generation: payload.expected_generation,
+          current_generation: currentGeneration,
+        },
+      },
+    });
+    process.exit(0);
+  }
+
+  if (!['visible', 'archived'].includes(payload.visibility_state)) {
+    appendAction({
+      outcome: 'invalid_payload',
+      action_id: actionId,
+      payload,
+      item_id: item.item_id,
+      previous_generation: currentGeneration,
+      resulting_generation: currentGeneration,
+    });
+    emit({ ok: false, reason_code: 'work_item_visibility_state_invalid' });
+    process.exit(0);
+  }
+
+  const nextGeneration = currentGeneration + 1;
+  item.visibility = {
+    ...item.visibility,
+    state: payload.visibility_state,
+    source: 'work_item_visibility_control',
+    updated_at: new Date().toISOString(),
+    control_ref:
+      'visibility-control://' +
+      encodeURIComponent(payload.agent_id) +
+      '/' +
+      encodeURIComponent(payload.project_id) +
+      '/' +
+      encodeURIComponent(payload.work_item_id),
+    generation: nextGeneration,
+  };
+  projection.generated_at = new Date().toISOString();
+  refreshSummary(projection);
+  writeState(state);
+  appendAction({
+    outcome: 'applied',
+    action_id: actionId,
+    payload,
+    item_id: item.item_id,
+    previous_generation: currentGeneration,
+    resulting_generation: nextGeneration,
+  });
+  emit({
+    ok: true,
+    action_id: actionId,
+    item_id: item.item_id,
+    visibility: item.visibility,
+  });
+} else {
+  emit({ ok: false, reason_code: 'unsupported_runtime_e2e_command', args });
+}
+`;
+}
+
+function createFrameworkCarrier(root: string): { formulaBin: string; stateDir: string; cliPath: string } {
   const packageRoot = path.join(root, 'formula-opl');
   const formulaBin = path.join(packageRoot, 'bin');
   const cliPath = path.join(packageRoot, 'dist', 'entrypoints', 'cli.js');
@@ -26,16 +251,63 @@ function createFrameworkCarrier(root: string): { formulaBin: string; stateDir: s
   fs.mkdirSync(path.dirname(cliPath), { recursive: true });
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(path.join(formulaBin, 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-  fs.writeFileSync(
-    cliPath,
-    `process.stdout.write(${JSON.stringify(JSON.stringify(createRuntimeV2AppState()))});\n`,
-    'utf8'
-  );
-  writeJson(path.join(packageRoot, 'package.json'), { name: 'opl-framework', version: '26.7.13-runtime-v2-e2e' });
+  fs.writeFileSync(cliPath, fakeOplCarrierSource(), 'utf8');
+  writeJson(path.join(stateDir, APP_STATE_FILE), createRuntimeE2EAppState());
+  fs.writeFileSync(path.join(stateDir, ACTION_LOG_FILE), '', 'utf8');
+  writeJson(path.join(packageRoot, 'package.json'), { name: 'opl-framework', version: '26.7.14-runtime-v2-e2e' });
   writeJson(path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'), {
     version: 'p19.stage-runtime',
   });
-  return { formulaBin, stateDir };
+  return { formulaBin, stateDir, cliPath };
+}
+
+function parseCarrierOutput(stdout: string): Record<string, unknown> {
+  const parsed = JSON.parse(stdout) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Runtime E2E carrier returned a non-object payload.');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+export function executeRuntimeE2EVisibilityAction(
+  fixture: RuntimeE2EFixture,
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  const result = spawnSync(
+    process.execPath,
+    [
+      fixture.cliPath,
+      'app',
+      'action',
+      'execute',
+      '--action',
+      'work_item_visibility_set',
+      '--payload',
+      JSON.stringify(payload),
+      '--json',
+    ],
+    {
+      cwd: fixture.root,
+      env: { ...process.env, OPL_STATE_DIR: fixture.stateDir },
+      encoding: 'utf8',
+    }
+  );
+  if (result.status !== 0) {
+    throw new Error(`Runtime E2E carrier failed (${result.status}): ${result.stderr}`);
+  }
+  return parseCarrierOutput(result.stdout);
+}
+
+export function readRuntimeE2EAppState(fixture: RuntimeE2EFixture): RuntimeE2EAppState {
+  return JSON.parse(fs.readFileSync(path.join(fixture.stateDir, APP_STATE_FILE), 'utf8')) as RuntimeE2EAppState;
+}
+
+export function readRuntimeE2EActionLog(fixture: RuntimeE2EFixture): RuntimeE2EActionLogEntry[] {
+  return fs
+    .readFileSync(path.join(fixture.stateDir, ACTION_LOG_FILE), 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as RuntimeE2EActionLogEntry);
 }
 
 async function resolveMainWindow(app: ElectronApplication): Promise<Page> {
@@ -54,17 +326,18 @@ async function resolveMainWindow(app: ElectronApplication): Promise<Page> {
   throw new Error('Runtime V2 E2E could not resolve the Electron renderer window.');
 }
 
-export async function launchRuntimeE2EFixture(): Promise<RuntimeE2EFixture> {
+export async function launchRuntimeE2EFixture(options: { locale?: RuntimeE2ELocale } = {}): Promise<RuntimeE2EFixture> {
   const projectRoot = path.resolve(__dirname, '../../..');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-v2-e2e-'));
+  const locale = options.locale ?? 'zh-CN';
   const extensionRoot = path.join(root, 'extensions');
   const screenshotDir = path.join(projectRoot, 'tests', 'e2e', 'screenshots', 'runtime-v2');
-  const { formulaBin, stateDir } = createFrameworkCarrier(root);
+  const { formulaBin, stateDir, cliPath } = createFrameworkCarrier(root);
   fs.mkdirSync(extensionRoot, { recursive: true });
   fs.mkdirSync(screenshotDir, { recursive: true });
 
   const app = await electron.launch({
-    args: ['.'],
+    args: ['.', `--lang=${locale}`, `--user-data-dir=${path.join(root, 'user-data')}`],
     cwd: projectRoot,
     env: {
       ...process.env,
@@ -83,7 +356,7 @@ export async function launchRuntimeE2EFixture(): Promise<RuntimeE2EFixture> {
     timeout: 60_000,
   });
 
-  return { app, page: await resolveMainWindow(app), root, screenshotDir };
+  return { app, page: await resolveMainWindow(app), root, screenshotDir, cliPath, stateDir };
 }
 
 export async function closeRuntimeE2EFixture(fixture: RuntimeE2EFixture | null): Promise<void> {
