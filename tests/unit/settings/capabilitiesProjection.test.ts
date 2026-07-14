@@ -180,6 +180,19 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capabilities).toEqual([]);
   });
 
+  it('keeps punctuation-significant third-party package ids as distinct directory rows', () => {
+    const capabilities = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        { package_id: 'vendor.tool', display_name: 'Vendor Tool' },
+        { package_id: 'vendortool', display_name: 'VendorTool' },
+      ]),
+      'en-US'
+    );
+
+    expect(capabilities.map((item) => item.packageId)).toEqual(['vendor.tool', 'vendortool']);
+    expect(new Set(capabilities.map((item) => item.key)).size).toBe(2);
+  });
+
   it.each(['repair_required', 'blocked'] as const)(
     'does not report ready when dependency readiness is %s',
     (dependencyStatus) => {
@@ -391,7 +404,18 @@ describe('buildCapabilitiesViewModel', () => {
                 launch_allowed: false,
                 launch_blocked_reason: 'required_export_missing',
                 allowed_when_blocked: ['status', 'doctor', 'repair'],
-                dependency_readiness: { status: 'repair_required', required_count: 1, ready_count: 0, checks: [] },
+                dependency_readiness: {
+                  status: 'repair_required',
+                  required_count: 1,
+                  ready_count: 0,
+                  checks: [],
+                  closure: {
+                    transaction_id: 'tx-1',
+                    closure_digest: 'sha256:current',
+                    last_known_good_transaction_id: 'tx-0',
+                    last_known_good_closure_digest: 'sha256:previous',
+                  },
+                },
                 repair_action: {
                   action_id: 'agent_package_repair',
                   command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
@@ -460,8 +484,8 @@ describe('buildCapabilitiesViewModel', () => {
 
   it('projects only actions that satisfy the exact five-field ABI', () => {
     const action = {
-      action_id: 'agent_package_install',
-      action_ref: 'app_state.actions#agent_package_install',
+      action_id: 'install_from_manifest_url',
+      action_ref: 'app_state.actions#install_from_manifest_url',
       payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       required_payload_fields: ['manifest_url_ref'],
       confirmation_required: true,
@@ -474,6 +498,13 @@ describe('buildCapabilitiesViewModel', () => {
           installability: { status: 'available', installable: true },
           available_actions: [
             action,
+            {
+              action_id: 'agent_package_install',
+              action_ref: 'app_state.actions#agent_package_install',
+              payload: { package_id: 'example-agent' },
+              required_payload_fields: ['package_id'],
+              confirmation_required: false,
+            },
             {
               action_id: 'agent_package_activate',
               action_ref: 'app_state.actions#agent_package_activate',
@@ -503,7 +534,7 @@ describe('buildCapabilitiesViewModel', () => {
               confirmation_required: false,
             },
           ],
-          recommended_action: 'agent_package_install',
+          recommended_action: 'install_from_manifest_url',
           recommended_action_ref: action,
         },
       ]),
@@ -511,8 +542,8 @@ describe('buildCapabilitiesViewModel', () => {
     );
 
     expect(capability.installAction).toEqual({
-      actionId: 'agent_package_install',
-      actionRef: 'app_state.actions#agent_package_install',
+      actionId: 'install_from_manifest_url',
+      actionRef: 'app_state.actions#install_from_manifest_url',
       payloadRefsOnlyJson: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       requiredPayloadFields: ['manifest_url_ref'],
       confirmationRequired: true,
@@ -520,6 +551,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.activationAction).toBeNull();
     expect(capability.availableActions.agent_package_update).toBeUndefined();
     expect(capability.availableActions.agent_package_repair).toBeUndefined();
+    expect(capability.availableActions.agent_package_install).toBeUndefined();
     expect(capability.availableActions.refresh_registry).toBeUndefined();
     expect(capability.recommendedAction).toEqual(capability.installAction);
   });
@@ -531,8 +563,8 @@ describe('buildCapabilitiesViewModel', () => {
           package_id: 'example-agent',
           available_actions: [
             {
-              action_id: 'agent_package_install',
-              action_ref: 'app_state.actions#agent_package_install',
+              action_id: 'install_from_manifest_url',
+              action_ref: 'app_state.actions#install_from_manifest_url',
               payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
               required_payload_fields: ['manifest_url_ref'],
               confirmation_required: false,
@@ -547,6 +579,47 @@ describe('buildCapabilitiesViewModel', () => {
       manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable',
     });
     expect(capability.installAction?.payloadRefsOnlyJson).not.toHaveProperty('package_id');
+  });
+
+  it('projects receipt and physical skill diagnostics only from status_index', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'example-agent',
+            package_lock_ref: 'directory-lock-must-not-win',
+            physical_surface: { status: 'directory-must-not-win' },
+          },
+        ],
+        [
+          {
+            package_id: 'example-agent',
+            package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
+            action_receipt_ref: 'opl://agent-package-action/example-agent/install-1',
+            rollback_ref: 'opl://agent-package-rollback/example-agent/install-1',
+            physical_surface: {
+              status: 'materialized',
+              plugin_id: 'example-agent',
+              materialized_required_skill_ids: ['example-core', 'example-review'],
+              materialized_required_skill_paths: ['/codex/skills/example-core', '/codex/skills/example-review'],
+              reload_required: true,
+            },
+          },
+        ]
+      ),
+      'en-US'
+    );
+
+    expect(capability.packageLockRef).toBe('opl://agent-package-lock/example-agent/1.0.0');
+    expect(capability.actionReceiptRef).toBe('opl://agent-package-action/example-agent/install-1');
+    expect(capability.rollbackRef).toBe('opl://agent-package-rollback/example-agent/install-1');
+    expect(capability.physicalSurface).toMatchObject({
+      status: 'materialized',
+      pluginId: 'example-agent',
+      materializedRequiredSkillIds: ['example-core', 'example-review'],
+      materializedRequiredSkillPaths: ['/codex/skills/example-core', '/codex/skills/example-review'],
+      reloadRequired: true,
+    });
   });
 
   it('requires the recommended action ref to exactly match its available action', () => {

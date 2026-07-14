@@ -281,6 +281,8 @@ export type CapabilityPhysicalSurfaceViewModel = {
   codexPluginCachePath: string | null;
   marketplacePath: string | null;
   codexConfigPath: string | null;
+  materializedRequiredSkillIds: string[];
+  materializedRequiredSkillPaths: string[];
 };
 
 const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
@@ -316,7 +318,7 @@ function capabilityPurposeKey(agentPackage: OplProfessionalAgentPackage): string
 function canonicalCapabilityPackageId(value: string | null | undefined): string | null {
   if (!value) return null;
   const canonical = canonicalizeOplProfessionalAgentId(value);
-  return canonical ? normalizeCapabilityModuleId(canonical) : null;
+  return canonical || null;
 }
 
 export function formatCapabilityDisplayToken(value: string | null | undefined): string {
@@ -764,31 +766,41 @@ function isDeveloperCheckout(
 }
 
 function mapCapabilityStatus(
-  packageState: RuntimePackageStateItem | undefined,
+  directoryState: RuntimePackageStateItem | undefined,
+  packageStatus: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined
 ): CapabilityStatus {
   const status = normalizeStatusToken(
-    firstString(packageState?.status, packageState?.health_status, packageState?.state, capabilityModuleStatus(module))
+    firstString(
+      directoryState?.status,
+      directoryState?.health_status,
+      directoryState?.state,
+      packageStatus?.status,
+      packageStatus?.health_status,
+      packageStatus?.state,
+      capabilityModuleStatus(module)
+    )
   );
-  const action = normalizeStatusToken(firstString(packageState?.recommended_action, module?.recommended_action));
-  const git = firstRecord(packageState?.git, module?.git);
+  const statusIndexStatus = normalizeStatusToken(
+    firstString(packageStatus?.status, packageStatus?.health_status, packageStatus?.state)
+  );
+  const action = normalizeStatusToken(firstString(directoryState?.recommended_action));
+  const git = firstRecord(directoryState?.git, module?.git);
   const syncStatus = normalizeStatusToken(firstString(git.sync_status, git.status));
-  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
-  const exposureStatus = normalizeStatusToken(
-    firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
-  );
-  const developerCheckout = isDeveloperCheckout(packageState, module);
-  if (!packageState && !module) return 'missing';
-  const installability = oplRecord(packageState?.installability);
-  const readiness = oplRecord(packageState?.readiness);
+  const exposure = oplRecord(packageStatus?.capability_exposure);
+  const exposureStatus = normalizeStatusToken(firstString(exposure.status));
+  const developerCheckout = isDeveloperCheckout(directoryState, module);
+  if (!directoryState) return 'missing';
+  const installability = oplRecord(directoryState.installability);
+  const readiness = oplRecord(directoryState.readiness);
   const installState = normalizeStatusToken(
-    firstString(installability.status, packageState?.install_state, packageState?.installation_state)
+    firstString(installability.status, directoryState.install_state, directoryState.installation_state)
   );
   const exactReadinessStatus = normalizeStatusToken(firstString(readiness.status));
   const readinessReason = normalizeStatusToken(firstString(readiness.reason));
   if (
-    packageState?.installed === false ||
-    (!firstString(packageState?.installed_version) &&
+    directoryState.installed === false ||
+    (!firstString(directoryState.installed_version) &&
       ['missing', 'notinstalled', 'available'].includes(installState ?? ''))
   ) {
     return 'missing';
@@ -796,7 +808,8 @@ function mapCapabilityStatus(
   if (readiness.verification_deferred === true || exactReadinessStatus === 'verificationdeferred') {
     return 'verification';
   }
-  if (statusReadError(readiness.status_read_error)) return 'repair';
+  if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error))
+    return 'repair';
   if (
     ['activationrequired', 'pendingactivation'].includes(exactReadinessStatus ?? '') ||
     ['packageactivationrequired', 'scopematerializationmissing'].includes(readinessReason ?? '')
@@ -807,12 +820,13 @@ function mapCapabilityStatus(
     return 'repair';
   }
   const dependencyReadiness = normalizeStatusToken(
-    firstString(capabilityDependencyReadinessRecord(packageState).status)
+    firstString(capabilityDependencyReadinessRecord(packageStatus).status)
   );
   if (['repairrequired', 'blocked'].includes(dependencyReadiness ?? '')) {
     return 'repair';
   }
-  if (readiness.operational_ready === false || packageState?.operational_ready === false) return 'attention';
+  if (readiness.operational_ready === false || packageStatus?.operational_ready === false) return 'attention';
+  if (['unavailable', 'failed', 'failedwithrepair', 'blocking'].includes(statusIndexStatus ?? '')) return 'repair';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
   if (
     ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
@@ -863,33 +877,34 @@ function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAct
 }
 
 function capabilityCodexVisibility(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined,
+  directoryState: RuntimePackageStateItem | undefined,
+  packageStatus: RuntimePackageStateItem | undefined,
   status: CapabilityStatus
 ): CapabilityCodexVisibility {
-  if (!packageState && !module) return 'notVisible';
-  const readiness = firstRecord(packageState?.readiness);
+  if (!directoryState) return 'notVisible';
+  const readiness = oplRecord(directoryState.readiness);
   const readinessStatus = normalizeStatusToken(firstString(readiness.status));
   const verificationDeferred =
     readiness.verification_deferred === true || readinessStatus === 'verificationdeferred' || status === 'verification';
   if (verificationDeferred) return 'verificationPending';
-  const operationalReady = nullableBool(readiness.operational_ready) ?? nullableBool(packageState?.operational_ready);
-  const launchAllowed = nullableBool(readiness.launch_allowed) ?? nullableBool(packageState?.launch_allowed);
+  const operationalReady =
+    packageStatus?.operational_ready === false
+      ? false
+      : (nullableBool(readiness.operational_ready) ?? nullableBool(packageStatus?.operational_ready));
+  const launchAllowed =
+    packageStatus?.launch_allowed === false
+      ? false
+      : (nullableBool(readiness.launch_allowed) ?? nullableBool(packageStatus?.launch_allowed));
   if (operationalReady === false || launchAllowed === false) return 'notVisible';
-  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
+  const exposure = oplRecord(packageStatus?.capability_exposure);
   const codexVisible =
-    packageState?.codex_visible ??
-    packageState?.visible_to_codex ??
-    packageState?.exposed_to_codex ??
-    module?.codex_visible ??
-    module?.visible_to_codex ??
-    module?.exposed_to_codex ??
+    packageStatus?.codex_visible ??
+    packageStatus?.visible_to_codex ??
+    packageStatus?.exposed_to_codex ??
     exposure.codex_visible ??
     exposure.visible_to_codex ??
     exposure.exposed;
-  const exposureStatus = normalizeStatusToken(
-    firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
-  );
+  const exposureStatus = normalizeStatusToken(firstString(exposure.status));
   if (status === 'update' || status === 'sync' || exposureStatus === 'stale' || exposureStatus === 'needssync') {
     return 'needsSync';
   }
@@ -939,54 +954,50 @@ function capabilitySource(
   );
 }
 
-function capabilityLastSync(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): string | null {
-  if (!packageState && !module) return null;
-  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
+function capabilityLastSync(packageStatus: RuntimePackageStateItem | undefined): string | null {
+  const exposure = oplRecord(packageStatus?.capability_exposure);
   return (
-    oplString(packageState?.last_sync_at) ??
-    oplString(packageState?.synced_at) ??
-    oplString(packageState?.updated_at) ??
-    oplString(module?.last_sync_at) ??
-    oplString(module?.synced_at) ??
-    oplString(module?.updated_at) ??
+    oplString(packageStatus?.last_sync_at) ??
+    oplString(packageStatus?.synced_at) ??
+    oplString(packageStatus?.updated_at) ??
     oplString(exposure.last_sync_at) ??
     oplString(exposure.synced_at)
   );
 }
 
 function capabilityFailureReason(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
+  directoryState: RuntimePackageStateItem | undefined,
+  packageStatus: RuntimePackageStateItem | undefined
 ): string | null {
-  if (!packageState && !module) return null;
-  const error = firstRecord(packageState?.error, module?.error);
-  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
-  const readiness = firstRecord(packageState?.readiness);
+  if (!directoryState && !packageStatus) return null;
+  const error = firstRecord(packageStatus?.error, directoryState?.error);
+  const exposure = oplRecord(packageStatus?.capability_exposure);
+  const readiness = oplRecord(directoryState?.readiness);
   const readinessStatus = normalizeStatusToken(firstString(readiness.status));
-  const packageStatus = normalizeStatusToken(
-    firstString(packageState?.status, packageState?.health_status, packageState?.state)
+  const directoryStatus = normalizeStatusToken(
+    firstString(directoryState?.status, directoryState?.health_status, directoryState?.state)
   );
-  const moduleStatus = normalizeStatusToken(firstString(module?.status, module?.health_status, module?.state));
-  const dependencyReadiness = capabilityDependencyReadinessRecord(packageState);
+  const statusIndexStatus = normalizeStatusToken(
+    firstString(packageStatus?.status, packageStatus?.health_status, packageStatus?.state)
+  );
+  const dependencyReadiness = capabilityDependencyReadinessRecord(packageStatus);
   const dependencyStatus = normalizeStatusToken(firstString(dependencyReadiness.status));
   const dependencyChecks = oplRecordList(dependencyReadiness.checks);
   const dependencyFailure = dependencyChecks
     .flatMap((check) => listValues(check.failure_reasons))
     .map(oplString)
     .find((reason): reason is string => Boolean(reason));
-  const repairAction = firstRecord(packageState?.repair_action);
-  const failureStatus = [readinessStatus, packageStatus, moduleStatus, dependencyStatus].some((value) =>
+  const repairAction = oplRecord(packageStatus?.repair_action);
+  const failureStatus = [readinessStatus, directoryStatus, statusIndexStatus, dependencyStatus].some((value) =>
     ['failed', 'failedwithrepair', 'blocked', 'blocking', 'repairrequired'].includes(value ?? '')
   );
   return (
     statusReadError(readiness.status_read_error) ??
-    oplString(packageState?.failure_reason) ??
-    oplString(packageState?.last_failure) ??
-    oplString(module?.failure_reason) ??
-    oplString(module?.last_failure) ??
+    statusReadError(packageStatus?.status_read_error) ??
+    oplString(packageStatus?.failure_reason) ??
+    oplString(packageStatus?.last_failure) ??
+    oplString(directoryState?.failure_reason) ??
+    oplString(directoryState?.last_failure) ??
     oplString(error.message) ??
     oplString(exposure.failure_reason) ??
     oplString(exposure.last_failure) ??
@@ -994,9 +1005,10 @@ function capabilityFailureReason(
     (failureStatus
       ? firstString(
           readiness.reason,
-          packageState?.blocker_summary,
-          packageState?.reason,
-          module?.reason,
+          packageStatus?.blocker_summary,
+          packageStatus?.reason,
+          directoryState?.blocker_summary,
+          directoryState?.reason,
           repairAction.reason_code,
           dependencyReadiness.status
         )
@@ -1131,96 +1143,35 @@ function capabilitySourceKind(
   );
 }
 
-function capabilityPackageLockRef(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): string | null {
-  if (!packageState && !module) return null;
-  const packageLock = firstRecord(packageState?.package_lock, module?.package_lock);
-  const lockReceipt = firstRecord(packageState?.lock_receipt, module?.lock_receipt);
-  return (
-    refValue(packageState?.package_lock_ref) ??
-    refValue(packageState?.lock_ref) ??
-    refValue(module?.package_lock_ref) ??
-    refValue(module?.lock_ref) ??
-    refValue(packageLock) ??
-    refValue(lockReceipt) ??
-    firstString(packageLock.receipt_id, lockReceipt.receipt_id)
-  );
+function capabilityPackageLockRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
+  return refValue(packageStatus?.package_lock_ref) ?? refValue(packageStatus?.lock_ref);
 }
 
-function capabilityActionReceiptRef(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined,
-  task: RuntimeTaskItem | undefined
-): string | null {
-  const packageReceipt = oplRecord(packageState?.action_receipt);
-  const moduleReceipt = oplRecord(module?.action_receipt);
-  const taskReceipt = oplRecord(task?.action_receipt);
-  return (
-    refValue(packageState?.action_receipt_ref) ??
-    refValue(module?.action_receipt_ref) ??
-    refValue(task?.action_receipt_ref) ??
-    refValue(packageReceipt) ??
-    refValue(moduleReceipt) ??
-    refValue(taskReceipt) ??
-    firstString(
-      packageReceipt.receipt_id,
-      packageReceipt.latest_receipt_ref,
-      packageReceipt.execute_receipt_ref,
-      moduleReceipt.receipt_id,
-      moduleReceipt.latest_receipt_ref,
-      moduleReceipt.execute_receipt_ref,
-      taskReceipt.receipt_id,
-      taskReceipt.latest_receipt_ref,
-      taskReceipt.execute_receipt_ref
-    )
-  );
+function capabilityActionReceiptRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
+  return refValue(packageStatus?.action_receipt_ref);
 }
 
-function capabilityRollbackRef(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): string | null {
-  if (!packageState && !module) return null;
-  const rollback = firstRecord(packageState?.rollback, module?.rollback);
-  return (
-    refValue(packageState?.rollback_ref) ??
-    refValue(packageState?.rollback_receipt_ref) ??
-    refValue(module?.rollback_ref) ??
-    refValue(module?.rollback_receipt_ref) ??
-    refValue(rollback) ??
-    firstString(rollback.ref, rollback.receipt_id)
-  );
+function capabilityRollbackRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
+  return refValue(packageStatus?.rollback_ref);
 }
 
-function capabilityManifestUrl(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): string | null {
-  if (!packageState && !module) return null;
-  const registryEntry = firstRecord(packageState?.registry_entry, module?.registry_entry);
+function capabilityManifestUrl(directoryState: RuntimePackageStateItem | undefined): string | null {
+  if (!directoryState) return null;
+  const registryEntry = oplRecord(directoryState.registry_entry);
   return firstString(
-    packageState?.manifest_url,
-    packageState?.manifestUrl,
-    module?.manifest_url,
-    module?.manifestUrl,
+    directoryState.manifest_url,
+    directoryState.manifestUrl,
     registryEntry.manifest_url,
     registryEntry.manifestUrl
   );
 }
 
-function capabilityRegistryUrl(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): string | null {
-  if (!packageState && !module) return null;
-  const registryEntry = firstRecord(packageState?.registry_entry, module?.registry_entry);
+function capabilityRegistryUrl(directoryState: RuntimePackageStateItem | undefined): string | null {
+  if (!directoryState) return null;
+  const registryEntry = oplRecord(directoryState.registry_entry);
   return firstString(
-    packageState?.registry_url,
-    packageState?.registryUrl,
-    module?.registry_url,
-    module?.registryUrl,
+    directoryState.registry_url,
+    directoryState.registryUrl,
     registryEntry.registry_url,
     registryEntry.registryUrl
   );
@@ -1238,69 +1189,26 @@ const CAPABILITY_EXPOSURE_STATE = {
 } as const;
 
 function capabilityExposureState(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
+  packageStatus: RuntimePackageStateItem | undefined
 ): { enabled: boolean; hidden: boolean } | null {
-  const status = normalizeStatusToken(
-    firstString(firstRecord(packageState?.capability_exposure, module?.capability_exposure).status)
-  );
+  const status = normalizeStatusToken(firstString(oplRecord(packageStatus?.capability_exposure).status));
   return status && status in CAPABILITY_EXPOSURE_STATE
     ? CAPABILITY_EXPOSURE_STATE[status as keyof typeof CAPABILITY_EXPOSURE_STATE]
     : null;
 }
 
-function capabilityPackageEnabled(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): boolean | null {
-  if (!packageState && !module) return null;
-  const preferences = firstRecord(packageState?.preferences, module?.preferences);
-  const exposureState = capabilityExposureState(packageState, module);
-  if (exposureState) return exposureState.enabled;
-  const disabled =
-    nullableBool(packageState?.disabled) ?? nullableBool(module?.disabled) ?? nullableBool(preferences.disabled);
-  return (
-    nullableBool(packageState?.enabled) ??
-    nullableBool(module?.enabled) ??
-    nullableBool(preferences.enabled) ??
-    (disabled === null ? null : !disabled)
-  );
+function capabilityPackageEnabled(packageStatus: RuntimePackageStateItem | undefined): boolean | null {
+  return capabilityExposureState(packageStatus)?.enabled ?? null;
 }
 
-function capabilityPackageHidden(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
-): boolean | null {
-  if (!packageState && !module) return null;
-  const preferences = firstRecord(packageState?.preferences, module?.preferences);
-  const exposureState = capabilityExposureState(packageState, module);
-  if (exposureState) return exposureState.hidden;
-  const visible =
-    nullableBool(packageState?.visible) ??
-    nullableBool(packageState?.user_visible) ??
-    nullableBool(module?.visible) ??
-    nullableBool(preferences.visible);
-  return (
-    nullableBool(packageState?.hidden) ??
-    nullableBool(module?.hidden) ??
-    nullableBool(preferences.hidden) ??
-    (visible === null ? null : !visible)
-  );
+function capabilityPackageHidden(packageStatus: RuntimePackageStateItem | undefined): boolean | null {
+  return capabilityExposureState(packageStatus)?.hidden ?? null;
 }
 
 function capabilityPhysicalSurface(
-  packageState: RuntimePackageStateItem | undefined,
-  module: RuntimeModuleItem | undefined
+  packageStatus: RuntimePackageStateItem | undefined
 ): CapabilityPhysicalSurfaceViewModel | null {
-  if (!packageState && !module) return null;
-  const packageLock = firstRecord(packageState?.package_lock, module?.package_lock);
-  const actionReceipt = firstRecord(packageState?.action_receipt, module?.action_receipt);
-  const surface = firstRecord(
-    packageState?.physical_surface,
-    module?.physical_surface,
-    packageLock.physical_surface,
-    actionReceipt.physical_surface
-  );
+  const surface = oplRecord(packageStatus?.physical_surface);
   if (Object.keys(surface).length === 0) return null;
   return {
     status: firstString(surface.status, surface.state),
@@ -1310,8 +1218,24 @@ function capabilityPhysicalSurface(
     codexPluginCachePath: firstString(surface.codex_plugin_cache_path),
     marketplacePath: firstString(surface.marketplace_path),
     codexConfigPath: firstString(surface.codex_config_path),
+    materializedRequiredSkillIds: listValues(surface.materialized_required_skill_ids)
+      .map(oplString)
+      .filter((id): id is string => Boolean(id)),
+    materializedRequiredSkillPaths: listValues(surface.materialized_required_skill_paths)
+      .map(oplString)
+      .filter((path): path is string => Boolean(path)),
   };
 }
+
+const CANONICAL_PACKAGE_ACTION_IDS = new Set([
+  'refresh_registry',
+  'install_from_manifest_url',
+  'agent_package_update',
+  'agent_package_repair',
+  'agent_package_activate',
+  'agent_package_uninstall',
+  'agent_package_preferences_set',
+]);
 
 function parseCapabilityPackageAction(value: unknown): CapabilityPackageActionViewModel | null {
   if (!isRecord(value)) return null;
@@ -1329,6 +1253,7 @@ function parseCapabilityPackageAction(value: unknown): CapabilityPackageActionVi
     fields.length !== expectedFields.size ||
     fields.some((field) => !expectedFields.has(field)) ||
     !actionId ||
+    !CANONICAL_PACKAGE_ACTION_IDS.has(actionId) ||
     !actionRef ||
     actionRef !== `app_state.actions#${actionId}` ||
     !isRecord(value.payload) ||
@@ -1465,12 +1390,26 @@ function buildCapabilityPurpose(
     Partial<
       Pick<CapabilityPurposeViewModel, 'packageId' | 'codexVisibleEntry' | 'defaultHomeVisible' | 'userConfigurable'>
     >,
-  packageState: RuntimePackageStateItem | undefined,
+  directoryState: RuntimePackageStateItem | undefined,
+  packageStatus: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined,
   task: RuntimeTaskItem | undefined
 ): CapabilityPurposeViewModel {
-  const status = mapCapabilityStatus(packageState, module);
-  const packageActions = capabilityPackageActions(packageState);
+  const status = mapCapabilityStatus(directoryState, packageStatus, module);
+  const packageActions = capabilityPackageActions(directoryState);
+  const directoryReadiness = oplRecord(directoryState?.readiness);
+  const directoryOperationalReady = nullableBool(directoryReadiness.operational_ready);
+  const statusOperationalReady = nullableBool(packageStatus?.operational_ready);
+  const operationalReady =
+    directoryOperationalReady === false || statusOperationalReady === false
+      ? false
+      : (statusOperationalReady ?? directoryOperationalReady);
+  const directoryLaunchAllowed = nullableBool(directoryReadiness.launch_allowed);
+  const statusLaunchAllowed = nullableBool(packageStatus?.launch_allowed);
+  const launchAllowed =
+    operationalReady === false || directoryLaunchAllowed === false || statusLaunchAllowed === false
+      ? false
+      : (statusLaunchAllowed ?? directoryLaunchAllowed);
   const connectorReadinessRefs = capabilityRefsFromTask(task, ['connector_readiness_refs']);
   const resourceContextRefs = capabilityRefsFromTask(task, [
     'resource_source_refs',
@@ -1494,14 +1433,14 @@ function buildCapabilityPurpose(
   return {
     ...purpose,
     packageId: purpose.packageId ?? null,
-    packageRole: firstString(packageState?.package_role, packageState?.role),
-    publisher: firstString(packageState?.publisher),
-    trustTier: firstString(packageState?.trust_tier),
-    selectedVersion: firstString(packageState?.selected_version),
-    stableVersion: firstString(packageState?.stable_version),
-    installedVersion: firstString(packageState?.installed_version),
+    packageRole: firstString(directoryState?.package_role, directoryState?.role),
+    publisher: firstString(directoryState?.publisher),
+    trustTier: firstString(directoryState?.trust_tier),
+    selectedVersion: firstString(directoryState?.selected_version),
+    stableVersion: firstString(directoryState?.stable_version),
+    installedVersion: firstString(directoryState?.installed_version),
     sourceExplanation: (() => {
-      const explanation = oplRecord(packageState?.source_explanation);
+      const explanation = oplRecord(directoryState?.source_explanation);
       return {
         kind: firstString(explanation.kind),
         source: firstString(explanation.source),
@@ -1510,110 +1449,101 @@ function buildCapabilityPurpose(
       };
     })(),
     installability: (() => {
-      const installability = oplRecord(packageState?.installability);
+      const installability = oplRecord(directoryState?.installability);
       return {
         status: firstString(installability.status),
         installable: nullableBool(installability.installable),
       };
     })(),
     readiness: (() => {
-      const readiness = oplRecord(packageState?.readiness);
       return {
-        status: firstString(readiness.status),
-        operationalReady: nullableBool(readiness.operational_ready),
-        launchAllowed: nullableBool(readiness.launch_allowed),
-        verificationDeferred: nullableBool(readiness.verification_deferred),
-        reason: firstString(readiness.reason),
-        statusReadError: statusReadError(readiness.status_read_error),
+        status: firstString(directoryReadiness.status),
+        operationalReady: directoryOperationalReady,
+        launchAllowed: directoryLaunchAllowed,
+        verificationDeferred: nullableBool(directoryReadiness.verification_deferred),
+        reason: firstString(directoryReadiness.reason),
+        statusReadError:
+          statusReadError(directoryReadiness.status_read_error) ?? statusReadError(packageStatus?.status_read_error),
       };
     })(),
     codexVisibleEntry: purpose.codexVisibleEntry ?? null,
     defaultHomeVisible: purpose.defaultHomeVisible ?? null,
     userConfigurable: purpose.userConfigurable ?? null,
     sourceKind:
-      firstString(oplRecord(packageState?.source_explanation).kind) ?? capabilitySourceKind(packageState, module),
-    installState: capabilityInstallState(packageState),
-    updateState: firstString(packageState?.update_state, packageState?.update_status, packageState?.currentness),
-    sourceState: firstString(packageState?.source_state, packageState?.source_status),
+      firstString(oplRecord(directoryState?.source_explanation).kind) ?? capabilitySourceKind(packageStatus, module),
+    installState: capabilityInstallState(directoryState),
+    updateState: firstString(packageStatus?.update_state, packageStatus?.update_status, packageStatus?.currentness),
+    sourceState: firstString(packageStatus?.source_state, packageStatus?.source_status),
     trustState: firstString(
-      packageState?.trust_tier,
-      packageState?.trust_state,
-      packageState?.trust_status,
-      oplRecord(packageState?.trust).status,
-      packageState?.signature_status
+      directoryState?.trust_tier,
+      packageStatus?.trust_state,
+      packageStatus?.trust_status,
+      oplRecord(packageStatus?.trust).status,
+      packageStatus?.signature_status
     ),
     moduleId: module ? capabilityModuleId(module) : null,
-    actualSource: firstString(module?.install_origin, packageState?.install_origin),
+    actualSource: firstString(module?.install_origin, packageStatus?.install_origin),
     sourcePreference: (() => {
-      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      const sourcePolicy = firstRecord(packageStatus?.source_policy, module?.source_policy);
       const preference = firstString(sourcePolicy.source_preference);
       return preference === 'managed' || preference === 'developer' ? preference : 'auto';
     })(),
-    checkoutPath: firstString(module?.checkout_path, packageState?.checkout_path),
-    managedCheckoutPath: firstString(module?.managed_checkout_path, packageState?.managed_checkout_path),
+    checkoutPath: firstString(module?.checkout_path, packageStatus?.checkout_path),
+    managedCheckoutPath: firstString(module?.managed_checkout_path, packageStatus?.managed_checkout_path),
     developerCheckoutPath: (() => {
-      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      const sourcePolicy = firstRecord(packageStatus?.source_policy, module?.source_policy);
       return firstString(sourcePolicy.developer_checkout_path);
     })(),
     sourceFallbackReason: (() => {
-      const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+      const sourcePolicy = firstRecord(packageStatus?.source_policy, module?.source_policy);
       const preference = firstString(sourcePolicy.source_preference);
-      const actual = firstString(module?.install_origin, packageState?.install_origin);
+      const actual = firstString(module?.install_origin, packageStatus?.install_origin);
       if (preference === 'developer' && actual !== 'sibling_workspace' && actual !== 'env_override') {
         return 'developer_checkout_unavailable';
       }
       return firstString(sourcePolicy.fallback_reason);
     })(),
-    packageLockRef: capabilityPackageLockRef(packageState, module),
-    actionReceiptRef: capabilityActionReceiptRef(packageState, module, task),
-    rollbackRef: capabilityRollbackRef(packageState, module),
-    manifestUrl: firstString(packageState?.manifest_url) ?? capabilityManifestUrl(packageState, module),
+    packageLockRef: capabilityPackageLockRef(packageStatus),
+    actionReceiptRef: capabilityActionReceiptRef(packageStatus),
+    rollbackRef: capabilityRollbackRef(packageStatus),
+    manifestUrl: capabilityManifestUrl(directoryState),
     registryUrl:
-      firstString(oplRecord(packageState?.source_explanation).registry_url) ??
-      capabilityRegistryUrl(packageState, module),
-    physicalSurface: capabilityPhysicalSurface(packageState, module),
-    dependencyReadiness: capabilityDependencyReadiness(packageState),
-    operationalReady:
-      nullableBool(oplRecord(packageState?.readiness).operational_ready) ??
-      nullableBool(packageState?.operational_ready),
-    launchAllowed:
-      oplRecord(packageState?.readiness).operational_ready === false ||
-      packageState?.operational_ready === false ||
-      packageState?.launch_blocked_reason === 'package_not_installed'
-        ? false
-        : (nullableBool(oplRecord(packageState?.readiness).launch_allowed) ??
-          nullableBool(packageState?.launch_allowed)),
-    launchBlockedReason: firstString(oplRecord(packageState?.readiness).reason, packageState?.launch_blocked_reason),
-    allowedWhenBlocked: listValues(packageState?.allowed_when_blocked)
+      firstString(oplRecord(directoryState?.source_explanation).registry_url) ?? capabilityRegistryUrl(directoryState),
+    physicalSurface: capabilityPhysicalSurface(packageStatus),
+    dependencyReadiness: capabilityDependencyReadiness(packageStatus),
+    operationalReady,
+    launchAllowed,
+    launchBlockedReason: firstString(packageStatus?.launch_blocked_reason, directoryReadiness.reason),
+    allowedWhenBlocked: listValues(packageStatus?.allowed_when_blocked)
       .map(oplString)
       .filter((action): action is string => Boolean(action)),
-    repairAction: capabilityRepairAction(packageState),
+    repairAction: capabilityRepairAction(packageStatus),
     availableActions: packageActions.availableActions,
     recommendedActionId: packageActions.recommendedActionId,
     recommendedAction: packageActions.recommendedAction,
-    installAction:
-      packageActions.availableActions.agent_package_install ??
-      packageActions.availableActions.install_from_manifest_url ??
-      null,
-    activationAction: capabilityActivationAction(packageState),
-    dependentGuard: capabilityDependentGuard(packageState),
-    dependencyClosure: capabilityDependencyClosure(packageState),
-    enabled: capabilityPackageEnabled(packageState, module),
-    hidden: capabilityPackageHidden(packageState, module),
+    installAction: packageActions.availableActions.install_from_manifest_url ?? null,
+    activationAction: capabilityActivationAction(packageStatus),
+    dependentGuard: capabilityDependentGuard(packageStatus),
+    dependencyClosure: capabilityDependencyClosure(packageStatus),
+    enabled: capabilityPackageEnabled(packageStatus),
+    hidden: capabilityPackageHidden(packageStatus),
     status,
     availabilityStatus: capabilityAvailabilityStatus(status),
     primaryAction: capabilityPrimaryAction(status),
-    codexVisibility: capabilityCodexVisibility(packageState, module, status),
+    codexVisibility: capabilityCodexVisibility(directoryState, packageStatus, status),
     version:
-      firstString(packageState?.selected_version, packageState?.installed_version, packageState?.stable_version) ??
-      capabilityVersion(packageState, module),
+      firstString(
+        directoryState?.selected_version,
+        directoryState?.installed_version,
+        directoryState?.stable_version
+      ) ?? capabilityVersion(packageStatus, module),
     source:
       firstString(
-        oplRecord(packageState?.source_explanation).summary,
-        oplRecord(packageState?.source_explanation).source
-      ) ?? capabilitySource(packageState, module),
-    lastSync: capabilityLastSync(packageState, module),
-    failureReason: capabilityFailureReason(packageState, module),
+        oplRecord(directoryState?.source_explanation).summary,
+        oplRecord(directoryState?.source_explanation).source
+      ) ?? capabilitySource(packageStatus, module),
+    lastSync: capabilityLastSync(packageStatus),
+    failureReason: capabilityFailureReason(directoryState, packageStatus),
     workflowCandidateRefs: capabilityCandidateReportsFromTask(task),
     workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
     connectorReadinessRefs,
@@ -1658,17 +1588,10 @@ export function buildCapabilitiesViewModel(
   const statusIndex = oplRecord(canonicalAgentPackages.status_index);
   const directoryEntries = packageStateRecords(directory.entries);
   const packageStatuses = new Map<string, RuntimePackageStateItem>();
-  for (const candidate of [
-    statusIndex.packages,
-    statusIndex.statuses,
-    statusIndex.package_status,
-    statusIndex.package_states,
-  ]) {
-    for (const packageStatus of packageStateRecords(candidate)) {
-      const id = packageStateId(packageStatus);
-      if (!id) continue;
-      packageStatuses.set(id, { ...packageStatuses.get(id), ...packageStatus });
-    }
+  for (const packageStatus of packageStateRecords(statusIndex.packages)) {
+    const id = packageStateId(packageStatus);
+    if (!id) continue;
+    packageStatuses.set(id, packageStatus);
   }
   const runtimeSourceCarriers = new Map<string, RuntimeSourceCarrierItem>();
   const runtimeSourceCarriersPayload = oplRecord(appState.runtime_source_carriers);
@@ -1703,22 +1626,10 @@ export function buildCapabilitiesViewModel(
           .filter((id): id is string => Boolean(id))
           .map(normalizeCapabilityModuleId);
     const packageStatus = packageStatuses.get(packageId);
-    const packageState: RuntimePackageStateItem = {
-      ...packageStatus,
+    const directoryState: RuntimePackageStateItem = {
       ...directoryEntry,
       package_id: firstString(directoryEntry.package_id, directoryEntry.id) ?? packageId,
-      package_role: firstString(
-        directoryEntry.package_role,
-        directoryEntry.role,
-        packageStatus?.package_role,
-        packageStatus?.role,
-        agentPackage?.role
-      ),
-      dependency_readiness: packageStatus?.dependency_readiness,
-      package_dependency_readiness: packageStatus?.package_dependency_readiness,
-      activation_action: packageStatus?.activation_action,
-      dependent_guard: packageStatus?.dependent_guard,
-      capability_exposure: packageStatus?.capability_exposure,
+      package_role: firstString(directoryEntry.package_role, directoryEntry.role, agentPackage?.role),
     };
     const runtimeSourceCarrier = moduleIds
       .concat(packageId)
@@ -1726,9 +1637,7 @@ export function buildCapabilitiesViewModel(
       .find(Boolean);
     const module = runtimeSourceCarrier ? mergeRuntimeSourceCarrier(undefined, runtimeSourceCarrier) : undefined;
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
-    const canonicalPackageId = canonicalizeOplProfessionalAgentId(
-      firstString(directoryEntry.package_id, directoryEntry.id) ?? packageId
-    );
+    const canonicalPackageId = packageId;
     const shortcut =
       shortcutsByPackageId.get(canonicalPackageId) ??
       (agentPackage ? shortcutsByPackageId.get(agentPackage.package_id) : undefined);
@@ -1736,7 +1645,7 @@ export function buildCapabilitiesViewModel(
       firstString(directoryEntry.display_name, directoryEntry.title, directoryEntry.name) ??
       agentPackage?.display_name ??
       canonicalPackageId;
-    const role = firstString(packageState.package_role, packageState.role);
+    const role = firstString(directoryState.package_role, directoryState.role);
     const tags = [
       ...(agentPackage ? agentPackageTags(agentPackage) : []),
       ...listValues(directoryEntry.tags)
@@ -1747,7 +1656,7 @@ export function buildCapabilitiesViewModel(
     return [
       buildCapabilityPurpose(
         {
-          key: agentPackage ? capabilityPurposeKey(agentPackage) : normalizeCapabilityModuleId(canonicalPackageId),
+          key: agentPackage ? capabilityPurposeKey(agentPackage) : canonicalPackageId,
           title,
           description:
             firstString(directoryEntry.description, directoryEntry.summary, directoryEntry.purpose) ??
@@ -1762,7 +1671,8 @@ export function buildCapabilitiesViewModel(
           defaultHomeVisible: agentPackage?.default_home_visible ?? null,
           userConfigurable: shortcut?.user_configurable ?? false,
         },
-        packageState,
+        directoryState,
+        packageStatus,
         module,
         task
       ),

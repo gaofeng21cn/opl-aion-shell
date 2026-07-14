@@ -222,10 +222,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'dirty',
-                version: '1.2.3',
-                codex_visible: true,
+                installed_version: '1.2.3',
                 readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
-                capability_exposure: { status: 'visible', last_sync_at: '2026-06-30T01:00:00Z' },
                 source_explanation: {
                   kind: 'first_party_release_catalog',
                   source: 'first_party',
@@ -238,25 +236,13 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                     'manifest_url',
                   ]),
                 ],
-                package_lock: {
-                  ref: 'opl://agent-package-lock/mas/0.1.0a4',
-                  physical_surface: {
-                    status: 'materialized',
-                    plugin_id: 'mas',
-                    marketplace_id: 'opl-agent-mas-local',
-                    codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
-                    marketplace_path:
-                      '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
-                    codex_config_path: '/tmp/codex/config.toml',
-                    reload_required: true,
-                  },
-                },
               },
               {
                 package_id: 'med-autogrant',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'update_available',
+                manifest_url: 'https://example.test/mag.json',
                 readiness: { status: 'update_available', operational_ready: true, launch_allowed: true },
                 source_explanation: {
                   kind: 'agent_package_registry_cache',
@@ -320,6 +306,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 },
                 available_actions: [
                   preferenceAction('example-agent'),
+                  packageAction('agent_package_repair', { package_id: 'example-agent' }, ['package_id']),
                   packageAction('agent_package_uninstall', { package_id: 'example-agent' }, ['package_id'], true),
                 ],
               },
@@ -334,12 +321,44 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   last_sync_at: '2026-06-30T01:00:00Z',
                 },
                 source_kind: 'registry',
+                package_lock_ref: 'opl://agent-package-lock/mas/0.1.0a4',
+                action_receipt_ref: 'opl://agent-package-action/mas/install-1',
+                rollback_ref: 'opl://agent-package-rollback/mas/install-1',
+                physical_surface: {
+                  status: 'materialized',
+                  plugin_id: 'mas',
+                  marketplace_id: 'opl-agent-mas-local',
+                  codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
+                  marketplace_path:
+                    '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
+                  codex_config_path: '/tmp/codex/config.toml',
+                  materialized_required_skill_ids: ['med-autoscience', 'medical-research-lit'],
+                  materialized_required_skill_paths: [
+                    '/tmp/codex/skills/med-autoscience',
+                    '/tmp/codex/skills/medical-research-lit',
+                  ],
+                  reload_required: true,
+                },
               },
               {
                 package_id: 'med-autogrant',
                 capability_exposure: { status: 'disabled' },
-                manifest_url: 'https://example.test/mag.json',
                 package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
+                repair_action: {
+                  action_id: 'agent_package_repair',
+                  command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
+                  enabled: true,
+                  reason_code: 'repair_available',
+                },
+                dependent_guard: {
+                  required_by_package_ids: [],
+                  disable: { allowed: true, reason_code: null },
+                  uninstall: { allowed: true, reason_code: null },
+                },
+              },
+              {
+                package_id: 'opl-bookforge',
+                capability_exposure: { status: 'visible' },
               },
               {
                 package_id: 'example-agent',
@@ -350,7 +369,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 launch_allowed: false,
                 launch_blocked_reason: 'required_export_missing',
                 allowed_when_blocked: ['status', 'doctor', 'repair'],
-                package_dependency_readiness: {
+                dependency_readiness: {
                   status: 'repair_required',
                   required_count: 1,
                   ready_count: 0,
@@ -725,6 +744,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.physicalSurfaceCachePath': 'Plugin cache path',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplacePath': 'Marketplace path',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath': 'Codex config path',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillIds': 'Materialized required skills',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillPaths': 'Materialized required skill paths',
         'settings.capabilitiesPage.detailLabels.version': 'Version',
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
@@ -816,6 +837,11 @@ vi.mock('react-i18next', () => ({
           'Choose a Workspace before activating this package.',
         'settings.capabilitiesPage.packageManager.openWorkspace': 'Open Workspace',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
+        'settings.capabilitiesPage.packageManager.trustTierLabel': 'Manifest trust level',
+        'settings.capabilitiesPage.packageManager.trustTierPlaceholder': 'Choose trust level',
+        'settings.capabilitiesPage.packageManager.trustTierRequired': 'Choose a trust level before installing.',
+        'settings.capabilitiesPage.packageManager.trustTiers.thirdPartyUnverified': 'Unverified third party',
+        'settings.capabilitiesPage.packageManager.trustTiers.thirdPartyVerified': 'Verified third party',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
         'settings.capabilitiesPage.packageManager.addCapability': 'Add capability',
         'settings.capabilitiesPage.packageManager.advancedAddTitle': 'Advanced add method',
@@ -1009,6 +1035,12 @@ describe('Agents and capabilities settings', () => {
     expect(within(detailedResearch).queryByText('git_checkout')).not.toBeInTheDocument();
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
+    expect(detailedResearch.textContent).toContain('Materialized required skills');
+    expect(within(detailedResearch).getByText('med-autoscience, medical-research-lit')).toBeInTheDocument();
+    expect(detailedResearch.textContent).toContain('Materialized required skill paths');
+    expect(
+      within(detailedResearch).getByText('/tmp/codex/skills/med-autoscience, /tmp/codex/skills/medical-research-lit')
+    ).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
@@ -1198,6 +1230,18 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
   });
 
+  it('keeps an attention-required directory with rows out of stale and failed catalog states', () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [{ package_id: 'example-agent', display_name: 'Example Agent', installed: true, status: 'attention_needed' }],
+      { directoryStatus: 'attention_required' }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-stale')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
+  });
+
   it('keeps a row status read error local to that package and exposes its failure detail', () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
@@ -1225,7 +1269,7 @@ describe('Agents and capabilities settings', () => {
 
   it('executes install and activation only from exact projected action objects', async () => {
     const installAction = actionFixture(
-      'agent_package_install',
+      'install_from_manifest_url',
       { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       ['manifest_url_ref']
     );
@@ -1242,7 +1286,7 @@ describe('Agents and capabilities settings', () => {
           verification_deferred: false,
           reason: 'package_not_installed',
         },
-        recommended_action: 'agent_package_install',
+        recommended_action: 'install_from_manifest_url',
         recommended_action_ref: installAction,
         available_actions: [installAction],
       },
@@ -1251,7 +1295,7 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByTestId('agent-package-install-example'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_install',
+        actionId: 'install_from_manifest_url',
         dryRun: false,
         payloadRefsOnlyJson: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       })
@@ -1283,7 +1327,21 @@ describe('Agents and capabilities settings', () => {
           available_actions: [activationAction],
         },
       ],
-      { workspaceRootPath: '/workspace/selected' }
+      {
+        workspaceRootPath: '/workspace/selected',
+        statusEntries: [
+          {
+            package_id: 'example-agent',
+            activation_action: {
+              action_id: 'agent_package_activate',
+              command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+              enabled: true,
+              preparation_status: 'ready',
+              reason_code: 'use_boundary_reconciliation_ready',
+            },
+          },
+        ],
+      }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
     fireEvent.click(screen.getByTestId('agent-package-activate-example'));
@@ -1384,7 +1442,21 @@ describe('Agents and capabilities settings', () => {
           available_actions: [activationAction],
         },
       ],
-      { workspaceRootPath: null }
+      {
+        workspaceRootPath: null,
+        statusEntries: [
+          {
+            package_id: 'example-agent',
+            activation_action: {
+              action_id: 'agent_package_activate',
+              command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+              enabled: true,
+              preparation_status: 'ready',
+              reason_code: 'use_boundary_reconciliation_ready',
+            },
+          },
+        ],
+      }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
@@ -1400,9 +1472,56 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('current-location')).toHaveTextContent('/settings/workspace#workspace');
   });
 
+  it.each([
+    ['missing', 'activation_status_unavailable'],
+    ['disabled', 'package_disabled'],
+  ] as const)('fails activation closed when status-index activation is %s', (projectionState, expectedReason) => {
+    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
+      'package_id',
+      'scope',
+      'target_workspace or target_quest',
+    ]);
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          installed: true,
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: activationAction,
+          available_actions: [activationAction],
+        },
+      ],
+      {
+        workspaceRootPath: '/workspace/selected',
+        statusEntries:
+          projectionState === 'disabled'
+            ? [
+                {
+                  package_id: 'example-agent',
+                  activation_action: {
+                    action_id: 'agent_package_activate',
+                    command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+                    enabled: false,
+                    preparation_status: 'ready',
+                    reason_code: 'package_disabled',
+                  },
+                },
+              ]
+            : [],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const activation = screen.getByTestId('agent-package-activate-example');
+    expect(activation).toBeDisabled();
+    expect(activation).toHaveAttribute('data-disabled-reason', expectedReason);
+    fireEvent.click(activation);
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
+  });
+
   it('fails soft when a projected row action has fields outside the exact ABI', () => {
     const malformedAction = {
-      ...actionFixture('agent_package_install', { package_id: 'example-agent' }, ['package_id']),
+      ...actionFixture('install_from_manifest_url', { package_id: 'example-agent' }, ['package_id']),
       locally_inferred: true,
     };
     appStateOverrides.appState = appStateWithDirectory([
@@ -1410,9 +1529,26 @@ describe('Agents and capabilities settings', () => {
         package_id: 'example-agent',
         display_name: 'Example Agent',
         installed: false,
-        recommended_action: 'agent_package_install',
+        recommended_action: 'install_from_manifest_url',
         recommended_action_ref: malformedAction,
         available_actions: [malformedAction],
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-example')).not.toBeInTheDocument();
+  });
+
+  it('rejects the retired agent_package_install action id', () => {
+    const legacyAction = actionFixture('agent_package_install', { package_id: 'example-agent' }, ['package_id']);
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'example-agent',
+        installed: false,
+        recommended_action: 'agent_package_install',
+        recommended_action_ref: legacyAction,
+        available_actions: [legacyAction],
       },
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
@@ -1679,12 +1815,19 @@ describe('Agents and capabilities settings', () => {
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });
+    expect(screen.getByTestId('agent-package-trust-tier-required')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
+    await chooseSelectOption('agent-package-trust-tier', 'Unverified third party');
+    expect(screen.queryByTestId('agent-package-trust-tier-required')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-package-install-manifest'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'install_from_manifest_url',
         dryRun: false,
-        payloadRefsOnlyJson: { manifest_url: 'https://example.test/agent.json' },
+        payloadRefsOnlyJson: {
+          manifest_url: 'https://example.test/agent.json',
+          trust_tier: 'third_party_unverified',
+        },
       })
     );
 
@@ -1885,6 +2028,59 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByText('sha256:example-previous')).toBeInTheDocument();
   });
 
+  it('does not synthesize a repair execution from status-index repair metadata', () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [{ package_id: 'example-agent', installed: true, status: 'failed_with_repair', available_actions: [] }],
+      {
+        statusEntries: [
+          {
+            package_id: 'example-agent',
+            repair_action: {
+              action_id: 'agent_package_repair',
+              command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
+              enabled: true,
+              reason_code: 'required_export_missing',
+            },
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    expect(screen.queryByTestId('agent-package-repair-example')).not.toBeInTheDocument();
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
+  });
+
+  it('fails disable and uninstall closed when the dependent guard is missing', () => {
+    const preferenceAction = actionFixture('agent_package_preferences_set', { package_id: 'example-agent' }, [
+      'package_id',
+      'exposure_action or shortcut_id',
+    ]);
+    const uninstallAction = actionFixture(
+      'agent_package_uninstall',
+      { package_id: 'example-agent' },
+      ['package_id'],
+      true
+    );
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          installed: true,
+          available_actions: [preferenceAction, uninstallAction],
+        },
+      ],
+      { statusEntries: [{ package_id: 'example-agent', capability_exposure: { status: 'visible' } }] }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    expect(screen.getByTestId('agent-package-enabled-toggle-example')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-uninstall-example')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-hidden-toggle-example')).not.toBeDisabled();
+  });
+
   it('serializes package state writes until the active action finishes', async () => {
     let confirmOnOk: (() => unknown) | undefined;
     bridgeMocks.modalConfirm.mockImplementationOnce((config) => {
@@ -1902,6 +2098,7 @@ describe('Agents and capabilities settings', () => {
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });
+    await chooseSelectOption('agent-package-trust-tier', 'Verified third party');
     fireEvent.click(screen.getByTestId('capability-open-details-mag'));
     fireEvent.click(screen.getByTestId('agent-package-uninstall-mag'));
     expect(confirmOnOk).toBeTypeOf('function');

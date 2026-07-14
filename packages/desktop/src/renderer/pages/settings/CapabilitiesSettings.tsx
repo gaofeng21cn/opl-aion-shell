@@ -64,6 +64,8 @@ import {
 
 export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
+type ManifestTrustTier = 'third_party_unverified' | 'third_party_verified';
+
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
   value === 'opl_flow_managed' || value === 'manual_and_third_party';
 
@@ -253,7 +255,6 @@ function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackag
   const action = item.recommendedAction;
   if (!action) return null;
   return [
-    'agent_package_install',
     'install_from_manifest_url',
     'agent_package_activate',
     'agent_package_update',
@@ -266,7 +267,7 @@ function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackag
 
 function capabilityProjectedActionTestId(actionId: string): string {
   if (actionId === 'agent_package_activate') return 'activate';
-  if (actionId === 'agent_package_install' || actionId === 'install_from_manifest_url') return 'install';
+  if (actionId === 'install_from_manifest_url') return 'install';
   if (actionId === 'agent_package_update') return 'update';
   if (actionId === 'agent_package_repair') return 'repair';
   if (actionId === 'refresh_registry') return 'refresh';
@@ -282,7 +283,7 @@ function capabilityProjectedActionLabel(
       ? 'refresh'
       : actionId === 'agent_package_activate'
         ? 'activate'
-        : actionId === 'agent_package_install' || actionId === 'install_from_manifest_url'
+        : actionId === 'install_from_manifest_url'
           ? 'install'
           : actionId === 'agent_package_update'
             ? 'update'
@@ -628,6 +629,16 @@ function capabilityDiagnosticRows(
       label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath'),
       value: item.physicalSurface?.codexConfigPath,
     },
+    {
+      key: 'physicalSurfaceRequiredSkillIds',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillIds'),
+      value: item.physicalSurface?.materializedRequiredSkillIds.join(', '),
+    },
+    {
+      key: 'physicalSurfaceRequiredSkillPaths',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillPaths'),
+      value: item.physicalSurface?.materializedRequiredSkillPaths.join(', '),
+    },
   ].filter((row): row is CapabilityDetailRow => Boolean(row && hasTextValue(row.value)));
 }
 
@@ -780,6 +791,11 @@ const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | nul
         </Typography.Text>
         {action.status && <Tag>{action.status}</Tag>}
       </div>
+      {action.receiptSummary && (
+        <Typography.Text className='block break-words text-t-secondary'>
+          {t('settings.capabilitiesPage.refLabels.receipt')}: {action.receiptSummary}
+        </Typography.Text>
+      )}
     </div>
   );
 };
@@ -790,6 +806,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const isMobile = Boolean(useLayoutContext()?.isMobile);
   const appStateQuery = useOplAppState('fast');
   const [manifestUrl, setManifestUrl] = useState('');
+  const [manifestTrustTier, setManifestTrustTier] = useState<ManifestTrustTier | ''>('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const packageActionTokenRef = useRef<symbol | null>(null);
   const [pendingShortcutIds, setPendingShortcutIds] = useState<Set<string>>(() => new Set());
@@ -829,8 +846,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const record = oplRecord(value);
     return oplString(record.message) ?? oplString(record.code) ?? oplString(record.reason);
   })();
-  const directoryError =
-    directoryStatusReadError ?? (directoryStatus === 'attention_required' ? directoryStatus : null);
+  const directoryError = directoryStatusReadError ?? (directoryStatus === 'failed' ? directoryStatus : null);
   const catalogReadError = appStateQuery.error ?? directoryError ?? null;
   const catalogError = purposeCapabilities.length === 0 ? catalogReadError : null;
   const catalogStaleReason = purposeCapabilities.length > 0 ? catalogReadError : null;
@@ -926,11 +942,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const selectedRepairAction = selectedCapability?.availableActions.agent_package_repair ?? null;
   const selectedPreferenceAction = selectedCapability?.availableActions.agent_package_preferences_set ?? null;
   const selectedUninstallAction = selectedCapability?.availableActions.agent_package_uninstall ?? null;
-  const selectedRepairFallbackAvailable = Boolean(
-    selectedCapability?.packageId &&
-    selectedCapability.repairAction?.actionId === 'agent_package_repair' &&
-    selectedCapability.repairAction.enabled === true
-  );
   const selectedShortcut = selectedCapability?.packageId ? shortcutByPackageId.get(selectedCapability.packageId) : null;
   const selectedShortcutId = selectedShortcut?.shortcut_id ?? '';
   const selectedShortcutIndex = selectedShortcutId ? (shortcutIndexById.get(selectedShortcutId) ?? -1) : -1;
@@ -1086,21 +1097,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       developerSupervisorModuleId: item.moduleId,
       developerSupervisorModuleSource: source,
     });
-  };
-
-  const executeRepairAction = (item: CapabilityPurposeViewModel) => {
-    const projectedAction = item.availableActions.agent_package_repair;
-    if (projectedAction) {
-      executeProjectedAction(projectedAction);
-      return;
-    }
-    if (
-      item.packageId &&
-      item.repairAction?.actionId === 'agent_package_repair' &&
-      item.repairAction.enabled === true
-    ) {
-      void executePackageAction(item.repairAction.actionId, { package_id: item.packageId });
-    }
   };
 
   const executeShortcutPreferenceAction = async (
@@ -1539,9 +1535,16 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               const rowAction = capabilityRowAction(item);
               const rowActivation = rowAction?.actionId === 'agent_package_activate';
               const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
+              const rowActivationDisabledReason = rowActivation
+                ? !workspaceRootPath
+                  ? 'workspace_root_not_configured'
+                  : item.activationAction?.enabled === true
+                    ? null
+                    : (item.activationAction?.reasonCode ?? 'activation_status_unavailable')
+                : null;
               const rowActionDisabled = Boolean(
                 packageMutationBusy ||
-                (rowActivation && !workspaceRootPath) ||
+                rowActivationDisabledReason ||
                 (rowAction && rowActionPayload && projectedActionMissingFields(rowAction, rowActionPayload).length > 0)
               );
               return (
@@ -1628,9 +1631,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                         aria-describedby={
                           rowActivation && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
                         }
-                        data-disabled-reason={
-                          rowActivation && !workspaceRootPath ? 'workspace_root_not_configured' : undefined
-                        }
+                        data-disabled-reason={rowActivationDisabledReason ?? undefined}
                         onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
                         data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
                       >
@@ -1869,7 +1870,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
                 {(selectedUpdateAction ||
                   selectedRepairAction ||
-                  selectedRepairFallbackAvailable ||
                   selectedPreferenceAction ||
                   selectedUninstallAction) && (
                   <div data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
@@ -1888,17 +1888,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                           {t('settings.capabilitiesPage.packageManager.actions.update')}
                         </Button>
                       )}
-                      {(selectedRepairAction || selectedRepairFallbackAvailable) && (
+                      {selectedRepairAction && (
                         <Button
                           size='mini'
-                          loading={
-                            busyAction === (selectedRepairAction?.actionId ?? selectedCapability.repairAction?.actionId)
-                          }
-                          disabled={
-                            packageMutationBusy ||
-                            (selectedRepairAction ? !projectedActionExecutable(selectedRepairAction) : false)
-                          }
-                          onClick={() => executeRepairAction(selectedCapability)}
+                          loading={busyAction === selectedRepairAction.actionId}
+                          disabled={packageMutationBusy || !projectedActionExecutable(selectedRepairAction)}
+                          onClick={() => executeProjectedAction(selectedRepairAction)}
                           data-testid={`agent-package-repair-${selectedCapability.key}`}
                         >
                           {t('settings.capabilitiesPage.packageManager.actions.repair')}
@@ -1916,7 +1911,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                               },
                             }) ||
                             (selectedCapability.enabled !== false &&
-                              selectedCapability.dependentGuard?.disableAllowed === false)
+                              selectedCapability.dependentGuard?.disableAllowed !== true)
                           }
                           onClick={() =>
                             executeProjectedAction(selectedPreferenceAction, {
@@ -1966,7 +1961,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                           disabled={
                             packageMutationBusy ||
                             !projectedActionExecutable(selectedUninstallAction) ||
-                            selectedCapability.dependentGuard?.uninstallAllowed === false
+                            selectedCapability.dependentGuard?.uninstallAllowed !== true
                           }
                           onClick={() => executeProjectedAction(selectedUninstallAction, { danger: true })}
                           data-testid={`agent-package-uninstall-${selectedCapability.key}`}
@@ -2096,10 +2091,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               <span data-testid='agent-package-add-capability' aria-hidden='true' />
               {advancedAddOpen && (
                 <div
-                  className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_auto]'
+                  className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_minmax(180px,0.5fr)_auto]'
                   data-testid='agent-package-advanced-add'
                 >
-                  <div className='md:col-span-2'>
+                  <div className='md:col-span-3'>
                     <Typography.Text className='block font-600 text-t-primary'>
                       {t('settings.capabilitiesPage.packageManager.advancedAddTitle')}
                     </Typography.Text>
@@ -2114,17 +2109,50 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
                     data-testid='agent-package-manifest-url'
                   />
+                  <Select
+                    size='small'
+                    allowClear
+                    value={manifestTrustTier || undefined}
+                    onChange={(value) => setManifestTrustTier(value as ManifestTrustTier)}
+                    onClear={() => setManifestTrustTier('')}
+                    placeholder={t('settings.capabilitiesPage.packageManager.trustTierPlaceholder')}
+                    aria-label={t('settings.capabilitiesPage.packageManager.trustTierLabel')}
+                    data-testid='agent-package-trust-tier'
+                  >
+                    <Select.Option value='third_party_unverified'>
+                      {t('settings.capabilitiesPage.packageManager.trustTiers.thirdPartyUnverified')}
+                    </Select.Option>
+                    <Select.Option value='third_party_verified'>
+                      {t('settings.capabilitiesPage.packageManager.trustTiers.thirdPartyVerified')}
+                    </Select.Option>
+                  </Select>
                   <Button
                     size='small'
                     loading={busyAction === 'install_from_manifest_url'}
-                    disabled={packageMutationBusy || !manifestUrl.trim()}
-                    onClick={() =>
-                      executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
-                    }
+                    disabled={packageMutationBusy || !manifestUrl.trim() || !manifestTrustTier}
+                    onClick={() => {
+                      if (!manifestTrustTier) return;
+                      void executePackageAction('install_from_manifest_url', {
+                        manifest_url: manifestUrl.trim(),
+                        trust_tier: manifestTrustTier,
+                      }).then((succeeded) => {
+                        if (!succeeded) return;
+                        setManifestUrl('');
+                        setManifestTrustTier('');
+                      });
+                    }}
                     data-testid='agent-package-install-manifest'
                   >
                     {t('settings.capabilitiesPage.packageManager.installFromManifest')}
                   </Button>
+                  {manifestUrl.trim() && !manifestTrustTier && (
+                    <Typography.Text
+                      className='text-12px text-[rgb(var(--red-6))] md:col-start-2'
+                      data-testid='agent-package-trust-tier-required'
+                    >
+                      {t('settings.capabilitiesPage.packageManager.trustTierRequired')}
+                    </Typography.Text>
+                  )}
                 </div>
               )}
             </div>

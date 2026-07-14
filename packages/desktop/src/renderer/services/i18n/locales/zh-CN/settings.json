@@ -2382,6 +2382,8 @@
       "physicalSurfaceCachePath": "插件缓存路径",
       "physicalSurfaceMarketplacePath": "Marketplace 路径",
       "physicalSurfaceConfigPath": "Codex 配置路径",
+      "physicalSurfaceRequiredSkillIds": "已物化的必需技能",
+      "physicalSurfaceRequiredSkillPaths": "已物化的必需技能路径",
       "version": "版本",
       "source": "来源",
       "lastSync": "最后同步",
@@ -2512,6 +2514,13 @@
       "workspaceRequired": "激活该包前，请先选择工作区。",
       "openWorkspace": "打开工作区设置",
       "manifestUrlPlaceholder": "Manifest URL",
+      "trustTierLabel": "Manifest 信任等级",
+      "trustTierPlaceholder": "选择信任等级",
+      "trustTierRequired": "安装前必须选择信任等级。",
+      "trustTiers": {
+        "thirdPartyUnverified": "未验证的第三方",
+        "thirdPartyVerified": "已验证的第三方"
+      },
       "installFromManifest": "安装 manifest",
       "addCapability": "添加能力",
       "advancedAddTitle": "高级添加方式",

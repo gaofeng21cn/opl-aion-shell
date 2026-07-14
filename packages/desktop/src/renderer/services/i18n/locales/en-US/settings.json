@@ -2381,6 +2381,8 @@
       "physicalSurfaceCachePath": "Plugin cache path",
       "physicalSurfaceMarketplacePath": "Marketplace path",
       "physicalSurfaceConfigPath": "Codex config path",
+      "physicalSurfaceRequiredSkillIds": "Materialized required skills",
+      "physicalSurfaceRequiredSkillPaths": "Materialized required skill paths",
       "version": "Version",
       "source": "Source",
       "lastSync": "Last sync",
@@ -2511,6 +2513,13 @@
       "workspaceRequired": "Choose a Workspace before activating this package.",
       "openWorkspace": "Open Workspace",
       "manifestUrlPlaceholder": "Manifest URL",
+      "trustTierLabel": "Manifest trust level",
+      "trustTierPlaceholder": "Choose trust level",
+      "trustTierRequired": "Choose a trust level before installing.",
+      "trustTiers": {
+        "thirdPartyUnverified": "Unverified third party",
+        "thirdPartyVerified": "Verified third party"
+      },
       "installFromManifest": "Install from manifest",
       "addCapability": "Add capability",
       "advancedAddTitle": "Advanced add method",
