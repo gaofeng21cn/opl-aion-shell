@@ -425,7 +425,10 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         {workspaceDir ? (
           <>
             <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>
-              <div className={styles.workspacePill}>
+              <div
+                className={styles.workspacePill}
+                data-testid={accessDisabled ? 'opl-guid-workspace-access-disabled' : undefined}
+              >
                 <button
                   ref={triggerRef as React.RefObject<HTMLButtonElement>}
                   className={styles.workspacePillMain}
@@ -443,7 +446,7 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         ) : (
           <>
             <Tooltip content={accessDisabled ? accessDisabledReason : t('guid.workspace.workInProject')} position='top'>
-              <span>
+              <span data-testid={accessDisabled ? 'opl-guid-workspace-access-disabled' : undefined}>
                 <button
                   ref={triggerRef as React.RefObject<HTMLButtonElement>}
                   className={styles.workspaceEmptyBtn}

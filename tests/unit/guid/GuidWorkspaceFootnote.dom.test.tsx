@@ -55,12 +55,15 @@ describe('GuidWorkspaceFootnote', () => {
     );
 
     expect(screen.getByTestId('guid-new-task-context-bar')).toHaveAttribute('data-access-disabled', 'true');
-    expect(screen.getByTestId('workspace-selector-btn')).toBeDisabled();
+    const selector = screen.getByTestId('workspace-selector-btn');
+    expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toContainElement(selector);
+    expect(selector).toBeDisabled();
   });
 
   it('describes projectless context without implying a file restriction', () => {
     render(<GuidWorkspaceFootnote {...createLaunchProps()} />);
 
+    expect(screen.queryByTestId('opl-guid-workspace-access-disabled')).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-projectless-context')).toHaveTextContent('guid.workspace.noProject');
   });
 
