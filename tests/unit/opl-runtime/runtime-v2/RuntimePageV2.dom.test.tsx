@@ -296,14 +296,14 @@ describe('Runtime V2 page', () => {
     });
   });
 
-  it('shows eight visible items and keeps repeated work item ids distinct by canonical item id', async () => {
+  it('shows nine visible items and keeps repeated work item ids distinct by canonical item id', async () => {
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
     expect(screen.getByRole('button', { name: /001 DM CVD Mortality Risk/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
-    expect(screen.queryByText('NF-PitNET Paper 4')).not.toBeInTheDocument();
-    expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（1）');
+    expect(screen.getByText('NF-PitNET Paper 4')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（0）');
     const agentSelect = screen.getByTestId('runtime-agent-selector');
     const projectSelect = screen.getByTestId('runtime-project-selector');
     expect(within(agentSelect).getByText('Med Auto Science')).toBeInTheDocument();
@@ -311,12 +311,12 @@ describe('Runtime V2 page', () => {
     expect(within(agentSelect).getByText('RedCube AI')).toBeInTheDocument();
     expect(within(agentSelect).getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(within(agentSelect).getByText('OPL Book Forge')).toBeInTheDocument();
-    expect(within(projectSelect).queryByText('糖尿病')).not.toBeInTheDocument();
+    expect(within(projectSelect).queryByText('DM-CVD-Mortality-Risk')).not.toBeInTheDocument();
 
     fireEvent.change(agentSelect, { target: { value: 'mas' } });
-    await waitFor(() => expect(within(projectSelect).getByText('糖尿病')).toBeInTheDocument());
-    expect(within(projectSelect).getByText('无功能垂体瘤')).toBeInTheDocument();
-    expect(within(projectSelect).getByText('肥胖')).toBeInTheDocument();
+    await waitFor(() => expect(within(projectSelect).getByText('DM-CVD-Mortality-Risk')).toBeInTheDocument());
+    expect(within(projectSelect).getByText('NF-PitNET')).toBeInTheDocument();
+    expect(within(projectSelect).getByText('Obesity')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-status-views')).not.toHaveTextContent('Med Auto Science');
     expect(screen.getByTestId('runtime-status-views')).toHaveTextContent(
       '全部自动推进中等待你决定系统处理中已交付或暂停已停止状态待同步'
@@ -359,7 +359,7 @@ describe('Runtime V2 page', () => {
   it('keeps the V2 list while exposing keyboard-reachable summary and full drilldown requests', async () => {
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
     await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' }));
 
     const summaryButton = await screen.findByTestId('runtime-load-summary');
@@ -377,7 +377,7 @@ describe('Runtime V2 page', () => {
     fireEvent.click(fullButton);
     await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'full' }));
     expect(await screen.findByTestId('runtime-full-loaded')).toHaveTextContent('完整详情已加载');
-    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8);
+    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
   });
 
   it('requires a successful dry run before confirming and executing a safe action', async () => {
@@ -418,6 +418,7 @@ describe('Runtime V2 page', () => {
   });
 
   it('keeps archived tasks in an independent library that ignores the active status saved view', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResultWithVisibility('nf-pitnet', 'nf004', 'archived', 7));
     render(<RuntimePage />);
 
     await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
@@ -439,12 +440,13 @@ describe('Runtime V2 page', () => {
   });
 
   it('limits the archived library to the current agent and project scope with an explicit empty state', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResultWithVisibility('nf-pitnet', 'nf004', 'archived', 7));
     render(<RuntimePage />);
 
     const agentSelect = await screen.findByTestId('runtime-agent-selector');
     fireEvent.change(agentSelect, { target: { value: 'mas' } });
     const projectSelect = screen.getByTestId('runtime-project-selector');
-    await waitFor(() => expect(within(projectSelect).getByText('糖尿病')).toBeInTheDocument());
+    await waitFor(() => expect(within(projectSelect).getByText('DM-CVD-Mortality-Risk')).toBeInTheDocument());
     fireEvent.change(projectSelect, { target: { value: 'diabetes' } });
 
     await waitFor(() => expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（0）'));
@@ -495,7 +497,7 @@ describe('Runtime V2 page', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /NF-PitNET Paper 1/ }));
     const drawer = await screen.findByTestId('runtime-task-detail');
-    expect(drawer).toHaveTextContent('无功能垂体瘤');
+    expect(drawer).toHaveTextContent('NF-PitNET');
     expect(drawer).toHaveTextContent('NF-PitNET Paper 1');
     fireEvent.click(screen.getByTestId('runtime-archive-work-item'));
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(
@@ -547,6 +549,7 @@ describe('Runtime V2 page', () => {
   });
 
   it('restores an archived work item with its visibility generation', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResultWithVisibility('nf-pitnet', 'nf004', 'archived', 7));
     render(<RuntimePage />);
 
     fireEvent.click(await screen.findByTestId('runtime-open-archive'));
