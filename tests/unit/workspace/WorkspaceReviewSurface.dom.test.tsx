@@ -334,6 +334,7 @@ beforeEach(() => {
     targetThreadId: 'thread-current',
     forkedThreadId: null,
     reviewThreadId: 'review-thread',
+    turnId: 'review-turn',
     protocolMethod: 'review/start',
     auditId: 'audit-review',
     errorCode: null,
@@ -509,6 +510,75 @@ describe('Workspace review surface', () => {
         delivery: testCase.delivery,
       },
     });
+  });
+
+  it('sends non-custom review context through the typed review request', async () => {
+    mocks.executeReview.mockResolvedValueOnce({
+      ok: true,
+      outcome: 'accepted',
+      action: 'review',
+      targetThreadId: 'thread-current',
+      forkedThreadId: null,
+      reviewThreadId: 'review-thread',
+      turnId: 'review-turn',
+      protocolMethod: 'turn/steer',
+      auditId: 'audit-review',
+      errorCode: null,
+      message: 'Accepted',
+      advisories: [],
+    });
+    renderSurface();
+    const user = await openSurface();
+
+    await user.type(
+      screen.getByLabelText('conversation.workspace.review.focusPlaceholder'),
+      'Check protocol fidelity.'
+    );
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
+
+    await waitFor(() =>
+      expect(mocks.executeReview).toHaveBeenCalledWith({
+        request: expect.objectContaining({
+          reason: 'Check protocol fidelity.',
+          context: 'Check protocol fidelity.',
+          target: { type: 'uncommittedChanges' },
+        }),
+      })
+    );
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.workspace.review.reviewSuccess');
+  });
+
+  it('does not report success when review context steering returns a typed failure', async () => {
+    mocks.executeReview.mockResolvedValueOnce({
+      ok: false,
+      outcome: 'failed',
+      action: 'review',
+      targetThreadId: 'thread-current',
+      forkedThreadId: null,
+      reviewThreadId: 'review-thread',
+      turnId: 'review-turn',
+      protocolMethod: 'turn/steer',
+      auditId: 'audit-review',
+      errorCode: 'review_context_delivery_failed',
+      message: 'Steer failed',
+      advisories: [],
+    });
+    renderSurface();
+    const user = await openSurface();
+
+    await user.type(
+      screen.getByLabelText('conversation.workspace.review.focusPlaceholder'),
+      'Check protocol fidelity.'
+    );
+    await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
+
+    await waitFor(() =>
+      expect(mocks.messageError).toHaveBeenCalledWith(
+        'conversation.threadCoordination.errors.review_context_delivery_failed'
+      )
+    );
+    expect(mocks.messageSuccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'conversation.workspace.review.title' })).toBeVisible();
   });
 
   it('commits only staged changes through gitWorkspace and refreshes fileSnapshot data', async () => {

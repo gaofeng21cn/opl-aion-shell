@@ -568,7 +568,7 @@
       "baseBranchPlaceholder": "Select or enter a base branch",
       "commitPlaceholder": "Enter a commit SHA",
       "customPlaceholder": "Enter review instructions",
-      "focusPlaceholder": "Optional review focus",
+      "focusPlaceholder": "Optional review context",
       "deliveryLabel": "Delivery",
       "delivery": {
         "inline": "Inline",
@@ -829,6 +829,9 @@
       "duplicate_delivery": "This delivery was already recorded.",
       "cross_host_delivery": "Cross-host delivery is not supported by this host.",
       "running_turn_unknown": "The running receiver has no active turn precondition.",
+      "review_turn_ended": "The review turn ended before the review context was accepted.",
+      "review_turn_stale": "The review turn changed before the review context was accepted.",
+      "review_context_delivery_failed": "The review started, but its context was not accepted.",
       "thread_not_writable": "The receiver cannot accept a turn in its current state."
     }
   },

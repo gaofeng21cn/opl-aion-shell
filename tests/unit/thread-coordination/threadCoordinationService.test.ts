@@ -84,6 +84,7 @@ function port(threads: CodexThreadDescriptor[]): CodexThreadCoordinationPort {
     ),
     deleteThread: vi.fn().mockResolvedValue(undefined),
     startReview: vi.fn().mockResolvedValue({ reviewThreadId: 'receiver', turnId: 'review-turn' }),
+    steerReview: vi.fn().mockResolvedValue('review-turn'),
     startTurn: vi.fn().mockResolvedValue('new-turn'),
     steerTurn: vi.fn().mockResolvedValue('active-turn'),
   };
@@ -489,6 +490,7 @@ describe('ThreadCoordinationService', () => {
     expect(reviewed.ok).toBe(true);
     expect(reviewed.protocolMethod).toBe('review/start');
     expect(reviewed.reviewThreadId).toBe('receiver');
+    expect(reviewed.turnId).toBe('review-turn');
     expect(adapter.startReview).toHaveBeenCalledWith(
       expect.objectContaining({
         targetThreadId: 'receiver',
@@ -496,5 +498,121 @@ describe('ThreadCoordinationService', () => {
         delivery: 'inline',
       })
     );
+    expect(adapter.steerReview).not.toHaveBeenCalled();
+  });
+
+  it('delivers non-custom review context to the returned review turn and preserves both ids', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const reviewed = await service.execute({
+      action: 'review',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Check protocol fidelity',
+      context: 'Check protocol fidelity',
+      target: { type: 'uncommittedChanges' },
+      delivery: 'inline',
+    });
+
+    expect(reviewed).toMatchObject({
+      ok: true,
+      outcome: 'accepted',
+      reviewThreadId: 'receiver',
+      turnId: 'review-turn',
+      protocolMethod: 'turn/steer',
+    });
+    expect(adapter.steerReview).toHaveBeenCalledWith('receiver', 'review-turn', 'Check protocol fidelity');
+  });
+
+  it('does not repeat custom target instructions through turn/steer', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const reviewed = await service.execute({
+      action: 'review',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Review only the protocol boundary',
+      context: 'This must not be sent twice.',
+      target: { type: 'custom', instructions: 'Review only the protocol boundary' },
+      delivery: 'detached',
+    });
+
+    expect(reviewed).toMatchObject({
+      ok: true,
+      reviewThreadId: 'receiver',
+      turnId: 'review-turn',
+      protocolMethod: 'review/start',
+    });
+    expect(adapter.steerReview).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: 'ended review turn',
+      failure: new Error('Review turn has completed and is not in progress.'),
+      errorCode: 'review_turn_ended',
+    },
+    {
+      name: 'stale review turn',
+      failure: new Error('expectedTurnId does not match the current turn'),
+      errorCode: 'review_turn_stale',
+    },
+    {
+      name: 'steer transport failure',
+      failure: new Error('Codex app-server turn/steer failed'),
+      errorCode: 'review_context_delivery_failed',
+    },
+  ] as const)('returns a typed failure for $name without discarding review ids', async ({ failure, errorCode }) => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    vi.mocked(adapter.steerReview).mockRejectedValueOnce(failure);
+    const auditStore = memoryAuditStore();
+    const service = new ThreadCoordinationService({ port: adapter, auditStore });
+
+    const reviewed = await service.execute({
+      action: 'review',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Check protocol fidelity',
+      context: 'Check protocol fidelity',
+      target: { type: 'baseBranch', branch: 'main' },
+      delivery: 'detached',
+    });
+
+    expect(reviewed).toMatchObject({
+      ok: false,
+      outcome: 'failed',
+      errorCode,
+      reviewThreadId: 'receiver',
+      turnId: 'review-turn',
+      protocolMethod: 'turn/steer',
+    });
+    expect(auditStore.events[0]).toMatchObject({ result: 'failed', errorCode, protocolMethod: 'turn/steer' });
+  });
+
+  it('rejects a mismatched turn/steer ACK as stale instead of reporting review success', async () => {
+    const adapter = port([thread({ id: 'sender', title: 'Sender' }), thread()]);
+    vi.mocked(adapter.steerReview).mockResolvedValueOnce('different-turn');
+    const service = new ThreadCoordinationService({ port: adapter, auditStore: memoryAuditStore() });
+
+    const reviewed = await service.execute({
+      action: 'review',
+      targetThreadId: 'receiver',
+      actor: { kind: 'user', id: 'operator', threadId: 'sender' },
+      reason: 'Check protocol fidelity',
+      context: 'Check protocol fidelity',
+      target: { type: 'commit', sha: '0123456789abcdef', title: null },
+      delivery: 'inline',
+    });
+
+    expect(reviewed).toMatchObject({
+      ok: false,
+      outcome: 'failed',
+      errorCode: 'review_turn_stale',
+      reviewThreadId: 'receiver',
+      turnId: 'review-turn',
+      protocolMethod: 'turn/steer',
+    });
   });
 });

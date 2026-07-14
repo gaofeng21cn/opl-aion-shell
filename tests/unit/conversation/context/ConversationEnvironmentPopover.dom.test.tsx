@@ -157,6 +157,7 @@ const acceptedHandoff = {
   targetThreadId: 'thread-1',
   forkedThreadId: null,
   reviewThreadId: null,
+  turnId: null,
   protocolMethod: 'thread/settings/update',
   auditId: 'audit-1',
   errorCode: null,

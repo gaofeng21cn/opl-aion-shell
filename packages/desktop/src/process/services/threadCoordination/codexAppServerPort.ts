@@ -495,6 +495,18 @@ export class CodexAppServerThreadCoordinationPort implements CodexThreadCoordina
     };
   }
 
+  async steerReview(reviewThreadId: string, expectedTurnId: string, context: string): Promise<string> {
+    const response = requiredRecord(
+      await this.rpc.request('turn/steer', {
+        threadId: reviewThreadId,
+        input: [{ type: 'text', text: context, text_elements: [] }],
+        expectedTurnId,
+      }),
+      'review turn steer response'
+    );
+    return requiredString(response.turnId, 'steered review turn id');
+  }
+
   async startTurn(request: ThreadCoordinationDeliveryRequest): Promise<string> {
     // Omitting turn-level context and permission overrides preserves the
     // target thread's sticky Codex settings.

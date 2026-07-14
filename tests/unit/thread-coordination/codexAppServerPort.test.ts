@@ -256,6 +256,38 @@ describe('CodexAppServerThreadCoordinationPort', () => {
     ]);
   });
 
+  it('steers plain review context through the same app-server client with the returned turn precondition', async () => {
+    const appServer = rpc({
+      'review/start': () => ({ turn: { id: 'review-turn' }, reviewThreadId: 'review-thread' }),
+      'turn/steer': () => ({ turnId: 'review-turn' }),
+    });
+    const port = new CodexAppServerThreadCoordinationPort({ rpc: appServer, host: 'test-host' });
+
+    const review = await port.startReview({
+      action: 'review',
+      targetThreadId: 'target',
+      actor: { kind: 'user', id: 'operator', threadId: 'target' },
+      reason: 'Review the selected target',
+      context: 'Check protocol fidelity.',
+      target: { type: 'uncommittedChanges' },
+      delivery: 'inline',
+    });
+    const acknowledgedTurnId = await port.steerReview(review.reviewThreadId, review.turnId, 'Check protocol fidelity.');
+
+    expect(appServer.requests).toEqual([
+      ['review/start', { threadId: 'target', target: { type: 'uncommittedChanges' }, delivery: 'inline' }],
+      [
+        'turn/steer',
+        {
+          threadId: 'review-thread',
+          input: [{ type: 'text', text: 'Check protocol fidelity.', text_elements: [] }],
+          expectedTurnId: 'review-turn',
+        },
+      ],
+    ]);
+    expect(acknowledgedTurnId).toBe('review-turn');
+  });
+
   it('projects interactive app-server requests and returns protocol-specific decisions', () => {
     const appServer = rpc({});
     vi.mocked(appServer.listPendingServerRequests).mockReturnValue([

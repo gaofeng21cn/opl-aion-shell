@@ -80,6 +80,9 @@ export type ThreadCoordinationErrorCode =
   | 'duplicate_delivery'
   | 'cross_host_delivery'
   | 'running_turn_unknown'
+  | 'review_turn_ended'
+  | 'review_turn_stale'
+  | 'review_context_delivery_failed'
   | 'server_request_not_pending'
   | 'server_request_handler_unavailable'
   | 'thread_not_writable';
@@ -191,6 +194,7 @@ export type ThreadCoordinationReviewRequest = {
   targetThreadId: string;
   actor: ThreadCoordinationActor;
   reason: string;
+  context?: string;
   target: CodexThreadReviewTarget;
   delivery: CodexThreadReviewDelivery;
 };
@@ -310,6 +314,7 @@ export type ThreadCoordinationActionResult = {
   targetThreadId: string;
   forkedThreadId: string | null;
   reviewThreadId: string | null;
+  turnId: string | null;
   protocolMethod: CodexThreadCoordinationMethod | null;
   auditId: string;
   errorCode: ThreadCoordinationErrorCode | null;

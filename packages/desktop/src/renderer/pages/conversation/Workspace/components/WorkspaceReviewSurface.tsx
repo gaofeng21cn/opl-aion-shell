@@ -126,18 +126,25 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
     setAction('review');
     let reviewStarted = false;
     try {
+      const context = reviewTarget.type === 'custom' ? '' : reviewFocus.trim();
       const reason =
-        reviewFocus.trim() ||
+        context ||
         (reviewTarget.type === 'custom' ? reviewTarget.instructions : t('conversation.workspace.review.defaultReason'));
       const result = await execute({
         action: 'review',
         targetThreadId: currentThreadId,
         actor: { kind: 'user', id: 'opl-app-user', threadId: currentThreadId },
         reason,
+        ...(context ? { context } : {}),
         target: reviewTarget,
         delivery,
       });
-      if (!result.ok) {
+      if (
+        !result.ok ||
+        !result.reviewThreadId ||
+        !result.turnId ||
+        (context && result.protocolMethod !== 'turn/steer')
+      ) {
         const translatedError = result.errorCode
           ? t(`conversation.threadCoordination.errors.${result.errorCode}`)
           : t('conversation.workspace.review.reviewFailed');

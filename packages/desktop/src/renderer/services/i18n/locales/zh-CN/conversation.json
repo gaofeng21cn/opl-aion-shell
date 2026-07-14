@@ -568,7 +568,7 @@
       "baseBranchPlaceholder": "选择或输入基准分支",
       "commitPlaceholder": "输入提交 SHA",
       "customPlaceholder": "输入审查指令",
-      "focusPlaceholder": "可选的审查重点",
+      "focusPlaceholder": "可选的审查上下文",
       "deliveryLabel": "投递方式",
       "delivery": {
         "inline": "当前会话",
@@ -829,6 +829,9 @@
       "duplicate_delivery": "该投递已经记录。",
       "cross_host_delivery": "当前 Host 不支持跨 Host 投递。",
       "running_turn_unknown": "运行中的接收线程缺少 active turn 前置条件。",
+      "review_turn_ended": "审查 turn 在接收审查上下文前已结束。",
+      "review_turn_stale": "审查 turn 在接收审查上下文前已发生变化。",
+      "review_context_delivery_failed": "审查已开始，但审查上下文未被接收。",
       "thread_not_writable": "接收线程当前状态不能接受新 turn。"
     }
   },

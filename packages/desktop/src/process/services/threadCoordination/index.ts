@@ -57,6 +57,7 @@ export type CodexThreadCoordinationPort = {
   listPendingServerRequests?: () => CodexThreadServerRequest[];
   resolveServerRequest?: (request: ThreadCoordinationResolveServerRequest) => boolean;
   startReview: (request: ThreadCoordinationReviewRequest) => Promise<CodexThreadReviewStartResult>;
+  steerReview: (reviewThreadId: string, expectedTurnId: string, context: string) => Promise<string>;
   startTurn: (request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>) => Promise<string>;
   steerTurn: (
     request: Extract<ThreadCoordinationActionRequest, { action: 'deliver' }>,
@@ -94,6 +95,7 @@ type FinishOptions = {
   protocolMethod?: CodexThreadCoordinationMethod | null;
   forkedThreadId?: string | null;
   reviewThreadId?: string | null;
+  turnId?: string | null;
   failure?: ActionFailure;
   outcome?: ThreadCoordinationAuditResult;
   policy?: PolicyAudit;
@@ -199,6 +201,7 @@ function replayAcceptedDelivery(event: ThreadCoordinationAuditEvent): ThreadCoor
     targetThreadId: event.receiverThreadId,
     forkedThreadId: null,
     reviewThreadId: null,
+    turnId: null,
     protocolMethod: event.protocolMethod,
     auditId: event.id,
     errorCode: event.errorCode,
@@ -218,6 +221,17 @@ function reviewTargetFailure(request: ThreadCoordinationReviewRequest): ActionFa
     return { code: 'invalid_request', message: 'Custom review instructions are required.' };
   }
   return null;
+}
+
+function reviewContextFailure(error: unknown): ActionFailure {
+  const message = error instanceof Error ? error.message : 'Could not deliver review context.';
+  if (/expected\s*turn|expectedTurnId|stale\s+turn|turn\s+id.+(?:match|mismatch)/i.test(message)) {
+    return { code: 'review_turn_stale', message };
+  }
+  if (/turn.+(?:completed|ended|finished|not active|not in progress|no longer active|not found)/i.test(message)) {
+    return { code: 'review_turn_ended', message };
+  }
+  return { code: 'review_context_delivery_failed', message };
 }
 
 export class ThreadCoordinationService {
@@ -493,12 +507,49 @@ export class ThreadCoordinationService {
         failure: { code: 'thread_not_writable', message: 'Target thread cannot start a review in its current state.' },
       });
     }
-    try {
-      const review = await this.port?.startReview(request);
+    const port = this.port;
+    if (!port) {
       return this.finish(request, {
         target,
-        protocolMethod: 'review/start',
-        reviewThreadId: review?.reviewThreadId ?? null,
+        failure: { code: 'protocol_unavailable', message: 'Codex app-server host adapter is not connected.' },
+      });
+    }
+    try {
+      const review = await port.startReview(request);
+      const context = request.target.type === 'custom' ? '' : (request.context?.trim() ?? '');
+      if (context) {
+        let acknowledgedTurnId: string;
+        try {
+          acknowledgedTurnId = await port.steerReview(review.reviewThreadId, review.turnId, context);
+        } catch (error) {
+          return this.finish(request, {
+            target,
+            protocolMethod: 'turn/steer',
+            reviewThreadId: review.reviewThreadId,
+            turnId: review.turnId,
+            failure: reviewContextFailure(error),
+            statusAfter: request.delivery === 'inline' ? 'running' : target.status,
+          });
+        }
+        if (acknowledgedTurnId !== review.turnId) {
+          return this.finish(request, {
+            target,
+            protocolMethod: 'turn/steer',
+            reviewThreadId: review.reviewThreadId,
+            turnId: review.turnId,
+            failure: {
+              code: 'review_turn_stale',
+              message: `Review context ACK referenced turn ${acknowledgedTurnId}, expected ${review.turnId}.`,
+            },
+            statusAfter: request.delivery === 'inline' ? 'running' : target.status,
+          });
+        }
+      }
+      return this.finish(request, {
+        target,
+        protocolMethod: context ? 'turn/steer' : 'review/start',
+        reviewThreadId: review.reviewThreadId,
+        turnId: review.turnId,
         statusAfter: request.delivery === 'inline' ? 'running' : target.status,
       });
     } catch (error) {
@@ -673,7 +724,11 @@ export class ThreadCoordinationService {
     const outcome: ThreadCoordinationAuditResult =
       options.outcome ??
       (options.failure
-        ? options.failure.code === 'protocol_error' || options.failure.code === 'protocol_unavailable'
+        ? options.failure.code === 'protocol_error' ||
+          options.failure.code === 'protocol_unavailable' ||
+          options.failure.code === 'review_turn_ended' ||
+          options.failure.code === 'review_turn_stale' ||
+          options.failure.code === 'review_context_delivery_failed'
           ? 'failed'
           : 'rejected'
         : 'accepted');
@@ -715,6 +770,7 @@ export class ThreadCoordinationService {
       targetThreadId: request.targetThreadId,
       forkedThreadId: options.forkedThreadId ?? null,
       reviewThreadId: options.reviewThreadId ?? null,
+      turnId: options.turnId ?? null,
       protocolMethod: options.protocolMethod ?? null,
       auditId,
       errorCode: options.failure?.code ?? null,
