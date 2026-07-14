@@ -459,6 +459,9 @@ describe('GitWorkspaceAdapter managed worktrees', () => {
 describe('GitWorkspaceAdapter managed worktree lifecycle', () => {
   it('snapshots and restores detached HEAD, index, tracked worktree changes, and untracked files', async () => {
     const fixture = createRepository();
+    writeFileSync(path.join(fixture.repository, '.gitignore'), '.env\n');
+    git(fixture.repository, 'add', '.gitignore');
+    git(fixture.repository, 'commit', '-m', 'ignore local environment');
     let receiptBeforeRemove: unknown;
     const inspectReceiptBeforeRemove: CommandRunner = async (command, args, options) => {
       if (command === 'git' && args.includes('worktree') && args.includes('remove')) {
@@ -483,6 +486,7 @@ describe('GitWorkspaceAdapter managed worktree lifecycle', () => {
     git(created.targetPath, 'add', 'tracked.txt');
     appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'unstaged\n');
     writeFileSync(path.join(created.targetPath, 'scratch.txt'), 'untracked\n');
+    writeFileSync(path.join(created.targetPath, '.env'), 'LOCAL_SECRET=preserved\n');
 
     const cleanup = await adapter.cleanupManagedWorktree({
       repositoryPath: fixture.repository,
@@ -502,6 +506,7 @@ describe('GitWorkspaceAdapter managed worktree lifecycle', () => {
       staged: true,
       trackedUnstaged: true,
       untrackedCount: 1,
+      ignoredCount: 1,
       snapshotKind: 'stash',
     });
     expect(receiptBeforeRemove).toEqual(cleanup.snapshot);
@@ -525,6 +530,7 @@ describe('GitWorkspaceAdapter managed worktree lifecycle', () => {
     expect(git(created.targetPath, 'diff', '--cached', '--name-only').trim()).toBe('tracked.txt');
     expect(git(created.targetPath, 'diff', '--name-only').trim()).toBe('tracked.txt');
     expect(readFileSync(path.join(created.targetPath, 'scratch.txt'), 'utf8')).toBe('untracked\n');
+    expect(readFileSync(path.join(created.targetPath, '.env'), 'utf8')).toBe('LOCAL_SECRET=preserved\n');
   });
 
   it('retains the task branch and snapshot ref while restoring the original branch checkout', async () => {

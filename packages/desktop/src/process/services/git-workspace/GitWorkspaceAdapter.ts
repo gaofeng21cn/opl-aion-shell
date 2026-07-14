@@ -475,7 +475,10 @@ export class GitWorkspaceAdapter {
     worktree: GitWorktreeSummary,
     receiptPath: string
   ): Promise<GitWorktreeSnapshotReceipt> {
-    const source = await this.readSourceSnapshot(worktree.path, false);
+    const [source, ignoredCount] = await Promise.all([
+      this.readSourceSnapshot(worktree.path, false),
+      this.readIgnoredFileCount(worktree.path),
+    ]);
     if (source.summary.unmerged) {
       throw new GitWorkspaceAdapterError(
         'WORKTREE_SNAPSHOT_CONFLICT',
@@ -486,7 +489,8 @@ export class GitWorkspaceAdapter {
     const snapshotId = randomUUID();
     const createdAt = new Date().toISOString();
     const snapshotRef = `refs/opl/worktree-snapshots/${this.managedWorktreeIdentity(repositoryRoot, taskId)}/${snapshotId}`;
-    const hasChanges = source.summary.staged || source.summary.unstaged || source.summary.untrackedCount > 0;
+    const hasChanges =
+      source.summary.staged || source.summary.unstaged || source.summary.untrackedCount > 0 || ignoredCount > 0;
     let snapshotObject = worktree.head;
     let snapshotKind: GitWorktreeSnapshotReceipt['snapshotKind'] = 'head';
     const receipt = (): GitWorktreeSnapshotReceipt => ({
@@ -503,6 +507,7 @@ export class GitWorkspaceAdapter {
       staged: source.summary.staged,
       trackedUnstaged: source.summary.unstaged,
       untrackedCount: source.summary.untrackedCount,
+      ignoredCount,
       snapshotKind,
       snapshotRef,
       snapshotObject,
@@ -513,7 +518,7 @@ export class GitWorkspaceAdapter {
       const message = `opl-worktree-snapshot:${snapshotId}`;
       try {
         await this.git(
-          ['-C', worktree.path, 'stash', 'push', '--include-untracked', '--message', message],
+          ['-C', worktree.path, 'stash', 'push', '--all', '--message', message],
           { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
           'snapshot managed worktree'
         );
@@ -532,10 +537,19 @@ export class GitWorkspaceAdapter {
       try {
         await this.persistSnapshotReceiptRef(repositoryRoot, receipt());
         safeToDetachStash = true;
-        const residual = (await this.readSourceSnapshot(worktree.path, false)).summary;
-        if (residual.staged || residual.unstaged || residual.unmerged || residual.untrackedCount > 0) {
+        const [residual, residualIgnoredCount] = await Promise.all([
+          this.readSourceSnapshot(worktree.path, false),
+          this.readIgnoredFileCount(worktree.path),
+        ]);
+        if (
+          residual.summary.staged ||
+          residual.summary.unstaged ||
+          residual.summary.unmerged ||
+          residual.summary.untrackedCount > 0 ||
+          residualIgnoredCount > 0
+        ) {
           await this.applySnapshotObject(worktree.path, snapshotObject);
-          await this.verifySnapshotChanges(worktree.path, worktree, source.summary);
+          await this.verifySnapshotChanges(worktree.path, worktree, source.summary, ignoredCount);
           originalStateRestored = true;
           throw new GitWorkspaceAdapterError(
             'WORKTREE_SNAPSHOT_FAILED',
@@ -546,7 +560,7 @@ export class GitWorkspaceAdapter {
         if (!originalStateRestored) {
           try {
             await this.applySnapshotObject(worktree.path, snapshotObject);
-            await this.verifySnapshotChanges(worktree.path, worktree, source.summary);
+            await this.verifySnapshotChanges(worktree.path, worktree, source.summary, ignoredCount);
             safeToDetachStash = true;
           } catch (rollbackError) {
             throw new GitWorkspaceAdapterError(
@@ -700,6 +714,7 @@ export class GitWorkspaceAdapter {
       left.staged === right.staged &&
       left.trackedUnstaged === right.trackedUnstaged &&
       left.untrackedCount === right.untrackedCount &&
+      left.ignoredCount === right.ignoredCount &&
       left.snapshotKind === right.snapshotKind &&
       left.snapshotRef === right.snapshotRef &&
       left.snapshotObject === right.snapshotObject
@@ -725,6 +740,7 @@ export class GitWorkspaceAdapter {
     }
     if (Number.isNaN(Date.parse(snapshot.createdAt))) invalid('createdAt');
     if (!Number.isInteger(snapshot.untrackedCount) || snapshot.untrackedCount < 0) invalid('untrackedCount');
+    if (!Number.isInteger(snapshot.ignoredCount) || snapshot.ignoredCount < 0) invalid('ignoredCount');
     if (snapshot.branch === null) {
       if (!snapshot.detached || snapshot.branchRef !== null) invalid('detached');
     } else if (snapshot.detached || snapshot.branchRef !== `refs/heads/${snapshot.branch}`) {
@@ -740,7 +756,8 @@ export class GitWorkspaceAdapter {
     if (!persistedReceipt || !this.snapshotReceiptsEqual(persistedReceipt, snapshot)) invalid('persisted receipt');
     if (persistedObject !== snapshot.snapshotObject) invalid('snapshotObject');
 
-    const hasChanges = snapshot.staged || snapshot.trackedUnstaged || snapshot.untrackedCount > 0;
+    const hasChanges =
+      snapshot.staged || snapshot.trackedUnstaged || snapshot.untrackedCount > 0 || snapshot.ignoredCount > 0;
     if (snapshot.snapshotKind === 'head') {
       if (hasChanges || snapshot.snapshotObject !== snapshot.head) invalid('clean snapshot');
       return;
@@ -749,7 +766,9 @@ export class GitWorkspaceAdapter {
     const firstParent = await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^1`);
     if (firstParent !== snapshot.head) invalid('stash parent');
     await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^2`);
-    if (snapshot.untrackedCount > 0) await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^3`);
+    if (snapshot.untrackedCount > 0 || snapshot.ignoredCount > 0) {
+      await this.readRequiredCommit(repositoryRoot, `${snapshot.snapshotObject}^3`);
+    }
   }
 
   private async restoreSnapshotAtPath(
@@ -901,12 +920,17 @@ export class GitWorkspaceAdapter {
       );
     }
     const liveWorktree = await this.readLiveWorktree(worktree);
-    await this.verifySnapshotChanges(snapshot.worktreePath, liveWorktree, {
-      staged: snapshot.staged,
-      unstaged: snapshot.trackedUnstaged,
-      unmerged: false,
-      untrackedCount: snapshot.untrackedCount,
-    });
+    await this.verifySnapshotChanges(
+      snapshot.worktreePath,
+      liveWorktree,
+      {
+        staged: snapshot.staged,
+        unstaged: snapshot.trackedUnstaged,
+        unmerged: false,
+        untrackedCount: snapshot.untrackedCount,
+      },
+      snapshot.ignoredCount
+    );
     if (
       liveWorktree.head !== snapshot.head ||
       liveWorktree.branch !== snapshot.branch ||
@@ -923,15 +947,21 @@ export class GitWorkspaceAdapter {
   private async verifySnapshotChanges(
     worktreePath: string,
     worktree: GitWorktreeSummary,
-    expected: GitSourceChangeSummary
+    expected: GitSourceChangeSummary,
+    expectedIgnoredCount: number
   ): Promise<void> {
-    const actual = (await this.readSourceSnapshot(worktreePath, false)).summary;
+    const [snapshot, actualIgnoredCount] = await Promise.all([
+      this.readSourceSnapshot(worktreePath, false),
+      this.readIgnoredFileCount(worktreePath),
+    ]);
+    const actual = snapshot.summary;
     if (
       worktree.head !== (await this.readHead(worktreePath)) ||
       actual.staged !== expected.staged ||
       actual.unstaged !== expected.unstaged ||
       actual.unmerged !== expected.unmerged ||
-      actual.untrackedCount !== expected.untrackedCount
+      actual.untrackedCount !== expected.untrackedCount ||
+      actualIgnoredCount !== expectedIgnoredCount
     ) {
       throw new GitWorkspaceAdapterError(
         'WORKTREE_RESTORE_CONFLICT',
@@ -1252,6 +1282,15 @@ export class GitWorkspaceAdapter {
         : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
     ]);
     return { summary, stagedPatch: stagedPatch.stdout, unstagedPatch: unstagedPatch.stdout };
+  }
+
+  private async readIgnoredFileCount(repositoryRoot: string): Promise<number> {
+    const ignored = await this.git(
+      ['-C', repositoryRoot, 'ls-files', '--others', '--ignored', '--exclude-standard', '-z'],
+      {},
+      'read ignored files'
+    );
+    return splitNul(ignored.stdout).length;
   }
 
   private async hasStagedChanges(repositoryRoot: string): Promise<boolean> {

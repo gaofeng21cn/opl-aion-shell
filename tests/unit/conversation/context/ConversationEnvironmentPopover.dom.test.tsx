@@ -179,6 +179,7 @@ const snapshotReceipt = {
   staged: true,
   trackedUnstaged: true,
   untrackedCount: 1,
+  ignoredCount: 0,
   snapshotKind: 'stash' as const,
   snapshotRef: 'refs/opl/worktree-snapshots/0123456789abcdef/11111111-2222-4333-8444-555555555555',
   snapshotObject: '3333333333333333333333333333333333333333',

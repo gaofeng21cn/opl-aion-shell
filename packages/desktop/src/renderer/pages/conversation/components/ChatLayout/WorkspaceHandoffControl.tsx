@@ -35,6 +35,8 @@ export const readWorktreeSnapshotReceipt = (value: unknown): GitWorktreeSnapshot
     typeof candidate.trackedUnstaged !== 'boolean' ||
     !Number.isInteger(candidate.untrackedCount) ||
     (candidate.untrackedCount ?? -1) < 0 ||
+    !Number.isInteger(candidate.ignoredCount) ||
+    (candidate.ignoredCount ?? -1) < 0 ||
     (candidate.snapshotKind !== 'head' && candidate.snapshotKind !== 'stash') ||
     !text(candidate.snapshotRef) ||
     !commit(candidate.snapshotObject) ||

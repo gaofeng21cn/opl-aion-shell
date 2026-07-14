@@ -140,6 +140,7 @@ export type GitWorktreeSnapshotReceipt = {
   staged: boolean;
   trackedUnstaged: boolean;
   untrackedCount: number;
+  ignoredCount: number;
   snapshotKind: 'head' | 'stash';
   snapshotRef: string;
   snapshotObject: string;
