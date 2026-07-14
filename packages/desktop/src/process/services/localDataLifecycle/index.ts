@@ -108,6 +108,10 @@ export type RuntimePointerPrunePlan = {
   plan_id: string;
   plan_hash: string;
   runtime_root: string;
+  pointer_file_names?: string[];
+  authority_state?: 'ready' | 'blocked';
+  blocked_reason?: string | null;
+  candidate_marker?: '.opl-full-runtime-installed.json';
   protected_paths: string[];
   remove_candidates: RuntimePruneCandidate[];
   remove_bytes: number;
@@ -171,7 +175,7 @@ type LocalDataLifecycleInventoryInput = {
   dataRoot: string;
   updaterCacheRoots?: string[];
   conversationRoots?: string[];
-  runtimeRoot?: string;
+  runtimeRoots?: string[];
   logsRoot?: string;
 };
 
@@ -183,18 +187,16 @@ type ArchiveConversationArtifactsInput = {
   now?: Date;
 };
 
-type DeleteArchivedConversationArtifactsInput = {
-  archiveReceiptPath: string;
-  receiptRoot: string;
-  confirmation: string;
-  now?: Date;
-};
-
 type VerifyConversationArchiveReceiptInput = {
   archiveReceiptPath: string;
   archiveRoot: string;
   receiptRoot: string;
   allowedSourcePaths: string[];
+};
+
+type DeleteArchivedConversationArtifactsInput = VerifyConversationArchiveReceiptInput & {
+  confirmation: string;
+  now?: Date;
 };
 
 type RestoreConversationArchiveArtifactsInput = VerifyConversationArchiveReceiptInput & {
@@ -231,13 +233,32 @@ type ExecuteUpdaterCacheCleanupPlanInput = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_POINTER_FILE_NAMES = ['current.json', 'rollback.json'];
-const RUNTIME_METADATA_FILES = new Set(DEFAULT_POINTER_FILE_NAMES);
+const RUNTIME_INSTALL_MARKER = '.opl-full-runtime-installed.json';
+const RUNTIME_RESERVED_ROOT_NAMES = new Set(['current', 'previous', 'toolcache', 'generations', 'staged']);
 const UPDATE_PACKAGE_EXTENSIONS = new Set(['.zip', '.dmg', '.exe', '.deb']);
 const UPDATE_PACKAGE_NAMES = new Set(['update.zip']);
 
 function isDirectory(filePath: string): boolean {
   try {
     return fs.statSync(filePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isPlainDirectory(filePath: string): boolean {
+  try {
+    const stat = fs.lstatSync(filePath);
+    return stat.isDirectory() && !stat.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function isPlainFile(filePath: string): boolean {
+  try {
+    const stat = fs.lstatSync(filePath);
+    return stat.isFile() && !stat.isSymbolicLink();
   } catch {
     return false;
   }
@@ -328,12 +349,35 @@ function isSameOrInside(root: string, candidate: string): boolean {
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
+function requirePathInsidePlainRoot(rootPath: string, candidatePath: string, label: string): void {
+  const normalizedRoot = path.resolve(rootPath);
+  const normalizedCandidate = path.resolve(candidatePath);
+  if (!isSameOrInside(normalizedRoot, normalizedCandidate) || normalizedRoot === normalizedCandidate) {
+    throw new Error(`${label} is outside its managed root.`);
+  }
+  if (!isPlainDirectory(normalizedRoot)) {
+    throw new Error(`${label} root is missing, invalid, or symlinked.`);
+  }
+  const relativePath = path.relative(normalizedRoot, normalizedCandidate);
+  let currentPath = normalizedRoot;
+  for (const segment of relativePath.split(path.sep)) {
+    currentPath = path.join(currentPath, segment);
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(currentPath);
+    } catch (error) {
+      throw new Error(`${label} is missing or unreadable.`, { cause: error });
+    }
+    if (stat.isSymbolicLink()) throw new Error(`${label} must not traverse a symbolic link.`);
+  }
+}
+
 function collectPointerPaths(runtimeRoot: string, pointerFileNames: string[]): string[] {
   const protectedPaths: string[] = [];
   for (const fileName of pointerFileNames) {
     const pointerPath = path.join(runtimeRoot, fileName);
     const pointer = readJsonRecord(pointerPath);
-    if (fs.existsSync(pointerPath)) protectedPaths.push(pointerPath);
+    if (isPlainFile(pointerPath)) protectedPaths.push(pointerPath);
     for (const key of [
       'runtime_home',
       'previous_runtime_home',
@@ -345,30 +389,63 @@ function collectPointerPaths(runtimeRoot: string, pointerFileNames: string[]): s
       const rawPath = stringField(pointer, key);
       if (!rawPath) continue;
       const targetPath = path.isAbsolute(rawPath) ? rawPath : path.join(runtimeRoot, rawPath);
-      if (isSameOrInside(runtimeRoot, targetPath) && isDirectory(targetPath)) {
+      if (isSameOrInside(runtimeRoot, targetPath) && isPlainDirectory(targetPath)) {
         protectedPaths.push(targetPath);
       }
     }
   }
-  const currentAlias = path.join(runtimeRoot, 'current');
-  if (isDirectory(currentAlias)) protectedPaths.push(currentAlias);
+  for (const rootName of RUNTIME_RESERVED_ROOT_NAMES) {
+    const reservedRoot = path.join(runtimeRoot, rootName);
+    if (isPlainDirectory(reservedRoot)) protectedPaths.push(reservedRoot);
+  }
   return uniquePaths(protectedPaths);
 }
 
+function resolveRuntimePruneAuthority(
+  runtimeRoot: string,
+  pointerFileNames: string[]
+): { state: 'ready' | 'blocked'; blockedReason: string | null; protectedPaths: string[] } {
+  const protectedPaths = collectPointerPaths(runtimeRoot, pointerFileNames);
+  if (!isPlainDirectory(runtimeRoot)) {
+    return { state: 'blocked', blockedReason: 'managed_runtime_root_missing_or_symlinked', protectedPaths };
+  }
+  const currentPointerPath = path.join(runtimeRoot, 'current.json');
+  const currentPointer = readJsonRecord(currentPointerPath);
+  const currentRuntimeValue = stringField(currentPointer, 'runtime_home');
+  if (!isPlainFile(currentPointerPath) || !currentRuntimeValue) {
+    return { state: 'blocked', blockedReason: 'current_runtime_pointer_missing_or_invalid', protectedPaths };
+  }
+  const currentRuntimePath = path.isAbsolute(currentRuntimeValue)
+    ? path.resolve(currentRuntimeValue)
+    : path.resolve(runtimeRoot, currentRuntimeValue);
+  if (!isSameOrInside(runtimeRoot, currentRuntimePath) || !isPlainDirectory(currentRuntimePath)) {
+    return { state: 'blocked', blockedReason: 'current_runtime_pointer_target_is_not_a_managed_root', protectedPaths };
+  }
+  if (!isPlainFile(path.join(currentRuntimePath, RUNTIME_INSTALL_MARKER))) {
+    return { state: 'blocked', blockedReason: 'current_runtime_install_marker_missing', protectedPaths };
+  }
+  return { state: 'ready', blockedReason: null, protectedPaths };
+}
+
+function isRuntimeGenerationRoot(candidatePath: string): boolean {
+  return isPlainDirectory(candidatePath) && isPlainFile(path.join(candidatePath, RUNTIME_INSTALL_MARKER));
+}
+
 function listRuntimeRootCandidates(runtimeRoot: string): string[] {
-  if (!isDirectory(runtimeRoot)) return [];
+  if (!isPlainDirectory(runtimeRoot)) return [];
   const topLevel = fs
     .readdirSync(runtimeRoot)
     .map((entry) => path.join(runtimeRoot, entry))
-    .filter((entryPath) => isDirectory(entryPath));
+    .filter((entryPath) => isRuntimeGenerationRoot(entryPath))
+    .filter((entryPath) => !RUNTIME_RESERVED_ROOT_NAMES.has(path.basename(entryPath)));
   const stagedRoot = path.join(runtimeRoot, 'staged');
-  const stagedVersions = isDirectory(stagedRoot)
+  const stagedVersions = isPlainDirectory(stagedRoot)
     ? fs
         .readdirSync(stagedRoot)
         .map((entry) => path.join(stagedRoot, entry))
-        .filter((entryPath) => isDirectory(entryPath))
+        .filter((entryPath) => isRuntimeGenerationRoot(entryPath))
     : [];
-  return [...topLevel.filter((entryPath) => path.resolve(entryPath) !== path.resolve(stagedRoot)), ...stagedVersions];
+  return [...topLevel, ...stagedVersions];
 }
 
 function runtimeCandidateReason(runtimeRoot: string, candidatePath: string): RuntimePruneCandidate['reason'] {
@@ -550,6 +627,7 @@ function validateManifestEntry(
   if (!isSameOrInside(archiveContentsRoot, archiveFilePath)) {
     throw new Error('Archive entry escapes the archive contents root.');
   }
+  requirePathInsidePlainRoot(archiveContentsRoot, archiveFilePath, 'Archived file');
   requireRegularFile(archiveFilePath, 'Archived file');
   const archivedFileSize = fs.statSync(archiveFilePath).size;
   if (archivedFileSize !== bytes || sha256File(archiveFilePath) !== sha256) {
@@ -576,6 +654,7 @@ function verifyConversationArchive(input: VerifyConversationArchiveReceiptInput)
   if (!isSameOrInside(normalizedReceiptRoot, archiveReceiptPath) || archiveReceiptPath === normalizedReceiptRoot) {
     throw new Error('Archive receipt is outside the local data lifecycle receipt directory.');
   }
+  requirePathInsidePlainRoot(normalizedReceiptRoot, archiveReceiptPath, 'Archive receipt');
   requireRegularFile(archiveReceiptPath, 'Archive receipt');
 
   const receiptRecord = readJsonRecord(archiveReceiptPath);
@@ -595,6 +674,7 @@ function verifyConversationArchive(input: VerifyConversationArchiveReceiptInput)
   if (!isSameOrInside(normalizedArchiveRoot, archivePath) || archivePath === normalizedArchiveRoot) {
     throw new Error('Archive path is outside the local data lifecycle archive directory.');
   }
+  requirePathInsidePlainRoot(normalizedArchiveRoot, archivePath, 'Archive path');
   if (manifestPath !== path.join(archivePath, 'manifest.json')) {
     throw new Error('Archive manifest path does not match the archive receipt.');
   }
@@ -741,6 +821,10 @@ function runtimePlanPayload(plan: RuntimePointerPrunePlan) {
     mode: plan.mode,
     plan_id: plan.plan_id,
     runtime_root: plan.runtime_root,
+    pointer_file_names: plan.pointer_file_names,
+    authority_state: plan.authority_state,
+    blocked_reason: plan.blocked_reason,
+    candidate_marker: plan.candidate_marker,
     protected_paths: plan.protected_paths,
     remove_candidates: plan.remove_candidates,
     remove_bytes: plan.remove_bytes,
@@ -808,7 +892,7 @@ export function buildLocalDataLifecycleInventory(input: LocalDataLifecycleInvent
       id: 'runtime_substrate',
       cleanupMode: 'pointer_based_dry_run_required',
       silentDeleteAllowed: false,
-      roots: input.runtimeRoot ? [input.runtimeRoot] : [],
+      roots: uniquePaths(input.runtimeRoots ?? []),
     },
     {
       id: 'logs',
@@ -980,23 +1064,20 @@ export function restoreConversationArchiveArtifacts(
 export function deleteArchivedConversationArtifacts(
   input: DeleteArchivedConversationArtifactsInput
 ): ConversationDeleteReceipt {
-  if (!input.archiveReceiptPath || !fs.existsSync(input.archiveReceiptPath)) {
-    throw new Error('Archive receipt is required before deleting conversation artifacts.');
-  }
-  const archiveReceipt = readJsonRecord(input.archiveReceiptPath) as ConversationArchiveReceipt | null;
-  if (archiveReceipt?.schema !== 'opl_conversation_archive_receipt.v1') throw new Error('Archive receipt is invalid.');
+  const archiveReceipt = verifyConversationArchiveReceipt(input);
   if (input.confirmation !== `delete:${archiveReceipt.conversation_id}`) {
     throw new Error('Explicit delete confirmation is required before deleting conversation artifacts.');
   }
-  const manifest = readJsonRecord(archiveReceipt.manifest_path) as { source_paths?: string[] } | null;
-  if (!manifest || sha256File(archiveReceipt.manifest_path) !== archiveReceipt.archive_sha256) {
-    throw new Error('Archive manifest does not match its receipt.');
+
+  const sourcePathsToDelete = archiveReceipt.source_paths.filter((sourcePath) => pathEntryExists(sourcePath));
+  for (const sourcePath of sourcePathsToDelete) {
+    if (!isPlainDirectory(sourcePath) && !isPlainFile(sourcePath)) {
+      throw new Error(`Conversation source path is invalid or symlinked: ${sourcePath}`);
+    }
   }
-  if (!fs.existsSync(archiveReceipt.restore_probe_path)) throw new Error('Archive restore proof is missing.');
 
   const deletedPaths: string[] = [];
-  for (const sourcePath of uniquePaths(manifest.source_paths ?? [])) {
-    if (!fs.existsSync(sourcePath)) continue;
+  for (const sourcePath of sourcePathsToDelete) {
     fs.rmSync(sourcePath, { recursive: true, force: false });
     deletedPaths.push(sourcePath);
   }
@@ -1010,12 +1091,12 @@ export function deleteArchivedConversationArtifacts(
     schema: 'opl_conversation_delete_receipt.v1',
     conversation_id: archiveReceipt.conversation_id,
     deleted_paths: deletedPaths,
-    archive_receipt_path: input.archiveReceiptPath,
+    archive_receipt_path: archiveReceipt.receipt_path,
     confirmed_at: createdAt,
     receipt_path: receiptPath,
     created_at: createdAt,
   };
-  writeJson(receiptPath, receipt);
+  writeJsonAtomic(receiptPath, receipt);
   return receipt;
 }
 
@@ -1092,22 +1173,29 @@ export function executeLogRetentionPlan(input: ExecuteLogRetentionPlanInput): Lo
 
 export function resolveRuntimePointerPrunePlan(input: RuntimePointerPrunePlanInput): RuntimePointerPrunePlan {
   const runtimeRoot = path.resolve(input.runtimeRoot);
-  const protectedPaths = collectPointerPaths(runtimeRoot, input.pointerFileNames ?? DEFAULT_POINTER_FILE_NAMES);
-  const protectedSet = new Set(protectedPaths.map((entry) => path.resolve(entry)));
-  const removeCandidates = listRuntimeRootCandidates(runtimeRoot)
-    .filter((candidate) => !protectedSet.has(path.resolve(candidate)))
-    .filter((candidate) => !RUNTIME_METADATA_FILES.has(path.basename(candidate)))
-    .map((candidate) => ({
-      path: candidate,
-      bytes: fileSize(candidate),
-      reason: runtimeCandidateReason(runtimeRoot, candidate),
-    }));
+  const pointerFileNames = [...(input.pointerFileNames ?? DEFAULT_POINTER_FILE_NAMES)];
+  const authority = resolveRuntimePruneAuthority(runtimeRoot, pointerFileNames);
+  const protectedSet = new Set(authority.protectedPaths.map((entry) => path.resolve(entry)));
+  const removeCandidates =
+    authority.state === 'ready'
+      ? listRuntimeRootCandidates(runtimeRoot)
+          .filter((candidate) => !protectedSet.has(path.resolve(candidate)))
+          .map((candidate) => ({
+            path: candidate,
+            bytes: fileSize(candidate),
+            reason: runtimeCandidateReason(runtimeRoot, candidate),
+          }))
+      : [];
   const payload = {
     schema: 'opl_runtime_pointer_prune_plan.v1' as const,
     mode: 'dry_run' as const,
     plan_id: crypto.randomUUID(),
     runtime_root: runtimeRoot,
-    protected_paths: protectedPaths,
+    pointer_file_names: pointerFileNames,
+    authority_state: authority.state,
+    blocked_reason: authority.blockedReason,
+    candidate_marker: RUNTIME_INSTALL_MARKER as '.opl-full-runtime-installed.json',
+    protected_paths: authority.protectedPaths,
     remove_candidates: removeCandidates,
     remove_bytes: removeCandidates.reduce((total, candidate) => total + candidate.bytes, 0),
     created_at: (input.now ?? new Date()).toISOString(),
@@ -1122,7 +1210,25 @@ export function executeRuntimePointerPrunePlan(input: ExecuteRuntimePointerPrune
   if (input.planHash !== input.plan.plan_hash) {
     throw new Error('Matching dry-run plan hash is required before runtime prune.');
   }
+  if (input.plan.authority_state !== 'ready') {
+    throw new Error(
+      `Runtime prune is blocked: ${input.plan.blocked_reason ?? 'managed runtime authority is unavailable'}.`
+    );
+  }
+  if (input.plan.candidate_marker !== RUNTIME_INSTALL_MARKER) {
+    throw new Error('Runtime prune is blocked: managed runtime candidate marker is missing or invalid.');
+  }
+  const liveAuthority = resolveRuntimePruneAuthority(
+    input.plan.runtime_root,
+    input.plan.pointer_file_names ?? DEFAULT_POINTER_FILE_NAMES
+  );
+  if (liveAuthority.state !== 'ready' || !samePaths(liveAuthority.protectedPaths, input.plan.protected_paths)) {
+    throw new Error('Runtime prune authority changed after the dry-run plan; create a fresh plan.');
+  }
   const protectedSet = new Set(input.plan.protected_paths.map((entry) => path.resolve(entry)));
+  const liveCandidateSet = new Set(
+    listRuntimeRootCandidates(input.plan.runtime_root).map((entry) => path.resolve(entry))
+  );
   const deletedPaths: string[] = [];
   let deletedBytes = 0;
   for (const candidate of input.plan.remove_candidates) {
@@ -1132,6 +1238,9 @@ export function executeRuntimePointerPrunePlan(input: ExecuteRuntimePointerPrune
     }
     if (protectedSet.has(resolvedCandidate)) throw new Error('Runtime prune dry-run plan contains a protected path.');
     if (!fs.existsSync(resolvedCandidate)) continue;
+    if (!liveCandidateSet.has(resolvedCandidate) || !isRuntimeGenerationRoot(resolvedCandidate)) {
+      throw new Error('Runtime prune candidate is no longer a verified managed runtime generation.');
+    }
     deletedBytes += fileSize(resolvedCandidate);
     fs.rmSync(resolvedCandidate, { recursive: true, force: false });
     deletedPaths.push(resolvedCandidate);

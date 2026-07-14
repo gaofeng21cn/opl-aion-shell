@@ -23,6 +23,11 @@ const writeFile = (filePath: string, content = 'data') => {
   fs.writeFileSync(filePath, content);
 };
 
+const writeRuntimeGeneration = (runtimeHome: string, content: string) => {
+  writeFile(path.join(runtimeHome, 'bin', 'opl'), content);
+  writeFile(path.join(runtimeHome, '.opl-full-runtime-installed.json'), '');
+};
+
 const touchFile = (filePath: string, mtime: Date) => {
   fs.utimesSync(filePath, mtime, mtime);
 };
@@ -42,18 +47,20 @@ describe('local data lifecycle service', () => {
     const dataRoot = path.join(tempRoot, 'opl-data');
     const conversationRoot = path.join(dataRoot, 'conversations', 'conversation-1');
     const updaterCacheRoot = path.join(tempRoot, 'updater-cache');
-    const runtimeRoot = path.join(tempRoot, 'runtime');
+    const shellRuntimeRoot = path.join(dataRoot, 'runtime');
+    const managedRuntimeRoot = path.join(tempRoot, 'OPL', 'runtime');
     const logsRoot = path.join(tempRoot, 'logs');
     writeFile(path.join(updaterCacheRoot, 'update.zip'), 'installer');
     writeFile(path.join(conversationRoot, 'paper.md'), 'paper');
-    writeFile(path.join(runtimeRoot, 'current', 'bin', 'opl'), 'runtime');
+    writeFile(path.join(shellRuntimeRoot, 'managed-tools', 'acp', 'codex-acp'), 'shell-runtime');
+    writeRuntimeGeneration(path.join(managedRuntimeRoot, 'current'), 'managed-runtime');
     writeFile(path.join(logsRoot, '2026-06-18.log'), 'log');
 
     const inventory = buildLocalDataLifecycleInventory({
       dataRoot,
       updaterCacheRoots: [updaterCacheRoot],
       conversationRoots: [conversationRoot],
-      runtimeRoot,
+      runtimeRoots: [shellRuntimeRoot, managedRuntimeRoot],
       logsRoot,
     });
 
@@ -61,7 +68,8 @@ describe('local data lifecycle service', () => {
     expect(inventory.total_bytes).toBe(
       Buffer.byteLength('installer') +
         Buffer.byteLength('paper') +
-        Buffer.byteLength('runtime') +
+        Buffer.byteLength('shell-runtime') +
+        Buffer.byteLength('managed-runtime') +
         Buffer.byteLength('log')
     );
     expect(inventory.sections.map((section) => section.id)).toEqual([
@@ -82,6 +90,14 @@ describe('local data lifecycle service', () => {
       silent_delete_allowed: false,
       roots: [{ path: conversationRoot, exists: true, bytes: Buffer.byteLength('paper') }],
     });
+    expect(inventory.sections[2]).toMatchObject({
+      id: 'runtime_substrate',
+      cleanup_mode: 'pointer_based_dry_run_required',
+      silent_delete_allowed: false,
+    });
+    expect(inventory.sections[2].roots.map((root) => root.path).sort()).toEqual(
+      [shellRuntimeRoot, managedRuntimeRoot].sort()
+    );
   });
 
   it('plans log rotation by age, count, and total size without deleting files', () => {
@@ -127,10 +143,18 @@ describe('local data lifecycle service', () => {
     const previousRuntime = path.join(runtimeRoot, 'previous-26.6.17');
     const staleRuntime = path.join(runtimeRoot, 'stale-26.6.16');
     const stagedRuntime = path.join(runtimeRoot, 'staged', '26.6.19');
-    writeFile(path.join(currentRuntime, 'bin', 'opl'), 'current');
-    writeFile(path.join(previousRuntime, 'bin', 'opl'), 'previous');
-    writeFile(path.join(staleRuntime, 'bin', 'opl'), 'stale');
-    writeFile(path.join(stagedRuntime, 'bin', 'opl'), 'staged');
+    const previousAlias = path.join(runtimeRoot, 'previous');
+    const toolcacheRoot = path.join(runtimeRoot, 'toolcache');
+    const generationsRoot = path.join(runtimeRoot, 'generations');
+    const nonRuntimeStagedRoot = path.join(runtimeRoot, 'staged', 'codex-cli');
+    writeRuntimeGeneration(currentRuntime, 'current');
+    writeRuntimeGeneration(previousRuntime, 'previous');
+    writeRuntimeGeneration(previousAlias, 'previous-alias');
+    writeRuntimeGeneration(staleRuntime, 'stale');
+    writeRuntimeGeneration(stagedRuntime, 'staged');
+    writeFile(path.join(toolcacheRoot, 'codex', 'cache.zip'), 'toolcache');
+    writeFile(path.join(generationsRoot, 'metadata.json'), '{}');
+    writeFile(path.join(nonRuntimeStagedRoot, 'download.zip'), 'download');
     writeFile(
       path.join(runtimeRoot, 'current.json'),
       `${JSON.stringify({
@@ -143,10 +167,17 @@ describe('local data lifecycle service', () => {
     const plan = resolveRuntimePointerPrunePlan({ runtimeRoot });
 
     expect(plan.mode).toBe('dry_run');
+    expect(plan.authority_state).toBe('ready');
+    expect(plan.blocked_reason).toBeNull();
+    expect(plan.candidate_marker).toBe('.opl-full-runtime-installed.json');
     expect(plan.protected_paths.sort()).toEqual(
       [
         currentRuntime,
         previousRuntime,
+        previousAlias,
+        toolcacheRoot,
+        generationsRoot,
+        path.join(runtimeRoot, 'staged'),
         path.join(runtimeRoot, 'current.json'),
         path.join(runtimeRoot, 'rollback.json'),
       ].sort()
@@ -162,6 +193,44 @@ describe('local data lifecycle service', () => {
     );
     expect(exists(staleRuntime)).toBe(true);
     expect(exists(stagedRuntime)).toBe(true);
+    expect(plan.remove_candidates.some((candidate) => candidate.path === nonRuntimeStagedRoot)).toBe(false);
+  });
+
+  it('blocks runtime pruning when a shell toolchain root has no managed runtime authority', () => {
+    const runtimeRoot = path.join(tempRoot, 'opl-data', 'runtime');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    writeFile(path.join(runtimeRoot, 'bun-1.3.13', 'bun'), 'bun');
+    writeFile(path.join(runtimeRoot, 'node', 'node-v24', 'bin', 'node'), 'node');
+    writeFile(path.join(runtimeRoot, 'managed-tools', 'acp', 'codex-acp'), 'acp');
+
+    const plan = resolveRuntimePointerPrunePlan({ runtimeRoot });
+
+    expect(plan.authority_state).toBe('blocked');
+    expect(plan.blocked_reason).toBe('current_runtime_pointer_missing_or_invalid');
+    expect(plan.remove_candidates).toEqual([]);
+    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
+      /runtime prune is blocked/i
+    );
+  });
+
+  it('blocks managed runtime pruning when current points to a runtime without the install marker', () => {
+    const runtimeRoot = path.join(tempRoot, 'OPL', 'runtime');
+    const currentRuntime = path.join(runtimeRoot, 'current');
+    const staleRuntime = path.join(runtimeRoot, '26.6.17');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    writeFile(path.join(currentRuntime, 'bin', 'opl'), 'current-without-marker');
+    writeRuntimeGeneration(staleRuntime, 'stale');
+    writeFile(path.join(runtimeRoot, 'current.json'), `${JSON.stringify({ runtime_home: currentRuntime })}\n`);
+
+    const plan = resolveRuntimePointerPrunePlan({ runtimeRoot });
+
+    expect(plan.authority_state).toBe('blocked');
+    expect(plan.blocked_reason).toBe('current_runtime_install_marker_missing');
+    expect(plan.remove_candidates).toEqual([]);
+    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
+      /runtime prune is blocked/i
+    );
+    expect(exists(staleRuntime)).toBe(true);
   });
 
   it('archives conversation artifacts with a restore proof before explicit deletion can run', () => {
@@ -174,7 +243,9 @@ describe('local data lifecycle service', () => {
     expect(() =>
       deleteArchivedConversationArtifacts({
         archiveReceiptPath: path.join(receiptsRoot, 'missing.json'),
+        archiveRoot,
         receiptRoot: receiptsRoot,
+        allowedSourcePaths: [conversationRoot],
         confirmation: 'delete:conversation-1',
       })
     ).toThrow(/archive receipt/i);
@@ -197,7 +268,9 @@ describe('local data lifecycle service', () => {
 
     const deleteReceipt = deleteArchivedConversationArtifacts({
       archiveReceiptPath: archiveReceipt.receipt_path,
+      archiveRoot,
       receiptRoot: receiptsRoot,
+      allowedSourcePaths: [conversationRoot],
       confirmation: 'delete:conversation-1',
       now: new Date('2026-06-18T12:01:00Z'),
     });
@@ -209,6 +282,197 @@ describe('local data lifecycle service', () => {
     expect(exists(deleteReceipt.receipt_path)).toBe(true);
     expect(exists(conversationRoot)).toBe(false);
     expect(exists(archiveReceipt.archive_path)).toBe(true);
+  });
+
+  it('refuses deletion when the archive receipt is outside the lifecycle receipt root', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'outside-receipt');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const archiveReceiptsRoot = path.join(tempRoot, 'archive-receipts');
+    const lifecycleReceiptsRoot = path.join(tempRoot, 'lifecycle-receipts');
+    writeFile(path.join(conversationRoot, 'paper.md'), 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'outside-receipt',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: archiveReceiptsRoot,
+    });
+
+    expect(() =>
+      deleteArchivedConversationArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: lifecycleReceiptsRoot,
+        allowedSourcePaths: [conversationRoot],
+        confirmation: 'delete:outside-receipt',
+      })
+    ).toThrow(/outside the local data lifecycle receipt directory/i);
+    expect(exists(conversationRoot)).toBe(true);
+  });
+
+  it('refuses deletion when the archive payload is outside the lifecycle archive root', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'outside-archive');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const lifecycleArchiveRoot = path.join(tempRoot, 'lifecycle-archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    writeFile(path.join(conversationRoot, 'paper.md'), 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'outside-archive',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+
+    expect(() =>
+      deleteArchivedConversationArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot: lifecycleArchiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [conversationRoot],
+        confirmation: 'delete:outside-archive',
+      })
+    ).toThrow(/outside the local data lifecycle archive directory/i);
+    expect(exists(conversationRoot)).toBe(true);
+  });
+
+  it('refuses deletion when archived sources differ from the current conversation root', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'archived');
+    const currentConversationRoot = path.join(tempRoot, 'conversations', 'current');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    writeFile(path.join(conversationRoot, 'paper.md'), 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'archived',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+
+    expect(() =>
+      deleteArchivedConversationArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [currentConversationRoot],
+        confirmation: 'delete:archived',
+      })
+    ).toThrow(/do not match the current conversation data roots/i);
+    expect(exists(conversationRoot)).toBe(true);
+  });
+
+  it('rejects changed receipt, manifest, restore probe, or archived contents before deleting sources', () => {
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const cases = ['receipt', 'manifest', 'probe', 'contents'] as const;
+
+    for (const failure of cases) {
+      const conversationRoot = path.join(tempRoot, 'conversations', `delete-${failure}`);
+      const sourceFile = path.join(conversationRoot, 'paper.md');
+      writeFile(sourceFile, `paper-${failure}`);
+      const archiveReceipt = archiveConversationArtifacts({
+        conversationId: `delete-${failure}`,
+        sourcePaths: [conversationRoot],
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+      });
+
+      if (failure === 'receipt') {
+        const receipt = JSON.parse(fs.readFileSync(archiveReceipt.receipt_path, 'utf8')) as Record<string, unknown>;
+        writeFile(
+          archiveReceipt.receipt_path,
+          `${JSON.stringify({ ...receipt, receipt_path: path.join(receiptsRoot, 'different.json') }, null, 2)}\n`
+        );
+      }
+      if (failure === 'manifest') fs.appendFileSync(archiveReceipt.manifest_path, ' ');
+      if (failure === 'probe') {
+        const probe = JSON.parse(fs.readFileSync(archiveReceipt.restore_probe_path, 'utf8')) as Record<string, unknown>;
+        writeFile(archiveReceipt.restore_probe_path, `${JSON.stringify({ ...probe, entry_count: 99 }, null, 2)}\n`);
+      }
+      if (failure === 'contents') {
+        writeFile(
+          path.join(archiveReceipt.archive_path, 'contents', path.basename(conversationRoot), 'paper.md'),
+          'changed'
+        );
+      }
+
+      expect(() =>
+        deleteArchivedConversationArtifacts({
+          archiveReceiptPath: archiveReceipt.receipt_path,
+          archiveRoot,
+          receiptRoot: receiptsRoot,
+          allowedSourcePaths: [conversationRoot],
+          confirmation: `delete:delete-${failure}`,
+        })
+      ).toThrow(
+        failure === 'receipt'
+          ? /receipt path/i
+          : failure === 'manifest'
+            ? /manifest hash/i
+            : failure === 'probe'
+              ? /restore probe/i
+              : /integrity/i
+      );
+      expect(fs.readFileSync(sourceFile, 'utf8')).toBe(`paper-${failure}`);
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('refuses deletion through a symlinked archive path', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'archive-symlink');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const sourceFile = path.join(conversationRoot, 'paper.md');
+    writeFile(sourceFile, 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'archive-symlink',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+    const relocatedArchive = path.join(tempRoot, 'outside-archives', path.basename(archiveReceipt.archive_path));
+    fs.mkdirSync(path.dirname(relocatedArchive), { recursive: true });
+    fs.renameSync(archiveReceipt.archive_path, relocatedArchive);
+    fs.symlinkSync(relocatedArchive, archiveReceipt.archive_path, 'dir');
+
+    expect(() =>
+      deleteArchivedConversationArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [conversationRoot],
+        confirmation: 'delete:archive-symlink',
+      })
+    ).toThrow(/symbolic link|symlink/i);
+    expect(fs.readFileSync(sourceFile, 'utf8')).toBe('paper');
+    expect(exists(path.join(relocatedArchive, 'manifest.json'))).toBe(true);
+  });
+
+  it.skipIf(process.platform === 'win32')('refuses deletion when a conversation source becomes a symlink', () => {
+    const conversationRoot = path.join(tempRoot, 'conversations', 'source-symlink');
+    const archiveRoot = path.join(tempRoot, 'archives');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const sourceFile = path.join(conversationRoot, 'paper.md');
+    writeFile(sourceFile, 'paper');
+    const archiveReceipt = archiveConversationArtifacts({
+      conversationId: 'source-symlink',
+      sourcePaths: [conversationRoot],
+      archiveRoot,
+      receiptRoot: receiptsRoot,
+    });
+    const relocatedSource = path.join(tempRoot, 'outside-conversations', 'source-symlink');
+    fs.mkdirSync(path.dirname(relocatedSource), { recursive: true });
+    fs.renameSync(conversationRoot, relocatedSource);
+    fs.symlinkSync(relocatedSource, conversationRoot, 'dir');
+
+    expect(() =>
+      deleteArchivedConversationArtifacts({
+        archiveReceiptPath: archiveReceipt.receipt_path,
+        archiveRoot,
+        receiptRoot: receiptsRoot,
+        allowedSourcePaths: [conversationRoot],
+        confirmation: 'delete:source-symlink',
+      })
+    ).toThrow(/source path.*symlink/i);
+    expect(fs.lstatSync(conversationRoot).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(path.join(relocatedSource, 'paper.md'), 'utf8')).toBe('paper');
   });
 
   it('restores archived conversation files and writes a restore receipt', () => {
@@ -406,10 +670,10 @@ describe('local data lifecycle service', () => {
     const staleRuntime = path.join(runtimeRoot, 'stale-26.6.16');
     const stagedRuntime = path.join(runtimeRoot, 'staged', '26.6.19');
     const receiptsRoot = path.join(tempRoot, 'receipts');
-    writeFile(path.join(currentRuntime, 'bin', 'opl'), 'current');
-    writeFile(path.join(previousRuntime, 'bin', 'opl'), 'previous');
-    writeFile(path.join(staleRuntime, 'bin', 'opl'), 'stale');
-    writeFile(path.join(stagedRuntime, 'bin', 'opl'), 'staged');
+    writeRuntimeGeneration(currentRuntime, 'current');
+    writeRuntimeGeneration(previousRuntime, 'previous');
+    writeRuntimeGeneration(staleRuntime, 'stale');
+    writeRuntimeGeneration(stagedRuntime, 'staged');
     writeFile(
       path.join(runtimeRoot, 'current.json'),
       `${JSON.stringify({
@@ -445,7 +709,7 @@ describe('local data lifecycle service', () => {
     expect(receipt.runtime_root).toBe(runtimeRoot);
     expect(receipt.dry_run_plan_id).toBe(plan.plan_id);
     expect(receipt.protected_paths.sort()).toEqual(
-      [currentRuntime, previousRuntime, path.join(runtimeRoot, 'current.json')].sort()
+      [currentRuntime, previousRuntime, path.join(runtimeRoot, 'current.json'), path.join(runtimeRoot, 'staged')].sort()
     );
     expect(receipt.deleted_paths.sort()).toEqual([stagedRuntime, staleRuntime].sort());
     expect(receipt.deleted_bytes).toBe(Buffer.byteLength('stale') + Buffer.byteLength('staged'));
@@ -454,6 +718,25 @@ describe('local data lifecycle service', () => {
     expect(exists(previousRuntime)).toBe(true);
     expect(exists(staleRuntime)).toBe(false);
     expect(exists(stagedRuntime)).toBe(false);
+  });
+
+  it('refuses runtime pruning when pointer authority changes after the dry-run plan', () => {
+    const runtimeRoot = path.join(tempRoot, 'runtime');
+    const currentRuntime = path.join(runtimeRoot, 'current');
+    const staleRuntime = path.join(runtimeRoot, '26.6.17');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    writeRuntimeGeneration(currentRuntime, 'current');
+    writeRuntimeGeneration(staleRuntime, 'stale');
+    const pointerPath = path.join(runtimeRoot, 'current.json');
+    writeFile(pointerPath, `${JSON.stringify({ runtime_home: currentRuntime })}\n`);
+    const plan = resolveRuntimePointerPrunePlan({ runtimeRoot });
+
+    writeFile(pointerPath, `${JSON.stringify({ runtime_home: staleRuntime })}\n`);
+
+    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
+      /authority changed/i
+    );
+    expect(exists(staleRuntime)).toBe(true);
   });
 
   it('executes bounded log rotation only for dry-run log candidates and writes a receipt', () => {

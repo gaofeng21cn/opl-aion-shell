@@ -47,8 +47,17 @@ function receiptRoot(): string {
   return path.join(lifecycleRoot(), 'receipts');
 }
 
-function runtimeRoot(): string {
-  return process.env.OPL_RUNTIME_TOOLCHAIN_ROOT?.trim() || path.join(userDataRoot(), 'runtime');
+function shellToolchainRuntimeRoot(): string {
+  return path.join(getSystemDir().workDir, 'runtime');
+}
+
+function managedOplRuntimeRoot(): string {
+  const configuredRoot = process.env.OPL_RUNTIME_TOOLCHAIN_ROOT?.trim();
+  if (configuredRoot) return configuredRoot;
+  if (process.platform !== 'darwin') {
+    throw new Error('OPL_RUNTIME_TOOLCHAIN_ROOT is required outside the macOS desktop release.');
+  }
+  return path.join(app.getPath('home'), 'Library', 'Application Support', 'OPL', 'runtime');
 }
 
 function updaterCacheRoot(): string {
@@ -84,7 +93,7 @@ export function initLocalDataLifecycleBridge(): void {
         dataRoot: getSystemDir().workDir,
         updaterCacheRoots: [updaterCacheRoot(), ...retiredUpdaterCacheRoots()],
         conversationRoots: [conversationRoot()],
-        runtimeRoot: runtimeRoot(),
+        runtimeRoots: [shellToolchainRuntimeRoot(), managedOplRuntimeRoot()],
         logsRoot: getSystemDir().logDir,
       })
     )
@@ -127,7 +136,9 @@ export function initLocalDataLifecycleBridge(): void {
     Promise.resolve(
       deleteArchivedConversationArtifacts({
         archiveReceiptPath: receiptPathFromRequest(receiptPath),
+        archiveRoot: archiveRoot(),
         receiptRoot: receiptRoot(),
+        allowedSourcePaths: [conversationRoot()],
         confirmation,
       })
     )
@@ -136,7 +147,7 @@ export function initLocalDataLifecycleBridge(): void {
   ipcBridge.localDataLifecycle.planRuntimePrune.provider(() =>
     Promise.resolve(
       resolveRuntimePointerPrunePlan({
-        runtimeRoot: runtimeRoot(),
+        runtimeRoot: managedOplRuntimeRoot(),
       })
     )
   );
