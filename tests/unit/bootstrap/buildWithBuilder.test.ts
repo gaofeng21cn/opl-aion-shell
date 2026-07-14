@@ -5,7 +5,16 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -20,7 +29,8 @@ const afterPack = require('../../../scripts/afterPack.js') as {
 };
 
 function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out')): T {
-  const tempDir = mkdtempSync(join(tmpdir(), 'aionui-out-backup-'));
+  mkdirSync(outDir, { recursive: true });
+  const tempDir = mkdtempSync(join(outDir, '.build-test-backup-'));
   const targets = ['main', 'preload', 'renderer'];
   const packagingStageDirs = ['mac', 'mac-arm64', 'mac-x64', 'mac-universal'];
   const incrementalCachePath = join(outDir, '.build-hash');
@@ -30,7 +40,7 @@ function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out'
     for (const target of targets) {
       const source = join(outDir, target);
       if (existsSync(source)) {
-        cpSync(source, join(tempDir, target), { recursive: true });
+        renameSync(source, join(tempDir, target));
       }
     }
 
@@ -40,7 +50,7 @@ function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out'
       rmSync(join(outDir, target), { recursive: true, force: true });
       const backup = join(tempDir, target);
       if (existsSync(backup)) {
-        cpSync(backup, join(outDir, target), { recursive: true });
+        renameSync(backup, join(outDir, target));
       }
     }
     for (const target of packagingStageDirs) {
