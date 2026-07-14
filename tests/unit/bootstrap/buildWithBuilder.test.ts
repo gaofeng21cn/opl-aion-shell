@@ -12,14 +12,16 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(__dirname, '../../..');
 
-function withOutBundleBackup<T>(callback: () => T): T {
+function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out')): T {
   const tempDir = mkdtempSync(join(tmpdir(), 'aionui-out-backup-'));
   const targets = ['main', 'preload', 'renderer'];
   const packagingStageDirs = ['mac', 'mac-arm64', 'mac-x64', 'mac-universal'];
+  const incrementalCachePath = join(outDir, '.build-hash');
+  const cachedIncrementalHash = existsSync(incrementalCachePath) ? readFileSync(incrementalCachePath) : null;
 
   try {
     for (const target of targets) {
-      const source = join(repoRoot, 'out', target);
+      const source = join(outDir, target);
       if (existsSync(source)) {
         cpSync(source, join(tempDir, target), { recursive: true });
       }
@@ -28,20 +30,40 @@ function withOutBundleBackup<T>(callback: () => T): T {
     return callback();
   } finally {
     for (const target of targets) {
-      rmSync(join(repoRoot, 'out', target), { recursive: true, force: true });
+      rmSync(join(outDir, target), { recursive: true, force: true });
       const backup = join(tempDir, target);
       if (existsSync(backup)) {
-        cpSync(backup, join(repoRoot, 'out', target), { recursive: true });
+        cpSync(backup, join(outDir, target), { recursive: true });
       }
     }
     for (const target of packagingStageDirs) {
-      rmSync(join(repoRoot, 'out', target), { recursive: true, force: true });
+      rmSync(join(outDir, target), { recursive: true, force: true });
+    }
+    if (cachedIncrementalHash) {
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(incrementalCachePath, cachedIncrementalHash);
+    } else {
+      rmSync(incrementalCachePath, { force: true });
     }
     rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 describe('build-with-builder', () => {
+  it('restores the incremental build hash after an isolated build test', () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'aionui-build-cache-test-'));
+    const cachePath = join(outDir, '.build-hash');
+    writeFileSync(cachePath, 'trusted-output-hash');
+
+    try {
+      withOutBundleBackup(() => writeFileSync(cachePath, 'mocked-output-hash'), outDir);
+
+      expect(readFileSync(cachePath, 'utf8')).toBe('trusted-output-hash');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   it('builds macOS standard distributables with both DMG and ZIP targets', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'aionui-macos-targets-build-test-'));
     const hookPath = join(tempDir, 'hook.cjs');
