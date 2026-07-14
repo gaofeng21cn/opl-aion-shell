@@ -7,8 +7,8 @@
 import { ipcBridge } from '@/common';
 import type { ProjectContextRef } from '@/common/config/configKeys';
 import { addRecentWorkspace, getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
-import { Button, Modal, Radio, Select, Tooltip, Typography } from '@arco-design/web-react';
-import { Attention, BranchOne, Close, CloseSmall, Computer, Down, FileText, FolderClose, Fork } from '@icon-park/react';
+import { Button, Dropdown, Menu, Modal, Tooltip, Typography } from '@arco-design/web-react';
+import { Attention, BranchOne, CloseSmall, Computer, FileText, FolderClose, Fork } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -94,6 +94,8 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   const [registeredWorkspaces, setRegisteredWorkspaces] = useState(() => getRecentWorkspaces());
   const [searchQuery, setSearchQuery] = useState('');
   const [branch, setBranch] = useState<string>();
+  const [launchModeMenuOpen, setLaunchModeMenuOpen] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -104,10 +106,10 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
     setBranch(undefined);
     if (!workspaceDir) return;
 
-    void ipcBridge.fileSnapshot.getInfo
-      .invoke({ workspace: workspaceDir })
-      .then((info) => {
-        if (!cancelled && info.branch) setBranch(info.branch);
+    void ipcBridge.gitWorkspace.inspect
+      .invoke({ cwd: workspaceDir })
+      .then((inspection) => {
+        if (!cancelled && inspection.currentBranch) setBranch(inspection.currentBranch);
       })
       .catch(() => {});
 
@@ -145,11 +147,11 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
     const el = triggerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    // position above the trigger, aligned to left edge
+    // The Codex-style context bar opens its project menu toward the composer.
     setDropdownStyle({
       position: 'fixed',
       left: rect.left,
-      bottom: window.innerHeight - rect.top + 6,
+      top: rect.bottom + 6,
       minWidth: 230,
       zIndex: 9999,
     });
@@ -206,6 +208,111 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   });
 
   const workspaceName = workspaceDir ? workspaceDir.split(/[\\/]/).pop() || workspaceDir : '';
+  const selectedBranch = branchOptions.find((option) => option.value === selectedStartRef);
+  const branchLabel = launchMode === 'worktree' ? selectedBranch?.label || branch : branch;
+
+  const launchModeButton = (
+    <Button
+      type='text'
+      size='small'
+      className={styles.taskContextControl}
+      disabled={worktreeControlsDisabled}
+      aria-label={t('guid.worktree.modeLabel')}
+      data-testid='guid-launch-mode-trigger'
+    >
+      <span className={styles.taskContextControlContent}>
+        {launchMode === 'worktree' ? <Fork size={16} /> : <Computer size={16} />}
+        <span>{launchMode === 'worktree' ? t('guid.worktree.worktreeLabel') : t('guid.home.localContext')}</span>
+      </span>
+    </Button>
+  );
+
+  const launchModeControl = worktreeControlsDisabled ? (
+    launchModeButton
+  ) : (
+    <Dropdown
+      trigger='click'
+      position='bl'
+      popupVisible={launchModeMenuOpen}
+      onVisibleChange={setLaunchModeMenuOpen}
+      droplist={
+        <Menu
+          selectedKeys={[launchMode]}
+          onClickMenuItem={(key) => {
+            setLaunchModeMenuOpen(false);
+            onLaunchModeChange(key === 'worktree' ? 'worktree' : 'local');
+          }}
+        >
+          <Menu.Item key='local'>
+            <span className={styles.taskContextMenuItem} data-testid='guid-launch-mode-local'>
+              <Computer size={15} />
+              {t('guid.home.localContext')}
+            </span>
+          </Menu.Item>
+          <Menu.Item key='worktree'>
+            <span className={styles.taskContextMenuItem} data-testid='guid-launch-mode-worktree'>
+              <Fork size={15} />
+              {t('guid.worktree.worktreeLabel')}
+            </span>
+          </Menu.Item>
+        </Menu>
+      }
+    >
+      {launchModeButton}
+    </Dropdown>
+  );
+
+  const branchButton = branchLabel ? (
+    <Button
+      type='text'
+      size='small'
+      className={styles.taskContextControl}
+      disabled={worktreeLoading || worktreeControlsDisabled}
+      aria-label={t('guid.worktree.startingBranch')}
+      aria-busy={worktreeLoading}
+      data-testid='guid-starting-branch-selector'
+    >
+      <span className={styles.taskContextControlContent}>
+        <BranchOne size={16} />
+        <span className={styles.taskContextBranchLabel}>{branchLabel}</span>
+      </span>
+    </Button>
+  ) : null;
+
+  const branchControl =
+    launchMode === 'worktree' && branchButton && branchOptions.length > 0 ? (
+      <Dropdown
+        trigger='click'
+        position='bl'
+        popupVisible={branchMenuOpen}
+        onVisibleChange={setBranchMenuOpen}
+        droplist={
+          <Menu
+            selectedKeys={selectedStartRef ? [selectedStartRef] : []}
+            onClickMenuItem={(key) => {
+              setBranchMenuOpen(false);
+              onSelectedStartRefChange(String(key));
+            }}
+          >
+            {branchOptions.map((option) => (
+              <Menu.Item key={option.value}>
+                <span className={styles.taskContextMenuItem}>
+                  <BranchOne size={15} />
+                  <span>{option.label}</span>
+                  {option.current ? (
+                    <span className={styles.taskContextMenuMeta}>{t('guid.worktree.currentBranch')}</span>
+                  ) : null}
+                </span>
+              </Menu.Item>
+            ))}
+          </Menu>
+        }
+      >
+        {branchButton}
+      </Dropdown>
+    ) : (
+      branchButton
+    );
 
   const dropdownEl = open
     ? createPortal(
@@ -311,173 +418,90 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   return (
     <div
       className={styles.workspaceFootnote}
-      data-testid={accessDisabled ? 'opl-guid-workspace-access-disabled' : undefined}
+      data-testid='guid-new-task-context-bar'
+      data-access-disabled={accessDisabled ? 'true' : 'false'}
     >
-      <div className='flex w-full min-w-0 flex-wrap items-center gap-8px' data-testid='guid-task-location-controls'>
-        <Radio.Group
-          type='button'
-          size='mini'
-          value={launchMode}
-          disabled={worktreeControlsDisabled}
-          aria-label={t('guid.worktree.modeLabel')}
-          onChange={(value) => onLaunchModeChange(value === 'worktree' ? 'worktree' : 'local')}
-        >
-          <Radio value='local' data-testid='guid-launch-mode-local'>
-            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
-              <Computer size={12} />
-              {t('guid.home.localContext')}
-            </span>
-          </Radio>
-          <Radio value='worktree' data-testid='guid-launch-mode-worktree'>
-            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
-              <Fork size={12} />
-              {t('guid.worktree.worktreeLabel')}
-            </span>
-          </Radio>
-        </Radio.Group>
-
-        {launchMode === 'worktree' ? (
-          <div className='min-w-0' style={{ flex: '1 1 180px', maxWidth: 360 }} data-testid='guid-starting-branch-wrap'>
-            <Select
-              size='mini'
-              value={selectedStartRef || undefined}
-              placeholder={t('guid.worktree.startingBranch')}
-              loading={worktreeLoading}
-              disabled={worktreeControlsDisabled || !workspaceDir}
-              showSearch
-              allowClear={false}
-              aria-label={t('guid.worktree.startingBranch')}
-              data-testid='guid-starting-branch-selector'
-              style={{ width: '100%', minWidth: 0 }}
-              onChange={(value) => onSelectedStartRefChange(String(value))}
-            >
-              {branchOptions.map((option) => (
-                <Select.Option key={option.value} value={option.value}>
-                  <span className='flex min-w-0 items-center gap-6px'>
-                    <BranchOne size={12} className='shrink-0' />
-                    <span className='min-w-0 flex-1 truncate'>{option.label}</span>
-                    {option.current ? (
-                      <span className='shrink-0 text-11px text-t-tertiary'>{t('guid.worktree.currentBranch')}</span>
-                    ) : null}
-                  </span>
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-        ) : null}
-
-        {worktreeError ? (
-          <div
-            className='flex w-full min-w-0 items-start gap-6px text-12px leading-18px text-danger'
-            role='alert'
-            data-testid='guid-worktree-error'
-          >
-            <Attention className='mt-2px shrink-0' size={13} />
-            <span className='min-w-0 break-words'>{worktreeError}</span>
-          </div>
+      <div className={styles.taskContextPrimary} data-testid='guid-task-location-controls'>
+        {workspaceDir ? (
+          <>
+            <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>
+              <div className={styles.workspacePill}>
+                <button
+                  ref={triggerRef as React.RefObject<HTMLButtonElement>}
+                  className={styles.workspacePillMain}
+                  onClick={accessDisabled ? undefined : toggleOpen}
+                  disabled={accessDisabled}
+                  aria-label={accessDisabled ? accessDisabledReason : undefined}
+                >
+                  <FolderIcon size={17} />
+                  <span className={styles.workspacePillName}>{workspaceName}</span>
+                </button>
+              </div>
+            </Tooltip>
+            {dropdownEl}
+          </>
+        ) : (
+          <>
+            <Tooltip content={accessDisabled ? accessDisabledReason : t('guid.workspace.workInProject')} position='top'>
+              <span>
+                <button
+                  ref={triggerRef as React.RefObject<HTMLButtonElement>}
+                  className={styles.workspaceEmptyBtn}
+                  data-testid='workspace-selector-btn'
+                  onClick={recentWorkspaces.length > 0 ? toggleOpen : handleBrowseWorkspace}
+                  disabled={accessDisabled}
+                  aria-label={accessDisabled ? accessDisabledReason : undefined}
+                >
+                  <FolderIcon size={17} />
+                  <span data-testid='guid-projectless-context'>{t('guid.workspace.noProject')}</span>
+                </button>
+              </span>
+            </Tooltip>
+            {dropdownEl}
+          </>
+        )}
+        <span className={styles.taskContextItem} data-testid='guid-local-context'>
+          {launchModeControl}
+        </span>
+        {workspaceDir && branchControl ? (
+          <span className={styles.taskContextItem} data-testid='guid-branch-context'>
+            {branchControl}
+          </span>
         ) : null}
       </div>
 
-      {workspaceDir ? (
-        <>
-          <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>
-            <div className={styles.workspacePill}>
-              <button
-                ref={triggerRef as React.RefObject<HTMLButtonElement>}
-                className={styles.workspacePillMain}
-                onClick={accessDisabled ? undefined : toggleOpen}
-                disabled={accessDisabled}
-                aria-label={accessDisabled ? accessDisabledReason : undefined}
-              >
-                <FolderIcon size={14} />
-                <span className={styles.workspacePillName}>{workspaceName}</span>
-                <Down
-                  theme='outline'
-                  size='12'
-                  fill='currentColor'
-                  style={{ flexShrink: 0, transform: 'translateY(1px)' }}
-                />
-              </button>
-              <span
-                role='button'
-                aria-label={t('guid.workspace.clearWorkspace')}
-                className={styles.workspacePillClose}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClearWorkspace();
-                }}
-              >
-                <Close theme='outline' size='10' fill='currentColor' />
-              </span>
-            </div>
-          </Tooltip>
-          {dropdownEl}
-        </>
-      ) : (
-        <>
-          <Tooltip content={accessDisabled ? accessDisabledReason : undefined} position='top'>
-            <span>
-              <button
-                ref={triggerRef as React.RefObject<HTMLButtonElement>}
-                className={styles.workspaceEmptyBtn}
-                data-testid='workspace-selector-btn'
-                onClick={recentWorkspaces.length > 0 ? toggleOpen : handleBrowseWorkspace}
-                disabled={accessDisabled}
-                aria-label={accessDisabled ? accessDisabledReason : undefined}
-              >
-                <FolderIcon size={14} />
-                <span>{t('guid.workspace.workInProject')}</span>
-                {recentWorkspaces.length > 0 && (
-                  <Down
-                    theme='outline'
-                    size='12'
-                    fill='currentColor'
-                    style={{ flexShrink: 0, transform: 'translateY(1px)' }}
-                  />
-                )}
-              </button>
+      {worktreeError ? (
+        <div className={styles.taskContextError} role='alert' data-testid='guid-worktree-error'>
+          <Attention className='mt-2px shrink-0' size={13} />
+          <span className='min-w-0 break-words'>{worktreeError}</span>
+        </div>
+      ) : null}
+
+      {activeCapabilityLabel || projectContextRefs.length > 0 ? (
+        <div className={styles.taskContextSecondary} data-testid='guid-task-context-secondary'>
+          {activeCapabilityLabel ? (
+            <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
+              {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
             </span>
-          </Tooltip>
-          {dropdownEl}
-        </>
-      )}
-      <span className={styles.contextStripMeta} data-testid='guid-local-context'>
-        {t('guid.home.localContext')}
-      </span>
-      {branch && (
-        <span className={styles.contextStripMeta} data-testid='guid-branch-context'>
-          <span className='inline-flex items-center gap-4px'>
-            <BranchOne size={12} />
-            {branch}
-          </span>
-        </span>
-      )}
-      {!workspaceDir && (
-        <span className={styles.contextStripMeta} data-testid='guid-projectless-context'>
-          {t('guid.workspace.noProject')}
-        </span>
-      )}
-      {activeCapabilityLabel && (
-        <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
-          {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
-        </span>
-      )}
-      {projectContextRefs.map((ref) => (
-        <Tooltip key={ref.path} content={ref.path} position='top'>
-          <span className={styles.projectContextRef} data-testid='guid-project-context-ref'>
-            {ref.isFile ? <FileText size={12} /> : <FolderClose size={12} />}
-            <span className={styles.projectContextRefName}>{ref.relativePath || ref.name}</span>
-            <Button
-              type='text'
-              size='mini'
-              className={styles.projectContextRefRemove}
-              icon={<CloseSmall size={11} />}
-              aria-label={t('conversation.history.projectContext.remove', { name: ref.name })}
-              onClick={() => onRemoveProjectContextRef?.(ref.path)}
-            />
-          </span>
-        </Tooltip>
-      ))}
+          ) : null}
+          {projectContextRefs.map((ref) => (
+            <Tooltip key={ref.path} content={ref.path} position='top'>
+              <span className={styles.projectContextRef} data-testid='guid-project-context-ref'>
+                {ref.isFile ? <FileText size={12} /> : <FolderClose size={12} />}
+                <span className={styles.projectContextRefName}>{ref.relativePath || ref.name}</span>
+                <Button
+                  type='text'
+                  size='mini'
+                  className={styles.projectContextRefRemove}
+                  icon={<CloseSmall size={11} />}
+                  aria-label={t('conversation.history.projectContext.remove', { name: ref.name })}
+                  onClick={() => onRemoveProjectContextRef?.(ref.path)}
+                />
+              </span>
+            </Tooltip>
+          ))}
+        </div>
+      ) : null}
       <Modal
         visible={managementOpen}
         title={t('guid.workspace.registeredTitle')}

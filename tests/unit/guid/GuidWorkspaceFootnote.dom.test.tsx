@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import GuidWorkspaceFootnote from '@/renderer/pages/guid/components/GuidWorkspaceFootnote';
@@ -16,8 +16,8 @@ vi.mock('@/common', () => ({
     dialog: {
       showOpen: { invoke: vi.fn().mockResolvedValue([]) },
     },
-    fileSnapshot: {
-      getInfo: { invoke: vi.fn().mockResolvedValue({ mode: 'git-repo', branch: 'codex/context' }) },
+    gitWorkspace: {
+      inspect: { invoke: vi.fn().mockResolvedValue({ currentBranch: 'codex/context' }) },
     },
   },
 }));
@@ -54,7 +54,7 @@ describe('GuidWorkspaceFootnote', () => {
       <GuidWorkspaceFootnote {...createLaunchProps()} accessDisabled accessDisabledReason='complete workspace setup' />
     );
 
-    expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('guid-new-task-context-bar')).toHaveAttribute('data-access-disabled', 'true');
     expect(screen.getByTestId('workspace-selector-btn')).toBeDisabled();
   });
 
@@ -64,7 +64,7 @@ describe('GuidWorkspaceFootnote', () => {
     expect(screen.getByTestId('guid-projectless-context')).toHaveTextContent('guid.workspace.noProject');
   });
 
-  it('renders a wrapping Local/Worktree control, starting branch selector, and inline failure', async () => {
+  it('renders compact location and branch menus with an inline Worktree failure', async () => {
     const onLaunchModeChange = vi.fn();
     const onSelectedStartRefChange = vi.fn();
     render(
@@ -84,21 +84,25 @@ describe('GuidWorkspaceFootnote', () => {
       />
     );
 
-    expect(screen.getByTestId('guid-task-location-controls')).toHaveClass('min-w-0', 'flex-wrap');
-    expect(screen.getByTestId('guid-starting-branch-wrap')).toHaveClass('min-w-0');
+    expect(screen.getByTestId('guid-new-task-context-bar')).toBeInTheDocument();
     expect(screen.getByTestId('guid-starting-branch-selector')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('worktree failed');
     await screen.findByTestId('guid-branch-context');
 
-    await userEvent.click(screen.getByTestId('guid-launch-mode-local'));
+    await userEvent.click(screen.getByTestId('guid-launch-mode-trigger'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'guid.home.localContext' }));
     expect(onLaunchModeChange).toHaveBeenCalledWith('local');
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: 'guid.home.localContext' })).not.toBeInTheDocument()
+    );
 
     await userEvent.click(screen.getByTestId('guid-starting-branch-selector'));
-    fireEvent.click(screen.getByRole('option', { name: 'feature/research' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'feature/research' }));
     expect(onSelectedStartRefChange).toHaveBeenCalledWith('refs/heads/feature/research');
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'feature/research' })).not.toBeInTheDocument());
   });
 
-  it('shows Home project, local, branch, capability, and removable project refs in the top strip', async () => {
+  it('orders project, location, and branch in the primary context bar and keeps OPL refs secondary', async () => {
     const onRemove = vi.fn();
     render(
       <GuidWorkspaceFootnote
@@ -119,6 +123,12 @@ describe('GuidWorkspaceFootnote', () => {
     expect(screen.getByText('research')).toBeInTheDocument();
     expect(screen.getByTestId('guid-local-context')).toBeInTheDocument();
     expect(await screen.findByTestId('guid-branch-context')).toHaveTextContent('codex/context');
+    const contextButtons = within(screen.getByTestId('guid-task-location-controls')).getAllByRole('button');
+    expect(contextButtons.map((button) => button.textContent)).toEqual([
+      'research',
+      'guid.home.localContext',
+      'codex/context',
+    ]);
     expect(screen.getByTestId('guid-active-capability')).toHaveTextContent('guid.home.activeCapability');
     expect(screen.getByTestId('guid-project-context-ref')).toHaveTextContent('docs/protocol.md');
 

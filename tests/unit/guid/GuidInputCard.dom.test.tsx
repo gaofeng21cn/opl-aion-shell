@@ -137,6 +137,10 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.getByTestId('upload-progress')).toBeInTheDocument();
     expect(screen.getByTestId('action-row')).toBeInTheDocument();
     expect(screen.getByTestId('workspace-footnote')).toHaveTextContent('Research');
+    const contextBar = screen.getByTestId('workspace-footnote');
+    const input = screen.getByTestId('guid-input');
+    expect(contextBar.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(input.parentElement).not.toContainElement(contextBar);
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
   });

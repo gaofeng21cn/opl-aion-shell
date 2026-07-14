@@ -581,12 +581,110 @@
 }
 
 .workspaceFootnote {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: calc(100% - 32px);
+  min-height: 62px;
+  margin: 0 auto -10px;
+  padding: 7px 18px 15px;
+  box-sizing: border-box;
+  border-radius: 20px 20px 0 0;
+  background: color-mix(in srgb, var(--color-fill-2) 86%, var(--bg-base, #fff));
+}
+
+.taskContextPrimary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.taskContextPrimary::-webkit-scrollbar {
+  display: none;
+}
+
+.taskContextItem {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.taskContextControl,
+.workspaceEmptyBtn,
+.workspacePillMain {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 4px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text-1) !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 20px !important;
+}
+
+.taskContextControl:hover,
+.workspaceEmptyBtn:hover,
+.workspacePillMain:hover {
+  background: var(--color-fill-3) !important;
+  color: var(--color-text-1) !important;
+}
+
+.taskContextControlContent,
+.taskContextMenuItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.taskContextBranchLabel {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskContextMenuItem {
+  width: 100%;
+}
+
+.taskContextMenuMeta {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--color-text-3);
+  font-size: 11px;
+}
+
+.taskContextError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  color: rgb(var(--danger-6));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.taskContextSecondary {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 0 10px 7px;
-  background: transparent;
+  gap: 6px;
+  min-width: 0;
 }
 
 .contextStripMeta {
@@ -594,12 +692,6 @@
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
-}
-
-.contextStripMeta::before {
-  content: '·';
-  margin-right: 8px;
-  color: var(--color-text-4);
 }
 
 .projectContextRef {
@@ -633,25 +725,12 @@
 .workspaceEmptyBtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-3);
-  background: transparent;
-  border: none;
-  padding: 4px 6px;
-  border-radius: 6px;
+  gap: 8px;
   cursor: pointer;
   font-family: inherit;
   transition:
     color 0.15s,
     background 0.15s;
-  line-height: 1;
-}
-
-.workspaceEmptyBtn:hover {
-  color: var(--color-text-2);
-  background: var(--color-fill-3);
 }
 
 .workspaceEmptyBtn:disabled,
@@ -675,20 +754,13 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  overflow: hidden;
   max-width: 280px;
 }
 
 .workspacePillMain {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-2);
-  background: transparent;
-  border: none;
-  padding: 4px 4px 4px 6px;
+  gap: 8px;
   cursor: pointer;
   font-family: inherit;
   transition:
@@ -699,38 +771,10 @@
   white-space: nowrap;
 }
 
-.workspacePillMain:hover {
-  background: var(--color-fill-3);
-  color: var(--color-text-1);
-}
-
 .workspacePillName {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.workspacePillClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: 2px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 4px;
-  color: var(--color-text-4);
-  flex-shrink: 0;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-
-.workspacePillClose:hover {
-  background: var(--color-fill-3);
-  color: var(--color-text-2);
 }
 
 /* workspace dropdown popup — portal-rendered, position set via JS */
@@ -822,6 +866,32 @@
   height: 1px;
   background: var(--color-border-2);
   margin: 4px 0;
+}
+
+@media (max-width: 520px) {
+  .workspaceFootnote {
+    width: calc(100% - 16px);
+    min-height: 58px;
+    padding: 5px 10px 13px;
+  }
+
+  .taskContextPrimary {
+    gap: 10px;
+  }
+
+  .taskContextControl,
+  .workspaceEmptyBtn,
+  .workspacePillMain {
+    font-size: 13px !important;
+  }
+
+  .workspacePillMain {
+    max-width: 150px;
+  }
+
+  .taskContextBranchLabel {
+    max-width: 120px;
+  }
 }
 
 .lightPlaceholder::placeholder {

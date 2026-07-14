@@ -145,32 +145,32 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       }}
       {...(fileAccessEnabled ? dragHandlers : {})}
     >
+      <GuidWorkspaceFootnote
+        workspaceDir={workspaceDir}
+        onSelectWorkspace={onSelectWorkspace}
+        onClearWorkspace={onClearWorkspace}
+        launchMode={launchMode}
+        onLaunchModeChange={onLaunchModeChange}
+        branchOptions={branchOptions}
+        selectedStartRef={selectedStartRef}
+        onSelectedStartRefChange={onSelectedStartRefChange}
+        worktreeLoading={worktreeLoading}
+        worktreeControlsDisabled={worktreeControlsDisabled}
+        worktreeError={worktreeError}
+        accessDisabled={workspaceAccessDisabled}
+        accessDisabledReason={workspaceAccessDisabledReason}
+        activeCapabilityLabel={activeCapabilityLabel}
+        projectContextRefs={projectContextRefs}
+        onRemoveProjectContextRef={onRemoveProjectContextRef}
+      />
       <div
-        className={`${styles.guidInputInner} relative p-12px flex flex-col bg-dialog-fill-0`}
+        className={`${styles.guidInputInner} relative z-1 p-12px flex flex-col bg-dialog-fill-0`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
           boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'none',
         }}
       >
-        <GuidWorkspaceFootnote
-          workspaceDir={workspaceDir}
-          onSelectWorkspace={onSelectWorkspace}
-          onClearWorkspace={onClearWorkspace}
-          launchMode={launchMode}
-          onLaunchModeChange={onLaunchModeChange}
-          branchOptions={branchOptions}
-          selectedStartRef={selectedStartRef}
-          onSelectedStartRefChange={onSelectedStartRefChange}
-          worktreeLoading={worktreeLoading}
-          worktreeControlsDisabled={worktreeControlsDisabled}
-          worktreeError={worktreeError}
-          accessDisabled={workspaceAccessDisabled}
-          accessDisabledReason={workspaceAccessDisabledReason}
-          activeCapabilityLabel={activeCapabilityLabel}
-          projectContextRefs={projectContextRefs}
-          onRemoveProjectContextRef={onRemoveProjectContextRef}
-        />
         <Input.TextArea
           autoSize={textareaAutoSize}
           placeholder={placeholder}
