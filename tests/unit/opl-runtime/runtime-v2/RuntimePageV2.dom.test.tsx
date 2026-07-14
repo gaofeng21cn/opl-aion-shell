@@ -122,10 +122,15 @@ vi.mock('react-i18next', () => ({
       'common.runtime.stageUsageShort': '阶段',
       'common.runtime.totalUsageShort': '累计',
       'common.runtime.actionKinds.agent': '智能体动作',
-      'common.runtime.actionKinds.user': '用户动作',
+      'common.runtime.actionKinds.agentSummary': '这项任务的下一步动作由负责智能体处理。',
+      'common.runtime.actionKinds.user': '需要你处理',
+      'common.runtime.actionKinds.userSummary': '请查看这项任务并选择合适的下一步动作。',
       'common.runtime.actionKinds.system': '系统动作',
-      'common.runtime.actionKinds.safe': '安全动作',
-      'common.runtime.actionKinds.blocked': '当前无动作',
+      'common.runtime.actionKinds.systemSummary': '这项任务的下一步动作由系统处理。',
+      'common.runtime.actionKinds.safe': '可执行动作',
+      'common.runtime.actionKinds.safeSummary': '请先查看这项任务提供的动作，再决定是否执行。',
+      'common.runtime.actionKinds.blocked': '暂无可执行动作',
+      'common.runtime.actionKinds.blockedSummary': '这项任务当前没有可执行动作。',
       'common.runtime.nextOwner': '负责人：{{owner}}',
       'common.runtime.nextStep': '下一步：{{step}}',
       'common.runtime.summary': '摘要',
@@ -159,6 +164,7 @@ vi.mock('react-i18next', () => ({
       'common.runtime.executionRecords.restore': '恢复执行记录',
       'common.runtime.executionRecords.restoreSuccess': '执行记录已恢复',
       'common.runtime.owner.you': '你',
+      'common.runtime.owner.system': '系统',
       'common.runtime.semanticAction.lifecycle.active.title': '继续推进',
       'common.runtime.semanticAction.lifecycle.active.summary': '{{agent_display_name}} 将按当前计划继续推进。',
       'common.runtime.semanticAction.lifecycle.deliveredPaused.title': '补齐投稿信息或发起修订',
@@ -191,13 +197,19 @@ vi.mock('react-i18next', () => ({
       'common.runtime.executionStates.failed': 'Run failed',
       'common.runtime.executionStates.unknown': 'Run status unavailable',
       'common.runtime.actionKinds.agent': 'Agent action',
-      'common.runtime.actionKinds.user': 'User action',
+      'common.runtime.actionKinds.agentSummary': 'The assigned agent handles the next action for this task.',
+      'common.runtime.actionKinds.user': 'Your action',
+      'common.runtime.actionKinds.userSummary': 'Review this task and choose the appropriate next action.',
       'common.runtime.actionKinds.system': 'System action',
-      'common.runtime.actionKinds.safe': 'Safe action',
+      'common.runtime.actionKinds.systemSummary': 'The system handles the next action for this task.',
+      'common.runtime.actionKinds.safe': 'Available action',
+      'common.runtime.actionKinds.safeSummary': 'Review the available action before running it for this task.',
       'common.runtime.actionKinds.blocked': 'No action available',
+      'common.runtime.actionKinds.blockedSummary': 'No action can be run for this task right now.',
       'common.runtime.nextOwner': 'Owner: {{owner}}',
       'common.runtime.nextStep': 'Next: {{step}}',
       'common.runtime.owner.you': 'You',
+      'common.runtime.owner.system': 'System',
       'common.runtime.semanticAction.lifecycle.active.title': 'Continue advancing',
       'common.runtime.semanticAction.lifecycle.active.summary':
         '{{agent_display_name}} will continue according to the current plan.',
@@ -647,23 +659,25 @@ describe('Runtime V2 page', () => {
     expect(action).not.toHaveTextContent('里程碑投稿包已交付，待补齐作者和机构等客观信息。');
   });
 
-  it('uses projected title and summary fallbacks for unknown Framework semantic keys', async () => {
+  it('uses localized generic action copy for unknown Framework semantic keys', async () => {
     const payload = createRuntimeV2AppState();
     const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
       (candidate) => candidate.identity.work_item_id === 'dm002'
     )!;
     item.action.title_key = 'framework.unmapped.title';
     item.action.summary_key = 'framework.unmapped.summary';
-    item.action.title = 'Projected fallback title';
-    item.action.summary = 'Projected fallback summary';
+    item.action.title = '框架原始标题';
+    item.action.summary = '框架原始摘要';
     localeMocks.language = 'en-US';
     bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
     render(<RuntimePage />);
 
     fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
     const action = within(await screen.findByTestId('runtime-task-detail')).getByTestId('runtime-next-action');
-    expect(action).toHaveTextContent('Projected fallback title');
-    expect(action).toHaveTextContent('Projected fallback summary');
+    expect(action).toHaveTextContent('Your action');
+    expect(action).toHaveTextContent('Review this task and choose the appropriate next action.');
+    expect(action).not.toHaveTextContent('框架原始标题');
+    expect(action).not.toHaveTextContent('框架原始摘要');
   });
 
   it('opens workflow-first details and keeps secondary evidence collapsed', async () => {

@@ -8,27 +8,22 @@ import {
   type RuntimeTranslate,
 } from '@/renderer/pages/runtime/formatters';
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
+import enUSCommon from '@/renderer/services/i18n/locales/en-US/common.json';
+import zhCNCommon from '@/renderer/services/i18n/locales/zh-CN/common.json';
 import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
 
-const SEMANTIC_MESSAGES: Record<'en-US' | 'zh-CN', Record<string, string>> = {
-  'en-US': {
-    'common.runtime.semanticAction.lifecycle.active.title': 'Continue advancing',
-    'common.runtime.semanticAction.lifecycle.active.summary': 'Continue according to plan',
-    'common.runtime.semanticAction.lifecycle.deliveredPaused.title': 'Provide submission details',
-    'common.runtime.semanticAction.lifecycle.deliveredPaused.summary': 'The milestone is delivered',
-    'common.runtime.owner.you': 'You',
-  },
-  'zh-CN': {
-    'common.runtime.semanticAction.lifecycle.active.title': '继续推进',
-    'common.runtime.semanticAction.lifecycle.active.summary': '按计划继续推进',
-    'common.runtime.semanticAction.lifecycle.deliveredPaused.title': '补齐投稿信息',
-    'common.runtime.semanticAction.lifecycle.deliveredPaused.summary': '里程碑已交付',
-    'common.runtime.owner.you': '你',
-  },
-};
+const COMMON_MESSAGES = { 'en-US': enUSCommon, 'zh-CN': zhCNCommon };
 
 function semanticTranslator(locale: 'en-US' | 'zh-CN'): RuntimeTranslate {
-  return (key) => SEMANTIC_MESSAGES[locale][key] ?? key;
+  const messages: Record<string, unknown> = COMMON_MESSAGES[locale];
+  return (key, values) => {
+    const template = messages[key.replace(/^common\./, '')];
+    if (typeof template !== 'string') return key;
+    return Object.entries(values ?? {}).reduce(
+      (message, [name, value]) => message.replaceAll(`{{${name}}}`, String(value)),
+      template
+    );
+  };
 }
 
 const noCurrentStageTranslator: RuntimeTranslate = (key) =>
@@ -359,12 +354,32 @@ describe('Runtime V2 semantic action formatting', () => {
     )!;
 
     expect(resolveRuntimeAction(item.action!, semanticTranslator('en-US'))).toEqual({
-      title: 'Provide submission details',
-      summary: 'The milestone is delivered',
+      title: 'Provide submission details or request a revision',
+      summary: 'The milestone is delivered. Provide submission details, or restart the task when a revision is needed.',
       owner: 'You',
     });
-    expect(resolveRuntimeAction(item.action!, semanticTranslator('zh-CN')).owner).toBe('你');
+    expect(resolveRuntimeAction(item.action!, semanticTranslator('zh-CN'))).toEqual({
+      title: '补齐投稿信息或发起修订',
+      summary: '里程碑已交付；请补齐投稿信息，或在需要修订时重新启动任务。',
+      owner: '你',
+    });
   });
+
+  it.each([
+    ['user', 'Framework User', 'You', '你'],
+    ['system', 'Framework System', 'System', '系统'],
+    ['agent', 'Med Auto Science', 'Med Auto Science', 'Med Auto Science'],
+    ['other', 'Review Board', 'Review Board', 'Review Board'],
+  ] as const)(
+    'renders the %s owner according to the App owner-kind contract',
+    (ownerKind, ownerDisplayName, en, zh) => {
+      const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+      const action = { ...item.action!, ownerKind, ownerDisplayName };
+
+      expect(resolveRuntimeAction(action, semanticTranslator('en-US')).owner).toBe(en);
+      expect(resolveRuntimeAction(action, semanticTranslator('zh-CN')).owner).toBe(zh);
+    }
+  );
 
   it.each([
     ['lifecycle.active', 'common.runtime.semanticAction.lifecycle.active'],
@@ -391,20 +406,48 @@ describe('Runtime V2 semantic action formatting', () => {
     });
   });
 
-  it('falls back to projected copy for unknown Framework semantic keys', () => {
+  it.each([
+    ['en-US', 'user_action', 'Your action', 'Review this task and choose the appropriate next action.'],
+    ['en-US', 'system_action', 'System action', 'The system handles the next action for this task.'],
+    ['en-US', 'agent_action', 'Agent action', 'The assigned agent handles the next action for this task.'],
+    ['en-US', 'safe_action', 'Available action', 'Review the available action before running it for this task.'],
+    ['en-US', 'blocked_no_action', 'No action available', 'No action can be run for this task right now.'],
+    ['zh-CN', 'user_action', '需要你处理', '请查看这项任务并选择合适的下一步动作。'],
+    ['zh-CN', 'system_action', '系统动作', '这项任务的下一步动作由系统处理。'],
+    ['zh-CN', 'agent_action', '智能体动作', '这项任务的下一步动作由负责智能体处理。'],
+    ['zh-CN', 'safe_action', '可执行动作', '请先查看这项任务提供的动作，再决定是否执行。'],
+    ['zh-CN', 'blocked_no_action', '暂无可执行动作', '这项任务当前没有可执行动作。'],
+  ] as const)('uses %s generic copy for an unknown %s semantic key', (locale, kind, title, summary) => {
     const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
     const action = {
       ...item.action!,
+      kind,
       titleKey: 'framework.unmapped.title',
       summaryKey: 'framework.unmapped.summary',
-      title: 'Projected fallback title',
-      summary: 'Projected fallback summary',
+      title: '框架原始标题',
+      summary: '框架原始摘要',
     };
 
-    expect(resolveRuntimeAction(action, semanticTranslator('en-US'))).toMatchObject({
-      title: 'Projected fallback title',
-      summary: 'Projected fallback summary',
-    });
+    const resolved = resolveRuntimeAction(action, semanticTranslator(locale));
+    expect(resolved).toMatchObject({ title, summary });
+    expect(`${resolved.title} ${resolved.summary}`).not.toContain('框架原始');
+  });
+
+  it.each([
+    ['en-US', 'System action', 'The system handles the next action for this task.'],
+    ['zh-CN', '系统动作', '这项任务的下一步动作由系统处理。'],
+  ] as const)('uses %s generic copy when semantic keys are missing', (locale, title, summary) => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+    const action = {
+      ...item.action!,
+      kind: 'system_action' as const,
+      titleKey: null,
+      summaryKey: null,
+      title: '框架原始标题',
+      summary: '框架原始摘要',
+    };
+
+    expect(resolveRuntimeAction(action, semanticTranslator(locale))).toMatchObject({ title, summary });
   });
 });
 

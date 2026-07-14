@@ -51,6 +51,29 @@ const ACTION_KIND_KEYS: Record<RuntimeActionKind, string> = {
   blocked_no_action: 'common.runtime.actionKinds.blocked',
 };
 
+const GENERIC_ACTION_KEYS: Record<RuntimeActionKind, { title: string; summary: string }> = {
+  user_action: {
+    title: ACTION_KIND_KEYS.user_action,
+    summary: 'common.runtime.actionKinds.userSummary',
+  },
+  system_action: {
+    title: ACTION_KIND_KEYS.system_action,
+    summary: 'common.runtime.actionKinds.systemSummary',
+  },
+  agent_action: {
+    title: ACTION_KIND_KEYS.agent_action,
+    summary: 'common.runtime.actionKinds.agentSummary',
+  },
+  safe_action: {
+    title: ACTION_KIND_KEYS.safe_action,
+    summary: 'common.runtime.actionKinds.safeSummary',
+  },
+  blocked_no_action: {
+    title: ACTION_KIND_KEYS.blocked_no_action,
+    summary: 'common.runtime.actionKinds.blockedSummary',
+  },
+};
+
 const STAGE_STATE_KEYS: Record<RuntimeStageState, string> = {
   completed: 'common.runtime.taskDetails.stage.completed',
   current: 'common.runtime.taskDetails.stage.current',
@@ -89,19 +112,25 @@ export type ResolvedRuntimeAction = {
 
 function resolveActionMessage(
   semanticKey: string | null,
-  fallback: string,
+  actionKind: RuntimeActionKind,
+  messagePart: 'title' | 'summary',
   messageArgs: Record<string, string | number>,
   t: RuntimeTranslate
 ): string {
-  const i18nKey = semanticKey ? ACTION_SEMANTIC_KEY_MAP[semanticKey] : null;
-  return i18nKey ? t(i18nKey, messageArgs) : fallback;
+  const semanticI18nKey = semanticKey ? ACTION_SEMANTIC_KEY_MAP[semanticKey] : null;
+  return t(semanticI18nKey ?? GENERIC_ACTION_KEYS[actionKind][messagePart], messageArgs);
 }
 
 export function resolveRuntimeAction(action: RuntimeAction, t: RuntimeTranslate): ResolvedRuntimeAction {
   return {
-    title: resolveActionMessage(action.titleKey, action.title, action.messageArgs, t),
-    summary: resolveActionMessage(action.summaryKey, action.summary, action.messageArgs, t),
-    owner: action.ownerKind === 'user' ? t('common.runtime.owner.you') : action.ownerDisplayName,
+    title: resolveActionMessage(action.titleKey, action.kind, 'title', action.messageArgs, t),
+    summary: resolveActionMessage(action.summaryKey, action.kind, 'summary', action.messageArgs, t),
+    owner:
+      action.ownerKind === 'user'
+        ? t('common.runtime.owner.you')
+        : action.ownerKind === 'system'
+          ? t('common.runtime.owner.system')
+          : action.ownerDisplayName,
   };
 }
 
