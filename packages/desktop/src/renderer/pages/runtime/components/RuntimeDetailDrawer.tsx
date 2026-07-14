@@ -1,4 +1,5 @@
 import { Button, Collapse, Drawer, Empty, Tag, Typography } from '@arco-design/web-react';
+import { Inbox, Undo } from '@icon-park/react';
 import React from 'react';
 import {
   actionKindLabel,
@@ -10,6 +11,7 @@ import {
   formatTokenObservation,
   nextStageLabel,
   primaryStatusLabel,
+  resolveRuntimeAction,
   stageMapUsageLabel,
   stageStateLabel,
   type RuntimeTranslate,
@@ -32,9 +34,8 @@ type RuntimeDetailDrawerProps = {
   generatedAt: string | null;
   locale: string;
   t: RuntimeTranslate;
-  canArchive: boolean;
-  archiving: boolean;
-  onArchive: () => void;
+  visibilityChanging: boolean;
+  onVisibilityChange: (state: 'visible' | 'archived') => void;
   onClose: () => void;
 };
 
@@ -142,11 +143,12 @@ export function RuntimeDetailDrawer({
   generatedAt,
   locale,
   t,
-  canArchive,
-  archiving,
-  onArchive,
+  visibilityChanging,
+  onVisibilityChange,
   onClose,
 }: RuntimeDetailDrawerProps) {
+  const resolvedAction = item?.action ? resolveRuntimeAction(item.action, t) : null;
+  const archived = item?.visibility.state === 'archived';
   return (
     <Drawer
       visible={Boolean(item)}
@@ -163,6 +165,7 @@ export function RuntimeDetailDrawer({
             <Typography.Text className={styles.detailProject}>{project?.displayName}</Typography.Text>
             <Typography.Text className={styles.detailAgent}>{agent?.displayName}</Typography.Text>
             <Tag data-runtime-status={item.primaryStatus}>{primaryStatusLabel(item.primaryStatus, t)}</Tag>
+            {archived && <Tag>{t('common.runtime.archivedTasks.state')}</Tag>}
           </div>
 
           <section className={styles.detailSection}>
@@ -233,12 +236,12 @@ export function RuntimeDetailDrawer({
               <Typography.Title heading={5}>{t('common.runtime.taskDetails.nextAction')}</Typography.Title>
               {item.action && <Tag>{actionKindLabel(item.action.kind, t)}</Tag>}
             </div>
-            {item.action ? (
+            {item.action && resolvedAction ? (
               <>
-                <Typography.Text className={styles.actionTitle}>{item.action.title}</Typography.Text>
-                <Typography.Text className={styles.actionSummary}>{item.action.summary}</Typography.Text>
+                <Typography.Text className={styles.actionTitle}>{resolvedAction.title}</Typography.Text>
+                <Typography.Text className={styles.actionSummary}>{resolvedAction.summary}</Typography.Text>
                 <Typography.Text className={styles.actionOwner}>
-                  {t('common.runtime.nextOwner', { owner: item.action.ownerDisplayName })}
+                  {t('common.runtime.nextOwner', { owner: resolvedAction.owner })}
                 </Typography.Text>
               </>
             ) : (
@@ -308,13 +311,18 @@ export function RuntimeDetailDrawer({
             </Collapse.Item>
           </Collapse>
 
-          {canArchive && (
-            <div className={styles.detailActions}>
-              <Button status='warning' loading={archiving} onClick={onArchive} data-testid='runtime-archive-attempt'>
-                {t('common.runtime.archiveTask.confirm')}
-              </Button>
-            </div>
-          )}
+          <div className={styles.detailActions}>
+            <Button
+              type={archived ? 'primary' : 'default'}
+              status={archived ? undefined : 'warning'}
+              icon={archived ? <Undo theme='outline' /> : <Inbox theme='outline' />}
+              loading={visibilityChanging}
+              onClick={() => onVisibilityChange(archived ? 'visible' : 'archived')}
+              data-testid={archived ? 'runtime-restore-work-item' : 'runtime-archive-work-item'}
+            >
+              {t(archived ? 'common.runtime.archivedTasks.restore' : 'common.runtime.archivedTasks.archive')}
+            </Button>
+          </div>
         </div>
       )}
     </Drawer>

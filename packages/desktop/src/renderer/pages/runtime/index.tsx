@@ -9,20 +9,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import type { RuntimeSafeActionRoute, RuntimeTaskDrilldown } from '@/renderer/pages/settings/RuntimeSettings/types';
+import type { RuntimeSafeActionRoute } from '@/renderer/pages/settings/RuntimeSettings/types';
 import {
-  canArchiveRuntimeItem,
-  matchRuntimeTaskDetail,
   parseRuntimeCommandResult,
   readActionResultSummary,
   readRuntimeArchivedAttempts,
   readRuntimeCockpitSummary,
   readRuntimeSafeActions,
-  readRuntimeTaskDetails,
-  runtimeAttemptId,
   type RuntimeArchivedAttempt,
 } from './cockpit';
 import { AgentAvailability } from './components/AgentAvailability';
+import { RuntimeArchiveHeader } from './components/RuntimeArchiveHeader';
 import { RuntimeCockpitPanel } from './components/RuntimeCockpitPanel';
 import { RuntimeDetailDrawer } from './components/RuntimeDetailDrawer';
 import { ALL_RUNTIME_SCOPES, RuntimeScopeBar } from './components/RuntimeScopeBar';
@@ -30,11 +27,43 @@ import { RuntimeStatusBar } from './components/RuntimeStatusBar';
 import { RuntimeWorkItemList } from './components/RuntimeWorkItemList';
 import { matchesStatusView, type RuntimeTranslate } from './formatters';
 import { readRuntimeWorkItemProjectionV2 } from './projection';
-import type { RuntimeStatusView } from './types';
+import type { RuntimeStatusView, RuntimeWorkItem } from './types';
 import styles from './RuntimePage.module.css';
 
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
 type RuntimePayload = Record<string, unknown>;
+
+function runtimeRecord(value: unknown): RuntimePayload | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as RuntimePayload) : null;
+}
+
+function isWorkItemControlGenerationConflict(result: {
+  parsed?: unknown;
+  error?: { code?: string; message?: string };
+}): boolean {
+  const parsed = runtimeRecord(result.parsed);
+  const parsedError = runtimeRecord(parsed?.error);
+  const parsedDetails = runtimeRecord(parsed?.details) ?? runtimeRecord(parsedError?.details);
+  const reasonCodes = [parsed?.reason_code, parsedError?.reason_code, parsedDetails?.reason_code];
+  if (reasonCodes.includes('work_item_control_generation_conflict')) return true;
+  return (
+    result.error?.code === 'work_item_control_generation_conflict' ||
+    result.error?.message === 'Work item control changed after it was read; refresh before retrying.'
+  );
+}
+
+function findReadbackWorkItem(payload: unknown, selectedItem: RuntimeWorkItem): RuntimeWorkItem | null {
+  const projection = readRuntimeWorkItemProjectionV2(payload).projection;
+  return (
+    projection?.items.find(
+      (item) =>
+        item.id === selectedItem.id &&
+        item.agentId === selectedItem.agentId &&
+        item.projectId === selectedItem.projectId &&
+        item.workItemId === selectedItem.workItemId
+    ) ?? null
+  );
+}
 
 const RuntimePage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -49,7 +78,9 @@ const RuntimePage: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState(ALL_RUNTIME_SCOPES);
   const [selectedProjectId, setSelectedProjectId] = useState(ALL_RUNTIME_SCOPES);
   const [selectedStatusView, setSelectedStatusView] = useState<RuntimeStatusView>('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemSnapshot, setSelectedItemSnapshot] = useState<RuntimeWorkItem | null>(null);
   const [summaryDrilldown, setSummaryDrilldown] = useState<RuntimePayload | null>(null);
   const [fullDrilldown, setFullDrilldown] = useState<RuntimePayload | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -65,6 +96,16 @@ const RuntimePage: React.FC = () => {
   const updateApprovedAction = useCallback((actionId: string | null) => {
     approvedActionIdRef.current = actionId;
     setApprovedActionId(actionId);
+  }, []);
+
+  const openItem = useCallback((item: RuntimeWorkItem) => {
+    setSelectedItemId(item.id);
+    setSelectedItemSnapshot(item);
+  }, []);
+
+  const closeItem = useCallback(() => {
+    setSelectedItemId(null);
+    setSelectedItemSnapshot(null);
   }, []);
 
   useEffect(() => {
@@ -167,32 +208,32 @@ const RuntimePage: React.FC = () => {
     });
   }, [projection, selectedAgentId, selectedProjectId]);
 
-  const visibleItems = useMemo(
-    () => scopedItems.filter((item) => matchesStatusView(item, selectedStatusView)),
-    [scopedItems, selectedStatusView]
+  const scopedVisibleItems = useMemo(
+    () => scopedItems.filter((item) => item.visibility.state === 'visible'),
+    [scopedItems]
+  );
+  const scopedArchivedItems = useMemo(
+    () => scopedItems.filter((item) => item.visibility.state === 'archived'),
+    [scopedItems]
+  );
+  const statusFilteredItems = useMemo(
+    () => scopedVisibleItems.filter((item) => matchesStatusView(item, selectedStatusView)),
+    [scopedVisibleItems, selectedStatusView]
   );
   const agentsById = useMemo(() => new Map(projection?.agents.map((agent) => [agent.id, agent]) ?? []), [projection]);
   const projectsById = useMemo(
     () => new Map(projection?.projects.map((project) => [project.id, project]) ?? []),
     [projection]
   );
-  const selectedItem = useMemo(
+  const projectedSelectedItem = useMemo(
     () => projection?.items.find((item) => item.id === selectedItemId) ?? null,
     [projection, selectedItemId]
   );
-  const taskDetails = useMemo(
-    () => readRuntimeTaskDetails(fullDrilldown, summaryDrilldown, appStateQuery.appState),
-    [appStateQuery.appState, fullDrilldown, summaryDrilldown]
-  );
-  const taskDetailsByItemId = useMemo(() => {
-    const result = new Map<string, RuntimeTaskDrilldown>();
-    for (const item of projection?.items ?? []) {
-      const detail = matchRuntimeTaskDetail(item, taskDetails);
-      if (detail) result.set(item.id, detail);
-    }
-    return result;
-  }, [projection, taskDetails]);
-  const selectedTaskDetail = selectedItem ? (taskDetailsByItemId.get(selectedItem.id) ?? null) : null;
+  const selectedItem = projectedSelectedItem ?? (selectedItemId ? selectedItemSnapshot : null);
+
+  useEffect(() => {
+    if (projectedSelectedItem) setSelectedItemSnapshot(projectedSelectedItem);
+  }, [projectedSelectedItem]);
   const cockpitSummary = useMemo(
     () => readRuntimeCockpitSummary(fullDrilldown ?? summaryDrilldown),
     [fullDrilldown, summaryDrilldown]
@@ -219,9 +260,11 @@ const RuntimePage: React.FC = () => {
     async (showToast = false) => {
       const nextPayload = await appStateQuery.load('fast', { showRefreshing: true });
       await loadSummaryDrilldown(false);
-      if (!showToast) return;
-      if (nextPayload) messageRef.current.success(tRef.current('common.refreshSuccess'));
-      else messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      if (showToast) {
+        if (nextPayload) messageRef.current.success(tRef.current('common.refreshSuccess'));
+        else messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      }
+      return nextPayload;
     },
     [appStateQuery.load, loadSummaryDrilldown]
   );
@@ -286,40 +329,85 @@ const RuntimePage: React.FC = () => {
     [executeSafeAction]
   );
 
-  const requestArchiveSelectedItem = useCallback(() => {
-    if (!selectedItem) return;
-    const stageAttemptId = runtimeAttemptId(selectedItem, selectedTaskDetail);
-    if (!stageAttemptId) return;
-    Modal.confirm({
-      title: tRef.current('common.runtime.archiveTask.title'),
-      content: tRef.current('common.runtime.archiveTask.description', { task: selectedItem.displayName }),
-      okText: tRef.current('common.runtime.archiveTask.confirm'),
-      cancelText: tRef.current('common.cancel'),
-      onOk: async () => {
-        setRunningActionId(`archive:${stageAttemptId}`);
-        try {
-          const result = await ipcBridge.oplRuntime.executeAction.invoke({
-            actionId: 'runtime_archive_attempt',
-            payloadRefsOnlyJson: {
-              stage_attempt_id: stageAttemptId,
-              reason: 'user_archived_from_runtime_overview',
-            },
-            dryRun: false,
-          });
-          if (result.ok === false) throw new Error(result.error?.message || result.command);
-          setSelectedItemId(null);
-          await refreshRuntime(false);
-          messageRef.current.success(tRef.current('common.runtime.archiveTask.success'));
-        } catch (error) {
-          messageRef.current.error(
-            error instanceof Error ? error.message : tRef.current('common.runtime.archiveTask.failed')
-          );
-        } finally {
-          setRunningActionId(null);
-        }
-      },
-    });
-  }, [refreshRuntime, selectedItem, selectedTaskDetail]);
+  const requestSelectedItemVisibility = useCallback(
+    (visibilityState: 'visible' | 'archived') => {
+      if (!selectedItem) return;
+      const archive = visibilityState === 'archived';
+      const payload: Record<string, unknown> = {
+        agent_id: selectedItem.agentId,
+        project_id: selectedItem.projectId,
+        work_item_id: selectedItem.workItemId,
+        visibility_state: visibilityState,
+        reason: archive ? 'user_archived_from_runtime_overview' : 'user_restored_from_runtime_archive',
+      };
+      if (selectedItem.visibility.generation !== null) {
+        payload.expected_generation = selectedItem.visibility.generation;
+      }
+      Modal.confirm({
+        title: tRef.current(
+          archive ? 'common.runtime.archivedTasks.archiveTitle' : 'common.runtime.archivedTasks.restoreTitle'
+        ),
+        content: tRef.current(
+          archive
+            ? 'common.runtime.archivedTasks.archiveDescription'
+            : 'common.runtime.archivedTasks.restoreDescription',
+          { task: selectedItem.displayName }
+        ),
+        okText: tRef.current(archive ? 'common.runtime.archivedTasks.archive' : 'common.runtime.archivedTasks.restore'),
+        cancelText: tRef.current('common.cancel'),
+        onOk: async () => {
+          setRunningActionId(`visibility:${selectedItem.id}:${visibilityState}`);
+          try {
+            const result = await ipcBridge.oplRuntime.executeAction.invoke({
+              actionId: 'work_item_visibility_set',
+              payloadRefsOnlyJson: payload,
+              dryRun: false,
+            });
+            if (result.ok === false) {
+              if (isWorkItemControlGenerationConflict(result)) {
+                const conflictReadback = await refreshRuntime(false);
+                const conflictItem = findReadbackWorkItem(conflictReadback, selectedItem);
+                messageRef.current.error(
+                  tRef.current(
+                    conflictItem
+                      ? 'common.runtime.archivedTasks.generationConflict'
+                      : 'common.runtime.archivedTasks.generationConflictRefreshFailed'
+                  )
+                );
+                return;
+              }
+              throw new Error(result.error?.message || result.command);
+            }
+            const refreshedPayload = await refreshRuntime(false);
+            const refreshedItem = findReadbackWorkItem(refreshedPayload, selectedItem);
+            if (refreshedItem?.visibility.state !== visibilityState) {
+              messageRef.current.error(tRef.current('common.runtime.archivedTasks.readbackFailed'));
+              return;
+            }
+            closeItem();
+            messageRef.current.success(
+              tRef.current(
+                archive ? 'common.runtime.archivedTasks.archiveSuccess' : 'common.runtime.archivedTasks.restoreSuccess'
+              )
+            );
+          } catch (error) {
+            messageRef.current.error(
+              error instanceof Error
+                ? error.message
+                : tRef.current(
+                    archive
+                      ? 'common.runtime.archivedTasks.archiveFailed'
+                      : 'common.runtime.archivedTasks.restoreFailed'
+                  )
+            );
+          } finally {
+            setRunningActionId(null);
+          }
+        },
+      });
+    },
+    [closeItem, refreshRuntime, selectedItem]
+  );
 
   const restoreArchivedAttempt = useCallback(
     async (attempt: RuntimeArchivedAttempt) => {
@@ -329,16 +417,16 @@ const RuntimePage: React.FC = () => {
           actionId: 'runtime_restore_attempt',
           payloadRefsOnlyJson: {
             stage_attempt_id: attempt.stageAttemptId,
-            reason: 'user_restored_from_runtime_overview',
+            reason: 'user_restored_execution_record_from_runtime_cockpit',
           },
           dryRun: false,
         });
         if (result.ok === false) throw new Error(result.error?.message || result.command);
         await refreshRuntime(false);
-        messageRef.current.success(tRef.current('common.runtime.archiveTask.restoreSuccess'));
+        messageRef.current.success(tRef.current('common.runtime.executionRecords.restoreSuccess'));
       } catch (error) {
         messageRef.current.error(
-          error instanceof Error ? error.message : tRef.current('common.runtime.archiveTask.restoreFailed')
+          error instanceof Error ? error.message : tRef.current('common.runtime.executionRecords.restoreFailed')
         );
       } finally {
         setRunningActionId(null);
@@ -352,8 +440,6 @@ const RuntimePage: React.FC = () => {
     if (projectionRead.state === 'invalid') return t('common.runtime.projection.invalidDescription');
     return t('common.runtime.projection.missingDescription');
   })();
-  const selectedAttemptId = selectedItem ? runtimeAttemptId(selectedItem, selectedTaskDetail) : null;
-
   return (
     <main className={styles.page} data-testid='runtime-v2-page'>
       {messageContextHolder}
@@ -396,41 +482,71 @@ const RuntimePage: React.FC = () => {
         />
       ) : (
         <div className={styles.content}>
-          <RuntimeStatusBar
-            items={scopedItems}
-            selectedView={selectedStatusView}
-            t={translate}
-            onViewChange={setSelectedStatusView}
-          />
-          <RuntimeCockpitPanel
-            summary={cockpitSummary}
-            safeActions={safeActions}
-            archivedAttempts={archivedAttempts}
-            actionResult={actionResult}
-            approvedActionId={approvedActionId}
-            runningActionId={runningActionId}
-            summaryLoading={summaryLoading}
-            fullLoading={fullLoading}
-            fullLoaded={Boolean(fullDrilldown)}
-            t={translate}
-            onLoadSummary={() => void loadSummaryDrilldown(true)}
-            onLoadFull={() => void loadFullDrilldown(true)}
-            onDryRun={(action) => void executeSafeAction(action, true)}
-            onExecute={requestExecuteSafeAction}
-            onRestore={(attempt) => void restoreArchivedAttempt(attempt)}
-          />
-          <div className={styles.workspaceGrid}>
-            <RuntimeWorkItemList
-              items={visibleItems}
-              agentsById={agentsById}
-              projectsById={projectsById}
-              locale={i18n.resolvedLanguage ?? i18n.language}
-              generatedAt={projection.generatedAt}
-              t={translate}
-              onOpen={(item) => setSelectedItemId(item.id)}
-            />
-            <AgentAvailability agents={projection.agents} t={translate} />
-          </div>
+          {showArchived ? (
+            <>
+              <RuntimeArchiveHeader
+                count={scopedArchivedItems.length}
+                t={translate}
+                onBack={() => {
+                  closeItem();
+                  setShowArchived(false);
+                }}
+              />
+              <RuntimeWorkItemList
+                items={scopedArchivedItems}
+                agentsById={agentsById}
+                projectsById={projectsById}
+                locale={i18n.resolvedLanguage ?? i18n.language}
+                generatedAt={projection.generatedAt}
+                t={translate}
+                emptyDescription={t('common.runtime.archivedTasks.empty')}
+                onOpen={openItem}
+              />
+            </>
+          ) : (
+            <>
+              <RuntimeStatusBar
+                items={scopedVisibleItems}
+                archivedCount={scopedArchivedItems.length}
+                selectedView={selectedStatusView}
+                t={translate}
+                onViewChange={setSelectedStatusView}
+                onOpenArchived={() => {
+                  closeItem();
+                  setShowArchived(true);
+                }}
+              />
+              <RuntimeCockpitPanel
+                summary={cockpitSummary}
+                safeActions={safeActions}
+                archivedAttempts={archivedAttempts}
+                actionResult={actionResult}
+                approvedActionId={approvedActionId}
+                runningActionId={runningActionId}
+                summaryLoading={summaryLoading}
+                fullLoading={fullLoading}
+                fullLoaded={Boolean(fullDrilldown)}
+                t={translate}
+                onLoadSummary={() => void loadSummaryDrilldown(true)}
+                onLoadFull={() => void loadFullDrilldown(true)}
+                onDryRun={(action) => void executeSafeAction(action, true)}
+                onExecute={requestExecuteSafeAction}
+                onRestore={(attempt) => void restoreArchivedAttempt(attempt)}
+              />
+              <div className={styles.workspaceGrid}>
+                <RuntimeWorkItemList
+                  items={statusFilteredItems}
+                  agentsById={agentsById}
+                  projectsById={projectsById}
+                  locale={i18n.resolvedLanguage ?? i18n.language}
+                  generatedAt={projection.generatedAt}
+                  t={translate}
+                  onOpen={openItem}
+                />
+                <AgentAvailability agents={projection.agents} t={translate} />
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -441,10 +557,9 @@ const RuntimePage: React.FC = () => {
         locale={i18n.resolvedLanguage ?? i18n.language}
         generatedAt={projection?.generatedAt ?? null}
         t={translate}
-        canArchive={selectedItem ? canArchiveRuntimeItem(selectedItem, selectedTaskDetail) : false}
-        archiving={Boolean(selectedAttemptId && runningActionId === `archive:${selectedAttemptId}`)}
-        onArchive={requestArchiveSelectedItem}
-        onClose={() => setSelectedItemId(null)}
+        visibilityChanging={Boolean(selectedItem && runningActionId?.startsWith(`visibility:${selectedItem.id}:`))}
+        onVisibilityChange={requestSelectedItemVisibility}
+        onClose={closeItem}
       />
     </main>
   );

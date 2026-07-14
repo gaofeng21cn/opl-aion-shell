@@ -8,6 +8,7 @@ import {
   formatTokenObservation,
   nextStageLabel,
   primaryStatusLabel,
+  resolveRuntimeAction,
   type RuntimeTranslate,
 } from '../formatters';
 import type { RuntimeAgent, RuntimeProject, RuntimeWorkItem } from '../types';
@@ -20,6 +21,7 @@ type RuntimeWorkItemListProps = {
   locale: string;
   generatedAt: string;
   t: RuntimeTranslate;
+  emptyDescription?: string;
   onOpen: (item: RuntimeWorkItem) => void;
 };
 
@@ -30,10 +32,11 @@ export function RuntimeWorkItemList({
   locale,
   generatedAt,
   t,
+  emptyDescription,
   onOpen,
 }: RuntimeWorkItemListProps) {
   if (items.length === 0) {
-    return <Empty className={styles.emptyState} description={t('common.runtime.noTasksInScope')} />;
+    return <Empty className={styles.emptyState} description={emptyDescription ?? t('common.runtime.noTasksInScope')} />;
   }
 
   return (
@@ -48,6 +51,7 @@ export function RuntimeWorkItemList({
         {items.map((item) => {
           const agent = agentsById.get(item.agentId);
           const project = projectsById.get(item.projectId);
+          const action = item.action ? resolveRuntimeAction(item.action, t) : null;
           return (
             <article
               className={styles.workItemRow}
@@ -106,9 +110,9 @@ export function RuntimeWorkItemList({
                 <Typography.Text className={styles.nextLabel}>
                   {t('common.runtime.nextStep', { step: nextStageLabel(item, t) })}
                 </Typography.Text>
-                {item.action && (
+                {action && (
                   <Typography.Text className={styles.ownerLabel}>
-                    {t('common.runtime.nextOwner', { owner: item.action.ownerDisplayName })}
+                    {t('common.runtime.nextOwner', { owner: action.owner })}
                   </Typography.Text>
                 )}
               </div>

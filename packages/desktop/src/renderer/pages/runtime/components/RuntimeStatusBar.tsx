@@ -1,4 +1,5 @@
-import { Radio, Select, Typography } from '@arco-design/web-react';
+import { Button, Radio, Select, Typography } from '@arco-design/web-react';
+import { Inbox } from '@icon-park/react';
 import React from 'react';
 import type { RuntimeTranslate } from '../formatters';
 import type { RuntimeStatusView, RuntimeWorkItem } from '../types';
@@ -6,9 +7,11 @@ import styles from '../RuntimePage.module.css';
 
 type RuntimeStatusBarProps = {
   items: RuntimeWorkItem[];
+  archivedCount: number;
   selectedView: RuntimeStatusView;
   t: RuntimeTranslate;
   onViewChange: (view: RuntimeStatusView) => void;
+  onOpenArchived: () => void;
 };
 
 const STATUS_VIEWS: Array<{ id: RuntimeStatusView; labelKey: string }> = [
@@ -21,7 +24,14 @@ const STATUS_VIEWS: Array<{ id: RuntimeStatusView; labelKey: string }> = [
   { id: 'sync_pending', labelKey: 'common.runtime.savedView.syncPending' },
 ];
 
-export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: RuntimeStatusBarProps) {
+export function RuntimeStatusBar({
+  items,
+  archivedCount,
+  selectedView,
+  t,
+  onViewChange,
+  onOpenArchived,
+}: RuntimeStatusBarProps) {
   const metrics = [
     {
       key: 'total',
@@ -89,6 +99,14 @@ export function RuntimeStatusBar({ items, selectedView, t, onViewChange }: Runti
           data-testid='runtime-status-view-select'
           aria-label={t('common.runtime.savedViews')}
         />
+        <Button
+          className={styles.archiveEntry}
+          icon={<Inbox theme='outline' />}
+          onClick={onOpenArchived}
+          data-testid='runtime-open-archive'
+        >
+          {t('common.runtime.archivedTasks.entry', { count: archivedCount })}
+        </Button>
       </div>
     </section>
   );

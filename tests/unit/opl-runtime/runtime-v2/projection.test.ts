@@ -1,8 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { readRuntimeSafeActions } from '@/renderer/pages/runtime/cockpit';
-import { currentStageLabel, formatTokenObservation } from '@/renderer/pages/runtime/formatters';
+import {
+  currentStageLabel,
+  formatTokenObservation,
+  nextStageLabel,
+  resolveRuntimeAction,
+  type RuntimeTranslate,
+} from '@/renderer/pages/runtime/formatters';
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
 import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
+
+const SEMANTIC_MESSAGES: Record<'en-US' | 'zh-CN', Record<string, string>> = {
+  'en-US': {
+    'common.runtime.semanticAction.lifecycle.active.title': 'Continue advancing',
+    'common.runtime.semanticAction.lifecycle.active.summary': 'Continue according to plan',
+    'common.runtime.semanticAction.lifecycle.deliveredPaused.title': 'Provide submission details',
+    'common.runtime.semanticAction.lifecycle.deliveredPaused.summary': 'The milestone is delivered',
+    'common.runtime.owner.you': 'You',
+  },
+  'zh-CN': {
+    'common.runtime.semanticAction.lifecycle.active.title': '继续推进',
+    'common.runtime.semanticAction.lifecycle.active.summary': '按计划继续推进',
+    'common.runtime.semanticAction.lifecycle.deliveredPaused.title': '补齐投稿信息',
+    'common.runtime.semanticAction.lifecycle.deliveredPaused.summary': '里程碑已交付',
+    'common.runtime.owner.you': '你',
+  },
+};
+
+function semanticTranslator(locale: 'en-US' | 'zh-CN'): RuntimeTranslate {
+  return (key) => SEMANTIC_MESSAGES[locale][key] ?? key;
+}
+
+const noCurrentStageTranslator: RuntimeTranslate = (key) =>
+  key === 'common.runtime.taskDetails.noCurrentStage' ? '暂无当前阶段' : key;
 
 describe('Runtime V2 projection boundary', () => {
   it('reads the canonical agent, project, and work item inventory without runtime inference', () => {
@@ -16,6 +46,21 @@ describe('Runtime V2 projection boundary', () => {
       '肥胖',
     ]);
     expect(result.projection?.items).toHaveLength(9);
+    expect(result.projection?.items[0]).toMatchObject({
+      id: 'diabetes:001',
+      workItemId: '001',
+    });
+    expect(result.projection?.items.filter((item) => item.workItemId === '001').map((item) => item.id)).toEqual([
+      'diabetes:001',
+      'nf-pitnet:001',
+    ]);
+    expect(result.projection?.items[0]?.visibility).toEqual({
+      state: 'visible',
+      source: 'default_visible',
+      updatedAt: null,
+      controlRef: null,
+      generation: 3,
+    });
     expect(result.projection).toMatchObject({
       diagnosticCount: 3,
       diagnosticDetailPolicy: 'summary_only',
@@ -57,7 +102,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result).toEqual({ state: 'legacy', projection: null });
   });
 
-  it('rejects duplicate work item identities instead of guessing which row wins', () => {
+  it('rejects an item envelope that does not match its canonical identity', () => {
     const projection = createRuntimeV2Projection();
     projection.items.push({ ...projection.items[0]!, item_id: 'distinct-envelope-for-the-same-work-item' });
 
@@ -66,6 +111,37 @@ describe('Runtime V2 projection boundary', () => {
     });
 
     expect(result).toEqual({ state: 'invalid', projection: null });
+  });
+
+  it('parses visibility generation without guessing from lifecycle generation', () => {
+    const projection = createRuntimeV2Projection();
+    const legacyGenerationItem = projection.items.find((item) => item.identity.work_item_id === 'dm002')!;
+    legacyGenerationItem.lifecycle.observed_generation = 'generation:should-not-be-used';
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items.find((item) => item.workItemId === 'dm002')?.visibility.generation).toBeNull();
+    expect(result.projection?.items.find((item) => item.workItemId === 'nf004')?.visibility).toMatchObject({
+      state: 'archived',
+      generation: 7,
+    });
+  });
+
+  it('rejects malformed visibility state or generation', () => {
+    const invalidState = createRuntimeV2Projection();
+    invalidState.items[0]!.visibility.state = 'hidden';
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalidState } } })
+    ).toEqual({ state: 'invalid', projection: null });
+
+    const invalidGeneration = createRuntimeV2Projection();
+    invalidGeneration.items[0]!.visibility.generation = -1;
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalidGeneration } } })
+    ).toEqual({ state: 'invalid', projection: null });
   });
 
   it('does not turn module runtime readback into a work item', () => {
@@ -213,19 +289,42 @@ describe('Runtime V2 projection boundary', () => {
     ]);
     expect(item?.action).toMatchObject({
       kind: 'agent_action',
+      titleKey: 'lifecycle.active.title',
+      summaryKey: 'lifecycle.active.summary',
+      messageArgs: {
+        agent_id: 'mas',
+        agent_display_name: 'Med Auto Science',
+      },
+      owner: 'mas',
+      ownerKind: 'agent',
       ownerDisplayName: 'Med Auto Science',
     });
+  });
+
+  it('rejects an explicitly invalid owner kind while accepting a legacy missing owner kind', () => {
+    const invalid = createRuntimeV2Projection();
+    invalid.items[0]!.action.owner_kind = '';
+    expect(readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalid } } })).toEqual({
+      state: 'invalid',
+      projection: null,
+    });
+
+    const legacy = createRuntimeV2Projection();
+    delete legacy.items[0]!.action.owner_kind;
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: legacy } } }).projection
+        ?.items[0]?.action?.ownerKind
+    ).toBe('unknown');
   });
 
   it('never promotes a telemetry verification attempt to the business stage of a delivered item', () => {
     const result = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState());
     const item = result.projection?.items.find((candidate) => candidate.displayName.startsWith('002 '));
-    const t = (key: string) => (key === 'common.runtime.taskDetails.noCurrentStage' ? '暂无当前阶段' : key);
 
     expect(item?.primaryStatus).toBe('delivered_auto_paused');
     expect(item?.execution.currentStageId).toBeNull();
     expect(item?.execution.currentStageDisplayName).toBeNull();
-    expect(item && currentStageLabel(item, t)).toBe('暂无当前阶段');
+    expect(item && currentStageLabel(item, noCurrentStageTranslator)).toBe('暂无当前阶段');
     expect(item?.taskUsage).toEqual({
       state: 'observed',
       inputTokens: 1480,
@@ -234,6 +333,78 @@ describe('Runtime V2 projection boundary', () => {
       observedAt: '2026-07-13T08:00:00Z',
     });
     expect(JSON.stringify(item)).not.toContain('runtime_token_telemetry_verification');
+  });
+});
+
+describe('Runtime V2 semantic action formatting', () => {
+  it('keeps the actual next stage ahead of a generic localized action', () => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+
+    expect(nextStageLabel(item, semanticTranslator('en-US'))).toBe('医学写作');
+
+    const withoutNextStage = {
+      ...item,
+      execution: {
+        ...item.execution,
+        nextStageId: null,
+        nextStageDisplayName: null,
+      },
+    };
+    expect(nextStageLabel(withoutNextStage, semanticTranslator('en-US'))).toBe('Continue advancing');
+  });
+
+  it('localizes known semantic keys and the user owner for the active locale', () => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items.find(
+      (candidate) => candidate.workItemId === 'dm002'
+    )!;
+
+    expect(resolveRuntimeAction(item.action!, semanticTranslator('en-US'))).toEqual({
+      title: 'Provide submission details',
+      summary: 'The milestone is delivered',
+      owner: 'You',
+    });
+    expect(resolveRuntimeAction(item.action!, semanticTranslator('zh-CN')).owner).toBe('你');
+  });
+
+  it.each([
+    ['lifecycle.active', 'common.runtime.semanticAction.lifecycle.active'],
+    ['lifecycle.deliveredPaused', 'common.runtime.semanticAction.lifecycle.deliveredPaused'],
+    ['lifecycle.paused', 'common.runtime.semanticAction.lifecycle.paused'],
+    ['lifecycle.stopped', 'common.runtime.semanticAction.lifecycle.stopped'],
+    ['lifecycle.archived', 'common.runtime.semanticAction.lifecycle.archived'],
+    ['lifecycle.unknown', 'common.runtime.semanticAction.lifecycle.unknown'],
+    ['inventory.nextAction', 'common.runtime.semanticAction.inventoryNextAction'],
+    ['systemRepair.action', 'common.runtime.semanticAction.systemRepair'],
+  ])('maps the Framework %s key family through the allowlist', (frameworkPrefix, i18nPrefix) => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+    const action = {
+      ...item.action!,
+      titleKey: `${frameworkPrefix}.title`,
+      summaryKey: `${frameworkPrefix}.summary`,
+      title: 'Framework title fallback',
+      summary: 'Framework summary fallback',
+    };
+
+    expect(resolveRuntimeAction(action, (key) => `localized:${key}`)).toMatchObject({
+      title: `localized:${i18nPrefix}.title`,
+      summary: `localized:${i18nPrefix}.summary`,
+    });
+  });
+
+  it('falls back to projected copy for unknown Framework semantic keys', () => {
+    const item = readRuntimeWorkItemProjectionV2(createRuntimeV2AppState()).projection!.items[0]!;
+    const action = {
+      ...item.action!,
+      titleKey: 'framework.unmapped.title',
+      summaryKey: 'framework.unmapped.summary',
+      title: 'Projected fallback title',
+      summary: 'Projected fallback summary',
+    };
+
+    expect(resolveRuntimeAction(action, semanticTranslator('en-US'))).toMatchObject({
+      title: 'Projected fallback title',
+      summary: 'Projected fallback summary',
+    });
   });
 });
 

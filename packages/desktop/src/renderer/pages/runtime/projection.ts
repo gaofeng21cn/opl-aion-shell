@@ -2,6 +2,7 @@ import {
   WORK_ITEM_PROJECTION_V2_SCHEMA,
   type RuntimeAction,
   type RuntimeActionKind,
+  type RuntimeActionOwnerKind,
   type RuntimeAgent,
   type RuntimeAgentAvailabilityState,
   type RuntimeBusinessState,
@@ -20,6 +21,7 @@ import {
   type RuntimeTokenObservation,
   type RuntimeWorkItem,
   type RuntimeWorkItemProjectionV2,
+  type RuntimeWorkItemVisibility,
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -60,6 +62,8 @@ const ACTION_KINDS = new Set<RuntimeActionKind>([
   'safe_action',
   'blocked_no_action',
 ]);
+const ACTION_OWNER_KINDS = new Set<RuntimeActionOwnerKind>(['user', 'system', 'agent', 'other']);
+const VISIBILITY_STATES = new Set<RuntimeWorkItemVisibility['state']>(['visible', 'archived']);
 const STAGE_STATES = new Set<RuntimeStageState>([
   'completed',
   'current',
@@ -177,15 +181,52 @@ function parseSystemAttention(value: JsonRecord): RuntimeSystemAttention | null 
     : null;
 }
 
+function parseMessageArgs(value: unknown): Record<string, string | number> | null {
+  if (value === undefined) return {};
+  const source = record(value);
+  if (!source) return null;
+  const result: Record<string, string | number> = {};
+  for (const [key, entry] of Object.entries(source)) {
+    if (typeof entry !== 'string' && (typeof entry !== 'number' || !Number.isFinite(entry))) return null;
+    result[key] = entry;
+  }
+  return result;
+}
+
 function parseAction(value: unknown): RuntimeAction | null | false {
   if (value === null || value === undefined) return null;
   const source = record(value);
   if (!source) return false;
   const kind = enumValue(source.kind, ACTION_KINDS);
+  const titleKey = optionalString(source.title_key);
+  const summaryKey = optionalString(source.summary_key);
+  const messageArgs = parseMessageArgs(source.message_args);
   const title = requiredString(source.title);
   const summary = requiredString(source.summary);
-  const ownerDisplayName = requiredString(source.owner_display_name) ?? requiredString(source.owner);
-  return kind && title && summary && ownerDisplayName ? { kind, title, summary, ownerDisplayName } : false;
+  const owner = requiredString(source.owner) ?? requiredString(source.owner_display_name);
+  const ownerKind = source.owner_kind === undefined ? 'unknown' : enumValue(source.owner_kind, ACTION_OWNER_KINDS);
+  const ownerDisplayName = requiredString(source.owner_display_name) ?? owner;
+  if (source.title_key !== null && source.title_key !== undefined && !titleKey) return false;
+  if (source.summary_key !== null && source.summary_key !== undefined && !summaryKey) return false;
+  return kind && title && summary && owner && ownerKind && ownerDisplayName && messageArgs
+    ? { kind, titleKey, summaryKey, messageArgs, title, summary, owner, ownerKind, ownerDisplayName }
+    : false;
+}
+
+function parseVisibility(value: unknown): RuntimeWorkItemVisibility | null {
+  const source = record(value);
+  if (!source) return null;
+  const state = enumValue(source.state, VISIBILITY_STATES);
+  const projectionSource = requiredString(source.source);
+  const updatedAt = optionalString(source.updated_at);
+  const controlRef = optionalString(source.control_ref);
+  const generation =
+    source.generation === null || source.generation === undefined ? null : nonNegativeInteger(source.generation);
+  if (!state || !projectionSource) return null;
+  if (source.updated_at !== null && source.updated_at !== undefined && !updatedAt) return null;
+  if (source.control_ref !== null && source.control_ref !== undefined && !controlRef) return null;
+  if (source.generation !== null && source.generation !== undefined && generation === null) return null;
+  return { state, source: projectionSource, updatedAt, controlRef, generation };
 }
 
 function parseStageMap(value: unknown): RuntimeStage[] | null {
@@ -238,7 +279,8 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const attention = record(value.attention);
   const telemetry = record(value.telemetry);
   const freshness = record(value.freshness);
-  if (!identity || !lifecycle || !execution || !attention || !telemetry || !freshness) return null;
+  const visibility = parseVisibility(value.visibility);
+  if (!identity || !lifecycle || !execution || !attention || !telemetry || !freshness || !visibility) return null;
 
   const itemEnvelopeId = requiredString(value.item_id);
   const workItemId = requiredString(identity.work_item_id);
@@ -277,6 +319,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   ) {
     return null;
   }
+  if (itemEnvelopeId !== `${projectId}:${encodeURIComponent(workItemId)}`) return null;
 
   const startedAt = optionalString(execution.started_at);
   const lastHeartbeatAt = optionalString(execution.last_heartbeat_at);
@@ -317,10 +360,12 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
       : 'missing_primary_state';
 
   return {
-    id: workItemId,
+    id: itemEnvelopeId,
+    workItemId,
     displayName,
     agentId,
     projectId,
+    visibility,
     businessState,
     primaryStatus,
     statusSyncReason,

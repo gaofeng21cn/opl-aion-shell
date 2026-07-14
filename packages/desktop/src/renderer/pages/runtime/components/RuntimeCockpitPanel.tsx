@@ -131,7 +131,7 @@ export function RuntimeCockpitPanel({
         {archivedAttempts.length > 0 && (
           <div className={styles.cockpitSection} data-testid='runtime-archived-attempts'>
             <Typography.Text className={styles.cockpitSectionTitle}>
-              {t('common.runtime.archiveTask.archivedTitle')}
+              {t('common.runtime.executionRecords.archivedTitle')}
             </Typography.Text>
             <div className={styles.cockpitRows}>
               {archivedAttempts.map((attempt) => (
@@ -148,7 +148,7 @@ export function RuntimeCockpitPanel({
                     loading={runningActionId === `restore:${attempt.stageAttemptId}`}
                     onClick={() => onRestore(attempt)}
                   >
-                    {t('common.runtime.archiveTask.restore')}
+                    {t('common.runtime.executionRecords.restore')}
                   </Button>
                 </div>
               ))}

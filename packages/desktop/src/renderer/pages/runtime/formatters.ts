@@ -7,6 +7,7 @@ import type {
   RuntimeStageState,
   RuntimeStatusView,
   RuntimeTokenObservation,
+  RuntimeAction,
   RuntimeWorkItem,
 } from './types';
 
@@ -61,6 +62,49 @@ const STAGE_STATE_KEYS: Record<RuntimeStageState, string> = {
   failed: 'common.runtime.taskDetails.stage.failed',
 };
 
+const ACTION_SEMANTIC_KEY_MAP: Readonly<Record<string, string>> = {
+  'lifecycle.active.title': 'common.runtime.semanticAction.lifecycle.active.title',
+  'lifecycle.active.summary': 'common.runtime.semanticAction.lifecycle.active.summary',
+  'lifecycle.deliveredPaused.title': 'common.runtime.semanticAction.lifecycle.deliveredPaused.title',
+  'lifecycle.deliveredPaused.summary': 'common.runtime.semanticAction.lifecycle.deliveredPaused.summary',
+  'lifecycle.paused.title': 'common.runtime.semanticAction.lifecycle.paused.title',
+  'lifecycle.paused.summary': 'common.runtime.semanticAction.lifecycle.paused.summary',
+  'lifecycle.stopped.title': 'common.runtime.semanticAction.lifecycle.stopped.title',
+  'lifecycle.stopped.summary': 'common.runtime.semanticAction.lifecycle.stopped.summary',
+  'lifecycle.archived.title': 'common.runtime.semanticAction.lifecycle.archived.title',
+  'lifecycle.archived.summary': 'common.runtime.semanticAction.lifecycle.archived.summary',
+  'lifecycle.unknown.title': 'common.runtime.semanticAction.lifecycle.unknown.title',
+  'lifecycle.unknown.summary': 'common.runtime.semanticAction.lifecycle.unknown.summary',
+  'inventory.nextAction.title': 'common.runtime.semanticAction.inventoryNextAction.title',
+  'inventory.nextAction.summary': 'common.runtime.semanticAction.inventoryNextAction.summary',
+  'systemRepair.action.title': 'common.runtime.semanticAction.systemRepair.title',
+  'systemRepair.action.summary': 'common.runtime.semanticAction.systemRepair.summary',
+};
+
+export type ResolvedRuntimeAction = {
+  title: string;
+  summary: string;
+  owner: string;
+};
+
+function resolveActionMessage(
+  semanticKey: string | null,
+  fallback: string,
+  messageArgs: Record<string, string | number>,
+  t: RuntimeTranslate
+): string {
+  const i18nKey = semanticKey ? ACTION_SEMANTIC_KEY_MAP[semanticKey] : null;
+  return i18nKey ? t(i18nKey, messageArgs) : fallback;
+}
+
+export function resolveRuntimeAction(action: RuntimeAction, t: RuntimeTranslate): ResolvedRuntimeAction {
+  return {
+    title: resolveActionMessage(action.titleKey, action.title, action.messageArgs, t),
+    summary: resolveActionMessage(action.summaryKey, action.summary, action.messageArgs, t),
+    owner: action.ownerKind === 'user' ? t('common.runtime.owner.you') : action.ownerDisplayName,
+  };
+}
+
 export function primaryStatusLabel(status: RuntimePrimaryStatus, t: RuntimeTranslate): string {
   return t(PRIMARY_STATUS_KEYS[status]);
 }
@@ -105,7 +149,7 @@ export function currentStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): s
 export function nextStageLabel(item: RuntimeWorkItem, t: RuntimeTranslate): string {
   if (item.execution.nextStageDisplayName) return item.execution.nextStageDisplayName;
   if (item.execution.nextStageId) return humanizeStageId(item.execution.nextStageId);
-  if (item.action?.title) return item.action.title;
+  if (item.action) return resolveRuntimeAction(item.action, t).title;
   return t('common.runtime.noNextAction');
 }
 

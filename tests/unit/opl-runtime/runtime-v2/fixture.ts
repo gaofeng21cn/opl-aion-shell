@@ -1,5 +1,6 @@
 type FixtureItemOptions = {
   id: string;
+  workItemId?: string;
   projectId: string;
   projectName: string;
   displayName: string;
@@ -12,6 +13,9 @@ type FixtureItemOptions = {
     | 'stopped'
     | 'sync_pending';
   businessState?: 'active' | 'delivered_paused' | 'paused' | 'stopped';
+  visibilityState?: 'visible' | 'archived';
+  visibilityGeneration?: number | null;
+  includeVisibilityGeneration?: boolean;
   executionState?: 'running' | 'idle';
   attentionKind?: 'none' | 'user' | 'system';
   observedTokens?: number;
@@ -24,6 +28,11 @@ type FixtureItemOptions = {
     title: string;
     summary: string;
     owner: string;
+    titleKey?: string | null;
+    summaryKey?: string | null;
+    ownerKind?: string;
+    ownerId?: string;
+    messageArgs?: Record<string, string | number>;
   };
   stageMap: Array<{
     id: string;
@@ -59,11 +68,15 @@ function tokenObservation(total: number | undefined, missingReason: string) {
 
 function fixtureItem({
   id,
+  workItemId = id,
   projectId,
   projectName,
   displayName,
   primaryState,
   businessState = 'active',
+  visibilityState = 'visible',
+  visibilityGeneration = 0,
+  includeVisibilityGeneration = true,
   executionState = 'running',
   attentionKind = 'none',
   observedTokens,
@@ -75,10 +88,11 @@ function fixtureItem({
   stageMap,
 }: FixtureItemOptions) {
   const active = executionState === 'running';
+  const lifecycleSemanticState = businessState === 'delivered_paused' ? 'deliveredPaused' : businessState;
   const stageTokens = observedTokens;
   const resolvedCumulativeTokens = cumulativeTokens ?? (observedTokens === undefined ? undefined : observedTokens * 2);
   return {
-    item_id: `mas:${projectId}:${id}`,
+    item_id: `${projectId}:${encodeURIComponent(workItemId)}`,
     identity: {
       agent_id: 'mas',
       domain_id: 'medautoscience',
@@ -87,11 +101,18 @@ function fixtureItem({
       project_scope_id: `project:${projectId}`,
       workspace_binding_id: `${projectId}-binding`,
       workspace_path: `/fixtures/${projectId}`,
-      work_item_id: id,
+      work_item_id: workItemId,
       work_item_display_name: displayName,
       work_item_root: `/fixtures/${projectId}/studies/${id}`,
-      work_item_scope_id: `work-item:${id}`,
+      work_item_scope_id: `work-item:${workItemId}`,
       source_kind: 'domain_inventory',
+    },
+    visibility: {
+      state: visibilityState,
+      source: visibilityState === 'archived' ? 'work_item_visibility_control' : 'default_visible',
+      updated_at: visibilityState === 'archived' ? '2026-07-13T08:00:00Z' : null,
+      control_ref: visibilityState === 'archived' ? `visibility-control://${projectId}/${id}` : null,
+      ...(includeVisibilityGeneration ? { generation: visibilityGeneration } : {}),
     },
     lifecycle: {
       business_state: businessState,
@@ -149,8 +170,16 @@ function fixtureItem({
     },
     action: {
       kind: action.kind,
+      title_key: action.titleKey ?? `lifecycle.${lifecycleSemanticState}.title`,
+      summary_key: action.summaryKey ?? `lifecycle.${lifecycleSemanticState}.summary`,
+      message_args: action.messageArgs ?? {
+        agent_id: 'mas',
+        agent_display_name: action.owner,
+      },
       title: action.title,
       summary: action.summary,
+      owner: action.ownerId ?? (action.owner === '你' ? 'user' : 'mas'),
+      owner_kind: action.ownerKind ?? (action.owner === '你' ? 'user' : 'agent'),
       owner_display_name: action.owner,
     },
     stage_map: stageMap.map((stage) => ({
@@ -236,10 +265,12 @@ export function createRuntimeV2Projection() {
   const items = [
     fixtureItem({
       id: 'dm001',
+      workItemId: '001',
       projectId: 'diabetes',
       projectName: '糖尿病',
       displayName: '001 DM CVD Mortality Risk',
       primaryState: 'automatically_advancing',
+      visibilityGeneration: 3,
       observedTokens: 1200,
       currentStage: { id: 'analysis_review', displayName: '分析结果复核' },
       nextStage: { id: 'write', displayName: '医学写作' },
@@ -272,6 +303,7 @@ export function createRuntimeV2Projection() {
       primaryState: 'delivered_auto_paused',
       businessState: 'delivered_paused',
       executionState: 'idle',
+      includeVisibilityGeneration: false,
       cumulativeTokens: 1500,
       runtimeStageId: 'runtime_token_telemetry_verification',
       action: {
@@ -319,6 +351,7 @@ export function createRuntimeV2Projection() {
     }),
     fixtureItem({
       id: 'nf001',
+      workItemId: '001',
       projectId: 'nf-pitnet',
       projectName: '无功能垂体瘤',
       displayName: 'NF-PitNET Paper 1',
@@ -372,6 +405,8 @@ export function createRuntimeV2Projection() {
       displayName: 'NF-PitNET Paper 4',
       primaryState: 'stopped',
       businessState: 'stopped',
+      visibilityState: 'archived',
+      visibilityGeneration: 7,
       executionState: 'idle',
       action: {
         kind: 'blocked_no_action',

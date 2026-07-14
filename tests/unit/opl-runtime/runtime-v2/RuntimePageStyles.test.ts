@@ -16,4 +16,14 @@ describe('Runtime V2 text wrapping styles', () => {
     );
     expect(runtimeStyles).not.toMatch(/overflow-wrap:\s*anywhere/);
   });
+
+  it('keeps archive controls and drawer actions within narrow containers', () => {
+    expect(runtimeStyles).toMatch(/\.archiveEntry\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*normal;/s);
+    expect(runtimeStyles).toMatch(/\.archiveHeader\s*\{[^}]*flex-wrap:\s*wrap;[^}]*min-width:\s*0;/s);
+    expect(runtimeStyles).toMatch(/\.archiveHeaderCopy\s*\{[^}]*min-width:\s*0;/s);
+    expect(runtimeStyles).toMatch(/\.workItemList\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
+    expect(runtimeStyles).toMatch(
+      /\.detailActions :global\(\.arco-btn\)\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*normal;/s
+    );
+  });
 });

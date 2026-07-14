@@ -1,8 +1,6 @@
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplProfessionalAgentPackage } from '@/common/config/oplProductProfile';
-import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
-import type { RuntimeSafeActionRoute, RuntimeTaskDrilldown } from '@/renderer/pages/settings/RuntimeSettings/types';
-import type { RuntimeWorkItem } from './types';
+import type { RuntimeSafeActionRoute } from '@/renderer/pages/settings/RuntimeSettings/types';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -214,38 +212,6 @@ export function readRuntimeArchivedAttempts(...roots: unknown[]): RuntimeArchive
   return attempts.slice(0, 25);
 }
 
-export function readRuntimeTaskDetails(...roots: unknown[]): RuntimeTaskDrilldown[] {
-  const details: RuntimeTaskDrilldown[] = [];
-  const seen = new Set<string>();
-  for (const root of roots) {
-    if (!root) continue;
-    const tasks = normalizeRuntimeProjection(root).taskRunProjectionV2.tasks;
-    for (const task of tasks) {
-      const key = task.taskId || `${task.domainId ?? ''}:${task.title}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      details.push(task);
-    }
-  }
-  return details;
-}
-
-export function matchRuntimeTaskDetail(
-  item: RuntimeWorkItem,
-  details: RuntimeTaskDrilldown[]
-): RuntimeTaskDrilldown | null {
-  const itemIds = new Set([item.id, item.id.split(':').at(-1)].filter(Boolean));
-  const exact = details.find((detail) => {
-    const detailIds = [detail.taskId, detail.projectId, detail.studyId].filter(Boolean);
-    return detailIds.some((id) => itemIds.has(id));
-  });
-  if (exact) return exact;
-  return (
-    details.find((detail) => detail.title === item.displayName || detail.workItemDisplayName === item.displayName) ??
-    null
-  );
-}
-
 export function readActionResultSummary(root: unknown): RuntimeActionResultSummary {
   const payload = record(root);
   const actionPreview = record(payload.action_preview);
@@ -260,22 +226,4 @@ export function readActionResultSummary(root: unknown): RuntimeActionResultSumma
       firstRef(payload, ['receipt_ref', 'receipt_refs']) ??
       firstRef(receipt, ['ref', 'receipt_ref']),
   };
-}
-
-export function runtimeAttemptId(item: RuntimeWorkItem, detail: RuntimeTaskDrilldown | null): string | null {
-  return detail?.stageAttemptIds[0] ?? null;
-}
-
-const TERMINAL_TASK_STATES = new Set(['completed', 'failed', 'dead_lettered']);
-
-export function canArchiveRuntimeItem(item: RuntimeWorkItem, detail: RuntimeTaskDrilldown | null): boolean {
-  if (!runtimeAttemptId(item, detail)) return false;
-  return (
-    detail?.runtimeCloseoutObserved === true ||
-    TERMINAL_TASK_STATES.has(detail?.state ?? '') ||
-    TERMINAL_TASK_STATES.has(detail?.status ?? '') ||
-    item.businessState === 'delivered_paused' ||
-    item.execution.state === 'succeeded' ||
-    item.execution.state === 'failed'
-  );
 }

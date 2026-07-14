@@ -10,7 +10,10 @@ const bridgeMocks = vi.hoisted(() => ({
   getDrilldownInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   modalConfirm: vi.fn(),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
 }));
+const localeMocks = vi.hoisted(() => ({ language: 'zh-CN' as 'zh-CN' | 'en-US' }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -24,6 +27,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- This mock component belongs to the hoisted factory.
   const Select = ({
     value,
     options,
@@ -44,97 +48,217 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
   );
   return {
     ...actual,
+    Message: {
+      ...actual.Message,
+      useMessage: () => [{ success: bridgeMocks.messageSuccess, error: bridgeMocks.messageError }, null],
+    },
     Modal: { ...actual.Modal, confirm: bridgeMocks.modalConfirm },
     Select,
   };
 });
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, values?: Record<string, string | number>) => {
-      const labels: Record<string, string> = {
-        'common.refresh': '刷新',
-        'common.cancel': '取消',
-        'common.runtime.title': '项目运行总览',
-        'common.runtime.scope.agent': '智能体',
-        'common.runtime.scope.project': '项目',
-        'common.runtime.scope.viewing': '查看范围',
-        'common.runtime.scope.allAgents': '全部智能体',
-        'common.runtime.scope.allProjects': '全部项目',
-        'common.runtime.primaryStates.automaticallyAdvancing': '自动推进中',
-        'common.runtime.primaryStates.awaitingUserDecision': '等待你决定',
-        'common.runtime.primaryStates.systemAttention': '系统处理中',
-        'common.runtime.primaryStates.deliveredAutoPaused': '已交付，自动暂停',
-        'common.runtime.primaryStates.paused': '已暂停',
-        'common.runtime.primaryStates.ownerDecisionRequired': '需要你决定',
-        'common.runtime.primaryStates.systemAttentionRequired': '需要系统处理',
-        'common.runtime.primaryStates.stopped': '已停止',
-        'common.runtime.primaryStates.syncPending': '状态待同步',
-        'common.runtime.metrics.total': '工作项',
-        'common.runtime.savedView.all': '全部',
-        'common.runtime.savedView.automaticallyAdvancing': '自动推进中',
-        'common.runtime.savedView.awaitingUserDecision': '等待你决定',
-        'common.runtime.savedView.systemAttention': '系统处理中',
-        'common.runtime.savedView.deliveredOrPaused': '已交付或暂停',
-        'common.runtime.savedView.stopped': '已停止',
-        'common.runtime.savedView.syncPending': '状态待同步',
-        'common.runtime.automationStates.running': '自动运行中',
-        'common.runtime.executionStates.running': '正在运行',
-        'common.runtime.executionStates.queued': '等待运行',
-        'common.runtime.executionStates.idle': '当前没有自动任务',
-        'common.runtime.executionStates.succeeded': '本次运行已完成',
-        'common.runtime.executionStates.failed': '本次运行未完成',
-        'common.runtime.executionStates.unknown': '运行状态暂不可用',
-        'common.runtime.telemetryMissing': '用量未记录',
-        'common.runtime.timeNotRecorded': '时间未记录',
-        'common.runtime.taskDetails.stageMap': '阶段图',
-        'common.runtime.taskDetails.stageMapUnavailable': '当前投影尚未提供阶段图',
-        'common.runtime.taskDetails.stageUnavailable': '当前投影尚未提供阶段名称',
-        'common.runtime.taskDetails.noCurrentStage': '暂无当前阶段',
-        'common.runtime.taskDetails.stageAndRun': '阶段与运行',
-        'common.runtime.taskDetails.stage.completed': '已完成',
-        'common.runtime.taskDetails.stage.current': '当前',
-        'common.runtime.taskDetails.stage.next': '下一步',
-        'common.runtime.taskDetails.stage.pending': '待开始',
-        'common.runtime.taskDetails.currentRun': '当前运行',
-        'common.runtime.taskDetails.nextAction': '下一步动作',
-        'common.runtime.taskDetails.artifacts': '产物',
-        'common.runtime.taskDetails.timeline': '时间线',
-        'common.runtime.taskDetails.evidence': '证据',
-        'common.runtime.taskDetails.diagnostics': '诊断',
-        'common.runtime.systemAttention.title': '系统处理',
-        'common.runtime.systemAttention.responsibleComponent': '责任组件',
-        'common.runtime.systemAttention.issue': '具体问题',
-        'common.runtime.systemAttention.impact': '当前影响',
-        'common.runtime.systemAttention.repairAction': '修复动作',
-        'common.runtime.systemAttention.expectedOutcome': '预期结果',
-        'common.runtime.projection.unavailableTitle': '运行状态暂不可用',
-        'common.runtime.projection.legacyDescription': 'V1 状态不再用于推断',
-        'common.runtime.agentAvailability.available': '可用',
-        'common.runtime.noActiveRun': '当前没有运行',
-        'common.runtime.stageUsageShort': '阶段',
-        'common.runtime.totalUsageShort': '累计',
-        'common.runtime.actionKinds.agent': '智能体动作',
-        'common.runtime.summary': '摘要',
-        'common.runtime.fullDetail': '完整详情',
-        'common.runtime.detailFullLoaded': '完整详情已加载',
-        'common.runtime.safeActions': '安全动作',
-        'common.runtime.dryRun': '试运行',
-        'common.runtime.execute': '执行',
-        'common.runtime.actionResult': '动作结果',
-        'common.runtime.actionPreviewSummary': '预览',
-        'common.runtime.actionReceiptSummary': '回执',
-        'common.runtime.archiveTask.confirm': '归档记录',
-        'common.runtime.archiveTask.archivedTitle': '已归档运行记录',
-        'common.runtime.archiveTask.restore': '恢复',
-      };
-      if (labels[key]) return labels[key];
-      const rendered = Object.values(values ?? {}).join(' ');
-      return rendered ? `${key} ${rendered}` : key;
-    },
-    i18n: { language: 'zh-CN', resolvedLanguage: 'zh-CN' },
-  }),
+  useTranslation: () => {
+    const zhLabels: Record<string, string> = {
+      'common.refresh': '刷新',
+      'common.cancel': '取消',
+      'common.runtime.title': '项目运行总览',
+      'common.runtime.scope.agent': '智能体',
+      'common.runtime.scope.project': '项目',
+      'common.runtime.scope.viewing': '查看范围',
+      'common.runtime.scope.allAgents': '全部智能体',
+      'common.runtime.scope.allProjects': '全部项目',
+      'common.runtime.primaryStates.automaticallyAdvancing': '自动推进中',
+      'common.runtime.primaryStates.awaitingUserDecision': '等待你决定',
+      'common.runtime.primaryStates.systemAttention': '系统处理中',
+      'common.runtime.primaryStates.deliveredAutoPaused': '已交付，自动暂停',
+      'common.runtime.primaryStates.paused': '已暂停',
+      'common.runtime.primaryStates.ownerDecisionRequired': '需要你决定',
+      'common.runtime.primaryStates.systemAttentionRequired': '需要系统处理',
+      'common.runtime.primaryStates.stopped': '已停止',
+      'common.runtime.primaryStates.syncPending': '状态待同步',
+      'common.runtime.metrics.total': '工作项',
+      'common.runtime.savedView.all': '全部',
+      'common.runtime.savedView.automaticallyAdvancing': '自动推进中',
+      'common.runtime.savedView.awaitingUserDecision': '等待你决定',
+      'common.runtime.savedView.systemAttention': '系统处理中',
+      'common.runtime.savedView.deliveredOrPaused': '已交付或暂停',
+      'common.runtime.savedView.stopped': '已停止',
+      'common.runtime.savedView.syncPending': '状态待同步',
+      'common.runtime.automationStates.running': '自动运行中',
+      'common.runtime.executionStates.running': '正在运行',
+      'common.runtime.executionStates.queued': '等待运行',
+      'common.runtime.executionStates.idle': '当前没有自动任务',
+      'common.runtime.executionStates.succeeded': '本次运行已完成',
+      'common.runtime.executionStates.failed': '本次运行未完成',
+      'common.runtime.executionStates.unknown': '运行状态暂不可用',
+      'common.runtime.telemetryMissing': '用量未记录',
+      'common.runtime.timeNotRecorded': '时间未记录',
+      'common.runtime.taskDetails.stageMap': '阶段图',
+      'common.runtime.taskDetails.stageMapUnavailable': '当前投影尚未提供阶段图',
+      'common.runtime.taskDetails.stageUnavailable': '当前投影尚未提供阶段名称',
+      'common.runtime.taskDetails.noCurrentStage': '暂无当前阶段',
+      'common.runtime.taskDetails.stageAndRun': '阶段与运行',
+      'common.runtime.taskDetails.stage.completed': '已完成',
+      'common.runtime.taskDetails.stage.current': '当前',
+      'common.runtime.taskDetails.stage.next': '下一步',
+      'common.runtime.taskDetails.stage.pending': '待开始',
+      'common.runtime.taskDetails.currentRun': '当前运行',
+      'common.runtime.taskDetails.nextAction': '下一步动作',
+      'common.runtime.taskDetails.artifacts': '产物',
+      'common.runtime.taskDetails.timeline': '时间线',
+      'common.runtime.taskDetails.evidence': '证据',
+      'common.runtime.taskDetails.diagnostics': '诊断',
+      'common.runtime.systemAttention.title': '系统处理',
+      'common.runtime.systemAttention.responsibleComponent': '责任组件',
+      'common.runtime.systemAttention.issue': '具体问题',
+      'common.runtime.systemAttention.impact': '当前影响',
+      'common.runtime.systemAttention.repairAction': '修复动作',
+      'common.runtime.systemAttention.expectedOutcome': '预期结果',
+      'common.runtime.projection.unavailableTitle': '运行状态暂不可用',
+      'common.runtime.projection.legacyDescription': 'V1 状态不再用于推断',
+      'common.runtime.agentAvailability.available': '可用',
+      'common.runtime.noActiveRun': '当前没有运行',
+      'common.runtime.stageUsageShort': '阶段',
+      'common.runtime.totalUsageShort': '累计',
+      'common.runtime.actionKinds.agent': '智能体动作',
+      'common.runtime.actionKinds.user': '用户动作',
+      'common.runtime.actionKinds.system': '系统动作',
+      'common.runtime.actionKinds.safe': '安全动作',
+      'common.runtime.actionKinds.blocked': '当前无动作',
+      'common.runtime.nextOwner': '负责人：{{owner}}',
+      'common.runtime.nextStep': '下一步：{{step}}',
+      'common.runtime.summary': '摘要',
+      'common.runtime.fullDetail': '完整详情',
+      'common.runtime.detailFullLoaded': '完整详情已加载',
+      'common.runtime.safeActions': '安全动作',
+      'common.runtime.dryRun': '试运行',
+      'common.runtime.execute': '执行',
+      'common.runtime.actionResult': '动作结果',
+      'common.runtime.actionPreviewSummary': '预览',
+      'common.runtime.actionReceiptSummary': '回执',
+      'common.runtime.archivedTasks.entry': '归档库（{{count}}）',
+      'common.runtime.archivedTasks.title': '归档库',
+      'common.runtime.archivedTasks.back': '返回主任务',
+      'common.runtime.archivedTasks.count': '当前范围内共 {{count}} 项已归档任务',
+      'common.runtime.archivedTasks.empty': '当前范围内没有已归档任务。',
+      'common.runtime.archivedTasks.state': '已归档',
+      'common.runtime.archivedTasks.archive': '归档任务',
+      'common.runtime.archivedTasks.restore': '恢复任务',
+      'common.runtime.archivedTasks.archiveTitle': '归档这项任务？',
+      'common.runtime.archivedTasks.archiveDescription':
+        '“{{task}}”只会从主总览隐藏；这不会停止正在运行的自动流程，也不会删除证据。',
+      'common.runtime.archivedTasks.restoreTitle': '恢复这项任务？',
+      'common.runtime.archivedTasks.restoreDescription': '“{{task}}”将回到主总览；自动流程和证据保持不变。',
+      'common.runtime.archivedTasks.archiveSuccess': '任务已归档',
+      'common.runtime.archivedTasks.restoreSuccess': '任务已恢复',
+      'common.runtime.archivedTasks.readbackFailed': '可见性 readback 未确认，请刷新后重试。',
+      'common.runtime.archivedTasks.generationConflict': '状态已刷新，请检查后重试。',
+      'common.runtime.archivedTasks.generationConflictRefreshFailed': '状态刷新失败，请刷新后重试。',
+      'common.runtime.executionRecords.archivedTitle': '已归档执行记录',
+      'common.runtime.executionRecords.restore': '恢复执行记录',
+      'common.runtime.executionRecords.restoreSuccess': '执行记录已恢复',
+      'common.runtime.owner.you': '你',
+      'common.runtime.semanticAction.lifecycle.active.title': '继续推进',
+      'common.runtime.semanticAction.lifecycle.active.summary': '{{agent_display_name}} 将按当前计划继续推进。',
+      'common.runtime.semanticAction.lifecycle.deliveredPaused.title': '补齐投稿信息或发起修订',
+      'common.runtime.semanticAction.lifecycle.deliveredPaused.summary': '里程碑已交付，等待投稿信息或修订。',
+      'common.runtime.semanticAction.lifecycle.paused.title': '明确下一步方向',
+      'common.runtime.semanticAction.lifecycle.paused.summary': '自动推进已暂停。',
+      'common.runtime.semanticAction.lifecycle.stopped.title': '当前不再推进',
+      'common.runtime.semanticAction.lifecycle.stopped.summary': '只有显式重启后才会继续。',
+      'common.runtime.semanticAction.lifecycle.archived.title': '已归档',
+      'common.runtime.semanticAction.lifecycle.archived.summary': '这项任务已归档。',
+      'common.runtime.semanticAction.lifecycle.unknown.title': '等待状态同步',
+      'common.runtime.semanticAction.lifecycle.unknown.summary': '等待所属智能体同步状态。',
+      'common.runtime.semanticAction.inventoryNextAction.title': '继续这项任务',
+      'common.runtime.semanticAction.inventoryNextAction.summary': '按 {{agent_display_name}} 提供的任务动作继续。',
+      'common.runtime.semanticAction.systemRepair.title': '需要系统修复',
+      'common.runtime.semanticAction.systemRepair.summary': '运行系统修复后任务才能继续。',
+    };
+    const enLabels: Record<string, string> = {
+      'common.runtime.primaryStates.automaticallyAdvancing': 'Automatically advancing',
+      'common.runtime.primaryStates.awaitingUserDecision': 'Waiting for your decision',
+      'common.runtime.primaryStates.systemAttention': 'System handling in progress',
+      'common.runtime.primaryStates.deliveredAutoPaused': 'Delivered, auto-paused',
+      'common.runtime.primaryStates.paused': 'Paused',
+      'common.runtime.primaryStates.stopped': 'Stopped',
+      'common.runtime.primaryStates.syncPending': 'Status sync pending',
+      'common.runtime.executionStates.running': 'Running',
+      'common.runtime.executionStates.queued': 'Queued',
+      'common.runtime.executionStates.idle': 'No automation task right now',
+      'common.runtime.executionStates.succeeded': 'Run complete',
+      'common.runtime.executionStates.failed': 'Run failed',
+      'common.runtime.executionStates.unknown': 'Run status unavailable',
+      'common.runtime.actionKinds.agent': 'Agent action',
+      'common.runtime.actionKinds.user': 'User action',
+      'common.runtime.actionKinds.system': 'System action',
+      'common.runtime.actionKinds.safe': 'Safe action',
+      'common.runtime.actionKinds.blocked': 'No action available',
+      'common.runtime.nextOwner': 'Owner: {{owner}}',
+      'common.runtime.nextStep': 'Next: {{step}}',
+      'common.runtime.owner.you': 'You',
+      'common.runtime.semanticAction.lifecycle.active.title': 'Continue advancing',
+      'common.runtime.semanticAction.lifecycle.active.summary':
+        '{{agent_display_name}} will continue according to the current plan.',
+      'common.runtime.semanticAction.lifecycle.deliveredPaused.title':
+        'Provide submission details or request a revision',
+      'common.runtime.semanticAction.lifecycle.deliveredPaused.summary':
+        'The milestone is delivered. Provide submission details or request a revision.',
+      'common.runtime.semanticAction.lifecycle.paused.title': 'Choose what happens next',
+      'common.runtime.semanticAction.lifecycle.paused.summary': 'Automatic work is paused.',
+      'common.runtime.semanticAction.lifecycle.stopped.title': 'No further work planned',
+      'common.runtime.semanticAction.lifecycle.stopped.summary': 'This task requires an explicit restart.',
+      'common.runtime.semanticAction.lifecycle.archived.title': 'Archived',
+      'common.runtime.semanticAction.lifecycle.archived.summary': 'This task is archived.',
+      'common.runtime.semanticAction.lifecycle.unknown.title': 'Waiting for status sync',
+      'common.runtime.semanticAction.lifecycle.unknown.summary': 'Waiting for the owning agent to sync status.',
+      'common.runtime.semanticAction.inventoryNextAction.title': 'Continue this task',
+      'common.runtime.semanticAction.inventoryNextAction.summary':
+        'Follow the task-specific next action provided by {{agent_display_name}}.',
+      'common.runtime.semanticAction.systemRepair.title': 'System repair required',
+      'common.runtime.semanticAction.systemRepair.summary': 'The runtime system must be repaired first.',
+    };
+    const labels = localeMocks.language === 'en-US' ? { ...zhLabels, ...enLabels } : zhLabels;
+    return {
+      t: (key: string, values?: Record<string, string | number>) => {
+        if (labels[key]) {
+          return Object.entries(values ?? {}).reduce(
+            (text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)),
+            labels[key]
+          );
+        }
+        const rendered = Object.values(values ?? {}).join(' ');
+        return rendered ? `${key} ${rendered}` : key;
+      },
+      i18n: {
+        language: localeMocks.language,
+        resolvedLanguage: localeMocks.language,
+      },
+    };
+  },
 }));
+
+function appStateResultWithVisibility(
+  projectId: string,
+  workItemId: string,
+  state: 'visible' | 'archived',
+  generation: number
+) {
+  const payload = createRuntimeV2AppState();
+  const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
+    (candidate) => candidate.identity.project_id === projectId && candidate.identity.work_item_id === workItemId
+  );
+  if (!item) throw new Error(`Missing fixture item ${projectId}:${workItemId}`);
+  item.visibility = {
+    state,
+    source: 'work_item_control_ledger',
+    updated_at: '2026-07-14T08:00:00Z',
+    control_ref: `opl://work-item-control/${projectId}:${encodeURIComponent(workItemId)}`,
+    generation,
+  };
+  return { parsed: payload };
+}
 
 describe('Runtime V2 page', () => {
   beforeEach(() => {
@@ -142,6 +266,9 @@ describe('Runtime V2 page', () => {
     bridgeMocks.getDrilldownInvoke.mockReset();
     bridgeMocks.executeActionInvoke.mockReset();
     bridgeMocks.modalConfirm.mockReset();
+    bridgeMocks.messageSuccess.mockReset();
+    bridgeMocks.messageError.mockReset();
+    localeMocks.language = 'zh-CN';
     resetOplAppStateLoadsForTest();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: createRuntimeV2AppState() });
@@ -157,10 +284,14 @@ describe('Runtime V2 page', () => {
     });
   });
 
-  it('shows the MAS three-project nine-item hierarchy without duplicate or module rows', async () => {
+  it('shows eight visible items and keeps repeated work item ids distinct by canonical item id', async () => {
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
+    expect(screen.getByRole('button', { name: /001 DM CVD Mortality Risk/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
+    expect(screen.queryByText('NF-PitNET Paper 4')).not.toBeInTheDocument();
+    expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（1）');
     const agentSelect = screen.getByTestId('runtime-agent-selector');
     const projectSelect = screen.getByTestId('runtime-project-selector');
     expect(within(agentSelect).getByText('Med Auto Science')).toBeInTheDocument();
@@ -216,7 +347,7 @@ describe('Runtime V2 page', () => {
   it('keeps the V2 list while exposing keyboard-reachable summary and full drilldown requests', async () => {
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9));
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
     await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' }));
 
     const summaryButton = await screen.findByTestId('runtime-load-summary');
@@ -234,7 +365,7 @@ describe('Runtime V2 page', () => {
     fireEvent.click(fullButton);
     await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'full' }));
     expect(await screen.findByTestId('runtime-full-loaded')).toHaveTextContent('完整详情已加载');
-    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
+    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8);
   });
 
   it('requires a successful dry run before confirming and executing a safe action', async () => {
@@ -274,39 +405,265 @@ describe('Runtime V2 page', () => {
     });
   });
 
-  it('archives and restores attempts only through the existing App action bridge', async () => {
+  it('keeps archived tasks in an independent library that ignores the active status saved view', async () => {
     render(<RuntimePage />);
 
-    await screen.findByTestId('runtime-archived-attempts');
-    fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
-    fireEvent.click(await screen.findByTestId('runtime-archive-attempt'));
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(8));
+    fireEvent.change(screen.getByTestId('runtime-status-view-select'), {
+      target: { value: 'automatically_advancing' },
+    });
+    await waitFor(() => expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(1));
 
-    const confirmation = bridgeMocks.modalConfirm.mock.calls[0]?.[0] as { onOk: () => Promise<void> };
+    fireEvent.click(screen.getByTestId('runtime-open-archive'));
+    expect(await screen.findByTestId('runtime-archive-header')).toHaveTextContent('当前范围内共 1 项已归档任务');
+    expect(screen.queryByTestId('runtime-status-region')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-cockpit')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(1);
+    expect(screen.getByText('NF-PitNET Paper 4')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('runtime-archive-back'));
+    expect(await screen.findByTestId('runtime-status-region')).toBeInTheDocument();
+    expect(screen.queryByText('NF-PitNET Paper 4')).not.toBeInTheDocument();
+  });
+
+  it('limits the archived library to the current agent and project scope with an explicit empty state', async () => {
+    render(<RuntimePage />);
+
+    const agentSelect = await screen.findByTestId('runtime-agent-selector');
+    fireEvent.change(agentSelect, { target: { value: 'mas' } });
+    const projectSelect = screen.getByTestId('runtime-project-selector');
+    await waitFor(() => expect(within(projectSelect).getByText('糖尿病')).toBeInTheDocument());
+    fireEvent.change(projectSelect, { target: { value: 'diabetes' } });
+
+    await waitFor(() => expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（0）'));
+    fireEvent.click(screen.getByTestId('runtime-open-archive'));
+    expect(await screen.findByText('当前范围内没有已归档任务。')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('runtime-task-row')).toHaveLength(0);
+  });
+
+  it('archives by canonical selection but sends the repeated domain work item identity and generation', async () => {
+    render(<RuntimePage />);
+
+    expect(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+    fireEvent.click(await screen.findByTestId('runtime-archive-work-item'));
+
+    const modal = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as {
+      content: string;
+      onOk: () => Promise<void>;
+    };
+    expect(modal.content).toContain('不会停止正在运行的自动流程，也不会删除证据');
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(appStateResultWithVisibility('diabetes', '001', 'archived', 4));
+    await act(async () => {
+      await modal.onOk();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenLastCalledWith({
+      actionId: 'work_item_visibility_set',
+      payloadRefsOnlyJson: {
+        agent_id: 'mas',
+        project_id: 'diabetes',
+        work_item_id: '001',
+        visibility_state: 'archived',
+        reason: 'user_archived_from_runtime_overview',
+        expected_generation: 3,
+      },
+      dryRun: false,
+    });
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('任务已归档');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /001 DM CVD Mortality Risk/ })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
+  });
+
+  it('does not select the wrong project when repeated work item ids are opened', async () => {
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /NF-PitNET Paper 1/ }));
+    const drawer = await screen.findByTestId('runtime-task-detail');
+    expect(drawer).toHaveTextContent('无功能垂体瘤');
+    expect(drawer).toHaveTextContent('NF-PitNET Paper 1');
+    fireEvent.click(screen.getByTestId('runtime-archive-work-item'));
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(
+      appStateResultWithVisibility('nf-pitnet', '001', 'archived', 1)
+    );
+
+    const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
     await act(async () => {
       await confirmation.onOk();
     });
 
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'runtime_archive_attempt',
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        actionId: 'work_item_visibility_set',
+        payloadRefsOnlyJson: expect.objectContaining({
+          project_id: 'nf-pitnet',
+          work_item_id: '001',
+          expected_generation: 0,
+        }),
+      })
+    );
+  });
+
+  it('omits expected generation for a legacy visibility payload', async () => {
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
+    fireEvent.click(await screen.findByTestId('runtime-archive-work-item'));
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(
+      appStateResultWithVisibility('diabetes', 'dm002', 'archived', 1)
+    );
+
+    const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenLastCalledWith({
+      actionId: 'work_item_visibility_set',
       payloadRefsOnlyJson: {
-        stage_attempt_id: 'attempt:dm002',
+        agent_id: 'mas',
+        project_id: 'diabetes',
+        work_item_id: 'dm002',
+        visibility_state: 'archived',
         reason: 'user_archived_from_runtime_overview',
       },
       dryRun: false,
     });
+  });
+
+  it('restores an archived work item with its visibility generation', async () => {
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByTestId('runtime-open-archive'));
+    fireEvent.click(await screen.findByRole('button', { name: /NF-PitNET Paper 4/ }));
+    fireEvent.click(await screen.findByTestId('runtime-restore-work-item'));
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(
+      appStateResultWithVisibility('nf-pitnet', 'nf004', 'visible', 8)
+    );
+
+    const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenLastCalledWith({
+      actionId: 'work_item_visibility_set',
+      payloadRefsOnlyJson: {
+        agent_id: 'mas',
+        project_id: 'nf-pitnet',
+        work_item_id: 'nf004',
+        visibility_state: 'visible',
+        reason: 'user_restored_from_runtime_archive',
+        expected_generation: 7,
+      },
+      dryRun: false,
+    });
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('任务已恢复');
+  });
+
+  it('keeps the drawer open when a successful mutation is not confirmed by fresh projection readback', async () => {
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+    fireEvent.click(await screen.findByTestId('runtime-archive-work-item'));
+    const readback = createRuntimeV2AppState();
+    readback.app_state.operator.workbench.work_item_projection_v2.items =
+      readback.app_state.operator.workbench.work_item_projection_v2.items.filter(
+        (item) => !(item.identity.project_id === 'diabetes' && item.identity.work_item_id === '001')
+      );
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({ parsed: readback });
+    const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.messageError).toHaveBeenCalledWith('可见性 readback 未确认，请刷新后重试。');
+    expect(bridgeMocks.messageSuccess).not.toHaveBeenCalledWith('任务已归档');
+    expect(screen.getByTestId('runtime-task-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-archive-work-item')).toBeInTheDocument();
+  });
+
+  it('refreshes a generation conflict and keeps visible retry guidance', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: false,
+      parsed: {
+        error: {
+          details: { reason_code: 'work_item_control_generation_conflict' },
+        },
+      },
+      error: { message: 'Work item control changed after it was read; refresh before retrying.' },
+    });
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+    fireEvent.click(await screen.findByTestId('runtime-archive-work-item'));
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(appStateResultWithVisibility('diabetes', '001', 'visible', 4));
+    const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.messageError).toHaveBeenCalledWith('状态已刷新，请检查后重试。');
+    expect(screen.getByTestId('runtime-task-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-archive-work-item')).toBeInTheDocument();
+  });
+
+  it('keeps attempt restoration explicitly labeled as an execution-record diagnostic action', async () => {
+    render(<RuntimePage />);
 
     const archivedAttempts = await screen.findByTestId('runtime-archived-attempts');
-    fireEvent.click(within(archivedAttempts).getByRole('button', { name: '恢复' }));
+    expect(archivedAttempts).toHaveTextContent('已归档执行记录');
+    fireEvent.click(within(archivedAttempts).getByRole('button', { name: '恢复执行记录' }));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'runtime_restore_attempt',
         payloadRefsOnlyJson: {
           stage_attempt_id: 'attempt:archived-dm003',
-          reason: 'user_restored_from_runtime_overview',
+          reason: 'user_restored_execution_record_from_runtime_cockpit',
         },
         dryRun: false,
       })
     );
+    expect(archivedAttempts).not.toHaveTextContent('归档任务');
+  });
+
+  it('rerenders semantic action copy and the user owner for the active locale', async () => {
+    const view = render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
+    const action = within(await screen.findByTestId('runtime-task-detail')).getByTestId('runtime-next-action');
+    expect(action).toHaveTextContent('补齐投稿信息或发起修订');
+    expect(action).toHaveTextContent('负责人：你');
+
+    localeMocks.language = 'en-US';
+    view.rerender(<RuntimePage />);
+
+    expect(action).toHaveTextContent('Provide submission details or request a revision');
+    expect(action).toHaveTextContent('Owner: You');
+    expect(action).not.toHaveTextContent('里程碑投稿包已交付，待补齐作者和机构等客观信息。');
+  });
+
+  it('uses projected title and summary fallbacks for unknown Framework semantic keys', async () => {
+    const payload = createRuntimeV2AppState();
+    const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
+      (candidate) => candidate.identity.work_item_id === 'dm002'
+    )!;
+    item.action.title_key = 'framework.unmapped.title';
+    item.action.summary_key = 'framework.unmapped.summary';
+    item.action.title = 'Projected fallback title';
+    item.action.summary = 'Projected fallback summary';
+    localeMocks.language = 'en-US';
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /002 DM China US Mortality Attribution/ }));
+    const action = within(await screen.findByTestId('runtime-task-detail')).getByTestId('runtime-next-action');
+    expect(action).toHaveTextContent('Projected fallback title');
+    expect(action).toHaveTextContent('Projected fallback summary');
   });
 
   it('opens workflow-first details and keeps secondary evidence collapsed', async () => {
@@ -328,7 +685,8 @@ describe('Runtime V2 page', () => {
     expect(drawer).toHaveTextContent('1,200');
     expect(drawer).toHaveTextContent('2,400');
     expect(drawer).toHaveTextContent('下一步动作');
-    expect(drawer).toHaveTextContent('完成结果复核并进入写作');
+    expect(drawer).toHaveTextContent('继续推进');
+    expect(drawer).toHaveTextContent('医学写作');
     expect(drawer).toHaveTextContent('Med Auto Science');
     expect(drawer).toHaveTextContent('产物');
     expect(drawer).toHaveTextContent('时间线');
