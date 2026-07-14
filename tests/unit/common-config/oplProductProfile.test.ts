@@ -82,6 +82,22 @@ describe('OPL generated product profile', () => {
     ).toContain('session_scoped_opl_app_context');
   });
 
+  it('exposes the App-owned account avatar and titlebar help icon policies', () => {
+    expect(OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy.account_identity_avatar).toEqual({
+      shape: 'circle',
+      background: 'semantic_success_green',
+      foreground: 'inverse',
+      han_name_initials: 'first_han_character_only',
+      non_han_name_initials: 'first_letters_of_first_two_words_uppercase_else_first_two_codepoints',
+      email_fallback_initials: 'first_two_local_part_codepoints_uppercase',
+      empty_fallback: 'OP',
+    });
+    expect(OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy.global_feedback_action).toMatchObject({
+      icon: 'circle_question',
+      icon_style: 'regular_outline',
+    });
+  });
+
   it('exposes the App-generated Codex default model profile', () => {
     expect(getOplDefaultCodexModel()).toBe('gpt-5.6-sol');
     expect(getOplDefaultCodexReasoningEffort()).toBe('max');

@@ -149,9 +149,19 @@
         "upstream_fork_body_bulk_icon_rewrite": "forbidden",
         "refresh_actions": "icon_only_with_tooltip_and_accessible_name",
         "model_reasoning_control": "text_and_disclosure_without_brain_icon",
+        "account_identity_avatar": {
+          "shape": "circle",
+          "background": "semantic_success_green",
+          "foreground": "inverse",
+          "han_name_initials": "first_han_character_only",
+          "non_han_name_initials": "first_letters_of_first_two_words_uppercase_else_first_two_codepoints",
+          "email_fallback_initials": "first_two_local_part_codepoints_uppercase",
+          "empty_fallback": "OP"
+        },
         "global_feedback_action": {
           "placement": "titlebar_trailing_utility",
-          "icon": "comment",
+          "icon": "circle_question",
+          "icon_style": "regular_outline",
           "target_url": "https://github.com/gaofeng21cn/one-person-lab-app/issues/new",
           "open_mode": "external_browser_user_review_and_submit",
           "prefill_fields": ["localized_title", "localized_body", "current_route", "app_release_version"],

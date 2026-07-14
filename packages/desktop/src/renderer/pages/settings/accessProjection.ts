@@ -113,6 +113,8 @@ export function formatGatewayObservedAt(value: string | null, locale?: string): 
 export function gatewayAccountInitials(displayName: string | null, email: string | null): string {
   const name = displayName?.trim();
   if (name) {
+    const hanCharacter = name.match(/\p{Script=Han}/u)?.[0];
+    if (hanCharacter) return hanCharacter;
     const words = name.split(/\s+/).filter(Boolean);
     if (words.length > 1)
       return words

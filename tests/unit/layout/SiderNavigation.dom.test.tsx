@@ -64,4 +64,22 @@ describe('Sider navigation hierarchy', () => {
     fireEvent.click(screen.getByTestId('sider-footer-settings'));
     expect(onSettingsClick).toHaveBeenCalledWith('general');
   });
+
+  it('renders a connected account as a green circular initials avatar', () => {
+    render(
+      <SiderFooter
+        isMobile={false}
+        isSettings={false}
+        theme='light'
+        account={{ displayName: 'Feng Gao', email: 'gf@fenggaolab.org', initials: 'FG' }}
+        siderTooltipProps={tooltipProps}
+        onSettingsClick={vi.fn()}
+        onThemeToggle={vi.fn()}
+      />
+    );
+
+    const avatar = screen.getByTestId('sider-footer-account-avatar');
+    expect(avatar).toHaveTextContent('FG');
+    expect(avatar).toHaveClass('rounded-full', 'bg-success', 'text-inverse');
+  });
 });

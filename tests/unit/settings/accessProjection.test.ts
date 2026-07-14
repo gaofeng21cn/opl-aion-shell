@@ -3,6 +3,7 @@ import {
   buildDockerWebuiProjection,
   buildAccessProjection,
   compactAccessDetail,
+  gatewayAccountInitials,
   normalizeAccessStatus,
 } from '@/renderer/pages/settings/accessProjection';
 
@@ -20,6 +21,23 @@ const t = (key: string, options?: Record<string, string>) => {
   if (key === 'agentMode.full-access') return 'Full Access';
   return options?.defaultValue ?? key;
 };
+
+describe('gatewayAccountInitials', () => {
+  it('uses only the first Han character for a Chinese display name', () => {
+    expect(gatewayAccountInitials('高峰', 'gf@fenggaolab.org')).toBe('高');
+    expect(gatewayAccountInitials('高 峰', 'gf@fenggaolab.org')).toBe('高');
+  });
+
+  it('uses the first letters of the first two words for a non-Han display name', () => {
+    expect(gatewayAccountInitials('Feng Gao', 'gf@fenggaolab.org')).toBe('FG');
+    expect(gatewayAccountInitials('feng', 'gf@fenggaolab.org')).toBe('FE');
+  });
+
+  it('falls back to the email local part and then the App identity', () => {
+    expect(gatewayAccountInitials(null, 'gf@fenggaolab.org')).toBe('GF');
+    expect(gatewayAccountInitials(null, null)).toBe('OP');
+  });
+});
 
 describe('buildAccessProjection', () => {
   it('normalizes equivalent attention statuses and compacts meaningful detail parts', () => {

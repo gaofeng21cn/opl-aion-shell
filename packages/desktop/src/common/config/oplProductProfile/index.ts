@@ -40,11 +40,21 @@ export type OplCodexAutoModelPolicy = {
 };
 export type OplGlobalFeedbackAction = {
   placement: 'titlebar_trailing_utility';
-  icon: 'comment';
+  icon: 'circle_question';
+  icon_style: 'regular_outline';
   target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new';
   open_mode: 'external_browser_user_review_and_submit';
   prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'];
   shell_local_delivery_forbidden: true;
+};
+export type OplAccountIdentityAvatarPolicy = {
+  shape: 'circle';
+  background: 'semantic_success_green';
+  foreground: 'inverse';
+  han_name_initials: 'first_han_character_only';
+  non_han_name_initials: 'first_letters_of_first_two_words_uppercase_else_first_two_codepoints';
+  email_fallback_initials: 'first_two_local_part_codepoints_uppercase';
+  empty_fallback: 'OP';
 };
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
 export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
@@ -509,6 +519,7 @@ type AppProductProfile = {
         library: 'font_awesome_free_for_opl_owned_utility_icons';
         refresh_actions: 'icon_only_with_tooltip_and_accessible_name';
         model_reasoning_control: 'text_and_disclosure_without_brain_icon';
+        account_identity_avatar: OplAccountIdentityAvatarPolicy;
         global_feedback_action: OplGlobalFeedbackAction;
         scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body';
       };
@@ -1936,6 +1947,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
   const utilityIconPolicy = guiHome.utility_icon_policy;
+  const accountIdentityAvatar = isRecord(utilityIconPolicy) ? utilityIconPolicy.account_identity_avatar : null;
   const globalFeedbackAction = isRecord(utilityIconPolicy) ? utilityIconPolicy.global_feedback_action : null;
   const globalFeedbackPrefillFields = isRecord(globalFeedbackAction)
     ? readStringArray(globalFeedbackAction, 'prefill_fields', 'gui.home.utility_icon_policy.global_feedback_action')
@@ -1946,9 +1958,19 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     utilityIconPolicy.refresh_actions !== 'icon_only_with_tooltip_and_accessible_name' ||
     utilityIconPolicy.model_reasoning_control !== 'text_and_disclosure_without_brain_icon' ||
     utilityIconPolicy.scope !== 'opl_owned_overlay_surfaces_not_upstream_fork_body' ||
+    !isRecord(accountIdentityAvatar) ||
+    accountIdentityAvatar.shape !== 'circle' ||
+    accountIdentityAvatar.background !== 'semantic_success_green' ||
+    accountIdentityAvatar.foreground !== 'inverse' ||
+    accountIdentityAvatar.han_name_initials !== 'first_han_character_only' ||
+    accountIdentityAvatar.non_han_name_initials !==
+      'first_letters_of_first_two_words_uppercase_else_first_two_codepoints' ||
+    accountIdentityAvatar.email_fallback_initials !== 'first_two_local_part_codepoints_uppercase' ||
+    accountIdentityAvatar.empty_fallback !== 'OP' ||
     !isRecord(globalFeedbackAction) ||
     globalFeedbackAction.placement !== 'titlebar_trailing_utility' ||
-    globalFeedbackAction.icon !== 'comment' ||
+    globalFeedbackAction.icon !== 'circle_question' ||
+    globalFeedbackAction.icon_style !== 'regular_outline' ||
     globalFeedbackAction.target_url !== 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new' ||
     globalFeedbackAction.open_mode !== 'external_browser_user_review_and_submit' ||
     JSON.stringify(globalFeedbackPrefillFields) !==
@@ -2186,9 +2208,19 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           library: 'font_awesome_free_for_opl_owned_utility_icons',
           refresh_actions: 'icon_only_with_tooltip_and_accessible_name',
           model_reasoning_control: 'text_and_disclosure_without_brain_icon',
+          account_identity_avatar: {
+            shape: 'circle',
+            background: 'semantic_success_green',
+            foreground: 'inverse',
+            han_name_initials: 'first_han_character_only',
+            non_han_name_initials: 'first_letters_of_first_two_words_uppercase_else_first_two_codepoints',
+            email_fallback_initials: 'first_two_local_part_codepoints_uppercase',
+            empty_fallback: 'OP',
+          },
           global_feedback_action: {
             placement: 'titlebar_trailing_utility',
-            icon: 'comment',
+            icon: 'circle_question',
+            icon_style: 'regular_outline',
             target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new',
             open_mode: 'external_browser_user_review_and_submit',
             prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'],

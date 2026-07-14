@@ -64,7 +64,11 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
           >
             <span className={classNames('flex min-w-0 items-center', collapsed ? 'justify-center' : 'w-full gap-9px')}>
               {account ? (
-                <span className='flex size-28px shrink-0 items-center justify-center rounded-full bg-fill-3 text-11px font-600 text-t-primary'>
+                <span
+                  className='flex size-28px shrink-0 items-center justify-center rounded-full bg-success text-11px font-600 text-inverse'
+                  data-testid='sider-footer-account-avatar'
+                  aria-hidden='true'
+                >
                   {account.initials}
                 </span>
               ) : (

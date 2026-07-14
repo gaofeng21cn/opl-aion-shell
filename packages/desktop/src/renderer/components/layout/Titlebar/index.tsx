@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowCircleLeft, ArrowLeft, ArrowRight, Comment, ExpandLeft, ExpandRight, Peoples } from '@icon-park/react';
+import { ArrowCircleLeft, ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Peoples } from '@icon-park/react';
+import { faCircleQuestion } from '@fortawesome/free-regular-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -362,7 +364,12 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           aria-label={feedbackTooltip}
           title={feedbackTooltip}
         >
-          <Comment theme='outline' size={iconSize} fill='currentColor' strokeWidth={desktopIconStroke} />
+          <FontAwesomeIcon
+            icon={faCircleQuestion}
+            className='text-18px'
+            data-testid='app-titlebar-help-icon'
+            aria-hidden='true'
+          />
         </button>
         {showWorkspaceButton && (
           <button
