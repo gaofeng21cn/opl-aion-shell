@@ -86,7 +86,6 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.handoffInconsistent':
           'Task location is inconsistent with this conversation. Retry the location change to resynchronize.',
         'conversation.environment.localWorkspaceUnavailable': 'Local workspace unavailable',
-        'conversation.environment.worktreeUnavailable': 'Worktree needs coordination',
         'conversation.environment.worktreeCreateFailed': 'Worktree creation failed',
         'conversation.environment.git': 'Git',
         'conversation.environment.branch': 'Branch',

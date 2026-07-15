@@ -17,7 +17,6 @@ import type {
   GitPullRequestContext,
   GitPushCurrentBranchRequest,
   GitPushCurrentBranchResult,
-  GitSourceChangeSummary,
   GitWorkspaceInspectRequest,
   GitWorkspaceInspection,
   GitWorktreeSummary,
@@ -32,8 +31,7 @@ import {
   type CommandRunner,
   type CommandRunnerOptions,
 } from './commandRunner';
-import { parseBranches, parsePullRequest, parseWorktrees, splitNul } from './gitWorkspaceParsers';
-import { copyIgnoredSetupFiles } from './ignoredFileCopier';
+import { parseBranches, parsePullRequest, parseWorktrees } from './gitWorkspaceParsers';
 
 export type GitWorktreeCreatePrimitiveRequest = {
   repositoryPath: string;
@@ -52,12 +50,6 @@ export type GitWorkspaceAdapterOptions = {
   commandRunner?: CommandRunner;
   codexHome?: string;
   worktreeRoot?: string;
-};
-
-type SourceSnapshot = {
-  summary: GitSourceChangeSummary;
-  stagedPatch: string;
-  unstagedPatch: string;
 };
 
 export class GitWorkspaceAdapter {
@@ -116,8 +108,7 @@ export class GitWorkspaceAdapter {
     const repositoryRoot = await this.resolveRepository(request.repositoryPath);
     const startCommit = await this.resolveStartCommit(repositoryRoot, request.startRef);
     const targetPath = this.deriveManagedWorktreePath(repositoryRoot, taskId);
-    const [source, worktrees, targetExists] = await Promise.all([
-      this.readSourceSnapshot(repositoryRoot, false),
+    const [worktrees, targetExists] = await Promise.all([
       this.readWorktrees(repositoryRoot),
       this.pathExists(targetPath),
     ]);
@@ -133,22 +124,6 @@ export class GitWorkspaceAdapter {
       }
       const liveWorktree = await this.readLiveWorktree(existingWorktree);
       this.assertReusableWorktree(liveWorktree, startCommit, request.newBranch);
-      if (source.summary.unmerged || source.summary.staged || source.summary.unstaged) {
-        return {
-          status: 'unsupported',
-          repositoryRoot,
-          targetPath,
-          startRef: request.startRef,
-          startCommit,
-          worktree: liveWorktree,
-          handoff: {
-            status: 'unsupported',
-            reason: 'existing_worktree_handoff_requires_coordinator',
-            detail: 'Moving new tracked changes into an existing task worktree requires coordinator handoff.',
-            source: source.summary,
-          },
-        };
-      }
       return {
         status: 'reused',
         repositoryRoot,
@@ -156,115 +131,18 @@ export class GitWorkspaceAdapter {
         startRef: request.startRef,
         startCommit,
         worktree: liveWorktree,
-        handoff: {
-          status: 'not_run',
-          reason: 'existing_task_worktree',
-          source: source.summary,
-        },
       };
     }
 
-    if (source.summary.unmerged) {
-      return this.unsupportedManagedResult(
-        repositoryRoot,
-        targetPath,
-        request.startRef,
-        startCommit,
-        source.summary,
-        'unmerged_changes',
-        'Unmerged local changes cannot be copied safely.'
-      );
-    }
-
-    if ((source.summary.staged || source.summary.unstaged) && (await this.readHead(repositoryRoot)) !== startCommit) {
-      return this.unsupportedManagedResult(
-        repositoryRoot,
-        targetPath,
-        request.startRef,
-        startCommit,
-        source.summary,
-        'selected_ref_differs_from_local_head',
-        'Tracked local changes can only be copied when the selected ref resolves to the local checkout HEAD.'
-      );
-    }
-
-    const snapshot = await this.readSourceSnapshot(repositoryRoot, true);
-    if (snapshot.summary.unmerged) {
-      return this.unsupportedManagedResult(
-        repositoryRoot,
-        targetPath,
-        request.startRef,
-        startCommit,
-        snapshot.summary,
-        'unmerged_changes',
-        'Unmerged local changes cannot be copied safely.'
-      );
-    }
-    if (
-      (snapshot.summary.staged || snapshot.summary.unstaged) &&
-      (await this.readHead(repositoryRoot)) !== startCommit
-    ) {
-      return this.unsupportedManagedResult(
-        repositoryRoot,
-        targetPath,
-        request.startRef,
-        startCommit,
-        snapshot.summary,
-        'selected_ref_differs_from_local_head',
-        'Tracked local changes can only be copied when the selected ref resolves to the local checkout HEAD.'
-      );
-    }
-    if ((snapshot.summary.staged && !snapshot.stagedPatch) || (snapshot.summary.unstaged && !snapshot.unstagedPatch)) {
-      return this.unsupportedManagedResult(
-        repositoryRoot,
-        targetPath,
-        request.startRef,
-        startCommit,
-        snapshot.summary,
-        'unpatchable_tracked_changes',
-        'Git reported tracked changes but did not produce a patch that can be handed off safely.'
-      );
-    }
-    let created: GitWorktreeSummary | null = null;
-    try {
-      created = await this.createWorktreeAtCommit(repositoryRoot, targetPath, startCommit, request.newBranch);
-      if (snapshot.stagedPatch) {
-        await this.git(
-          ['-C', targetPath, 'apply', '--binary', '--index', '--whitespace=nowarn', '-'],
-          { input: snapshot.stagedPatch, timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
-          'apply staged changes'
-        );
-      }
-      if (snapshot.unstagedPatch) {
-        await this.git(
-          ['-C', targetPath, 'apply', '--binary', '--whitespace=nowarn', '-'],
-          { input: snapshot.unstagedPatch, timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
-          'apply unstaged changes'
-        );
-      }
-      const ignoredFiles = await copyIgnoredSetupFiles(repositoryRoot, targetPath, (args, options, operation) =>
-        this.git(args, options, operation)
-      );
-      const applied = Boolean(snapshot.stagedPatch || snapshot.unstagedPatch || ignoredFiles.copied.length);
-      return {
-        status: 'created',
-        repositoryRoot,
-        targetPath,
-        startRef: request.startRef,
-        startCommit,
-        worktree: created,
-        handoff: {
-          status: applied ? 'applied' : 'not_needed',
-          source: snapshot.summary,
-          ignoredFiles,
-        },
-      };
-    } catch (error) {
-      if (created) {
-        await this.rollbackCreatedWorktree(repositoryRoot, targetPath, request.newBranch, error);
-      }
-      throw error;
-    }
+    const created = await this.createWorktreeAtCommit(repositoryRoot, targetPath, startCommit, request.newBranch);
+    return {
+      status: 'created',
+      repositoryRoot,
+      targetPath,
+      startRef: request.startRef,
+      startCommit,
+      worktree: created,
+    };
   }
 
   async createWorktreePrimitive(request: GitWorktreeCreatePrimitiveRequest): Promise<GitWorktreeCreatePrimitiveResult> {
@@ -342,26 +220,6 @@ export class GitWorkspaceAdapter {
     );
     const upstream = `${remote}/${remoteRef.slice('refs/heads/'.length)}`;
     return { root, branch, remote, upstream };
-  }
-
-  private unsupportedManagedResult(
-    repositoryRoot: string,
-    targetPath: string,
-    startRef: string,
-    startCommit: string,
-    source: GitSourceChangeSummary,
-    reason: 'selected_ref_differs_from_local_head' | 'unmerged_changes' | 'unpatchable_tracked_changes',
-    detail: string
-  ): GitManagedWorktreeResult {
-    return {
-      status: 'unsupported',
-      repositoryRoot,
-      targetPath,
-      startRef,
-      startCommit,
-      worktree: null,
-      handoff: { status: 'unsupported', reason, detail, source },
-    };
   }
 
   private normalizeTaskId(value: string): string {
@@ -540,59 +398,6 @@ export class GitWorkspaceAdapter {
       'The managed worktree target does not match the requested starting state.',
       `path=${worktree.path}; expected HEAD=${startCommit}, ${expectedState}; actual HEAD=${worktree.head}, ${actualState}`
     );
-  }
-
-  private async readSourceSnapshot(repositoryRoot: string, includePatches: boolean): Promise<SourceSnapshot> {
-    const [staged, unstaged, unmerged, untracked] = await Promise.all([
-      this.git(
-        ['-C', repositoryRoot, 'diff', '--cached', '--quiet', '--exit-code', '--'],
-        { allowExitCodes: [1] },
-        'read staged changes'
-      ),
-      this.git(
-        ['-C', repositoryRoot, 'diff', '--quiet', '--exit-code', '--'],
-        { allowExitCodes: [1] },
-        'read unstaged changes'
-      ),
-      this.git(['-C', repositoryRoot, 'diff', '--name-only', '--diff-filter=U', '-z'], {}, 'read unmerged changes'),
-      this.git(['-C', repositoryRoot, 'ls-files', '--others', '--exclude-standard', '-z'], {}, 'read untracked files'),
-    ]);
-    const summary: GitSourceChangeSummary = {
-      staged: staged.exitCode === 1,
-      unstaged: unstaged.exitCode === 1,
-      unmerged: unmerged.stdout.length > 0,
-      untrackedCount: splitNul(untracked.stdout).length,
-    };
-    if (!includePatches) return { summary, stagedPatch: '', unstagedPatch: '' };
-
-    const [stagedPatch, unstagedPatch] = await Promise.all([
-      summary.staged
-        ? this.git(
-            [
-              '-C',
-              repositoryRoot,
-              'diff',
-              '--cached',
-              '--binary',
-              '--full-index',
-              '--no-ext-diff',
-              '--no-textconv',
-              'HEAD',
-              '--',
-            ],
-            {},
-            'capture staged changes'
-          )
-        : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
-      summary.unstaged
-        ? this.git(
-            ['-C', repositoryRoot, 'diff', '--binary', '--full-index', '--no-ext-diff', '--no-textconv', '--'],
-            {},
-            'capture unstaged changes'
-          )
-        : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
-    ]);
-    return { summary, stagedPatch: stagedPatch.stdout, unstagedPatch: unstagedPatch.stdout };
   }
 
   private async hasStagedChanges(repositoryRoot: string): Promise<boolean> {

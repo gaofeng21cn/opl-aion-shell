@@ -76,42 +76,6 @@ export type GitWorkspaceInspection = {
   pullRequest: GitPullRequestContext;
 };
 
-export type GitSourceChangeSummary = {
-  staged: boolean;
-  unstaged: boolean;
-  unmerged: boolean;
-  untrackedCount: number;
-};
-
-export type GitIgnoredFileCopyReceipt = {
-  policy: 'worktreeinclude_and_agents_override_only';
-  copied: string[];
-  skippedExisting: string[];
-  skippedSymlinks: string[];
-};
-
-export type GitManagedWorktreeHandoffReceipt =
-  | {
-      status: 'applied' | 'not_needed';
-      source: GitSourceChangeSummary;
-      ignoredFiles: GitIgnoredFileCopyReceipt;
-    }
-  | {
-      status: 'not_run';
-      reason: 'existing_task_worktree';
-      source: GitSourceChangeSummary;
-    }
-  | {
-      status: 'unsupported';
-      reason:
-        | 'existing_worktree_handoff_requires_coordinator'
-        | 'selected_ref_differs_from_local_head'
-        | 'unpatchable_tracked_changes'
-        | 'unmerged_changes';
-      detail: string;
-      source: GitSourceChangeSummary;
-    };
-
 export type GitManagedWorktreeRequest = {
   repositoryPath: string;
   taskId: string;
@@ -137,22 +101,10 @@ type GitManagedWorktreeResultBase = {
   startCommit: string;
 };
 
-export type GitManagedWorktreeResult =
-  | (GitManagedWorktreeResultBase & {
-      status: 'created';
-      worktree: GitWorktreeSummary;
-      handoff: Extract<GitManagedWorktreeHandoffReceipt, { status: 'applied' | 'not_needed' }>;
-    })
-  | (GitManagedWorktreeResultBase & {
-      status: 'reused';
-      worktree: GitWorktreeSummary;
-      handoff: Extract<GitManagedWorktreeHandoffReceipt, { status: 'not_run' }>;
-    })
-  | (GitManagedWorktreeResultBase & {
-      status: 'unsupported';
-      worktree: GitWorktreeSummary | null;
-      handoff: Extract<GitManagedWorktreeHandoffReceipt, { status: 'unsupported' }>;
-    });
+export type GitManagedWorktreeResult = GitManagedWorktreeResultBase & {
+  status: 'created' | 'reused';
+  worktree: GitWorktreeSummary;
+};
 
 export type GitCommitStagedRequest = {
   cwd: string;

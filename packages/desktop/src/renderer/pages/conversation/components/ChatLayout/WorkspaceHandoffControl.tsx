@@ -150,9 +150,6 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
           taskId,
           startRef,
         });
-        if (result.status === 'unsupported') {
-          throw new WorkspaceHandoffError('conversation.environment.worktreeUnavailable');
-        }
         nextWorkspace = result.targetPath;
         nextHandoff = {
           schema: 'opl_workspace_handoff.v1',

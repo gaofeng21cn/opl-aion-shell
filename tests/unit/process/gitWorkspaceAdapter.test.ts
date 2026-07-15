@@ -14,7 +14,6 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -302,123 +301,47 @@ describe('GitWorkspaceAdapter managed worktrees', () => {
     });
   });
 
-  it('copies staged and unstaged tracked changes while leaving untracked files behind', async () => {
+  it('creates from the selected ref without copying local tracked, untracked, or ignored state', async () => {
     const fixture = createRepository();
+    writeFileSync(path.join(fixture.repository, '.gitignore'), '.env\nAGENTS.override.md\n');
+    git(fixture.repository, 'add', '.gitignore');
+    git(fixture.repository, 'commit', '-m', 'add ignored setup files');
     writeFileSync(path.join(fixture.repository, 'tracked.txt'), 'staged\n');
     git(fixture.repository, 'add', 'tracked.txt');
     appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'unstaged\n');
     writeFileSync(path.join(fixture.repository, 'scratch.txt'), 'untracked\n');
+    writeFileSync(path.join(fixture.repository, '.env'), 'local-only=true\n');
+    writeFileSync(path.join(fixture.repository, 'AGENTS.override.md'), 'local instructions\n');
 
     const result = await createAdapter(fixture).ensureManagedWorktree({
       repositoryPath: fixture.repository,
-      taskId: 'dirty-copy',
+      taskId: 'clean-start',
       startRef: 'main',
     });
 
     expect(result.status).toBe('created');
-    expect(readFileSync(path.join(result.targetPath, 'tracked.txt'), 'utf8')).toBe('staged\nunstaged\n');
-    expect(git(result.targetPath, 'diff', '--cached', '--name-only').trim()).toBe('tracked.txt');
-    expect(git(result.targetPath, 'diff', '--name-only').trim()).toBe('tracked.txt');
+    expect(readFileSync(path.join(result.targetPath, 'tracked.txt'), 'utf8')).toBe('base\n');
+    expect(git(result.targetPath, 'status', '--short').trim()).toBe('');
     expect(existsSync(path.join(result.targetPath, 'scratch.txt'))).toBe(false);
+    expect(existsSync(path.join(result.targetPath, '.env'))).toBe(false);
+    expect(existsSync(path.join(result.targetPath, 'AGENTS.override.md'))).toBe(false);
+    expect(git(fixture.repository, 'status', '--short')).toContain('tracked.txt');
   });
 
-  it('copies only included ignored files and the ignored AGENTS override', async () => {
+  it('reuses an existing task worktree without moving later source changes into it', async () => {
     const fixture = createRepository();
-    writeFileSync(
-      path.join(fixture.repository, '.gitignore'),
-      ['.env', '.secret', 'AGENTS.override.md', 'ignored-link'].join('\n') + '\n'
-    );
-    writeFileSync(path.join(fixture.repository, '.worktreeinclude'), ['.env', 'ignored-link'].join('\n') + '\n');
-    git(fixture.repository, 'add', '.gitignore', '.worktreeinclude');
-    git(fixture.repository, 'commit', '-m', 'add worktree setup policy');
-    writeFileSync(path.join(fixture.repository, '.env'), 'included=true\n');
-    writeFileSync(path.join(fixture.repository, '.secret'), 'excluded=true\n');
-    writeFileSync(path.join(fixture.repository, 'AGENTS.override.md'), 'local instructions\n');
-    symlinkSync('.env', path.join(fixture.repository, 'ignored-link'));
-
-    const result = await createAdapter(fixture).ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'ignored-copy',
-      startRef: 'main',
-    });
-
-    expect(existsSync(path.join(result.targetPath, '.env'))).toBe(true);
-    expect(existsSync(path.join(result.targetPath, '.secret'))).toBe(false);
-    expect(existsSync(path.join(result.targetPath, 'AGENTS.override.md'))).toBe(true);
-    expect(existsSync(path.join(result.targetPath, 'ignored-link'))).toBe(false);
-    expect(result.handoff).toMatchObject({
-      status: 'applied',
-      ignoredFiles: {
-        copied: ['.env', 'AGENTS.override.md'],
-        skippedSymlinks: ['ignored-link'],
-      },
-    });
-  });
-
-  it('returns unsupported when dirty changes are based on a different commit', async () => {
-    const fixture = createRepository();
-    git(fixture.repository, 'branch', 'older');
-    writeFileSync(path.join(fixture.repository, 'tracked.txt'), 'second commit\n');
-    git(fixture.repository, 'add', 'tracked.txt');
-    git(fixture.repository, 'commit', '-m', 'second');
+    const adapter = createAdapter(fixture);
+    const request = { repositoryPath: fixture.repository, taskId: 'stable-reuse', startRef: 'main' };
+    const created = await adapter.ensureManagedWorktree(request);
     appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'local change\n');
+    writeFileSync(path.join(fixture.repository, 'scratch.txt'), 'untracked\n');
 
-    const result = await createAdapter(fixture).ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'unsupported-copy',
-      startRef: 'older',
-    });
+    const reused = await adapter.ensureManagedWorktree(request);
 
-    expect(result).toMatchObject({
-      status: 'unsupported',
-      worktree: null,
-      handoff: { status: 'unsupported', reason: 'selected_ref_differs_from_local_head' },
-    });
-    expect(existsSync(result.targetPath)).toBe(false);
-  });
-
-  it('returns unsupported instead of creating a worktree when dirty changes cannot be represented as a patch', async () => {
-    const fixture = createRepository();
-    appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'local change\n');
-    const emptyPatchRunner: CommandRunner = (command, args, options) => {
-      if (command === 'git' && args.includes('--binary')) {
-        return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
-      }
-      return runnerWithoutGh(command, args, options);
-    };
-
-    const result = await createAdapter(fixture, emptyPatchRunner).ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'unpatchable-copy',
-      startRef: 'main',
-    });
-
-    expect(result).toMatchObject({
-      status: 'unsupported',
-      handoff: { status: 'unsupported', reason: 'unpatchable_tracked_changes' },
-    });
-    expect(existsSync(result.targetPath)).toBe(false);
-  });
-
-  it('removes a newly created worktree when applying local changes fails', async () => {
-    const fixture = createRepository();
-    appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'local change\n');
-    const failingApplyRunner: CommandRunner = (command, args, options) => {
-      if (command === 'git' && args.includes('apply')) {
-        return Promise.reject(new CommandExecutionError('git', 1, 'forced apply failure', null));
-      }
-      return runnerWithoutGh(command, args, options);
-    };
-
-    await expectAdapterError(
-      createAdapter(fixture, failingApplyRunner).ensureManagedWorktree({
-        repositoryPath: fixture.repository,
-        taskId: 'failed-apply',
-        startRef: 'main',
-      }),
-      'COMMAND_FAILED'
-    );
-    expect(git(fixture.repository, 'worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1);
+    expect(reused).toMatchObject({ status: 'reused', targetPath: created.targetPath });
+    expect(readFileSync(path.join(reused.targetPath, 'tracked.txt'), 'utf8')).toBe('base\n');
+    expect(git(reused.targetPath, 'status', '--short').trim()).toBe('');
+    expect(git(fixture.repository, 'status', '--short')).toContain('scratch.txt');
   });
 
   it('rejects an existing primitive target', async () => {

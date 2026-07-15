@@ -121,7 +121,9 @@ describe('HomeStarters', () => {
 
     const activeStarter = screen.getByTestId('home-starter-oma');
     expect(activeStarter).toHaveAttribute('data-opl-active', 'true');
-    expect(activeStarter).toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
+    expect(activeStarter.className).toContain('homeStarterActive');
+    expect(activeStarter).not.toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
+    expect(screen.getByTestId('starter-active-check')).toBeInTheDocument();
     expect(activeStarter.querySelector('[data-icon="check"]')).not.toBeNull();
   });
 

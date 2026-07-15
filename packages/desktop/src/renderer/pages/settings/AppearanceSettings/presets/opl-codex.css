@@ -117,13 +117,13 @@
   --hl-chip-text: #3c4043;
   --hl-chip-border: #e4e4e2;
 
-  --opl-codex-sidebar-bg: rgba(246, 246, 244, 0.84);
-  --opl-codex-sidebar-hover: rgba(236, 236, 234, 0.74);
-  --opl-codex-sidebar-active: rgba(228, 228, 226, 0.88);
+  --opl-codex-sidebar-bg: var(--opl-sidebar-bg);
+  --opl-codex-sidebar-hover: var(--opl-sidebar-hover);
+  --opl-codex-sidebar-active: var(--opl-sidebar-active);
   --opl-codex-sidebar-text: #3f4246;
   --opl-codex-sidebar-secondary-text: #6d7074;
   --opl-codex-sidebar-muted-text: #a0a1a4;
-  --opl-codex-sidebar-border: rgba(0, 0, 0, 0.14);
+  --opl-codex-sidebar-border: var(--color-border-2);
   --opl-codex-surface: #ffffff;
   --opl-codex-surface-muted: #f7f7f5;
   --opl-codex-focus-ring: rgba(32, 33, 36, 0.12);
@@ -246,13 +246,13 @@
   --hl-chip-text: #e1e5ec;
   --hl-chip-border: #3c4654;
 
-  --opl-codex-sidebar-bg: rgba(23, 24, 26, 0.82);
-  --opl-codex-sidebar-hover: #242a34;
-  --opl-codex-sidebar-active: #303743;
+  --opl-codex-sidebar-bg: var(--opl-sidebar-bg);
+  --opl-codex-sidebar-hover: var(--opl-sidebar-hover);
+  --opl-codex-sidebar-active: var(--opl-sidebar-active);
   --opl-codex-sidebar-text: #eef0f3;
   --opl-codex-sidebar-secondary-text: #c4c8ce;
   --opl-codex-sidebar-muted-text: #7f858e;
-  --opl-codex-sidebar-border: rgba(255, 255, 255, 0.12);
+  --opl-codex-sidebar-border: var(--color-border-2);
   --opl-codex-surface: #141820;
   --opl-codex-surface-muted: #1b2029;
   --opl-codex-focus-ring: rgba(244, 245, 247, 0.14);

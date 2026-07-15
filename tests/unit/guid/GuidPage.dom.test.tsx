@@ -585,16 +585,6 @@ describe('GuidPage selected purpose assistant surface', () => {
         lockedReason: null,
         prunableReason: null,
       },
-      handoff: {
-        status: 'not_needed',
-        source: { staged: false, unstaged: false, unmerged: false, untrackedCount: 0 },
-        ignoredFiles: {
-          policy: 'worktreeinclude_and_agents_override_only',
-          copied: [],
-          skippedExisting: [],
-          skippedSymlinks: [],
-        },
-      },
     });
     mocks.useGuidSend.mockClear();
   });
@@ -1000,33 +990,6 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() => expect(mocks.ensureManagedWorktree).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.sendMessageHandler).toHaveBeenCalledTimes(2));
     expect(mocks.ensureManagedWorktree.mock.calls[1][0].taskId).toBe(firstRequest.taskId);
-  });
-
-  it('keeps Worktree creation failures visible and never falls back to Local send', async () => {
-    mocks.guidInput.input = '不要静默降级';
-    mocks.guidInput.dir = '/workspace/research';
-    mocks.sendDisabled.value = false;
-    mocks.ensureManagedWorktree.mockResolvedValueOnce({
-      status: 'unsupported',
-      targetPath: '/Users/example/.codex/worktrees/research-task',
-      handoff: {
-        status: 'unsupported',
-        reason: 'unmerged_changes',
-        detail: 'unmerged',
-        source: { staged: false, unstaged: false, unmerged: true, untrackedCount: 0 },
-      },
-    });
-
-    render(<GuidPage />);
-    await userEvent.click(screen.getByTestId('guid-select-worktree'));
-    await waitFor(() => expect(mocks.inspectGitWorkspace).toHaveBeenCalledOnce());
-    await userEvent.click(screen.getByTestId('guid-send-btn'));
-
-    expect(await screen.findByTestId('guid-worktree-error')).toHaveTextContent('guid.worktree.errors.unmergedChanges');
-    expect(mocks.ensureManagedWorktree).toHaveBeenCalledOnce();
-    expect(mocks.sendMessageHandler).not.toHaveBeenCalled();
-    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-location', 'worktree');
-    expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-workspace-path', '/workspace/research');
   });
 
   it('surfaces a rejected Worktree bridge call without invoking the Local create flow', async () => {

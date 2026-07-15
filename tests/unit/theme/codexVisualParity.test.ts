@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const read = (relativePath: string): string => fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 
+function firstCustomProperty(css: string, property: string): string {
+  const match = css.match(new RegExp(`${property}:\\s*([^;]+);`));
+  if (!match?.[1]) throw new Error(`Missing ${property}`);
+  return match[1].trim();
+}
+
 describe('Codex visual parity overlay', () => {
   it('keeps conversation search in the history header as an icon action', () => {
     const sider = read('packages/desktop/src/renderer/components/layout/Sider/index.tsx');
@@ -21,11 +27,18 @@ describe('Codex visual parity overlay', () => {
 
   it('uses the measured neutral rail and semantic composer elevation tokens', () => {
     const baseline = read('packages/desktop/src/renderer/styles/themes/opl-product-baseline.css');
+    const codexPreset = read('packages/desktop/src/renderer/pages/settings/AppearanceSettings/presets/opl-codex.css');
     const focusRing = read('packages/desktop/src/renderer/hooks/chat/useInputFocusRing.ts');
     const sendBox = read('packages/desktop/src/renderer/components/chat/SendBox/index.tsx');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
 
-    expect(baseline).toContain('--opl-sidebar-bg: #f0f0f0;');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('rgba(0, 0, 0, 0.045)');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('#f0f0f0');
+    expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-bg')).toBe('var(--opl-sidebar-bg)');
+    expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-active')).toBe('var(--opl-sidebar-active)');
+    expect(codexPreset).not.toContain('rgba(246, 246, 244, 0.84)');
+    expect(codexPreset).toMatch(/\.layout-sider\s*{[^}]*background:\s*var\(--opl-codex-sidebar-bg\)\s*!important;/);
     expect(baseline).toContain('--opl-composer-shadow:');
     expect(baseline).toContain('--opl-composer-focus-shadow:');
     expect(focusRing).toContain("activeShadow: 'var(--opl-composer-focus-shadow)'");

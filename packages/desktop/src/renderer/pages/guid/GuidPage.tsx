@@ -15,11 +15,7 @@ import {
   getOplAssistantSkillProfile,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
-import type {
-  GitManagedWorktreeHandoffReceipt,
-  GitWorkspaceHandoffMetadata,
-  GitWorkspaceInspection,
-} from '@/common/types/platform/gitWorkspace';
+import type { GitWorkspaceHandoffMetadata, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
@@ -110,8 +106,6 @@ type GuidWorktreeTaskIdentity = {
   taskId: string;
 };
 
-type UnsupportedWorktreeReason = Extract<GitManagedWorktreeHandoffReceipt, { status: 'unsupported' }>['reason'];
-
 function createGuidWorktreeTaskId(): string {
   const randomId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `guid-${randomId}`;
@@ -125,22 +119,6 @@ function selectDefaultStartingBranch(inspection: GitWorkspaceInspection): string
     inspection.branches[0]?.fullRef ??
     ''
   );
-}
-
-function resolveUnsupportedWorktreeMessage(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  reason: UnsupportedWorktreeReason
-): string {
-  switch (reason) {
-    case 'existing_worktree_handoff_requires_coordinator':
-      return t('guid.worktree.errors.existingTaskChanges');
-    case 'selected_ref_differs_from_local_head':
-      return t('guid.worktree.errors.selectedBranchDiffers');
-    case 'unpatchable_tracked_changes':
-      return t('guid.worktree.errors.unpatchableChanges');
-    case 'unmerged_changes':
-      return t('guid.worktree.errors.unmergedChanges');
-  }
 }
 
 const GuidPage: React.FC = () => {
@@ -560,10 +538,6 @@ const GuidPage: React.FC = () => {
       })
       .then((result) => {
         if (worktreePrepareRequestRef.current !== requestId) return;
-        if (result.status === 'unsupported') {
-          setWorktreeError(resolveUnsupportedWorktreeMessage(t, result.handoff.reason));
-          return;
-        }
         if (!result.targetPath) {
           setWorktreeError(t('guid.worktree.errors.createFailed'));
           return;

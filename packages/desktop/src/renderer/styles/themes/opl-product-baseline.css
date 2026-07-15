@@ -2,9 +2,9 @@
 
 :root,
 [data-color-scheme='default'] {
-  --opl-sidebar-bg: #f0f0f0;
+  --opl-sidebar-bg: #fcfcfc;
   --opl-sidebar-hover: rgba(0, 0, 0, 0.045);
-  --opl-sidebar-active: rgba(0, 0, 0, 0.065);
+  --opl-sidebar-active: #f0f0f0;
   --opl-main-bg: #ffffff;
   --opl-focus-ring: rgba(37, 99, 235, 0.34);
   --opl-composer-border: rgba(0, 0, 0, 0.14);

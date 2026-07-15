@@ -9,6 +9,7 @@ import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductPr
 import { Button } from '@arco-design/web-react';
 import { faCheck, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import classNames from 'classnames';
 import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +17,7 @@ import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import styles from '../index.module.css';
 
 type HomeStartersProps = {
   assistants: Assistant[];
@@ -63,11 +65,10 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
             <Button
               key={assistant.id}
               type='text'
-              className={`!h-36px !w-full !justify-start !border !px-8px !rd-6px !text-13px ${
-                active
-                  ? '!border-primary-5 !bg-primary-1 !text-primary-6'
-                  : '!border-transparent !bg-transparent !text-t-secondary hover:!border-border-1 hover:!bg-fill-2'
-              }`}
+              className={classNames(
+                '!h-36px !w-full !justify-start !border !border-transparent !bg-transparent !px-8px !rd-6px !text-13px !text-t-secondary hover:!border-border-1 hover:!bg-fill-2',
+                active && styles.homeStarterActive
+              )}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
               disabled={launchBlocked}
               title={blockedTitle}
@@ -77,7 +78,12 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
             >
               <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
               {active ? (
-                <FontAwesomeIcon icon={faCheck} className='shrink-0 text-13px' aria-hidden='true' />
+                <FontAwesomeIcon
+                  icon={faCheck}
+                  className='shrink-0 text-13px'
+                  data-testid='starter-active-check'
+                  aria-hidden='true'
+                />
               ) : (
                 <FontAwesomeIcon
                   icon={faChevronRight}

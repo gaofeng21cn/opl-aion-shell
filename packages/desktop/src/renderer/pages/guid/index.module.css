@@ -9,6 +9,12 @@
   margin: 0 auto;
 }
 
+.homeStarterActive:global(.arco-btn) {
+  border-color: var(--color-border-2) !important;
+  background: var(--opl-sidebar-active) !important;
+  color: var(--color-text-1) !important;
+}
+
 .guidSetupNotice {
   width: min(100%, 760px);
   min-height: 44px;

@@ -24,11 +24,7 @@
       "projectRequired": "请选择项目目录后再以 Worktree 启动此任务。",
       "noBranches": "此仓库没有可用的起始分支。",
       "inspectFailed": "无法读取此项目的 Git 分支，任务尚未启动。",
-      "createFailed": "无法创建任务 Worktree；任务尚未启动，也没有回退到本地模式。",
-      "existingTaskChanges": "此任务的 Worktree 已存在，无法自动追加项目目录中新产生的本地跟踪改动。",
-      "selectedBranchDiffers": "只有当起始分支指向当前本地 HEAD 时，才能应用本地跟踪改动。",
-      "unpatchableChanges": "Git 检测到无法安全应用到任务 Worktree 的本地跟踪改动。",
-      "unmergedChanges": "请先解决未合并改动，再以 Worktree 启动此任务。"
+      "createFailed": "无法创建任务 Worktree；任务尚未启动，也没有回退到本地模式。"
     }
   },
   "capabilities": {
