@@ -13,20 +13,13 @@ export type GitWorkspaceErrorCode =
   | 'EMPTY_COMMIT_MESSAGE'
   | 'INVALID_BRANCH_NAME'
   | 'INVALID_COMMAND_OUTPUT'
-  | 'INVALID_SNAPSHOT_RECEIPT'
   | 'INVALID_START_REF'
   | 'INVALID_TASK_ID'
-  | 'MANAGED_WORKTREE_REQUIRED'
   | 'NO_STAGED_CHANGES'
   | 'NOT_GIT_REPOSITORY'
   | 'REMOTE_UNAVAILABLE'
   | 'TARGET_EXISTS'
-  | 'UPSTREAM_UNAVAILABLE'
-  | 'WORKTREE_CLEANUP_FAILED'
-  | 'WORKTREE_RESTORE_CONFLICT'
-  | 'WORKTREE_ROLLBACK_FAILED'
-  | 'WORKTREE_SNAPSHOT_CONFLICT'
-  | 'WORKTREE_SNAPSHOT_FAILED';
+  | 'UPSTREAM_UNAVAILABLE';
 
 export type GitBranchSummary = {
   name: string;
@@ -126,51 +119,6 @@ export type GitManagedWorktreeRequest = {
   newBranch?: string;
 };
 
-export type GitWorktreeSnapshotReceipt = {
-  schema: 'opl_worktree_snapshot_receipt.v1';
-  snapshotId: string;
-  createdAt: string;
-  repositoryRoot: string;
-  taskId: string;
-  worktreePath: string;
-  head: string;
-  branch: string | null;
-  branchRef: string | null;
-  detached: boolean;
-  staged: boolean;
-  trackedUnstaged: boolean;
-  untrackedCount: number;
-  ignoredCount: number;
-  snapshotKind: 'head' | 'stash';
-  snapshotRef: string;
-  snapshotObject: string;
-};
-
-export type GitManagedWorktreeCleanupRequest = {
-  repositoryPath: string;
-  taskId: string;
-  worktreePath: string;
-};
-
-export type GitManagedWorktreeCleanupResult = {
-  status: 'removed';
-  repositoryRoot: string;
-  worktreePath: string;
-  snapshot: GitWorktreeSnapshotReceipt;
-};
-
-export type GitManagedWorktreeRestoreRequest = {
-  repositoryPath: string;
-  snapshot: GitWorktreeSnapshotReceipt;
-};
-
-export type GitManagedWorktreeRestoreResult = {
-  status: 'restored';
-  repositoryRoot: string;
-  worktree: GitWorktreeSummary;
-  snapshot: GitWorktreeSnapshotReceipt;
-};
-
 export type GitWorkspaceHandoffMetadata = {
   schema: 'opl_workspace_handoff.v1';
   locality: 'local' | 'worktree';
@@ -180,7 +128,8 @@ export type GitWorkspaceHandoffMetadata = {
   startRef: string;
   startCommit: string;
   worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup';
-  snapshot?: GitWorktreeSnapshotReceipt;
+  // Legacy handoff payloads are read and discarded during migration.
+  snapshot?: unknown;
 };
 
 type GitManagedWorktreeResultBase = {

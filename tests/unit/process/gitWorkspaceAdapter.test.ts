@@ -21,8 +21,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type {
   GitCommitStagedResult,
-  GitManagedWorktreeCleanupResult,
-  GitManagedWorktreeRestoreResult,
   GitManagedWorktreeResult,
   GitPushCurrentBranchResult,
   GitWorkspaceInspection,
@@ -456,319 +454,6 @@ describe('GitWorkspaceAdapter managed worktrees', () => {
   });
 });
 
-describe('GitWorkspaceAdapter managed worktree lifecycle', () => {
-  it('snapshots and restores detached HEAD, index, tracked worktree changes, and untracked files', async () => {
-    const fixture = createRepository();
-    writeFileSync(path.join(fixture.repository, '.gitignore'), '.env\n');
-    git(fixture.repository, 'add', '.gitignore');
-    git(fixture.repository, 'commit', '-m', 'ignore local environment');
-    let receiptBeforeRemove: unknown;
-    const inspectReceiptBeforeRemove: CommandRunner = async (command, args, options) => {
-      if (command === 'git' && args.includes('worktree') && args.includes('remove')) {
-        const snapshotRef = git(
-          fixture.repository,
-          'for-each-ref',
-          '--format=%(refname)',
-          'refs/opl/worktree-snapshots'
-        ).trim();
-        const tag = git(fixture.repository, 'cat-file', 'tag', snapshotRef);
-        receiptBeforeRemove = JSON.parse(tag.slice(tag.indexOf('\n\n') + 2));
-      }
-      return runnerWithoutGh(command, args, options);
-    };
-    const adapter = createAdapter(fixture, inspectReceiptBeforeRemove);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'detached-lifecycle',
-      startRef: 'main',
-    });
-    writeFileSync(path.join(created.targetPath, 'tracked.txt'), 'staged\n');
-    git(created.targetPath, 'add', 'tracked.txt');
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'unstaged\n');
-    writeFileSync(path.join(created.targetPath, 'scratch.txt'), 'untracked\n');
-    writeFileSync(path.join(created.targetPath, '.env'), 'LOCAL_SECRET=preserved\n');
-
-    const cleanup = await adapter.cleanupManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'detached-lifecycle',
-      worktreePath: created.targetPath,
-    });
-
-    expect(existsSync(created.targetPath)).toBe(false);
-    expect(cleanup.snapshot).toMatchObject({
-      schema: 'opl_worktree_snapshot_receipt.v1',
-      taskId: 'detached-lifecycle',
-      worktreePath: created.targetPath,
-      head: created.startCommit,
-      branch: null,
-      branchRef: null,
-      detached: true,
-      staged: true,
-      trackedUnstaged: true,
-      untrackedCount: 1,
-      ignoredCount: 1,
-      snapshotKind: 'stash',
-    });
-    expect(receiptBeforeRemove).toEqual(cleanup.snapshot);
-    expect(git(fixture.repository, 'cat-file', '-t', cleanup.snapshot.snapshotRef).trim()).toBe('tag');
-    expect(git(fixture.repository, 'rev-parse', `${cleanup.snapshot.snapshotRef}^{commit}`).trim()).toBe(
-      cleanup.snapshot.snapshotObject
-    );
-
-    const restored = await adapter.restoreManagedWorktree({
-      repositoryPath: fixture.repository,
-      snapshot: cleanup.snapshot,
-    });
-
-    expect(restored.worktree).toMatchObject({
-      path: created.targetPath,
-      head: created.startCommit,
-      branch: null,
-      detached: true,
-    });
-    expect(readFileSync(path.join(created.targetPath, 'tracked.txt'), 'utf8')).toBe('staged\nunstaged\n');
-    expect(git(created.targetPath, 'diff', '--cached', '--name-only').trim()).toBe('tracked.txt');
-    expect(git(created.targetPath, 'diff', '--name-only').trim()).toBe('tracked.txt');
-    expect(readFileSync(path.join(created.targetPath, 'scratch.txt'), 'utf8')).toBe('untracked\n');
-    expect(readFileSync(path.join(created.targetPath, '.env'), 'utf8')).toBe('LOCAL_SECRET=preserved\n');
-  });
-
-  it('retains the task branch and snapshot ref while restoring the original branch checkout', async () => {
-    const fixture = createRepository();
-    const adapter = createAdapter(fixture);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'branch-lifecycle',
-      startRef: 'main',
-      newBranch: 'feature/branch-lifecycle',
-    });
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'task commit\n');
-    git(created.targetPath, 'add', 'tracked.txt');
-    git(created.targetPath, 'commit', '-m', 'advance task branch');
-    const taskHead = git(created.targetPath, 'rev-parse', 'HEAD').trim();
-
-    const cleanup = await adapter.cleanupManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'branch-lifecycle',
-      worktreePath: created.targetPath,
-    });
-
-    expect(cleanup.snapshot).toMatchObject({
-      head: taskHead,
-      branch: 'feature/branch-lifecycle',
-      branchRef: 'refs/heads/feature/branch-lifecycle',
-      detached: false,
-      snapshotKind: 'head',
-    });
-    expect(git(fixture.repository, 'rev-parse', 'refs/heads/feature/branch-lifecycle').trim()).toBe(taskHead);
-    expect(git(fixture.repository, 'rev-parse', `${cleanup.snapshot.snapshotRef}^{commit}`).trim()).toBe(taskHead);
-
-    const restored = await adapter.restoreManagedWorktree({
-      repositoryPath: fixture.repository,
-      snapshot: cleanup.snapshot,
-    });
-
-    expect(restored.worktree).toMatchObject({ head: taskHead, branch: 'feature/branch-lifecycle', detached: false });
-    expect(git(created.targetPath, 'branch', '--show-current').trim()).toBe('feature/branch-lifecycle');
-    expect(git(fixture.repository, 'rev-parse', 'refs/heads/feature/branch-lifecycle').trim()).toBe(taskHead);
-    expect(git(fixture.repository, 'rev-parse', `${cleanup.snapshot.snapshotRef}^{commit}`).trim()).toBe(taskHead);
-  });
-
-  it('rejects cleanup outside the deterministic managed worktree path', async () => {
-    const fixture = createRepository();
-    const adapter = createAdapter(fixture);
-    const targetPath = path.join(fixture.root, 'manual-worktree');
-    await adapter.createWorktreePrimitive({
-      repositoryPath: fixture.repository,
-      targetPath,
-      startRef: 'main',
-    });
-
-    await expectAdapterError(
-      adapter.cleanupManagedWorktree({
-        repositoryPath: fixture.repository,
-        taskId: 'manual-worktree',
-        worktreePath: targetPath,
-      }),
-      'MANAGED_WORKTREE_REQUIRED'
-    );
-    expect(existsSync(targetPath)).toBe(true);
-  });
-
-  it('does not remove the worktree when the durable snapshot ref cannot be written', async () => {
-    const fixture = createRepository();
-    let removeAttempted = false;
-    const failingSnapshotRefRunner: CommandRunner = (command, args, options) => {
-      if (command === 'git' && args.includes('worktree') && args.includes('remove')) removeAttempted = true;
-      if (command === 'git' && args.includes('update-ref') && args.some((arg) => arg.startsWith('refs/opl/'))) {
-        return Promise.reject(new CommandExecutionError('git', 1, 'forced snapshot ref failure', null));
-      }
-      return runnerWithoutGh(command, args, options);
-    };
-    const adapter = createAdapter(fixture, failingSnapshotRefRunner);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'snapshot-ref-failure',
-      startRef: 'main',
-    });
-    writeFileSync(path.join(created.targetPath, 'tracked.txt'), 'staged\n');
-    git(created.targetPath, 'add', 'tracked.txt');
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'unstaged\n');
-    writeFileSync(path.join(created.targetPath, 'scratch.txt'), 'untracked\n');
-
-    await expectAdapterError(
-      adapter.cleanupManagedWorktree({
-        repositoryPath: fixture.repository,
-        taskId: 'snapshot-ref-failure',
-        worktreePath: created.targetPath,
-      }),
-      'WORKTREE_SNAPSHOT_FAILED'
-    );
-
-    expect(removeAttempted).toBe(false);
-    expect(readFileSync(path.join(created.targetPath, 'tracked.txt'), 'utf8')).toBe('staged\nunstaged\n');
-    expect(git(created.targetPath, 'diff', '--cached', '--name-only').trim()).toBe('tracked.txt');
-    expect(git(created.targetPath, 'diff', '--name-only').trim()).toBe('tracked.txt');
-    expect(readFileSync(path.join(created.targetPath, 'scratch.txt'), 'utf8')).toBe('untracked\n');
-  });
-
-  it('does not remove the worktree when Git leaves a required change outside the stash snapshot', async () => {
-    const fixture = createRepository();
-    let stashCreated = false;
-    let residualReported = false;
-    let removeAttempted = false;
-    const incompleteSnapshotRunner: CommandRunner = async (command, args, options) => {
-      const result = await runnerWithoutGh(command, args, options);
-      if (command === 'git' && args.includes('stash') && args.includes('push')) stashCreated = true;
-      if (command === 'git' && args.includes('worktree') && args.includes('remove')) removeAttempted = true;
-      if (
-        stashCreated &&
-        !residualReported &&
-        command === 'git' &&
-        args.includes('diff') &&
-        args.includes('--quiet') &&
-        !args.includes('--cached')
-      ) {
-        residualReported = true;
-        return { ...result, exitCode: 1 };
-      }
-      return result;
-    };
-    const adapter = createAdapter(fixture, incompleteSnapshotRunner);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'incomplete-snapshot',
-      startRef: 'main',
-    });
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'unstaged\n');
-
-    await expectAdapterError(
-      adapter.cleanupManagedWorktree({
-        repositoryPath: fixture.repository,
-        taskId: 'incomplete-snapshot',
-        worktreePath: created.targetPath,
-      }),
-      'WORKTREE_SNAPSHOT_FAILED'
-    );
-
-    expect(residualReported).toBe(true);
-    expect(removeAttempted).toBe(false);
-    expect(readFileSync(path.join(created.targetPath, 'tracked.txt'), 'utf8')).toBe('base\nunstaged\n');
-  });
-
-  it('restores the original dirty state when Git cannot remove the snapshotted worktree', async () => {
-    const fixture = createRepository();
-    const removeFailureRunner: CommandRunner = (command, args, options) => {
-      if (command === 'git' && args.includes('worktree') && args.includes('remove')) {
-        return Promise.reject(new CommandExecutionError('git', 1, 'forced remove failure', null));
-      }
-      return runnerWithoutGh(command, args, options);
-    };
-    const adapter = createAdapter(fixture, removeFailureRunner);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'remove-failure',
-      startRef: 'main',
-    });
-    writeFileSync(path.join(created.targetPath, 'tracked.txt'), 'staged\n');
-    git(created.targetPath, 'add', 'tracked.txt');
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'unstaged\n');
-    writeFileSync(path.join(created.targetPath, 'scratch.txt'), 'untracked\n');
-
-    await expectAdapterError(
-      adapter.cleanupManagedWorktree({
-        repositoryPath: fixture.repository,
-        taskId: 'remove-failure',
-        worktreePath: created.targetPath,
-      }),
-      'WORKTREE_CLEANUP_FAILED'
-    );
-
-    expect(readFileSync(path.join(created.targetPath, 'tracked.txt'), 'utf8')).toBe('staged\nunstaged\n');
-    expect(git(created.targetPath, 'show', ':tracked.txt')).toBe('staged\n');
-    expect(git(created.targetPath, 'diff', '--cached', '--name-only').trim()).toBe('tracked.txt');
-    expect(git(created.targetPath, 'diff', '--name-only').trim()).toBe('tracked.txt');
-    expect(readFileSync(path.join(created.targetPath, 'scratch.txt'), 'utf8')).toBe('untracked\n');
-  });
-
-  it('returns a typed conflict without consuming the snapshot when the retained branch moved', async () => {
-    const fixture = createRepository();
-    const adapter = createAdapter(fixture);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'moved-branch',
-      startRef: 'main',
-      newBranch: 'feature/moved-branch',
-    });
-    const cleanup = await adapter.cleanupManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'moved-branch',
-      worktreePath: created.targetPath,
-    });
-    const snapshotTag = git(fixture.repository, 'rev-parse', cleanup.snapshot.snapshotRef).trim();
-    appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'main moved\n');
-    git(fixture.repository, 'add', 'tracked.txt');
-    git(fixture.repository, 'commit', '-m', 'move main');
-    git(fixture.repository, 'update-ref', 'refs/heads/feature/moved-branch', 'HEAD');
-
-    await expectAdapterError(
-      adapter.restoreManagedWorktree({ repositoryPath: fixture.repository, snapshot: cleanup.snapshot }),
-      'WORKTREE_RESTORE_CONFLICT'
-    );
-
-    expect(existsSync(created.targetPath)).toBe(false);
-    expect(git(fixture.repository, 'rev-parse', cleanup.snapshot.snapshotRef).trim()).toBe(snapshotTag);
-    expect(git(fixture.repository, 'rev-parse', `${cleanup.snapshot.snapshotRef}^{commit}`).trim()).toBe(
-      cleanup.snapshot.snapshotObject
-    );
-  });
-
-  it('preserves an existing repository stash while retaining the dedicated snapshot ref', async () => {
-    const fixture = createRepository();
-    appendFileSync(path.join(fixture.repository, 'tracked.txt'), 'existing stash\n');
-    git(fixture.repository, 'stash', 'push', '--message', 'existing-user-stash');
-    const existingStash = git(fixture.repository, 'rev-parse', 'refs/stash').trim();
-    const adapter = createAdapter(fixture);
-    const created = await adapter.ensureManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'stash-preservation',
-      startRef: 'main',
-    });
-    appendFileSync(path.join(created.targetPath, 'tracked.txt'), 'task change\n');
-
-    const cleanup = await adapter.cleanupManagedWorktree({
-      repositoryPath: fixture.repository,
-      taskId: 'stash-preservation',
-      worktreePath: created.targetPath,
-    });
-
-    expect(git(fixture.repository, 'rev-parse', 'refs/stash').trim()).toBe(existingStash);
-    expect(git(fixture.repository, 'rev-parse', `${cleanup.snapshot.snapshotRef}^{commit}`).trim()).toBe(
-      cleanup.snapshot.snapshotObject
-    );
-  });
-});
-
 describe('GitWorkspaceAdapter commit and push actions', () => {
   it('rejects blank commit messages and empty staged commits', async () => {
     const fixture = createRepository();
@@ -842,32 +527,24 @@ describe('Git workspace bridge wiring', () => {
     const results = {
       inspect: {} as GitWorkspaceInspection,
       ensure: {} as GitManagedWorktreeResult,
-      cleanup: {} as GitManagedWorktreeCleanupResult,
-      restore: {} as GitManagedWorktreeRestoreResult,
       commit: {} as GitCommitStagedResult,
       push: {} as GitPushCurrentBranchResult,
     };
     const port: GitWorkspacePort = {
       inspect: vi.fn(async () => results.inspect),
       ensureManagedWorktree: vi.fn(async () => results.ensure),
-      cleanupManagedWorktree: vi.fn(async () => results.cleanup),
-      restoreManagedWorktree: vi.fn(async () => results.restore),
       commitStaged: vi.fn(async () => results.commit),
       pushCurrentBranch: vi.fn(async () => results.push),
     };
     const handlers: {
       inspect?: Parameters<GitWorkspaceBridgeApi['inspect']['provider']>[0];
       ensure?: Parameters<GitWorkspaceBridgeApi['ensureManagedWorktree']['provider']>[0];
-      cleanup?: Parameters<GitWorkspaceBridgeApi['cleanupManagedWorktree']['provider']>[0];
-      restore?: Parameters<GitWorkspaceBridgeApi['restoreManagedWorktree']['provider']>[0];
       commit?: Parameters<GitWorkspaceBridgeApi['commitStaged']['provider']>[0];
       push?: Parameters<GitWorkspaceBridgeApi['pushCurrentBranch']['provider']>[0];
     } = {};
     const api: GitWorkspaceBridgeApi = {
       inspect: { provider: (handler) => void (handlers.inspect = handler) },
       ensureManagedWorktree: { provider: (handler) => void (handlers.ensure = handler) },
-      cleanupManagedWorktree: { provider: (handler) => void (handlers.cleanup = handler) },
-      restoreManagedWorktree: { provider: (handler) => void (handlers.restore = handler) },
       commitStaged: { provider: (handler) => void (handlers.commit = handler) },
       pushCurrentBranch: { provider: (handler) => void (handlers.push = handler) },
     };
@@ -878,12 +555,6 @@ describe('Git workspace bridge wiring', () => {
     await expect(handlers.ensure!({ repositoryPath: '/repo', taskId: 'task', startRef: 'main' })).resolves.toBe(
       results.ensure
     );
-    await expect(
-      handlers.cleanup!({ repositoryPath: '/repo', taskId: 'task', worktreePath: '/worktree' })
-    ).resolves.toBe(results.cleanup);
-    await expect(
-      handlers.restore!({ repositoryPath: '/repo', snapshot: {} as GitManagedWorktreeRestoreResult['snapshot'] })
-    ).resolves.toBe(results.restore);
     await expect(handlers.commit!({ cwd: '/repo', message: 'message' })).resolves.toBe(results.commit);
     await expect(handlers.push!({ cwd: '/repo' })).resolves.toBe(results.push);
   });

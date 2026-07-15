@@ -8,11 +8,7 @@ import { ipcBridge } from '@/common';
 import type {
   GitCommitStagedRequest,
   GitCommitStagedResult,
-  GitManagedWorktreeCleanupRequest,
-  GitManagedWorktreeCleanupResult,
   GitManagedWorktreeRequest,
-  GitManagedWorktreeRestoreRequest,
-  GitManagedWorktreeRestoreResult,
   GitManagedWorktreeResult,
   GitPushCurrentBranchRequest,
   GitPushCurrentBranchResult,
@@ -24,8 +20,6 @@ import { GitWorkspaceAdapter } from './GitWorkspaceAdapter';
 export type GitWorkspacePort = {
   inspect: (request: GitWorkspaceInspectRequest) => Promise<GitWorkspaceInspection>;
   ensureManagedWorktree: (request: GitManagedWorktreeRequest) => Promise<GitManagedWorktreeResult>;
-  cleanupManagedWorktree: (request: GitManagedWorktreeCleanupRequest) => Promise<GitManagedWorktreeCleanupResult>;
-  restoreManagedWorktree: (request: GitManagedWorktreeRestoreRequest) => Promise<GitManagedWorktreeRestoreResult>;
   commitStaged: (request: GitCommitStagedRequest) => Promise<GitCommitStagedResult>;
   pushCurrentBranch: (request: GitPushCurrentBranchRequest) => Promise<GitPushCurrentBranchResult>;
 };
@@ -37,8 +31,6 @@ type Provider<Data, Params> = {
 export type GitWorkspaceBridgeApi = {
   inspect: Provider<GitWorkspaceInspection, GitWorkspaceInspectRequest>;
   ensureManagedWorktree: Provider<GitManagedWorktreeResult, GitManagedWorktreeRequest>;
-  cleanupManagedWorktree: Provider<GitManagedWorktreeCleanupResult, GitManagedWorktreeCleanupRequest>;
-  restoreManagedWorktree: Provider<GitManagedWorktreeRestoreResult, GitManagedWorktreeRestoreRequest>;
   commitStaged: Provider<GitCommitStagedResult, GitCommitStagedRequest>;
   pushCurrentBranch: Provider<GitPushCurrentBranchResult, GitPushCurrentBranchRequest>;
 };
@@ -49,8 +41,6 @@ export function initGitWorkspaceBridge(
 ): void {
   api.inspect.provider((request) => port.inspect(request));
   api.ensureManagedWorktree.provider((request) => port.ensureManagedWorktree(request));
-  api.cleanupManagedWorktree.provider((request) => port.cleanupManagedWorktree(request));
-  api.restoreManagedWorktree.provider((request) => port.restoreManagedWorktree(request));
   api.commitStaged.provider((request) => port.commitStaged(request));
   api.pushCurrentBranch.provider((request) => port.pushCurrentBranch(request));
 }
