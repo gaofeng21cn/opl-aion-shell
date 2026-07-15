@@ -43,6 +43,10 @@ export type OplAppStateLoadOptions = {
   background?: boolean;
 };
 
+export type UseOplAppStateOptions = {
+  autoLoad?: boolean;
+};
+
 export function isOplRecord(value: unknown): value is OplAppStateRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -318,7 +322,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): UseOplAppStateResult {
+export function useOplAppState(
+  initialProfile: OplAppStateProfile = 'fast',
+  options: UseOplAppStateOptions = {}
+): UseOplAppStateResult {
+  const autoLoad = options.autoLoad !== false;
   const cached = useMemo(() => (initialProfile === 'fast' ? readCachedFastState() : null), [initialProfile]);
   const [payload, setPayload] = useState<OplAppStatePayload | null>(cached?.payload ?? null);
   const [loadedAt, setLoadedAt] = useState<string | null>(cached?.loadedAt ?? null);
@@ -375,8 +383,9 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
   );
 
   useEffect(() => {
+    if (!autoLoad) return;
     void load(initialProfile, { background: initialHadCachedState.current });
-  }, [initialProfile, load]);
+  }, [autoLoad, initialProfile, load]);
 
   useEffect(() => {
     if (initialProfile !== 'fast' || typeof window === 'undefined') return undefined;

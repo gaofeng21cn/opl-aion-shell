@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.mock factories are hoisted above const declarations — use vi.hoisted to avoid TDZ errors
-const { setActiveTheme, configGet } = vi.hoisted(() => ({
-  setActiveTheme: vi.fn().mockResolvedValue(undefined),
+const { reapplyConfiguredTheme, configGet } = vi.hoisted(() => ({
+  reapplyConfiguredTheme: vi.fn().mockResolvedValue(undefined),
   configGet: vi.fn(),
 }));
 
-vi.mock('@/renderer/utils/theme/applyTheme', () => ({ setActiveTheme }));
+vi.mock('@/renderer/utils/theme/applyTheme', () => ({ reapplyConfiguredTheme }));
 vi.mock('@/common/config/configService', () => ({ configService: { get: configGet } }));
 
 import { startSystemThemeWatcher } from '@renderer/utils/theme/systemThemeWatcher';
-import { SYSTEM_THEME_ID } from '@/common/theme/constants';
 
 type ChangeHandler = (e: { matches: boolean }) => void;
 
@@ -31,10 +30,10 @@ describe('startSystemThemeWatcher', () => {
 
   it('re-applies the system theme on OS change while system mode is active', () => {
     const media = installMatchMedia();
-    configGet.mockReturnValue(SYSTEM_THEME_ID);
+    configGet.mockReturnValue('system');
     startSystemThemeWatcher();
     media.fire(true);
-    expect(setActiveTheme).toHaveBeenCalledWith(SYSTEM_THEME_ID);
+    expect(reapplyConfiguredTheme).toHaveBeenCalledOnce();
   });
 
   it('does nothing when a non-system theme is active', () => {
@@ -42,15 +41,15 @@ describe('startSystemThemeWatcher', () => {
     configGet.mockReturnValue('misaka-mikoto-theme');
     startSystemThemeWatcher();
     media.fire(true);
-    expect(setActiveTheme).not.toHaveBeenCalled();
+    expect(reapplyConfiguredTheme).not.toHaveBeenCalled();
   });
 
   it('stops re-applying after unsubscribe', () => {
     const media = installMatchMedia();
-    configGet.mockReturnValue(SYSTEM_THEME_ID);
+    configGet.mockReturnValue('system');
     const off = startSystemThemeWatcher();
     off();
     media.fire(true);
-    expect(setActiveTheme).not.toHaveBeenCalled();
+    expect(reapplyConfiguredTheme).not.toHaveBeenCalled();
   });
 });

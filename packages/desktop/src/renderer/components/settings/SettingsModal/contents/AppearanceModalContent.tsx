@@ -5,16 +5,16 @@
  */
 
 import React from 'react';
-import { Typography } from '@arco-design/web-react';
-import { SwitchThemes, Text } from '@icon-park/react';
+import { Button, Typography } from '@arco-design/web-react';
+import { Text } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import ScaleControl from '@/renderer/components/settings/ScaleControl';
 import FontSizeStepper from '@/renderer/components/settings/FontSizeStepper';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
-import CssThemeSettings from '@renderer/pages/settings/AppearanceSettings/CssThemeSettings';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { FONT_SIZE_KEYS, FONT_SIZE_SPECS, FONT_SIZE_STEP, type FontSizeKey } from '@/common/config/fontSizes';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
+import type { ThemeAppearanceMode } from '@/common/theme/types';
 import PersonalPreferenceSettings from './SystemModalContent/PersonalPreferenceSettings';
 import { useSettingsViewMode } from '../settingsViewContext';
 
@@ -24,6 +24,28 @@ const FONT_SIZE_LABEL_KEY: Record<FontSizeKey, string> = {
   markdown: 'settings.fontSizeMarkdown',
   code: 'settings.fontSizeCode',
 };
+
+const APPEARANCE_MODES: ThemeAppearanceMode[] = ['system', 'light', 'dark'];
+
+const AppearanceModePreview: React.FC<{ mode: ThemeAppearanceMode }> = ({ mode }) => (
+  <span
+    aria-hidden='true'
+    className={`relative block aspect-[1.48] w-full overflow-hidden rounded-7px border border-solid border-black/10 ${
+      mode === 'light' ? 'bg-[#f2f2f2]' : mode === 'dark' ? 'bg-[#565656]' : 'bg-[#a8a8a8]'
+    }`}
+  >
+    {mode === 'system' && <span className='absolute inset-y-0 right-0 w-1/2 bg-[#4f4f4f]' />}
+    <span
+      className={`absolute bottom-[10%] left-[11%] right-[11%] top-[35%] overflow-hidden rounded-5px shadow-sm ${mode === 'dark' ? 'bg-[#f7f7f7]' : 'bg-white'}`}
+    >
+      {mode === 'system' && <span className='absolute inset-y-0 right-0 w-1/2 bg-[#626262]' />}
+      <span className='absolute left-[12%] top-[24%] h-4px w-[42%] rounded-full bg-[#d2d2d2]' />
+      <span className='absolute left-[12%] top-[47%] h-4px w-[66%] rounded-full bg-[#dedede]' />
+      <span className='absolute left-[12%] top-[70%] h-4px w-[52%] rounded-full bg-[#e5e5e5]' />
+    </span>
+    <span className='absolute left-1/2 top-[20%] h-4px w-[28%] -translate-x-1/2 rounded-full bg-[#c7c7c7]' />
+  </span>
+);
 
 /**
  * 偏好设置行组件 / Preference row component
@@ -70,8 +92,30 @@ const SectionHeading: React.FC<{
  */
 const AppearanceModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const { fontSizes, setFontSize } = useThemeContext();
+  const { appearanceMode, setAppearanceMode, fontSizes, setFontSize } = useThemeContext();
   const isPageMode = useSettingsViewMode() === 'page';
+
+  const selectAppearanceMode = (mode: ThemeAppearanceMode) => {
+    void setAppearanceMode(mode);
+  };
+
+  const handleAppearanceModeKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % APPEARANCE_MODES.length;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (index - 1 + APPEARANCE_MODES.length) % APPEARANCE_MODES.length;
+    }
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = APPEARANCE_MODES.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextMode = APPEARANCE_MODES[nextIndex];
+    selectAppearanceMode(nextMode);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`[data-testid="appearance-mode-${nextMode}"]`)?.focus();
+    });
+  };
 
   return (
     <div className='opl-settings-page flex flex-col h-full w-full' data-testid='settings-page-preferences'>
@@ -95,7 +139,56 @@ const AppearanceModalContent: React.FC = () => {
                 title={t('settings.appearancePreferencesTitle')}
                 description={t('settings.appearancePreferencesDesc')}
               />
-              <div className='opl-settings-list'>
+              <div className='border-t border-solid border-[var(--border-base)] px-16px py-14px'>
+                <span id='themes' aria-hidden='true' />
+                <div className='mb-10px text-14px font-medium text-t-primary'>{t('settings.appearanceMode')}</div>
+                <div
+                  role='radiogroup'
+                  aria-label={t('settings.appearanceMode')}
+                  className='grid grid-cols-3 gap-12px'
+                  data-testid='appearance-mode-selector'
+                >
+                  {APPEARANCE_MODES.map((mode, index) => {
+                    const selected = appearanceMode === mode;
+                    const label = t(
+                      mode === 'system'
+                        ? 'settings.systemMode'
+                        : mode === 'light'
+                          ? 'settings.lightMode'
+                          : 'settings.darkMode'
+                    );
+                    return (
+                      <Button
+                        key={mode}
+                        type='text'
+                        htmlType='button'
+                        role='radio'
+                        aria-checked={selected}
+                        aria-label={label}
+                        tabIndex={selected ? 0 : -1}
+                        data-testid={`appearance-mode-${mode}`}
+                        className='group !block !h-auto !w-full !min-w-0 !border-0 !bg-transparent !p-0 !text-center !text-t-secondary focus-visible:!outline-none'
+                        onClick={() => selectAppearanceMode(mode)}
+                        onKeyDown={(event) => handleAppearanceModeKeyDown(event, index)}
+                      >
+                        <span
+                          className={`block rounded-8px border-2 border-solid p-2px transition-colors ${
+                            selected
+                              ? 'border-[var(--color-text-1)]'
+                              : 'border-transparent group-hover:border-[var(--color-border-3)]'
+                          } group-focus-visible:border-[var(--color-primary)]`}
+                        >
+                          <AppearanceModePreview mode={mode} />
+                        </span>
+                        <span className={`mt-7px block text-13px leading-18px ${selected ? 'text-t-primary' : ''}`}>
+                          {label}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className='opl-settings-list border-t border-solid border-[var(--border-base)]'>
                 <PreferenceRow label={t('settings.language')}>
                   <LanguageSwitcher />
                 </PreferenceRow>
@@ -115,15 +208,6 @@ const AppearanceModalContent: React.FC = () => {
                 <PreferenceRow label={t('settings.scale')}>
                   <ScaleControl />
                 </PreferenceRow>
-              </div>
-              <div id='themes' className='border-t border-solid border-[var(--border-base)]'>
-                <div className='flex min-w-0 items-center gap-10px px-16px pt-16px'>
-                  <SwitchThemes theme='outline' size='16' />
-                  <div className='text-14px font-medium text-t-primary'>{t('settings.theme')}</div>
-                </div>
-                <div className='p-16px' data-testid='preferences-theme-section'>
-                  <CssThemeSettings />
-                </div>
               </div>
             </section>
           </div>

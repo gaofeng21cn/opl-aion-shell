@@ -7,8 +7,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { faCheck, faChevronRight } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { BookOpen, ChartHistogram, CheckOne, Flask, Microscope, Right, WritingFluently } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useMemo } from 'react';
@@ -26,6 +25,22 @@ type HomeStartersProps = {
   onSelect: (assistantId: string) => void;
   onClear?: () => void;
 };
+
+function starterIcon(packageId: string): React.ReactNode {
+  const props = { theme: 'outline' as const, size: 16, fill: 'currentColor' };
+  switch (canonicalizeOplProfessionalAgentId(packageId)) {
+    case 'mas':
+      return <Microscope {...props} />;
+    case 'mag':
+      return <Flask {...props} />;
+    case 'rca':
+      return <ChartHistogram {...props} />;
+    case 'obf':
+      return <BookOpen {...props} />;
+    default:
+      return <WritingFluently {...props} />;
+  }
+}
 
 const HomeStarters: React.FC<HomeStartersProps> = ({
   assistants,
@@ -48,8 +63,8 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
   if (starters.length === 0) return null;
 
   return (
-    <section className='mb-12px' aria-label={t('guid.home.startersLabel')} data-testid='opl-home-starters'>
-      <div className='grid grid-cols-2 gap-x-8px gap-y-2px'>
+    <section className={styles.homeStarters} aria-label={t('guid.home.startersLabel')} data-testid='opl-home-starters'>
+      <div className={styles.homeStarterGrid}>
         {starters.map((assistant) => {
           const label = assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
@@ -65,10 +80,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
             <Button
               key={assistant.id}
               type='text'
-              className={classNames(
-                '!h-36px !w-full !justify-start !border !border-transparent !bg-transparent !px-8px !rd-6px !text-13px !text-t-secondary hover:!border-border-1 hover:!bg-fill-2',
-                active && styles.homeStarterActive
-              )}
+              className={classNames(styles.homeStarter, active && styles.homeStarterActive)}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
               disabled={launchBlocked}
               title={blockedTitle}
@@ -76,18 +88,25 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               data-opl-active={String(active)}
               data-testid={`home-starter-${assistant.id}`}
             >
+              <span
+                className='mr-7px inline-flex h-16px w-16px shrink-0 items-center justify-center text-t-secondary'
+                data-testid={`starter-icon-${assistant.id}`}
+                aria-hidden='true'
+              >
+                {starterIcon(assistant.id)}
+              </span>
               <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
               {active ? (
-                <FontAwesomeIcon
-                  icon={faCheck}
-                  className='shrink-0 text-13px'
-                  data-testid='starter-active-check'
-                  aria-hidden='true'
-                />
+                <span className='inline-flex shrink-0' data-testid='starter-active-check' aria-hidden='true'>
+                  <CheckOne theme='filled' size={14} fill='currentColor' />
+                </span>
               ) : (
-                <FontAwesomeIcon
-                  icon={faChevronRight}
-                  className='shrink-0 text-12px text-t-tertiary'
+                <Right
+                  theme='outline'
+                  size={13}
+                  fill='currentColor'
+                  className='shrink-0 text-t-tertiary'
+                  data-testid={`starter-next-${assistant.id}`}
                   aria-hidden='true'
                 />
               )}

@@ -5,19 +5,16 @@
  */
 
 import { configService } from '@/common/config/configService';
-import { SYSTEM_THEME_ID } from '@/common/theme/constants';
-import { setActiveTheme } from './applyTheme';
+import { reapplyConfiguredTheme } from './applyTheme';
 import { watchSystemPrefersDark } from './systemAppearance';
 
 /**
- * While "Follow System" is the active selection, re-resolve and re-apply the theme
- * whenever the OS appearance changes. Reuses the normal select pipeline, so the
- * change persists and broadcasts to all windows. Returns an unsubscribe function.
+ * While System appearance is selected, re-resolve the current preset whenever the
+ * OS appearance changes and broadcast the effective theme to all windows.
  */
 export function startSystemThemeWatcher(): () => void {
   return watchSystemPrefersDark(() => {
-    const activeId = configService.get('theme.activeId') as string | undefined;
-    if (activeId !== SYSTEM_THEME_ID) return;
-    void setActiveTheme(SYSTEM_THEME_ID).catch((e) => console.error('re-apply system theme failed', e));
+    if (configService.get('theme.appearanceMode') !== 'system') return;
+    void reapplyConfiguredTheme().catch((e) => console.error('re-apply system theme failed', e));
   });
 }

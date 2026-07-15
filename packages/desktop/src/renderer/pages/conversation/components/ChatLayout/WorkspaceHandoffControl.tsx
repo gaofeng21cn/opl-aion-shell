@@ -9,8 +9,8 @@ import type { TChatConversation } from '@/common/config/storage';
 import type { GitWorkspaceHandoffMetadata } from '@/common/types/platform/gitWorkspace';
 import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { emitter } from '@/renderer/utils/emitter';
-import { Message, Radio } from '@arco-design/web-react';
-import { Computer, Fork } from '@icon-park/react';
+import { Button, Message, Radio } from '@arco-design/web-react';
+import { Computer, FolderOpen, Fork } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -58,15 +58,16 @@ class WorkspaceHandoffError extends Error {
 
 type Props = {
   conversation: TChatConversation;
-  workspace: string;
+  workspace?: string;
   locality: 'local' | 'worktree';
   handoff: GitWorkspaceHandoffMetadata | null;
-  onChanged: (workspace: string, handoff: GitWorkspaceHandoffMetadata) => void;
+  onChanged: (workspace: string, handoff: GitWorkspaceHandoffMetadata | null) => void;
 };
 
 const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, locality, handoff, onChanged }) => {
   const { t } = useTranslation();
   const [availability, setAvailability] = useState<WorkspaceHandoffAvailability>({ status: 'loading' });
+  const [canonicalWorkspace, setCanonicalWorkspace] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [operationStatus, setOperationStatus] = useState<WorkspaceHandoffOperationStatus>();
   const threadId = canonicalCodexThreadId(conversation);
@@ -74,6 +75,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
   useEffect(() => {
     let cancelled = false;
     setOperationStatus(undefined);
+    setCanonicalWorkspace(undefined);
     if (!threadId) return undefined;
 
     setAvailability({ status: 'loading' });
@@ -81,6 +83,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
       .invoke({ threadId })
       .then(({ thread }) => {
         if (cancelled) return;
+        setCanonicalWorkspace(thread.workspace);
         if (thread.status === 'archived' || thread.status === 'system_error') {
           setAvailability({ status: 'unavailable', reasonKey: 'conversation.environment.handoffUnavailable' });
         } else if (thread.status === 'running') {
@@ -104,7 +107,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
 
   const persistWorkspaceProjection = async (
     nextWorkspace: string,
-    nextHandoff: GitWorkspaceHandoffMetadata
+    nextHandoff: GitWorkspaceHandoffMetadata | null
   ): Promise<boolean> => {
     try {
       return await ipcBridge.conversation.update.invoke({
@@ -132,9 +135,73 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
     }
   };
 
-  const switchTaskLocality = async (nextLocality: 'local' | 'worktree') => {
-    if (locality === nextLocality || availability.status !== 'available' || loading) return;
+  const rollbackThreadWorkspace = async (targetWorkspace: string | undefined): Promise<boolean> => {
+    if (targetWorkspace === undefined) {
+      console.warn('[ConversationEnvironment] Canonical task workspace rollback target is unavailable.');
+      return false;
+    }
+    return updateThreadWorkspace(targetWorkspace);
+  };
 
+  const handoffForWorkspace = (nextWorkspace: string): GitWorkspaceHandoffMetadata | null => {
+    if (!handoff) return null;
+    if (nextWorkspace === handoff.localWorkspace) return { ...handoff, locality: 'local' };
+    if (nextWorkspace === handoff.worktreePath) return { ...handoff, locality: 'worktree' };
+    return null;
+  };
+
+  const changeWorkingDirectory = async (): Promise<void> => {
+    if (availability.status !== 'available' || loading) return;
+
+    const operationStartWorkspace = canonicalWorkspace ?? workspace;
+    setLoading(true);
+    try {
+      const directories = await ipcBridge.dialog.showOpen.invoke({
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      const nextWorkspace = text(directories?.[0]);
+      if (!nextWorkspace || nextWorkspace === operationStartWorkspace) return;
+
+      if (!(await updateThreadWorkspace(nextWorkspace))) {
+        throw new WorkspaceHandoffError('conversation.environment.workingDirectoryChangeFailed');
+      }
+
+      const nextHandoff = handoffForWorkspace(nextWorkspace);
+      if (!(await persistWorkspaceProjection(nextWorkspace, nextHandoff))) {
+        const rollbackSucceeded = await rollbackThreadWorkspace(operationStartWorkspace);
+        if (!rollbackSucceeded) {
+          throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
+        }
+        setOperationStatus({ translationKey: 'conversation.environment.projectionUpdateFailed', role: 'status' });
+        throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
+      }
+
+      setCanonicalWorkspace(nextWorkspace);
+      setOperationStatus(undefined);
+      onChanged(nextWorkspace, nextHandoff);
+      emitter.emit('chat.history.refresh');
+      Message.success(t('conversation.environment.workingDirectoryChangeSuccess'));
+    } catch (error) {
+      console.error('[ConversationEnvironment] Failed to change session working directory:', error);
+      if (error instanceof WorkspaceHandoffError && error.requiresResync) {
+        setOperationStatus({ translationKey: error.translationKey, role: 'alert' });
+      }
+      Message.error(
+        t(
+          error instanceof WorkspaceHandoffError
+            ? error.translationKey
+            : 'conversation.environment.workingDirectoryChangeFailed'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchTaskLocality = async (nextLocality: 'local' | 'worktree') => {
+    if (locality === nextLocality || !workspace || availability.status !== 'available' || loading) return;
+
+    const operationStartWorkspace = canonicalWorkspace ?? workspace;
     setLoading(true);
     try {
       let nextWorkspace: string;
@@ -174,7 +241,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
       }
 
       if (!(await persistWorkspaceProjection(nextWorkspace, nextHandoff))) {
-        const rollbackSucceeded = await updateThreadWorkspace(workspace);
+        const rollbackSucceeded = await rollbackThreadWorkspace(operationStartWorkspace);
         if (!rollbackSucceeded) {
           throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
         }
@@ -182,6 +249,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
       }
 
+      setCanonicalWorkspace(nextWorkspace);
       setOperationStatus(undefined);
       onChanged(nextWorkspace, nextHandoff);
       emitter.emit('chat.history.refresh');
@@ -219,28 +287,40 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
       <div className='conversation-environment-popover__section-title'>
         {t('conversation.environment.taskLocation')}
       </div>
-      <Radio.Group
-        type='button'
+      {workspace ? (
+        <Radio.Group
+          type='button'
+          size='mini'
+          value={locality}
+          disabled={availability.status !== 'available' || loading}
+          aria-label={t('conversation.environment.taskLocation')}
+          aria-describedby={statusKey ? 'environment-handoff-status' : undefined}
+          onChange={(value) => void switchTaskLocality(value === 'worktree' ? 'worktree' : 'local')}
+        >
+          <Radio value='local'>
+            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
+              <Computer size={12} />
+              {t('conversation.environment.local')}
+            </span>
+          </Radio>
+          <Radio value='worktree'>
+            <span className='inline-flex items-center gap-4px whitespace-nowrap'>
+              <Fork size={12} />
+              {t('conversation.environment.worktree')}
+            </span>
+          </Radio>
+        </Radio.Group>
+      ) : null}
+      <Button
+        type='secondary'
         size='mini'
-        value={locality}
-        disabled={availability.status !== 'available' || loading}
-        aria-label={t('conversation.environment.taskLocation')}
-        aria-describedby={statusKey ? 'environment-handoff-status' : undefined}
-        onChange={(value) => void switchTaskLocality(value === 'worktree' ? 'worktree' : 'local')}
+        icon={<FolderOpen size={12} />}
+        loading={loading}
+        disabled={availability.status !== 'available'}
+        onClick={() => void changeWorkingDirectory()}
       >
-        <Radio value='local'>
-          <span className='inline-flex items-center gap-4px whitespace-nowrap'>
-            <Computer size={12} />
-            {t('conversation.environment.local')}
-          </span>
-        </Radio>
-        <Radio value='worktree'>
-          <span className='inline-flex items-center gap-4px whitespace-nowrap'>
-            <Fork size={12} />
-            {t('conversation.environment.worktree')}
-          </span>
-        </Radio>
-      </Radio.Group>
+        {t('conversation.environment.changeWorkingDirectory')}
+      </Button>
       {statusKey ? (
         <span
           id='environment-handoff-status'

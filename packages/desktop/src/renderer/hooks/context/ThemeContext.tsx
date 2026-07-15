@@ -7,9 +7,8 @@
 // context/ThemeContext.tsx - Unified Theme Management Context 统一主题管理上下文
 import type { PropsWithChildren } from 'react';
 import React, { createContext, useCallback, useContext } from 'react';
-import type { Theme, ThemeAppearance } from '@/common/theme/types';
+import type { Theme, ThemeAppearance, ThemeAppearanceMode } from '@/common/theme/types';
 import useTheme from '@renderer/hooks/system/useTheme';
-import { LIGHT_THEME_ID, DARK_THEME_ID } from '@/common/theme/constants';
 import useFontScale from '@renderer/hooks/ui/useFontScale';
 import useFontSizes from '@renderer/hooks/ui/useFontSizes';
 import type { FontSizeKey, FontSizes } from '@/common/config/fontSizes';
@@ -17,9 +16,11 @@ import type { FontSizeKey, FontSizes } from '@/common/config/fontSizes';
 interface ThemeContextValue {
   // Light/Dark appearance of the active theme (back-compat for existing consumers)
   theme: ThemeAppearance;
-  // Back-compat light/dark toggle → selects the Light or Dark built-in theme
+  // Back-compat light/dark setter uses the same appearance authority.
   setTheme: (appearance: ThemeAppearance) => Promise<void>;
-  // The full unified active theme + selector by id (used by the new gallery)
+  appearanceMode: ThemeAppearanceMode;
+  setAppearanceMode: (mode: ThemeAppearanceMode) => Promise<void>;
+  // Legacy theme fields remain for upstream-compatible consumers.
   activeTheme: Theme | null;
   // Raw selected id from config — may be the `system` sentinel (gallery check mark uses this)
   activeId: string | null;
@@ -35,18 +36,27 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const [activeTheme, selectTheme, activeId] = useTheme();
+  const [activeTheme, selectTheme, activeId, appearanceMode, setAppearanceMode] = useTheme();
   const [fontScale, setFontScale] = useFontScale();
   const { fontSizes, setFontSize } = useFontSizes();
   const theme: ThemeAppearance = activeTheme?.appearance ?? 'light';
-  const setTheme = useCallback(
-    (appearance: ThemeAppearance) => selectTheme(appearance === 'dark' ? DARK_THEME_ID : LIGHT_THEME_ID),
-    [selectTheme]
-  );
+  const setTheme = useCallback((appearance: ThemeAppearance) => setAppearanceMode(appearance), [setAppearanceMode]);
 
   return (
     <ThemeContext.Provider
-      value={{ theme, setTheme, activeTheme, activeId, selectTheme, fontScale, setFontScale, fontSizes, setFontSize }}
+      value={{
+        theme,
+        setTheme,
+        appearanceMode,
+        setAppearanceMode,
+        activeTheme,
+        activeId,
+        selectTheme,
+        fontScale,
+        setFontScale,
+        fontSizes,
+        setFontSize,
+      }}
     >
       {children}
     </ThemeContext.Provider>

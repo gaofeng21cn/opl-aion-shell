@@ -82,6 +82,8 @@ describe('HomeStarters', () => {
 
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
     expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
+    expect(screen.getByTestId('starter-icon-mas').querySelector('svg')).not.toBeNull();
+    expect(screen.getByTestId('starter-next-mag')).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('home-starter-mag'));
     expect(onSelect).toHaveBeenCalledWith('mag');
@@ -124,7 +126,7 @@ describe('HomeStarters', () => {
     expect(activeStarter.className).toContain('homeStarterActive');
     expect(activeStarter).not.toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
     expect(screen.getByTestId('starter-active-check')).toBeInTheDocument();
-    expect(activeStarter.querySelector('[data-icon="check"]')).not.toBeNull();
+    expect(screen.queryByTestId('starter-next-oma')).not.toBeInTheDocument();
   });
 
   it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {

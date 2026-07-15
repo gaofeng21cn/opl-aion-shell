@@ -124,7 +124,7 @@ describe('GuidInputCard compact home composer', () => {
 
     view.rerender(createCard());
 
-    expect(initialAutoSize).toEqual({ minRows: 2, maxRows: 20 });
+    expect(initialAutoSize).toEqual({ minRows: 1, maxRows: 12 });
     expect(arcoCaptures.autoSize.at(-1)).toBe(initialAutoSize);
     expect(screen.getByTestId('guid-input')).toBeInTheDocument();
   });

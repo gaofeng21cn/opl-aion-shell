@@ -1,17 +1,30 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import Titlebar from '@/renderer/components/layout/Titlebar';
+import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 
 const mocks = vi.hoisted(() => ({
   openExternalUrl: vi.fn(),
+  isMobile: false,
+  navigationHistory: null as null | {
+    back: ReturnType<typeof vi.fn>;
+    forward: ReturnType<typeof vi.fn>;
+    canBack: boolean;
+    canForward: boolean;
+  },
 }));
+
+const LocationProbe = () => {
+  const location = useLocation();
+  return <div data-testid='location-probe'>{`${location.pathname}${location.search}${location.hash}`}</div>;
+};
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    team: { get: { invoke: vi.fn() } },
-    conversation: { get: { invoke: vi.fn() } },
+    team: { get: { invoke: vi.fn().mockResolvedValue(null) } },
+    conversation: { get: { invoke: vi.fn().mockResolvedValue({ name: 'Task' }) } },
   },
 }));
 
@@ -24,7 +37,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
   };
 });
 
-vi.mock('@/renderer/components/layout/MobileConversationBrand', () => ({
+vi.mock('@/renderer/components/layout/Titlebar/MobileConversationBrand', () => ({
   default: () => null,
 }));
 
@@ -33,11 +46,11 @@ vi.mock('@/renderer/components/layout/WindowControls', () => ({
 }));
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
-  useLayoutContext: () => ({ isMobile: false }),
+  useLayoutContext: () => ({ isMobile: mocks.isMobile }),
 }));
 
 vi.mock('@/renderer/hooks/context/NavigationHistoryContext', () => ({
-  useNavigationHistory: () => null,
+  useNavigationHistory: () => mocks.navigationHistory,
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -53,6 +66,7 @@ vi.mock('react-i18next', () => ({
         'settings.githubIssue.tooltip': 'Report an OPL App issue on GitHub',
         'settings.githubIssue.title': 'OPL App feedback',
         'settings.githubIssue.body': `Describe the issue.\n\nCurrent page: ${options?.route}\nApp version: ${options?.version}`,
+        'settings.backToApp': 'Back to app',
       })[key] ?? key,
   }),
 }));
@@ -60,6 +74,9 @@ vi.mock('react-i18next', () => ({
 describe('Titlebar OPL App feedback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isMobile = false;
+    mocks.navigationHistory = null;
+    sessionStorage.clear();
     mocks.openExternalUrl.mockResolvedValue(undefined);
   });
 
@@ -107,5 +124,49 @@ describe('Titlebar OPL App feedback', () => {
 
     await waitFor(() => expect(consoleError).toHaveBeenCalledWith('Failed to open OPL App issue:', expect.any(Error)));
     consoleError.mockRestore();
+  });
+
+  it('uses the shared return resolver in the narrow Settings titlebar', async () => {
+    mocks.isMobile = true;
+    sessionStorage.setItem('aion:last-non-settings-path', '/conversation/thread-7?mode=review#diff');
+    render(
+      <MemoryRouter initialEntries={['/settings/appearance']}>
+        <Titlebar workspaceAvailable={false} />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('settings-titlebar-back-to-app'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/conversation/thread-7?mode=review#diff')
+    );
+  });
+
+  it('uses the existing top titlebar history control on desktop Settings', () => {
+    const back = vi.fn();
+    mocks.navigationHistory = {
+      back,
+      forward: vi.fn(),
+      canBack: true,
+      canForward: false,
+    };
+    render(
+      <MemoryRouter initialEntries={['/settings/appearance']}>
+        <Titlebar workspaceAvailable={false} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('settings-titlebar-history-back'));
+    expect(back).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to Home for invalid or Settings-internal stored return paths', () => {
+    sessionStorage.setItem('aion:last-non-settings-path', '//example.com/settings');
+    expect(resolveSettingsReturnPath()).toBe('/guid');
+    sessionStorage.setItem('aion:last-non-settings-path', '/settings/access?section=gateway');
+    expect(resolveSettingsReturnPath()).toBe('/guid');
+    sessionStorage.setItem('aion:last-non-settings-path', `/conversation/${String.fromCharCode(0)}thread`);
+    expect(resolveSettingsReturnPath()).toBe('/guid');
   });
 });

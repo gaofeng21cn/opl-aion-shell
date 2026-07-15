@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isManagedAppUpdateAvailable,
   readManagedUpdatePlane,
   readOplFlowManagedCapabilityCatalog,
 } from '@/renderer/services/managedUpdateProjection';
@@ -12,6 +13,51 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 }));
 
 describe('managed update projection public lifecycle ids', () => {
+  it('trusts an explicit OPL App update-available state', () => {
+    const plane = readManagedUpdatePlane(
+      {
+        managed_update: {
+          components: [
+            { component_id: 'opl_app', state: 'update_available', current_version: '1.0.0', target_version: '1.1.0' },
+          ],
+        },
+      },
+      {}
+    );
+
+    expect(isManagedAppUpdateAvailable(plane.components.find((component) => component.id === 'opl_app'))).toBe(true);
+    expect(isManagedAppUpdateAvailable(plane.components.find((component) => component.id === 'opl_base'))).toBe(false);
+  });
+
+  it('shows an update only when the projected version is newer than the installed App', () => {
+    const component = {
+      id: 'opl_app' as const,
+      label: 'OPL App',
+      state: 'current',
+      conditions: [],
+      substatuses: [],
+      currentVersion: '26.7.14',
+      targetVersion: '26.7.15',
+      needsRestart: false,
+      needsReload: false,
+      manualRequired: false,
+      hostExecutorRequired: false,
+      hostUpdateRouteExamples: [],
+      preservedMounts: [],
+      requiredPreservationEvidence: [],
+      developerCheckout: false,
+      dirtyCheckout: false,
+      safeToApply: false,
+      repairAllowed: false,
+      rollbackAllowed: false,
+    };
+
+    expect(isManagedAppUpdateAvailable(component)).toBe(true);
+    expect(isManagedAppUpdateAvailable({ ...component, targetVersion: '26.7.14' })).toBe(false);
+    expect(isManagedAppUpdateAvailable({ ...component, targetVersion: '26.7.13' })).toBe(false);
+    expect(isManagedAppUpdateAvailable({ ...component, targetVersion: 'unknown' })).toBe(false);
+  });
+
   it('ignores legacy component ids instead of mapping them into public update targets', () => {
     const plane = readManagedUpdatePlane(
       {

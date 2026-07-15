@@ -36,8 +36,7 @@ vi.mock('react-i18next', () => ({
         'common.account': 'Account',
         'common.help': 'Help',
         'common.settings': 'Settings',
-        'settings.lightMode': 'Light mode',
-        'settings.darkMode': 'Dark mode',
+        'settings.updateAvailable': 'Update available',
       })[key] ?? key,
   }),
 }));
@@ -78,11 +77,9 @@ describe('Sider navigation hierarchy', () => {
         <div>Conversation history</div>
         <SiderFooter
           isMobile={false}
-          isSettings={false}
-          theme='light'
           siderTooltipProps={tooltipProps}
           onSettingsClick={onSettingsClick}
-          onThemeToggle={vi.fn()}
+          onUpdateClick={vi.fn()}
         />
       </div>
     );
@@ -98,6 +95,7 @@ describe('Sider navigation hierarchy', () => {
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sider-footer-update')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('sider-footer-settings'));
     expect(onSettingsClick).toHaveBeenCalledWith('general');
   });
@@ -106,17 +104,37 @@ describe('Sider navigation hierarchy', () => {
     render(
       <SiderFooter
         isMobile={false}
-        isSettings={false}
-        theme='light'
         account={{ displayName: 'Feng Gao', email: 'gf@fenggaolab.org', initials: 'FG' }}
         siderTooltipProps={tooltipProps}
         onSettingsClick={vi.fn()}
-        onThemeToggle={vi.fn()}
+        onUpdateClick={vi.fn()}
       />
     );
 
     const avatar = screen.getByTestId('sider-footer-account-avatar');
     expect(avatar).toHaveTextContent('FG');
     expect(avatar).toHaveClass('rounded-full', 'bg-success', 'text-inverse');
+    expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
+    expect(screen.getByTestId('sider-footer-account')).not.toHaveTextContent('gf@fenggaolab.org');
+  });
+
+  it('shows a subtle trailing update action only when a newer App version is available', () => {
+    const onUpdateClick = vi.fn();
+    render(
+      <SiderFooter
+        isMobile={false}
+        updateAvailable
+        account={{ displayName: 'Feng Gao', email: 'gf@fenggaolab.org', initials: 'FG' }}
+        siderTooltipProps={tooltipProps}
+        onSettingsClick={vi.fn()}
+        onUpdateClick={onUpdateClick}
+      />
+    );
+
+    const update = screen.getByTestId('sider-footer-update');
+    expect(update).toHaveAccessibleName('Update available');
+    expect(update).toHaveAttribute('data-update-available', 'true');
+    fireEvent.click(update);
+    expect(onUpdateClick).toHaveBeenCalledOnce();
   });
 });

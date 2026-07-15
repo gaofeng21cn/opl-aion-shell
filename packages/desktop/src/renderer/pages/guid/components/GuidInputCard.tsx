@@ -17,7 +17,7 @@ import GuidWorkspaceFootnote, {
 } from './GuidWorkspaceFootnote';
 
 const MOBILE_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 8 };
-const DESKTOP_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 20 };
+const DESKTOP_TEXTAREA_AUTO_SIZE = { minRows: 1, maxRows: 12 };
 
 type GuidInputCardProps = {
   // Input state
@@ -122,7 +122,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCardWrap} guid-input-card-shell relative rd-24px flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
+      className={`${styles.guidInputCardWrap} guid-input-card-shell relative flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
       data-testid='guid-input-card-shell'
       style={{
         zIndex: 1,
@@ -157,7 +157,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         activeCapabilityLabel={activeCapabilityLabel}
       />
       <div
-        className={`${styles.guidInputInner} relative z-1 p-12px flex flex-col bg-dialog-fill-0`}
+        className={`${styles.guidInputInner} relative z-1 flex flex-col bg-dialog-fill-0`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
@@ -168,7 +168,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           autoSize={textareaAutoSize}
           placeholder={placeholder}
           spellCheck={false}
-          className={`text-14px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !py-0 !pr-0 !pl-7px ${styles.lightPlaceholder}`}
+          className={`text-14px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !py-0 !pr-0 !pl-5px ${styles.lightPlaceholder}`}
           value={input}
           onChange={onInputChange}
           onPaste={fileAccessEnabled ? onPaste : undefined}
@@ -178,7 +178,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           onKeyDown={handleKeyDown}
           data-testid='guid-input'
         />
-        <div style={{ height: 12, flexShrink: 0 }} aria-hidden='true' />
+        <div style={{ height: 8, flexShrink: 0 }} aria-hidden='true' />
         {mentionOpen && (
           <div className='absolute z-50' style={{ left: 16, top: 44 }}>
             {mentionDropdown}

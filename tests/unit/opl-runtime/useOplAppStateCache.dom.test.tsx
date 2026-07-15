@@ -94,6 +94,12 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     resetOplAppStateLoadsForTest();
   });
 
+  it('does not load automatically when the caller opts out', () => {
+    renderHook(() => useOplAppState('fast', { autoLoad: false }));
+
+    expect(getAppStateInvoke).not.toHaveBeenCalled();
+  });
+
   it('renders the cached connected account before the background refresh resolves', () => {
     seedCachedGateway();
     getAppStateInvoke.mockReturnValue(new Promise(() => {}));

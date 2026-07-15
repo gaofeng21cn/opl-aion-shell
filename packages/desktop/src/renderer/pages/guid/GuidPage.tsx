@@ -1004,74 +1004,78 @@ const GuidPage: React.FC = () => {
         data-opl-executor-selector-visible={String(composerSurface.executor_selector_visible)}
       >
         <div className={styles.guidLayout}>
-          <div className={styles.heroHeader}>
-            <div className='text-center'>
-              <p className='text-20px leading-28px font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+          <div className={styles.guidHero}>
+            <div className={styles.heroHeader}>
+              <div className='text-center'>
+                <p className='text-20px leading-28px font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+              </div>
             </div>
+
+            {selectedAssistantDescription ? (
+              <p className='m-0 mb-12px text-center text-13px leading-20px text-t-secondary'>
+                {selectedAssistantDescription}
+              </p>
+            ) : null}
+
+            <HomeStarters
+              assistants={agentSelection.assistants}
+              localeKey={localeKey}
+              activeCapabilityId={activeShortcut?.package_id}
+              onSelect={(assistantId) => {
+                handleSelectShortcut(assistantId);
+                guidInput.handleTextareaFocus();
+              }}
+              onClear={() => {
+                handleSelectShortcut(null);
+                guidInput.handleTextareaFocus();
+              }}
+            />
           </div>
 
-          {selectedAssistantDescription ? (
-            <p className='m-0 mb-12px text-center text-13px leading-20px text-t-secondary'>
-              {selectedAssistantDescription}
-            </p>
-          ) : null}
+          <div className={styles.guidComposerDock}>
+            <GuidInputCard
+              input={guidInput.input}
+              onInputChange={handleInputChange}
+              onKeyDown={handleInputKeyDown}
+              onPaste={guidInput.onPaste}
+              onFocus={guidInput.handleTextareaFocus}
+              onBlur={guidInput.handleTextareaBlur}
+              placeholder={
+                selectedAssistantRecord
+                  ? `${mention.selectedAgentLabel}, ${typewriterPlaceholder || defaultPlaceholder}`
+                  : typewriterPlaceholder || oplPlaceholder
+              }
+              isInputActive={guidInput.isInputFocused}
+              isFileDragging={guidInput.isFileDragging}
+              activeBorderColor={activeBorderColor}
+              inactiveBorderColor={inactiveBorderColor}
+              activeShadow={activeShadow}
+              dragHandlers={guidInput.dragHandlers}
+              mentionOpen={mention.mentionOpen}
+              mentionDropdown={mentionDropdownNode}
+              files={guidInput.files}
+              onRemoveFile={guidInput.handleRemoveFile}
+              actionRow={actionRowNode}
+              slashCommandMenu={slashCommandMenuNode}
+              workspaceDir={guidInput.dir}
+              onSelectWorkspace={handleWorkspaceSelect}
+              onClearWorkspace={handleWorkspaceClear}
+              launchMode={launchMode}
+              onLaunchModeChange={handleLaunchModeChange}
+              branchOptions={branchOptions}
+              selectedStartRef={selectedStartRef}
+              onSelectedStartRefChange={handleStartingBranchChange}
+              worktreeLoading={worktreeInspecting || worktreePreparing}
+              worktreeControlsDisabled={workspaceAccessBlocked || worktreePreparing || guidInput.loading}
+              worktreeError={worktreeError}
+              workspaceAccessDisabled={workspaceAccessBlocked}
+              workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
+              activeCapabilityLabel={activeCapabilityLabel}
+              fileAccessEnabled={true}
+            />
 
-          <HomeStarters
-            assistants={agentSelection.assistants}
-            localeKey={localeKey}
-            activeCapabilityId={activeShortcut?.package_id}
-            onSelect={(assistantId) => {
-              handleSelectShortcut(assistantId);
-              guidInput.handleTextareaFocus();
-            }}
-            onClear={() => {
-              handleSelectShortcut(null);
-              guidInput.handleTextareaFocus();
-            }}
-          />
-
-          <GuidInputCard
-            input={guidInput.input}
-            onInputChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onPaste={guidInput.onPaste}
-            onFocus={guidInput.handleTextareaFocus}
-            onBlur={guidInput.handleTextareaBlur}
-            placeholder={
-              selectedAssistantRecord
-                ? `${mention.selectedAgentLabel}, ${typewriterPlaceholder || defaultPlaceholder}`
-                : typewriterPlaceholder || oplPlaceholder
-            }
-            isInputActive={guidInput.isInputFocused}
-            isFileDragging={guidInput.isFileDragging}
-            activeBorderColor={activeBorderColor}
-            inactiveBorderColor={inactiveBorderColor}
-            activeShadow={activeShadow}
-            dragHandlers={guidInput.dragHandlers}
-            mentionOpen={mention.mentionOpen}
-            mentionDropdown={mentionDropdownNode}
-            files={guidInput.files}
-            onRemoveFile={guidInput.handleRemoveFile}
-            actionRow={actionRowNode}
-            slashCommandMenu={slashCommandMenuNode}
-            workspaceDir={guidInput.dir}
-            onSelectWorkspace={handleWorkspaceSelect}
-            onClearWorkspace={handleWorkspaceClear}
-            launchMode={launchMode}
-            onLaunchModeChange={handleLaunchModeChange}
-            branchOptions={branchOptions}
-            selectedStartRef={selectedStartRef}
-            onSelectedStartRefChange={handleStartingBranchChange}
-            worktreeLoading={worktreeInspecting || worktreePreparing}
-            worktreeControlsDisabled={workspaceAccessBlocked || worktreePreparing || guidInput.loading}
-            worktreeError={worktreeError}
-            workspaceAccessDisabled={workspaceAccessBlocked}
-            workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
-            activeCapabilityLabel={activeCapabilityLabel}
-            fileAccessEnabled={true}
-          />
-
-          {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}
+            {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}
+          </div>
         </div>
       </div>
     </ConfigProvider>

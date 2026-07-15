@@ -294,53 +294,45 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('settings-sider-secondary-divider')).not.toBeInTheDocument();
   });
 
-  it('keeps the connected account entry beside the named theme action in the Settings footer', () => {
+  it('keeps the connected account as the single Settings footer entry', () => {
     const onSettingsClick = vi.fn();
-    const onThemeToggle = vi.fn();
 
     render(
       <SiderFooter
         isMobile
-        isSettings
-        theme='dark'
         account={{ displayName: 'Feng Gao', email: 'feng@example.com', initials: 'FG' }}
         siderTooltipProps={getSiderTooltipProps(false)}
         onSettingsClick={onSettingsClick}
-        onThemeToggle={onThemeToggle}
+        onUpdateClick={vi.fn()}
       />
     );
-
-    fireEvent.click(screen.getByTestId('sider-footer-theme'));
 
     fireEvent.click(screen.getByTestId('sider-footer-account'));
 
     expect(onSettingsClick).toHaveBeenCalledWith('access');
-    expect(onThemeToggle).toHaveBeenCalledOnce();
-    expect(screen.getByTestId('sider-footer-theme')).toHaveAccessibleName('Light mode');
-    expect(screen.getByTestId('sider-footer-theme')).toHaveClass('!p-0');
+    expect(screen.queryByTestId('sider-footer-theme')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-settings')).not.toBeInTheDocument();
     expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
     expect(screen.queryByRole('button', { name: 'Back to chat' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 
-  it('shows the connected Gateway account with its full email and opens Models & Access', () => {
+  it('shows the connected Gateway account compactly and opens Models & Access', () => {
     const onSettingsClick = vi.fn();
 
     render(
       <SiderFooter
         isMobile={false}
-        isSettings={false}
-        theme='light'
         account={{ displayName: 'Feng Gao', email: 'feng@example.com', initials: 'FG' }}
         siderTooltipProps={getSiderTooltipProps(false)}
         onSettingsClick={onSettingsClick}
-        onThemeToggle={vi.fn()}
+        onUpdateClick={vi.fn()}
       />
     );
 
     expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('Feng Gao');
-    expect(screen.getByTestId('sider-footer-account')).toHaveTextContent('feng@example.com');
+    expect(screen.getByTestId('sider-footer-account')).not.toHaveTextContent('feng@example.com');
+    expect(screen.getByTestId('sider-footer-account')).toHaveAccessibleName('Feng Gao');
     fireEvent.click(screen.getByTestId('sider-footer-account'));
 
     expect(onSettingsClick).toHaveBeenCalledWith('access');
@@ -352,11 +344,9 @@ describe('SettingsModal OPL App navigation', () => {
     render(
       <SiderFooter
         isMobile={false}
-        isSettings={false}
-        theme='light'
         siderTooltipProps={getSiderTooltipProps(false)}
         onSettingsClick={onSettingsClick}
-        onThemeToggle={vi.fn()}
+        onUpdateClick={vi.fn()}
       />
     );
 

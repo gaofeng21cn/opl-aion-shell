@@ -7,7 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { Moon, SettingTwo, SunOne } from '@icon-park/react';
+import { Download, SettingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
 
@@ -19,44 +19,40 @@ export type SiderFooterAccount = {
 
 interface SiderFooterProps {
   isMobile: boolean;
-  isSettings: boolean;
   collapsed?: boolean;
-  theme: string;
+  updateAvailable?: boolean;
   account?: SiderFooterAccount | null;
   siderTooltipProps: SiderTooltipProps;
   onSettingsClick: (target: 'general' | 'access') => void;
-  onThemeToggle: () => void;
+  onUpdateClick: () => void;
 }
 
 const SiderFooter: React.FC<SiderFooterProps> = ({
   isMobile,
-  isSettings,
   collapsed = false,
-  theme,
+  updateAvailable = false,
   account,
   siderTooltipProps,
   onSettingsClick,
-  onThemeToggle,
+  onUpdateClick,
 }) => {
   const { t } = useTranslation();
 
   const settingsLabel = t('common.settings');
   const accountLabel = account?.displayName || account?.email || settingsLabel;
   const accountSecondary = account?.displayName && account.email ? account.email : null;
-  const showThemeToggle = isSettings;
-  const themeTooltip = theme === 'dark' ? t('settings.lightMode') : t('settings.darkMode');
+  const updateLabel = t('settings.updateAvailable');
 
   return (
     <div className='shrink-0 sider-footer mt-auto pt-8px pb-8px border-t border-solid border-[var(--color-border-2)] border-l-0 border-r-0 border-b-0'>
-      <div className={classNames('flex gap-2px', isSettings && !collapsed ? 'items-center' : 'flex-col')}>
+      <div className='flex min-w-0 items-center gap-2px'>
         <Tooltip {...siderTooltipProps} content={accountSecondary || accountLabel} position='right'>
           <Button
             type='text'
             className={classNames(
-              '!min-h-40px !h-auto !flex !items-center !overflow-hidden !text-t-primary !border-0 !bg-transparent hover:!bg-fill-3',
-              isSettings && !collapsed ? '!min-w-0 !flex-1' : '!w-full',
-              collapsed ? '!justify-center !px-0' : '!justify-start !px-10px',
-              isMobile && 'sider-footer-btn-mobile !min-h-48px'
+              '!h-32px !min-w-0 !flex !items-center !overflow-hidden !rd-8px !text-t-primary !border-0 !bg-transparent hover:!bg-fill-3',
+              collapsed ? '!w-26px !justify-center !px-0' : '!flex-1 !justify-start !px-8px',
+              isMobile && 'sider-footer-btn-mobile !h-44px'
             )}
             onClick={() => onSettingsClick(account ? 'access' : 'general')}
             data-testid={account ? 'sider-footer-account' : 'sider-footer-settings'}
@@ -65,7 +61,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
             <span className={classNames('flex min-w-0 items-center', collapsed ? 'justify-center' : 'w-full gap-9px')}>
               {account ? (
                 <span
-                  className='flex size-28px shrink-0 items-center justify-center rounded-full bg-success text-11px font-600 text-inverse'
+                  className='flex size-22px shrink-0 items-center justify-center rounded-full bg-success text-10px font-600 text-inverse'
                   data-testid='sider-footer-account-avatar'
                   aria-hidden='true'
                 >
@@ -83,38 +79,34 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
                 </span>
               )}
               {!collapsed && (
-                <span className='flex min-w-0 flex-1 flex-col text-left'>
-                  <span className='truncate text-14px font-[500] leading-20px'>{accountLabel}</span>
-                  {accountSecondary && (
-                    <span className='truncate text-11px font-normal leading-16px text-t-tertiary'>
-                      {accountSecondary}
-                    </span>
-                  )}
+                <span className='min-w-0 flex-1 truncate text-left text-13px font-[500] leading-20px'>
+                  {accountLabel}
                 </span>
               )}
             </span>
           </Button>
         </Tooltip>
-        {showThemeToggle && (
-          <Tooltip {...siderTooltipProps} content={themeTooltip} position='right'>
+        {updateAvailable && (
+          <Tooltip {...siderTooltipProps} content={updateLabel} position='right'>
             <Button
               type='text'
-              onClick={onThemeToggle}
+              onClick={onUpdateClick}
               className={classNames(
-                '!h-34px !p-0 !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
-                '!w-34px !shrink-0',
-                isMobile && 'sider-footer-btn-mobile !h-44px !min-h-44px',
-                isMobile && '!w-44px'
+                '!h-28px !w-28px !min-w-28px !shrink-0 !rd-7px !p-0 !text-white !bg-transparent hover:!bg-fill-2',
+                collapsed && '!h-22px !w-20px !min-w-20px',
+                isMobile && 'sider-footer-btn-mobile !h-40px !w-40px !min-w-40px'
               )}
-              aria-label={themeTooltip}
-              data-testid='sider-footer-theme'
+              aria-label={updateLabel}
+              data-testid='sider-footer-update'
+              data-update-available='true'
             >
-              <span className='w-28px h-28px flex items-center justify-center shrink-0'>
-                {theme === 'dark' ? (
-                  <SunOne theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                ) : (
-                  <Moon theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                )}
+              <span className='flex size-20px items-center justify-center rounded-full bg-[var(--opl-accent-blue)] shadow-sm'>
+                <Download
+                  theme='outline'
+                  size={collapsed ? 11 : 12}
+                  fill='currentColor'
+                  className='block leading-none'
+                />
               </span>
             </Button>
           </Tooltip>

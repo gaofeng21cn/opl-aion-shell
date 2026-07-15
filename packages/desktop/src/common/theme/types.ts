@@ -5,6 +5,7 @@
  */
 
 export type ThemeAppearance = 'light' | 'dark';
+export type ThemeAppearanceMode = 'system' | ThemeAppearance;
 
 /**
  * Unified theme. `appearance` drives data-theme + arco-theme.

@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Theme } from './types';
-import { LIGHT_THEME_ID, DARK_THEME_ID } from './constants';
+import type { Theme, ThemeAppearanceMode } from './types';
+import { DARK_THEME_ID, LIGHT_THEME_ID, SYSTEM_THEME_ID } from './constants';
+import { normalizeThemeAppearanceMode } from './resolveTheme';
 
 type OldCssTheme = {
   id: string;
@@ -22,39 +23,52 @@ export type OldThemeConfig = {
   'css.activeThemeId'?: string;
   'css.themes'?: OldCssTheme[];
   customCss?: string;
+  'theme.activeId'?: string;
+  'theme.appearanceMode'?: unknown;
+  'theme.userThemes'?: Theme[];
 };
 
 export type NewThemeConfig = {
   'theme.activeId': string;
+  'theme.appearanceMode': ThemeAppearanceMode;
   'theme.userThemes': Theme[];
 };
 
-const OLD_DEFAULT_ID = 'default-theme';
-const OLD_CODEX_ID = 'codex';
-
 export function migrateThemeConfig(old: OldThemeConfig): NewThemeConfig {
-  const appearance = old.theme === 'dark' ? 'dark' : 'light';
+  const existingUserThemes = Array.isArray(old['theme.userThemes']) ? old['theme.userThemes'] : null;
+  const legacyAppearance = old.theme === 'dark' ? 'dark' : old.theme === 'light' ? 'light' : undefined;
+  const existingActiveId = old['theme.activeId']?.trim() || '';
+  const activeId = LIGHT_THEME_ID;
 
-  let activeId: string;
-  const oldActive = old['css.activeThemeId'] || '';
-  if (oldActive && oldActive !== OLD_DEFAULT_ID && oldActive !== OLD_CODEX_ID) {
-    activeId = oldActive;
-  } else {
-    activeId = appearance === 'dark' ? DARK_THEME_ID : LIGHT_THEME_ID;
-  }
+  const appearanceMode = normalizeThemeAppearanceMode(
+    old['theme.appearanceMode'],
+    existingActiveId === SYSTEM_THEME_ID
+      ? 'system'
+      : existingActiveId === DARK_THEME_ID
+        ? 'dark'
+        : (legacyAppearance ??
+          existingUserThemes?.find((theme) => theme.id === existingActiveId)?.appearance ??
+          (existingActiveId ? 'light' : 'system'))
+  );
 
-  const userThemes: Theme[] = (old['css.themes'] || [])
-    .filter((t) => !t.is_preset)
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      cover: t.cover,
-      appearance,
-      css: t.css,
-      builtin: false,
-      created_at: t.created_at,
-      updated_at: t.updated_at,
-    }));
+  const userThemes: Theme[] =
+    existingUserThemes ??
+    (old['css.themes'] || [])
+      .filter((theme) => !theme.is_preset)
+      .map((theme) => ({
+        id: theme.id,
+        name: theme.name,
+        cover: theme.cover,
+        appearance: legacyAppearance ?? 'light',
+        css: theme.css,
+        builtin: false,
+        created_at: theme.created_at,
+        updated_at: theme.updated_at,
+      }));
 
-  return { 'theme.activeId': activeId, 'theme.userThemes': userThemes };
+  return {
+    'theme.activeId': activeId,
+    'theme.appearanceMode': appearanceMode,
+    'theme.userThemes': userThemes,
+  };
 }

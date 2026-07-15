@@ -63,19 +63,32 @@ class ConfigServiceImpl {
           this.cache.set(key, value);
         }
       }
-      // One-time theme migration: only when new keys are absent (idempotent).
-      if (!this.cache.has('theme.activeId')) {
-        const { migrateThemeConfig } = await import('@/common/theme/migrateThemeConfig');
-        const migrated = migrateThemeConfig({
-          theme: this.cache.get('theme') as string | undefined,
-          'css.activeThemeId': this.cache.get('css.activeThemeId') as string | undefined,
-          'css.themes': this.cache.get('css.themes') as never,
-          customCss: this.cache.get('customCss') as string | undefined,
-        });
-        this.cache.set('theme.activeId', migrated['theme.activeId']);
-        this.cache.set('theme.userThemes', migrated['theme.userThemes']);
-        // Persist asynchronously; ignore failure (will re-run next launch).
-        void fetchJson<void>('PUT', '/api/settings/client', migrated).catch(() => {});
+      const { migrateThemeConfig } = await import('@/common/theme/migrateThemeConfig');
+      const migrated = migrateThemeConfig({
+        theme: this.cache.get('theme') as string | undefined,
+        'css.activeThemeId': this.cache.get('css.activeThemeId') as string | undefined,
+        'css.themes': this.cache.get('css.themes') as never,
+        customCss: this.cache.get('customCss') as string | undefined,
+        'theme.activeId': this.cache.get('theme.activeId') as string | undefined,
+        'theme.appearanceMode': this.cache.get('theme.appearanceMode'),
+        'theme.userThemes': this.cache.get('theme.userThemes') as never,
+      });
+      const themeUpdates: Record<string, unknown> = {};
+      if (this.cache.get('theme.activeId') !== migrated['theme.activeId']) {
+        themeUpdates['theme.activeId'] = migrated['theme.activeId'];
+      }
+      if (this.cache.get('theme.appearanceMode') !== migrated['theme.appearanceMode']) {
+        themeUpdates['theme.appearanceMode'] = migrated['theme.appearanceMode'];
+      }
+      if (!this.cache.has('theme.userThemes')) {
+        themeUpdates['theme.userThemes'] = migrated['theme.userThemes'];
+      }
+      for (const [key, value] of Object.entries(themeUpdates)) {
+        this.cache.set(key, value);
+      }
+      if (Object.keys(themeUpdates).length > 0) {
+        // Persist asynchronously; ignore failure so a future launch can retry.
+        void fetchJson<void>('PUT', '/api/settings/client', themeUpdates).catch(() => {});
       }
       this.initialized = true;
     })();

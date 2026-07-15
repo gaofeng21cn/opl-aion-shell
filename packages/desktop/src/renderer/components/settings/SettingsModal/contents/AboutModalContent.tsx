@@ -86,7 +86,7 @@ const AboutModalContent: React.FC = () => {
   const [latestStableVersion, setLatestStableVersion] = useState('');
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(isElectron ? 'checking' : 'unknown');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
-  const appStateQuery = useOplAppState('fast');
+  const appStateQuery = useOplAppState('fast', { autoLoad: false });
   const loadAppState = appStateQuery.load;
   const release = oplRecord(appStateQuery.appState.release);
   const appVersions: AppVersions = {

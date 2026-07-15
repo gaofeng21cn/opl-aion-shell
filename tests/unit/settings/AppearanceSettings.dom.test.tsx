@@ -14,6 +14,7 @@ const bridgeMocks = vi.hoisted(() => ({
   confirmModal: vi.fn(),
   messageSuccess: vi.fn(),
   messageError: vi.fn(),
+  setAppearanceMode: vi.fn(),
 }));
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
@@ -112,10 +113,6 @@ vi.mock('@/renderer/components/base/AionScrollArea', () => ({
   ),
 }));
 
-vi.mock('@/renderer/pages/settings/AppearanceSettings/CssThemeSettings', () => ({
-  default: () => <div data-testid='css-theme-settings'>Theme card list</div>,
-}));
-
 vi.mock('@/renderer/components/settings/FontSizeStepper', () => ({
   default: ({ value }: { value: number }) => <div>Font size {value}</div>,
 }));
@@ -126,6 +123,8 @@ vi.mock('@/renderer/components/settings/ScaleControl', () => ({
 
 vi.mock('@renderer/hooks/context/ThemeContext', () => ({
   useThemeContext: () => ({
+    appearanceMode: 'system',
+    setAppearanceMode: bridgeMocks.setAppearanceMode,
     fontSizes: { chat: 14, markdown: 15, code: 13 },
     setFontSize: vi.fn(),
   }),
@@ -168,7 +167,11 @@ vi.mock('react-i18next', () => ({
         'settings.hardwareAccelerationDesc': 'Use the GPU to render the interface.',
         'settings.appearancePreferencesTitle': 'Display and fonts',
         'settings.appearancePreferencesDesc': 'Set chat, Markdown, code text size, and interface scale.',
-        'settings.theme': 'Theme appearance',
+        'settings.theme': 'Theme preset',
+        'settings.appearanceMode': 'Appearance',
+        'settings.systemMode': 'System',
+        'settings.lightMode': 'Light',
+        'settings.darkMode': 'Dark',
         'settings.fontSizeChat': 'Chat font size',
         'settings.fontSizeMarkdown': 'Markdown font size',
         'settings.fontSizeCode': 'Code font size',
@@ -258,9 +261,19 @@ describe('AppearanceModalContent', () => {
     expect(screen.getByText('Code font size')).toBeInTheDocument();
     expect(screen.getByText('Scale')).toBeInTheDocument();
 
-    expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Theme appearance');
+    expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Appearance');
+    const systemMode = screen.getByTestId('appearance-mode-system');
+    expect(systemMode).toHaveAttribute('role', 'radio');
+    expect(systemMode).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('appearance-mode-light')).toBeInTheDocument();
+    fireEvent.keyDown(systemMode, { key: 'ArrowRight' });
+    await waitFor(() => expect(bridgeMocks.setAppearanceMode).toHaveBeenCalledWith('light'));
+    fireEvent.click(screen.getByTestId('appearance-mode-dark'));
+    await waitFor(() => expect(bridgeMocks.setAppearanceMode).toHaveBeenCalledWith('dark'));
+    expect(screen.getByTestId('preferences-display-section')).not.toHaveTextContent('Theme preset');
     expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
-    expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
+    expect(screen.queryByTestId('css-theme-settings')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('preferences-theme-section')).not.toBeInTheDocument();
 
     expect(appBehavior.querySelectorAll('details')).toHaveLength(0);
 

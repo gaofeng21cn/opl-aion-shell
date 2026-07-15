@@ -5,6 +5,7 @@
  */
 
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
+import semver from 'semver';
 
 export type ManagedUpdateComponentId = 'opl_base' | 'opl_app' | 'opl_packages';
 
@@ -110,6 +111,16 @@ export type ManagedUpdatePlane = {
 };
 
 export const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = ['opl_base', 'opl_app', 'opl_packages'];
+
+export function isManagedAppUpdateAvailable(component: ManagedUpdateComponent | undefined): boolean {
+  if (!component || component.id !== 'opl_app') return false;
+  if (component.state === 'update_available') return true;
+  const availableVersion = component.targetVersion ?? component.latestVersion;
+  if (!component.currentVersion || !availableVersion) return false;
+  const current = semver.valid(component.currentVersion) ?? semver.coerce(component.currentVersion)?.version;
+  const available = semver.valid(availableVersion) ?? semver.coerce(availableVersion)?.version;
+  return Boolean(current && available && semver.gt(available, current));
+}
 
 const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
   opl_base: 'OPL Base',

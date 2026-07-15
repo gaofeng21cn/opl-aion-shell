@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowCircleLeft, ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Peoples } from '@icon-park/react';
+import { ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Peoples } from '@icon-park/react';
 import { faCircleQuestion } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ import type { WorkspaceStateDetail } from '@renderer/utils/workspace/workspaceEv
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { isElectronDesktop, isMacOS, openExternalUrl } from '@/renderer/utils/platform';
+import { rememberSettingsReturnPath, resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 import './titlebar.css';
 
 interface TitlebarProps {
@@ -71,7 +72,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const lastNonSettingsPathRef = useRef('/guid');
 
   // 监听工作空间折叠状态，保持按钮图标一致 / Sync workspace collapsed state for toggle button
   useEffect(() => {
@@ -100,7 +100,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const workspaceTooltip = workspaceCollapsed
     ? t('common.expandMore', { defaultValue: 'Expand workspace' })
     : t('common.collapse', { defaultValue: 'Collapse workspace' });
-  const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
+  const backToAppTooltip = t('settings.backToApp');
   const feedbackTooltip = t('settings.githubIssue.tooltip');
   const isSettingsRoute = location.pathname.startsWith('/settings');
   const iconSize = 18;
@@ -132,12 +132,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   };
 
   const handleBackToChat = () => {
-    const target = lastNonSettingsPathRef.current;
-    if (target && !target.startsWith('/settings')) {
-      void navigate(target);
-      return;
-    }
-    void navigate(-1);
+    void navigate(resolveSettingsReturnPath());
   };
 
   const handleFeedback = () => {
@@ -154,25 +149,12 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   };
 
   useEffect(() => {
-    if (!isSettingsRoute) {
-      const path = `${location.pathname}${location.search}${location.hash}`;
-      lastNonSettingsPathRef.current = path;
-      try {
-        sessionStorage.setItem('aion:last-non-settings-path', path);
-      } catch {
-        // ignore
-      }
-      return;
-    }
-    try {
-      const stored = sessionStorage.getItem('aion:last-non-settings-path');
-      if (stored) {
-        lastNonSettingsPathRef.current = stored;
-      }
-    } catch {
-      // ignore
-    }
-  }, [isSettingsRoute, location.pathname, location.search, location.hash]);
+    rememberSettingsReturnPath({
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+    });
+  }, [location.pathname, location.search, location.hash]);
 
   useEffect(() => {
     if (!layout?.isMobile) {
@@ -287,9 +269,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             type='button'
             className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
             onClick={handleBackToChat}
-            aria-label={backToChatTooltip}
+            aria-label={backToAppTooltip}
+            data-testid='settings-titlebar-back-to-app'
           >
-            <ArrowCircleLeft theme='outline' size={iconSize} fill='currentColor' />
+            <ArrowLeft theme='outline' size={iconSize} fill='currentColor' />
           </button>
         )}
         {showSiderToggle && (
@@ -312,6 +295,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               disabled={!navigationHistory?.canBack}
               aria-label={historyBackTooltip}
               title={historyBackTooltip}
+              data-testid={isSettingsRoute ? 'settings-titlebar-history-back' : undefined}
             >
               <ArrowLeft theme='outline' size={iconSize} fill='currentColor' strokeWidth={desktopIconStroke} />
             </button>

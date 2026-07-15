@@ -1,7 +1,7 @@
 import type { AcpInitializeResult, AcpSessionConfigOption, AcpSessionModes } from '@/common/types/platform/acpTypes';
 import type { SpeechToTextConfig } from '@/common/types/provider/speech';
 import type { ICssTheme, IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import type { Theme } from '@/common/theme/types';
+import type { Theme, ThemeAppearanceMode } from '@/common/theme/types';
 
 export type ConfigKeyMap = {
   'google.config': {
@@ -48,6 +48,7 @@ export type ConfigKeyMap = {
   'css.themes': ICssTheme[];
   'css.activeThemeId': string;
   'theme.activeId': string;
+  'theme.appearanceMode': ThemeAppearanceMode;
   'theme.userThemes': Theme[];
   'aionrs.config': { preferredMode?: string } | undefined;
   'aionrs.defaultModel': { id: string; use_model: string } | undefined;

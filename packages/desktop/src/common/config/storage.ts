@@ -5,7 +5,7 @@
  */
 
 import type { SpeechToTextConfig } from '@/common/types/provider/speech';
-import type { Theme } from '@/common/theme/types';
+import type { Theme, ThemeAppearanceMode } from '@/common/theme/types';
 import { storage } from '@office-ai/platform';
 
 // 系统配置存储
@@ -74,6 +74,8 @@ export interface IConfigStorageRefer {
   'css.activeThemeId': string; // 当前激活的主题 ID / Currently active theme ID // @deprecated migrated to theme.activeId/theme.userThemes
   /** Active unified theme ID */
   'theme.activeId': string;
+  /** System, light, or dark appearance for the governed product theme */
+  'theme.appearanceMode': ThemeAppearanceMode;
   /** User-created themes */
   'theme.userThemes': Theme[];
   'aionrs.config'?: {
@@ -246,7 +248,7 @@ export type TConversationRuntimeSummary = {
 };
 
 type TWorkspaceHandoffExtra = {
-  workspace_handoff?: import('@/common/types/platform/gitWorkspace').GitWorkspaceHandoffMetadata;
+  workspace_handoff?: import('@/common/types/platform/gitWorkspace').GitWorkspaceHandoffMetadata | null;
 };
 
 interface IChatConversation<T, Extra> {

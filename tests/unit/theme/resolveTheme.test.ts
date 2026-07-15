@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { resolveActiveTheme } from '@/common/theme/resolveTheme';
-import { LIGHT_THEME_ID, DARK_THEME_ID, CODEX_THEME_ID, SYSTEM_THEME_ID } from '@/common/theme/constants';
+import { resolveActiveTheme, resolveThemeAppearance } from '@/common/theme/resolveTheme';
+import { LIGHT_THEME_ID, DARK_THEME_ID, CODEX_THEME_ID } from '@/common/theme/constants';
 import { BUILTIN_THEMES } from '@/renderer/theme/builtinThemes';
 import type { Theme } from '@/common/theme/types';
 
@@ -26,10 +26,9 @@ const userTheme: Theme = {
 const themes = [light, dark, userTheme];
 
 describe('resolveActiveTheme', () => {
-  it('keeps App-facing default and Codex builtin theme ids available', () => {
-    expect(BUILTIN_THEMES.map((theme) => theme.id)).toEqual(expect.arrayContaining([LIGHT_THEME_ID, CODEX_THEME_ID]));
+  it('exposes only the governed App visual baseline as a builtin preset', () => {
+    expect(BUILTIN_THEMES.map((theme) => theme.id)).toEqual([LIGHT_THEME_ID]);
     expect(LIGHT_THEME_ID).toBe('default-theme');
-    expect(CODEX_THEME_ID).toBe('codex');
   });
   it('returns a theme by id', () => {
     expect(resolveActiveTheme(DARK_THEME_ID, themes).id).toBe(DARK_THEME_ID);
@@ -46,20 +45,25 @@ describe('resolveActiveTheme', () => {
   it('falls back to first theme when no Light present', () => {
     expect(resolveActiveTheme('nope', [dark, userTheme]).id).toBe(DARK_THEME_ID);
   });
-  it('resolves system to Dark when prefersDark is true', () => {
-    expect(resolveActiveTheme(SYSTEM_THEME_ID, themes, true).id).toBe(DARK_THEME_ID);
+  it('applies dark appearance without replacing the selected preset', () => {
+    const resolved = resolveActiveTheme('u1', themes, 'dark');
+    expect(resolved.id).toBe('u1');
+    expect(resolved.appearance).toBe('dark');
   });
-  it('resolves system to Light when prefersDark is false', () => {
-    expect(resolveActiveTheme(SYSTEM_THEME_ID, themes, false).id).toBe(LIGHT_THEME_ID);
+  it('falls back from a legacy Codex preset while System follows a dark OS', () => {
+    const resolved = resolveActiveTheme(CODEX_THEME_ID, [...BUILTIN_THEMES, userTheme], 'system', true);
+    expect(resolved.id).toBe(LIGHT_THEME_ID);
+    expect(resolved.appearance).toBe('dark');
   });
-  it('resolves system to Light when prefersDark is undefined', () => {
-    expect(resolveActiveTheme(SYSTEM_THEME_ID, themes).id).toBe(LIGHT_THEME_ID);
+  it('defaults System to light when the OS preference is unavailable', () => {
+    expect(resolveThemeAppearance('system')).toBe('light');
   });
-  it('ignores prefersDark for non-system ids', () => {
-    expect(resolveActiveTheme('u1', themes, true).id).toBe('u1');
-    expect(resolveActiveTheme(LIGHT_THEME_ID, themes, true).id).toBe(LIGHT_THEME_ID);
+  it('ignores the OS preference for an explicit appearance mode', () => {
+    expect(resolveActiveTheme('u1', themes, 'light', true).appearance).toBe('light');
   });
-  it('falls back to Light when system resolves to a missing Dark theme', () => {
-    expect(resolveActiveTheme(SYSTEM_THEME_ID, [light, userTheme], true).id).toBe(LIGHT_THEME_ID);
+  it('falls back to the default preset while retaining the requested appearance', () => {
+    const resolved = resolveActiveTheme('missing', [light, userTheme], 'dark');
+    expect(resolved.id).toBe(LIGHT_THEME_ID);
+    expect(resolved.appearance).toBe('dark');
   });
 });

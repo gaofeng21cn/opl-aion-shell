@@ -234,7 +234,7 @@ const ConversationEnvironmentPopover: React.FC<{
         )}
       </div>
 
-      {conversation && summary.workspace && (
+      {conversation && (
         <WorkspaceHandoffControl
           conversation={conversation}
           workspace={summary.workspace}

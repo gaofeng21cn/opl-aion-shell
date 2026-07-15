@@ -6,13 +6,13 @@ import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/ui/s
 import { useAuth } from '@renderer/hooks/context/AuthContext';
 import { useLayoutContext } from '@renderer/hooks/context/LayoutContext';
 import { blurActiveElement } from '@renderer/utils/ui/focus';
-import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { useTeamCreatedRedirect } from '@renderer/pages/team/hooks/useTeamCreatedRedirect';
 import { useTranslation } from 'react-i18next';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { SETTINGS_DEFAULT_ROUTE } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { gatewayAccountInitials, readGatewayAccountProjection } from '@/renderer/pages/settings/accessProjection';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { isManagedAppUpdateAvailable, readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import TeamSiderSection from './TeamSiderSection';
@@ -36,7 +36,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
   const { logout, status } = useAuth();
-  const { theme, setTheme } = useThemeContext();
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   useTeamCreatedRedirect();
@@ -44,6 +43,13 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const showLogout =
     typeof window !== 'undefined' && !(window as { electronAPI?: unknown }).electronAPI && status === 'authenticated';
   const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
+  const managedUpdatePlane = React.useMemo(
+    () => readManagedUpdatePlane(appStateQuery.payload, appStateQuery.appState),
+    [appStateQuery.appState, appStateQuery.payload]
+  );
+  const appUpdateAvailable = isManagedAppUpdateAvailable(
+    managedUpdatePlane.components.find((component) => component.id === 'opl_app')
+  );
   const footerAccount =
     gatewayAccount?.connection_mode === 'account' && gatewayAccount.account_card_visible && gatewayAccount.account
       ? {
@@ -94,8 +100,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     }
   };
 
-  const handleQuickThemeToggle = () => {
-    void setTheme(theme === 'dark' ? 'light' : 'dark');
+  const handleUpdateClick = () => {
+    cleanupSiderTooltips();
+    blurActiveElement();
+    window.dispatchEvent(
+      new CustomEvent('aionui-open-update-modal', { detail: { source: 'sider-footer', intent: 'update' } })
+    );
   };
 
   const handleLogout = useCallback(async () => {
@@ -217,13 +227,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
       {/* Footer */}
       <SiderFooter
         isMobile={isMobile}
-        isSettings={isSettings}
         collapsed={collapsed}
-        theme={theme}
+        updateAvailable={appUpdateAvailable}
         account={footerAccount}
         siderTooltipProps={siderTooltipProps}
         onSettingsClick={handleSettingsClick}
-        onThemeToggle={handleQuickThemeToggle}
+        onUpdateClick={handleUpdateClick}
       />
     </div>
   );

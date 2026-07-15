@@ -10,6 +10,8 @@ const gitWorkspaceApi = vi.hoisted(() => ({
 }));
 const workspaceEvents = vi.hoisted(() => ({ toggle: vi.fn() }));
 const previewContext = vi.hoisted(() => ({ openPreview: vi.fn() }));
+const dialogApi = vi.hoisted(() => ({ showOpen: vi.fn() }));
+const emitterApi = vi.hoisted(() => ({ emit: vi.fn() }));
 const handoffApi = vi.hoisted(() => ({
   readThread: vi.fn(),
   updateWorkspace: vi.fn(),
@@ -32,6 +34,9 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 
 vi.mock('@/common', () => ({
   ipcBridge: {
+    dialog: {
+      showOpen: { invoke: dialogApi.showOpen },
+    },
     gitWorkspace: {
       inspect: { invoke: gitWorkspaceApi.inspect },
       ensureManagedWorktree: { invoke: handoffApi.ensureManagedWorktree },
@@ -47,7 +52,7 @@ vi.mock('@/common', () => ({
 }));
 
 vi.mock('@/renderer/utils/emitter', () => ({
-  emitter: { emit: vi.fn() },
+  emitter: { emit: emitterApi.emit },
 }));
 
 vi.mock('@/renderer/utils/workspace/workspaceEvents', () => ({
@@ -81,6 +86,9 @@ vi.mock('react-i18next', () => ({
         'conversation.environment.handoffRunning': 'Finish the running turn first',
         'conversation.environment.handoffSuccess': 'Task location updated',
         'conversation.environment.handoffFailed': 'Could not update task location',
+        'conversation.environment.changeWorkingDirectory': 'Change working directory',
+        'conversation.environment.workingDirectoryChangeSuccess': 'Working directory updated',
+        'conversation.environment.workingDirectoryChangeFailed': 'Could not update working directory',
         'conversation.environment.projectionUpdateFailed':
           'The local conversation could not be updated, so the task location was rolled back. Retry the location change.',
         'conversation.environment.handoffInconsistent':
@@ -131,6 +139,52 @@ const canonicalConversation = {
   },
 } as TChatConversation;
 
+const canonicalProjectlessConversation = {
+  ...canonicalConversation,
+  extra: {
+    backend: 'codex',
+    canonical_thread_id: 'thread-1',
+  },
+} as TChatConversation;
+
+const managedWorktreeConversation = {
+  ...canonicalConversation,
+  extra: {
+    ...canonicalConversation.extra,
+    workspace: '/Users/test/.codex/worktrees/demo-task',
+    workspace_handoff: {
+      schema: 'opl_workspace_handoff.v1',
+      locality: 'worktree',
+      localWorkspace: '/projects/demo',
+      worktreePath: '/Users/test/.codex/worktrees/demo-task',
+      taskId: 'thread-1',
+      startRef: 'main',
+      startCommit: '1111111111111111111111111111111111111111',
+      worktreeRetention: 'preserve_for_reuse',
+    },
+  },
+} as TChatConversation;
+
+const threadDetail = (workspace = '/projects/demo', status: 'idle' | 'running' = 'idle') => ({
+  thread: {
+    id: 'thread-1',
+    title: 'Task',
+    summary: '',
+    status,
+    projectId: 'project-1',
+    workspace,
+    host: 'local',
+    owner: 'Codex',
+    goal: null,
+    parentThreadId: null,
+    ancestorThreadIds: [],
+    activeTurnId: status === 'running' ? 'turn-1' : null,
+    archived: false,
+    updatedAt: '2026-07-13T00:00:00.000Z',
+  },
+  history: [],
+});
+
 it('normalizes legacy Worktree retention metadata and drops the retired snapshot payload', () => {
   expect(
     readWorkspaceHandoffMetadata({
@@ -180,25 +234,9 @@ describe('ConversationEnvironmentPopover', () => {
     });
     workspaceEvents.toggle.mockReset();
     previewContext.openPreview.mockReset();
-    handoffApi.readThread.mockReset().mockResolvedValue({
-      thread: {
-        id: 'thread-1',
-        title: 'Task',
-        summary: '',
-        status: 'idle',
-        projectId: 'project-1',
-        workspace: '/projects/demo',
-        host: 'local',
-        owner: 'Codex',
-        goal: null,
-        parentThreadId: null,
-        ancestorThreadIds: [],
-        activeTurnId: null,
-        archived: false,
-        updatedAt: '2026-07-13T00:00:00.000Z',
-      },
-      history: [],
-    });
+    dialogApi.showOpen.mockReset().mockResolvedValue([]);
+    emitterApi.emit.mockReset();
+    handoffApi.readThread.mockReset().mockResolvedValue(threadDetail());
     handoffApi.updateWorkspace.mockReset().mockResolvedValue(undefined);
     handoffApi.ensureManagedWorktree.mockReset().mockResolvedValue({
       status: 'created',
@@ -372,6 +410,129 @@ describe('ConversationEnvironmentPopover', () => {
 
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(previewContext.openPreview).not.toHaveBeenCalled();
+  });
+
+  it('moves the same idle session from a managed Worktree to another directory and clears stale handoff metadata', async () => {
+    dialogApi.showOpen.mockResolvedValue(['/projects/other']);
+    handoffApi.readThread.mockResolvedValueOnce(threadDetail('/Users/test/.codex/worktrees/demo-task'));
+    render(<ConversationEnvironmentPopover conversation={managedWorktreeConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const changeDirectory = within(popover).getByRole('button', { name: 'Change working directory' });
+    await waitFor(() => expect(changeDirectory).toBeEnabled());
+    fireEvent.click(changeDirectory);
+
+    await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
+    expect(dialogApi.showOpen).toHaveBeenCalledWith({ properties: ['openDirectory', 'createDirectory'] });
+    expect(handoffApi.updateWorkspace).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      workspace: '/projects/other',
+    });
+    expect(handoffApi.updateConversation).toHaveBeenCalledWith({
+      id: 'conversation-1',
+      updates: {
+        extra: {
+          workspace: '/projects/other',
+          workspace_handoff: null,
+        },
+      },
+      merge_extra: true,
+    });
+    expect(handoffApi.updateWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
+      handoffApi.updateConversation.mock.invocationCallOrder[0]
+    );
+    expect(emitterApi.emit).toHaveBeenCalledWith('chat.history.refresh');
+    expect(messageApi.success).toHaveBeenCalledWith('Working directory updated');
+  });
+
+  it('binds a projectless canonical session to a selected working directory without replacing the session', async () => {
+    dialogApi.showOpen.mockResolvedValue(['/projects/other']);
+    handoffApi.readThread.mockResolvedValueOnce(threadDetail('/projects/canonical'));
+    render(<ConversationEnvironmentPopover conversation={canonicalProjectlessConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    expect(within(popover).queryByRole('radiogroup', { name: 'Task location' })).not.toBeInTheDocument();
+    const changeDirectory = within(popover).getByRole('button', { name: 'Change working directory' });
+    await waitFor(() => expect(changeDirectory).toBeEnabled());
+    fireEvent.click(changeDirectory);
+
+    await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
+    expect(handoffApi.updateWorkspace).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      workspace: '/projects/other',
+    });
+    expect(handoffApi.updateConversation).toHaveBeenCalledWith({
+      id: 'conversation-1',
+      updates: {
+        extra: {
+          workspace: '/projects/other',
+          workspace_handoff: null,
+        },
+      },
+      merge_extra: true,
+    });
+  });
+
+  it('rolls back to the operation-start canonical cwd when the local projection was already stale', async () => {
+    dialogApi.showOpen.mockResolvedValue(['/projects/other']);
+    handoffApi.readThread.mockResolvedValueOnce(threadDetail('/projects/canonical'));
+    handoffApi.updateConversation.mockResolvedValueOnce(false);
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const changeDirectory = within(popover).getByRole('button', { name: 'Change working directory' });
+    await waitFor(() => expect(changeDirectory).toBeEnabled());
+    fireEvent.click(changeDirectory);
+
+    await waitFor(() => expect(handoffApi.updateWorkspace).toHaveBeenCalledTimes(2));
+    expect(handoffApi.updateWorkspace.mock.calls[0][0]).toEqual({
+      threadId: 'thread-1',
+      workspace: '/projects/other',
+    });
+    expect(handoffApi.updateWorkspace.mock.calls[1][0]).toEqual({
+      threadId: 'thread-1',
+      workspace: '/projects/canonical',
+    });
+    expect(handoffApi.updateConversation).toHaveBeenCalledOnce();
+    expect(emitterApi.emit).not.toHaveBeenCalledWith('chat.history.refresh');
+    expect(messageApi.error).toHaveBeenCalledWith(
+      'The local conversation could not be updated, so the task location was rolled back. Retry the location change.'
+    );
+  });
+
+  it('updates canonical cwd when the selected directory only matches a stale local projection', async () => {
+    dialogApi.showOpen.mockResolvedValue(['/projects/demo']);
+    handoffApi.readThread.mockResolvedValueOnce(threadDetail('/projects/canonical'));
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    const changeDirectory = within(popover).getByRole('button', { name: 'Change working directory' });
+    await waitFor(() => expect(changeDirectory).toBeEnabled());
+    fireEvent.click(changeDirectory);
+
+    await waitFor(() => expect(handoffApi.updateConversation).toHaveBeenCalledOnce());
+    expect(handoffApi.updateWorkspace).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      workspace: '/projects/demo',
+    });
+  });
+
+  it('keeps working-directory selection unavailable while the canonical session is running', async () => {
+    handoffApi.readThread.mockResolvedValueOnce(threadDetail('/projects/demo', 'running'));
+    render(<ConversationEnvironmentPopover conversation={canonicalConversation} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Environment' }));
+
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    await within(popover).findByText('Finish the running turn first');
+    const changeDirectory = within(popover).getByRole('button', { name: 'Change working directory' });
+    expect(changeDirectory).toBeDisabled();
+    fireEvent.click(changeDirectory);
+    expect(dialogApi.showOpen).not.toHaveBeenCalled();
+    expect(handoffApi.updateWorkspace).not.toHaveBeenCalled();
   });
 
   it('moves an idle canonical Codex task from Local to a managed Worktree and persists the projection', async () => {

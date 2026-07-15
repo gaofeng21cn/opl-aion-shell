@@ -2074,7 +2074,7 @@ export interface ICreateConversationParams {
     current_model_id?: string;
     cached_config_options?: import('../types/platform/acpTypes').AcpSessionConfigOption[];
     pending_config_options?: Record<string, string>;
-    workspace_handoff?: import('../types/platform/gitWorkspace').GitWorkspaceHandoffMetadata;
+    workspace_handoff?: import('../types/platform/gitWorkspace').GitWorkspaceHandoffMetadata | null;
     runtime_validation?: {
       expected_workspace?: string;
       expected_backend?: string;
