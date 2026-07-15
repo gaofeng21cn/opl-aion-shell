@@ -10,7 +10,7 @@ import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,7 @@ import {
   resolveDefaultGatewayGroup,
 } from '../accessProjection';
 import { useNavigate } from 'react-router-dom';
-import type { OplGatewayAccountActionId } from '@/common/types/opl/appState';
+import type { OplGatewayAccountActionId, OplGatewayAccountReadModel } from '@/common/types/opl/appState';
 import type { IOplGatewayAccountErrorCode } from '@/common/adapter/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { formatOplCodexModelDisplay } from '@/renderer/utils/model/oplCodexModelDisplay';
@@ -60,6 +60,49 @@ function gatewayErrorTranslationKey(errorCode: string | null): string {
   };
   return keys[errorCode ?? ''] ?? 'settings.accessPage.gatewayAccount.errors.generic';
 }
+
+function gatewayAccountFromActionResult(result: OplCommandResult): OplGatewayAccountReadModel | null {
+  const execution = oplRecord(oplRecord(result.parsed).app_action_execution);
+  const gateway = oplRecord(oplRecord(execution.result).gateway_account);
+  return gateway.surface_kind === 'opl_gateway_account_read_model.v1' ? (gateway as OplGatewayAccountReadModel) : null;
+}
+
+function gatewayRefreshFailureCode(
+  result: OplCommandResult,
+  readback: OplGatewayAccountReadModel | null
+): string | null {
+  if (result?.ok === false) {
+    return readback?.freshness.last_error_code ?? result.error?.code ?? 'gateway_account_failed';
+  }
+  const actionProjection = gatewayAccountFromActionResult(result);
+  if (!actionProjection || !readback) return 'internal_contract_violation';
+  const projectedFailure = actionProjection.freshness.last_error_code;
+  if (projectedFailure) return projectedFailure;
+  if (actionProjection.freshness.stale) return 'gateway_account_failed';
+  if (readback.freshness.last_error_code) return readback.freshness.last_error_code;
+  return readback.freshness.stale ? 'gateway_account_failed' : null;
+}
+
+type GatewayAmountValueProps = {
+  amount: string;
+  currency: string;
+  testId: string;
+};
+
+const GatewayAmountValue: React.FC<GatewayAmountValueProps> = ({ amount, currency, testId }) => (
+  <Typography.Text
+    className='flex min-w-0 max-w-full flex-wrap items-baseline gap-x-4px text-18px font-600 leading-22px text-t-primary xl:min-h-44px'
+    data-testid={testId}
+  >
+    <span className='break-normal whitespace-nowrap'>{amount}</span>
+    {currency && (
+      <>
+        {' '}
+        <span className='break-normal whitespace-nowrap'>{currency}</span>
+      </>
+    )}
+  </Typography.Text>
+);
 
 type AccessSettingsSurface = 'models' | 'gateway';
 
@@ -215,9 +258,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
     }
   };
 
-  const refreshFastState = React.useCallback(async (): Promise<void> => {
-    await appStateQuery.load('fast', { showRefreshing: true });
-  }, [appStateQuery.load]);
+  const refreshFastState = React.useCallback(
+    () => appStateQuery.load('fast', { showRefreshing: true }),
+    [appStateQuery.load]
+  );
 
   const handleGatewayLogin = async () => {
     const email = gatewayEmail.trim();
@@ -262,6 +306,19 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
           dryRun: false,
           ...(payloadJson ? { payloadJson } : {}),
         });
+        if (actionId === 'gateway_account_refresh') {
+          const refreshedPayload = await refreshFastState();
+          const refreshedGateway = readGatewayAccountProjection(refreshedPayload?.app_state);
+          const failureCode = gatewayRefreshFailureCode(result, refreshedGateway);
+          if (failureCode) {
+            Message.error(t(gatewayErrorTranslationKey(failureCode)));
+            return;
+          }
+          if (options.announceSuccess !== false) {
+            Message.success(t('settings.accessPage.gatewayAccount.actionSuccess'));
+          }
+          return;
+        }
         assertOplCommandOk(result);
         setDisconnectConfirmVisible(false);
         if (options.announceSuccess !== false) {
@@ -535,9 +592,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   data-testid='settings-gateway-metrics'
                 >
                   <div className='min-w-0 px-16px py-13px'>
-                    <Typography.Text className='block text-18px font-600 text-t-primary'>
-                      {gatewayNumber(gatewayAccount.account.balance.amount)} {gatewayAccount.account.balance.currency}
-                    </Typography.Text>
+                    <GatewayAmountValue
+                      amount={gatewayNumber(gatewayAccount.account.balance.amount)}
+                      currency={gatewayAccount.account.balance.currency}
+                      testId='settings-gateway-balance-value'
+                    />
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {t('settings.accessPage.gatewayAccount.metrics.balance')}
                     </Typography.Text>
@@ -551,10 +610,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 px-16px py-13px'>
-                    <Typography.Text className='block text-18px font-600 text-t-primary'>
-                      {gatewayNumber(gatewayAccount.usage?.today_actual_cost ?? null)}{' '}
-                      {gatewayAccount.usage?.currency ?? ''}
-                    </Typography.Text>
+                    <GatewayAmountValue
+                      amount={gatewayNumber(gatewayAccount.usage?.today_actual_cost ?? null)}
+                      currency={gatewayAccount.usage?.currency ?? ''}
+                      testId='settings-gateway-today-cost-value'
+                    />
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {t('settings.accessPage.gatewayAccount.metrics.todayCost')}
                     </Typography.Text>
@@ -568,10 +628,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 px-16px py-13px'>
-                    <Typography.Text className='block text-18px font-600 text-t-primary'>
-                      {gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}{' '}
-                      {gatewayAccount.usage?.currency ?? ''}
-                    </Typography.Text>
+                    <GatewayAmountValue
+                      amount={gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}
+                      currency={gatewayAccount.usage?.currency ?? ''}
+                      testId='settings-gateway-total-cost-value'
+                    />
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {t('settings.accessPage.gatewayAccount.metrics.totalCost')}
                     </Typography.Text>

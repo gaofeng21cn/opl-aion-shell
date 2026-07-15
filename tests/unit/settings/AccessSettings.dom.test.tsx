@@ -109,6 +109,35 @@ function makeGatewayAccount(overrides: Record<string, unknown> = {}): Record<str
   };
 }
 
+function makeGatewayPayload(gatewayAccount: Record<string, unknown>) {
+  return {
+    app_state: {
+      settings_control_center: {
+        app_settings_read_model: {
+          opl_gateway_account: gatewayAccount,
+        },
+      },
+    },
+  };
+}
+
+function makeGatewayActionResult(gatewayAccount: Record<string, unknown>) {
+  return {
+    surface: 'app_action',
+    command: 'opl app action execute --action gateway_account_refresh --json',
+    stdout: '{}',
+    ok: true,
+    parsed: {
+      version: 'g2',
+      app_action_execution: {
+        surface_kind: 'opl_app_action_execution.v1',
+        action_id: 'gateway_account_refresh',
+        result: { gateway_account: gatewayAccount },
+      },
+    },
+  };
+}
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
@@ -559,6 +588,8 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.gatewayAccount.errors.invalidRequest': 'Enter the account email and password.',
         'settings.accessPage.gatewayAccount.errors.invalidCredentials': 'The email or password is incorrect.',
         'settings.accessPage.gatewayAccount.errors.authExpired': 'The Gateway session expired. Sign in again.',
+        'settings.accessPage.gatewayAccount.errors.networkUnreachable':
+          'The Gateway is currently unreachable. Existing data has been kept.',
         'settings.accessPage.gatewayAccount.errors.managedKeyMissing':
           'The managed key is unavailable. Refresh, then sign in again if needed.',
         'settings.accessPage.gatewayAccount.errors.managedKeyConflict': 'More than one managed key exists.',
@@ -895,7 +926,7 @@ describe('AccessSettingsContent', () => {
 
   it('renders the canonical account card, preserves null metrics, and refreshes through App action', async () => {
     const mocks = getMocks();
-    mocks.gatewayAccount = makeGatewayAccount({
+    const gatewayAccount = makeGatewayAccount({
       status: 'connected',
       connection_mode: 'account',
       account_card_visible: true,
@@ -903,14 +934,14 @@ describe('AccessSettingsContent', () => {
         display_name: 'Feng',
         email: 'feng@example.com',
         status: 'active',
-        balance: { amount: 18.5, currency: 'CNY' },
+        balance: { amount: 57909.35, currency: 'USD' },
       },
       usage: {
         today_tokens: null,
         total_tokens: 212960931822,
         today_actual_cost: 1.25,
-        total_actual_cost: 88.4,
-        currency: 'CNY',
+        total_actual_cost: 210545.39,
+        currency: 'USD',
         day_timezone: 'Asia/Shanghai',
       },
       managed_key: { name: 'OPL App · Feng-Mac · 7F31A9C2', status: 'active', ownership: 'opl_app' },
@@ -928,13 +959,38 @@ describe('AccessSettingsContent', () => {
         disconnect: 'gateway_account_disconnect',
       },
     });
+    const refreshedGatewayAccount = {
+      ...gatewayAccount,
+      freshness: {
+        observed_at: '2026-07-16T03:01:00+08:00',
+        stale_after: '2026-07-16T03:16:00+08:00',
+        stale: false,
+        last_error_code: null,
+      },
+    };
+    mocks.gatewayAccount = gatewayAccount;
+    mocks.executeActionInvoke.mockResolvedValue(makeGatewayActionResult(refreshedGatewayAccount));
+    mocks.load.mockResolvedValue(makeGatewayPayload(refreshedGatewayAccount));
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('feng@example.com');
     expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('Active');
-    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('18.5 CNY');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('57,909.35 USD');
     expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('212.96B');
     expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('--');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('210,545.39 USD');
+    for (const testId of [
+      'settings-gateway-balance-value',
+      'settings-gateway-today-cost-value',
+      'settings-gateway-total-cost-value',
+    ]) {
+      const amount = view.getByTestId(testId);
+      expect(amount.className).toContain('flex-wrap');
+      expect(amount.className).toContain('xl:min-h-44px');
+      const stableSegments = amount.querySelectorAll('.whitespace-nowrap');
+      expect(stableSegments).toHaveLength(2);
+      expect(Array.from(stableSegments).every((segment) => segment.classList.contains('break-normal'))).toBe(true);
+    }
     expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
     expect(view.getByTestId('settings-gateway-stale')).toBeTruthy();
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
@@ -954,6 +1010,57 @@ describe('AccessSettingsContent', () => {
       })
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    await waitFor(() => expect(document.body.textContent).toContain('OPL Gateway account updated.'));
+  });
+
+  it('keeps cached Gateway data and rejects a refresh success toast when the action reports a typed failure', async () => {
+    const mocks = getMocks();
+    const gatewayAccount = makeGatewayAccount({
+      status: 'connected',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        email: 'feng@example.com',
+        status: 'active',
+        balance: { amount: 57909.35, currency: 'USD' },
+      },
+      usage: {
+        today_tokens: 751760000,
+        total_tokens: 215730000000,
+        today_actual_cost: 1.25,
+        total_actual_cost: 210545.39,
+        currency: 'USD',
+        day_timezone: 'Asia/Shanghai',
+      },
+      freshness: {
+        observed_at: '2026-07-16T03:01:00+08:00',
+        stale_after: '2026-07-16T03:01:00+08:00',
+        stale: true,
+        last_error_code: 'network_unreachable',
+      },
+      actions: {
+        complete_setup: null,
+        refresh: 'gateway_account_refresh',
+        repair: 'gateway_account_repair',
+        use_for_model_access: 'gateway_account_use_for_model_access',
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+    mocks.gatewayAccount = gatewayAccount;
+    mocks.executeActionInvoke.mockResolvedValue(makeGatewayActionResult(gatewayAccount));
+    mocks.load.mockResolvedValue(makeGatewayPayload(gatewayAccount));
+    const view = render(<AccessSettingsContent surface='gateway' />);
+
+    fireEvent.click(view.getByRole('button', { name: 'Refresh' }));
+
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('The Gateway is currently unreachable. Existing data has been kept.')
+    );
+    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('feng@example.com');
+    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('57,909.35 USD');
+    expect(document.body.textContent).not.toContain('OPL Gateway account updated.');
   });
 
   it('does not run Gateway setup while only the models surface is open', () => {
