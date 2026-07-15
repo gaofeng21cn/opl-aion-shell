@@ -11,7 +11,6 @@ import {
   filterOplOrdinarySkillNames,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import type { ProjectContextRef } from '@/common/config/configKeys';
 import type { GitWorkspaceHandoffMetadata } from '@/common/types/platform/gitWorkspace';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
@@ -47,7 +46,6 @@ export type GuidSendDeps = {
   setInput: React.Dispatch<React.SetStateAction<string>>;
   files: string[];
   setFiles: React.Dispatch<React.SetStateAction<string[]>>;
-  projectContextRefs: ProjectContextRef[];
   dir: string;
   workspaceHandoff?: GitWorkspaceHandoffMetadata;
   setDir: React.Dispatch<React.SetStateAction<string>>;
@@ -179,7 +177,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setInput,
     files,
     setFiles,
-    projectContextRefs,
     dir,
     workspaceHandoff,
     setDir,
@@ -243,7 +240,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
-    const initialFiles = Array.from(new Set([...projectContextRefs.map((ref) => ref.path), ...files]));
+    const initialFiles = Array.from(new Set(files));
     const oplAgentPackageActivation = selectedPackageId
       ? await activateOplAgentPackage(selectedPackageId, finalWorkspace)
       : undefined;
@@ -304,7 +301,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_workspace: isCustomWorkspace,
         language,
         extra: {
-          default_files: files,
+          default_files: initialFiles,
           runtime_validation: {
             expected_workspace: finalWorkspace,
             expected_backend: openclawAgentInfo?.backend,
@@ -363,7 +360,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_workspace: isCustomWorkspace,
         language,
         extra: {
-          default_files: files,
+          default_files: initialFiles,
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
@@ -415,7 +412,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             ? { id: selectedAgentInfo.backend_assistant_id, locale: resolveLocaleKey(language) }
             : undefined,
           extra: {
-            default_files: files,
+            default_files: initialFiles,
             workspace: finalWorkspace,
             custom_workspace: isCustomWorkspace,
             preset_rules: is_preset ? preset_rules : undefined,
@@ -515,7 +512,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         config_options: codexReasoningEffort ? { reasoning_effort: codexReasoningEffort } : undefined,
         language,
         extra: {
-          default_files: files,
+          default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
           opl_agent_package_activation: oplAgentPackageActivation,
@@ -562,7 +559,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   }, [
     input,
     files,
-    projectContextRefs,
     dir,
     workspaceHandoff,
     selectedAgent,

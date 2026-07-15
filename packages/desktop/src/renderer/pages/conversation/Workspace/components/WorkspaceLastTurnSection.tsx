@@ -6,7 +6,7 @@
 
 import type { TMessage } from '@/common/chat/chatLib';
 import { useMessageList } from '@/renderer/pages/conversation/Messages/hooks';
-import { canonicalWorkspacePath, createProjectContextRef } from '@/renderer/utils/workspace/projectContext';
+import { workspaceRelativePath } from '@/renderer/utils/workspace/workspacePath';
 import { History } from '@icon-park/react';
 import type { TFunction } from 'i18next';
 import React, { useMemo } from 'react';
@@ -17,18 +17,6 @@ type WorkspaceLastTurnSectionProps = {
 };
 
 const FILE_INPUT_KEYS = ['file_path', 'filePath', 'path', 'file_name'] as const;
-
-function workspaceRelativePath(workspace: string, candidate: string): string | null {
-  const trimmedCandidate = candidate.trim();
-  if (!trimmedCandidate) return null;
-
-  const normalizedCandidate = trimmedCandidate.replace(/\\/g, '/');
-  const isAbsolute = normalizedCandidate.startsWith('/') || /^[A-Za-z]:\//.test(normalizedCandidate);
-  const absoluteCandidate = isAbsolute
-    ? normalizedCandidate
-    : `${canonicalWorkspacePath(workspace)}/${normalizedCandidate}`;
-  return createProjectContextRef(workspace, absoluteCandidate, true)?.relativePath ?? null;
-}
 
 function editCandidates(message: Extract<TMessage, { type: 'acp_tool_call' }>): string[] {
   const update = message.content.update;

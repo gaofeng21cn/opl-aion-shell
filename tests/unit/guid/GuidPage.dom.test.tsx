@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   setDir: vi.fn(),
   setLoading: vi.fn(),
+  onPaste: vi.fn(),
+  onDrop: vi.fn(),
   ensureBackendMcpCatalog: vi.fn(),
   inspectGitWorkspace: vi.fn(),
   ensureManagedWorktree: vi.fn(),
@@ -322,8 +324,8 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
     handleTextareaBlur: vi.fn(),
     handleFilesUploaded: vi.fn(),
     handleRemoveFile: vi.fn(),
-    onPaste: vi.fn(),
-    dragHandlers: {},
+    onPaste: mocks.onPaste,
+    dragHandlers: { onDrop: mocks.onDrop },
   }),
 }));
 
@@ -389,14 +391,15 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     fileAccessDisabled,
     workspaceAccessDisabled,
     fileAccessEnabled,
-    projectContextRefs,
-    onRemoveProjectContextRef,
+    onPaste,
+    dragHandlers,
     onClearWorkspace,
     launchMode,
     onLaunchModeChange,
     branchOptions,
     selectedStartRef,
     onSelectedStartRefChange,
+    worktreeControlsDisabled,
     worktreeError,
   }: {
     placeholder: string;
@@ -405,25 +408,40 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
     fileAccessEnabled?: boolean;
-    projectContextRefs?: Array<{ path: string; name: string }>;
-    onRemoveProjectContextRef?: (path: string) => void;
+    onPaste: React.ClipboardEventHandler;
+    dragHandlers: React.HTMLAttributes<HTMLDivElement>;
     onClearWorkspace: () => void;
     launchMode: 'local' | 'worktree';
     onLaunchModeChange: (mode: 'local' | 'worktree') => void;
     branchOptions: Array<{ value: string; label: string }>;
     selectedStartRef: string;
     onSelectedStartRefChange: (startRef: string) => void;
+    worktreeControlsDisabled?: boolean;
     worktreeError?: string | null;
   }) => (
-    <div data-testid='guid-input-card' data-launch-mode={launchMode} data-selected-start-ref={selectedStartRef}>
+    <div
+      data-testid='guid-input-card'
+      data-launch-mode={launchMode}
+      data-selected-start-ref={selectedStartRef}
+      onPaste={fileAccessEnabled ? onPaste : undefined}
+      onDrop={fileAccessEnabled ? dragHandlers.onDrop : undefined}
+    >
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {activeCapabilityLabel ? <div data-testid='guid-active-capability'>{activeCapabilityLabel}</div> : null}
       {actionRow}
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
       {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
-      <button data-testid='guid-select-local' onClick={() => onLaunchModeChange('local')} />
-      <button data-testid='guid-select-worktree' onClick={() => onLaunchModeChange('worktree')} />
+      <button
+        data-testid='guid-select-local'
+        disabled={worktreeControlsDisabled}
+        onClick={() => onLaunchModeChange('local')}
+      />
+      <button
+        data-testid='guid-select-worktree'
+        disabled={worktreeControlsDisabled}
+        onClick={() => onLaunchModeChange('worktree')}
+      />
       {branchOptions.map((option) => (
         <button
           key={option.value}
@@ -435,15 +453,6 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       ))}
       {worktreeError ? <div data-testid='guid-worktree-error'>{worktreeError}</div> : null}
       <button data-testid='guid-clear-workspace' onClick={onClearWorkspace} />
-      {projectContextRefs?.map((ref) => (
-        <button
-          key={ref.path}
-          data-testid='guid-route-project-context-ref'
-          onClick={() => onRemoveProjectContextRef?.(ref.path)}
-        >
-          {ref.name}
-        </button>
-      ))}
     </div>
   ),
 }));
@@ -463,6 +472,8 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setFiles.mockClear();
     mocks.setDir.mockClear();
     mocks.setLoading.mockClear();
+    mocks.onPaste.mockClear();
+    mocks.onDrop.mockClear();
     mocks.ensureBackendMcpCatalog.mockReset();
     mocks.inspectGitWorkspace.mockReset();
     mocks.ensureManagedWorktree.mockReset();
@@ -771,36 +782,15 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 
-  it('preloads visible removable project refs from the project route without turning them into attachments', async () => {
+  it('uses route workspace only as the new session working directory', async () => {
     mocks.guidInput.dir = '/workspace/research';
-    mocks.locationState.value = {
-      workspace: '/workspace/research',
-      projectContextRefs: [
-        {
-          path: '/workspace/research/docs/protocol.md',
-          name: 'protocol.md',
-          relativePath: 'docs/protocol.md',
-          isFile: true,
-        },
-      ],
-    };
+    mocks.locationState.value = { workspace: '/workspace/research' };
 
     render(<GuidPage />);
 
-    expect(await screen.findByTestId('guid-route-project-context-ref')).toHaveTextContent('protocol.md');
     expect(mocks.setFiles).toHaveBeenCalledWith([]);
-    expect(mocks.setFiles).not.toHaveBeenCalledWith(expect.arrayContaining(['/workspace/research/docs/protocol.md']));
-    await waitFor(() =>
-      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          projectContextRefs: [expect.objectContaining({ path: '/workspace/research/docs/protocol.md' })],
-        })
-      )
-    );
-
-    await userEvent.click(screen.getByTestId('guid-route-project-context-ref'));
-    await waitFor(() =>
-      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ projectContextRefs: [] }))
+    expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dir: '/workspace/research', files: [] })
     );
   });
 
@@ -831,6 +821,13 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText(/needs_attention/i)).not.toBeInTheDocument();
   });
 
+  it('renders one Home surface and one composer', () => {
+    render(<GuidPage />);
+
+    expect(screen.getAllByTestId('opl-guid-entry')).toHaveLength(1);
+    expect(screen.getAllByTestId('guid-input-card')).toHaveLength(1);
+  });
+
   it('keeps Home browsable but blocks send with an inline model access recovery action', async () => {
     mocks.isPresetAgent.value = false;
     mocks.guidInput.input = '继续我的任务';
@@ -859,15 +856,16 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/first-run');
   });
 
-  it('restricts file and project context without blocking a plain conversation', async () => {
+  it('keeps explicit local files available when canonical App state has no workspace root', async () => {
     mocks.isPresetAgent.value = false;
-    mocks.guidInput.input = '只进行文字对话';
+    mocks.guidInput.input = '分析本地附件';
+    mocks.guidInput.files = ['/outside/project/evidence.pdf'];
     mocks.sendDisabled.value = false;
     mocks.appState.value = {
       ...mocks.appState.value,
       paths: {
         workspace_root: {
-          selected_path: '/Users/example/OPL Workspace',
+          selected_path: null,
           exists: false,
           health_status: 'missing',
         },
@@ -876,12 +874,18 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     render(<GuidPage />);
 
-    expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-file-access-disabled')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-guid-file-inputs-disabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-file-inputs-disabled')).not.toBeInTheDocument();
+    expect(screen.getByTestId('file-upload-btn')).toBeEnabled();
+    expect(screen.getByTestId('guid-select-worktree')).toBeDisabled();
+    expect(mocks.slashCommands.value).toContainEqual(expect.objectContaining({ name: 'open' }));
     expect(screen.getByTestId('opl-guid-entry')).toHaveAttribute('data-opl-task-location', 'local');
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
+    expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ files: ['/outside/project/evidence.pdf'], dir: '' })
+    );
     expect(mocks.inspectGitWorkspace).not.toHaveBeenCalled();
     expect(mocks.ensureManagedWorktree).not.toHaveBeenCalled();
     expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
@@ -891,19 +895,29 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.isPresetAgent.value = false;
     mocks.guidInput.input = '只进行文字对话';
     mocks.sendDisabled.value = false;
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      paths: { workspace_root: { selected_path: null, exists: false, health_status: 'missing' } },
+    };
 
     const { ipcBridge } = await import('@/common');
     vi.mocked(ipcBridge.dialog.showOpen.invoke).mockClear();
     render(<GuidPage />);
 
     expect(screen.queryByTestId('opl-guid-file-access-disabled')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-guid-workspace-access-disabled')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-guid-file-inputs-disabled')).not.toBeInTheDocument();
     expect(screen.getByTestId('file-upload-btn')).toBeEnabled();
+    expect(screen.getByTestId('guid-select-worktree')).toBeDisabled();
     expect(mocks.slashCommands.value).toContainEqual(expect.objectContaining({ name: 'open' }));
 
     await act(async () => mocks.slashExecuteBuiltin.value?.('open'));
     await waitFor(() => expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledOnce());
+
+    fireEvent.paste(screen.getByTestId('guid-input-card'));
+    fireEvent.drop(screen.getByTestId('guid-input-card'));
+    expect(mocks.onPaste).toHaveBeenCalledOnce();
+    expect(mocks.onDrop).toHaveBeenCalledOnce();
 
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
@@ -1050,14 +1064,14 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
   });
 
-  it('blocks the /open file command without clearing the draft when workspace setup is incomplete', async () => {
+  it('opens the local file picker when workspace setup is incomplete', async () => {
     mocks.isPresetAgent.value = false;
     mocks.guidInput.input = '/';
     mocks.appState.value = {
       ...mocks.appState.value,
       paths: {
         workspace_root: {
-          selected_path: '/Users/example/OPL Workspace',
+          selected_path: null,
           exists: false,
           health_status: 'missing',
         },
@@ -1072,11 +1086,10 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     act(() => mocks.slashExecuteBuiltin.value?.('open'));
 
-    expect(ipcBridge.dialog.showOpen.invoke).not.toHaveBeenCalled();
-    expect(mocks.setInput).toHaveBeenCalledTimes(setInputCallCount);
-    expect(screen.getByTestId('opl-guid-setup-notice')).toHaveTextContent(
-      'common.firstRunRecovery.notice.workspace.title'
-    );
+    await waitFor(() => expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledOnce());
+    expect(mocks.setInput).toHaveBeenCalledTimes(setInputCallCount + 1);
+    expect(mocks.setInput).toHaveBeenLastCalledWith('');
+    expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
   });
 
   it('prefills a Chinese post-install Codex self-check prompt from first-run navigation state', () => {

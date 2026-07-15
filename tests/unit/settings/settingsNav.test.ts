@@ -266,7 +266,11 @@ describe('settingsNav App-owned tabs', () => {
 
   it('uses Font Awesome for App-owned Settings navigation icons', () => {
     for (const tabId of [...BUILTIN_TAB_IDS, 'advanced', 'about']) {
-      expect(getSettingsTabIcon(tabId, 'modal').type).toBe(FontAwesomeIcon);
+      const icon = getSettingsTabIcon(tabId, 'modal');
+      const props = icon.props as { className?: string; style?: { color?: string } };
+      expect(icon.type).toBe(FontAwesomeIcon);
+      expect(props.style?.color).toBe('var(--text-secondary)');
+      expect(props.className).toBe('text-18px');
     }
   });
 

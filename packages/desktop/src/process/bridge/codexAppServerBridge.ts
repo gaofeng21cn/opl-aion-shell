@@ -6,7 +6,7 @@
 
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
-import { CodexAppServerAdapter, createProductionCodexAppServerAdapter } from '../services/codexAppServer/adapter';
+import { type CodexAppServerAdapter, createProductionCodexAppServerAdapter } from '../services/codexAppServer/adapter';
 
 let activeAdapter: CodexAppServerAdapter | null = null;
 let quitHandlerInstalled = false;

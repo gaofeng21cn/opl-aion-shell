@@ -190,14 +190,14 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                           {
                             theme: 'outline',
                             size: '16',
-                            strokeWidth: 3,
+                            strokeWidth: 2,
                             className: 'block leading-none text-t-secondary',
                           }
                         )
                       )}
                     </span>
                     <FlexFullContainer className='h-24px collapsed-hidden'>
-                      <div className='settings-sider__item-label overflow-hidden w-full text-14px font-[500] text-t-primary'>
+                      <div className='settings-sider__item-label overflow-hidden w-full text-13px font-[500] text-t-primary'>
                         {item.isSearchResult ? (
                           <div className='flex flex-col min-w-0 leading-18px'>
                             <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>

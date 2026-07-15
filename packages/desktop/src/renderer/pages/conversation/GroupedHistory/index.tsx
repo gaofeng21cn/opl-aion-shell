@@ -5,21 +5,17 @@
  */
 
 import type { TChatConversation } from '@/common/config/storage';
-import { configService } from '@/common/config/configService';
-import AionModal from '@/renderer/components/base/AionModal';
-import ProjectContextSection from '@/renderer/components/layout/Sider/ProjectContextSection';
 import DirectorySelectionModal from '@/renderer/components/settings/DirectorySelectionModal';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCronJobsMap } from '@/renderer/pages/cron';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Dropdown, Empty, Input, Menu, Modal, Tooltip } from '@arco-design/web-react';
-import { Delete, Export, FolderOpen, MoreOne, Plus, Right } from '@icon-park/react';
+import { Button, Empty, Input, Modal, Tooltip } from '@arco-design/web-react';
+import { Export, FolderOpen, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getProjectContextRefs } from '@/renderer/utils/workspace/projectContext';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
@@ -148,11 +144,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     handleReset,
     handleMenuVisibleChange,
     handleOpenMenu,
-    handleRemoveProject,
-    removeProjectTarget,
-    removeProjectLoading,
-    handleRemoveProjectCancel,
-    handleRemoveProjectConfirm,
   } = useConversationActions({
     batchMode,
     conversations,
@@ -253,7 +244,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
 
   // Codex-style split: project folders (workspaces) on top, free conversations below.
   // Projects section: collect all workspace groups across timeline sections, ordered by recency.
-  const projectGroups = useMemo(() => {
+  const workspaceGroups = useMemo(() => {
     const seen = new Set<string>();
     const groups: Array<{ workspace: string; displayName: string; conversations: TChatConversation[] }> = [];
     for (const section of timelineSections) {
@@ -271,14 +262,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     return groups;
   }, [timelineSections]);
 
-  const startProjectConversation = useCallback(
+  const startWorkspaceConversation = useCallback(
     (workspace: string) => {
-      void navigate('/guid', {
-        state: {
-          workspace,
-          projectContextRefs: getProjectContextRefs(configService.get('workspace.projectContextInputs'), workspace),
-        },
-      });
+      void navigate('/guid', { state: { workspace } });
     },
     [navigate]
   );
@@ -474,73 +460,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         </div>
       )}
 
-      {/* 移除项目确认弹窗 — 使用项目自家 AionModal + 圆角线框按钮（红色危险态） */}
-      <AionModal
-        visible={removeProjectTarget !== null}
-        style={{ width: '400px' }}
-        header={{
-          title: t('conversation.history.removeProjectTitle'),
-          showClose: true,
-          style: { borderBottom: 'none' },
-        }}
-        onCancel={handleRemoveProjectCancel}
-        footer={
-          <div className='flex justify-end gap-12px pt-16px'>
-            <button
-              type='button'
-              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-              style={{
-                border: '1px solid var(--color-border-2)',
-                backgroundColor: 'var(--color-fill-2)',
-                color: 'var(--color-text-1)',
-                cursor: removeProjectLoading ? 'not-allowed' : 'pointer',
-                opacity: removeProjectLoading ? 0.55 : 1,
-              }}
-              onMouseEnter={(event) => {
-                if (!removeProjectLoading) event.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
-              }}
-              onMouseLeave={(event) => {
-                if (!removeProjectLoading) event.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
-              }}
-              onClick={handleRemoveProjectCancel}
-              disabled={removeProjectLoading}
-            >
-              {t('conversation.history.cancelDelete')}
-            </button>
-            <button
-              type='button'
-              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-              style={{
-                border: '1px solid rgb(var(--danger-6))',
-                backgroundColor: 'transparent',
-                color: 'rgb(var(--danger-6))',
-                cursor: removeProjectLoading ? 'not-allowed' : 'pointer',
-                opacity: removeProjectLoading ? 0.55 : 1,
-              }}
-              onMouseEnter={(event) => {
-                if (!removeProjectLoading) {
-                  event.currentTarget.style.backgroundColor = 'rgba(var(--danger-6), 0.08)';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!removeProjectLoading) event.currentTarget.style.backgroundColor = 'transparent';
-              }}
-              onClick={() => void handleRemoveProjectConfirm()}
-              disabled={removeProjectLoading}
-            >
-              {removeProjectLoading ? t('conversation.history.deleting') : t('conversation.history.confirmDelete')}
-            </button>
-          </div>
-        }
-      >
-        <div className='text-14px leading-22px text-t-secondary'>
-          {t('conversation.history.removeProjectConfirm', {
-            name: removeProjectTarget?.name ?? '',
-            count: removeProjectTarget?.conversations.length ?? 0,
-          })}
-        </div>
-      </AionModal>
-
       <div>
         {/* L1: Pinned section */}
         <DndContext
@@ -579,27 +498,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         {afterPinnedContent}
 
         {/* L1: Projects section — workspace folders, peer to conversations */}
-        {projectGroups.length > 0 && (
+        {workspaceGroups.length > 0 && (
           <div className='min-w-0'>
             {!collapsed && <SectionLabel sectionKey='projects' label={t('conversation.history.projectsSection')} />}
             {!collapsedSections.has('projects') &&
-              projectGroups.map((group) => {
-                const projectMenu = (
-                  <Menu
-                    onClickMenuItem={(key) => {
-                      if (key === 'remove') {
-                        handleRemoveProject(group.displayName, group.conversations);
-                      }
-                    }}
-                  >
-                    <Menu.Item key='remove' className='!text-[rgb(var(--danger-6))]'>
-                      <span className='flex items-center gap-8px'>
-                        <Delete theme='outline' size='14' />
-                        {t('conversation.history.removeProject')}
-                      </span>
-                    </Menu.Item>
-                  </Menu>
-                );
+              workspaceGroups.map((group) => {
                 return (
                   <div key={group.workspace} className='min-w-0'>
                     <WorkspaceCollapse
@@ -614,54 +517,35 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                       trailing={
                         !archived ? (
                           <span className='flex items-center gap-6px'>
-                            <Tooltip content={t('conversation.history.newConversationInProject')} position='top'>
+                            <Tooltip content={t('conversation.history.newConversationWithWorkspace')} position='top'>
                               <span
                                 role='button'
                                 tabIndex={0}
-                                aria-label={t('conversation.history.newConversationInProject')}
+                                aria-label={t('conversation.history.newConversationWithWorkspace')}
                                 className={classNames(
                                   'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
                                   isMobile ? 'flex' : 'hidden group-hover:flex'
                                 )}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  startProjectConversation(group.workspace);
+                                  startWorkspaceConversation(group.workspace);
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    startProjectConversation(group.workspace);
+                                    startWorkspaceConversation(group.workspace);
                                   }
                                 }}
                               >
                                 <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
                               </span>
                             </Tooltip>
-                            <Dropdown
-                              droplist={projectMenu}
-                              trigger='click'
-                              position='br'
-                              getPopupContainer={() => document.body}
-                              unmountOnExit={false}
-                            >
-                              <span
-                                aria-label={t('conversation.history.projectActions')}
-                                className={classNames(
-                                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                  isMobile ? 'flex' : 'hidden group-hover:flex'
-                                )}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
-                              </span>
-                            </Dropdown>
                           </span>
                         ) : null
                       }
                     >
                       <div className={classNames('flex flex-col min-w-0', { 'mt-1px': !collapsed })}>
-                        {!archived && !collapsed && <ProjectContextSection workspace={group.workspace} />}
                         {group.conversations.map((conversation) => renderConversation(conversation, true))}
                       </div>
                     </WorkspaceCollapse>

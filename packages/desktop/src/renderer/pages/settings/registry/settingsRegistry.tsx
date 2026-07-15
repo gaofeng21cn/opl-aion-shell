@@ -215,20 +215,6 @@ export type TranslateFn = (key: string, options?: { defaultValue?: string }) => 
 
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
-const SETTINGS_ICON_COLORS: Record<string, string> = {
-  general: 'var(--color-primary-6)',
-  access: 'rgb(var(--green-6))',
-  workspace: 'rgb(var(--cyan-6))',
-  agents: 'rgb(var(--green-6))',
-  capabilities: 'rgb(var(--purple-6))',
-  resources: 'rgb(var(--blue-6))',
-  environment: 'rgb(var(--orange-6))',
-  storage: 'rgb(var(--cyan-6))',
-  appearance: 'rgb(var(--magenta-6))',
-  advanced: 'rgb(var(--gray-6))',
-  about: 'rgb(var(--blue-6))',
-};
-
 const SETTINGS_FONT_AWESOME_ICONS: Record<string, IconDefinition> = {
   dashboard: faGaugeHigh,
   general: faGaugeHigh,
@@ -286,13 +272,12 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
 
 export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React.ReactElement {
   const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
-  const iconColor = SETTINGS_ICON_COLORS[iconToken] ?? SETTINGS_ICON_COLORS[tabId] ?? iconColors.secondary;
   const icon = SETTINGS_FONT_AWESOME_ICONS[iconToken] ?? SETTINGS_FONT_AWESOME_ICONS[tabId] ?? faCloud;
   return (
     <FontAwesomeIcon
       icon={icon}
-      className={slot === 'modal' ? 'text-20px' : 'text-18px'}
-      style={{ color: iconColor }}
+      className={slot === 'modal' ? 'text-18px' : 'text-16px'}
+      style={{ color: iconColors.secondary }}
       aria-hidden='true'
     />
   );

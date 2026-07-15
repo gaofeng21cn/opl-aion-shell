@@ -5,10 +5,9 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { ProjectContextRef } from '@/common/config/configKeys';
 import { addRecentWorkspace, getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
 import { Button, Dropdown, Menu, Modal, Tooltip, Typography } from '@arco-design/web-react';
-import { Attention, BranchOne, CloseSmall, Computer, FileText, FolderClose, Fork } from '@icon-park/react';
+import { Attention, BranchOne, Computer, Fork } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -29,8 +28,6 @@ type GuidWorkspaceFootnoteProps = {
   accessDisabled?: boolean;
   accessDisabledReason?: string;
   activeCapabilityLabel?: string;
-  projectContextRefs?: ProjectContextRef[];
-  onRemoveProjectContextRef?: (path: string) => void;
 };
 
 export type GuidWorkspaceLaunchMode = 'local' | 'worktree';
@@ -84,8 +81,6 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   accessDisabled = false,
   accessDisabledReason,
   activeCapabilityLabel,
-  projectContextRefs = [],
-  onRemoveProjectContextRef,
 }) => {
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
@@ -480,29 +475,11 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         </div>
       ) : null}
 
-      {activeCapabilityLabel || projectContextRefs.length > 0 ? (
+      {activeCapabilityLabel ? (
         <div className={styles.taskContextSecondary} data-testid='guid-task-context-secondary'>
-          {activeCapabilityLabel ? (
-            <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
-              {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
-            </span>
-          ) : null}
-          {projectContextRefs.map((ref) => (
-            <Tooltip key={ref.path} content={ref.path} position='top'>
-              <span className={styles.projectContextRef} data-testid='guid-project-context-ref'>
-                {ref.isFile ? <FileText size={12} /> : <FolderClose size={12} />}
-                <span className={styles.projectContextRefName}>{ref.relativePath || ref.name}</span>
-                <Button
-                  type='text'
-                  size='mini'
-                  className={styles.projectContextRefRemove}
-                  icon={<CloseSmall size={11} />}
-                  aria-label={t('conversation.history.projectContext.remove', { name: ref.name })}
-                  onClick={() => onRemoveProjectContextRef?.(ref.path)}
-                />
-              </span>
-            </Tooltip>
-          ))}
+          <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
+            {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
+          </span>
         </div>
       ) : null}
       <Modal

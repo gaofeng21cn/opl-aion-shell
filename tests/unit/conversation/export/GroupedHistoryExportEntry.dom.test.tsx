@@ -6,6 +6,7 @@ import type { TChatConversation } from '@/common/config/storage';
 const mocks = vi.hoisted(() => ({
   handleExportConversation: vi.fn(),
   handleBatchExport: vi.fn(),
+  navigate: vi.fn(),
 }));
 
 const conversation = {
@@ -31,7 +32,19 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/ConversationRow', () => ({
 
 vi.mock('@/renderer/pages/conversation/GroupedHistory/SortableConversationRow', () => ({ default: () => null }));
 vi.mock('@/renderer/pages/conversation/GroupedHistory/DragOverlayContent', () => ({ default: () => null }));
-vi.mock('@/renderer/pages/conversation/components/WorkspaceCollapse', () => ({ default: () => null }));
+vi.mock('@/renderer/pages/conversation/components/WorkspaceCollapse', () => ({
+  default: ({
+    header,
+    trailing,
+    children,
+  }: React.PropsWithChildren<{ header: React.ReactNode; trailing?: React.ReactNode }>) => (
+    <div data-testid='workspace-group'>
+      {header}
+      {trailing}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('@/renderer/components/base/AionModal', () => ({ default: () => null }));
 vi.mock('@/renderer/components/settings/DirectorySelectionModal', () => ({ default: () => null }));
 
@@ -40,9 +53,24 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversations', (
     conversations: [conversation],
     isConversationGenerating: () => false,
     hasCompletionUnread: () => false,
-    expandedWorkspaces: [],
-    pinnedConversations: [conversation],
-    timelineSections: [],
+    expandedWorkspaces: ['/workspace/review'],
+    pinnedConversations: [],
+    timelineSections: [
+      {
+        key: 'today',
+        label: 'Today',
+        items: [
+          {
+            type: 'workspace',
+            workspaceGroup: {
+              workspace: '/workspace/review',
+              display_name: 'review',
+              conversations: [conversation],
+            },
+          },
+        ],
+      },
+    ],
     handleToggleWorkspace: vi.fn(),
   }),
 }));
@@ -77,11 +105,6 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversationActio
     handleReset: vi.fn(),
     handleMenuVisibleChange: vi.fn(),
     handleOpenMenu: vi.fn(),
-    handleRemoveProject: vi.fn(),
-    removeProjectTarget: null,
-    removeProjectLoading: false,
-    handleRemoveProjectCancel: vi.fn(),
-    handleRemoveProjectConfirm: vi.fn(),
   }),
 }));
 
@@ -140,7 +163,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mocks.navigate,
   useParams: () => ({}),
 }));
 
@@ -150,6 +173,7 @@ describe('GroupedHistory export entries', () => {
   beforeEach(() => {
     mocks.handleExportConversation.mockReset();
     mocks.handleBatchExport.mockReset();
+    mocks.navigate.mockReset();
   });
 
   it('wires the conversation row export entry to the existing export hook', () => {
@@ -162,5 +186,15 @@ describe('GroupedHistory export entries', () => {
     render(<GroupedHistory batchMode />);
     fireEvent.click(screen.getByRole('button', { name: 'conversation.history.batchExport' }));
     expect(mocks.handleBatchExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps workspace groups cwd-only without project context or a cascading remove action', () => {
+    render(<GroupedHistory />);
+
+    expect(screen.getByTestId('workspace-group')).toHaveTextContent('review');
+    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.newConversationWithWorkspace' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/guid', { state: { workspace: '/workspace/review' } });
+    expect(screen.queryByText('conversation.history.removeProject')).not.toBeInTheDocument();
+    expect(screen.queryByText('conversation.history.projectContext.add')).not.toBeInTheDocument();
   });
 });

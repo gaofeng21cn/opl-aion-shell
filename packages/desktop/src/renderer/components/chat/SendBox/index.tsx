@@ -1456,7 +1456,7 @@ const SendBox: React.FC<{
             : {
                 borderWidth: '1px',
                 borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
-                boxShadow: isInputActive ? activeShadow : 'none',
+                boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)',
               }),
         }}
         {...dragHandlers}

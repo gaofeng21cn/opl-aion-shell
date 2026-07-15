@@ -2,7 +2,28 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
-import { SiderPrimaryNav, SiderToolbar } from '@/renderer/components/layout/Sider/SiderNav';
+import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from '@/renderer/components/layout/Sider/SiderNav';
+
+vi.mock('@renderer/pages/conversation/GroupedHistory/ConversationSearchPopover', () => ({
+  default: ({
+    buttonClassName,
+    fullWidth,
+    label,
+  }: {
+    buttonClassName?: string;
+    fullWidth?: boolean;
+    label?: string;
+  }) => (
+    <button
+      type='button'
+      aria-label='Search conversations'
+      className={buttonClassName}
+      data-full-width={String(Boolean(fullWidth))}
+    >
+      {fullWidth ? label : null}
+    </button>
+  ),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -24,6 +45,22 @@ vi.mock('react-i18next', () => ({
 const tooltipProps = { disabled: true, popupVisible: false };
 
 describe('Sider navigation hierarchy', () => {
+  it('renders conversation search as a compact history-header icon action', () => {
+    render(
+      <SiderSearchEntry
+        isMobile={false}
+        collapsed={false}
+        siderTooltipProps={tooltipProps}
+        onConversationSelect={vi.fn()}
+      />
+    );
+
+    const search = screen.getByRole('button', { name: 'Search conversations' });
+    expect(search).toHaveAttribute('data-full-width', 'false');
+    expect(search).toHaveClass('!w-32px', '!h-32px');
+    expect(search).toHaveTextContent('');
+  });
+
   it('orders primary actions before history utilities and keeps the footer compact', () => {
     const onRuntimeClick = vi.fn();
     const onSettingsClick = vi.fn();

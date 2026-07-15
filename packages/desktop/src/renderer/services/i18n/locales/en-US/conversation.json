@@ -42,7 +42,6 @@
     "confirmReset": "Reset",
     "resetSuccess": "Conversation reset",
     "resetFailed": "Reset failed",
-    "projectActions": "Project actions",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",
     "confirmDelete": "Delete",
@@ -92,20 +91,7 @@
     "earlier": "Earlier",
     "projectsSection": "Projects",
     "conversationsSection": "Conversations",
-    "removeProjectTitle": "Remove project",
-    "removeProject": "Remove project",
-    "removeProjectConfirm": "Remove project \"{{name}}\"? Its {{count}} conversation(s) will be removed too.",
-    "projectContext": {
-      "label": "Context",
-      "add": "Add context",
-      "addFile": "Add file",
-      "addDirectory": "Add folder",
-      "remove": "Remove {{name}} from project context",
-      "outsideWorkspace": "Project context must be inside this project's workspace.",
-      "selectFailed": "Failed to select project context.",
-      "saveFailed": "Failed to save project context."
-    },
-    "newConversationInProject": "New chat in this project"
+    "newConversationWithWorkspace": "Use this working directory to start a new conversation"
   },
   "historySearch": {
     "tooltip": "Search messages",

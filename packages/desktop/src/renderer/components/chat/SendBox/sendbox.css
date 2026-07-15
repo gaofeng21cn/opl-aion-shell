@@ -1,5 +1,14 @@
 /* Sendbox component styles */
 
+.sendbox-panel textarea,
+.sendbox-highlight-layer {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
 /* Send button disabled state - override Arco Design default disabled styles */
 .send-button-custom:disabled,
 .send-button-custom.arco-btn:disabled,

@@ -1,0 +1,193 @@
+/* One Person Lab product baseline, aligned with the quiet Codex macOS visual language. */
+
+:root,
+[data-color-scheme='default'] {
+  --opl-sidebar-bg: #f0f0f0;
+  --opl-sidebar-hover: rgba(0, 0, 0, 0.045);
+  --opl-sidebar-active: rgba(0, 0, 0, 0.065);
+  --opl-main-bg: #ffffff;
+  --opl-focus-ring: rgba(37, 99, 235, 0.34);
+  --opl-composer-border: rgba(0, 0, 0, 0.14);
+  --opl-composer-border-focus: rgba(37, 99, 235, 0.42);
+  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --opl-composer-focus-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.16), 0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --opl-accent-blue: #3478f6;
+  --opl-accent-purple: #8b5cf6;
+  --opl-accent-green: #20a451;
+  --opl-accent-orange: #e9682a;
+
+  --bg-base: var(--opl-main-bg);
+  --bg-1: var(--opl-main-bg);
+  --bg-2: #f4f4f2;
+  --bg-3: #e8e8e6;
+  --bg-4: #d9d9d7;
+  --bg-hover: #ececea;
+  --bg-active: #e3e3e1;
+  --text-primary: #1f2023;
+  --color-text-1: #1f2023;
+  --text-secondary: #5d6269;
+  --color-text-2: #5d6269;
+  --color-text-3: #85898f;
+  --text-disabled: #a7aaae;
+  --color-text-4: #a7aaae;
+  --border-base: rgba(22, 24, 28, 0.12);
+  --border-light: rgba(22, 24, 28, 0.08);
+  --border-special: rgba(22, 24, 28, 0.17);
+  --color-border-1: rgba(22, 24, 28, 0.12);
+  --color-border-2: rgba(22, 24, 28, 0.08);
+  --color-border-3: rgba(22, 24, 28, 0.14);
+  --color-border-4: rgba(22, 24, 28, 0.2);
+  --color-fill-1: #f7f7f6;
+  --color-fill-2: #eeeeec;
+  --color-fill-3: rgba(229, 229, 227, 0.76);
+  --color-fill-4: rgba(219, 219, 217, 0.88);
+  --fill-0: #ffffff;
+  --dialog-fill-0: #ffffff;
+  --workspace-btn-bg: #efefed;
+  --message-user-bg: #f3f3f1;
+  --message-tips-bg: #f7f7f6;
+  --primary: #202124;
+  --color-primary: #202124;
+  --primary-1: 247, 247, 246;
+  --primary-2: 238, 238, 236;
+  --primary-3: 223, 223, 221;
+  --primary-4: 207, 207, 205;
+  --primary-5: 95, 99, 104;
+  --primary-6: 32, 33, 36;
+  --color-primary-1: #f7f7f6;
+  --color-primary-2: #eeeeec;
+  --color-primary-3: #dfdfdd;
+  --color-primary-4: #cfcfcd;
+  --color-primary-5: #5f6368;
+  --color-primary-6: #202124;
+}
+
+[data-color-scheme='default'][data-theme='dark'] {
+  --opl-sidebar-bg: #1b1c1e;
+  --opl-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --opl-sidebar-active: rgba(255, 255, 255, 0.09);
+  --opl-main-bg: #171819;
+  --opl-focus-ring: rgba(125, 168, 255, 0.38);
+  --opl-composer-border: rgba(255, 255, 255, 0.15);
+  --opl-composer-border-focus: rgba(125, 168, 255, 0.58);
+  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.24);
+  --opl-composer-focus-shadow:
+    0 0 0 3px rgba(125, 168, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.24);
+  --opl-accent-blue: #6da3ff;
+  --opl-accent-purple: #ab86ff;
+  --opl-accent-green: #55bc78;
+  --opl-accent-orange: #f18b59;
+
+  --bg-base: var(--opl-main-bg);
+  --bg-1: var(--opl-main-bg);
+  --bg-2: #202125;
+  --bg-3: #2d2f34;
+  --bg-4: #3b3e44;
+  --bg-hover: #292b30;
+  --bg-active: #36393f;
+  --text-primary: #f2f3f5;
+  --color-text-1: #f2f3f5;
+  --text-secondary: #c1c5cb;
+  --color-text-2: #c1c5cb;
+  --color-text-3: #9298a1;
+  --text-disabled: #737983;
+  --color-text-4: #737983;
+  --border-base: rgba(255, 255, 255, 0.13);
+  --border-light: rgba(255, 255, 255, 0.08);
+  --border-special: rgba(255, 255, 255, 0.19);
+  --color-border-1: rgba(255, 255, 255, 0.13);
+  --color-border-2: rgba(255, 255, 255, 0.08);
+  --color-border-3: rgba(255, 255, 255, 0.16);
+  --color-border-4: rgba(255, 255, 255, 0.22);
+  --color-fill-1: #202125;
+  --color-fill-2: #292b30;
+  --color-fill-3: #34363c;
+  --color-fill-4: #41444b;
+  --fill-0: rgba(255, 255, 255, 0.08);
+  --dialog-fill-0: #202125;
+  --workspace-btn-bg: #27292e;
+  --message-user-bg: #292c32;
+  --message-tips-bg: #202329;
+  --primary: #f2f3f5;
+  --color-primary: #f2f3f5;
+  --primary-1: 36, 38, 43;
+  --primary-2: 48, 51, 57;
+  --primary-3: 64, 68, 76;
+  --primary-4: 83, 88, 98;
+  --primary-5: 194, 198, 205;
+  --primary-6: 242, 243, 245;
+  --color-primary-1: #24262b;
+  --color-primary-2: #303339;
+  --color-primary-3: #40444c;
+  --color-primary-4: #535862;
+  --color-primary-5: #c2c6cd;
+  --color-primary-6: #f2f3f5;
+}
+
+body {
+  background: var(--opl-main-bg);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+.app-shell,
+.layout,
+.layout-content,
+.layout.arco-layout {
+  background: var(--opl-main-bg);
+}
+
+.layout-sider.arco-layout-sider {
+  background: var(--opl-sidebar-bg);
+  border-right: 1px solid var(--color-border-2);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(28px) saturate(1.08);
+  backdrop-filter: blur(28px) saturate(1.08);
+}
+
+.layout-sider-header,
+.app-titlebar,
+.chat-layout-header {
+  box-shadow: none;
+}
+
+.layout-sider-header {
+  background: transparent;
+}
+
+.app-titlebar,
+.chat-layout-header {
+  background: var(--opl-main-bg);
+  border-bottom-color: var(--color-border-2);
+}
+
+.layout-sider .sider-footer {
+  border-top-color: var(--color-border-2);
+}
+
+.arco-btn,
+.arco-input-wrapper,
+.arco-textarea-wrapper,
+.arco-input-inner-wrapper,
+.arco-select-view,
+.arco-picker {
+  letter-spacing: 0;
+}
+
+.arco-btn {
+  border-radius: 8px;
+}
+
+.arco-input-wrapper,
+.arco-textarea-wrapper,
+.arco-input-inner-wrapper,
+.arco-select-view,
+.arco-picker {
+  border-radius: 8px;
+}
+
+::selection {
+  background: var(--opl-focus-ring);
+}

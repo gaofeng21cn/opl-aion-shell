@@ -14,6 +14,9 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
+const e2eStorageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-acp-benchmark-'));
+process.once('exit', () => fs.rmSync(e2eStorageRoot, { recursive: true, force: true }));
+
 // ── CLI args ────────────────────────────────────────────────────────────────
 
 function parseArgs() {
@@ -204,6 +207,7 @@ async function launchApp(): Promise<ElectronApplication> {
       ACP_PERF: '1',
       AIONUI_DISABLE_AUTO_UPDATE: '1',
       AIONUI_E2E_TEST: '1',
+      AIONUI_E2E_STORAGE_ROOT: e2eStorageRoot,
       AIONUI_DISABLE_DEVTOOLS: '1',
       AIONUI_CDP_PORT: '0',
       NODE_ENV: 'development',

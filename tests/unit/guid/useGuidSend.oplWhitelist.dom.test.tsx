@@ -74,7 +74,6 @@ function buildDeps(): GuidSendDeps {
     setInput: vi.fn(),
     files: [],
     setFiles: vi.fn(),
-    projectContextRefs: [],
     dir: '/tmp/opl',
     setDir: vi.fn(),
     setLoading: vi.fn(),
@@ -591,17 +590,9 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'ultra' });
   });
 
-  it('keeps project refs separate from attachments while sending both through the existing file context path', async () => {
+  it('sends only explicit session attachments and deduplicates them in insertion order', async () => {
     const deps = buildDeps();
-    deps.files = ['/tmp/opl/draft.pdf'];
-    deps.projectContextRefs = [
-      {
-        path: '/tmp/opl/docs/protocol.md',
-        name: 'protocol.md',
-        relativePath: 'docs/protocol.md',
-        isFile: true,
-      },
-    ];
+    deps.files = ['/tmp/opl/draft.pdf', '/tmp/opl/evidence.csv', '/tmp/opl/draft.pdf'];
 
     const { result } = renderHook(() => useGuidSend(deps));
     await act(async () => {
@@ -609,11 +600,11 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     });
 
     const payload = mocks.createConversation.mock.calls[0][0];
-    expect(payload.extra.default_files).toEqual(['/tmp/opl/draft.pdf']);
+    expect(payload.extra.default_files).toEqual(['/tmp/opl/draft.pdf', '/tmp/opl/evidence.csv']);
     expect(payload.extra.project_context_refs).toBeUndefined();
     expect(JSON.parse(sessionStorage.getItem('acp_initial_message_conversation-1') || '{}').files).toEqual([
-      '/tmp/opl/docs/protocol.md',
       '/tmp/opl/draft.pdf',
+      '/tmp/opl/evidence.csv',
     ]);
   });
 });

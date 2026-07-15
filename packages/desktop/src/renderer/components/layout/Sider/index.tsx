@@ -169,18 +169,29 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               )}
             />
             <div className={classNames('flex-1 min-h-0 overflow-y-auto', siderStyles.scrollArea)}>
-              {!collapsed && (
-                <div className='px-12px pt-4px pb-2px text-12px leading-18px font-[500] text-t-tertiary'>
-                  {t('conversation.history.title')}
+              {!collapsed ? (
+                <div
+                  className='h-32px px-12px flex items-center justify-between gap-8px text-12px leading-18px font-[500] text-t-tertiary'
+                  data-testid='conversation-history-header'
+                >
+                  <span>{t('conversation.history.title')}</span>
+                  <SiderSearchEntry
+                    isMobile={isMobile}
+                    collapsed={false}
+                    siderTooltipProps={siderTooltipProps}
+                    onConversationSelect={handleConversationSelect}
+                    onSessionClick={onSessionClick}
+                  />
                 </div>
+              ) : (
+                <SiderSearchEntry
+                  isMobile={isMobile}
+                  collapsed
+                  siderTooltipProps={siderTooltipProps}
+                  onConversationSelect={handleConversationSelect}
+                  onSessionClick={onSessionClick}
+                />
               )}
-              <SiderSearchEntry
-                isMobile={isMobile}
-                collapsed={collapsed}
-                siderTooltipProps={siderTooltipProps}
-                onConversationSelect={handleConversationSelect}
-                onSessionClick={onSessionClick}
-              />
               <Suspense fallback={<div className='min-h-200px' />}>
                 <WorkspaceGroupedHistory
                   {...workspaceHistoryProps}

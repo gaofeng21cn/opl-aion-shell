@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import sharp from 'sharp';
 import { test, expect } from '../../fixtures';
 import { goToGuid, httpDelete, httpGet, httpInvoke, httpPost, takeScreenshot } from '../../helpers';
 import {
@@ -27,12 +28,15 @@ const RUN_COMMAND = [
   .filter(Boolean)
   .join(' ');
 const STREAM_FIXTURE_KEY = 'aionui:e2e-message-stream-conversation-id';
+const GUI_BASELINE_FIXTURE_MARKER = 'opl_gui_baseline_v1';
 const WORKSPACE_PATH = path.join(os.tmpdir(), 'aionui-gui-baseline-workspace');
 const NAVIGATION_RAIL_SELECTOR = '.layout-sider:has([data-testid="app-navigation-rail"])';
 const MAIN_CONTENT_SELECTOR = '.app-shell > .arco-layout > .layout-content';
 const VIEWPORT_TOLERANCE_PX = 2;
 
 type CreatedConversation = { id: string };
+type FixtureConversation = { id: string; extra?: { e2e_fixture?: string } };
+type FixtureConversationPage = { items: FixtureConversation[] };
 type ClientSettings = Record<string, unknown>;
 type AnchorTarget = {
   id: string;
@@ -76,6 +80,15 @@ async function ensureRendererReady(page: Page): Promise<void> {
   );
 }
 
+async function waitForStablePaint(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      })
+  );
+}
+
 async function applyAppearance(
   page: Page,
   electronApp: ElectronApplication,
@@ -100,6 +113,7 @@ async function applyAppearance(
   await expect
     .poll(() => page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })))
     .toEqual({ width: viewport.width, height: viewport.height });
+  await waitForStablePaint(page);
   await httpInvoke(page, 'PUT', '/api/settings/client', {
     language: locale,
     'theme.activeId': theme === 'light' ? 'default-theme' : 'dark',
@@ -113,6 +127,7 @@ async function applyAppearance(
       timeout: 10_000,
     }
   );
+  await waitForStablePaint(page);
 
   const settings = await httpGet<ClientSettings>(page, '/api/settings/client');
   expect(settings.language).toBe(locale);
@@ -128,12 +143,29 @@ async function createFixtureConversation(page: Page): Promise<string> {
       custom_workspace: true,
       backend: 'codex',
       session_mode: 'full-access',
+      e2e_fixture: GUI_BASELINE_FIXTURE_MARKER,
     },
   });
   if (!conversation?.id) {
     throw new Error('POST /api/conversations succeeded without a conversation id');
   }
   return conversation.id;
+}
+
+async function fixtureConversationIds(page: Page): Promise<string[]> {
+  const result = await httpGet<FixtureConversationPage>(page, '/api/conversations?limit=10000');
+  return (result.items ?? [])
+    .filter((conversation) => conversation.extra?.e2e_fixture === GUI_BASELINE_FIXTURE_MARKER)
+    .map((conversation) => conversation.id);
+}
+
+async function removeFixtureConversations(page: Page): Promise<void> {
+  for (const id of await fixtureConversationIds(page)) {
+    // Fixture cleanup is intentionally marker-based, never title-based.
+    // eslint-disable-next-line no-await-in-loop
+    await httpDelete(page, `/api/conversations/${encodeURIComponent(id)}`);
+  }
+  await expect.poll(() => fixtureConversationIds(page)).toEqual([]);
 }
 
 function initializeFixtureWorkspace(): void {
@@ -373,10 +405,74 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
   };
 }
 
+async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promise<GuiBaselineLayoutCheck> {
+  const homeEntry = page.locator('[data-testid="opl-guid-entry"]');
+  const box = await requiredBox(homeEntry, 'home_backdrop_clears_stale_pixels');
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('Home backdrop check requires an explicit viewport');
+
+  const background = await homeEntry.evaluate((element) => {
+    const css = window.getComputedStyle(element).backgroundColor;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Home backdrop check could not create a canvas context');
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = css;
+    context.fillRect(0, 0, 1, 1);
+    const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+    return { css, red, green, blue, alpha };
+  });
+
+  const image = sharp(screenshotPath).ensureAlpha();
+  const metadata = await image.metadata();
+  if (!metadata.width || !metadata.height) throw new Error('Home backdrop check could not read screenshot dimensions');
+
+  const scaleX = metadata.width / viewport.width;
+  const scaleY = metadata.height / viewport.height;
+  const inset = Math.min(16, Math.max(4, box.width / 10));
+  const bandHeight = Math.min(10, Math.max(4, box.height / 20));
+  const left = Math.max(0, Math.round((box.x + inset) * scaleX));
+  const right = Math.min(metadata.width, Math.round((box.x + box.width - inset) * scaleX));
+  const top = Math.max(0, Math.round((box.y + box.height - bandHeight) * scaleY));
+  const bottom = Math.min(metadata.height, Math.round((box.y + box.height - 2) * scaleY));
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  const { data, info } = await sharp(screenshotPath)
+    .extract({ left, top, width, height })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let matchingPixels = 0;
+  const pixelCount = info.width * info.height;
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const matchesBackground =
+      Math.abs(data[offset] - background.red) <= 6 &&
+      Math.abs(data[offset + 1] - background.green) <= 6 &&
+      Math.abs(data[offset + 2] - background.blue) <= 6 &&
+      data[offset + 3] >= 250;
+    if (matchesBackground) matchingPixels += 1;
+  }
+
+  const matchingRatio = matchingPixels / pixelCount;
+  const passed = background.alpha >= 250 && matchingRatio >= 0.97;
+  return {
+    id: 'home_backdrop_clears_stale_pixels',
+    passed,
+    details: `computed=${background.css} alpha=${background.alpha} bottom_band_match=${matchingRatio.toFixed(3)}`,
+  };
+}
+
 async function expectHomeLocale(page: Page, locale: GuiBaselineLocale): Promise<void> {
-  await expect(page.locator('[data-testid="opl-guid-entry"]')).toContainText(
-    locale === 'zh-CN' ? /推进什么/ : /move forward/i
+  const homeEntry = page.locator('[data-testid="opl-guid-entry"]');
+  await expect(homeEntry).toHaveCount(1);
+  await expect(page.locator('[data-testid="guid-input-card-shell"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="sider-footer-account"], [data-testid="sider-footer-settings"]')).toHaveCount(
+    1
   );
+  await expect(homeEntry).toContainText(locale === 'zh-CN' ? /推进什么/ : /move forward/i);
 }
 
 async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): Promise<void> {
@@ -501,6 +597,10 @@ async function captureTarget(
 
   const route = await page.evaluate(() => window.location.hash.replace(/^#/, ''));
   const screenshotPath = await takeScreenshot(page, target.screenshotName);
+  const screenshotChecks = target.id.startsWith('home-') ? [await homeBackdropPaintCheck(page, screenshotPath)] : [];
+  for (const check of screenshotChecks) {
+    expect(check.passed, `${check.id}: ${check.details}`).toBe(true);
+  }
   writer.add({
     id: target.id,
     shell_head: shellHead,
@@ -511,7 +611,7 @@ async function captureTarget(
     state,
     screenshot_path: path.relative(REPO_ROOT, screenshotPath),
     anchors,
-    layout_checks: layoutChecks,
+    layout_checks: [...layoutChecks, ...screenshotChecks],
     coverage_gaps: target.coverageGaps,
   });
 }
@@ -852,6 +952,7 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     await goToGuid(page);
     await ensureRendererReady(page);
     originalSettings = await httpGet<ClientSettings>(page, '/api/settings/client');
+    await removeFixtureConversations(page);
     conversationId = await createFixtureConversation(page);
 
     for (const target of buildTargets(conversationId)) {
@@ -861,7 +962,8 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     }
   } finally {
     if (conversationId) {
-      await httpDelete(page, `/api/conversations/${encodeURIComponent(conversationId)}`).catch(() => {});
+      await httpDelete(page, `/api/conversations/${encodeURIComponent(conversationId)}`);
+      await expect.poll(() => fixtureConversationIds(page)).toEqual([]);
       await page
         .evaluate(
           ({ id, fixtureKey }) => {

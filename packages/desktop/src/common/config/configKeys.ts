@@ -3,13 +3,6 @@ import type { SpeechToTextConfig } from '@/common/types/provider/speech';
 import type { ICssTheme, IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import type { Theme } from '@/common/theme/types';
 
-export type ProjectContextRef = {
-  path: string;
-  name: string;
-  isFile: boolean;
-  relativePath?: string;
-};
-
 export type ConfigKeyMap = {
   'google.config': {
     proxy?: string;
@@ -61,7 +54,6 @@ export type ConfigKeyMap = {
   'tools.imageGenerationModel': TProviderWithModel & { switch?: boolean };
   'tools.speechToText': SpeechToTextConfig | undefined;
   'workspace.pasteConfirm': boolean | undefined;
-  'workspace.projectContextInputs': Record<string, ProjectContextRef[]>;
   'upload.saveToWorkspace': boolean | undefined;
   'guid.lastSelectedAgent': string | undefined;
   'codex.oplAppSessionContextMode': 'automatic' | 'custom' | undefined;

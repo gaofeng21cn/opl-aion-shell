@@ -108,7 +108,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     });
   });
 
-  it('keeps local canonical rows that are absent from a partial App Server response', () => {
+  it('drops unmatched stale Codex cache rows when the complete App Server overview is available', () => {
     const returned = {
       id: 'local-returned',
       name: 'Stale returned task',
@@ -116,7 +116,7 @@ describe('mergeCanonicalThreadDirectory', () => {
       type: 'acp',
       extra: { backend: 'codex', canonical_thread_id: 'thread-returned' },
     } as TChatConversation;
-    const missing = {
+    const stale = {
       id: 'local-missing',
       name: 'Locally cached task',
       created_at: 1,
@@ -125,18 +125,33 @@ describe('mergeCanonicalThreadDirectory', () => {
     } as TChatConversation;
 
     const merged = mergeCanonicalThreadDirectory(
-      [returned, missing],
+      [returned, stale],
       directory([thread({ id: 'thread-returned', title: 'Fresh returned task' })])
     );
 
     expect(merged).toEqual([
-      missing,
       expect.objectContaining({
         id: 'local-returned',
         name: 'Fresh returned task',
         extra: expect.objectContaining({ canonical_thread_id: 'thread-returned' }),
       }),
     ]);
+  });
+
+  it('retains unmatched non-Codex local rows without title or workspace deduplication', () => {
+    const local = {
+      id: 'local-gemini',
+      name: 'Canonical task',
+      created_at: 1,
+      type: 'acp',
+      extra: { backend: 'gemini', workspace: '/tmp/project' },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([local], directory([thread()]));
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toBe(local);
+    expect(merged[1]).toMatchObject({ id: 'thread-1', name: 'Canonical task' });
   });
 
   it('matches migrated cache rows by canonical id when the ACP session id differs', () => {

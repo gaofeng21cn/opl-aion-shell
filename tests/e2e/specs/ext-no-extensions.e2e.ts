@@ -48,6 +48,7 @@ async function launchAppWithoutExtensions(): Promise<ElectronApplication> {
       AIONUI_DISABLE_AUTO_UPDATE: '1',
       AIONUI_DISABLE_DEVTOOLS: '1',
       AIONUI_E2E_TEST: '1',
+      AIONUI_E2E_STORAGE_ROOT: stateSandboxDir,
       AIONUI_CDP_PORT: '0',
       NODE_ENV: 'development',
     },

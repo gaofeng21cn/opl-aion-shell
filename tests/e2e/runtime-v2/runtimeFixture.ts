@@ -346,6 +346,7 @@ export async function launchRuntimeE2EFixture(options: { locale?: RuntimeE2ELoca
       AIONUI_DISABLE_DEVTOOLS: '1',
       AIONUI_E2E_ALLOW_BACKEND_FAILURE: '1',
       AIONUI_E2E_TEST: '1',
+      AIONUI_E2E_STORAGE_ROOT: root,
       AIONUI_EXTENSIONS_PATH: extensionRoot,
       AIONUI_EXTENSION_STATES_FILE: path.join(root, 'extension-states.json'),
       OPL_APP_INSTALL_ORIGIN: 'homebrew_cask',

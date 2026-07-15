@@ -187,9 +187,14 @@ export const mergeCanonicalThreadDirectory = (
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
   const unmatchedLocal = localConversations.filter((conversation) => {
     const threadId = canonicalCodexThreadId(conversation);
-    if (!threadId || !returnedThreadIds.has(threadId)) return true;
-    cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
-    return false;
+    if (threadId && returnedThreadIds.has(threadId)) {
+      cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
+      return false;
+    }
+
+    // A complete available overview is authoritative for Codex sessions. Local
+    // Codex rows are rebuildable metadata caches and must not become ghost tasks.
+    return conversation.type !== 'acp' || conversation.extra.backend !== 'codex';
   });
 
   return [

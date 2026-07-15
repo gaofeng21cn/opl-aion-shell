@@ -1,6 +1,7 @@
 .guidLayout {
   --assistant-surface-bg: color-mix(in srgb, var(--bg-2) 65%, transparent);
   --assistant-surface-bg-hover: color-mix(in srgb, var(--bg-2) 85%, transparent);
+  --opl-home-composer-shadow: var(--opl-composer-shadow);
   width: clamp(var(--app-min-width, 360px), calc(100% - 32px), 800px);
   max-width: 100%;
   padding: 0 16px;
@@ -506,6 +507,14 @@
   box-sizing: border-box;
 }
 
+.guidInputInner :global(textarea) {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
 :global([data-theme='dark']) .guidInputInner {
   background: #262626;
   border-color: #3a3a3a;
@@ -692,34 +701,6 @@
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
-}
-
-.projectContextRef {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  max-width: 240px;
-  height: 22px;
-  padding: 0 2px 0 7px;
-  border-radius: 4px;
-  background: var(--color-fill-2);
-  color: var(--color-text-2);
-  font-size: 12px;
-}
-
-.projectContextRefName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.projectContextRefRemove {
-  width: 18px !important;
-  min-width: 18px !important;
-  height: 18px !important;
-  padding: 0 !important;
-  color: var(--color-text-3) !important;
 }
 
 .workspaceEmptyBtn {
@@ -1009,6 +990,7 @@
   justify-content: center;
   padding: 10px;
   position: relative;
+  background: var(--bg-base);
 }
 
 /* 整体内容块略往上移，减轻「重心偏下」的感觉 */

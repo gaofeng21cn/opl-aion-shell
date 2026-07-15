@@ -32,6 +32,18 @@ export const getTempPath = () => {
   return path.join(rootPath, 'one-person-lab');
 };
 
+const getE2EStorageRoot = (): string | null => {
+  if (process.env.AIONUI_E2E_TEST !== '1') return null;
+  const root = process.env.AIONUI_E2E_STORAGE_ROOT?.trim();
+  if (!root) {
+    throw new Error('AIONUI_E2E_STORAGE_ROOT is required when AIONUI_E2E_TEST=1.');
+  }
+  if (!path.isAbsolute(root)) {
+    throw new Error('AIONUI_E2E_STORAGE_ROOT must be an absolute path when AIONUI_E2E_TEST=1.');
+  }
+  return path.normalize(root);
+};
+
 /**
  * Ensure CLI-safe symlink exists and return the symlink path.
  * On macOS, creates a symlink in home directory to avoid spaces in paths.
@@ -100,6 +112,8 @@ const ensureCliSafeSymlink = (targetPath: string, symlinkName: string): string =
  * Release 使用 ~/.opl-app-data，Dev 模式使用 ~/.opl-app-data-dev。
  */
 export const getDataPath = (): string => {
+  const e2eStorageRoot = getE2EStorageRoot();
+  if (e2eStorageRoot) return path.join(e2eStorageRoot, 'data');
   const rootPath = getElectronPathOrFallback('userData');
   const dataPath = path.join(rootPath, 'opl-data');
   return ensureCliSafeSymlink(dataPath, getEnvAwareName('.opl-app-data'));
@@ -112,6 +126,8 @@ export const getDataPath = (): string => {
  * Release 使用 ~/.opl-app-config，Dev 模式使用 ~/.opl-app-config-dev。
  */
 export const getConfigPath = (): string => {
+  const e2eStorageRoot = getE2EStorageRoot();
+  if (e2eStorageRoot) return path.join(e2eStorageRoot, 'config');
   const rootPath = getElectronPathOrFallback('userData');
   const configPath = path.join(rootPath, 'opl-config');
   return ensureCliSafeSymlink(configPath, getEnvAwareName('.opl-app-config'));

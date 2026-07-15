@@ -1,4 +1,4 @@
-import { canonicalWorkspacePath } from '@/renderer/utils/workspace/projectContext';
+import { canonicalWorkspacePath } from '@/renderer/utils/workspace/workspacePath';
 
 type JsonRecord = Record<string, unknown>;
 

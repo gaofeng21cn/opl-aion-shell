@@ -1,31 +1,19 @@
 import React from 'react';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Message } from '@arco-design/web-react';
 import type { IMessageSearchItem } from '@/common/types/team/database';
-import { configService } from '@/common/config/configService';
-import ProjectContextSection from '@/renderer/components/layout/Sider/ProjectContextSection';
 import ConversationSearchPopover from '@/renderer/pages/conversation/GroupedHistory/ConversationSearchPopover';
 import { useWorkspaceExpansionState } from '@/renderer/pages/conversation/GroupedHistory/hooks/useWorkspaceExpansionState';
-import {
-  appendProjectContextRefs,
-  createProjectContextRef,
-  getProjectContextRefs,
-} from '@/renderer/utils/workspace/projectContext';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   search: vi.fn(),
-  showOpen: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
     database: {
       searchConversationMessages: { invoke: mocks.search },
-    },
-    dialog: {
-      showOpen: { invoke: mocks.showOpen },
     },
   },
 }));
@@ -76,10 +64,6 @@ describe('conversation history interactions', () => {
     localStorage.clear();
     mocks.navigate.mockClear();
     mocks.search.mockReset();
-    mocks.showOpen.mockReset();
-    configService.reset();
-    configService.setLocal('workspace.projectContextInputs', {});
-    vi.spyOn(Message, 'error').mockImplementation(() => undefined as never);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
   });
 
@@ -160,52 +144,5 @@ describe('conversation history interactions', () => {
     const { result } = renderHook(() => useScopedExpansion(true));
 
     expect(result.current).toEqual(['/archived']);
-  });
-
-  it('persists rail project context add and remove in stable insertion order', async () => {
-    mocks.showOpen.mockResolvedValueOnce(['/workspace/docs/evidence.md']);
-    render(<ProjectContextSection workspace='/workspace' />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.projectContext.add' }));
-    fireEvent.click(await screen.findByText('conversation.history.projectContext.addFile'));
-
-    await waitFor(() => {
-      expect(getProjectContextRefs(configService.get('workspace.projectContextInputs'), '/workspace')).toEqual([
-        {
-          path: '/workspace/docs/evidence.md',
-          name: 'evidence.md',
-          isFile: true,
-          relativePath: 'docs/evidence.md',
-        },
-      ]);
-    });
-    expect(screen.getByText('docs/evidence.md')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.projectContext.remove' }));
-    await waitFor(() => {
-      expect(getProjectContextRefs(configService.get('workspace.projectContextInputs'), '/workspace')).toEqual([]);
-    });
-  });
-
-  it('rejects rail context paths outside the canonical project workspace', async () => {
-    mocks.showOpen.mockResolvedValueOnce(['/outside/secret.txt']);
-    render(<ProjectContextSection workspace='/workspace' />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.projectContext.add' }));
-    fireEvent.click(await screen.findByText('conversation.history.projectContext.addFile'));
-
-    await waitFor(() =>
-      expect(Message.error).toHaveBeenCalledWith('conversation.history.projectContext.outsideWorkspace')
-    );
-    expect(configService.get('workspace.projectContextInputs')).toEqual({});
-  });
-
-  it('deduplicates project refs without changing their insertion order', () => {
-    const first = createProjectContextRef('/workspace', '/workspace/z.txt', true)!;
-    const second = createProjectContextRef('/workspace', '/workspace/a', false)!;
-
-    expect(appendProjectContextRefs('/workspace', [first], [second, first])).toEqual([first, second]);
-    expect(createProjectContextRef('/workspace', '/workspace-other/out.txt', true)).toBeNull();
-    expect(createProjectContextRef('/', '/tmp/context', false)).toMatchObject({ path: '/tmp/context', isFile: false });
   });
 });

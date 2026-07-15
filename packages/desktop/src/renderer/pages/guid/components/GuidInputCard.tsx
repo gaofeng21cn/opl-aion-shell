@@ -5,7 +5,6 @@
  */
 
 import FilePreview from '@/renderer/components/media/FilePreview';
-import type { ProjectContextRef } from '@/common/config/configKeys';
 import UploadProgressBar from '@/renderer/components/media/UploadProgressBar';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
@@ -65,8 +64,6 @@ type GuidInputCardProps = {
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
   activeCapabilityLabel?: string;
-  projectContextRefs?: ProjectContextRef[];
-  onRemoveProjectContextRef?: (path: string) => void;
   fileAccessEnabled?: boolean;
 };
 
@@ -104,8 +101,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
   activeCapabilityLabel,
-  projectContextRefs,
-  onRemoveProjectContextRef,
   fileAccessEnabled = true,
 }) => {
   const layout = useLayoutContext();
@@ -160,15 +155,13 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         accessDisabled={workspaceAccessDisabled}
         accessDisabledReason={workspaceAccessDisabledReason}
         activeCapabilityLabel={activeCapabilityLabel}
-        projectContextRefs={projectContextRefs}
-        onRemoveProjectContextRef={onRemoveProjectContextRef}
       />
       <div
         className={`${styles.guidInputInner} relative z-1 p-12px flex flex-col bg-dialog-fill-0`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
-          boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'none',
+          boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'var(--opl-home-composer-shadow)',
         }}
       >
         <Input.TextArea

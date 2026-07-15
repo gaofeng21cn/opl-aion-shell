@@ -44,6 +44,8 @@ describe('OPL App storage paths', () => {
 
   afterEach(() => {
     delete process.env.AIONUI_MULTI_INSTANCE;
+    delete process.env.AIONUI_E2E_TEST;
+    delete process.env.AIONUI_E2E_STORAGE_ROOT;
     registerPlatformServices(new NodePlatformServices());
     for (const tempRoot of tempRoots.splice(0)) {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -78,6 +80,50 @@ describe('OPL App storage paths', () => {
 
     expect(getDataPath()).toBe(path.join(userDataDir, 'opl-data'));
     expect(getConfigPath()).toBe(path.join(userDataDir, 'opl-config'));
+  });
+
+  it('keeps E2E data and config inside the explicit test storage root', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'opl-home-'));
+    const storageRoot = mkdtempSync(path.join(os.tmpdir(), 'opl-e2e-storage-'));
+    tempRoots.push(homeDir, storageRoot);
+    registerTestPlatformServices({ homeDir, isPackaged: true });
+    process.env.AIONUI_E2E_TEST = '1';
+    process.env.AIONUI_E2E_STORAGE_ROOT = storageRoot;
+
+    expect(getDataPath()).toBe(path.join(storageRoot, 'data'));
+    expect(getConfigPath()).toBe(path.join(storageRoot, 'config'));
+  });
+
+  it('fails closed when E2E mode has no isolated storage root', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'opl-home-'));
+    tempRoots.push(homeDir);
+    registerTestPlatformServices({ homeDir, isPackaged: true });
+    process.env.AIONUI_E2E_TEST = '1';
+
+    expect(() => getDataPath()).toThrow('AIONUI_E2E_STORAGE_ROOT is required');
+    expect(() => getConfigPath()).toThrow('AIONUI_E2E_STORAGE_ROOT is required');
+  });
+
+  it('fails closed when the E2E storage root is relative', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'opl-home-'));
+    tempRoots.push(homeDir);
+    registerTestPlatformServices({ homeDir, isPackaged: true });
+    process.env.AIONUI_E2E_TEST = '1';
+    process.env.AIONUI_E2E_STORAGE_ROOT = 'relative/e2e-storage';
+
+    expect(() => getDataPath()).toThrow('AIONUI_E2E_STORAGE_ROOT must be an absolute path');
+    expect(() => getConfigPath()).toThrow('AIONUI_E2E_STORAGE_ROOT must be an absolute path');
+  });
+
+  it('ignores the E2E storage root outside E2E mode', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'opl-home-'));
+    const storageRoot = mkdtempSync(path.join(os.tmpdir(), 'opl-e2e-storage-'));
+    tempRoots.push(homeDir, storageRoot);
+    registerTestPlatformServices({ homeDir, isPackaged: true });
+    process.env.AIONUI_E2E_STORAGE_ROOT = storageRoot;
+
+    expect(getDataPath()).toBe(path.join(homeDir, '.opl-app-data'));
+    expect(getConfigPath()).toBe(path.join(homeDir, '.opl-app-config'));
   });
 
   it('keeps dev builds isolated under OPL-specific names', () => {

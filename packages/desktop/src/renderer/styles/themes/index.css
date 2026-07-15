@@ -5,3 +5,6 @@
 
 /* Color Schemes */
 @import './default-color-scheme.css';
+
+/* OPL product baseline is always active; appearance only selects light or dark. */
+@import './opl-product-baseline.css';

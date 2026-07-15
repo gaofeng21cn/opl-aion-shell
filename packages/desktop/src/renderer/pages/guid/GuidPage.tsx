@@ -15,7 +15,6 @@ import {
   getOplAssistantSkillProfile,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
-import type { ProjectContextRef } from '@/common/config/configKeys';
 import type {
   GitManagedWorktreeHandoffReceipt,
   GitWorkspaceHandoffMetadata,
@@ -49,7 +48,6 @@ import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { sanitizeProjectContextRefs } from '@/renderer/utils/workspace/projectContext';
 import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -65,7 +63,6 @@ type GuidNavigationState = {
   workspace?: string;
   postInstallSelfCheck?: boolean;
   selectedCapabilityId?: string;
-  projectContextRefs?: ProjectContextRef[];
 };
 
 const POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS: Record<'zh-CN' | 'en-US', string> = {
@@ -155,7 +152,6 @@ const GuidPage: React.FC = () => {
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
-  const [projectContextRefs, setProjectContextRefs] = useState<ProjectContextRef[]>([]);
   const [launchMode, setLaunchMode] = useState<GuidWorkspaceLaunchMode>('local');
   const [branchOptions, setBranchOptions] = useState<GuidStartingBranchOption[]>([]);
   const [selectedStartRef, setSelectedStartRef] = useState('');
@@ -270,8 +266,7 @@ const GuidPage: React.FC = () => {
   // regular ACP backend with its own model selector).
   const modelSelection = useGuidModelSelection('aionrs');
   const coreReadiness = useCoreLaunchPrerequisites();
-  const fileAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
-  const handleFileAccessBlocked = useCallback(() => setSetupNoticeKind('workspace'), []);
+  const workspaceAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
 
   const resetAssistantRequested = navState?.resetAssistant === true;
   const preselectAgentKey = navState?.selectedAgentKey;
@@ -287,8 +282,7 @@ const GuidPage: React.FC = () => {
 
   const guidInput = useGuidInput({
     locationState: navState,
-    fileAccessEnabled: !fileAccessBlocked,
-    onFileAccessBlocked: handleFileAccessBlocked,
+    fileAccessEnabled: true,
   });
 
   useEffect(() => {
@@ -352,13 +346,9 @@ const GuidPage: React.FC = () => {
 
   const appendSlashSelectedFiles = useCallback(
     (selectedFiles: string[]) => {
-      if (fileAccessBlocked) {
-        handleFileAccessBlocked();
-        return;
-      }
       guidInput.setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
     },
-    [fileAccessBlocked, guidInput.setFiles, handleFileAccessBlocked]
+    [guidInput.setFiles]
   );
   const { onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSlashSelectedFiles,
@@ -408,18 +398,15 @@ const GuidPage: React.FC = () => {
     [allSkills]
   );
   const guidBuiltinSlashCommands = useMemo<SlashCommandItem[]>(
-    () =>
-      fileAccessBlocked
-        ? []
-        : [
-            {
-              name: 'open',
-              description: t('conversation.workspace.addFile', { defaultValue: 'Add File' }),
-              kind: 'builtin',
-              source: 'builtin',
-            },
-          ],
-    [fileAccessBlocked, t]
+    () => [
+      {
+        name: 'open',
+        description: t('conversation.workspace.addFile', { defaultValue: 'Add File' }),
+        kind: 'builtin',
+        source: 'builtin',
+      },
+    ],
+    [t]
   );
   const guidSlashCommands = useMemo(
     () =>
@@ -435,10 +422,6 @@ const GuidPage: React.FC = () => {
     input: guidInput.input,
     commands: guidSlashCommands,
     onExecuteBuiltin: (name) => {
-      if (name === 'open' && fileAccessBlocked) {
-        handleFileAccessBlocked();
-        return;
-      }
       onSlashBuiltinCommand(name);
       guidInput.setInput('');
     },
@@ -475,7 +458,6 @@ const GuidPage: React.FC = () => {
     setInput: guidInput.setInput,
     files: guidInput.files,
     setFiles: guidInput.setFiles,
-    projectContextRefs,
     dir: taskWorkspaceDir,
     workspaceHandoff: launchMode === 'worktree' ? (preparedWorktreeMetadata ?? undefined) : undefined,
     setDir: guidInput.setDir,
@@ -542,10 +524,6 @@ const GuidPage: React.FC = () => {
     }
     if (coreReadiness.known && !coreReadiness.modelAccessReady) {
       setSetupNoticeKind('model_access');
-      return;
-    }
-    if (fileAccessBlocked && (guidInput.files.length > 0 || Boolean(guidInput.dir))) {
-      setSetupNoticeKind('workspace');
       return;
     }
     setSetupNoticeKind(null);
@@ -615,9 +593,7 @@ const GuidPage: React.FC = () => {
       });
   }, [
     coreReadiness,
-    fileAccessBlocked,
     guidInput.dir,
-    guidInput.files.length,
     launchMode,
     selectedStartRef,
     send.sendMessageHandler,
@@ -666,7 +642,6 @@ const GuidPage: React.FC = () => {
     (dir: string) => {
       invalidatePreparedWorktree();
       guidInput.setDir(dir);
-      setProjectContextRefs([]);
       setWorktreeError(null);
     },
     [guidInput.setDir, invalidatePreparedWorktree]
@@ -675,7 +650,6 @@ const GuidPage: React.FC = () => {
   const handleWorkspaceClear = useCallback(() => {
     invalidatePreparedWorktree();
     guidInput.setDir('');
-    setProjectContextRefs([]);
     setWorktreeError(launchMode === 'worktree' ? t('guid.worktree.errors.projectRequired') : null);
   }, [guidInput.setDir, invalidatePreparedWorktree, launchMode, t]);
 
@@ -859,9 +833,6 @@ const GuidPage: React.FC = () => {
       guidInput.setInput('');
     }
     guidInput.setFiles([]);
-    setProjectContextRefs(
-      navState?.workspace ? sanitizeProjectContextRefs(navState.workspace, navState.projectContextRefs) : []
-    );
     guidInput.setLoading(false);
     if (!navState?.workspace) {
       guidInput.setDir('');
@@ -875,7 +846,6 @@ const GuidPage: React.FC = () => {
     localeKey,
     location.key,
     navState?.selectedCapabilityId,
-    navState?.projectContextRefs,
     navState?.workspace,
     postInstallSelfCheckRequested,
     t,
@@ -978,8 +948,7 @@ const GuidPage: React.FC = () => {
     <GuidActionRow
       files={guidInput.files}
       onFilesUploaded={guidInput.handleFilesUploaded}
-      fileAccessDisabled={fileAccessBlocked}
-      fileAccessDisabledReason={t('common.firstRunRecovery.fileAccessUnavailable')}
+      fileAccessDisabled={false}
       modelSelectorNode={modelSelectorNode}
       mobileCodexModelSelection={
         composerSurface.executor === 'codex' && modelSelectorNode
@@ -1120,16 +1089,12 @@ const GuidPage: React.FC = () => {
             selectedStartRef={selectedStartRef}
             onSelectedStartRefChange={handleStartingBranchChange}
             worktreeLoading={worktreeInspecting || worktreePreparing}
-            worktreeControlsDisabled={worktreePreparing || guidInput.loading}
+            worktreeControlsDisabled={workspaceAccessBlocked || worktreePreparing || guidInput.loading}
             worktreeError={worktreeError}
-            workspaceAccessDisabled={fileAccessBlocked}
+            workspaceAccessDisabled={workspaceAccessBlocked}
             workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
             activeCapabilityLabel={activeCapabilityLabel}
-            projectContextRefs={projectContextRefs}
-            onRemoveProjectContextRef={(path) => {
-              setProjectContextRefs((current) => current.filter((ref) => ref.path !== path));
-            }}
-            fileAccessEnabled={!fileAccessBlocked}
+            fileAccessEnabled={true}
           />
 
           {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}

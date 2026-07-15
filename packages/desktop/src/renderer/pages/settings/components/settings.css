@@ -5,13 +5,13 @@
 }
 
 .settings-page-content {
-  max-width: 1024px;
+  max-width: 760px;
 }
 
 .settings-page-wrapper .arco-card {
   border-radius: 8px;
-  background: var(--bg-2);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  background: var(--bg-1);
+  box-shadow: none;
 }
 
 .settings-page-wrapper .arco-card-bordered,
@@ -61,6 +61,7 @@
 
 .settings-sider__item[class*='!bg-fill-3'] {
   border-color: transparent;
+  background: var(--opl-sidebar-active) !important;
 }
 
 .settings-sider__secondary-divider {
@@ -126,8 +127,8 @@
   overflow: hidden;
   border: 1px solid var(--border-base);
   border-radius: 8px;
-  background: var(--bg-2);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  background: var(--bg-1);
+  box-shadow: none;
 }
 
 /* Stable Settings surfaces: editable configuration, quiet status, explicit action, and gated diagnostics. */
@@ -150,7 +151,7 @@
 }
 
 .opl-settings-surface--action {
-  background: var(--bg-2);
+  background: var(--bg-1);
 }
 
 .opl-settings-action-result {
@@ -172,49 +173,6 @@
   box-shadow: none;
 }
 
-.opl-settings-section:is(
-  [id='provider-source'],
-  [id='codex-cli'],
-  [id='authentication'],
-  [id='updates'],
-  [id='version'],
-  [id='update-status']
-) {
-  box-shadow:
-    inset 3px 0 0 rgb(var(--blue-6)),
-    0 1px 2px rgb(0 0 0 / 4%);
-}
-
-.opl-settings-section:is([id='current-workspace'], [id='working-directories'], [id='browser-access']) {
-  box-shadow:
-    inset 3px 0 0 rgb(var(--cyan-6)),
-    0 1px 2px rgb(0 0 0 / 4%);
-}
-
-.opl-settings-section:is([id='availability'], [id='capability-management'], [id='packages']) {
-  box-shadow:
-    inset 3px 0 0 rgb(var(--purple-6)),
-    0 1px 2px rgb(0 0 0 / 4%);
-}
-
-.opl-settings-section:is([id='runtime-environment'], [id='services'], [id='advanced-maintenance']) {
-  box-shadow:
-    inset 3px 0 0 rgb(var(--orange-6)),
-    0 1px 2px rgb(0 0 0 / 4%);
-}
-
-.opl-settings-section:is(
-  [id='installer-cache'],
-  [id='conversation-archives'],
-  [id='runtime-cache'],
-  [id='logs'],
-  [id='cleanup-history']
-) {
-  box-shadow:
-    inset 3px 0 0 rgb(var(--green-6)),
-    0 1px 2px rgb(0 0 0 / 4%);
-}
-
 .opl-settings-section.opl-settings-surface--status {
   border-color: transparent;
   background: transparent;
@@ -222,7 +180,7 @@
 }
 
 .opl-settings-section.opl-settings-surface--action {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  box-shadow: none;
 }
 
 .opl-settings-section--attention {
@@ -230,14 +188,14 @@
 }
 
 .opl-settings-section.bg-transparent {
-  background: var(--bg-2);
+  background: var(--bg-1);
 }
 
 .opl-settings-page > .opl-settings-list {
   overflow: hidden;
   border: 1px solid var(--border-base);
   border-radius: 8px;
-  background: var(--bg-2);
+  background: var(--bg-1);
 }
 
 .opl-settings-section__header {

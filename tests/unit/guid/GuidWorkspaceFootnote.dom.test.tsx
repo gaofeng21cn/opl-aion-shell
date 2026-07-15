@@ -49,15 +49,21 @@ function createLaunchProps(
 }
 
 describe('GuidWorkspaceFootnote', () => {
-  it('exposes a disabled project selector while workspace setup is incomplete', () => {
+  it('disables project and Worktree controls while workspace setup is incomplete', () => {
     render(
-      <GuidWorkspaceFootnote {...createLaunchProps()} accessDisabled accessDisabledReason='complete workspace setup' />
+      <GuidWorkspaceFootnote
+        {...createLaunchProps()}
+        accessDisabled
+        accessDisabledReason='complete workspace setup'
+        worktreeControlsDisabled
+      />
     );
 
     expect(screen.getByTestId('guid-new-task-context-bar')).toHaveAttribute('data-access-disabled', 'true');
     const selector = screen.getByTestId('workspace-selector-btn');
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toContainElement(selector);
     expect(selector).toBeDisabled();
+    expect(screen.getByTestId('guid-launch-mode-trigger')).toBeDisabled();
   });
 
   it('describes projectless context without implying a file restriction', () => {
@@ -105,21 +111,11 @@ describe('GuidWorkspaceFootnote', () => {
     await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'feature/research' })).not.toBeInTheDocument());
   });
 
-  it('orders project, location, and branch in the primary context bar and keeps OPL refs secondary', async () => {
-    const onRemove = vi.fn();
+  it('orders working directory, location, and branch while keeping the active capability secondary', async () => {
     render(
       <GuidWorkspaceFootnote
         {...createLaunchProps({ workspaceDir: '/workspace/research' })}
         activeCapabilityLabel='Research'
-        projectContextRefs={[
-          {
-            path: '/workspace/research/docs/protocol.md',
-            name: 'protocol.md',
-            relativePath: 'docs/protocol.md',
-            isFile: true,
-          },
-        ]}
-        onRemoveProjectContextRef={onRemove}
       />
     );
 
@@ -133,10 +129,7 @@ describe('GuidWorkspaceFootnote', () => {
       'codex/context',
     ]);
     expect(screen.getByTestId('guid-active-capability')).toHaveTextContent('guid.home.activeCapability');
-    expect(screen.getByTestId('guid-project-context-ref')).toHaveTextContent('docs/protocol.md');
-
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.projectContext.remove' }));
-    expect(onRemove).toHaveBeenCalledWith('/workspace/research/docs/protocol.md');
+    expect(screen.queryByTestId('guid-project-context-ref')).not.toBeInTheDocument();
   });
 
   it('keeps inactive registered directories out of the selector and removes them from management', () => {
