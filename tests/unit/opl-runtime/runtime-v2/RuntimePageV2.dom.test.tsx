@@ -457,9 +457,10 @@ describe('Runtime V2 page', () => {
       dryRun: false,
     });
     expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('任务已归档');
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: /001 DM CVD Mortality Risk/ })).not.toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByTestId('runtime-open-archive')).toHaveTextContent('归档库（1）'), {
+      timeout: 5_000,
+    });
+    expect(screen.queryByRole('button', { name: /001 DM CVD Mortality Risk/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /NF-PitNET Paper 1/ })).toBeInTheDocument();
   });
 
