@@ -35,6 +35,10 @@ import {
   type OplActiveShortcut,
   type OplAssistantRouteReceipt,
 } from '../utils/activeShortcut';
+import {
+  parseOplAgentPackageLaunchResult,
+  type OplAgentPackageActivationReceipt,
+} from '../utils/oplAgentPackageLaunchAuthority';
 
 export type GuidSendDeps = {
   // Input state
@@ -118,25 +122,6 @@ function buildLegacyOplAgentPackageInvocationReceipt(
   return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
 }
 
-type OplAgentPackageActivationReceipt = {
-  action_id: 'agent_package_activate';
-  package_id: string;
-  scope: 'workspace';
-  target_workspace: string;
-  use_boundary_id: string;
-  launch_allowed: true;
-  use_receipt_ref: string;
-  use_binding: Record<string, unknown>;
-};
-
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function nonemptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
 function createPackageUseBoundaryId(packageId: string): string {
   const uniqueId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `opl-app-conversation-${packageId}-${uniqueId}`;
@@ -160,35 +145,11 @@ async function activateOplAgentPackage(
   if (result.ok === false) {
     throw new Error(result.error?.message || result.command);
   }
-  const execution = recordValue(recordValue(result.parsed).app_action_execution);
-  const activation = recordValue(recordValue(execution.result).opl_agent_package_activation);
-  const useReceiptRef = nonemptyString(activation.use_receipt_ref);
-  const useBinding = recordValue(activation.package_use_binding);
-  const rootPackage = recordValue(useBinding.root_package);
-  if (
-    execution.action_id !== 'agent_package_activate' ||
-    activation.package_id !== packageId ||
-    activation.launch_allowed !== true ||
-    activation.use_boundary_id !== useBoundaryId ||
-    !useReceiptRef ||
-    useBinding.use_boundary_id !== useBoundaryId ||
-    useBinding.use_receipt_ref !== useReceiptRef ||
-    useBinding.scope !== 'workspace' ||
-    useBinding.target_root !== targetWorkspace ||
-    rootPackage.package_id !== packageId
-  ) {
-    throw new Error('OPL package activation returned an invalid launch receipt.');
-  }
-  return {
-    action_id: 'agent_package_activate',
-    package_id: packageId,
-    scope: 'workspace',
-    target_workspace: targetWorkspace,
-    use_boundary_id: useBoundaryId,
-    launch_allowed: true,
-    use_receipt_ref: useReceiptRef,
-    use_binding: useBinding,
-  };
+  return parseOplAgentPackageLaunchResult({
+    parsed: result.parsed,
+    packageId,
+    targetWorkspace,
+  });
 }
 
 /**
