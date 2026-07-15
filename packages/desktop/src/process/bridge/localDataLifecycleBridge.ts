@@ -107,7 +107,9 @@ function inventoryInput(): LocalDataLifecycleInventoryInput {
 
 function scanInventoryInWorker(input: LocalDataLifecycleInventoryInput): Promise<LocalDataLifecycleInventory> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(path.join(__dirname, 'localDataInventoryWorker.js'), { workerData: input });
+    const worker = new Worker(path.join(app.getAppPath(), 'out', 'main', 'localDataInventoryWorker.js'), {
+      workerData: input,
+    });
     let settled = false;
     const rejectOnce = (error: Error) => {
       if (settled) return;
