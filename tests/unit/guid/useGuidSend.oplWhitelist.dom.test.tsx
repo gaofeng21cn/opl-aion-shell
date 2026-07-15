@@ -310,7 +310,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       taskId: 'guid-task-1',
       startRef: 'main',
       startCommit: '1111111111111111111111111111111111111111',
-      worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup' as const,
+      worktreeRetention: 'preserve_for_reuse' as const,
     };
     const deps = buildDeps();
     deps.dir = workspaceHandoff.worktreePath;

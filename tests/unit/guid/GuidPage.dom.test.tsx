@@ -971,7 +971,7 @@ describe('GuidPage selected purpose assistant surface', () => {
             taskId: firstRequest.taskId,
             startRef: 'refs/heads/feature/research',
             startCommit: '2222222222222222222222222222222222222222',
-            worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+            worktreeRetention: 'preserve_for_reuse',
           },
         })
       );

@@ -17,9 +17,14 @@ import { useTranslation } from 'react-i18next';
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
+type WorkspaceHandoffCandidate = Omit<Partial<GitWorkspaceHandoffMetadata>, 'worktreeRetention'> & {
+  worktreeRetention?: unknown;
+  snapshot?: unknown;
+};
+
 export const readWorkspaceHandoffMetadata = (value: unknown): GitWorkspaceHandoffMetadata | null => {
   if (!value || typeof value !== 'object') return null;
-  const candidate = value as Partial<GitWorkspaceHandoffMetadata>;
+  const candidate = value as WorkspaceHandoffCandidate;
   if (
     candidate.schema !== 'opl_workspace_handoff.v1' ||
     (candidate.locality !== 'local' && candidate.locality !== 'worktree') ||
@@ -28,12 +33,13 @@ export const readWorkspaceHandoffMetadata = (value: unknown): GitWorkspaceHandof
     !text(candidate.taskId) ||
     !text(candidate.startRef) ||
     !text(candidate.startCommit) ||
-    candidate.worktreeRetention !== 'preserve_for_reuse_until_snapshotted_cleanup'
+    (candidate.worktreeRetention !== 'preserve_for_reuse' &&
+      candidate.worktreeRetention !== 'preserve_for_reuse_until_snapshotted_cleanup')
   ) {
     return null;
   }
-  const { snapshot: _legacySnapshot, ...metadata } = candidate;
-  return metadata as GitWorkspaceHandoffMetadata;
+  const { snapshot: _legacySnapshot, worktreeRetention: _legacyRetention, ...metadata } = candidate;
+  return { ...metadata, worktreeRetention: 'preserve_for_reuse' } as GitWorkspaceHandoffMetadata;
 };
 
 type WorkspaceHandoffAvailability = { status: 'loading' | 'available' } | { status: 'unavailable'; reasonKey: string };
@@ -156,7 +162,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
           taskId,
           startRef: handoff?.startRef ?? result.startRef,
           startCommit: handoff?.startCommit ?? result.startCommit,
-          worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+          worktreeRetention: 'preserve_for_reuse',
         };
       } else {
         if (!handoff?.localWorkspace) {

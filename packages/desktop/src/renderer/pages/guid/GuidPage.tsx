@@ -598,7 +598,7 @@ const GuidPage: React.FC = () => {
           taskId: worktreeTaskIdentityRef.current?.taskId ?? '',
           startRef: result.startRef,
           startCommit: result.startCommit,
-          worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+          worktreeRetention: 'preserve_for_reuse',
         });
         setPreparedWorktreePath(result.targetPath);
         setWorktreeSendRequest((current) => current + 1);

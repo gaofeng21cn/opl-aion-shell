@@ -127,9 +127,7 @@ export type GitWorkspaceHandoffMetadata = {
   taskId: string;
   startRef: string;
   startCommit: string;
-  worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup';
-  // Legacy handoff payloads are read and discarded during migration.
-  snapshot?: unknown;
+  worktreeRetention: 'preserve_for_reuse';
 };
 
 type GitManagedWorktreeResultBase = {

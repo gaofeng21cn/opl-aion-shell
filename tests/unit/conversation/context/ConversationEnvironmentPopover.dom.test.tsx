@@ -1,5 +1,6 @@
 import type { TChatConversation } from '@/common/config/storage';
 import ConversationEnvironmentPopover from '@/renderer/pages/conversation/components/ChatLayout/ConversationEnvironmentPopover';
+import { readWorkspaceHandoffMetadata } from '@/renderer/pages/conversation/components/ChatLayout/WorkspaceHandoffControl';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -130,6 +131,31 @@ const canonicalConversation = {
     canonical_thread_id: 'thread-1',
   },
 } as TChatConversation;
+
+it('normalizes legacy Worktree retention metadata and drops the retired snapshot payload', () => {
+  expect(
+    readWorkspaceHandoffMetadata({
+      schema: 'opl_workspace_handoff.v1',
+      locality: 'worktree',
+      localWorkspace: '/projects/demo',
+      worktreePath: '/Users/test/.codex/worktrees/demo-task',
+      taskId: 'thread-1',
+      startRef: 'main',
+      startCommit: '1111111111111111111111111111111111111111',
+      worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+      snapshot: { schema: 'opl_worktree_snapshot_receipt.v1' },
+    })
+  ).toEqual({
+    schema: 'opl_workspace_handoff.v1',
+    locality: 'worktree',
+    localWorkspace: '/projects/demo',
+    worktreePath: '/Users/test/.codex/worktrees/demo-task',
+    taskId: 'thread-1',
+    startRef: 'main',
+    startCommit: '1111111111111111111111111111111111111111',
+    worktreeRetention: 'preserve_for_reuse',
+  });
+});
 
 describe('ConversationEnvironmentPopover', () => {
   beforeEach(() => {
@@ -382,7 +408,7 @@ describe('ConversationEnvironmentPopover', () => {
             taskId: 'thread-1',
             startRef: 'feature/advanced-surfaces',
             startCommit: '1111111111111111111111111111111111111111',
-            worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+            worktreeRetention: 'preserve_for_reuse',
           },
         },
       },
@@ -409,6 +435,7 @@ describe('ConversationEnvironmentPopover', () => {
                 startRef: 'main',
                 startCommit: '1111111111111111111111111111111111111111',
                 worktreeRetention: 'preserve_for_reuse_until_snapshotted_cleanup',
+                snapshot: { schema: 'opl_worktree_snapshot_receipt.v1' },
               },
             },
           } as TChatConversation
@@ -432,10 +459,17 @@ describe('ConversationEnvironmentPopover', () => {
       updates: {
         extra: {
           workspace: '/projects/demo',
-          workspace_handoff: { locality: 'local', worktreePath: '/Users/test/.codex/worktrees/demo-task' },
+          workspace_handoff: {
+            locality: 'local',
+            worktreePath: '/Users/test/.codex/worktrees/demo-task',
+            worktreeRetention: 'preserve_for_reuse',
+          },
         },
       },
     });
+    expect(handoffApi.updateConversation.mock.calls[0][0].updates.extra.workspace_handoff).not.toHaveProperty(
+      'snapshot'
+    );
     expect(local).toBeChecked();
   });
 
