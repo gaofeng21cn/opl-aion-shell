@@ -43,11 +43,7 @@ import type {
 import type {
   GitCommitStagedRequest,
   GitCommitStagedResult,
-  GitManagedWorktreeCleanupRequest,
-  GitManagedWorktreeCleanupResult,
   GitManagedWorktreeRequest,
-  GitManagedWorktreeRestoreRequest,
-  GitManagedWorktreeRestoreResult,
   GitManagedWorktreeResult,
   GitPushCurrentBranchRequest,
   GitPushCurrentBranchResult,
@@ -1162,12 +1158,6 @@ export const gitWorkspace = {
   inspect: bridge.buildProvider<GitWorkspaceInspection, GitWorkspaceInspectRequest>('git-workspace.inspect'),
   ensureManagedWorktree: bridge.buildProvider<GitManagedWorktreeResult, GitManagedWorktreeRequest>(
     'git-workspace.ensure-managed-worktree'
-  ),
-  cleanupManagedWorktree: bridge.buildProvider<GitManagedWorktreeCleanupResult, GitManagedWorktreeCleanupRequest>(
-    'git-workspace.cleanup-managed-worktree'
-  ),
-  restoreManagedWorktree: bridge.buildProvider<GitManagedWorktreeRestoreResult, GitManagedWorktreeRestoreRequest>(
-    'git-workspace.restore-managed-worktree'
   ),
   commitStaged: bridge.buildProvider<GitCommitStagedResult, GitCommitStagedRequest>('git-workspace.commit-staged'),
   pushCurrentBranch: bridge.buildProvider<GitPushCurrentBranchResult, GitPushCurrentBranchRequest>(
