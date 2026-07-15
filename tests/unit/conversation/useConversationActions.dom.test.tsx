@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
   modalConfirm: vi.fn(),
   messageError: vi.fn(),
-  threadExecute: vi.fn(),
+  threadRename: vi.fn(),
+  threadArchive: vi.fn(),
+  threadUnarchive: vi.fn(),
+  threadDelete: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -26,8 +29,11 @@ vi.mock('@/common', () => ({
       remove: { invoke: mocks.remove },
       reset: { invoke: mocks.reset },
     },
-    threadCoordination: {
-      execute: { invoke: mocks.threadExecute },
+    codexThreads: {
+      rename: { invoke: mocks.threadRename },
+      archive: { invoke: mocks.threadArchive },
+      unarchive: { invoke: mocks.threadUnarchive },
+      delete: { invoke: mocks.threadDelete },
     },
   },
 }));
@@ -86,7 +92,10 @@ describe('conversation archive actions', () => {
     mocks.emit.mockClear();
     mocks.modalConfirm.mockClear();
     mocks.messageError.mockClear();
-    mocks.threadExecute.mockReset();
+    mocks.threadRename.mockReset();
+    mocks.threadArchive.mockReset();
+    mocks.threadUnarchive.mockReset();
+    mocks.threadDelete.mockReset();
   });
 
   it('persists archive and restore through merge_extra without deleting the conversation', async () => {
@@ -189,7 +198,10 @@ describe('conversation archive actions', () => {
         canonical_thread_id: 'thread-1',
       },
     } as TChatConversation;
-    mocks.threadExecute.mockResolvedValue({ ok: true });
+    mocks.threadRename.mockResolvedValue(undefined);
+    mocks.threadArchive.mockResolvedValue(undefined);
+    mocks.threadUnarchive.mockResolvedValue(undefined);
+    mocks.threadDelete.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(true);
     mocks.remove.mockResolvedValue(true);
     const { result } = renderHook(() =>
@@ -209,24 +221,18 @@ describe('conversation archive actions', () => {
     act(() => result.current.handleArchive(canonical));
     act(() => result.current.handleRestore(canonical));
 
-    await waitFor(() => expect(mocks.threadExecute).toHaveBeenCalledTimes(3));
-    expect(mocks.threadExecute.mock.calls.map(([value]) => value.request.action)).toEqual([
-      'rename',
-      'archive',
-      'unarchive',
-    ]);
-    expect(mocks.threadExecute.mock.calls[0][0].request).toMatchObject({
-      targetThreadId: 'thread-1',
+    await waitFor(() => expect(mocks.threadUnarchive).toHaveBeenCalledOnce());
+    expect(mocks.threadRename).toHaveBeenCalledWith({
+      threadId: 'thread-1',
       name: 'Renamed canonical task',
     });
+    expect(mocks.threadArchive).toHaveBeenCalledWith({ threadId: 'thread-1' });
+    expect(mocks.threadUnarchive).toHaveBeenCalledWith({ threadId: 'thread-1' });
 
     act(() => result.current.handleDeleteClick(canonical.id));
     const confirmation = mocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
     await act(() => confirmation.onOk());
-    expect(mocks.threadExecute.mock.calls.at(-1)?.[0].request).toMatchObject({
-      action: 'delete',
-      targetThreadId: 'thread-1',
-    });
+    expect(mocks.threadDelete).toHaveBeenCalledWith({ threadId: 'thread-1' });
   });
 
   it('routes the open canonical task title rename through thread/name/set', async () => {
@@ -242,19 +248,16 @@ describe('conversation archive actions', () => {
         canonical_thread_id: 'thread-1',
       },
     } as TChatConversation);
-    mocks.threadExecute.mockResolvedValue({ ok: true });
+    mocks.threadRename.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(true);
     const { result } = renderHook(() => useTitleRename({ title: 'Canonical task', conversation_id: 'conv-1' }));
 
     act(() => result.current.setTitleDraft('Renamed from transcript'));
     await act(() => result.current.submitTitleRename());
 
-    expect(mocks.threadExecute).toHaveBeenCalledWith({
-      request: expect.objectContaining({
-        action: 'rename',
-        targetThreadId: 'thread-1',
-        name: 'Renamed from transcript',
-      }),
+    expect(mocks.threadRename).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      name: 'Renamed from transcript',
     });
   });
 });

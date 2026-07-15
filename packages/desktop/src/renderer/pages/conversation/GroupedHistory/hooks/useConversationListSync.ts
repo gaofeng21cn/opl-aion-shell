@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { CodexThreadDescriptor, ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
+import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
 import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -179,11 +179,11 @@ const projectCanonicalThread = (
  */
 export const mergeCanonicalThreadDirectory = (
   localConversations: TChatConversation[],
-  overview: ThreadCoordinationOverview | null
+  directory: CodexThreadDirectory | null
 ): TChatConversation[] => {
-  if (!overview || overview.availability.status !== 'available') return localConversations;
+  if (!directory) return localConversations;
 
-  const returnedThreadIds = new Set(overview.threads.map((thread) => thread.id));
+  const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
   const unmatchedLocal = localConversations.filter((conversation) => {
     const threadId = canonicalCodexThreadId(conversation);
@@ -194,14 +194,14 @@ export const mergeCanonicalThreadDirectory = (
 
   return [
     ...unmatchedLocal,
-    ...overview.threads.map((thread) => projectCanonicalThread(thread, cachedByThreadId.get(thread.id))),
+    ...directory.threads.map((thread) => projectCanonicalThread(thread, cachedByThreadId.get(thread.id))),
   ];
 };
 
 const refreshConversations = () => {
   void Promise.allSettled([
     ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
-    ipcBridge.threadCoordination.getOverview.invoke({ includeArchived: true }),
+    ipcBridge.codexThreads.list.invoke({ includeArchived: true }),
   ]).then(([localResult, canonicalResult]) => {
     const items =
       localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items) ? localResult.value.items : [];

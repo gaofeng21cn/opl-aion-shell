@@ -14,13 +14,13 @@ import { initWebuiBridge } from './webuiBridge';
 import { initOplRuntimeBridge } from './oplRuntimeBridge';
 import { initThemeBridge } from './themeBridge';
 import { initLocalDataLifecycleBridge } from './localDataLifecycleBridge';
-import { disposeThreadCoordinationBridge, initThreadCoordinationBridge } from './threadCoordinationBridge';
-import type { CodexThreadCoordinationPort } from '../services/threadCoordination';
+import { disposeCodexAppServerBridge, initCodexAppServerBridge } from './codexAppServerBridge';
+import type { CodexAppServerAdapter } from '../services/codexAppServer/adapter';
 import { initGitWorkspaceBridge, type GitWorkspacePort } from '../services/git-workspace';
 
 export type BridgeDependencies = {
   gitWorkspacePort?: GitWorkspacePort;
-  threadCoordinationPort?: CodexThreadCoordinationPort;
+  codexAppServerAdapter?: CodexAppServerAdapter;
 };
 
 export function initAllBridges(deps: BridgeDependencies = {}): void {
@@ -35,7 +35,7 @@ export function initAllBridges(deps: BridgeDependencies = {}): void {
   initThemeBridge();
   initLocalDataLifecycleBridge();
   initGitWorkspaceBridge(deps.gitWorkspacePort);
-  initThreadCoordinationBridge(deps.threadCoordinationPort);
+  initCodexAppServerBridge(deps.codexAppServerAdapter);
 }
 
 export {
@@ -50,8 +50,8 @@ export {
   initOplRuntimeBridge,
   initLocalDataLifecycleBridge,
   initGitWorkspaceBridge,
-  initThreadCoordinationBridge,
-  disposeThreadCoordinationBridge,
+  initCodexAppServerBridge,
+  disposeCodexAppServerBridge,
 };
 export { registerWindowMaximizeListeners } from './windowControlsBridge';
 export const disposeAllTeamSessions = (): Promise<void> => Promise.resolve();

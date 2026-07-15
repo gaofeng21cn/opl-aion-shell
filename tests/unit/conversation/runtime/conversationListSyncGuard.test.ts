@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TChatConversation } from '@/common/config/storage';
-import type { CodexThreadDescriptor, ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
+import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
 import {
   getSidebarStreamGuardDecision,
   mergeCanonicalThreadDirectory,
@@ -25,27 +25,15 @@ const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDesc
   parentThreadId: null,
   ancestorThreadIds: [],
   activeTurnId: null,
-  activeWriteSet: [],
-  activePermission: null,
   archived: false,
   updatedAt: '2026-07-13T00:00:00.000Z',
   ...overrides,
 });
 
-const overview = (threads: CodexThreadDescriptor[]): ThreadCoordinationOverview => ({
-  schema: 'opl_codex_thread_coordination_overview.v1',
-  availability: {
-    status: 'available',
-    host: 'host-a',
-    protocolVersion: 'v2',
-    methods: [],
-    reasonCode: null,
-    detail: null,
-  },
-  currentThreadId: null,
-  currentProjectId: null,
+const directory = (threads: CodexThreadDescriptor[]): CodexThreadDirectory => ({
+  schema: 'opl_codex_thread_directory.v1',
+  host: 'host-a',
   threads,
-  audit: [],
 });
 
 describe('getSidebarStreamGuardDecision', () => {
@@ -84,7 +72,7 @@ describe('getSidebarStreamGuardDecision', () => {
 
 describe('mergeCanonicalThreadDirectory', () => {
   it('projects an App Server task that has no shell cache row', () => {
-    const [projected] = mergeCanonicalThreadDirectory([], overview([thread()]));
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread()]));
 
     expect(projected).toMatchObject({
       id: 'thread-1',
@@ -110,7 +98,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     } as TChatConversation;
     const [projected] = mergeCanonicalThreadDirectory(
       [cached],
-      overview([thread({ archived: true, status: 'archived' })])
+      directory([thread({ archived: true, status: 'archived' })])
     );
 
     expect(projected).toMatchObject({
@@ -138,7 +126,7 @@ describe('mergeCanonicalThreadDirectory', () => {
 
     const merged = mergeCanonicalThreadDirectory(
       [returned, missing],
-      overview([thread({ id: 'thread-returned', title: 'Fresh returned task' })])
+      directory([thread({ id: 'thread-returned', title: 'Fresh returned task' })])
     );
 
     expect(merged).toEqual([
@@ -165,7 +153,7 @@ describe('mergeCanonicalThreadDirectory', () => {
       },
     } as TChatConversation;
 
-    const merged = mergeCanonicalThreadDirectory([cached], overview([thread()]));
+    const merged = mergeCanonicalThreadDirectory([cached], directory([thread()]));
 
     expect(merged).toEqual([
       expect.objectContaining({
@@ -189,7 +177,7 @@ describe('mergeCanonicalThreadDirectory', () => {
         extra: { backend: 'codex', canonical_thread_id: 'thread-1' },
       }) as TChatConversation;
 
-    const merged = mergeCanonicalThreadDirectory([duplicate('local-1'), duplicate('local-2')], overview([thread()]));
+    const merged = mergeCanonicalThreadDirectory([duplicate('local-1'), duplicate('local-2')], directory([thread()]));
 
     expect(merged).toHaveLength(1);
     expect(merged[0]?.name).toBe('Canonical task');
@@ -197,9 +185,6 @@ describe('mergeCanonicalThreadDirectory', () => {
 
   it('falls back to shell cache when the canonical directory is unavailable', () => {
     const cached = { id: 'local-1' } as TChatConversation;
-    const unavailable = overview([]);
-    unavailable.availability.status = 'unavailable';
-
-    expect(mergeCanonicalThreadDirectory([cached], unavailable)).toEqual([cached]);
+    expect(mergeCanonicalThreadDirectory([cached], null)).toEqual([cached]);
   });
 });

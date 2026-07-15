@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { ThreadCoordinationLifecycleRequest } from '@/common/types/codex/threadCoordination';
 
 type CanonicalLifecycleAction =
   | { action: 'rename'; name: string; reason: string }
@@ -24,15 +23,17 @@ export async function executeCanonicalThreadLifecycle(
   const threadId = canonicalCodexThreadId(conversation);
   if (!threadId) return null;
 
-  const base = {
-    targetThreadId: threadId,
-    actor: { kind: 'user' as const, id: 'opl-app-user', threadId },
-    reason: action.reason,
-  };
-  const request: ThreadCoordinationLifecycleRequest =
-    action.action === 'rename' ? { ...base, action: 'rename', name: action.name } : { ...base, action: action.action };
-  const result = await ipcBridge.threadCoordination.execute.invoke({ request });
-  return result.ok;
+  try {
+    if (action.action === 'rename') {
+      await ipcBridge.codexThreads.rename.invoke({ threadId, name: action.name });
+    } else {
+      await ipcBridge.codexThreads[action.action].invoke({ threadId });
+    }
+    return true;
+  } catch (error) {
+    console.error(`Canonical Codex thread ${action.action} failed:`, error);
+    return false;
+  }
 }
 
 export async function finishCanonicalLifecycleWithLocalProjection(

@@ -74,16 +74,17 @@ import type {
   TeamAgent,
 } from '../types/team/teamTypes';
 import type {
-  ThreadCoordinationActionResult,
-  ThreadCoordinationExecuteRequest,
-  ThreadCoordinationOverview,
-  ThreadCoordinationOverviewRequest,
-  ThreadCoordinationPendingRequestsResult,
-  ThreadCoordinationReadRequest,
-  ThreadCoordinationReadResult,
-  ThreadCoordinationResolveServerRequest,
-  ThreadCoordinationResolveServerRequestResult,
-} from '../types/codex/threadCoordination';
+  CodexReviewStartRequest,
+  CodexReviewStartResult,
+  CodexThreadDescriptor,
+  CodexThreadDetail,
+  CodexThreadDirectory,
+  CodexThreadDirectoryRequest,
+  CodexThreadIdRequest,
+  CodexThreadRenameRequest,
+  CodexThreadStartRequest,
+  CodexThreadWorkspaceRequest,
+} from '../types/codex/appServerThreads';
 import type {
   AutoUpdateStatus,
   AutoUpdateInstallRequest,
@@ -735,26 +736,21 @@ export const oplRuntime = {
 };
 
 // ---------------------------------------------------------------------------
-// Codex thread coordination — Electron host boundary, fail-closed by default.
+// Codex app-server threads — direct Electron host adapter.
 // ---------------------------------------------------------------------------
 
-export const threadCoordination = {
-  getOverview: bridge.buildProvider<ThreadCoordinationOverview, ThreadCoordinationOverviewRequest>(
-    'thread-coordination.get-overview'
-  ),
-  readThread: bridge.buildProvider<ThreadCoordinationReadResult, ThreadCoordinationReadRequest>(
-    'thread-coordination.read-thread'
-  ),
-  execute: bridge.buildProvider<ThreadCoordinationActionResult, ThreadCoordinationExecuteRequest>(
-    'thread-coordination.execute'
-  ),
-  listPendingRequests: bridge.buildProvider<ThreadCoordinationPendingRequestsResult, void>(
-    'thread-coordination.list-pending-requests'
-  ),
-  resolveServerRequest: bridge.buildProvider<
-    ThreadCoordinationResolveServerRequestResult,
-    ThreadCoordinationResolveServerRequest
-  >('thread-coordination.resolve-server-request'),
+export const codexThreads = {
+  list: bridge.buildProvider<CodexThreadDirectory, CodexThreadDirectoryRequest>('codex-threads.list'),
+  read: bridge.buildProvider<CodexThreadDetail, CodexThreadIdRequest>('codex-threads.read'),
+  start: bridge.buildProvider<CodexThreadDescriptor, CodexThreadStartRequest>('codex-threads.start'),
+  resume: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.resume'),
+  fork: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.fork'),
+  rename: bridge.buildProvider<void, CodexThreadRenameRequest>('codex-threads.rename'),
+  updateWorkspace: bridge.buildProvider<void, CodexThreadWorkspaceRequest>('codex-threads.update-workspace'),
+  archive: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.archive'),
+  unarchive: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.unarchive'),
+  delete: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.delete'),
+  startReview: bridge.buildProvider<CodexReviewStartResult, CodexReviewStartRequest>('codex-threads.start-review'),
 };
 
 export type LocalDataLifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';

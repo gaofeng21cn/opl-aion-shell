@@ -1,51 +1,21 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { GitWorkspaceHandoffMetadata, GitWorktreeSnapshotReceipt } from '@/common/types/platform/gitWorkspace';
+import type { GitWorkspaceHandoffMetadata } from '@/common/types/platform/gitWorkspace';
 import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { emitter } from '@/renderer/utils/emitter';
-import { Button, Message, Modal, Radio } from '@arco-design/web-react';
-import { Computer, Fork, History, Undo } from '@icon-park/react';
+import { Message, Radio } from '@arco-design/web-react';
+import { Computer, Fork } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
-
-const commit = (value: unknown): string | undefined => {
-  const candidate = text(value);
-  return candidate && /^[0-9a-f]{40,64}$/i.test(candidate) ? candidate : undefined;
-};
-
-export const readWorktreeSnapshotReceipt = (value: unknown): GitWorktreeSnapshotReceipt | null => {
-  if (!value || typeof value !== 'object') return null;
-  const candidate = value as Partial<GitWorktreeSnapshotReceipt>;
-  const branch = candidate.branch === null ? null : text(candidate.branch);
-  if (
-    candidate.schema !== 'opl_worktree_snapshot_receipt.v1' ||
-    !text(candidate.snapshotId) ||
-    !text(candidate.createdAt) ||
-    !text(candidate.repositoryRoot) ||
-    !text(candidate.taskId) ||
-    !text(candidate.worktreePath) ||
-    !commit(candidate.head) ||
-    (candidate.branch !== null && !branch) ||
-    (candidate.branchRef !== null && !text(candidate.branchRef)) ||
-    typeof candidate.detached !== 'boolean' ||
-    typeof candidate.staged !== 'boolean' ||
-    typeof candidate.trackedUnstaged !== 'boolean' ||
-    !Number.isInteger(candidate.untrackedCount) ||
-    (candidate.untrackedCount ?? -1) < 0 ||
-    !Number.isInteger(candidate.ignoredCount) ||
-    (candidate.ignoredCount ?? -1) < 0 ||
-    (candidate.snapshotKind !== 'head' && candidate.snapshotKind !== 'stash') ||
-    !text(candidate.snapshotRef) ||
-    !commit(candidate.snapshotObject) ||
-    (branch === null ? !candidate.detached || candidate.branchRef !== null : candidate.detached)
-  ) {
-    return null;
-  }
-  return candidate as GitWorktreeSnapshotReceipt;
-};
 
 export const readWorkspaceHandoffMetadata = (value: unknown): GitWorkspaceHandoffMetadata | null => {
   if (!value || typeof value !== 'object') return null;
@@ -62,9 +32,8 @@ export const readWorkspaceHandoffMetadata = (value: unknown): GitWorkspaceHandof
   ) {
     return null;
   }
-  const snapshot = candidate.snapshot === undefined ? undefined : readWorktreeSnapshotReceipt(candidate.snapshot);
-  if (candidate.snapshot !== undefined && !snapshot) return null;
-  return { ...(candidate as GitWorkspaceHandoffMetadata), snapshot: snapshot ?? undefined };
+  const { snapshot: _legacySnapshot, ...metadata } = candidate;
+  return metadata as GitWorkspaceHandoffMetadata;
 };
 
 type WorkspaceHandoffAvailability = { status: 'loading' | 'available' } | { status: 'unavailable'; reasonKey: string };
@@ -102,26 +71,17 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
     if (!threadId) return undefined;
 
     setAvailability({ status: 'loading' });
-    void ipcBridge.threadCoordination.getOverview
-      .invoke({ includeArchived: true, sourceThreadIdHint: threadId })
-      .then((overview) => {
+    void ipcBridge.codexThreads.read
+      .invoke({ threadId })
+      .then(({ thread }) => {
         if (cancelled) return;
-        const target = overview.threads.find((candidate) => candidate.id === threadId);
-        if (
-          overview.availability.status !== 'available' ||
-          !overview.availability.methods.includes('thread/settings/update') ||
-          !target ||
-          target.status === 'archived' ||
-          target.status === 'system_error'
-        ) {
+        if (thread.status === 'archived' || thread.status === 'system_error') {
           setAvailability({ status: 'unavailable', reasonKey: 'conversation.environment.handoffUnavailable' });
-          return;
-        }
-        if (target.status === 'running') {
+        } else if (thread.status === 'running') {
           setAvailability({ status: 'unavailable', reasonKey: 'conversation.environment.handoffRunning' });
-          return;
+        } else {
+          setAvailability({ status: 'available' });
         }
-        setAvailability({ status: 'available' });
       })
       .catch(() => {
         if (!cancelled) {
@@ -156,37 +116,18 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
     }
   };
 
-  const rollbackThreadWorkspace = async (targetWorkspace = workspace): Promise<boolean> => {
+  const updateThreadWorkspace = async (nextWorkspace: string): Promise<boolean> => {
     try {
-      const result = await ipcBridge.threadCoordination.execute.invoke({
-        request: {
-          action: 'handoff',
-          targetThreadId: threadId,
-          actor: { kind: 'user', id: 'opl-app-user', threadId },
-          reason: 'Roll back task working directory after shell projection update failed',
-          workspace: targetWorkspace,
-        },
-      });
-      if (!result.ok) {
-        console.warn('[ConversationEnvironment] Canonical task workspace rollback was rejected:', result);
-        return false;
-      }
+      await ipcBridge.codexThreads.updateWorkspace.invoke({ threadId, workspace: nextWorkspace });
       return true;
     } catch (error) {
-      console.warn('[ConversationEnvironment] Could not roll back canonical task workspace:', error);
+      console.warn('[ConversationEnvironment] Could not update canonical task workspace:', error);
       return false;
     }
   };
 
   const switchTaskLocality = async (nextLocality: 'local' | 'worktree') => {
-    if (
-      locality === nextLocality ||
-      availability.status !== 'available' ||
-      loading ||
-      (nextLocality === 'worktree' && handoff?.snapshot)
-    ) {
-      return;
-    }
+    if (locality === nextLocality || availability.status !== 'available' || loading) return;
 
     setLoading(true);
     try {
@@ -225,26 +166,12 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         nextHandoff = { ...handoff, locality: 'local' };
       }
 
-      const result = await ipcBridge.threadCoordination.execute.invoke({
-        request: {
-          action: 'handoff',
-          targetThreadId: threadId,
-          actor: { kind: 'user', id: 'opl-app-user', threadId },
-          reason: 'Switch task working directory from Environment',
-          workspace: nextWorkspace,
-        },
-      });
-      if (!result.ok) {
-        throw new WorkspaceHandoffError(
-          result.errorCode === 'thread_not_writable'
-            ? 'conversation.environment.handoffRunning'
-            : 'conversation.environment.handoffFailed'
-        );
+      if (!(await updateThreadWorkspace(nextWorkspace))) {
+        throw new WorkspaceHandoffError('conversation.environment.handoffFailed');
       }
 
-      const projectionUpdated = await persistWorkspaceProjection(nextWorkspace, nextHandoff);
-      if (!projectionUpdated) {
-        const rollbackSucceeded = await rollbackThreadWorkspace();
+      if (!(await persistWorkspaceProjection(nextWorkspace, nextHandoff))) {
+        const rollbackSucceeded = await updateThreadWorkspace(workspace);
         if (!rollbackSucceeded) {
           throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
         }
@@ -275,199 +202,6 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
     }
   };
 
-  const rollbackTaskLocation = async (
-    targetWorkspace: string,
-    targetHandoff: GitWorkspaceHandoffMetadata
-  ): Promise<boolean> => {
-    if (!(await rollbackThreadWorkspace(targetWorkspace))) return false;
-    return persistWorkspaceProjection(targetWorkspace, targetHandoff);
-  };
-
-  const cleanupManagedWorktree = async (): Promise<void> => {
-    if (!handoff || locality !== 'worktree' || availability.status !== 'available' || loading) return;
-
-    setLoading(true);
-    const { snapshot: _previousSnapshot, ...handoffWithoutSnapshot } = handoff;
-    const localHandoff: GitWorkspaceHandoffMetadata = { ...handoffWithoutSnapshot, locality: 'local' };
-    try {
-      const canonicalMove = await ipcBridge.threadCoordination.execute.invoke({
-        request: {
-          action: 'handoff',
-          targetThreadId: threadId,
-          actor: { kind: 'user', id: 'opl-app-user', threadId },
-          reason: 'Move task to Local before managed Worktree cleanup',
-          workspace: handoff.localWorkspace,
-        },
-      });
-      if (!canonicalMove.ok) {
-        throw new WorkspaceHandoffError(
-          canonicalMove.errorCode === 'thread_not_writable'
-            ? 'conversation.environment.handoffRunning'
-            : 'conversation.environment.handoffFailed'
-        );
-      }
-
-      if (!(await persistWorkspaceProjection(handoff.localWorkspace, localHandoff))) {
-        const rollbackSucceeded = await rollbackThreadWorkspace(handoff.worktreePath);
-        if (!rollbackSucceeded) {
-          throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
-        }
-        setOperationStatus({ translationKey: 'conversation.environment.projectionUpdateFailed', role: 'status' });
-        throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
-      }
-
-      const cleanup = await ipcBridge.gitWorkspace.cleanupManagedWorktree
-        .invoke({
-          repositoryPath: handoff.localWorkspace,
-          taskId: handoff.taskId,
-          worktreePath: handoff.worktreePath,
-        })
-        .catch(async () => {
-          const rollbackSucceeded = await rollbackTaskLocation(handoff.worktreePath, handoff);
-          if (!rollbackSucceeded) {
-            throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
-          }
-          throw new WorkspaceHandoffError('conversation.environment.worktreeCleanupFailed');
-        });
-
-      const nextHandoff: GitWorkspaceHandoffMetadata = {
-        ...localHandoff,
-        startRef: cleanup.snapshot.head,
-        startCommit: cleanup.snapshot.head,
-        snapshot: cleanup.snapshot,
-      };
-      if (!(await persistWorkspaceProjection(handoff.localWorkspace, nextHandoff))) {
-        try {
-          await ipcBridge.gitWorkspace.restoreManagedWorktree.invoke({
-            repositoryPath: handoff.localWorkspace,
-            snapshot: cleanup.snapshot,
-          });
-        } catch {
-          const receiptSaved = await persistWorkspaceProjection(handoff.localWorkspace, nextHandoff);
-          if (receiptSaved) onChanged(handoff.localWorkspace, nextHandoff);
-          throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
-        }
-        const rollbackSucceeded = await rollbackTaskLocation(handoff.worktreePath, handoff);
-        if (!rollbackSucceeded) {
-          throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
-        }
-        setOperationStatus({ translationKey: 'conversation.environment.projectionUpdateFailed', role: 'status' });
-        throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
-      }
-
-      setOperationStatus(undefined);
-      onChanged(handoff.localWorkspace, nextHandoff);
-      emitter.emit('chat.history.refresh');
-      Message.success(t('conversation.environment.worktreeCleanupSuccess'));
-    } catch (error) {
-      console.error('[ConversationEnvironment] Failed to clean up managed Worktree:', error);
-      if (error instanceof WorkspaceHandoffError && error.requiresResync) {
-        setOperationStatus({ translationKey: error.translationKey, role: 'alert' });
-      }
-      Message.error(
-        t(
-          error instanceof WorkspaceHandoffError
-            ? error.translationKey
-            : 'conversation.environment.worktreeCleanupFailed'
-        )
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const restoreManagedWorktree = async (): Promise<void> => {
-    if (!handoff?.snapshot || locality !== 'local' || availability.status !== 'available' || loading) return;
-
-    setLoading(true);
-    const snapshot = handoff.snapshot;
-    try {
-      await ipcBridge.gitWorkspace.restoreManagedWorktree.invoke({
-        repositoryPath: handoff.localWorkspace,
-        snapshot,
-      });
-      const { snapshot: _restoredSnapshot, ...handoffWithoutSnapshot } = handoff;
-      const restoredHandoff: GitWorkspaceHandoffMetadata = {
-        ...handoffWithoutSnapshot,
-        locality: 'worktree',
-        startRef: snapshot.head,
-        startCommit: snapshot.head,
-      };
-      const canonicalMove = await ipcBridge.threadCoordination.execute.invoke({
-        request: {
-          action: 'handoff',
-          targetThreadId: threadId,
-          actor: { kind: 'user', id: 'opl-app-user', threadId },
-          reason: 'Restore managed Worktree from Environment',
-          workspace: handoff.worktreePath,
-        },
-      });
-      if (!canonicalMove.ok) {
-        const localHandoff = { ...restoredHandoff, locality: 'local' as const };
-        if (await persistWorkspaceProjection(handoff.localWorkspace, localHandoff)) {
-          onChanged(handoff.localWorkspace, localHandoff);
-        }
-        throw new WorkspaceHandoffError(
-          canonicalMove.errorCode === 'thread_not_writable'
-            ? 'conversation.environment.handoffRunning'
-            : 'conversation.environment.handoffFailed'
-        );
-      }
-
-      if (!(await persistWorkspaceProjection(handoff.worktreePath, restoredHandoff))) {
-        const canonicalRollback = await rollbackThreadWorkspace(handoff.localWorkspace);
-        const localHandoff = { ...restoredHandoff, locality: 'local' as const };
-        const localProjection = await persistWorkspaceProjection(handoff.localWorkspace, localHandoff);
-        if (canonicalRollback && localProjection) {
-          onChanged(handoff.localWorkspace, localHandoff);
-          setOperationStatus({ translationKey: 'conversation.environment.projectionUpdateFailed', role: 'status' });
-          throw new WorkspaceHandoffError('conversation.environment.projectionUpdateFailed');
-        }
-        throw new WorkspaceHandoffError('conversation.environment.handoffInconsistent', true);
-      }
-
-      setOperationStatus(undefined);
-      onChanged(handoff.worktreePath, restoredHandoff);
-      emitter.emit('chat.history.refresh');
-      Message.success(t('conversation.environment.worktreeRestoreSuccess'));
-    } catch (error) {
-      console.error('[ConversationEnvironment] Failed to restore managed Worktree:', error);
-      if (error instanceof WorkspaceHandoffError && error.requiresResync) {
-        setOperationStatus({ translationKey: error.translationKey, role: 'alert' });
-      }
-      Message.error(
-        t(
-          error instanceof WorkspaceHandoffError
-            ? error.translationKey
-            : 'conversation.environment.worktreeRestoreFailed'
-        )
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const confirmManagedWorktreeCleanup = () => {
-    Modal.confirm({
-      title: t('conversation.environment.worktreeCleanupConfirmTitle'),
-      content: t('conversation.environment.worktreeCleanupConfirm'),
-      okText: t('conversation.environment.worktreeCleanupAction'),
-      cancelText: t('common.cancel'),
-      okButtonProps: { status: 'warning' },
-      onOk: cleanupManagedWorktree,
-    });
-  };
-
-  const confirmManagedWorktreeRestore = () => {
-    Modal.confirm({
-      title: t('conversation.environment.worktreeRestoreConfirmTitle'),
-      content: t('conversation.environment.worktreeRestoreConfirm'),
-      okText: t('conversation.environment.worktreeRestoreAction'),
-      cancelText: t('common.cancel'),
-      onOk: restoreManagedWorktree,
-    });
-  };
-
   const availabilityStatusKey =
     availability.status === 'loading'
       ? 'conversation.environment.handoffChecking'
@@ -486,7 +220,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         type='button'
         size='mini'
         value={locality}
-        disabled={availability.status !== 'available' || loading || Boolean(handoff?.snapshot)}
+        disabled={availability.status !== 'available' || loading}
         aria-label={t('conversation.environment.taskLocation')}
         aria-describedby={statusKey ? 'environment-handoff-status' : undefined}
         onChange={(value) => void switchTaskLocality(value === 'worktree' ? 'worktree' : 'local')}
@@ -504,32 +238,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
           </span>
         </Radio>
       </Radio.Group>
-      {handoff && locality === 'worktree' && (
-        <Button
-          type='secondary'
-          status='warning'
-          size='mini'
-          icon={<History size={12} />}
-          loading={loading}
-          disabled={availability.status !== 'available'}
-          onClick={confirmManagedWorktreeCleanup}
-        >
-          {t('conversation.environment.worktreeCleanupAction')}
-        </Button>
-      )}
-      {handoff?.snapshot && locality === 'local' && (
-        <Button
-          type='secondary'
-          size='mini'
-          icon={<Undo size={12} />}
-          loading={loading}
-          disabled={availability.status !== 'available'}
-          onClick={confirmManagedWorktreeRestore}
-        >
-          {t('conversation.environment.worktreeRestoreAction')}
-        </Button>
-      )}
-      {statusKey && (
+      {statusKey ? (
         <span
           id='environment-handoff-status'
           className='text-12px text-t-secondary'
@@ -539,7 +248,7 @@ const WorkspaceHandoffControl: React.FC<Props> = ({ conversation, workspace, loc
         >
           {t(statusKey)}
         </span>
-      )}
+      ) : null}
     </div>
   );
 };

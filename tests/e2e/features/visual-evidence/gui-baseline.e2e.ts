@@ -543,7 +543,6 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_starters', '[data-testid="opl-home-starters"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
-        anchor('thread_coordination_entry', '[data-testid="thread-coordination-entry"]'),
       ],
       coverageGaps: [],
       setup: async (page) => {

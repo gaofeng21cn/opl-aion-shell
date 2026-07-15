@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveCodexCliPath } from '@/process/services/threadCoordination/codexCliResolver';
+import { resolveCodexCliPath } from '@/process/services/codexAppServer/codexCliResolver';
 
 describe('resolveCodexCliPath', () => {
   it('uses explicit OPL and Codex CLI configuration in priority order', () => {

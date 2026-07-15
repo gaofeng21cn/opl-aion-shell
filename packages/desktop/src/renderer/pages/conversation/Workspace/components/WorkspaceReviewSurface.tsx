@@ -5,16 +5,16 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { CodexThreadReviewDelivery, CodexThreadReviewTarget } from '@/common/types/codex/threadCoordination';
+import type { CodexReviewDelivery, CodexReviewTarget } from '@/common/types/codex/appServerThreads';
 import type { GitPullRequestContext, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
-import { useThreadCoordination } from '@/renderer/pages/conversation/GroupedHistory/ThreadCoordination/useThreadCoordination';
+import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import WorkspaceLastTurnSection from '@/renderer/pages/conversation/Workspace/components/WorkspaceLastTurnSection';
 import { Alert, Button, Input, Message, Modal, Radio, Select, Spin, Tag, Tooltip } from '@arco-design/web-react';
 import { BranchOne, CheckOne, PreviewOpen, PullRequests, Refresh, Upload } from '@icon-park/react';
 import type { TFunction } from 'i18next';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
-type ReviewTargetType = CodexThreadReviewTarget['type'];
+type ReviewTargetType = CodexReviewTarget['type'];
 type ReviewAction = 'commit' | 'push' | 'review' | null;
 type PullRequestUnavailableReason = Extract<GitPullRequestContext, { status: 'unavailable' }>['reason'];
 
@@ -61,17 +61,17 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
   onRefreshChanges,
   onReviewStarted,
 }) => {
-  const { overview, loading: threadLoading, execute } = useThreadCoordination(conversationId);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const [threadLoading, setThreadLoading] = useState(true);
   const [inspection, setInspection] = useState<GitWorkspaceInspection | null>(null);
   const [inspectionLoading, setInspectionLoading] = useState(true);
   const [gitError, setGitError] = useState<string | null>(null);
   const [action, setAction] = useState<ReviewAction>(null);
   const [targetType, setTargetType] = useState<ReviewTargetType>('uncommittedChanges');
-  const [delivery, setDelivery] = useState<CodexThreadReviewDelivery>('inline');
+  const [delivery, setDelivery] = useState<CodexReviewDelivery>('inline');
   const [baseBranch, setBaseBranch] = useState('');
   const [commitSha, setCommitSha] = useState('');
   const [customInstructions, setCustomInstructions] = useState('');
-  const [reviewFocus, setReviewFocus] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
 
   const refreshInspection = useCallback(async () => {
@@ -95,12 +95,31 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
     void refreshInspection();
   }, [refreshInspection]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setThreadLoading(true);
+    void ipcBridge.conversation.get
+      .invoke({ id: conversationId })
+      .then((conversation) => {
+        if (!cancelled) setCurrentThreadId(canonicalCodexThreadId(conversation));
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentThreadId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setThreadLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
   const branches = useMemo(
     () => Array.from(new Set(inspection?.branches.map((branch) => branch.name) ?? [])),
     [inspection?.branches]
   );
 
-  const reviewTarget = useMemo<CodexThreadReviewTarget | null>(() => {
+  const reviewTarget = useMemo<CodexReviewTarget | null>(() => {
     if (targetType === 'uncommittedChanges') return { type: 'uncommittedChanges' };
     if (targetType === 'baseBranch') {
       const branch = baseBranch.trim();
@@ -114,11 +133,7 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
     return instructions ? { type: 'custom', instructions } : null;
   }, [baseBranch, commitSha, customInstructions, targetType]);
 
-  const currentThreadId = overview?.currentThreadId ?? null;
-  const reviewAvailable =
-    overview?.availability.status === 'available' &&
-    overview.availability.methods.includes('review/start') &&
-    Boolean(currentThreadId);
+  const reviewAvailable = Boolean(currentThreadId);
   const busy = action !== null;
 
   const handleStartReview = async () => {
@@ -126,29 +141,13 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
     setAction('review');
     let reviewStarted = false;
     try {
-      const context = reviewTarget.type === 'custom' ? '' : reviewFocus.trim();
-      const reason =
-        context ||
-        (reviewTarget.type === 'custom' ? reviewTarget.instructions : t('conversation.workspace.review.defaultReason'));
-      const result = await execute({
-        action: 'review',
-        targetThreadId: currentThreadId,
-        actor: { kind: 'user', id: 'opl-app-user', threadId: currentThreadId },
-        reason,
-        ...(context ? { context } : {}),
+      const result = await ipcBridge.codexThreads.startReview.invoke({
+        threadId: currentThreadId,
         target: reviewTarget,
         delivery,
       });
-      if (
-        !result.ok ||
-        !result.reviewThreadId ||
-        !result.turnId ||
-        (context && result.protocolMethod !== 'turn/steer')
-      ) {
-        const translatedError = result.errorCode
-          ? t(`conversation.threadCoordination.errors.${result.errorCode}`)
-          : t('conversation.workspace.review.reviewFailed');
-        Message.error(translatedError);
+      if (!result.reviewThreadId || !result.turnId) {
+        Message.error(t('conversation.workspace.review.reviewFailed'));
         return;
       }
       Message.success(t('conversation.workspace.review.reviewSuccess'));
@@ -345,16 +344,7 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
               disabled={busy}
               onChange={setCustomInstructions}
             />
-          ) : (
-            <Input.TextArea
-              value={reviewFocus}
-              aria-label={t('conversation.workspace.review.focusPlaceholder')}
-              placeholder={t('conversation.workspace.review.focusPlaceholder')}
-              autoSize={{ minRows: 2, maxRows: 4 }}
-              disabled={busy}
-              onChange={setReviewFocus}
-            />
-          )}
+          ) : null}
 
           <div>
             <div className='mb-6px text-12px font-medium text-t-secondary'>
@@ -365,7 +355,7 @@ const WorkspaceReviewDialog: React.FC<WorkspaceReviewDialogProps> = ({
               value={delivery}
               aria-label={t('conversation.workspace.review.deliveryLabel')}
               disabled={busy}
-              onChange={(value) => setDelivery(value as CodexThreadReviewDelivery)}
+              onChange={(value) => setDelivery(value as CodexReviewDelivery)}
             >
               <Radio value='inline'>{t('conversation.workspace.review.delivery.inline')}</Radio>
               <Radio value='detached'>{t('conversation.workspace.review.delivery.detached')}</Radio>
