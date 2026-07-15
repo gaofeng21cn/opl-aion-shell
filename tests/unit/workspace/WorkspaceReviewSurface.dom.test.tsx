@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ThreadCoordinationOverview } from '@/common/types/codex/threadCoordination';
 import type { GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import type { TMessage } from '@/common/chat/chatLib';
 import FileChangeList from '@/renderer/pages/conversation/Workspace/components/FileChangeList';
@@ -18,8 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getConversation: vi.fn(),
-  getOverview: vi.fn(),
-  executeReview: vi.fn(),
+  startReview: vi.fn(),
   inspect: vi.fn(),
   commitStaged: vi.fn(),
   pushCurrentBranch: vi.fn(),
@@ -30,11 +28,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/common', () => ({
   ipcBridge: {
     conversation: { get: { invoke: mocks.getConversation } },
-    threadCoordination: {
-      getOverview: { invoke: mocks.getOverview },
-      readThread: { invoke: vi.fn() },
-      execute: { invoke: mocks.executeReview },
-    },
+    codexThreads: { startReview: { invoke: mocks.startReview } },
     gitWorkspace: {
       inspect: { invoke: mocks.inspect },
       commitStaged: { invoke: mocks.commitStaged },
@@ -196,25 +190,6 @@ const t = ((key: string, options?: Record<string, unknown>) => {
   return key;
 }) as TFunction;
 
-function overview(overrides: Partial<ThreadCoordinationOverview> = {}): ThreadCoordinationOverview {
-  return {
-    schema: 'opl_codex_thread_coordination_overview.v1',
-    availability: {
-      status: 'available',
-      host: 'codex-app-server',
-      protocolVersion: '1',
-      methods: ['review/start'],
-      reasonCode: null,
-      detail: null,
-    },
-    currentThreadId: 'thread-current',
-    currentProjectId: 'project-current',
-    threads: [],
-    audit: [],
-    ...overrides,
-  };
-}
-
 function inspection(overrides: Partial<GitWorkspaceInspection> = {}): GitWorkspaceInspection {
   return {
     cwd: '/workspace/project',
@@ -325,21 +300,10 @@ beforeEach(() => {
     type: 'acp',
     extra: { backend: 'codex', acp_session_id: 'thread-current' },
   });
-  mocks.getOverview.mockResolvedValue(overview());
   mocks.inspect.mockResolvedValue(inspection());
-  mocks.executeReview.mockResolvedValue({
-    ok: true,
-    outcome: 'accepted',
-    action: 'review',
-    targetThreadId: 'thread-current',
-    forkedThreadId: null,
+  mocks.startReview.mockResolvedValue({
     reviewThreadId: 'review-thread',
     turnId: 'review-turn',
-    protocolMethod: 'review/start',
-    auditId: 'audit-review',
-    errorCode: null,
-    message: 'Accepted',
-    advisories: [],
   });
   mocks.commitStaged.mockResolvedValue({
     root: '/workspace/project',
@@ -377,7 +341,7 @@ describe('Workspace review surface', () => {
     );
 
     expect(screen.getByRole('button', { name: 'conversation.workspace.review.open' })).toBeVisible();
-    expect(mocks.getOverview).not.toHaveBeenCalled();
+    expect(mocks.getConversation).not.toHaveBeenCalled();
     expect(mocks.inspect).not.toHaveBeenCalled();
   });
 
@@ -452,30 +416,26 @@ describe('Workspace review surface', () => {
       targetType: 'uncommittedChanges',
       delivery: 'inline',
       expectedTarget: { type: 'uncommittedChanges' },
-      expectedReason: 'conversation.workspace.review.defaultReason',
     },
     {
       name: 'base branch detached',
       targetType: 'baseBranch',
       delivery: 'detached',
       expectedTarget: { type: 'baseBranch', branch: 'main' },
-      expectedReason: 'conversation.workspace.review.defaultReason',
     },
     {
       name: 'commit inline',
       targetType: 'commit',
       delivery: 'inline',
       expectedTarget: { type: 'commit', sha: 'abcdef123456', title: null },
-      expectedReason: 'conversation.workspace.review.defaultReason',
     },
     {
       name: 'custom detached',
       targetType: 'custom',
       delivery: 'detached',
       expectedTarget: { type: 'custom', instructions: 'Review only the Workspace boundary.' },
-      expectedReason: 'Review only the Workspace boundary.',
     },
-  ])('starts a $name review through the typed coordination bridge', async (testCase) => {
+  ])('starts a $name review through the Codex app-server adapter', async (testCase) => {
     renderSurface();
     const user = await openSurface();
 
@@ -499,84 +459,34 @@ describe('Workspace review surface', () => {
     }
     await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
 
-    await waitFor(() => expect(mocks.executeReview).toHaveBeenCalledOnce());
-    expect(mocks.executeReview).toHaveBeenCalledWith({
-      request: {
-        action: 'review',
-        targetThreadId: 'thread-current',
-        actor: { kind: 'user', id: 'opl-app-user', threadId: 'thread-current' },
-        reason: testCase.expectedReason,
-        target: testCase.expectedTarget,
-        delivery: testCase.delivery,
-      },
+    await waitFor(() => expect(mocks.startReview).toHaveBeenCalledOnce());
+    expect(mocks.startReview).toHaveBeenCalledWith({
+      threadId: 'thread-current',
+      target: testCase.expectedTarget,
+      delivery: testCase.delivery,
     });
   });
 
-  it('sends non-custom review context through the typed review request', async () => {
-    mocks.executeReview.mockResolvedValueOnce({
-      ok: true,
-      outcome: 'accepted',
-      action: 'review',
-      targetThreadId: 'thread-current',
-      forkedThreadId: null,
-      reviewThreadId: 'review-thread',
-      turnId: 'review-turn',
-      protocolMethod: 'turn/steer',
-      auditId: 'audit-review',
-      errorCode: null,
-      message: 'Accepted',
-      advisories: [],
-    });
+  it('does not report success for a malformed review response', async () => {
+    mocks.startReview.mockResolvedValueOnce({ reviewThreadId: '', turnId: '' });
     renderSurface();
     const user = await openSurface();
 
-    await user.type(
-      screen.getByLabelText('conversation.workspace.review.focusPlaceholder'),
-      'Check protocol fidelity.'
-    );
     await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
 
-    await waitFor(() =>
-      expect(mocks.executeReview).toHaveBeenCalledWith({
-        request: expect.objectContaining({
-          reason: 'Check protocol fidelity.',
-          context: 'Check protocol fidelity.',
-          target: { type: 'uncommittedChanges' },
-        }),
-      })
-    );
-    expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.workspace.review.reviewSuccess');
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('conversation.workspace.review.reviewFailed'));
+    expect(mocks.messageSuccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'conversation.workspace.review.title' })).toBeVisible();
   });
 
-  it('does not report success when review context steering returns a typed failure', async () => {
-    mocks.executeReview.mockResolvedValueOnce({
-      ok: false,
-      outcome: 'failed',
-      action: 'review',
-      targetThreadId: 'thread-current',
-      forkedThreadId: null,
-      reviewThreadId: 'review-thread',
-      turnId: 'review-turn',
-      protocolMethod: 'turn/steer',
-      auditId: 'audit-review',
-      errorCode: 'review_context_delivery_failed',
-      message: 'Steer failed',
-      advisories: [],
-    });
+  it('does not report success when review/start rejects', async () => {
+    mocks.startReview.mockRejectedValueOnce(new Error('Review unavailable'));
     renderSurface();
     const user = await openSurface();
 
-    await user.type(
-      screen.getByLabelText('conversation.workspace.review.focusPlaceholder'),
-      'Check protocol fidelity.'
-    );
     await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' }));
 
-    await waitFor(() =>
-      expect(mocks.messageError).toHaveBeenCalledWith(
-        'conversation.threadCoordination.errors.review_context_delivery_failed'
-      )
-    );
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('conversation.workspace.review.reviewFailed'));
     expect(mocks.messageSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'conversation.workspace.review.title' })).toBeVisible();
   });
@@ -618,25 +528,13 @@ describe('Workspace review surface', () => {
   });
 
   it('fails closed when the current Codex thread cannot be resolved', async () => {
-    mocks.getOverview.mockResolvedValueOnce(
-      overview({
-        availability: {
-          status: 'unavailable',
-          host: null,
-          protocolVersion: null,
-          methods: ['review/start'],
-          reasonCode: 'protocol_unavailable',
-          detail: null,
-        },
-        currentThreadId: null,
-      })
-    );
+    mocks.getConversation.mockResolvedValueOnce({ type: 'acp', extra: { backend: 'codex' } });
     renderSurface();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'conversation.workspace.review.open' }));
     await screen.findByText('conversation.workspace.review.threadUnavailable');
 
     expect(screen.getByRole('button', { name: 'conversation.workspace.review.startReview' })).toBeDisabled();
-    expect(mocks.executeReview).not.toHaveBeenCalled();
+    expect(mocks.startReview).not.toHaveBeenCalled();
   });
 });

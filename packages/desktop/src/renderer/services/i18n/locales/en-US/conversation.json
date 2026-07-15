@@ -558,13 +558,11 @@
       "baseBranchPlaceholder": "Select or enter a base branch",
       "commitPlaceholder": "Enter a commit SHA",
       "customPlaceholder": "Enter review instructions",
-      "focusPlaceholder": "Optional review context",
       "deliveryLabel": "Delivery",
       "delivery": {
         "inline": "Inline",
         "detached": "Detached"
       },
-      "defaultReason": "Review the selected workspace target.",
       "startReview": "Start review",
       "reviewSuccess": "Review started",
       "reviewFailed": "Could not start review",

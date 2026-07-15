@@ -558,13 +558,11 @@
       "baseBranchPlaceholder": "选择或输入基准分支",
       "commitPlaceholder": "输入提交 SHA",
       "customPlaceholder": "输入审查指令",
-      "focusPlaceholder": "可选的审查上下文",
       "deliveryLabel": "投递方式",
       "delivery": {
         "inline": "当前会话",
         "detached": "独立会话"
       },
-      "defaultReason": "审查所选工作区目标。",
       "startReview": "开始审查",
       "reviewSuccess": "审查已开始",
       "reviewFailed": "无法开始审查",
