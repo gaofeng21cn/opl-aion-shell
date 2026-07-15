@@ -12,8 +12,6 @@ const expected = {
 function useBinding(): JsonRecord {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
-    use_boundary_id: 'use-boundary:med-autoscience:workspace:1',
-    use_receipt_ref: 'opl://agent-package-use/med-autoscience/workspace/1',
     root_package: {
       package_id: expected.packageId,
       package_version: '0.2.9',
@@ -49,8 +47,6 @@ function activationEnvelope(): JsonRecord {
               target_root: expected.targetWorkspace,
             },
           ],
-          use_boundary_id: 'use-boundary:med-autoscience:workspace:1',
-          use_receipt_ref: 'opl://agent-package-use/med-autoscience/workspace/1',
           package_use_binding: useBinding(),
         },
       },
@@ -77,7 +73,7 @@ function expectFailure(envelope: JsonRecord, code: OplAgentPackageLaunchError['c
 }
 
 describe('OPL agent package launch validation', () => {
-  it('accepts the current Framework alias and persists only the minimal package binding', () => {
+  it('accepts the current Framework alias without requiring a boundary token or receipt', () => {
     const envelope = activationEnvelope();
     bindingFromEnvelope(envelope).target_root = '/Users/example/Research/.';
 
@@ -93,9 +89,7 @@ describe('OPL agent package launch validation', () => {
       package_version: '0.2.9',
       scope: 'workspace',
       target_workspace: expected.targetWorkspace,
-      use_boundary_id: 'use-boundary:med-autoscience:workspace:1',
       launch_allowed: true,
-      use_receipt_ref: 'opl://agent-package-use/med-autoscience/workspace/1',
       use_binding: {
         surface_kind: 'opl_agent_package_use_binding.v1',
         root_package: {
@@ -105,6 +99,19 @@ describe('OPL agent package launch validation', () => {
         scope: 'workspace',
         target_root: expected.targetWorkspace,
       },
+    });
+  });
+
+  it('preserves optional Framework boundary metadata for compatibility only', () => {
+    const envelope = activationEnvelope();
+    const activation = activationFromEnvelope(envelope);
+    const binding = bindingFromEnvelope(envelope);
+    activation.use_boundary_id = 'use-boundary:med-autoscience:workspace:1';
+    binding.use_receipt_ref = 'opl://agent-package-use/med-autoscience/workspace/1';
+
+    expect(parse(envelope)).toMatchObject({
+      use_boundary_id: 'use-boundary:med-autoscience:workspace:1',
+      use_receipt_ref: 'opl://agent-package-use/med-autoscience/workspace/1',
     });
   });
 

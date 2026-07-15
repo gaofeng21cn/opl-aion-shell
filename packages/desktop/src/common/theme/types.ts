@@ -8,9 +8,8 @@ export type ThemeAppearance = 'light' | 'dark';
 export type ThemeAppearanceMode = 'system' | ThemeAppearance;
 
 /**
- * Unified theme. `appearance` drives data-theme + arco-theme.
- * `css` is the escape hatch (decorative + user themes). `tokens` is an optional
- * forward-looking structured channel applied as :root variables when present.
+ * Unified theme. `appearance` drives data-theme + arco-theme. Legacy `css` and
+ * `tokens` remain readable for config migration but are not applied by OPL App.
  */
 export type Theme = {
   id: string;

@@ -42,9 +42,12 @@ export function onThemeChanged(listener: ThemeListener): () => void {
 export function initThemeBridge(): void {
   // Renderer publishes a resolved theme → cache it and re-broadcast to all windows.
   ipcBridge.theme.setActive.provider(async (resolved: Theme) => {
-    cachedTheme = resolved;
-    ipcBridge.theme.changed.emit(resolved);
-    listeners.forEach((l) => l(resolved));
+    const governedTheme = { ...resolved };
+    delete governedTheme.css;
+    delete governedTheme.tokens;
+    cachedTheme = governedTheme;
+    ipcBridge.theme.changed.emit(governedTheme);
+    listeners.forEach((l) => l(governedTheme));
   });
 
   // A freshly-loaded window (e.g. pet) pulls the current theme on load.

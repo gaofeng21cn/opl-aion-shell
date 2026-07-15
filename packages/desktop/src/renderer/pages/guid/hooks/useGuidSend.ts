@@ -121,16 +121,10 @@ function buildLegacyOplAgentPackageInvocationReceipt(
   return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
 }
 
-function createPackageUseBoundaryId(packageId: string): string {
-  const uniqueId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `opl-app-conversation-${packageId}-${uniqueId}`;
-}
-
 async function activateOplAgentPackage(
   packageId: string,
   targetWorkspace: string
 ): Promise<OplAgentPackageActivationReceipt> {
-  const useBoundaryId = createPackageUseBoundaryId(packageId);
   const result = await ipcBridge.oplRuntime.executeAction.invoke({
     actionId: 'agent_package_activate',
     dryRun: false,
@@ -138,7 +132,6 @@ async function activateOplAgentPackage(
       package_id: packageId,
       scope: 'workspace',
       target_workspace: targetWorkspace,
-      use_boundary_id: useBoundaryId,
     },
   });
   if (result.ok === false) {

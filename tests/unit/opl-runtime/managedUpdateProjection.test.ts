@@ -29,7 +29,7 @@ describe('managed update projection public lifecycle ids', () => {
     expect(isManagedAppUpdateAvailable(plane.components.find((component) => component.id === 'opl_base'))).toBe(false);
   });
 
-  it('shows an update only when the projected version is newer than the installed App', () => {
+  it('does not infer an update from version strings when canonical state is current', () => {
     const component = {
       id: 'opl_app' as const,
       label: 'OPL App',
@@ -52,7 +52,7 @@ describe('managed update projection public lifecycle ids', () => {
       rollbackAllowed: false,
     };
 
-    expect(isManagedAppUpdateAvailable(component)).toBe(true);
+    expect(isManagedAppUpdateAvailable(component)).toBe(false);
     expect(isManagedAppUpdateAvailable({ ...component, targetVersion: '26.7.14' })).toBe(false);
     expect(isManagedAppUpdateAvailable({ ...component, targetVersion: '26.7.13' })).toBe(false);
     expect(isManagedAppUpdateAvailable({ ...component, targetVersion: 'unknown' })).toBe(false);

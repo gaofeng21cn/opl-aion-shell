@@ -138,16 +138,9 @@ function buildDeps(): GuidSendDeps {
   };
 }
 
-function buildPackageUseBinding(
-  packageId: string,
-  useBoundaryId: string,
-  useReceiptRef: string,
-  targetWorkspace: string
-) {
+function buildPackageUseBinding(packageId: string, targetWorkspace: string) {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
-    use_boundary_id: useBoundaryId,
-    use_receipt_ref: useReceiptRef,
     root_package: {
       package_id: packageId,
       package_version: '1.0.0',
@@ -160,8 +153,6 @@ function buildPackageUseBinding(
 function buildActivationExecution(payloadRefsOnlyJson: Record<string, unknown>) {
   const packageId = String(payloadRefsOnlyJson.package_id);
   const targetWorkspace = String(payloadRefsOnlyJson.target_workspace);
-  const useBoundaryId = String(payloadRefsOnlyJson.use_boundary_id);
-  const useReceiptRef = `opl://agent-package/use/${packageId}/test-receipt`;
   return {
     ok: true,
     parsed: {
@@ -194,9 +185,7 @@ function buildActivationExecution(payloadRefsOnlyJson: Record<string, unknown>) 
                 target_root: targetWorkspace,
               },
             ],
-            use_boundary_id: useBoundaryId,
-            use_receipt_ref: useReceiptRef,
-            package_use_binding: buildPackageUseBinding(packageId, useBoundaryId, useReceiptRef, targetWorkspace),
+            package_use_binding: buildPackageUseBinding(packageId, targetWorkspace),
           },
         },
       },
@@ -276,6 +265,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
         target_workspace: '/tmp/opl',
       },
     });
+    expect(activationRequest.payloadRefsOnlyJson).not.toHaveProperty('use_boundary_id');
     expect(payload.extra.opl_agent_package_activation).toMatchObject({
       action_id: 'agent_package_activate',
       package_id: 'mas',
@@ -283,7 +273,6 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       scope: 'workspace',
       target_workspace: '/tmp/opl',
       launch_allowed: true,
-      use_receipt_ref: 'opl://agent-package/use/mas/test-receipt',
       use_binding: {
         scope: 'workspace',
         target_root: '/tmp/opl',

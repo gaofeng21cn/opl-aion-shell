@@ -43,15 +43,21 @@ describe('applyTheme', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.body.getAttribute('arco-theme')).toBe('dark');
   });
-  it('injects decoration css when present and removes when absent', () => {
+  it('removes legacy decoration css instead of applying raw theme overrides', () => {
+    const style = document.createElement('style');
+    style.id = 'theme-decoration';
+    style.textContent = 'body{color:red}';
+    document.head.appendChild(style);
     applyTheme({ ...base, id: 'hk', name: 'HK', appearance: 'light', css: 'body{color:red}' } as Theme);
-    expect(document.getElementById('theme-decoration')?.textContent).toContain('color:red');
-    applyTheme({ ...base, id: 'light', name: 'Light', appearance: 'light' } as Theme);
     expect(document.getElementById('theme-decoration')).toBeNull();
   });
-  it('writes tokens to a :root style block when present', () => {
+  it('removes legacy token styles instead of applying raw variable overrides', () => {
+    const style = document.createElement('style');
+    style.id = 'theme-tokens';
+    style.textContent = ':root{--primary:red}';
+    document.head.appendChild(style);
     applyTheme({ ...base, id: 't', name: 'T', appearance: 'light', tokens: { '--primary': '#abc' } } as Theme);
-    expect(document.getElementById('theme-tokens')?.textContent).toContain('--primary: #abc');
+    expect(document.getElementById('theme-tokens')).toBeNull();
   });
   it('changes appearance while resolving a legacy preset to the product baseline', async () => {
     themeMocks.values.set('theme.activeId', 'codex');

@@ -18,9 +18,9 @@ export type OplAgentPackageActivationReceipt = {
   package_version: string;
   scope: 'workspace';
   target_workspace: string;
-  use_boundary_id: string;
+  use_boundary_id?: string;
   launch_allowed: true;
-  use_receipt_ref: string;
+  use_receipt_ref?: string;
   use_binding: MinimalPackageUseBinding;
 };
 
@@ -149,9 +149,6 @@ export function parseOplAgentPackageLaunchResult(input: {
 
   const useBoundaryId = nonemptyString(activation.use_boundary_id) ?? nonemptyString(binding.use_boundary_id);
   const useReceiptRef = nonemptyString(activation.use_receipt_ref) ?? nonemptyString(binding.use_receipt_ref);
-  if (!useBoundaryId || !useReceiptRef) {
-    throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
-  }
 
   return {
     action_id: 'agent_package_activate',
@@ -159,9 +156,9 @@ export function parseOplAgentPackageLaunchResult(input: {
     package_version: lockVersion,
     scope: 'workspace',
     target_workspace: targetWorkspace,
-    use_boundary_id: useBoundaryId,
+    ...(useBoundaryId ? { use_boundary_id: useBoundaryId } : {}),
     launch_allowed: true,
-    use_receipt_ref: useReceiptRef,
+    ...(useReceiptRef ? { use_receipt_ref: useReceiptRef } : {}),
     use_binding: {
       surface_kind: 'opl_agent_package_use_binding.v1',
       root_package: {
