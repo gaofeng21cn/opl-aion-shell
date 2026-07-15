@@ -1,5 +1,78 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CodexAppServerAdapter, type CodexAppServerRpc } from '@/process/services/codexAppServer/adapter';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  CodexAppServerAdapter,
+  createProductionCodexAppServerAdapter,
+  type CodexAppServerRpc,
+} from '@/process/services/codexAppServer/adapter';
+
+const processMocks = vi.hoisted(() => ({ spawn: vi.fn() }));
+
+vi.mock('node:child_process', () => ({ spawn: processMocks.spawn }));
+vi.mock('@/process/services/codexAppServer/codexCliResolver', () => ({
+  resolveCodexCliPath: () => '/managed/codex',
+}));
+
+type StdioRecord = {
+  method?: string;
+  id?: number | string;
+  params?: unknown;
+  result?: unknown;
+  error?: unknown;
+};
+
+class FakeCodexProcess extends EventEmitter {
+  readonly stdin = new PassThrough();
+  readonly stdout = new PassThrough();
+  readonly stderr = new PassThrough();
+  readonly records: StdioRecord[] = [];
+  readonly kill = vi.fn(() => true);
+
+  constructor(handleRecord: (record: StdioRecord, child: FakeCodexProcess) => void) {
+    super();
+    let buffer = '';
+    this.stdin.on('data', (chunk) => {
+      buffer += String(chunk);
+      let newline = buffer.indexOf('\n');
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (line) {
+          const record = JSON.parse(line) as StdioRecord;
+          this.records.push(record);
+          handleRecord(record, this);
+        }
+        newline = buffer.indexOf('\n');
+      }
+    });
+  }
+
+  reply(id: number | string, result: unknown): void {
+    this.stdout.write(`${JSON.stringify({ id, result })}\n`);
+  }
+
+  replyInFragments(id: number | string, result: unknown): void {
+    const line = `${JSON.stringify({ id, result })}\n`;
+    const splitAt = Math.max(1, Math.floor(line.length / 2));
+    this.stdout.write(line.slice(0, splitAt));
+    queueMicrotask(() => this.stdout.write(line.slice(splitAt)));
+  }
+
+  requestClient(id: number | string, method: string, params: unknown): void {
+    this.stdout.write(`${JSON.stringify({ id, method, params })}\n`);
+  }
+}
+
+function asChildProcess(child: FakeCodexProcess): ChildProcessWithoutNullStreams {
+  return child as unknown as ChildProcessWithoutNullStreams;
+}
+
+function useProductionProcess(child: FakeCodexProcess): CodexAppServerAdapter {
+  processMocks.spawn.mockReturnValue(asChildProcess(child));
+  return createProductionCodexAppServerAdapter();
+}
 
 const rawThread = (id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   id,
@@ -18,9 +91,14 @@ describe('CodexAppServerAdapter', () => {
   let adapter: CodexAppServerAdapter;
 
   beforeEach(() => {
+    processMocks.spawn.mockReset();
     request = vi.fn();
     rpc = { request, dispose: vi.fn() };
     adapter = new CodexAppServerAdapter({ rpc, host: 'local-host', pageSize: 2, maxPages: 3 });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('lists active and archived threads through bounded app-server pagination', async () => {
@@ -138,5 +216,111 @@ describe('CodexAppServerAdapter', () => {
         delivery: 'inline',
       })
     ).rejects.toThrow(/review turn id/i);
+  });
+});
+
+describe('Codex app-server production stdio transport', () => {
+  beforeEach(() => {
+    processMocks.spawn.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('initializes one process and handles fragmented and coalesced JSONL frames', async () => {
+    const child = new FakeCodexProcess((record, process) => {
+      if (record.method === 'initialize' && record.id !== undefined) {
+        process.replyInFragments(record.id, { userAgent: 'Codex/0.144.3' });
+      }
+      if (record.method === 'thread/list' && record.id !== undefined) {
+        process.stdout.write(
+          `${JSON.stringify({ method: 'thread/started', params: { threadId: 'thread-1' } })}\n${JSON.stringify({
+            id: record.id,
+            result: { data: [], nextCursor: null },
+          })}\n`
+        );
+      }
+    });
+    const adapter = useProductionProcess(child);
+
+    const result = await adapter.listThreads();
+    adapter.dispose();
+
+    expect(processMocks.spawn).toHaveBeenCalledWith(
+      '/managed/codex',
+      ['app-server', '--stdio'],
+      expect.objectContaining({ windowsHide: true })
+    );
+    expect(child.records.map((record) => record.method)).toEqual(['initialize', 'initialized', 'thread/list']);
+    expect(child.records[0]).toMatchObject({
+      params: {
+        clientInfo: { name: 'opl-aion-shell', title: 'One Person Lab App', version: '1' },
+        capabilities: { experimentalApi: true, requestAttestation: false },
+      },
+    });
+    expect(result).toMatchObject({ schema: 'opl_codex_thread_directory.v1', threads: [] });
+    expect(child.kill).toHaveBeenCalledOnce();
+  });
+
+  it('times out a silent production request without returning partial success', async () => {
+    vi.useFakeTimers();
+    const child = new FakeCodexProcess((record, process) => {
+      if (record.method === 'initialize' && record.id !== undefined) {
+        process.reply(record.id, { userAgent: 'Codex/0.144.3' });
+      }
+    });
+    const adapter = useProductionProcess(child);
+
+    const pending = adapter.listThreads();
+    const rejection = pending.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(child.records.map((record) => record.method)).toContain('thread/list'));
+    await vi.advanceTimersByTimeAsync(12_000);
+    const error = await rejection;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/timed out.*thread\/list/i);
+    adapter.dispose();
+  });
+
+  it('rejects pending requests when the production child exits', async () => {
+    const child = new FakeCodexProcess((record, process) => {
+      if (record.method === 'initialize' && record.id !== undefined) {
+        process.reply(record.id, { userAgent: 'Codex/0.144.3' });
+      }
+      if (record.method === 'thread/list') {
+        queueMicrotask(() => process.emit('exit', 17, null));
+      }
+    });
+    const adapter = useProductionProcess(child);
+
+    await expect(adapter.listThreads()).rejects.toThrow(/exited \(code=17, signal=null\)/i);
+    adapter.dispose();
+  });
+
+  it('rejects unsupported server requests without creating a pending control plane', async () => {
+    const child = new FakeCodexProcess((record, process) => {
+      if (record.method === 'initialize' && record.id !== undefined) {
+        process.reply(record.id, { userAgent: 'Codex/0.144.3' });
+      }
+      if (record.method === 'thread/list' && record.id !== undefined) {
+        process.requestClient('server-request-1', 'item/tool/requestUserInput', {
+          threadId: 'thread-1',
+          questions: [],
+        });
+        queueMicrotask(() => process.reply(record.id!, { data: [], nextCursor: null }));
+      }
+    });
+    const adapter = useProductionProcess(child);
+
+    await adapter.listThreads();
+    adapter.dispose();
+
+    expect(child.records).toContainEqual({
+      id: 'server-request-1',
+      error: {
+        code: -32601,
+        message: 'Unsupported server request: item/tool/requestUserInput',
+      },
+    });
   });
 });
