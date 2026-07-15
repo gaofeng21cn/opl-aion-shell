@@ -175,6 +175,33 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
   });
 
+  it('hydrates a shared fast memory payload that does not yet include the Gateway projection', async () => {
+    getAppStateInvoke
+      .mockResolvedValueOnce({
+        ok: true,
+        parsed: { app_state: { core: { codex: { installed: true } } } },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        parsed: {
+          app_state: {
+            core: { codex: { installed: true } },
+            ...appStateWithGateway(gatewayProjection()),
+          },
+        },
+      });
+
+    const overviewVisit = renderHook(() => useOplAppState('fast'));
+    await waitFor(() => expect(overviewVisit.result.current.appState.core).toEqual({ codex: { installed: true } }));
+    overviewVisit.unmount();
+
+    const gatewayVisit = renderHook(() => useOplAppState('fast'));
+    await waitFor(() => expect(readGateway(gatewayVisit.result.current.appState).connection_mode).toBe('account'));
+
+    expect(gatewayVisit.result.current.loading).toBe(false);
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+  });
+
   it('persists only the bounded startup projection while keeping the full payload in memory', async () => {
     const privateWorkItems = Array.from({ length: 2_000 }, (_, index) => ({ index, body: 'x'.repeat(512) }));
     getAppStateInvoke.mockResolvedValue({

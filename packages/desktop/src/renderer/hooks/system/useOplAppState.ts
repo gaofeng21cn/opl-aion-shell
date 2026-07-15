@@ -552,6 +552,11 @@ function hasGatewayAccountProjection(payload: OplAppStatePayload | null | undefi
   return gatewayAccountProjectionFromPayload(payload) !== null;
 }
 
+function hasHydratedMemoryAppStateCache(profile: OplAppStateProfile): boolean {
+  const cached = memoryAppStateCaches.get(profile);
+  return Boolean(cached && (profile !== 'fast' || hasGatewayAccountProjection(cached.payload)));
+}
+
 function mergeCachedGatewayAccount(payload: OplAppStatePayload): OplAppStatePayload {
   if (gatewayAccountProjectionFromPayload(payload)) return payload;
   const cachedGateway = readCachedGatewayAccount();
@@ -646,7 +651,7 @@ export function useOplAppState(
 
   useEffect(() => {
     if (!autoLoad) return;
-    if (memoryAppStateCaches.has(initialProfile)) return;
+    if (hasHydratedMemoryAppStateCache(initialProfile)) return;
     const requestAlreadyRunning = inflightAppStateLoads.has(initialProfile);
     if (automaticAppStateLoadsStarted.has(initialProfile) && !requestAlreadyRunning) return;
     automaticAppStateLoadsStarted.add(initialProfile);
@@ -654,12 +659,14 @@ export function useOplAppState(
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const runAutomaticLoad = async (attempt: number): Promise<void> => {
       const loadedPayload = await load(initialProfile, { background: Boolean(cached) });
-      if (loadedPayload) return;
+      if (loadedPayload && (initialProfile !== 'fast' || hasGatewayAccountProjection(loadedPayload))) return;
       automaticAppStateLoadsStarted.delete(initialProfile);
       if (!active) return;
       if (attempt >= AUTOMATIC_APP_STATE_MAX_ATTEMPTS) return;
       retryTimer = setTimeout(() => {
-        if (!active || memoryAppStateCaches.has(initialProfile) || inflightAppStateLoads.has(initialProfile)) return;
+        if (!active || hasHydratedMemoryAppStateCache(initialProfile) || inflightAppStateLoads.has(initialProfile)) {
+          return;
+        }
         automaticAppStateLoadsStarted.add(initialProfile);
         void runAutomaticLoad(attempt + 1);
       }, AUTOMATIC_APP_STATE_RETRY_DELAY_MS);

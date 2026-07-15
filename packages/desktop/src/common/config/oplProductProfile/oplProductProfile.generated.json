@@ -2696,7 +2696,7 @@
           "gateway": {
             "route_id": "gateway",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/accessProjection.ts",
-            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/GatewaySettings.tsx",
+            "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/AccessSettings.tsx",
             "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
             "forbidden_sources": [
               "secret bodies in App state or generic action payloads",
