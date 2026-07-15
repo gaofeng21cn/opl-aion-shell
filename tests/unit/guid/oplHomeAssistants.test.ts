@@ -38,13 +38,12 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL Book Forge',
       'OPL Meta Agent',
     ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
@@ -53,7 +52,6 @@ describe('OPL home assistants', () => {
       mas: ['med-autoscience'],
       mag: ['med-autogrant'],
       rca: ['redcube-ai'],
-      obf: ['opl-bookforge'],
       oma: ['opl-meta-agent'],
     });
   });
@@ -63,21 +61,19 @@ describe('OPL home assistants', () => {
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL Book Forge',
       'OPL Meta Agent',
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
     expect(resolved.map((item) => item.enabled_skills)).toEqual([
       ['med-autoscience'],
       ['med-autogrant'],
       ['redcube-ai'],
-      ['opl-bookforge'],
       ['opl-meta-agent'],
     ]);
   });

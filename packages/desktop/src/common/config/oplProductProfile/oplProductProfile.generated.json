@@ -70,10 +70,23 @@
           "permission_access_visible": true,
           "executor_selector_visible": false,
           "active_shortcut_changes_executor": false,
-          "default_visibility_governs_execution": false
+          "default_visibility_governs_execution": false,
+          "single_home_root": true,
+          "single_composer_shell": true,
+          "single_footer_account_settings_entry": true
         },
         "semantic_probe": {
           "root_test_id": "opl-guid-entry",
+          "instance_counts": {
+            "opl-guid-entry": 1,
+            "guid-input-card-shell": 1
+          },
+          "instance_count_groups": {
+            "footer_account_or_settings": {
+              "test_ids": ["sider-footer-account", "sider-footer-settings"],
+              "total": 1
+            }
+          },
           "state_attributes": {
             "executor": "data-opl-composer-executor",
             "active_shortcut_id": "data-opl-active-shortcut",
@@ -112,6 +125,14 @@
         "starter_visibility_policy": "all_user_visible_configured_shortcuts",
         "starter_order_policy": "stable_configured_order",
         "starter_layout_policy": "responsive_wrap",
+        "starter_item_width_policy": "compact_fixed_width",
+        "starter_count_layout_policy": "center_actual_visible_count_and_wrap_without_fixed_column_count",
+        "desktop_composer_max_width_px": 736,
+        "desktop_composer_min_height_px": 98,
+        "desktop_composer_corner_radius_px": 22,
+        "desktop_context_bar_height_px": 52,
+        "desktop_context_bar_overlap_px": 13,
+        "desktop_context_bar_horizontal_inset_px": 12,
         "starter_truncation_allowed": false,
         "selected_starter_visual_policy": "accent_border_fill_and_check_indicator_not_color_alone",
         "workspace_selector_policy": {
@@ -119,9 +140,12 @@
           "inactive_recent_directories_visible": false,
           "management_entry": "registered_directories_modal",
           "management_scope": "registered_workspaces",
+          "selection_effect": "set_new_session_initial_cwd_only",
           "unregister_effect": "remove_registration_only",
           "filesystem_delete_allowed": false,
-          "active_conversation_change_on_unregister": false
+          "active_conversation_change_on_unregister": false,
+          "session_ownership_effect": "none",
+          "cascade_session_delete_allowed": false
         },
         "home_shortcut_mutation_policy": {
           "pending_scope": "single_shortcut",
@@ -358,7 +382,7 @@
           "executor": "codex_cli",
           "display_policy": "purpose_first",
           "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
+          "default_visible": false,
           "user_configurable": true
         },
         {
@@ -406,7 +430,7 @@
     },
     "ordinary_conversation": {
       "path_id": "ordinary_codex_conversation",
-      "entry_source": "home_starter_project_task_or_projectless_new_conversation",
+      "entry_source": "home_starter_workspace_initialized_or_projectless_new_session",
       "executor": "codex_cli",
       "composer_position": "floating_bottom_with_safe_inset",
       "active_capability_chip_visible": true,
@@ -421,7 +445,7 @@
       "model_status_surface": "executor_policy.default_model_display_value",
       "technical_details_policy": "single_compact_model_reasoning_menu_without_backend_or_provider",
       "composer_context_strip": ["active_capability"],
-      "composer_send_scoped_inputs": ["attachments", "project_refs"],
+      "composer_send_scoped_inputs": ["attachments"],
       "composer_send_scoped_consumption_policy": "consumed_by_current_send_not_persisted_in_context_strip",
       "composer_forbidden_persistent_context": [
         "project",
@@ -429,28 +453,53 @@
         "locality",
         "branch",
         "attachments",
-        "project_refs"
+        "workspace_context_refs"
       ],
       "composer_bottom_action_row": ["attach", "permission_access_mode", "model_reasoning", "send_stop"],
       "composer_optional_actions": ["voice"],
       "mobile_action_sheet": {
         "trigger": "+",
-        "allowed_actions": ["attach", "project_refs", "permission_access_mode", "model_reasoning", "active_capability"],
+        "allowed_actions": ["attach", "permission_access_mode", "model_reasoning", "active_capability"],
         "send_stop_location": "composer_primary_action_outside_sheet",
         "forbidden_actions": ["backend", "provider", "team", "raw_mcp", "arbitrary_skills"]
       },
       "projectless_conversation_supported": true,
-      "project_context_inputs": {
-        "scope": "canonical_workspace_path",
-        "optional": true,
-        "item_kind": "workspace_file_or_directory_ref",
-        "mutations": ["add", "remove"],
-        "persistence": "shell_client_configuration_keyed_by_workspace",
-        "management_surface": "navigation_rail_project",
-        "composer_consumption": "send_scoped_removable_refs",
+      "session_workspace_model": {
+        "primary_unit": "session_backed_by_codex_thread_id",
+        "identity_authority": "codex_core_app_server_thread_id",
+        "workspace_binding_role": "new_session_initial_cwd_mutable_default_working_directory_and_sidebar_grouping_metadata_only",
+        "workspace_owns_session": false,
+        "workspace_owns_context": false,
+        "workspace_owns_artifacts": false,
+        "workspace_group_cascade_session_delete_allowed": false,
+        "workspace_change_preserves": ["thread_id", "transcript", "turn_history", "title", "task_state"],
+        "workspace_change_forbids": [
+          "fork_thread",
+          "copy_history",
+          "create_replacement_session",
+          "change_session_owner"
+        ]
+      },
+      "explicit_session_input_policy": {
+        "scope": "current_session_composer",
+        "surfaces": ["attachments", "local_file_picker", "local_directory_picker", "paste", "drop", "/open"],
+        "selection_scope": "any_user_selected_local_file_or_directory",
+        "workspace_required": false,
+        "access_authority": "codex_permission_approval_and_sandbox_only",
+        "shell_extra_path_authorization_allowed": false,
+        "user_initiated_only": true,
+        "workspace_preload_allowed": false,
+        "workspace_scoped_persistence_allowed": false,
+        "implicit_workspace_context_injection_allowed": false,
+        "composer_consumption": "current_send_only",
         "composer_persistence_after_send": "none",
-        "fabricated_defaults_allowed": false,
-        "artifact_body_copy_allowed": false
+        "workspace_readiness_boundary": {
+          "gates": ["project_selection", "worktree_creation", "opl_workspace_controls"],
+          "plain_local_conversation_requires_workspace_root": false,
+          "send_scoped_local_file_inputs_require_workspace_root": false,
+          "worktree_requires_git_repository": true,
+          "codex_and_model_prerequisites_unchanged": true
+        }
       },
       "transcript_export": {
         "scope": "current_conversation_transcript_only",
@@ -562,20 +611,7 @@
       "must_not_depend_on_visible_backend_selection": true
     },
     "agent_package_activation_policy": {
-      "action_id": "agent_package_activate",
-      "action_route": "opl app action execute --action agent_package_activate --payload <json> --json",
-      "trigger": "before_every_installed_package_workspace_or_quest_launch",
-      "payload_fields": ["package_id", "scope", "target_workspace", "target_quest", "use_boundary_id"],
-      "scope_values": ["workspace", "quest"],
-      "scope_target_policy": {
-        "workspace": "target_workspace_required_target_quest_forbidden",
-        "quest": "target_quest_required_target_workspace_forbidden"
-      },
-      "result_fields": ["launch_allowed", "use_receipt_ref", "use_binding"],
-      "launch_policy": "launch_only_when_launch_allowed_true_and_use_receipt_ref_and_use_binding_are_present",
-      "currentness_policy": "framework_reconciles_latest_stable_compatible_package_closure_once_at_use_boundary_and_pins_use_binding_for_the_session",
-      "package_identity_policy": "generic_package_id_no_hardcoded_agent_or_capability_package_ids",
-      "app_role": "prepare_then_launch_using_framework_readback_without_owning_package_currentness_or_materialization"
+      "contract_ref": "contracts/app-gui-product-contract.json#agent_package_activation_policy"
     },
     "builtin_assistant_route_receipt_policy": {
       "migration_alias_for": "agent_package_invocation_receipt_policy",
@@ -849,7 +885,7 @@
         "role": "book_authoring_agent",
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
-        "default_home_visible": true,
+        "default_home_visible": false,
         "codex_visible_entry": "opl-bookforge",
         "home_shortcut_ids": ["book"],
         "required_skill_ids": ["opl-bookforge"],
@@ -1183,7 +1219,8 @@
       "source_command": "opl system initialize --json",
       "ready_to_launch_must_be_true": false,
       "required_before_plain_send": ["codex_cli", "codex_config"],
-      "required_before_file_or_project_send": ["workspace_root", "codex_cli", "codex_config"],
+      "required_before_send_with_local_inputs": ["codex_cli", "codex_config"],
+      "required_before_workspace_controls": ["workspace_root"],
       "unknown_readiness_policy": "allow_attempt_without_mutating_readiness",
       "blocked_feedback": "localized_inline_non_modal_setup_notice_preserves_prompt",
       "must_wait_for": ["conversation_record_ready", "acp_warmup_complete"],
@@ -1212,16 +1249,23 @@
         "blocked_feedback": "localized_inline_non_modal_notice_with_first_run_action",
         "must_preserve_prompt": true
       },
-      "file_and_project_context": {
-        "required_items": ["workspace_root"],
-        "restricted_capabilities": [
+      "send_scoped_local_inputs": {
+        "required_items": ["codex_cli", "codex_config"],
+        "workspace_root_required": false,
+        "supported_inputs": [
           "file_dialog_attachment",
+          "directory_dialog_attachment",
           "file_paste_attachment",
           "file_drag_attachment",
-          "project_workspace_selection"
-        ],
+          "slash_open_absolute_path"
+        ]
+      },
+      "workspace_controls": {
+        "required_items": ["workspace_root"],
+        "restricted_capabilities": ["project_workspace_selection", "worktree_creation", "opl_workspace_controls"],
         "blocked_feedback": "disabled_control_with_local_explanation_and_persistent_setup_entry",
-        "plain_conversation_remains_available": true
+        "plain_conversation_remains_available": true,
+        "send_scoped_local_inputs_remain_available": true
       },
       "unknown_readiness_policy": "do_not_synthesize_failure_or_mutate_readiness"
     },
@@ -2016,9 +2060,9 @@
             "value_type": "path",
             "sensitivity": "ordinary",
             "current_value_source_ref": "application.systemInfo.logDir",
-            "write_route": "application.updateSystemInfo typed IPC with logDir while preserving the current cacheDir and workDir",
-            "persistence_target_ref": "desktop_client_system_info",
-            "verify_ref": "application.systemInfo.logDir readback",
+            "write_route": "application.setLogDirectory { path } typed IPC; the success directory value is hostLogDir, persistence happens before the live writer switch, and a switch failure rolls persistence back with a typed failure",
+            "persistence_target_ref": "desktop_client_system_info.logDir",
+            "verify_ref": "application.setLogDirectory.hostLogDir success value plus application.systemInfo.logDir readback",
             "risk": "low",
             "confirmation_required": false,
             "editable_reason": "Workspace & Personalization owns the desktop App log root; WebUI /data/logs is a read-only projection of the existing OnePersonLab/data -> /data volume and Settings never rewires that volume."
@@ -2080,22 +2124,22 @@
             "editable_reason": "Display preferences are local, reversible and immediately visible."
           },
           {
-            "stable_id": "settings.configuration.theme",
-            "configuration_id": "theme",
+            "stable_id": "settings.configuration.appearance_mode",
+            "configuration_id": "appearance_mode",
             "owner_class": "app_local",
             "truth_owner": "one-person-lab-app",
             "page_id": "preferences",
-            "anchor": "themes",
+            "anchor": "display-fonts",
             "lifecycle": "persistent_configuration",
-            "value_type": "theme_id",
+            "value_type": "enum_system_light_dark",
             "sensitivity": "ordinary",
-            "current_value_source_ref": "active CSS theme setting",
-            "write_route": "existing CSS theme settings store",
+            "current_value_source_ref": "theme.appearanceMode",
+            "write_route": "existing appearance mode settings store",
             "persistence_target_ref": "desktop_theme_store",
-            "verify_ref": "active theme readback",
+            "verify_ref": "appearance mode and effective system appearance readback",
             "risk": "low",
             "confirmation_required": false,
-            "editable_reason": "The user may switch among the adopted Light, Dark and Codex themes or add a local custom theme."
+            "editable_reason": "The user may follow the system appearance or choose Light or Dark while the App keeps one governed visual baseline."
           },
           {
             "stable_id": "settings.configuration.model_access_credential",
@@ -2841,33 +2885,17 @@
               "display_name_policy": "use_product_profile_display_names_and_never_raw_provider_ids_as_primary_labels",
               "aionui_native_policy": "keep_AionUI_native_skills_tools_assistants_MCP_helpers_image_controls_and_voice_input_controls_in_local_or_third_party_ownership_never_OPL_Flow_managed"
             },
-            "resource_grouping_surface": {
+            "task_awareness_surface": {
               "surface": "settings_capabilities",
-              "source": "same_task_awareness_projection_refs_aggregated_for_capabilities",
+              "source": "same_task_awareness_projection_capability_and_workflow_refs_only",
               "required_ref_fields": [
                 "capability_health_refs",
-                "connector_readiness_refs",
                 "workflow_refs",
                 "export_bundle_action_ref",
-                "resource_source_refs",
-                "gateway_status_ref",
-                "environment_ref",
-                "console_policy_ref",
-                "environment_task_refs",
-                "environment_source_ref",
-                "environment_version_ref",
-                "environment_template_ref",
-                "storage_ref",
-                "resource_receipt_ref",
-                "cost_estimate_ref",
                 "candidate_report_refs",
                 "workflow_skill_candidate_refs"
               ],
-              "display_policy": "capability_health_connector_workflow_and_export_refs_only_no_skill_body_no_domain_verdict",
-              "resource_grouping_policy": {
-                "grouping_source": "OPL Connect/Fabric resource refs",
-                "allowed_groups": ["OPL Connect", "Fabric resources"]
-              },
+              "display_policy": "capability_health_workflow_and_candidate_refs_only_no_agent_package_gateway_or_resource_fields",
               "action_policy": "export_bundle_action_ref_may_open_app_action_dry_run_receipt_only_until_domain_owner_execute_exists",
               "refs_only": true,
               "skill_body_access": false,
@@ -2908,6 +2936,9 @@
               "package_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.canonical_action_contract",
               "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.workspace_activation_contract",
               "workspace_path_source": "app_state.paths.workspace_root_path",
+              "workspace_path_scope": "settings_global_package_management_only",
+              "session_launch_authority": false,
+              "session_launch_contract_ref": "contracts/app-gui-product-contract.json#agent_package_activation_policy",
               "workspace_missing_policy": "disable activation with workspace_root_not_configured and route to /settings/workspace#workspace",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
@@ -2984,12 +3015,19 @@
             ],
             "log_directory": {
               "owner_page": "workspace",
-              "typed_action": "application.updateSystemInfo",
-              "typed_action_payload_fields": ["cacheDir", "workDir", "logDir"],
+              "typed_action": "application.setLogDirectory",
+              "typed_action_payload_fields": ["path"],
+              "typed_action_success_value_fields": ["hostLogDir"],
+              "typed_action_forbidden_success_value_fields": ["cacheDir", "workDir", "logDir"],
+              "mutation_sequence": [
+                "persist_hostLogDir",
+                "switch_live_log_writer",
+                "rollback_persisted_hostLogDir_and_return_typed_failure_on_switch_failure"
+              ],
               "preserved_fields": ["cacheDir", "workDir"],
               "host_projection": "application.systemInfo.logDir",
-              "persistence_target": "desktop_client_system_info",
-              "readback_ref": "application.systemInfo.logDir",
+              "persistence_target": "desktop_client_system_info.logDir",
+              "readback_ref": "application.setLogDirectory.hostLogDir plus application.systemInfo.logDir",
               "desktop_change_supported": true,
               "webui_log_projection": "/data/logs",
               "docker_volume_mapping": "OnePersonLab/data -> /data",
@@ -3349,7 +3387,7 @@
             "goal": "Workspace & Personalization is the single owner for workspace path, log path, AGENTS.md, and OPL App context.",
             "evidence_required": [
               "log_directory configuration page_id is workspace",
-              "application.updateSystemInfo preserves cacheDir/workDir, persists desktop client system info, and never rewires the existing OnePersonLab/data -> /data volume",
+              "application.setLogDirectory { path } persists hostLogDir, switches the live writer, rolls persistence back with a typed failure when switching fails, preserves cacheDir/workDir, and never rewires the existing OnePersonLab/data -> /data volume",
               "Storage and Preferences contain no duplicate path or personalization controls"
             ]
           },
@@ -3431,7 +3469,8 @@
               "preferences anchors contain behavior/notifications/models-performance/display-fonts/themes only",
               "workspace anchors contain workspace/logs/personalization/system-agents/opl-app-context",
               "raw milliseconds and Electron flags stay collapsed",
-              "Preferences has inline controls and no page-level primary action"
+              "Preferences has inline controls and no page-level primary action",
+              "Preferences exposes System, Light, and Dark but no CSS theme preset gallery"
             ]
           },
           {
@@ -3512,12 +3551,12 @@
           {
             "id": "visual_system",
             "track": "visual_qa",
-            "goal": "Settings preserves the 409dd0c3 OPL bounded-card hierarchy with two to four first-viewport groups, flat internal rows, semantic status color, and responsive layout.",
+            "goal": "Settings preserves OPL information architecture while matching the Codex quiet single-column control-center hierarchy, flat internal rows, monochrome utility icons, and typed status color.",
             "evidence_required": [
               "nested cards are forbidden",
-              "each card answers one user question and the first viewport contains two to four spatial groups",
-              "desktop uses responsive grids and mobile stacks groups",
-              "icon, typography, status color, radius, and spacing tokens meet the baseline contract",
+              "each quiet bounded section answers one user question and the first viewport contains two to four spatial groups",
+              "desktop uses one reading lane and mobile stacks groups",
+              "monochrome utility icons, typography, typed status color, radius, and spacing tokens meet the baseline contract",
               "fresh screenshots are compared with shell baseline 409dd0c3 without hierarchy regression"
             ]
           },
@@ -3825,17 +3864,17 @@
         }
       },
       "experience_contract": {
-        "schema": "settings_opl_card_experience.v1",
+        "schema": "settings_codex_quiet_experience.v2",
         "owner": "one-person-lab-app",
         "purpose": "machine_verifiable_settings_visual_search_page_and_dom_contract",
         "source_contract_ref": "contracts/app-gui-product-contract.json#settings_navigation.settings_ia",
         "page_state_matrix_ref": "contracts/app-page-state-matrix.json#pages",
         "visual_system": {
-          "style": "opl_baseline_card_control_center",
-          "style_exclusion": "codex_quiet_list",
+          "style": "codex_quiet_control_center_with_opl_information_architecture",
+          "style_exclusion": "multi_hue_card_dashboard",
           "baseline_shell_commit": "409dd0c3b693f1c7c93551654dfac8fb9420843d",
           "baseline_comparison_policy": "fresh_same_route_screenshots_must_preserve_or_improve_information_hierarchy",
-          "card_policy": "one_bounded_card_per_user_question_with_flat_internal_rows",
+          "card_policy": "one_quiet_bounded_section_per_user_question_with_flat_internal_rows",
           "first_viewport_spatial_group_range": {
             "min": 2,
             "max": 4
@@ -3843,9 +3882,9 @@
           "nested_cards_allowed": false,
           "page_wide_list_wall_allowed": false,
           "page_sections_as_floating_cards_allowed": false,
-          "desktop_group_layout": "responsive_two_column_grid_where_space_allows",
+          "desktop_group_layout": "single_column_reading_lane",
           "mobile_group_layout": "single_column_stack",
-          "icon_slot_px": 28,
+          "icon_slot_px": 20,
           "typography": {
             "page_title": "20/28/600",
             "card_title": "14-16/20-24/600",
@@ -3858,12 +3897,17 @@
             "error": "red",
             "action": "brand"
           },
-          "object_accent_policy": "use restrained multi-hue navigation icons and card-edge accents to distinguish access, workspace, capabilities, maintenance, and storage without tinting whole pages",
+          "object_accent_policy": "use monochrome utility navigation icons and reserve color for typed warning error success and brand actions",
           "footer_layout": "compact",
-          "footer_controls": ["gateway_account_or_settings_entry", "theme_switcher"],
+          "footer_controls": ["gateway_account_or_settings_entry", "app_update_status_and_trigger"],
           "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_settings_on_all_routes_and_open_account_gateway_or_overview",
+          "footer_update_entry_policy": "show_confirmed_newer_app_update_as_account_row_trailing_action_and_reuse_existing_carrier_updater_without_owning_update_truth",
+          "footer_theme_quick_toggle_allowed": false,
           "footer_secondary_navigation_allowed": false,
-          "theme_gallery_presentation": "recognizable_preview_tiles",
+          "appearance_mode_values": ["system", "light", "dark"],
+          "appearance_mode_presentation": "three_visual_preview_cards",
+          "appearance_mode_preserves_theme_preset": false,
+          "theme_gallery_presentation": "not_exposed",
           "theme_swatch_list_allowed": false,
           "max_border_radius_px": 8,
           "spacing_scale_px": [12, 16, 24],
@@ -4298,7 +4342,7 @@
               "maintenance_action_visibility": "attention_only",
               "diagnostics_entry": "explicit_modal_action",
               "log_directory_source": "application.systemInfo.logDir_not_Framework_app_state.paths.logs_dir",
-              "log_directory_mutation": "application.updateSystemInfo_preserves_current_cacheDir_and_workDir_and_persists_desktop_client_system_info",
+              "log_directory_mutation": "application.setLogDirectory_path_persists_hostLogDir_then_switches_live_writer_rolls_back_on_failure_and_preserves_cacheDir_workDir",
               "log_directory_webui_policy": "read_only_/data/logs_projection_from_existing_OnePersonLab/data_to_/data_volume",
               "desktop_directory_mapping": "project_workspace_is_Framework_workspace_root_while_App_data_and_logs_are_shell_system_directories",
               "docker_mapping": "OnePersonLab/data_maps_to_/data_and_Settings_does_not_rewire_the_volume",
@@ -4966,9 +5010,11 @@
             "surface_rules": {
               "full_width_group_count": 3,
               "two_plus_one_grid_allowed": false,
-              "builtin_theme_ids": ["light", "dark", "codex"],
+              "builtin_theme_ids": [],
               "extension_themes_default_visible": false,
-              "custom_theme_management": "preserved",
+              "custom_theme_management": "not_exposed_user_data_preserved_for_compatibility",
+              "appearance_mode_values": ["system", "light", "dark"],
+              "visual_baseline": "single_governed_opl_codex_aligned_baseline",
               "interactive_controls_inside_diagnostic_surface_allowed": false,
               "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure",
               "voice_input_configuration_allowed": false,
