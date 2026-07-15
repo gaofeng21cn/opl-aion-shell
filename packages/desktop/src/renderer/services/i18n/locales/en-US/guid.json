@@ -6,7 +6,14 @@
     "localContext": "Local",
     "activeCapability": "Capability: {{capability}}",
     "launchBlocked": "This capability cannot start work yet ({{reason}}). Available maintenance actions: {{actions}}.",
-    "operationalNotReady": "operational readiness is blocked"
+    "operationalNotReady": "operational readiness is blocked",
+    "packageLaunchErrors": {
+      "blocked": "This agent package is not ready to start. Check its status on Agents and try again.",
+      "invalid": "This agent package could not start because its activation result was invalid. Refresh and try again.",
+      "selectionMismatch": "This agent package could not start because the current selection changed. Select it again and retry.",
+      "versionMismatch": "This agent package could not start because the installed and active versions do not match. Refresh and try again.",
+      "targetMismatch": "This agent package could not start because its managed project path does not match the selected project folder. Select the folder again and retry."
+    }
   },
   "worktree": {
     "modeLabel": "Task location",

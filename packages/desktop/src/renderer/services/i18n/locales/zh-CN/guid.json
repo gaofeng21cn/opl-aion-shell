@@ -6,7 +6,14 @@
     "localContext": "本地",
     "activeCapability": "能力：{{capability}}",
     "launchBlocked": "此能力暂时不能开始工作（{{reason}}）。仍可使用的维护动作：{{actions}}。",
-    "operationalNotReady": "运行就绪状态受阻"
+    "operationalNotReady": "运行就绪状态受阻",
+    "packageLaunchErrors": {
+      "blocked": "此智能体包暂时无法启动。请在“智能体”中检查其状态后重试。",
+      "invalid": "无法启动此智能体包：激活结果无效。请刷新后重试。",
+      "selectionMismatch": "无法启动此智能体包：当前选择已发生变化。请重新选择后重试。",
+      "versionMismatch": "无法启动此智能体包：安装版本与当前启用版本不一致。请刷新后重试。",
+      "targetMismatch": "无法启动此智能体包：受管项目路径与所选项目文件夹不一致。请重新选择文件夹后重试。"
+    }
   },
   "worktree": {
     "modeLabel": "任务位置",

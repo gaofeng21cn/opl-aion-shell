@@ -197,7 +197,7 @@ describe('OPL agent package launch validation', () => {
     activation.launch_blocked_reason = 'package_disabled';
 
     expectFailure(envelope, 'agent_package_launch_blocked');
-    expect(() => parse(envelope)).toThrow('OPL package launch blocked: package_disabled');
+    expect(() => parse(envelope)).toThrow('agent_package_launch_blocked: package_disabled');
   });
 
   it('reports malformed activation as an explicit invalid result', () => {
@@ -205,6 +205,6 @@ describe('OPL agent package launch validation', () => {
     delete activationFromEnvelope(envelope).package_lock;
 
     expectFailure(envelope, 'agent_package_activation_invalid');
-    expect(() => parse(envelope)).toThrow('OPL package activation returned an invalid result.');
+    expect(() => parse(envelope)).toThrow('agent_package_activation_invalid');
   });
 });

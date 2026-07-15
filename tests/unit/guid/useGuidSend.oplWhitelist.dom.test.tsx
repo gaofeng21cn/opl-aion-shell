@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GuidSendDeps } from '@/renderer/pages/guid/hooks/useGuidSend';
 import { useGuidSend } from '@/renderer/pages/guid/hooks/useGuidSend';
@@ -444,7 +444,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.messageError).toHaveBeenCalledWith('guid.workspace.specifyWorkspace');
   });
 
-  it('reports an invalid activation before creating a conversation', async () => {
+  it('shows a localized invalid-activation error before creating a conversation', async () => {
     mocks.activatePackage.mockResolvedValue({
       ok: true,
       parsed: {
@@ -462,50 +462,11 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
         },
       },
     });
-    const { result } = renderHook(() => useGuidSend(buildDeps()));
-
-    await expect(result.current.handleSend()).rejects.toThrow('activation returned an invalid result');
-
-    expect(mocks.createConversation).not.toHaveBeenCalled();
-    expect(sessionStorage.length).toBe(0);
-  });
-
-  it.each([
-    {
-      caseId: 'selected package drift',
-      error: 'activated package does not match the current selection',
-      mutate: (activation: Record<string, unknown>) => {
-        activation.package_id = 'foreign-package';
-      },
-    },
-    {
-      caseId: 'installed version drift',
-      error: 'installed package version does not match the active version',
-      mutate: (activation: Record<string, unknown>) => {
-        const lock = activation.package_lock as Record<string, unknown>;
-        lock.package_version = '9.9.9';
-      },
-    },
-    {
-      caseId: 'target-root drift',
-      error: 'managed workspace target does not match the current workspace',
-      mutate: (activation: Record<string, unknown>) => {
-        const binding = activation.package_use_binding as Record<string, unknown>;
-        binding.target_root = '/tmp/foreign';
-      },
-    },
-  ])('rejects $caseId before conversation creation or initial-message enqueue', async ({ mutate, error }) => {
-    mocks.activatePackage.mockImplementation(
-      ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) => {
-        const response = buildActivationExecution(payloadRefsOnlyJson);
-        mutate(activationFromResponse(response));
-        return Promise.resolve(response);
-      }
-    );
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
 
-    await expect(result.current.handleSend()).rejects.toThrow(error);
+    act(() => result.current.sendMessageHandler());
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('guid.home.packageLaunchErrors.invalid'));
 
     expect(mocks.createConversation).not.toHaveBeenCalled();
     expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
@@ -513,7 +474,54 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it('consumes a typed Framework blocked verdict without creating or enqueueing a conversation', async () => {
+  it.each([
+    {
+      caseId: 'selected package drift',
+      errorKey: 'guid.home.packageLaunchErrors.selectionMismatch',
+      mutate: (activation: Record<string, unknown>) => {
+        activation.package_id = 'foreign-package';
+      },
+    },
+    {
+      caseId: 'installed version drift',
+      errorKey: 'guid.home.packageLaunchErrors.versionMismatch',
+      mutate: (activation: Record<string, unknown>) => {
+        const lock = activation.package_lock as Record<string, unknown>;
+        lock.package_version = '9.9.9';
+      },
+    },
+    {
+      caseId: 'target-root drift',
+      errorKey: 'guid.home.packageLaunchErrors.targetMismatch',
+      mutate: (activation: Record<string, unknown>) => {
+        const binding = activation.package_use_binding as Record<string, unknown>;
+        binding.target_root = '/tmp/foreign';
+      },
+    },
+  ])(
+    'shows a localized $caseId error before conversation creation or initial-message enqueue',
+    async ({ mutate, errorKey }) => {
+      mocks.activatePackage.mockImplementation(
+        ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) => {
+          const response = buildActivationExecution(payloadRefsOnlyJson);
+          mutate(activationFromResponse(response));
+          return Promise.resolve(response);
+        }
+      );
+      const deps = buildDeps();
+      const { result } = renderHook(() => useGuidSend(deps));
+
+      act(() => result.current.sendMessageHandler());
+      await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith(errorKey));
+
+      expect(mocks.createConversation).not.toHaveBeenCalled();
+      expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
+      expect(mocks.navigate).not.toHaveBeenCalled();
+      expect(sessionStorage.length).toBe(0);
+    }
+  );
+
+  it('shows a localized Framework blocked verdict without creating or enqueueing a conversation', async () => {
     mocks.activatePackage.mockImplementation(
       ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) => {
         const response = buildActivationExecution(payloadRefsOnlyJson);
@@ -531,7 +539,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
 
-    await expect(result.current.handleSend()).rejects.toThrow('launch blocked: package_disabled');
+    act(() => result.current.sendMessageHandler());
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('guid.home.packageLaunchErrors.blocked'));
 
     expect(mocks.createConversation).not.toHaveBeenCalled();
     expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();

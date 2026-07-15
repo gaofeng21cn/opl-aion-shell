@@ -31,26 +31,12 @@ export type OplAgentPackageLaunchFailureCode =
   | 'agent_package_version_mismatch'
   | 'agent_package_target_mismatch';
 
-const FAILURE_MESSAGES: Record<Exclude<OplAgentPackageLaunchFailureCode, 'agent_package_launch_blocked'>, string> = {
-  agent_package_activation_invalid: 'OPL package activation returned an invalid result.',
-  agent_package_selection_mismatch:
-    'OPL package launch failed: the activated package does not match the current selection.',
-  agent_package_version_mismatch:
-    'OPL package launch failed: the installed package version does not match the active version.',
-  agent_package_target_mismatch:
-    'OPL package launch failed: the managed workspace target does not match the current workspace.',
-};
-
 export class OplAgentPackageLaunchError extends Error {
   readonly code: OplAgentPackageLaunchFailureCode;
   readonly blockedReason: string | null;
 
   constructor(code: OplAgentPackageLaunchFailureCode, blockedReason: string | null = null) {
-    super(
-      code === 'agent_package_launch_blocked'
-        ? `OPL package launch blocked: ${blockedReason ?? 'unknown'}`
-        : FAILURE_MESSAGES[code]
-    );
+    super(blockedReason ? `${code}: ${blockedReason}` : code);
     this.name = 'OplAgentPackageLaunchError';
     this.code = code;
     this.blockedReason = blockedReason;

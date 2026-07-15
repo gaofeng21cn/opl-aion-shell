@@ -36,6 +36,7 @@ import {
   type OplAssistantRouteReceipt,
 } from '../utils/activeShortcut';
 import {
+  OplAgentPackageLaunchError,
   parseOplAgentPackageLaunchResult,
   type OplAgentPackageActivationReceipt,
 } from '../utils/oplAgentPackageLaunchAuthority';
@@ -150,6 +151,23 @@ async function activateOplAgentPackage(
     packageId,
     targetWorkspace,
   });
+}
+
+function getOplAgentPackageLaunchErrorMessage(error: unknown, t: TFunction): string | null {
+  if (!(error instanceof OplAgentPackageLaunchError)) return null;
+
+  switch (error.code) {
+    case 'agent_package_launch_blocked':
+      return t('guid.home.packageLaunchErrors.blocked');
+    case 'agent_package_selection_mismatch':
+      return t('guid.home.packageLaunchErrors.selectionMismatch');
+    case 'agent_package_version_mismatch':
+      return t('guid.home.packageLaunchErrors.versionMismatch');
+    case 'agent_package_target_mismatch':
+      return t('guid.home.packageLaunchErrors.targetMismatch');
+    case 'agent_package_activation_invalid':
+      return t('guid.home.packageLaunchErrors.invalid');
+  }
 }
 
 /**
@@ -600,7 +618,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
-        Message.error(getConversationCreateErrorMessage(error, t));
+        Message.error(getOplAgentPackageLaunchErrorMessage(error, t) ?? getConversationCreateErrorMessage(error, t));
       })
       .finally(() => {
         sendingRef.current = false;
