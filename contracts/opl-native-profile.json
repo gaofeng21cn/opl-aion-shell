@@ -16,7 +16,11 @@
   ],
   "doc_profile": "tooling_repo",
   "flow_profile": "tooling_repo",
-  "machine_truth_surfaces": ["contracts", "tests", "package.json"],
+  "machine_truth_surfaces": [
+    "contracts",
+    "tests",
+    "package.json"
+  ],
   "managed_by_plugins": {
     "opl-doc": {
       "authority_boundary": {
@@ -44,22 +48,39 @@
         "quality_verdicts",
         "production_readiness"
       ],
-      "managed_surfaces": ["contracts/opl-native-profile.json", "contracts/support-repo-policy.json"],
+      "managed_surfaces": [
+        "contracts/opl-native-profile.json",
+        "contracts/support-repo-policy.json"
+      ],
       "management": "profile_check_and_sync"
     },
     "opl-flow": {
-      "does_not_own": ["repo_specific_guidance", "contracts", "source", "tests", "runtime_outputs", "project_truth"],
+      "does_not_own": [
+        "repo_specific_guidance",
+        "contracts",
+        "source",
+        "tests",
+        "runtime_outputs",
+        "project_truth"
+      ],
       "managed_surfaces": [],
       "management": "workflow_profile_pointer",
       "version": "0.1.21"
     }
   },
-  "owned_by_repo": ["contracts/**", "src/**", "tests/**", "docs/status.md"],
+  "owned_by_repo": [
+    "contracts/**",
+    "src/**",
+    "tests/**",
+    "docs/status.md"
+  ],
   "plugin_native_status": "profile_declared",
   "repo_id": "one-person-lab-aion-shell",
   "repo_profile": "tooling_repo",
   "schema": "opl_native_profile.v1",
-  "taxonomy_dirs": ["docs/history"],
+  "taxonomy_dirs": [
+    "docs/history"
+  ],
   "verification_commands": [
     "package.json:scripts.test",
     "package.json:scripts.test:full",
