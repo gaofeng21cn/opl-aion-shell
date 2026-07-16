@@ -43,13 +43,7 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
-  default: ({
-    workspaceDir,
-    accessDisabled,
-  }: {
-    workspaceDir: string;
-    accessDisabled?: boolean;
-  }) => (
+  default: ({ workspaceDir, accessDisabled }: { workspaceDir: string; accessDisabled?: boolean }) => (
     <div
       data-testid='workspace-footnote'
       data-workspace-dir={workspaceDir}
