@@ -207,6 +207,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand()).toEqual({
       surface: 'startup_maintenance',
       args: ['system', 'startup-maintenance', '--json'],
+      timeoutMs: 120_000,
     });
     expect(__oplRuntimeBridgeTest.buildReconcileModulesCommand()).toEqual({
       surface: 'reconcile_modules',
@@ -581,7 +582,7 @@ describe('OPL runtime bridge command whitelist', () => {
       processEntry.indexOf('await runStartupMaintenanceForHost(options.hostKind)')
     );
 
-    const specs: Array<{ surface: string; args: string[] }> = [];
+    const specs: Array<{ surface: string; args: string[]; timeoutMs?: number }> = [];
     const dependencies: NonNullable<Parameters<typeof runDesktopStartupMaintenance>[0]> = {
       logInfo: vi.fn(),
       runCommand: async (spec) => {
@@ -598,12 +599,18 @@ describe('OPL runtime bridge command whitelist', () => {
     await runStartupMaintenanceForHost('desktop', dependencies);
     await runStartupMaintenanceForHost('web', dependencies);
 
-    expect(specs).toEqual([{ surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] }]);
+    expect(specs).toEqual([
+      {
+        surface: 'startup_maintenance',
+        args: ['system', 'startup-maintenance', '--json'],
+        timeoutMs: 120_000,
+      },
+    ]);
   });
 
   it('records a structured startup-maintenance failure without throwing', async () => {
     const warnings: string[] = [];
-    const specs: Array<{ surface: string; args: string[] }> = [];
+    const specs: Array<{ surface: string; args: string[]; timeoutMs?: number }> = [];
 
     const result = await runDesktopStartupMaintenance({
       now: () => new Date('2026-07-17T00:00:00.000Z'),
@@ -622,7 +629,13 @@ describe('OPL runtime bridge command whitelist', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(specs).toEqual([{ surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] }]);
+    expect(specs).toEqual([
+      {
+        surface: 'startup_maintenance',
+        args: ['system', 'startup-maintenance', '--json'],
+        timeoutMs: 120_000,
+      },
+    ]);
     expect(warnings).toHaveLength(1);
     expect(JSON.parse(warnings[0]!.replace('[AionUi:opl-startup] ', ''))).toEqual({
       schema: 'opl.desktop_startup_maintenance.v1',

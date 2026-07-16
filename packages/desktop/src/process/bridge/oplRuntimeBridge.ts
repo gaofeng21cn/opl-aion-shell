@@ -61,6 +61,7 @@ const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
 const OPL_INITIALIZE_TIMEOUT_MS = 120_000;
+const OPL_STARTUP_MAINTENANCE_TIMEOUT_MS = 120_000;
 const OPL_MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
@@ -435,7 +436,11 @@ async function runGatewayAccountCommand(spec: RuntimeCommandSpec): Promise<IOplG
 }
 
 function buildStartupMaintenanceCommand(): RuntimeCommandSpec {
-  return { surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] };
+  return {
+    surface: 'startup_maintenance',
+    args: ['system', 'startup-maintenance', '--json'],
+    timeoutMs: OPL_STARTUP_MAINTENANCE_TIMEOUT_MS,
+  };
 }
 
 function buildReconcileModulesCommand(): RuntimeCommandSpec {
