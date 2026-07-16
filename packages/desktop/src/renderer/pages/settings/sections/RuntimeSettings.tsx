@@ -1754,6 +1754,13 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       ),
     [appState, temporalSchedulerStatus, temporalServerReachable, temporalWorkerMutationGuard]
   );
+  const requestTemporalWorkerDependencyRepair = useCallback(() => {
+    if (oplBaseComponent?.repairAllowed) {
+      requestManagedUpdateAction('repair', oplBaseComponent);
+      return;
+    }
+    requestMakeOplUsable();
+  }, [oplBaseComponent, requestMakeOplUsable, requestManagedUpdateAction]);
 
   const openLogDir = useCallback(() => {
     if (!logsRoot) return;
@@ -1793,6 +1800,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           disabled={maintenanceOperationBusy}
           onAction={(actionId) => void runTemporalMaintenanceAction(actionId)}
           onOpenWorkerSourceSettings={openTemporalWorkerSourceSettings}
+          onRepairWorkerDependency={requestTemporalWorkerDependencyRepair}
           t={t}
         />
 

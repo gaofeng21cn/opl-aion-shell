@@ -1499,6 +1499,27 @@
       "backgroundService": "后台服务",
       "temporalNotConfigured": "Temporal server 和 worker 尚未配置；scheduler 仍需检查。",
       "temporalNeedsAttention": "Temporal 的 server、worker 或 scheduler 仍需处理。",
+      "temporalReasons": {
+        "notConfigured": "尚未配置运行地址；可在维护页配置并启动本机服务。",
+        "serverUnreachable": "已有 server 地址，但当前无法连接。",
+        "supervisorNotInstalled": "登录启动保护尚未安装。",
+        "supervisorNotLoaded": "登录启动保护已安装，但当前没有运行。",
+        "supervisorConfigurationDrift": "登录启动保护与 OPL 托管配置不一致。",
+        "supervisorError": "登录启动保护报告了错误。",
+        "supervisorUnready": "登录启动保护尚未就绪。",
+        "workerDependencyUnavailable": "OPL Base 中缺少 Temporal worker 必需依赖，或该依赖当前不可用。",
+        "workerMutationBlocked": "当前开发源无权接管共享的托管 worker。",
+        "workerSourceStale": "正在运行的 worker 与当前托管源不一致，需要重启。",
+        "duplicateWorker": "已有其他 worker 正在使用托管任务队列。",
+        "workerExited": "worker 在就绪前已经退出。",
+        "workerNotReady": "worker 尚未准备好接收托管任务。",
+        "schedulerNotInstalled": "OPL 周期调度尚未安装。",
+        "schedulerPaused": "OPL 周期调度当前已暂停。",
+        "schedulerError": "scheduler 在最近一次检查中报告了错误。",
+        "schedulerNotReady": "scheduler 尚未达到就绪状态。",
+        "attention": "该组件报告了需要维护的状态。",
+        "unknown": "该组件没有提供足够的最新信息；请在维护页执行检查。"
+      },
       "capabilities": "能力包"
     },
     "developerSource": {
@@ -2792,6 +2813,7 @@
         "supervisorNotLoaded": "启动保护：已安装但未运行",
         "supervisorConfigurationDrift": "启动保护：配置需要修复",
         "supervisorNeedsRepair": "启动保护：需要修复",
+        "supervisorReportedError": "启动保护：最近一次检查报告了错误",
         "supervisorObservedAt": "启动保护最近检查：{{observedAt}}"
       },
       "worker": {
@@ -2800,11 +2822,15 @@
         "blockers": "需要处理：{{blockers}}",
         "developerGuardBlocked": "当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。",
         "developerGuardNextSteps": "请切回托管运行来源，或明确启用已授权的开发仓库维护。",
-        "manageSources": "管理运行来源"
+        "manageSources": "管理运行来源",
+        "dependencyUnavailable": "worker 必需依赖不可用。修复 OPL Base 后才能启动 worker。",
+        "repairDependency": "修复 OPL Base",
+        "reportedError": "worker 在最近一次检查中报告了错误。"
       },
       "scheduler": {
         "title": "OPL scheduler",
         "description": "维护 OPL 系列运行时的周期调度。",
+        "reportedError": "scheduler 在最近一次检查中报告了错误。",
         "observedAt": "最近检查：{{observedAt}}"
       },
       "values": {
@@ -2863,9 +2889,9 @@
         "actionComplete": "Temporal 维护已完成，并已验证新的运行状态。",
         "needsAttention": "检查已完成，但该 Temporal 服务仍需处理。",
         "actionBlocked": "当前安全策略阻止了这项 Temporal 维护操作。",
-      "actionFailed": "Temporal 维护失败。",
-      "componentError": "操作已完成，但仍有 Temporal 组件报告错误。",
-      "readbackFailed": "操作已执行，但 App 无法读回最新 Temporal 状态。",
+        "actionFailed": "Temporal 维护失败。",
+        "componentError": "操作已完成，但仍有 Temporal 组件报告错误。",
+        "readbackFailed": "操作已执行，但 App 无法读回最新 Temporal 状态。",
         "postconditionFailed": "操作已执行，但 Temporal 未达到预期状态。"
       }
     },

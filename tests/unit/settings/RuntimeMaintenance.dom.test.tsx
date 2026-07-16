@@ -1227,6 +1227,41 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(window.location.hash).toBe('#/settings/agents?section=source');
   });
 
+  it('disables worker start when its dependency is unavailable and reuses the OPL Base repair flow', async () => {
+    setTemporalState({
+      status: 'attention_needed',
+      health_status: 'attention_needed',
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed_service_supervisor',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler: { status: 'ready', ready: true },
+        worker_readiness: {
+          blockers: ['temporal_worker_dependency_unavailable'],
+          lifecycle_status: 'worker_dependency_unavailable',
+          service_ready: true,
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions('provider_worker_status', 'provider_worker_start');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({ ok: true, parsed: { status: 'completed' } });
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-worker-repair-dependency'));
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable-confirm'));
+
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
+    );
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
+  });
+
   it('keeps Temporal maintenance controls visible but disabled when the action catalog omits them', () => {
     setTemporalState({
       status: 'ready',

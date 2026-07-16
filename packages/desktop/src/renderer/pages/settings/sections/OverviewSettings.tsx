@@ -32,10 +32,35 @@ type AttentionItem = {
 
 type TemporalStatusKind = 'ready' | 'not_configured' | 'not_installed' | 'paused' | 'attention' | 'unknown';
 
+type TemporalReasonKind =
+  | 'ready'
+  | 'not_configured'
+  | 'server_unreachable'
+  | 'supervisor_not_installed'
+  | 'supervisor_not_loaded'
+  | 'supervisor_configuration_drift'
+  | 'supervisor_error'
+  | 'supervisor_unready'
+  | 'worker_dependency_unavailable'
+  | 'worker_mutation_blocked'
+  | 'worker_source_stale'
+  | 'duplicate_worker'
+  | 'worker_exited'
+  | 'worker_not_ready'
+  | 'scheduler_not_installed'
+  | 'scheduler_paused'
+  | 'scheduler_error'
+  | 'scheduler_not_ready'
+  | 'attention'
+  | 'unknown';
+
 type TemporalStatusProjection = {
   server: TemporalStatusKind;
+  serverReason: TemporalReasonKind;
   worker: TemporalStatusKind;
+  workerReason: TemporalReasonKind;
   scheduler: TemporalStatusKind;
+  schedulerReason: TemporalReasonKind;
   workerNeedsRestart: boolean;
 };
 
@@ -63,9 +88,9 @@ const TEMPORAL_WORKER_ATTENTION_STATUSES = new Set([
 ]);
 const TEMPORAL_WORKER_RESTART_STATUSES = new Set(['duplicate_worker', 'worker_source_stale']);
 const TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES = new Set(['not_installed', 'missing', 'absent']);
-const TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS = 1_500;
-const TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS = 8;
-const TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS = 15_000;
+const TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS = 3_000;
+const TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS = 30;
+const TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS = 90_000;
 const CAPABILITY_READY_STATUSES = new Set(['ready', 'current', 'healthy', 'ok']);
 const CAPABILITY_ATTENTION_STATUSES = new Set([
   'attention_needed',
@@ -136,13 +161,21 @@ function temporalStatusProjection(
       normalizedStatus(serviceLifecycle.service_status) === 'external_running'
     );
   const supervisorReady = typeof serviceSupervisor.ready === 'boolean' ? serviceSupervisor.ready : null;
+  const supervisorInstalled = typeof serviceSupervisor.installed === 'boolean' ? serviceSupervisor.installed : null;
+  const supervisorLoaded = typeof serviceSupervisor.loaded === 'boolean' ? serviceSupervisor.loaded : null;
+  const supervisorConfigurationCurrent =
+    typeof serviceSupervisor.configuration_current === 'boolean' ? serviceSupervisor.configuration_current : null;
+  const supervisorStatus = normalizedStatus(serviceSupervisor.status);
+  const supervisorError = oplString(serviceSupervisor.error);
+  const serverReachable =
+    typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
   const serverNotConfigured =
     addressSource !== null
       ? TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)
       : serviceReady === null && providerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
   const server =
     serviceReady === true
-      ? supervisorRequired && supervisorReady !== true
+      ? supervisorRequired && (supervisorReady !== true || supervisorError !== null)
         ? 'attention'
         : 'ready'
       : serverNotConfigured
@@ -152,6 +185,28 @@ function temporalStatusProjection(
           : providerCandidates.some((value) => TEMPORAL_ATTENTION_STATUSES.has(value))
             ? 'attention'
             : 'unknown';
+  const serverReason: TemporalReasonKind =
+    server === 'ready'
+      ? 'ready'
+      : serverNotConfigured
+        ? 'not_configured'
+        : serviceReady === false || serverReachable === false
+          ? 'server_unreachable'
+          : supervisorRequired && supervisorError
+            ? 'supervisor_error'
+            : supervisorRequired && (supervisorInstalled === false || supervisorStatus === 'not_installed')
+              ? 'supervisor_not_installed'
+              : supervisorRequired &&
+                  (supervisorConfigurationCurrent === false ||
+                    Boolean(supervisorStatus?.includes('configuration_drift')))
+                ? 'supervisor_configuration_drift'
+                : supervisorRequired && (supervisorLoaded === false || supervisorStatus === 'not_loaded')
+                  ? 'supervisor_not_loaded'
+                  : supervisorRequired && supervisorReady === false
+                    ? 'supervisor_unready'
+                    : server === 'attention'
+                      ? 'attention'
+                      : 'unknown';
 
   const workerCandidates = [
     normalizedStatus(workerReadiness.lifecycle_status),
@@ -163,13 +218,39 @@ function temporalStatusProjection(
   const workerNeedsRestart = workerCandidates.some(workerStatusNeedsRestart);
   const workerNotConfigured = workerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
   const workerReadyValue = typeof workerReadiness.worker_ready === 'boolean' ? workerReadiness.worker_ready : null;
+  const workerError = oplString(workerReadiness.error) ?? oplString(workerReadiness.last_error);
   const worker = workerNotConfigured
     ? 'not_configured'
-    : workerNeedsRestart || workerCandidates.some(workerStatusNeedsAttention) || workerReadyValue === false
+    : workerError ||
+        workerNeedsRestart ||
+        workerCandidates.some(workerStatusNeedsAttention) ||
+        workerReadyValue === false
       ? 'attention'
       : workerReadyValue === true
         ? 'ready'
         : 'unknown';
+  const workerReason: TemporalReasonKind =
+    worker === 'ready'
+      ? 'ready'
+      : workerNotConfigured
+        ? 'not_configured'
+        : workerCandidates.some((value) => value.includes('dependency_unavailable'))
+          ? 'worker_dependency_unavailable'
+          : workerCandidates.some((value) => value.includes('blocked_developer_checkout_shared_state'))
+            ? 'worker_mutation_blocked'
+            : workerCandidates.some((value) => value.includes('worker_source_stale'))
+              ? 'worker_source_stale'
+              : workerCandidates.some((value) => value.includes('duplicate_worker'))
+                ? 'duplicate_worker'
+                : workerCandidates.some((value) => value.includes('server_unreachable'))
+                  ? 'server_unreachable'
+                  : workerCandidates.some((value) => value.includes('process_exited'))
+                    ? 'worker_exited'
+                    : workerReadyValue === false || workerCandidates.some((value) => value.includes('worker_not_ready'))
+                      ? 'worker_not_ready'
+                      : worker === 'attention'
+                        ? 'attention'
+                        : 'unknown';
 
   const schedulerCandidates = [
     normalizedStatus(schedulerReadiness.status),
@@ -179,26 +260,44 @@ function temporalStatusProjection(
     normalizedStatus(details.scheduler_status),
   ].filter((value): value is string => Boolean(value));
   const schedulerReadyValue = typeof schedulerReadiness.ready === 'boolean' ? schedulerReadiness.ready : null;
+  const schedulerError = oplString(schedulerReadiness.error) ?? oplString(schedulerReadiness.last_error);
   const scheduler = schedulerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value))
     ? 'not_configured'
     : schedulerCandidates.some((value) => TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES.has(value))
       ? 'not_installed'
       : schedulerCandidates.includes('paused')
         ? 'paused'
-        : schedulerReadyValue === true
-          ? 'ready'
-          : schedulerReadyValue === false ||
-              schedulerCandidates.some(
-                (value) => TEMPORAL_ATTENTION_STATUSES.has(value) || value === 'error' || value === 'unhealthy'
-              )
-            ? 'attention'
-            : 'unknown';
+        : schedulerError
+          ? 'attention'
+          : schedulerReadyValue === true
+            ? 'ready'
+            : schedulerReadyValue === false ||
+                schedulerCandidates.some(
+                  (value) => TEMPORAL_ATTENTION_STATUSES.has(value) || value === 'error' || value === 'unhealthy'
+                )
+              ? 'attention'
+              : 'unknown';
+  const schedulerReason: TemporalReasonKind =
+    scheduler === 'ready' && !schedulerError
+      ? 'ready'
+      : scheduler === 'not_configured'
+        ? 'not_configured'
+        : scheduler === 'not_installed'
+          ? 'scheduler_not_installed'
+          : scheduler === 'paused'
+            ? 'scheduler_paused'
+            : schedulerError || schedulerCandidates.some((value) => value === 'error' || value === 'unhealthy')
+              ? 'scheduler_error'
+              : schedulerReadyValue === false
+                ? 'scheduler_not_ready'
+                : scheduler === 'attention'
+                  ? 'attention'
+                  : 'unknown';
 
-  return { server, worker, scheduler, workerNeedsRestart };
+  return { server, serverReason, worker, workerReason, scheduler, schedulerReason, workerNeedsRestart };
 }
 
 function useTemporalRecoveryRefresh(hydrated: boolean, ready: boolean, refresh: () => Promise<unknown>): void {
-  const evaluatedRef = React.useRef(false);
   const readyRef = React.useRef(ready);
   const refreshRef = React.useRef(refresh);
 
@@ -208,9 +307,7 @@ function useTemporalRecoveryRefresh(hydrated: boolean, ready: boolean, refresh: 
   }, [ready, refresh]);
 
   React.useEffect(() => {
-    if (!hydrated || evaluatedRef.current) return undefined;
-    evaluatedRef.current = true;
-    if (ready) return undefined;
+    if (!hydrated || ready) return undefined;
 
     let active = true;
     let attempts = 0;
@@ -220,24 +317,22 @@ function useTemporalRecoveryRefresh(hydrated: boolean, ready: boolean, refresh: 
       if (refreshTimer) clearTimeout(refreshTimer);
     }, TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS);
 
-    const scheduleRefresh = (): void => {
+    const runRefresh = (): void => {
       if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
-        attempts += 1;
-        void refreshRef.current().then(
-          () => {
-            if (active && !readyRef.current) scheduleRefresh();
-          },
-          () => {
-            if (active && !readyRef.current) scheduleRefresh();
-          }
-        );
-      }, TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS);
+      attempts += 1;
+      void refreshRef.current().then(
+        () => {
+          if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
+          refreshTimer = setTimeout(runRefresh, TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS);
+        },
+        () => {
+          if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
+          refreshTimer = setTimeout(runRefresh, TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS);
+        }
+      );
     };
 
-    scheduleRefresh();
+    runRefresh();
     return () => {
       active = false;
       if (refreshTimer) clearTimeout(refreshTimer);
@@ -394,6 +489,40 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     if (kind === 'attention') return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
     return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   };
+  const temporalReasonLabel = (reason: TemporalReasonKind): string | null => {
+    if (reason === 'ready') return null;
+    const keyByReason: Record<Exclude<TemporalReasonKind, 'ready'>, string> = {
+      not_configured: 'notConfigured',
+      server_unreachable: 'serverUnreachable',
+      supervisor_not_installed: 'supervisorNotInstalled',
+      supervisor_not_loaded: 'supervisorNotLoaded',
+      supervisor_configuration_drift: 'supervisorConfigurationDrift',
+      supervisor_error: 'supervisorError',
+      supervisor_unready: 'supervisorUnready',
+      worker_dependency_unavailable: 'workerDependencyUnavailable',
+      worker_mutation_blocked: 'workerMutationBlocked',
+      worker_source_stale: 'workerSourceStale',
+      duplicate_worker: 'duplicateWorker',
+      worker_exited: 'workerExited',
+      worker_not_ready: 'workerNotReady',
+      scheduler_not_installed: 'schedulerNotInstalled',
+      scheduler_paused: 'schedulerPaused',
+      scheduler_error: 'schedulerError',
+      scheduler_not_ready: 'schedulerNotReady',
+      attention: 'attention',
+      unknown: 'unknown',
+    };
+    return t(`settings.overviewPage.technical.temporalReasons.${keyByReason[reason]}`);
+  };
+  const temporalComponentValue = (
+    kind: TemporalStatusKind,
+    reason: TemporalReasonKind,
+    needsRestart = false
+  ): string => {
+    const status = temporalComponentLabel(kind, needsRestart);
+    const reasonLabel = temporalReasonLabel(reason);
+    return reasonLabel ? `${status} · ${reasonLabel}` : status;
+  };
   const rawCapabilityHealth = oplString(statusSummary.runtime_source_carrier_health);
   const capabilityHealthLabel = rawCapabilityHealth
     ? /^\d+\s*\/\s*\d+$/.test(rawCapabilityHealth)
@@ -418,7 +547,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     {
       id: 'temporal-server',
       label: t('settings.oplEnvironmentPage.temporal.server.title'),
-      value: temporalComponentLabel(temporalStatus.server),
+      value: temporalComponentValue(temporalStatus.server, temporalStatus.serverReason),
       testId: 'settings-overview-temporal-server',
       route: '/settings/environment?section=services',
       actionLabel: t('settings.overviewPage.actions.openRuntimeSettings'),
@@ -426,13 +555,17 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     {
       id: 'temporal-worker',
       label: t('settings.oplEnvironmentPage.temporal.worker.title'),
-      value: temporalComponentLabel(temporalStatus.worker, temporalStatus.workerNeedsRestart),
+      value: temporalComponentValue(
+        temporalStatus.worker,
+        temporalStatus.workerReason,
+        temporalStatus.workerNeedsRestart
+      ),
       testId: 'settings-overview-temporal-worker',
     },
     {
       id: 'temporal-scheduler',
       label: t('settings.oplEnvironmentPage.temporal.scheduler.title'),
-      value: temporalComponentLabel(temporalStatus.scheduler),
+      value: temporalComponentValue(temporalStatus.scheduler, temporalStatus.schedulerReason),
       testId: 'settings-overview-temporal-scheduler',
     },
     {

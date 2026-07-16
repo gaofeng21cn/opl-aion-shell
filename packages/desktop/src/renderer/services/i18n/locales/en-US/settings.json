@@ -1498,6 +1498,27 @@
       "backgroundService": "Background service",
       "temporalNotConfigured": "The Temporal server and worker are not configured; the scheduler still needs to be checked.",
       "temporalNeedsAttention": "The Temporal server, worker, or scheduler still needs attention.",
+      "temporalReasons": {
+        "notConfigured": "No runtime address is configured yet; Maintenance can configure and start the local service.",
+        "serverUnreachable": "A server address is configured, but it cannot be reached.",
+        "supervisorNotInstalled": "Login startup protection is not installed.",
+        "supervisorNotLoaded": "Login startup protection is installed but not running.",
+        "supervisorConfigurationDrift": "Login startup protection no longer matches the managed configuration.",
+        "supervisorError": "Login startup protection reported an error.",
+        "supervisorUnready": "Login startup protection has not become ready.",
+        "workerDependencyUnavailable": "A required Temporal worker dependency is missing or unavailable in OPL Base.",
+        "workerMutationBlocked": "The active development source is not allowed to take over the shared managed worker.",
+        "workerSourceStale": "The running worker does not match the current managed source and must be restarted.",
+        "duplicateWorker": "Another worker is already using the managed task queue.",
+        "workerExited": "The worker process exited before it became ready.",
+        "workerNotReady": "The worker has not become ready for the managed task queue.",
+        "schedulerNotInstalled": "The recurring OPL schedule has not been installed.",
+        "schedulerPaused": "The recurring OPL schedule is paused.",
+        "schedulerError": "The scheduler reported an error during its latest check.",
+        "schedulerNotReady": "The scheduler has not reached a ready state.",
+        "attention": "This component reported a condition that requires maintenance.",
+        "unknown": "This component did not provide enough fresh detail; run a check in Maintenance."
+      },
       "capabilities": "Capability packages"
     },
     "developerSource": {
@@ -2791,6 +2812,7 @@
         "supervisorNotLoaded": "Startup protection: installed but not running",
         "supervisorConfigurationDrift": "Startup protection: configuration needs repair",
         "supervisorNeedsRepair": "Startup protection: repair required",
+        "supervisorReportedError": "Startup protection: the latest check reported an error",
         "supervisorObservedAt": "Startup protection last checked: {{observedAt}}"
       },
       "worker": {
@@ -2799,11 +2821,15 @@
         "blockers": "Needs attention: {{blockers}}",
         "developerGuardBlocked": "The active OPL CLI points to a developer checkout, so it cannot take over the shared managed worker.",
         "developerGuardNextSteps": "Switch back to the managed runtime, or explicitly enable authorized developer maintenance.",
-        "manageSources": "Manage runtime source"
+        "manageSources": "Manage runtime source",
+        "dependencyUnavailable": "A required worker dependency is unavailable. Repair OPL Base before starting the worker.",
+        "repairDependency": "Repair OPL Base",
+        "reportedError": "The worker reported an error during its latest check."
       },
       "scheduler": {
         "title": "OPL scheduler",
         "description": "Maintains the recurring OPL family runtime schedule.",
+        "reportedError": "The scheduler reported an error during its latest check.",
         "observedAt": "Last checked: {{observedAt}}"
       },
       "values": {
@@ -2862,9 +2888,9 @@
         "actionComplete": "Temporal maintenance completed and the new state was verified.",
         "needsAttention": "The check completed, but this Temporal service still needs attention.",
         "actionBlocked": "Temporal maintenance was blocked by the current safety policy.",
-      "actionFailed": "Temporal maintenance failed.",
-      "componentError": "The action completed, but a Temporal component still reports an error.",
-      "readbackFailed": "The action ran, but the App could not read back the fresh Temporal state.",
+        "actionFailed": "Temporal maintenance failed.",
+        "componentError": "The action completed, but a Temporal component still reports an error.",
+        "readbackFailed": "The action ran, but the App could not read back the fresh Temporal state.",
         "postconditionFailed": "The action ran, but the expected Temporal state was not reached."
       }
     },

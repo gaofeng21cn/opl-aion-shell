@@ -183,9 +183,6 @@ function temporalServiceSupervisorLabel(
   if (!snapshot.serviceSupervisorRequired) {
     return t('settings.oplEnvironmentPage.temporal.server.supervisorNotApplicable');
   }
-  if (snapshot.serviceSupervisorReady === true) {
-    return t('settings.oplEnvironmentPage.temporal.server.supervisorReady');
-  }
   if (!snapshot.serviceSupervisorInstalled) {
     return t('settings.oplEnvironmentPage.temporal.server.supervisorNotInstalled');
   }
@@ -195,10 +192,17 @@ function temporalServiceSupervisorLabel(
   if (!snapshot.serviceSupervisorLoaded) {
     return t('settings.oplEnvironmentPage.temporal.server.supervisorNotLoaded');
   }
+  if (snapshot.serviceSupervisorError) {
+    return t('settings.oplEnvironmentPage.temporal.server.supervisorReportedError');
+  }
+  if (snapshot.serviceSupervisorReady === true) {
+    return t('settings.oplEnvironmentPage.temporal.server.supervisorReady');
+  }
   return t('settings.oplEnvironmentPage.temporal.server.supervisorNeedsRepair');
 }
 
 function temporalWorkerStatusLabel(snapshot: TemporalMaintenanceSnapshot, t: RuntimeSettingsPanelsTranslate): string {
+  if (snapshot.workerError) return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
   if (snapshot.workerReady) return t('settings.oplEnvironmentPage.temporal.values.ready');
   if (snapshot.workerStatus === 'not_configured') {
     return t('settings.oplEnvironmentPage.temporal.values.notConfigured');
@@ -220,6 +224,7 @@ function temporalSchedulerStatusLabel(
   t: RuntimeSettingsPanelsTranslate
 ): string {
   const status = snapshot.schedulerStatus;
+  if (snapshot.schedulerError) return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
   if (snapshot.schedulerReady === true) return t('settings.oplEnvironmentPage.temporal.values.ready');
   if (status === 'not_installed') return t('settings.oplEnvironmentPage.temporal.values.notInstalled');
   if (status === 'paused') return t('settings.oplEnvironmentPage.temporal.values.paused');
@@ -303,6 +308,7 @@ export function TemporalMaintenancePanel({
   disabled,
   onAction,
   onOpenWorkerSourceSettings,
+  onRepairWorkerDependency,
   t,
 }: {
   snapshot: TemporalMaintenanceSnapshot;
@@ -312,6 +318,7 @@ export function TemporalMaintenancePanel({
   disabled: boolean;
   onAction: (actionId: TemporalMaintenanceActionId) => void;
   onOpenWorkerSourceSettings: () => void;
+  onRepairWorkerDependency: () => void;
   t: RuntimeSettingsPanelsTranslate;
 }) {
   const serverNotConfigured =
@@ -320,11 +327,17 @@ export function TemporalMaintenancePanel({
       TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
       TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus));
   const serverReady =
-    snapshot.serviceReady === true && (!snapshot.serviceSupervisorRequired || snapshot.serviceSupervisorReady === true);
-  const serverFailed = snapshot.serviceReady === false && !serverNotConfigured;
+    snapshot.serviceReady === true &&
+    (!snapshot.serviceSupervisorRequired || snapshot.serviceSupervisorReady === true) &&
+    snapshot.serviceSupervisorError === null;
+  const serverFailed =
+    (snapshot.serviceReady === false && !serverNotConfigured) || snapshot.serviceSupervisorError !== null;
   const supervisorStatusLabel = temporalServiceSupervisorLabel(snapshot, t);
   const workerNeedsRestart = ['worker_source_stale', 'duplicate_worker'].includes(snapshot.workerStatus);
   const workerMutationBlocked = snapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state';
+  const workerDependencyUnavailable =
+    snapshot.workerStatus.includes('dependency_unavailable') ||
+    snapshot.blockers.some((blocker) => blocker.includes('worker_dependency_unavailable'));
   const unavailableHelp = t('settings.oplEnvironmentPage.temporal.actions.unavailable');
   const blockerText = snapshot.blockers.length
     ? snapshot.blockers.map((blocker) => temporalBlockerLabel(blocker, t)).join(', ')
@@ -344,7 +357,9 @@ export function TemporalMaintenancePanel({
         snapshot.serviceSupervisorReady === false ||
         snapshot.serviceSupervisorError !== null)) ||
     (!snapshot.workerReady && !['not_checked', 'unknown', 'not_configured'].includes(snapshot.workerStatus)) ||
-    snapshot.schedulerReady === false;
+    snapshot.workerError !== null ||
+    snapshot.schedulerReady === false ||
+    snapshot.schedulerError !== null;
   const aggregateStatusLabel = snapshot.ready
     ? t('settings.oplEnvironmentPage.temporal.values.ready')
     : componentFailureReported
@@ -470,10 +485,27 @@ export function TemporalMaintenancePanel({
                   {t('settings.oplEnvironmentPage.temporal.worker.developerGuardNextSteps')}
                 </Typography.Text>
               )}
+              {workerDependencyUnavailable && (
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.worker.dependencyUnavailable')}
+                </Typography.Text>
+              )}
+              {snapshot.workerError && (
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.worker.reportedError')}
+                </Typography.Text>
+              )}
             </div>
           </div>
           <div className='opl-settings-row__meta'>
-            <span className={temporalStatusClass(snapshot.workerReady)}>{workerStatusLabel}</span>
+            <span
+              className={temporalStatusClass(
+                snapshot.workerReady && !snapshot.workerError,
+                Boolean(snapshot.workerError)
+              )}
+            >
+              {workerStatusLabel}
+            </span>
             <TemporalActionButton
               actionId='provider_worker_status'
               action={actions.provider_worker_status}
@@ -500,7 +532,7 @@ export function TemporalMaintenancePanel({
               }
               unavailableHelp={unavailableHelp}
               busyActionId={busyActionId}
-              disabled={disabled || !serverReady || workerMutationBlocked}
+              disabled={disabled || !serverReady || workerMutationBlocked || workerDependencyUnavailable}
               icon={<Refresh theme='outline' size='14' />}
               onAction={onAction}
             />
@@ -513,6 +545,18 @@ export function TemporalMaintenancePanel({
                 data-testid='settings-maintenance-temporal-worker-source'
               >
                 {t('settings.oplEnvironmentPage.temporal.worker.manageSources')}
+              </Button>
+            )}
+            {workerDependencyUnavailable && (
+              <Button
+                size='small'
+                type='text'
+                icon={<Right theme='outline' size='14' />}
+                disabled={disabled}
+                onClick={onRepairWorkerDependency}
+                data-testid='settings-maintenance-temporal-worker-repair-dependency'
+              >
+                {t('settings.oplEnvironmentPage.temporal.worker.repairDependency')}
               </Button>
             )}
           </div>
@@ -537,13 +581,19 @@ export function TemporalMaintenancePanel({
                   })}
                 </Typography.Text>
               )}
+              {snapshot.schedulerError && (
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.scheduler.reportedError')}
+                </Typography.Text>
+              )}
             </div>
           </div>
           <div className='opl-settings-row__meta'>
             <span
               className={temporalStatusClass(
-                snapshot.schedulerReady === true,
-                snapshot.schedulerReady === false && !['not_installed', 'paused'].includes(snapshot.schedulerStatus)
+                snapshot.schedulerReady === true && !snapshot.schedulerError,
+                Boolean(snapshot.schedulerError) ||
+                  (snapshot.schedulerReady === false && !['not_installed', 'paused'].includes(snapshot.schedulerStatus))
               )}
             >
               {schedulerStatusLabel}

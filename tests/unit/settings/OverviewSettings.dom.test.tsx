@@ -22,10 +22,16 @@ const mocks = vi.hoisted(() => ({
   temporalSupervisorApplicable: true as boolean | null,
   temporalSupervisorRequired: true as boolean | null,
   temporalSupervisorReady: true as boolean | null,
+  temporalSupervisorInstalled: true as boolean | null,
+  temporalSupervisorLoaded: true as boolean | null,
+  temporalSupervisorConfigurationCurrent: true as boolean | null,
+  temporalSupervisorError: null as string | null,
   temporalSupervisorStatus: 'loaded_running',
   temporalWorkerReady: true as boolean | null,
+  temporalWorkerBlockers: [] as string[],
   temporalSchedulerStatus: 'ready',
   temporalSchedulerReady: true as boolean | null,
+  temporalSchedulerError: null as string | null,
   temporalSchedulerObservedAt: '2026-07-17T08:00:00Z',
   capabilityHealth: '5/5',
   appStateHydrated: true,
@@ -124,9 +130,14 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                     applicable: mocks.temporalSupervisorApplicable,
                     required: mocks.temporalSupervisorRequired,
                     ready: mocks.temporalSupervisorReady,
+                    installed: mocks.temporalSupervisorInstalled,
+                    loaded: mocks.temporalSupervisorLoaded,
+                    configuration_current: mocks.temporalSupervisorConfigurationCurrent,
+                    error: mocks.temporalSupervisorError,
                     status: mocks.temporalSupervisorStatus,
                   },
                 },
+                blockers: mocks.temporalWorkerBlockers,
                 worker_mutation_guard: {
                   mutation_guard_status: mocks.temporalWorkerMutationGuard,
                 },
@@ -135,6 +146,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 status: mocks.temporalSchedulerStatus,
                 ready: mocks.temporalSchedulerReady,
                 observed_at: mocks.temporalSchedulerObservedAt,
+                error: mocks.temporalSchedulerError,
               },
             },
           },
@@ -186,6 +198,29 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.technical.gatewayFreshness': 'Gateway data',
         'settings.overviewPage.technical.backgroundService': 'Background service',
         'settings.overviewPage.technical.temporalNotConfigured': 'Temporal server and worker are not configured',
+        'settings.overviewPage.technical.temporalReasons.notConfigured': 'No runtime address is configured.',
+        'settings.overviewPage.technical.temporalReasons.serverUnreachable': 'The server cannot be reached.',
+        'settings.overviewPage.technical.temporalReasons.supervisorNotInstalled':
+          'Startup protection is not installed.',
+        'settings.overviewPage.technical.temporalReasons.supervisorNotLoaded': 'Startup protection is not running.',
+        'settings.overviewPage.technical.temporalReasons.supervisorConfigurationDrift':
+          'Startup protection configuration drifted.',
+        'settings.overviewPage.technical.temporalReasons.supervisorError': 'Startup protection reported an error.',
+        'settings.overviewPage.technical.temporalReasons.supervisorUnready': 'Startup protection is not ready.',
+        'settings.overviewPage.technical.temporalReasons.workerDependencyUnavailable':
+          'A required worker dependency is unavailable in OPL Base.',
+        'settings.overviewPage.technical.temporalReasons.workerMutationBlocked':
+          'The active source cannot take over the managed worker.',
+        'settings.overviewPage.technical.temporalReasons.workerSourceStale': 'The worker source is stale.',
+        'settings.overviewPage.technical.temporalReasons.duplicateWorker': 'Another worker is already running.',
+        'settings.overviewPage.technical.temporalReasons.workerExited': 'The worker process exited.',
+        'settings.overviewPage.technical.temporalReasons.workerNotReady': 'The worker is not ready.',
+        'settings.overviewPage.technical.temporalReasons.schedulerNotInstalled': 'The schedule is not installed.',
+        'settings.overviewPage.technical.temporalReasons.schedulerPaused': 'The schedule is paused.',
+        'settings.overviewPage.technical.temporalReasons.schedulerError': 'The scheduler reported an error.',
+        'settings.overviewPage.technical.temporalReasons.schedulerNotReady': 'The scheduler is not ready.',
+        'settings.overviewPage.technical.temporalReasons.attention': 'This component requires maintenance.',
+        'settings.overviewPage.technical.temporalReasons.unknown': 'Run a fresh maintenance check.',
         'settings.overviewPage.technical.capabilities': 'Capability packages',
         'settings.accessPage.statusLabels.connected': 'Connected',
         'settings.accessPage.statusLabels.needsAttention': 'Needs attention',
@@ -246,10 +281,16 @@ describe('OverviewSettings', () => {
     mocks.temporalSupervisorApplicable = true;
     mocks.temporalSupervisorRequired = true;
     mocks.temporalSupervisorReady = true;
+    mocks.temporalSupervisorInstalled = true;
+    mocks.temporalSupervisorLoaded = true;
+    mocks.temporalSupervisorConfigurationCurrent = true;
+    mocks.temporalSupervisorError = null;
     mocks.temporalSupervisorStatus = 'loaded_running';
     mocks.temporalWorkerReady = true;
+    mocks.temporalWorkerBlockers = [];
     mocks.temporalSchedulerStatus = 'ready';
     mocks.temporalSchedulerReady = true;
+    mocks.temporalSchedulerError = null;
     mocks.temporalSchedulerObservedAt = '2026-07-17T08:00:00Z';
     mocks.capabilityHealth = '5/5';
     mocks.appStateHydrated = true;
@@ -278,7 +319,7 @@ describe('OverviewSettings', () => {
     mocks.appStateLoading = false;
     view.rerender(<OverviewSettings withWrapper={false} />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1_500);
+      await vi.advanceTimersByTimeAsync(0);
     });
     expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
     expect(mocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true });
@@ -311,34 +352,39 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(100_000);
     });
-    expect(mocks.loadAppState).toHaveBeenCalledTimes(8);
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(30);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
-    expect(mocks.loadAppState).toHaveBeenCalledTimes(8);
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(30);
   });
 
   it('honors the recovery deadline when a fresh read is slow', async () => {
     vi.useFakeTimers();
     mocks.temporalSchedulerStatus = 'not_installed';
     mocks.temporalSchedulerReady = false;
-    mocks.loadAppState.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(null), 4_000)));
+    mocks.loadAppState.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(null), 20_000)));
     render(<OverviewSettings withWrapper={false} />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(120_000);
     });
 
-    expect(mocks.loadAppState).toHaveBeenCalledTimes(3);
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(4);
   });
 
   it('clears the pending recovery refresh when Overview unmounts', async () => {
     vi.useFakeTimers();
     mocks.temporalWorkerStatus = 'worker_source_stale';
     mocks.temporalWorkerReady = false;
+    mocks.loadAppState.mockReturnValue(new Promise(() => {}));
     const view = render(<OverviewSettings withWrapper={false} />);
 
     view.unmount();
@@ -347,7 +393,22 @@ describe('OverviewSettings', () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
 
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a bounded recovery loop when a previously ready projection becomes stale', async () => {
+    vi.useFakeTimers();
+    const view = render(<OverviewSettings withWrapper={false} />);
     expect(mocks.loadAppState).not.toHaveBeenCalled();
+
+    mocks.temporalWorkerStatus = 'worker_not_ready';
+    mocks.temporalWorkerReady = false;
+    view.rerender(<OverviewSettings withWrapper={false} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
   });
 
   it('shows compact Gateway usage and the direct technical readback needed for an overview', () => {
@@ -442,7 +503,9 @@ describe('OverviewSettings', () => {
     const server = screen.getByTestId('settings-overview-temporal-server');
     const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverNot configured');
+    expect(server).toHaveTextContent('No runtime address is configured.');
     expect(worker).toHaveTextContent('OPL workerNot configured');
+    expect(worker).toHaveTextContent('No runtime address is configured.');
     expect(server).not.toHaveTextContent('attention_needed');
     expect(worker).not.toHaveTextContent('attention_needed');
     fireEvent.click(screen.getByTestId('settings-overview-temporal-maintenance'));
@@ -464,6 +527,7 @@ describe('OverviewSettings', () => {
 
     const server = screen.getByTestId('settings-overview-temporal-server');
     expect(server).toHaveTextContent('Temporal serverNeeds attention');
+    expect(server).toHaveTextContent('The server cannot be reached.');
     expect(server).not.toHaveTextContent('Not configured');
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
@@ -478,7 +542,9 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverNeeds attention');
+    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent(
+      'Startup protection configuration drifted.'
+    );
   });
 
   it('does not require a local supervisor for an explicit external Temporal service', () => {
@@ -522,6 +588,7 @@ describe('OverviewSettings', () => {
     const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverReady');
     expect(worker).toHaveTextContent('OPL workerRestart required');
+    expect(worker).toHaveTextContent('The worker source is stale.');
     expect(server).not.toHaveTextContent('attention_needed');
     expect(worker).not.toHaveTextContent('worker_source_stale');
   });
@@ -540,7 +607,23 @@ describe('OverviewSettings', () => {
     const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverReady');
     expect(worker).toHaveTextContent('OPL workerNeeds attention');
+    expect(worker).toHaveTextContent('The active source cannot take over the managed worker.');
     expect(worker).not.toHaveTextContent('blocked_developer_checkout_shared_state');
+  });
+
+  it('explains a missing worker dependency without exposing the blocker token', () => {
+    mocks.temporalProviderStatus = 'attention_needed';
+    mocks.temporalRuntimeStatus = 'attention_needed';
+    mocks.temporalServiceReady = true;
+    mocks.temporalWorkerStatus = 'worker_not_ready';
+    mocks.temporalWorkerReady = false;
+    mocks.temporalWorkerBlockers = ['temporal_worker_dependency_unavailable'];
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    const worker = screen.getByTestId('settings-overview-temporal-worker');
+    expect(worker).toHaveTextContent('A required worker dependency is unavailable in OPL Base.');
+    expect(worker).not.toHaveTextContent('temporal_worker_dependency_unavailable');
   });
 
   it('fails closed when worker readiness is missing even if the provider reports ready', () => {
@@ -567,7 +650,9 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent('Needs attention');
+    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent(
+      'Needs attention · The scheduler reported an error.'
+    );
     const action = screen.getByTestId('settings-overview-primary-action');
     action.focus();
     await user.keyboard('{Enter}');
