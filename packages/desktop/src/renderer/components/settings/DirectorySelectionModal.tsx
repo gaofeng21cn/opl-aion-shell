@@ -5,7 +5,7 @@
  */
 
 import { Button, Modal, Spin } from '@arco-design/web-react';
-import { IconFile, IconFolder, IconUp } from '@arco-design/web-react/icon';
+import { FileText, FolderOpen, Up } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBaseUrl } from '@/common/adapter/httpBridge';
@@ -141,7 +141,16 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
     // of them — it's the topmost layer while choosing a folder.
     <Modal
       visible={visible}
-      title={isFileMode ? '📄 ' + t('fileSelection.selectFile') : '📁 ' + t('fileSelection.selectDirectory')}
+      title={
+        <span className='inline-flex items-center gap-8px'>
+          {isFileMode ? (
+            <FileText theme='outline' size='16' fill='currentColor' aria-hidden='true' />
+          ) : (
+            <FolderOpen theme='outline' size='16' fill='currentColor' aria-hidden='true' />
+          )}
+          <span>{isFileMode ? t('fileSelection.selectFile') : t('fileSelection.selectDirectory')}</span>
+        </span>
+      }
       onCancel={onCancel}
       onOk={handleConfirm}
       okButtonProps={{ disabled: !selectedPath }}
@@ -176,7 +185,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
                 className='flex items-center p-10px border-b border-b-light cursor-pointer hover:bg-hover transition'
                 onClick={handleGoUp}
               >
-                <IconUp className='mr-10px text-t-secondary' />
+                <Up theme='outline' size='16' fill='currentColor' className='mr-10px text-t-secondary' />
                 <span>..</span>
               </div>
             )}
@@ -198,9 +207,19 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
               >
                 <div className='flex items-center flex-1 min-w-0'>
                   {item.isDirectory ? (
-                    <IconFolder className='mr-10px text-warning shrink-0' />
+                    <FolderOpen
+                      theme='outline'
+                      size='16'
+                      fill='currentColor'
+                      className='mr-10px shrink-0 text-t-secondary'
+                    />
                   ) : (
-                    <IconFile className='mr-10px text-primary shrink-0' />
+                    <FileText
+                      theme='outline'
+                      size='16'
+                      fill='currentColor'
+                      className='mr-10px shrink-0 text-t-secondary'
+                    />
                   )}
                   <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
                 </div>

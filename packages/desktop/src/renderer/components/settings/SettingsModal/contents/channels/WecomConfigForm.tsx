@@ -11,8 +11,9 @@ import { openExternalUrl } from '@/renderer/utils/platform';
 import GoogleModelSelector from '@/renderer/pages/conversation/platforms/gemini/GoogleModelSelector';
 import type { GoogleModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGoogleModelSelection';
 import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
-import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
+import { ChannelEmptyState } from './ChannelItem';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -528,7 +529,9 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
               <Spin />
             </div>
           ) : pendingPairings.length === 0 ? (
-            <Empty description={t('settings.assistant.noPendingPairings', 'No pending pairing requests')} />
+            <ChannelEmptyState testId='channel-pending-pairings-empty'>
+              {t('settings.assistant.noPendingPairings', 'No pending pairing requests')}
+            </ChannelEmptyState>
           ) : (
             <div className='flex flex-col gap-12px'>
               {pendingPairings.map((pairing) => (
@@ -603,7 +606,9 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
               <Spin />
             </div>
           ) : authorizedUsers.length === 0 ? (
-            <Empty description={t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')} />
+            <ChannelEmptyState testId='channel-authorized-users-empty'>
+              {t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')}
+            </ChannelEmptyState>
           ) : (
             <div className='flex flex-col gap-12px'>
               {authorizedUsers.map((user) => (

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
+import { ChannelEmptyState } from '@/renderer/components/settings/SettingsModal/contents/channels/ChannelItem';
 import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
@@ -209,6 +210,16 @@ describe('SettingsModal OPL App navigation', () => {
 
     expect(screen.getByTestId('overview-content')).toBeInTheDocument();
     expect(screen.queryByTestId('runtime-content')).not.toBeInTheDocument();
+  });
+
+  it('renders channel empty states as compact text without an illustration', () => {
+    const { container } = render(<ChannelEmptyState testId='channel-empty'>No pending pairings</ChannelEmptyState>);
+
+    const emptyState = screen.getByTestId('channel-empty');
+    expect(emptyState).toHaveTextContent('No pending pairings');
+    expect(emptyState).toHaveClass('text-12px', 'leading-18px');
+    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('.arco-empty')).toBeNull();
   });
 
   it('renders Account & Access and Models as separate owner pages', () => {

@@ -583,6 +583,89 @@ async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promi
   };
 }
 
+async function compactConversationHistoryEmptyCheck(page: Page): Promise<GuiBaselineLayoutCheck> {
+  const details = await page
+    .locator('[data-testid="conversation-history-empty"]')
+    .first()
+    .evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      const icon = element.querySelector<SVGElement>('svg');
+      const label = element.querySelector<HTMLElement>('.text-13px');
+      const iconRect = icon?.getBoundingClientRect();
+      const labelStyle = label ? window.getComputedStyle(label) : null;
+      return {
+        display: style.display,
+        flexDirection: style.flexDirection,
+        gap: style.gap,
+        hasArcoIllustration: element.querySelector('.arco-empty') !== null,
+        iconWidth: iconRect?.width ?? null,
+        iconHeight: iconRect?.height ?? null,
+        iconColor: icon ? window.getComputedStyle(icon).color : null,
+        labelFontSize: labelStyle?.fontSize ?? null,
+        labelLineHeight: labelStyle?.lineHeight ?? null,
+      };
+    });
+
+  const passed =
+    details.display === 'flex' &&
+    details.flexDirection === 'column' &&
+    details.gap === '8px' &&
+    details.hasArcoIllustration === false &&
+    details.iconWidth !== null &&
+    details.iconHeight !== null &&
+    Math.abs(details.iconWidth - 20) <= 1 &&
+    Math.abs(details.iconHeight - 20) <= 1 &&
+    details.iconColor !== null &&
+    details.iconColor !== 'rgba(0, 0, 0, 0)' &&
+    details.labelFontSize === '13px' &&
+    details.labelLineHeight === '18px';
+  return {
+    id: 'conversation_history_empty_is_compact_monochrome',
+    passed,
+    details: JSON.stringify(details),
+  };
+}
+
+async function conversationTypographyCheck(page: Page): Promise<GuiBaselineLayoutCheck> {
+  const details = await page.evaluate(() => {
+    const plainText = document.querySelector<HTMLElement>('[data-testid="message-text-content"].whitespace-pre-wrap');
+    const markdownHost = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="message-text-content"]'))
+      .map((element) => element.querySelector<HTMLElement>('.markdown-shadow'))
+      .find((element): element is HTMLElement => element !== null);
+    const markdownBody = markdownHost?.shadowRoot?.querySelector<HTMLElement>('.markdown-shadow-body') ?? null;
+    const read = (element: HTMLElement | null) => {
+      if (!element) return null;
+      const style = window.getComputedStyle(element);
+      return {
+        fontSize: Number.parseFloat(style.fontSize),
+        lineHeight: Number.parseFloat(style.lineHeight),
+        fontWeight: style.fontWeight === 'normal' ? 400 : Number.parseInt(style.fontWeight, 10),
+        fontFamily: style.fontFamily,
+        letterSpacing: style.letterSpacing,
+      };
+    };
+    return { plain: read(plainText), markdown: read(markdownBody) };
+  });
+
+  const typographyMatches = (value: (typeof details)['plain']): boolean =>
+    Boolean(
+      value &&
+      Math.abs(value.fontSize - 15) <= 0.1 &&
+      Math.abs(value.lineHeight - 22) <= 0.2 &&
+      value.fontWeight === 400 &&
+      (value.letterSpacing === 'normal' || value.letterSpacing === '0px')
+    );
+  const passed =
+    typographyMatches(details.plain) &&
+    typographyMatches(details.markdown) &&
+    details.plain?.fontFamily === details.markdown?.fontFamily;
+  return {
+    id: 'conversation_plain_and_markdown_typography_match_codex_rhythm',
+    passed,
+    details: JSON.stringify(details),
+  };
+}
+
 async function expectHomeLocale(page: Page, locale: GuiBaselineLocale): Promise<void> {
   const homeEntry = page.locator('[data-testid="opl-guid-entry"]');
   await expect(homeEntry).toHaveCount(1);
@@ -747,6 +830,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       '[data-testid="conversation-composer"]'
     ),
     await textOverflowCheck(page, 'conversation_text_does_not_overflow', '[data-testid="conversation-main-column"]'),
+    await conversationTypographyCheck(page),
   ];
 
   return [
@@ -1091,6 +1175,36 @@ function buildTargets(conversationId: string): VisualTarget[] {
   ];
 }
 
+function buildEmptyHistoryTarget(): VisualTarget {
+  return {
+    id: 'home-desktop-light-zh-CN-empty-history',
+    screenshotName: 'gui-baseline/home/desktop/light/zh-CN/empty-history',
+    viewport: { name: 'desktop', width: 1440, height: 960 },
+    theme: 'light',
+    locale: 'zh-CN',
+    anchors: [
+      anchor('home_route', '[data-testid="opl-guid-entry"]'),
+      anchor('conversation_history_empty', '[data-testid="conversation-history-empty"]'),
+      anchor('conversation_history_empty_icon', '[data-testid="conversation-history-empty"] svg'),
+      anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+    ],
+    coverageGaps: [],
+    setup: async (page) => {
+      await goToGuid(page);
+      await setNavigationRailExpanded(page, true);
+      await expectHomeLocale(page, 'zh-CN');
+      await expect(page.locator('[data-testid="conversation-history-empty"]').first()).toBeVisible();
+      await expect(page.locator('[data-testid="conversation-history-empty"] .arco-empty')).toHaveCount(0);
+      return { route_kind: 'home', rail: 'expanded', conversation_history: 'empty' };
+    },
+    layoutChecks: async (page) => [
+      await disjointCheck(page, 'navigation_rail_does_not_cover_main', NAVIGATION_RAIL_SELECTOR, MAIN_CONTENT_SELECTOR),
+      await textOverflowCheck(page, 'home_empty_history_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+      await compactConversationHistoryEmptyCheck(page),
+    ],
+  };
+}
+
 test.describe.configure({ timeout: 240_000 });
 
 test('writes route-bound GUI baseline evidence for Home and ordinary conversations', async ({ page, electronApp }) => {
@@ -1108,6 +1222,7 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     await ensureRendererReady(page);
     originalSettings = await httpGet<ClientSettings>(page, '/api/settings/client');
     await removeFixtureConversations(page);
+    await captureTarget(page, electronApp, writer, shellHead, buildEmptyHistoryTarget());
     conversationId = await createFixtureConversation(page);
 
     for (const target of buildTargets(conversationId)) {

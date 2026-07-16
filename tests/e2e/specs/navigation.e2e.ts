@@ -121,6 +121,44 @@ const expectVisualAnchors = async (page: import('@playwright/test').Page, anchor
   }
 };
 
+const expectStorageActionIconLayout = async (page: import('@playwright/test').Page) => {
+  const metrics = await page.locator('[data-testid="settings-storage-primary-action"]').evaluate((element) => {
+    const button = element as HTMLButtonElement;
+    const icon = button.querySelector<HTMLElement>(':scope > .i-icon');
+    const label = icon?.nextElementSibling instanceof HTMLElement ? icon.nextElementSibling : null;
+    const svg = icon?.querySelector<SVGElement>('svg') ?? null;
+    const iconRect = icon?.getBoundingClientRect();
+    const labelRect = label?.getBoundingClientRect();
+    const svgRect = svg?.getBoundingClientRect();
+    const iconStyle = icon ? window.getComputedStyle(icon) : null;
+    return {
+      directIconSlot: icon?.parentElement === button,
+      iconWidth: iconRect?.width ?? null,
+      iconHeight: iconRect?.height ?? null,
+      svgWidth: svgRect?.width ?? null,
+      svgHeight: svgRect?.height ?? null,
+      iconLabelGap: iconRect && labelRect ? labelRect.left - iconRect.right : null,
+      iconLabelCenterDelta:
+        iconRect && labelRect
+          ? Math.abs(iconRect.top + iconRect.height / 2 - (labelRect.top + labelRect.height / 2))
+          : null,
+      iconBackground: iconStyle?.backgroundColor ?? null,
+      iconColor: iconStyle?.color ?? null,
+    };
+  });
+
+  expect(metrics.directIconSlot, JSON.stringify(metrics)).toBe(true);
+  expect(metrics.iconWidth, JSON.stringify(metrics)).toBeCloseTo(20, 0);
+  expect(metrics.iconHeight, JSON.stringify(metrics)).toBeCloseTo(20, 0);
+  expect(metrics.svgWidth, JSON.stringify(metrics)).toBeCloseTo(16, 0);
+  expect(metrics.svgHeight, JSON.stringify(metrics)).toBeCloseTo(16, 0);
+  expect(metrics.iconLabelGap, JSON.stringify(metrics)).toBeCloseTo(8, 0);
+  expect(metrics.iconLabelCenterDelta, JSON.stringify(metrics)).toBeLessThanOrEqual(1);
+  expect(['rgba(0, 0, 0, 0)', 'transparent']).toContain(metrics.iconBackground);
+  expect(metrics.iconColor).not.toBeNull();
+  expect(metrics.iconColor).not.toBe('rgba(0, 0, 0, 0)');
+};
+
 const collectAnchorEvidence = async (
   page: import('@playwright/test').Page,
   anchors: SettingsVisualAnchor[]
@@ -571,6 +609,7 @@ test.describe('Settings Pages', () => {
       await expectUrlContains(page, tab);
       await expectSelectedSettingsNavigationItem(page, tab, 'desktop');
       await expectVisualAnchors(page, allVisualTargets.find((target) => target.tab === tab)?.anchors ?? []);
+      if (tab === 'storage') await expectStorageActionIconLayout(page);
     }
     for (const tab of legacyTabs) {
       await expect(page.locator(`.settings-sider__item[data-settings-id="${tab}"]`)).toHaveCount(0);
@@ -664,6 +703,7 @@ test.describe('Settings Pages', () => {
           viewport.navigation === 'mobile' && level === 'secondary'
         );
         await expectVisualAnchors(page, anchors);
+        if (tab === 'storage') await expectStorageActionIconLayout(page);
         const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, anchors);

@@ -9,6 +9,20 @@ import React from 'react';
 import ChannelHeader from './ChannelHeader';
 import type { ChannelConfig } from './types';
 
+type ChannelEmptyStateProps = {
+  children: React.ReactNode;
+  testId: string;
+};
+
+export const ChannelEmptyState: React.FC<ChannelEmptyStateProps> = ({ children, testId }) => (
+  <div
+    className='flex min-h-44px items-center justify-center px-12px py-10px text-center text-12px leading-18px text-t-secondary'
+    data-testid={testId}
+  >
+    {children}
+  </div>
+);
+
 interface ChannelItemProps {
   channel: ChannelConfig;
   isCollapsed: boolean;

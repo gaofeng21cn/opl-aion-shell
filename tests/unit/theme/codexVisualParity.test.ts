@@ -87,6 +87,20 @@ describe('Codex visual parity overlay', () => {
     const capabilities = read('packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx');
     const resources = read('packages/desktop/src/renderer/pages/settings/sections/ResourcesSettings.tsx');
     const localServices = read('packages/desktop/src/renderer/pages/settings/sections/LocalServicesSettings.tsx');
+    const directoryPicker = read('packages/desktop/src/renderer/components/settings/DirectorySelectionModal.tsx');
+    const agentHub = read('packages/desktop/src/renderer/pages/settings/AgentSettings/AgentHubModal.tsx');
+    const channelItem = read(
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/channels/ChannelItem.tsx'
+    );
+    const channelForms = [
+      'DingTalkConfigForm.tsx',
+      'WeixinConfigForm.tsx',
+      'WecomConfigForm.tsx',
+      'TelegramConfigForm.tsx',
+      'LarkConfigForm.tsx',
+    ].map((fileName) =>
+      read(`packages/desktop/src/renderer/components/settings/SettingsModal/contents/channels/${fileName}`)
+    );
 
     expect(settingsStyles).toContain('max-width: 760px;');
     expect(settingsWrapper).toContain("'settings-page-content mx-auto w-full'");
@@ -113,6 +127,18 @@ describe('Codex visual parity overlay', () => {
     expect(settingsRegistry).toContain('{icon(16)}');
     expect(settingsRegistry).toContain("<Puzzle theme='outline' size='16' />");
     expect(settingsRegistry).not.toContain('@fortawesome');
+    expect(directoryPicker).toContain("from '@icon-park/react'");
+    expect(directoryPicker).not.toContain('@arco-design/web-react/icon');
+    expect(directoryPicker).not.toMatch(/📁|📄/);
+    expect(agentHub).toContain("from '@icon-park/react'");
+    expect(agentHub).not.toContain('@arco-design/web-react/icon');
+    expect(channelItem).toContain('export const ChannelEmptyState');
+    expect(channelItem).not.toContain('.arco-empty');
+    for (const form of channelForms) {
+      expect(form).toContain("import { ChannelEmptyState } from './ChannelItem';");
+      expect(form).not.toMatch(/\bEmpty\b[\s\S]*from '@arco-design\/web-react'/);
+      expect(form).not.toContain('<Empty');
+    }
   });
 
   it('keeps active Home controls flat, compact, and outline-only', () => {
