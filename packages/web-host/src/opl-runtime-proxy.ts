@@ -310,8 +310,11 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
+  const inheritedEnv: NodeJS.ProcessEnv = { ...process.env };
+  delete inheritedEnv.OPL_APP_HOST_KIND;
+
   return {
-    ...process.env,
+    ...inheritedEnv,
     HOME: dataDir,
     OPL_APP_PROCESS_INSTANCE_ID: oplAppProcessInstanceId,
     ...(inheritUserOplEnvironment

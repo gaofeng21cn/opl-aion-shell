@@ -58,7 +58,9 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
       resourcesPath: path.join(tempRoot, 'resources'),
     };
     const originalValue = process.env.OPL_APP_PROCESS_INSTANCE_ID;
+    const originalHostKind = process.env.OPL_APP_HOST_KIND;
     process.env.OPL_APP_PROCESS_INSTANCE_ID = 'user-supplied-value';
+    process.env.OPL_APP_HOST_KIND = 'desktop';
 
     try {
       const firstEnv = __oplRuntimeProxyTest.buildOplEnv(options);
@@ -68,6 +70,8 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
       expect(firstId).toMatch(/^[0-9a-f-]{36}$/);
       expect(secondEnv.OPL_APP_PROCESS_INSTANCE_ID).toBe(firstId);
       expect(firstId).not.toBe('user-supplied-value');
+      expect(firstEnv.OPL_APP_HOST_KIND).toBeUndefined();
+      expect(secondEnv.OPL_APP_HOST_KIND).toBeUndefined();
 
       const nextProcessId = __oplRuntimeProxyTest.resetOplAppProcessInstanceIdForTest();
       expect(nextProcessId).not.toBe(firstId);
@@ -85,6 +89,11 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
         delete process.env.OPL_APP_PROCESS_INSTANCE_ID;
       } else {
         process.env.OPL_APP_PROCESS_INSTANCE_ID = originalValue;
+      }
+      if (originalHostKind === undefined) {
+        delete process.env.OPL_APP_HOST_KIND;
+      } else {
+        process.env.OPL_APP_HOST_KIND = originalHostKind;
       }
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }

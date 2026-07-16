@@ -112,6 +112,7 @@ type SettingsAppActionId = 'doctor' | 'repair';
 const TEMPORAL_MAINTENANCE_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
   'provider_service_status',
   'provider_service_start',
+  'provider_service_restart',
   'provider_scheduler_status',
   'provider_scheduler_install',
   'provider_scheduler_trigger',
@@ -122,6 +123,7 @@ const TEMPORAL_MAINTENANCE_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
 
 const TEMPORAL_POSTCONDITION_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
   'provider_service_start',
+  'provider_service_restart',
   'provider_scheduler_install',
   'provider_scheduler_trigger',
   'provider_worker_start',
@@ -233,6 +235,8 @@ function temporalMaintenanceSnapshot(
   const temporal = oplRecord(oplRecord(appState.provider).temporal);
   const details = oplRecord(temporal.details);
   const workerReadiness = oplRecord(details.worker_readiness);
+  const temporalServiceLifecycle = oplRecord(workerReadiness.temporal_service_lifecycle);
+  const serviceSupervisor = oplRecord(temporalServiceLifecycle.supervisor);
   const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
   const scheduler = oplRecord(details.scheduler);
   const address = oplString(details.address);
@@ -255,16 +259,48 @@ function temporalMaintenanceSnapshot(
   const schedulerReady = typeof scheduler.ready === 'boolean' ? scheduler.ready : null;
   const schedulerObservedAt = oplString(scheduler.observed_at);
   const projectedWorkerMutationGuardStatus = oplString(workerMutationGuard.mutation_guard_status);
+  const serviceSupervisorInstalled = serviceSupervisor.installed === true;
+  const serviceSupervisorLoaded = serviceSupervisor.loaded === true;
+  const serviceSupervisorSupported =
+    typeof serviceSupervisor.supported === 'boolean' ? serviceSupervisor.supported : null;
+  const serviceSupervisorApplicable =
+    typeof serviceSupervisor.applicable === 'boolean' ? serviceSupervisor.applicable : null;
+  const serviceStatus = oplString(temporalServiceLifecycle.service_status);
+  const projectedServiceSupervisorRequired =
+    typeof serviceSupervisor.required === 'boolean' ? serviceSupervisor.required : null;
+  const serviceSupervisorRequired =
+    projectedServiceSupervisorRequired ??
+    !(
+      serviceSupervisorApplicable === false ||
+      serviceSupervisorSupported === false ||
+      serviceStatus === 'external_running'
+    );
+  const serviceSupervisorReady = typeof serviceSupervisor.ready === 'boolean' ? serviceSupervisor.ready : null;
+  const serviceSupervisorConfigurationCurrent = serviceSupervisor.configuration_current === true;
   return {
     providerStatus: oplString(temporal.status) ?? 'unknown',
     healthStatus: oplString(temporal.health_status) ?? 'unknown',
-    ready: serviceReady === true && workerReady && schedulerReady === true,
+    ready:
+      serviceReady === true &&
+      (!serviceSupervisorRequired || serviceSupervisorReady === true) &&
+      workerReady &&
+      schedulerReady === true,
     address,
     addressSource: oplString(details.address_source) ?? 'unknown',
     namespace: oplString(details.namespace) ?? 'default',
     taskQueue: oplString(details.task_queue) ?? 'opl-stage-attempts',
     serviceReady,
     serverReachable,
+    serviceSupervisorInstalled,
+    serviceSupervisorLoaded,
+    serviceSupervisorSupported,
+    serviceSupervisorApplicable,
+    serviceSupervisorRequired,
+    serviceSupervisorReady,
+    serviceSupervisorConfigurationCurrent,
+    serviceSupervisorStatus: oplString(serviceSupervisor.status) ?? 'not_checked',
+    serviceSupervisorObservedAt: oplString(serviceSupervisor.observed_at),
+    serviceSupervisorError: oplString(serviceSupervisor.error),
     workerReady,
     workerStatus,
     workerMutationGuardStatus: projectedWorkerMutationGuardStatus ?? workerMutationGuardOverride,
@@ -378,8 +414,11 @@ function temporalPostconditionSatisfied(
   actionId: TemporalMaintenanceActionId,
   snapshot: TemporalMaintenanceSnapshot
 ): boolean {
-  if (actionId === 'provider_service_start') {
-    return snapshot.serviceReady === true;
+  if (actionId === 'provider_service_start' || actionId === 'provider_service_restart') {
+    return (
+      snapshot.serviceReady === true &&
+      (!snapshot.serviceSupervisorRequired || snapshot.serviceSupervisorReady === true)
+    );
   }
   if (actionId === 'provider_worker_start' || actionId === 'provider_worker_restart') {
     return snapshot.workerReady;
@@ -1565,7 +1604,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         }
 
         const readNeedsAttention =
-          (actionId === 'provider_service_status' && freshSnapshot.serviceReady !== true) ||
+          (actionId === 'provider_service_status' &&
+            (freshSnapshot.serviceReady !== true ||
+              (freshSnapshot.serviceSupervisorRequired && freshSnapshot.serviceSupervisorReady !== true))) ||
           (actionId === 'provider_worker_status' &&
             (!freshSnapshot.workerReady ||
               freshSnapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state')) ||

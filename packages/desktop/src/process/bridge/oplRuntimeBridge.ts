@@ -1236,6 +1236,7 @@ function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.
   const standardEnv: NodeJS.ProcessEnv = {
     ...buildStandardBootstrapEnv(input),
     OPL_APP_PROCESS_INSTANCE_ID: oplAppProcessInstanceId,
+    OPL_APP_HOST_KIND: 'desktop',
   };
   const fullRuntimeEnv = buildFullRuntimeBridgeEnv(standardEnv);
   if (!fullRuntimeEnv) {

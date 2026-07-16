@@ -52,6 +52,21 @@ type TemporalFixture = {
         mutation_guard_status?: string;
       };
       worker_ready?: boolean;
+      temporal_service_lifecycle?: {
+        service_status?: string;
+        supervisor?: {
+          installed?: boolean;
+          loaded?: boolean;
+          supported?: boolean;
+          applicable?: boolean;
+          required?: boolean;
+          ready?: boolean | null;
+          configuration_current?: boolean;
+          status?: string;
+          observed_at?: string;
+          error?: string | null;
+        };
+      };
     };
   };
 };
@@ -67,7 +82,7 @@ const defaultTemporalState: TemporalFixture = {
   ready: true,
   details: {
     address: '127.0.0.1:7233',
-    address_source: 'managed_local_service_state',
+    address_source: 'managed_service_supervisor',
     namespace: 'default',
     task_queue: 'opl-stage-attempts',
     scheduler: {
@@ -80,6 +95,20 @@ const defaultTemporalState: TemporalFixture = {
       service_ready: true,
       server_reachable: true,
       worker_ready: true,
+      temporal_service_lifecycle: {
+        supervisor: {
+          installed: true,
+          loaded: true,
+          supported: true,
+          applicable: true,
+          required: true,
+          ready: true,
+          configuration_current: true,
+          status: 'loaded_running',
+          observed_at: '2026-07-17T08:00:00Z',
+          error: null,
+        },
+      },
     },
   },
 };
@@ -150,7 +179,18 @@ function exposeTemporalActions(...actionIds: string[]) {
 }
 
 function setTemporalState(temporal: TemporalFixture) {
-  appState.provider.temporal = temporal;
+  const normalized = structuredClone(temporal);
+  const workerReadiness = normalized.details?.worker_readiness;
+  if (workerReadiness?.service_ready === true && !workerReadiness.temporal_service_lifecycle?.supervisor) {
+    workerReadiness.temporal_service_lifecycle = {
+      ...workerReadiness.temporal_service_lifecycle,
+      service_status: 'running',
+      supervisor: structuredClone(
+        defaultTemporalState.details?.worker_readiness?.temporal_service_lifecycle?.supervisor ?? {}
+      ),
+    };
+  }
+  appState.provider.temporal = normalized;
 }
 
 function freshAppStatePayload() {
@@ -303,12 +343,15 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.oplEnvironmentPage.temporal.actions.checkScheduler': '检查调度器',
         'settings.oplEnvironmentPage.temporal.actions.checkServer': '检查 Server',
+        'settings.oplEnvironmentPage.temporal.actions.restartServer': '重启 Server',
         'settings.oplEnvironmentPage.temporal.actions.checkWorker': '检查 Worker',
         'settings.oplEnvironmentPage.temporal.actions.configureAndStartServer': '配置并启动 Server',
         'settings.oplEnvironmentPage.temporal.actions.installScheduler': '安装调度器',
         'settings.oplEnvironmentPage.temporal.actions.restartWorker': '重启 Worker',
         'settings.oplEnvironmentPage.temporal.actions.startWorker': '启动 Worker',
         'settings.oplEnvironmentPage.temporal.actions.triggerScheduler': '立即运行 scheduler',
+        'settings.oplEnvironmentPage.temporal.server.supervisorConfigurationDrift': '启动保护：配置需要修复',
+        'settings.oplEnvironmentPage.temporal.server.supervisorNotApplicable': '启动保护：由当前部署方式负责',
         'settings.oplEnvironmentPage.temporal.messages.actionComplete': '维护已完成',
         'settings.oplEnvironmentPage.temporal.outcomes.blocked': '已拦截',
         'settings.oplEnvironmentPage.temporal.outcomes.checked': '检查完成',
@@ -379,6 +422,29 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it('shows the real server restart action when the managed Temporal service is healthy', async () => {
+    exposeTemporalActions('provider_service_status', 'provider_service_start', 'provider_service_restart');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: { app_action_execution: { result: { restart_status: 'restarted' } } },
+    });
+
+    render(<RuntimeSettings />);
+
+    expect(screen.queryByTestId('settings-maintenance-temporal-action-provider_service_start')).not.toBeInTheDocument();
+    const restartButton = screen.getByTestId('settings-maintenance-temporal-action-provider_service_restart');
+    expect(restartButton).toBeEnabled();
+    expect(restartButton).toHaveTextContent('重启 Server');
+    fireEvent.click(restartButton);
+
+    await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'provider_service_restart',
+      dryRun: false,
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed when a ready provider omits explicit service readiness', () => {
@@ -454,6 +520,91 @@ describe('RuntimeSettings maintenance structure', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('requires the macOS local service supervisor before reporting Temporal ready', () => {
+    setTemporalState({
+      status: 'attention_needed',
+      health_status: 'attention_needed',
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed_local_service_state',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler: { status: 'ready', ready: true },
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          service_ready: true,
+          server_reachable: true,
+          worker_ready: true,
+          temporal_service_lifecycle: {
+            service_status: 'running',
+            supervisor: {
+              installed: true,
+              loaded: true,
+              supported: true,
+              applicable: true,
+              required: true,
+              ready: false,
+              configuration_current: false,
+              status: 'configuration_drift',
+              error: 'temporal_service_supervisor_configuration_drift',
+            },
+          },
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_status', 'provider_service_start');
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要处理');
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('启动保护：配置需要修复');
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
+  });
+
+  it('does not require a LaunchAgent for an explicit external Temporal deployment', () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: 'temporal.example.test:7233',
+        address_source: 'environment',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler: { status: 'ready', ready: true },
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          service_ready: true,
+          server_reachable: true,
+          worker_ready: true,
+          temporal_service_lifecycle: {
+            service_status: 'external_running',
+            supervisor: {
+              installed: false,
+              loaded: false,
+              supported: true,
+              applicable: false,
+              required: false,
+              ready: false,
+              configuration_current: false,
+              status: 'not_applicable',
+              error: null,
+            },
+          },
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_status');
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('运行正常');
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent(
+      '启动保护：由当前部署方式负责'
+    );
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('可连接');
+  });
+
   it('fails closed when a ready provider omits explicit worker readiness', () => {
     setTemporalState({
       status: 'ready',
@@ -512,7 +663,7 @@ describe('RuntimeSettings maintenance structure', () => {
       health_status: 'attention_needed',
       details: {
         address: '127.0.0.1:7233',
-        address_source: 'managed_local_service_state',
+        address_source: 'managed_service_supervisor',
         scheduler: { status: 'ready', ready: true },
         worker_readiness: {
           lifecycle_status: 'worker_source_stale',
@@ -582,6 +733,17 @@ describe('RuntimeSettings maintenance structure', () => {
           service_ready: true,
           server_reachable: true,
           worker_ready: true,
+          temporal_service_lifecycle: {
+            supervisor: {
+              installed: true,
+              loaded: true,
+              ready: true,
+              configuration_current: true,
+              status: 'loaded_running',
+              observed_at: '2026-07-17T08:00:00Z',
+              error: null,
+            },
+          },
         },
       },
     });
@@ -637,6 +799,12 @@ describe('RuntimeSettings maintenance structure', () => {
           service_ready: true,
           server_reachable: true,
           worker_ready: true,
+          temporal_service_lifecycle: {
+            service_status: 'running',
+            supervisor: structuredClone(
+              defaultTemporalState.details?.worker_readiness?.temporal_service_lifecycle?.supervisor ?? {}
+            ),
+          },
         },
       },
     });
@@ -686,6 +854,12 @@ describe('RuntimeSettings maintenance structure', () => {
           service_ready: true,
           server_reachable: true,
           worker_ready: true,
+          temporal_service_lifecycle: {
+            service_status: 'running',
+            supervisor: structuredClone(
+              defaultTemporalState.details?.worker_readiness?.temporal_service_lifecycle?.supervisor ?? {}
+            ),
+          },
         },
       },
     });
@@ -808,7 +982,7 @@ describe('RuntimeSettings maintenance structure', () => {
       ready: true,
       details: {
         address: '127.0.0.1:7233',
-        address_source: 'managed_local_service_state',
+        address_source: 'managed_service_supervisor',
         namespace: 'default',
         task_queue: 'opl-stage-attempts',
         scheduler: {
@@ -821,6 +995,21 @@ describe('RuntimeSettings maintenance structure', () => {
           service_ready: true,
           server_reachable: true,
           worker_ready: true,
+          temporal_service_lifecycle: {
+            service_status: 'running',
+            supervisor: {
+              installed: true,
+              loaded: true,
+              supported: true,
+              applicable: true,
+              required: true,
+              ready: true,
+              configuration_current: true,
+              status: 'loaded_running',
+              observed_at: '2026-07-17T08:00:00Z',
+              error: null,
+            },
+          },
         },
       },
     };

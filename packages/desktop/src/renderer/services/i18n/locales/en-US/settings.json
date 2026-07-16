@@ -2784,7 +2784,14 @@
       "server": {
         "title": "Temporal server",
         "address": "{{address}} · {{source}}",
-        "namespace": "Namespace: {{namespace}}"
+        "namespace": "Namespace: {{namespace}}",
+        "supervisorReady": "Startup protection: login-resident and self-healing",
+        "supervisorNotApplicable": "Startup protection: handled by this deployment",
+        "supervisorNotInstalled": "Startup protection: not installed",
+        "supervisorNotLoaded": "Startup protection: installed but not running",
+        "supervisorConfigurationDrift": "Startup protection: configuration needs repair",
+        "supervisorNeedsRepair": "Startup protection: repair required",
+        "supervisorObservedAt": "Startup protection last checked: {{observedAt}}"
       },
       "worker": {
         "title": "OPL worker",
@@ -2826,11 +2833,15 @@
         "workerExited": "Worker process exited",
         "workerSourceStale": "Worker source is out of date",
         "workerNotReady": "Worker is not ready",
+        "serviceSupervisorUnready": "Temporal server startup protection is not ready",
+        "serviceSupervisorConfigurationDrift": "Temporal server startup protection configuration needs repair",
+        "serviceSupervisorNotLoaded": "Temporal server startup protection is not running",
         "unknown": "An unknown worker blocker was reported"
       },
       "actions": {
         "checkServer": "Check server",
         "configureAndStartServer": "Configure and start",
+        "restartServer": "Restart server",
         "checkWorker": "Check worker",
         "startWorker": "Start worker",
         "restartWorker": "Restart worker",

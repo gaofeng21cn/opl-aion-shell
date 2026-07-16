@@ -551,6 +551,8 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(firstId).toMatch(/^[0-9a-f-]{36}$/);
     expect(secondEnv.OPL_APP_PROCESS_INSTANCE_ID).toBe(firstId);
     expect(firstId).not.toBe('user-supplied-value');
+    expect(firstEnv.OPL_APP_HOST_KIND).toBe('desktop');
+    expect(secondEnv.OPL_APP_HOST_KIND).toBe('desktop');
 
     const nextProcessId = __oplRuntimeBridgeTest.resetOplAppProcessInstanceIdForTest();
     const nextProcessEnv = __oplRuntimeBridgeTest.buildOplCommandEnv(input);
@@ -563,6 +565,7 @@ describe('OPL runtime bridge command whitelist', () => {
       'fixture failure'
     );
     expect(JSON.stringify(uiResult)).not.toContain('OPL_APP_PROCESS_INSTANCE_ID');
+    expect(JSON.stringify(uiResult)).not.toContain('OPL_APP_HOST_KIND');
     expect(JSON.stringify(uiResult)).not.toContain(nextProcessId);
   });
 

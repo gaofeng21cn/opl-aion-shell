@@ -18,6 +18,11 @@ const mocks = vi.hoisted(() => ({
   temporalWorkerStatus: 'ready',
   temporalWorkerMutationGuard: null as string | null,
   temporalServiceReady: true as boolean | null,
+  temporalSupervisorSupported: true as boolean | null,
+  temporalSupervisorApplicable: true as boolean | null,
+  temporalSupervisorRequired: true as boolean | null,
+  temporalSupervisorReady: true as boolean | null,
+  temporalSupervisorStatus: 'loaded_running',
   temporalWorkerReady: true as boolean | null,
   temporalSchedulerStatus: 'ready',
   temporalSchedulerReady: true as boolean | null,
@@ -106,6 +111,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 readiness_status: mocks.temporalWorkerStatus,
                 service_ready: mocks.temporalServiceReady,
                 worker_ready: mocks.temporalWorkerReady,
+                temporal_service_lifecycle: {
+                  service_status: mocks.temporalSupervisorApplicable === false ? 'external_running' : 'running',
+                  supervisor: {
+                    supported: mocks.temporalSupervisorSupported,
+                    applicable: mocks.temporalSupervisorApplicable,
+                    required: mocks.temporalSupervisorRequired,
+                    ready: mocks.temporalSupervisorReady,
+                    status: mocks.temporalSupervisorStatus,
+                  },
+                },
                 worker_mutation_guard: {
                   mutation_guard_status: mocks.temporalWorkerMutationGuard,
                 },
@@ -221,6 +236,11 @@ describe('OverviewSettings', () => {
     mocks.temporalWorkerStatus = 'ready';
     mocks.temporalWorkerMutationGuard = null;
     mocks.temporalServiceReady = true;
+    mocks.temporalSupervisorSupported = true;
+    mocks.temporalSupervisorApplicable = true;
+    mocks.temporalSupervisorRequired = true;
+    mocks.temporalSupervisorReady = true;
+    mocks.temporalSupervisorStatus = 'loaded_running';
     mocks.temporalWorkerReady = true;
     mocks.temporalSchedulerStatus = 'ready';
     mocks.temporalSchedulerReady = true;
@@ -346,6 +366,30 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
+  });
+
+  it('treats a required but unready macOS service supervisor as a server maintenance issue', () => {
+    mocks.temporalServiceReady = true;
+    mocks.temporalSupervisorReady = false;
+    mocks.temporalSupervisorStatus = 'configuration_drift';
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverNeeds attention');
+  });
+
+  it('does not require a local supervisor for an explicit external Temporal service', () => {
+    mocks.temporalAddressSource = 'environment';
+    mocks.temporalSupervisorApplicable = false;
+    mocks.temporalSupervisorRequired = false;
+    mocks.temporalSupervisorReady = false;
+    mocks.temporalSupervisorStatus = 'not_applicable';
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
+    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverReady');
   });
 
   it('fails closed when a configured Temporal server omits explicit readiness', () => {

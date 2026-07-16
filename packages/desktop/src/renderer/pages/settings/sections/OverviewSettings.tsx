@@ -109,6 +109,8 @@ function temporalStatusProjection(
   const temporal = oplRecord(oplRecord(appState.provider).temporal);
   const details = oplRecord(temporal.details);
   const workerReadiness = oplRecord(details.worker_readiness);
+  const serviceLifecycle = oplRecord(workerReadiness.temporal_service_lifecycle);
+  const serviceSupervisor = oplRecord(serviceLifecycle.supervisor);
   const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
   const schedulerReadiness = oplRecord(details.scheduler);
   const providerCandidates = [
@@ -119,13 +121,27 @@ function temporalStatusProjection(
   ].filter((value): value is string => Boolean(value));
   const addressSource = normalizedStatus(details.address_source);
   const serviceReady = typeof workerReadiness.service_ready === 'boolean' ? workerReadiness.service_ready : null;
+  const supervisorSupported = typeof serviceSupervisor.supported === 'boolean' ? serviceSupervisor.supported : null;
+  const supervisorApplicable = typeof serviceSupervisor.applicable === 'boolean' ? serviceSupervisor.applicable : null;
+  const projectedSupervisorRequired =
+    typeof serviceSupervisor.required === 'boolean' ? serviceSupervisor.required : null;
+  const supervisorRequired =
+    projectedSupervisorRequired ??
+    !(
+      supervisorSupported === false ||
+      supervisorApplicable === false ||
+      normalizedStatus(serviceLifecycle.service_status) === 'external_running'
+    );
+  const supervisorReady = typeof serviceSupervisor.ready === 'boolean' ? serviceSupervisor.ready : null;
   const serverNotConfigured =
     addressSource !== null
       ? TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)
       : serviceReady === null && providerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
   const server =
     serviceReady === true
-      ? 'ready'
+      ? supervisorRequired && supervisorReady !== true
+        ? 'attention'
+        : 'ready'
       : serverNotConfigured
         ? 'not_configured'
         : serviceReady === false

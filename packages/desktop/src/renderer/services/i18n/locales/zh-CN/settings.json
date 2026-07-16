@@ -2785,7 +2785,14 @@
       "server": {
         "title": "Temporal server",
         "address": "{{address}} · {{source}}",
-        "namespace": "命名空间：{{namespace}}"
+        "namespace": "命名空间：{{namespace}}",
+        "supervisorReady": "启动保护：已登录常驻并可自动恢复",
+        "supervisorNotApplicable": "启动保护：由当前部署方式负责",
+        "supervisorNotInstalled": "启动保护：尚未安装",
+        "supervisorNotLoaded": "启动保护：已安装但未运行",
+        "supervisorConfigurationDrift": "启动保护：配置需要修复",
+        "supervisorNeedsRepair": "启动保护：需要修复",
+        "supervisorObservedAt": "启动保护最近检查：{{observedAt}}"
       },
       "worker": {
         "title": "OPL worker",
@@ -2827,11 +2834,15 @@
         "workerExited": "worker 进程已退出",
         "workerSourceStale": "worker 源码已过期",
         "workerNotReady": "worker 尚未就绪",
+        "serviceSupervisorUnready": "Temporal server 启动保护尚未就绪",
+        "serviceSupervisorConfigurationDrift": "Temporal server 启动保护配置需要修复",
+        "serviceSupervisorNotLoaded": "Temporal server 启动保护尚未运行",
         "unknown": "worker 报告了未知阻塞项"
       },
       "actions": {
         "checkServer": "检查 server",
         "configureAndStartServer": "配置并启动",
+        "restartServer": "重启 server",
         "checkWorker": "检查 worker",
         "startWorker": "启动 worker",
         "restartWorker": "重启 worker",
