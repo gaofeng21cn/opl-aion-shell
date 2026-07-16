@@ -19,6 +19,7 @@ import type {
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
   IOplRuntimeDetailLevel,
+  IOplStartupMaintenanceCompletedEvent,
   IOplSystemInitializeEvent,
   IOplUpdateComponentRequest,
   IOplUpdateRepairRequest,
@@ -33,6 +34,7 @@ type RuntimeCommandSpec = {
 };
 
 type DesktopStartupMaintenanceDependencies = {
+  emitCompleted?: (event: IOplStartupMaintenanceCompletedEvent) => void;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
   now?: () => Date;
@@ -77,6 +79,7 @@ const OPL_MODULE_PATH_ENV_KEYS = [
 ] as const;
 let standardBootstrapCompleted = false;
 let standardBootstrapInFlight: Promise<void> | null = null;
+let desktopStartupMaintenanceTask: Promise<IOplRuntimeCommandResult> | null = null;
 let oplAppProcessInstanceId = randomUUID();
 let cachedDeveloperModeGithubIdentity: {
   key: string;
@@ -1638,19 +1641,83 @@ export async function runDesktopStartupMaintenance(
     error: result.error ?? null,
   };
   const message = `[AionUi:opl-startup] ${JSON.stringify(record)}`;
-  if (maintenanceSucceeded) {
-    (dependencies.logInfo ?? console.log)(message);
-  } else {
-    (dependencies.logWarn ?? console.warn)(message);
+  try {
+    if (maintenanceSucceeded) {
+      (dependencies.logInfo ?? console.log)(message);
+    } else {
+      (dependencies.logWarn ?? console.warn)(message);
+    }
+  } catch {
+    // Startup maintenance is diagnostic and must never reject process initialization because logging failed.
   }
   return result;
 }
 
-export async function runStartupMaintenanceForHost(
+function startupMaintenanceCompletionEvent(
+  result: IOplRuntimeCommandResult,
+  now: () => Date
+): IOplStartupMaintenanceCompletedEvent {
+  const parsed = isRecord(result.parsed) ? result.parsed : null;
+  const systemAction = isRecord(parsed?.system_action) ? parsed.system_action : null;
+  const maintenanceStatus = typeof systemAction?.status === 'string' ? systemAction.status : null;
+  return {
+    schema: 'opl.desktop_startup_maintenance.completed.v1',
+    observed_at: now().toISOString(),
+    outcome: result.ok && maintenanceStatus === 'completed' ? 'completed' : result.ok ? 'needs_attention' : 'failed',
+    command_ok: result.ok === true,
+    maintenance_status: maintenanceStatus,
+    refresh_profile: 'fast',
+  };
+}
+
+function emitStartupMaintenanceCompleted(
+  result: IOplRuntimeCommandResult,
+  dependencies: DesktopStartupMaintenanceDependencies
+): void {
+  const event = startupMaintenanceCompletionEvent(result, dependencies.now ?? (() => new Date()));
+  try {
+    (dependencies.emitCompleted ?? ipcBridge.oplRuntime.startupMaintenanceCompleted.emit)(event);
+  } catch (error) {
+    const record = {
+      schema: 'opl.desktop_startup_maintenance_event_error.v1',
+      observed_at: event.observed_at,
+      host_kind: 'desktop',
+      surface: 'startup_maintenance',
+      ok: false,
+      error: { message: error instanceof Error ? error.message : String(error) },
+    };
+    try {
+      (dependencies.logWarn ?? console.warn)(`[AionUi:opl-startup] ${JSON.stringify(record)}`);
+    } catch {
+      // Event delivery and logging are both best effort; the completed task still remains non-blocking.
+    }
+  }
+}
+
+export function runStartupMaintenanceForHost(
   hostKind: 'desktop' | 'web',
   dependencies: DesktopStartupMaintenanceDependencies = {}
 ): Promise<IOplRuntimeCommandResult | null> {
-  return hostKind === 'desktop' ? runDesktopStartupMaintenance(dependencies) : null;
+  if (hostKind === 'web') return Promise.resolve(null);
+  if (!desktopStartupMaintenanceTask) {
+    desktopStartupMaintenanceTask = runDesktopStartupMaintenance(dependencies)
+      .catch((error) =>
+        commandFailureResult(
+          buildStartupMaintenanceCommand(),
+          'opl system startup-maintenance --json',
+          error instanceof Error ? error.message : String(error)
+        )
+      )
+      .then((result) => {
+        emitStartupMaintenanceCompleted(result, dependencies);
+        return result;
+      });
+  }
+  return desktopStartupMaintenanceTask;
+}
+
+function resetDesktopStartupMaintenanceForTest(): void {
+  desktopStartupMaintenanceTask = null;
 }
 
 export function initOplRuntimeBridge(): void {
@@ -1722,6 +1789,7 @@ export const __oplRuntimeBridgeTest = {
   runOplCommand,
   runStandardBootstrapSingleFlight,
   resetStandardBootstrapForTest,
+  resetDesktopStartupMaintenanceForTest,
   isInitializeEventsUnsupportedError,
   shouldAutoBootstrapAfterOplCommandError,
   shouldAutoBootstrapOplCommand,

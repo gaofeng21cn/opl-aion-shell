@@ -16,6 +16,8 @@ export const OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES = 262_144;
 const AUTOMATIC_APP_STATE_MAX_ATTEMPTS = 2;
 const AUTOMATIC_APP_STATE_RETRY_DELAY_MS = 250;
 const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
+let startupMaintenanceRefreshInFlight: Promise<void> | null = null;
+let startupMaintenanceRefreshUnsubscribe: (() => void) | null = null;
 
 export type OplAppStateCache = {
   payload: OplAppStatePayload;
@@ -26,9 +28,35 @@ const memoryAppStateCaches = new Map<OplAppStateProfile, OplAppStateCache>();
 const automaticAppStateLoadsStarted = new Set<OplAppStateProfile>();
 
 export function resetOplAppStateLoadsForTest(): void {
+  startupMaintenanceRefreshUnsubscribe?.();
+  startupMaintenanceRefreshUnsubscribe = null;
+  startupMaintenanceRefreshInFlight = null;
   inflightAppStateLoads.clear();
   memoryAppStateCaches.clear();
   automaticAppStateLoadsStarted.clear();
+}
+
+function refreshFastStateAfterStartupMaintenance(): void {
+  if (startupMaintenanceRefreshInFlight) return;
+  startupMaintenanceRefreshInFlight = loadOplAppStateFromBridge('fast', { forceFresh: true })
+    .then((payload) => {
+      if (!payload) return;
+      const nextPayload = mergeCachedGatewayAccount(payload);
+      cacheFastOplAppState(nextPayload, new Date().toLocaleTimeString());
+    })
+    .catch(() => {
+      // Overview's bounded recovery loop remains the fallback when this best-effort refresh fails.
+    })
+    .finally(() => {
+      startupMaintenanceRefreshInFlight = null;
+    });
+}
+
+function ensureStartupMaintenanceRefreshSubscription(): void {
+  if (startupMaintenanceRefreshUnsubscribe || typeof window === 'undefined') return;
+  startupMaintenanceRefreshUnsubscribe = ipcBridge.oplRuntime.startupMaintenanceCompleted.on(() => {
+    refreshFastStateAfterStartupMaintenance();
+  });
 }
 
 type OplGatewayAccountCache = {
@@ -614,6 +642,10 @@ export function useOplAppState(
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
+
+  useEffect(() => {
+    ensureStartupMaintenanceRefreshSubscription();
+  }, []);
 
   const load = useCallback(
     async (

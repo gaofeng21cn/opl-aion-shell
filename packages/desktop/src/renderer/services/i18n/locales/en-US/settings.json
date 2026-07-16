@@ -2862,8 +2862,9 @@
         "actionComplete": "Temporal maintenance completed and the new state was verified.",
         "needsAttention": "The check completed, but this Temporal service still needs attention.",
         "actionBlocked": "Temporal maintenance was blocked by the current safety policy.",
-        "actionFailed": "Temporal maintenance failed.",
-        "readbackFailed": "The action ran, but the App could not read back the fresh Temporal state.",
+      "actionFailed": "Temporal maintenance failed.",
+      "componentError": "The action completed, but a Temporal component still reports an error.",
+      "readbackFailed": "The action ran, but the App could not read back the fresh Temporal state.",
         "postconditionFailed": "The action ran, but the expected Temporal state was not reached."
       }
     },

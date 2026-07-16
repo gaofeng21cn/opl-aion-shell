@@ -2863,8 +2863,9 @@
         "actionComplete": "Temporal 维护已完成，并已验证新的运行状态。",
         "needsAttention": "检查已完成，但该 Temporal 服务仍需处理。",
         "actionBlocked": "当前安全策略阻止了这项 Temporal 维护操作。",
-        "actionFailed": "Temporal 维护失败。",
-        "readbackFailed": "操作已执行，但 App 无法读回最新 Temporal 状态。",
+      "actionFailed": "Temporal 维护失败。",
+      "componentError": "操作已完成，但仍有 Temporal 组件报告错误。",
+      "readbackFailed": "操作已执行，但 App 无法读回最新 Temporal 状态。",
         "postconditionFailed": "操作已执行，但 Temporal 未达到预期状态。"
       }
     },

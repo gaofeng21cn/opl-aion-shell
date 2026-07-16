@@ -78,10 +78,12 @@ export type TemporalMaintenanceSnapshot = {
   serviceSupervisorError: string | null;
   workerReady: boolean;
   workerStatus: string;
+  workerError: string | null;
   workerMutationGuardStatus: string | null;
   schedulerStatus: string;
   schedulerReady: boolean | null;
   schedulerObservedAt: string | null;
+  schedulerError: string | null;
   blockers: string[];
 };
 

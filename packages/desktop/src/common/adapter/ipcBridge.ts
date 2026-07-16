@@ -625,6 +625,15 @@ export type IOplSystemInitializeEvent = {
   payload?: unknown;
 };
 
+export type IOplStartupMaintenanceCompletedEvent = {
+  schema: 'opl.desktop_startup_maintenance.completed.v1';
+  observed_at: string;
+  outcome: 'completed' | 'needs_attention' | 'failed';
+  command_ok: boolean;
+  maintenance_status: string | null;
+  refresh_profile: 'fast';
+};
+
 function isWebUiBrowserMode(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -680,6 +689,10 @@ export const oplRuntime = {
   initializeEvent: runtimeEmitter<IOplSystemInitializeEvent>(
     'opl-runtime.initialize-event',
     'opl-runtime.initialize-event'
+  ),
+  startupMaintenanceCompleted: runtimeEmitter<IOplStartupMaintenanceCompletedEvent>(
+    'opl-runtime.startup-maintenance-completed',
+    'opl-runtime.startup-maintenance-completed'
   ),
   runInstallPrep: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.run-install-prep',

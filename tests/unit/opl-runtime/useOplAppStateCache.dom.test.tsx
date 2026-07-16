@@ -2,11 +2,22 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAppStateInvoke = vi.hoisted(() => vi.fn());
+const startupMaintenanceEmitter = vi.hoisted(() => ({
+  callback: null as null | (() => void),
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: getAppStateInvoke },
+      startupMaintenanceCompleted: {
+        on: (callback: () => void) => {
+          startupMaintenanceEmitter.callback = callback;
+          return () => {
+            if (startupMaintenanceEmitter.callback === callback) startupMaintenanceEmitter.callback = null;
+          };
+        },
+      },
     },
   },
 }));
@@ -100,6 +111,39 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     renderHook(() => useOplAppState('fast', { autoLoad: false }));
 
     expect(getAppStateInvoke).not.toHaveBeenCalled();
+  });
+
+  it('performs one shared fresh fast-state refresh when startup maintenance completes', async () => {
+    seedCachedGateway();
+    let resolveRefresh!: (value: unknown) => void;
+    getAppStateInvoke.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      })
+    );
+    const { result } = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+
+    act(() => {
+      startupMaintenanceEmitter.callback?.();
+      startupMaintenanceEmitter.callback?.();
+    });
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
+    expect(getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' });
+
+    resolveRefresh({
+      ok: true,
+      parsed: {
+        app_state: {
+          core: { codex: { version: 'after-maintenance' } },
+          ...appStateWithGateway(gatewayProjection()),
+        },
+      },
+    });
+    await waitFor(() =>
+      expect((result.current.appState.core as Record<string, unknown>).codex).toEqual({
+        version: 'after-maintenance',
+      })
+    );
   });
 
   it('waits for a shared request before issuing the required fresh read', async () => {

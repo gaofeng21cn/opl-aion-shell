@@ -3234,6 +3234,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.temporal.messages.actionBlocked'
   | 'settings.oplEnvironmentPage.temporal.messages.actionComplete'
   | 'settings.oplEnvironmentPage.temporal.messages.actionFailed'
+  | 'settings.oplEnvironmentPage.temporal.messages.componentError'
   | 'settings.oplEnvironmentPage.temporal.messages.needsAttention'
   | 'settings.oplEnvironmentPage.temporal.messages.postconditionFailed'
   | 'settings.oplEnvironmentPage.temporal.messages.readbackFailed'

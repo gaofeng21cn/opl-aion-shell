@@ -21,10 +21,11 @@ import './utils/initBridge';
 import './services/i18n'; // Initialize i18n for main process
 import { runStartupMaintenanceForHost } from './bridge/oplRuntimeBridge';
 
-type InitializeProcessOptions = {
+export type InitializeProcessOptions = {
   hostKind: 'desktop' | 'web';
   initializeStorage?: () => Promise<void>;
   logWarn?: (message: string) => void;
+  startStartupMaintenance?: typeof runStartupMaintenanceForHost;
 };
 
 export const initializeProcess = async (options: InitializeProcessOptions) => {
@@ -35,9 +36,7 @@ export const initializeProcess = async (options: InitializeProcessOptions) => {
   mark('initStorage');
 
   if (options.hostKind === 'desktop') {
-    try {
-      await runStartupMaintenanceForHost(options.hostKind);
-    } catch (error) {
+    const recordFailure = (error: unknown) => {
       const record = {
         schema: 'opl.desktop_startup_maintenance.v1',
         observed_at: new Date().toISOString(),
@@ -48,8 +47,18 @@ export const initializeProcess = async (options: InitializeProcessOptions) => {
           message: error instanceof Error ? error.message : String(error),
         },
       };
-      (options.logWarn ?? console.warn)(`[AionUi:opl-startup] ${JSON.stringify(record)}`);
+      try {
+        (options.logWarn ?? console.warn)(`[AionUi:opl-startup] ${JSON.stringify(record)}`);
+      } catch {
+        // Background maintenance and diagnostics must not block the Desktop startup path.
+      }
+    };
+    try {
+      const maintenanceTask = (options.startStartupMaintenance ?? runStartupMaintenanceForHost)(options.hostKind);
+      void maintenanceTask.catch(recordFailure);
+    } catch (error) {
+      recordFailure(error);
     }
-    mark('oplStartupMaintenance');
+    mark('oplStartupMaintenanceScheduled');
   }
 };

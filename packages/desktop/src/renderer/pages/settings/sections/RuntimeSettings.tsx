@@ -258,7 +258,9 @@ function temporalMaintenanceSnapshot(
   const schedulerStatus = projectedSchedulerStatus ?? schedulerStatusOverride ?? 'not_checked';
   const schedulerReady = typeof scheduler.ready === 'boolean' ? scheduler.ready : null;
   const schedulerObservedAt = oplString(scheduler.observed_at);
+  const schedulerError = oplString(scheduler.error) ?? oplString(scheduler.last_error);
   const projectedWorkerMutationGuardStatus = oplString(workerMutationGuard.mutation_guard_status);
+  const workerError = oplString(workerReadiness.error) ?? oplString(workerReadiness.last_error);
   const serviceSupervisorInstalled = serviceSupervisor.installed === true;
   const serviceSupervisorLoaded = serviceSupervisor.loaded === true;
   const serviceSupervisorSupported =
@@ -277,6 +279,7 @@ function temporalMaintenanceSnapshot(
     );
   const serviceSupervisorReady = typeof serviceSupervisor.ready === 'boolean' ? serviceSupervisor.ready : null;
   const serviceSupervisorConfigurationCurrent = serviceSupervisor.configuration_current === true;
+  const serviceSupervisorError = oplString(serviceSupervisor.error);
   return {
     providerStatus: oplString(temporal.status) ?? 'unknown',
     healthStatus: oplString(temporal.health_status) ?? 'unknown',
@@ -284,7 +287,10 @@ function temporalMaintenanceSnapshot(
       serviceReady === true &&
       (!serviceSupervisorRequired || serviceSupervisorReady === true) &&
       workerReady &&
-      schedulerReady === true,
+      schedulerReady === true &&
+      serviceSupervisorError === null &&
+      workerError === null &&
+      schedulerError === null,
     address,
     addressSource: oplString(details.address_source) ?? 'unknown',
     namespace: oplString(details.namespace) ?? 'default',
@@ -300,13 +306,15 @@ function temporalMaintenanceSnapshot(
     serviceSupervisorConfigurationCurrent,
     serviceSupervisorStatus: oplString(serviceSupervisor.status) ?? 'not_checked',
     serviceSupervisorObservedAt: oplString(serviceSupervisor.observed_at),
-    serviceSupervisorError: oplString(serviceSupervisor.error),
+    serviceSupervisorError,
     workerReady,
     workerStatus,
+    workerError,
     workerMutationGuardStatus: projectedWorkerMutationGuardStatus ?? workerMutationGuardOverride,
     schedulerStatus,
     schedulerReady,
     schedulerObservedAt,
+    schedulerError,
     blockers: temporalStringList(workerReadiness.blockers),
   };
 }
@@ -398,6 +406,17 @@ function temporalReadbackGeneratedAfterAction(appState: Record<string, unknown>,
   if (!generatedAt) return false;
   const generatedAtMs = Date.parse(generatedAt);
   return Number.isFinite(generatedAtMs) && generatedAtMs >= actionStartedAtMs;
+}
+
+function temporalReadbackObservedAt(appState: Record<string, unknown>): string {
+  const generatedAt = oplString(oplRecord(appState.meta).generated_at);
+  if (!generatedAt) return new Date().toLocaleTimeString();
+  const parsed = Date.parse(generatedAt);
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleTimeString() : new Date().toLocaleTimeString();
+}
+
+function temporalSnapshotHasNoErrors(snapshot: TemporalMaintenanceSnapshot): boolean {
+  return snapshot.serviceSupervisorError === null && snapshot.workerError === null && snapshot.schedulerError === null;
 }
 
 function temporalSchedulerStatusFromResult(result: IOplRuntimeCommandResult): string | null {
@@ -1551,12 +1570,12 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     async (actionId: TemporalMaintenanceActionId) => {
       if (!beginMaintenanceOperation()) return;
       setBusyTemporalActionId(actionId);
-      const observedAt = new Date().toLocaleTimeString();
       const actionStartedAtMs = Date.now();
+      const completedAt = () => new Date().toLocaleTimeString();
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({ actionId, dryRun: false });
         if (!bridgeResultSucceeded(result)) {
-          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt: completedAt() });
           message.error(t('settings.oplEnvironmentPage.temporal.messages.actionFailed'));
           return;
         }
@@ -1570,7 +1589,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         if (serviceReachable !== null) setTemporalServerReachable(serviceReachable);
 
         if (actionFailure) {
-          setTemporalActionEvidence({ actionId, outcome: actionFailure, observedAt });
+          setTemporalActionEvidence({ actionId, outcome: actionFailure, observedAt: completedAt() });
           message.error(
             t(
               actionFailure === 'blocked'
@@ -1589,7 +1608,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         const freshAppState = getAppState(freshPayload);
 
         if (!freshPayload || !temporalReadbackGeneratedAfterAction(freshAppState, actionStartedAtMs)) {
-          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt: completedAt() });
           message.error(t('settings.oplEnvironmentPage.temporal.messages.readbackFailed'));
           return;
         }
@@ -1599,8 +1618,14 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           workerGuardStatus,
           serviceReachable
         );
+        const readbackObservedAt = temporalReadbackObservedAt(freshAppState);
+        if (!temporalSnapshotHasNoErrors(freshSnapshot)) {
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt: readbackObservedAt });
+          message.error(t('settings.oplEnvironmentPage.temporal.messages.componentError'));
+          return;
+        }
         if (requiresPostcondition && !temporalPostconditionSatisfied(actionId, freshSnapshot)) {
-          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt: readbackObservedAt });
           message.error(t('settings.oplEnvironmentPage.temporal.messages.postconditionFailed'));
           return;
         }
@@ -1614,13 +1639,13 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               freshSnapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state')) ||
           (actionId === 'provider_scheduler_status' && freshSnapshot.schedulerReady !== true);
         if (readNeedsAttention) {
-          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt });
+          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt: readbackObservedAt });
           message.warning(t('settings.oplEnvironmentPage.temporal.messages.needsAttention'));
           return;
         }
 
         if (requiresPostcondition && !freshSnapshot.ready) {
-          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt });
+          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt: readbackObservedAt });
           message.warning(t('settings.oplEnvironmentPage.temporal.messages.needsAttention'));
           return;
         }
@@ -1628,11 +1653,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         setTemporalActionEvidence({
           actionId,
           outcome: actionId.endsWith('_status') ? 'checked' : 'completed',
-          observedAt,
+          observedAt: readbackObservedAt,
         });
         message.success(t('settings.oplEnvironmentPage.temporal.messages.actionComplete'));
       } catch {
-        setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+        setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt: completedAt() });
         message.error(t('settings.oplEnvironmentPage.temporal.messages.actionFailed'));
       } finally {
         setBusyTemporalActionId(null);

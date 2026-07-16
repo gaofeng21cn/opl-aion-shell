@@ -38,6 +38,7 @@ function makeCaskReceipt(caskroomRoot: string, token = 'one-person-lab'): void {
 
 afterEach(() => {
   __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
+  __oplRuntimeBridgeTest.resetDesktopStartupMaintenanceForTest();
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -578,8 +579,9 @@ describe('OPL runtime bridge command whitelist', () => {
     const desktopEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.ts'), 'utf8');
     expect(desktopEntry).toContain("initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' })");
     const processEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/process/index.ts'), 'utf8');
+    expect(processEntry).not.toContain('await runStartupMaintenanceForHost(options.hostKind)');
     expect(processEntry.indexOf('await (options.initializeStorage ?? initStorage)()')).toBeLessThan(
-      processEntry.indexOf('await runStartupMaintenanceForHost(options.hostKind)')
+      processEntry.indexOf("mark('oplStartupMaintenanceScheduled')")
     );
 
     const specs: Array<{ surface: string; args: string[]; timeoutMs?: number }> = [];
@@ -596,7 +598,10 @@ describe('OPL runtime bridge command whitelist', () => {
         };
       },
     };
-    await runStartupMaintenanceForHost('desktop', dependencies);
+    const firstDesktopTask = runStartupMaintenanceForHost('desktop', dependencies);
+    const secondDesktopTask = runStartupMaintenanceForHost('desktop', dependencies);
+    expect(secondDesktopTask).toBe(firstDesktopTask);
+    await firstDesktopTask;
     await runStartupMaintenanceForHost('web', dependencies);
 
     expect(specs).toEqual([
@@ -606,6 +611,33 @@ describe('OPL runtime bridge command whitelist', () => {
         timeoutMs: 120_000,
       },
     ]);
+  });
+
+  it('emits one completion event after Desktop maintenance and captures command rejection', async () => {
+    const events: unknown[] = [];
+    const warnings: string[] = [];
+
+    const result = await runStartupMaintenanceForHost('desktop', {
+      now: () => new Date('2026-07-17T01:02:03.000Z'),
+      emitCompleted: (event) => events.push(event),
+      logWarn: (message) => warnings.push(message),
+      runCommand: async () => {
+        throw new Error('fixture rejected');
+      },
+    });
+
+    expect(result?.ok).toBe(false);
+    expect(events).toEqual([
+      {
+        schema: 'opl.desktop_startup_maintenance.completed.v1',
+        observed_at: '2026-07-17T01:02:03.000Z',
+        outcome: 'failed',
+        command_ok: false,
+        maintenance_status: null,
+        refresh_profile: 'fast',
+      },
+    ]);
+    expect(warnings).toHaveLength(1);
   });
 
   it('records a structured startup-maintenance failure without throwing', async () => {
