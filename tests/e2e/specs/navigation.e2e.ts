@@ -12,14 +12,21 @@ import { GUID_INPUT, goToGuid, goToSettings, expectUrlContains, takeScreenshot, 
 
 const SETTINGS_SCREENSHOT_DIR = path.resolve(__dirname, '..', 'screenshots');
 const SETTINGS_VISUAL_MANIFEST = path.join(SETTINGS_SCREENSHOT_DIR, 'settings-control-center-manifest.json');
+const SETTINGS_E2E_MODE =
+  process.env.E2E_PACKAGED === '1' ? 'E2E_PACKAGED=1' : process.env.E2E_DEV === '1' ? 'E2E_DEV=1' : '';
 const SETTINGS_VISUAL_VIEWPORTS = [
-  { name: 'desktop', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
+  { name: 'desktop-light', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
+  { name: 'narrow-light', navigation: 'mobile', theme: 'light', size: { width: 720, height: 900 } },
+  { name: 'desktop-dark', navigation: 'desktop', theme: 'dark', size: { width: 1440, height: 960 } },
+  { name: 'narrow-dark', navigation: 'mobile', theme: 'dark', size: { width: 720, height: 900 } },
 ] as const;
+const SETTINGS_LONG_PAGE_TABS = new Set<SettingsTab>(['agents', 'capabilities', 'resources', 'environment']);
 
 type SettingsVisualAnchor = {
   id: string;
   selector: string;
   required?: boolean;
+  coverageGapWhenMissing?: string;
 };
 
 type SettingsVisualTarget = {
@@ -35,6 +42,7 @@ type SettingsVisualStateTarget = {
   state: string;
   action: (page: import('@playwright/test').Page) => Promise<void>;
   anchors: SettingsVisualAnchor[];
+  captureScrollBottom?: boolean;
 };
 
 type SettingsCompatibilityTarget = {
@@ -57,6 +65,14 @@ type ManifestCoverageGap = {
   selector?: string;
 };
 
+type SettingsScrollEvidence = {
+  position: 'top' | 'bottom';
+  scroll_top: number;
+  scroll_height: number;
+  client_height: number;
+  scrollable: boolean;
+};
+
 const gitCommit = () => {
   const cwd = path.resolve(__dirname, '..', '..', '..');
   const dirty = execSync('git status --porcelain --untracked-files=no', {
@@ -76,6 +92,13 @@ const anchor = (id: string, selector: string, required = true): SettingsVisualAn
   id,
   selector,
   required,
+});
+
+const fixtureAnchor = (id: string, selector: string): SettingsVisualAnchor => ({
+  id,
+  selector,
+  required: false,
+  coverageGapWhenMissing: 'fixture_state_unavailable',
 });
 
 const commonSettingsAnchors = [
@@ -157,12 +180,51 @@ const coverageGapsFor = (
 ): ManifestCoverageGap[] => {
   const byId = new Map(evidence.map((item) => [item.id, item]));
   return anchors
-    .filter((item) => item.required !== false && !byId.get(item.id)?.visible)
+    .filter((item) => !byId.get(item.id)?.visible && (item.required !== false || item.coverageGapWhenMissing))
     .map((item) => ({
       id: item.id,
       selector: item.selector,
-      reason: 'required_anchor_not_visible',
+      reason: item.coverageGapWhenMissing ?? 'required_anchor_not_visible',
     }));
+};
+
+const setSettingsScrollPosition = async (
+  page: import('@playwright/test').Page,
+  position: SettingsScrollEvidence['position']
+): Promise<SettingsScrollEvidence> => {
+  const scroller = page.locator('.settings-page-wrapper').first();
+  await expect(scroller).toBeVisible();
+  const metrics = await scroller.evaluate(async (element, nextPosition) => {
+    element.scrollTop = nextPosition === 'bottom' ? element.scrollHeight : 0;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    return {
+      scrollTop: element.scrollTop,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    };
+  }, position);
+  const evidence: SettingsScrollEvidence = {
+    position,
+    scroll_top: metrics.scrollTop,
+    scroll_height: metrics.scrollHeight,
+    client_height: metrics.clientHeight,
+    scrollable: metrics.scrollHeight > metrics.clientHeight + 1,
+  };
+  if (position === 'top') {
+    expect(metrics.scrollTop, 'Settings route screenshot must start at the internal scroller top').toBeLessThanOrEqual(
+      1
+    );
+  } else {
+    if (evidence.scrollable) {
+      expect(
+        metrics.scrollHeight - metrics.clientHeight - metrics.scrollTop,
+        'Settings bottom screenshot must reach the internal scroller bottom'
+      ).toBeLessThanOrEqual(2);
+    }
+  }
+  return evidence;
 };
 
 const openCompatibilityTarget = async (page: import('@playwright/test').Page, target: SettingsCompatibilityTarget) => {
@@ -245,6 +307,9 @@ test.describe('Settings Pages', () => {
         anchor('overview_primary', '[data-testid="settings-overview-primary"]'),
         anchor('overview_status', '[data-testid="settings-overview-status"]'),
         anchor('overview_contextual_entries', '[data-testid="settings-overview-summary-grid"]'),
+        anchor('overview_temporal_server', '[data-testid="settings-overview-temporal-server"]'),
+        anchor('overview_temporal_worker', '[data-testid="settings-overview-temporal-worker"]'),
+        anchor('overview_temporal_scheduler', '[data-testid="settings-overview-temporal-scheduler"]'),
       ],
     },
     {
@@ -255,6 +320,9 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('gateway_page', '[data-testid="settings-page-gateway"]'),
         anchor('gateway_primary', '[data-testid="settings-gateway-primary"]'),
+        fixtureAnchor('gateway_identity_name', '[data-testid="settings-gateway-identity-name"]'),
+        fixtureAnchor('gateway_disconnect', '[data-testid="settings-gateway-disconnect"]'),
+        fixtureAnchor('gateway_metrics', '[data-testid="settings-gateway-metrics"]'),
       ],
     },
     {
@@ -280,6 +348,17 @@ test.describe('Settings Pages', () => {
         anchor('workspace_primary_action', '[data-testid="settings-workspace-primary-action"]'),
         anchor('workspace_diagnostics_action', '[data-testid="settings-workspace-diagnostics-action"]'),
         anchor('workspace_technical_details', '[data-testid="settings-workspace-technical-details"]', false),
+      ],
+    },
+    {
+      tab: 'agents',
+      name: 'Agent Packages Settings',
+      level: 'top-level',
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('agents_page', '[data-testid="settings-page-agents"]'),
+        anchor('agents_primary', '[data-testid="settings-agents-primary"]'),
+        anchor('agents_catalog_filters', '[data-testid="settings-agents-catalog-filters"]'),
       ],
     },
     {
@@ -315,6 +394,9 @@ test.describe('Settings Pages', () => {
         ...commonSettingsAnchors,
         anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
         anchor('maintenance_primary', '[data-testid="settings-maintenance-primary"]'),
+        anchor('maintenance_temporal_server', '[data-testid="settings-maintenance-temporal-server"]'),
+        anchor('maintenance_temporal_worker', '[data-testid="settings-maintenance-temporal-worker"]'),
+        anchor('maintenance_temporal_scheduler', '[data-testid="settings-maintenance-temporal-scheduler"]'),
         anchor('maintenance_diagnostics_action', '[data-testid="settings-maintenance-diagnostics-action"]'),
         anchor('maintenance_technical_details', '[data-testid="settings-maintenance-technical-details"]', false),
       ],
@@ -436,6 +518,7 @@ test.describe('Settings Pages', () => {
         anchor('capabilities_manual_tools', '[data-testid="settings-capabilities-manual-tools"]'),
         anchor('capabilities_voice_input', '[data-testid="settings-capabilities-voice-input"]'),
       ],
+      captureScrollBottom: true,
     },
     {
       id: 'settings_search_empty_state',
@@ -532,6 +615,7 @@ test.describe('Settings Pages', () => {
 
   test('screenshot: settings control center visual QA', async ({ page }) => {
     test.skip(!process.env.E2E_SCREENSHOTS, 'screenshots disabled');
+    test.setTimeout(900_000);
     const commit = gitCommit();
     const entries: Array<{
       command: string;
@@ -545,9 +629,17 @@ test.describe('Settings Pages', () => {
       status_anchors: string[];
       anchors: ManifestAnchorEvidence[];
       coverage_gaps: ManifestCoverageGap[];
+      scroll: SettingsScrollEvidence;
     }> = [];
-    const command =
-      'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1 AIONUI_E2E_PRODUCT_PROFILE=1 E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/specs/navigation.e2e.ts --grep "settings control center visual QA"';
+    const command = [
+      'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1',
+      'AIONUI_E2E_PRODUCT_PROFILE=1',
+      SETTINGS_E2E_MODE,
+      'E2E_SCREENSHOTS=1',
+      'bun run test:e2e -- tests/e2e/specs/navigation.e2e.ts --grep "settings control center visual QA"',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     for (const viewport of SETTINGS_VISUAL_VIEWPORTS) {
       await page.setViewportSize(viewport.size);
@@ -572,6 +664,7 @@ test.describe('Settings Pages', () => {
           viewport.navigation === 'mobile' && level === 'secondary'
         );
         await expectVisualAnchors(page, anchors);
+        const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, anchors);
         const screenshotName = `settings/control-center/${viewport.name}/${tab}`;
@@ -591,12 +684,48 @@ test.describe('Settings Pages', () => {
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
           anchors: anchorEvidence,
           coverage_gaps: coverageGapsFor(anchors, anchorEvidence),
+          scroll: topScroll,
         });
+        if (SETTINGS_LONG_PAGE_TABS.has(tab)) {
+          const bottomScroll = await setSettingsScrollPosition(page, 'bottom');
+          await resetSettingsScreenshotPointer(page, viewport.size);
+          const bottomAnchorEvidence = await collectAnchorEvidence(page, anchors);
+          const bottomScreenshotName = `settings/control-center/${viewport.name}/${tab}-scroll-bottom`;
+          const bottomScreenshotPath = await takeScreenshot(page, bottomScreenshotName);
+          entries.push({
+            command,
+            commit,
+            level,
+            state: 'internal_scroll_bottom',
+            viewport: {
+              name: viewport.name,
+              ...viewport.size,
+            },
+            theme: viewport.theme,
+            route: `/settings/${tab}`,
+            screenshot_path: bottomScreenshotPath,
+            status_anchors: bottomAnchorEvidence.filter((item) => item.visible).map((item) => item.id),
+            anchors: bottomAnchorEvidence,
+            coverage_gaps: [
+              ...coverageGapsFor(anchors, bottomAnchorEvidence),
+              ...(bottomScroll.scrollable
+                ? []
+                : [
+                    {
+                      id: 'settings_internal_scroll_range',
+                      reason: 'internal_scroll_range_unavailable_at_viewport',
+                    },
+                  ]),
+            ],
+            scroll: bottomScroll,
+          });
+        }
       }
       for (const target of stateTargets) {
         await goToSettings(page, target.route);
         await target.action(page);
         await expectVisualAnchors(page, target.anchors);
+        const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, target.anchors);
         const screenshotName = `settings/control-center/${viewport.name}/${target.id}`;
@@ -616,11 +745,47 @@ test.describe('Settings Pages', () => {
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
           anchors: anchorEvidence,
           coverage_gaps: coverageGapsFor(target.anchors, anchorEvidence),
+          scroll: topScroll,
         });
+        if (target.captureScrollBottom) {
+          const bottomScroll = await setSettingsScrollPosition(page, 'bottom');
+          await resetSettingsScreenshotPointer(page, viewport.size);
+          const bottomAnchorEvidence = await collectAnchorEvidence(page, target.anchors);
+          const bottomScreenshotName = `settings/control-center/${viewport.name}/${target.id}-scroll-bottom`;
+          const bottomScreenshotPath = await takeScreenshot(page, bottomScreenshotName);
+          entries.push({
+            command,
+            commit,
+            level: 'interaction-state',
+            state: `${target.state}_internal_scroll_bottom`,
+            viewport: {
+              name: viewport.name,
+              ...viewport.size,
+            },
+            theme: viewport.theme,
+            route: `/settings/${target.route}`,
+            screenshot_path: bottomScreenshotPath,
+            status_anchors: bottomAnchorEvidence.filter((item) => item.visible).map((item) => item.id),
+            anchors: bottomAnchorEvidence,
+            coverage_gaps: [
+              ...coverageGapsFor(target.anchors, bottomAnchorEvidence),
+              ...(bottomScroll.scrollable
+                ? []
+                : [
+                    {
+                      id: 'settings_internal_scroll_range',
+                      reason: 'internal_scroll_range_unavailable_at_viewport',
+                    },
+                  ]),
+            ],
+            scroll: bottomScroll,
+          });
+        }
       }
       for (const target of compatibilityTargets) {
         await openCompatibilityTarget(page, target);
         await expectVisualAnchors(page, target.anchors);
+        const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, target.anchors);
         const screenshotName = `settings/control-center/${viewport.name}/compatibility-${target.id}`;
@@ -640,6 +805,7 @@ test.describe('Settings Pages', () => {
           status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
           anchors: anchorEvidence,
           coverage_gaps: coverageGapsFor(target.anchors, anchorEvidence),
+          scroll: topScroll,
         });
       }
     }
@@ -661,6 +827,7 @@ test.describe('Settings Pages', () => {
               (target) => `/settings/${target.source} -> /settings/${target.target}?section=${target.section}`
             ),
             interaction_states: stateTargets.map((target) => target.state),
+            internal_scroll_routes: [...SETTINGS_LONG_PAGE_TABS].map((tab) => `/settings/${tab}`),
             coverage_gaps: [
               {
                 id: 'state_changing_action_confirmation',
@@ -676,6 +843,8 @@ test.describe('Settings Pages', () => {
             'It is not a release, installed-app currentness, or runtime readiness receipt.',
             'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1 keeps visual QA focused on Settings UI when bundled AionCore is absent.',
             'AIONUI_E2E_PRODUCT_PROFILE=1 hides example extension tabs so screenshots represent the shipped product IA.',
+            'Connected Gateway account anchors are recorded when the packaged fixture exposes that state; otherwise the manifest retains an explicit fixture_state_unavailable gap.',
+            'Long Settings routes include separate internal-scroller top and bottom screenshots.',
           ],
           entries,
         },

@@ -680,6 +680,39 @@ function buildTargets(conversationId: string): VisualTarget[] {
       ],
     },
     {
+      id: 'home-desktop-light-zh-CN-starter-active',
+      screenshotName: 'gui-baseline/home/desktop/light/zh-CN/starter-active',
+      viewport: { name: 'desktop', width: 1440, height: 960 },
+      theme: 'light',
+      locale: 'zh-CN',
+      anchors: [
+        anchor('home_route', '[data-testid="opl-guid-entry"]'),
+        anchor('home_starters', '[data-testid="opl-home-starters"]'),
+        anchor('home_starter_active', '[data-testid="home-starter-mas"][aria-pressed="true"][data-opl-active="true"]'),
+        anchor('home_starter_active_check', '[data-testid="home-starter-mas"] [data-testid="starter-active-check"]'),
+        anchor('home_input', '[data-testid="guid-input-card-shell"]'),
+        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+      ],
+      coverageGaps: [],
+      setup: async (page) => {
+        await goToGuid(page);
+        await setNavigationRailExpanded(page, true);
+        await expectHomeLocale(page, 'zh-CN');
+        const starter = page.locator('[data-testid="home-starter-mas"]');
+        await starter.click();
+        await expect(starter).toHaveAttribute('aria-pressed', 'true');
+        await expect(starter).toHaveAttribute('data-opl-active', 'true');
+        await expect(starter.locator('[data-testid="starter-active-check"]')).toBeVisible();
+        await expect(page.locator('[data-testid="guid-input-card-shell"]')).toBeVisible();
+        await waitForStablePaint(page);
+        return { route_kind: 'home', rail: 'expanded', starter: 'mas', starter_state: 'active' };
+      },
+      layoutChecks: async (page) => [
+        ...(await railMainChecks(page)),
+        await textOverflowCheck(page, 'home_active_starter_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+      ],
+    },
+    {
       id: 'home-mobile-dark-en-US-action-sheet-open',
       screenshotName: 'gui-baseline/home/mobile/dark/en-US/action-sheet-open',
       viewport: { name: 'mobile', width: 420, height: 844 },

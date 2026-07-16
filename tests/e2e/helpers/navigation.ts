@@ -16,6 +16,7 @@ export const ROUTES = {
     gateway: '#/settings/gateway',
     access: '#/settings/access',
     workspace: '#/settings/workspace',
+    agents: '#/settings/agents',
     capabilities: '#/settings/capabilities',
     resources: '#/settings/resources',
     environment: '#/settings/environment',
