@@ -101,11 +101,10 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCardWrap} guid-input-card-shell relative flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
+      className={`${styles.guidInputCardWrap} guid-input-card-shell relative flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
       data-testid='guid-input-card-shell'
       style={{
         zIndex: 1,
-        transition: 'box-shadow 0.25s ease',
         width: isMobile ? 'calc(100% + 28px)' : undefined,
         marginLeft: isMobile ? -14 : undefined,
         marginRight: isMobile ? -14 : undefined,
@@ -121,8 +120,9 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
     >
       <div
         className={`${styles.guidInputInner} relative z-1 flex flex-col bg-dialog-fill-0`}
+        data-testid='guid-input-card-inner'
         style={{
-          transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+          transition: 'box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
           boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'var(--opl-home-composer-shadow)',
         }}

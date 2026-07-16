@@ -112,6 +112,7 @@ describe('GuidInputCard compact home composer', () => {
   it('renders only the composer controls and leaves runtime activity off Home', () => {
     renderCard();
 
+    expect(screen.getByTestId('guid-input-card-inner')).toBeInTheDocument();
     expect(screen.getByTestId('guid-input')).toHaveAttribute('placeholder', 'Describe task');
     expect(screen.queryByTestId('mention-badge')).not.toBeInTheDocument();
     expect(screen.getByTestId('upload-progress')).toBeInTheDocument();
@@ -124,6 +125,44 @@ describe('GuidInputCard compact home composer', () => {
     expect(input.parentElement).toContainElement(contextBar);
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
+  });
+
+  it('keeps the resting composer surface elevated while focus styling remains geometry-neutral', () => {
+    const view = renderCard();
+    const inner = screen.getByTestId('guid-input-card-inner');
+
+    expect(inner).toHaveStyle({ boxShadow: 'var(--opl-home-composer-shadow)' });
+    expect(inner.getAttribute('style')).toContain('box-shadow 160ms ease');
+
+    view.rerender(
+      <GuidInputCard
+        input=''
+        onInputChange={vi.fn()}
+        onKeyDown={vi.fn()}
+        onPaste={vi.fn()}
+        onFocus={vi.fn()}
+        onBlur={vi.fn()}
+        placeholder='Describe task'
+        isInputActive
+        isFileDragging={false}
+        activeBorderColor='rgb(32, 33, 36)'
+        inactiveBorderColor='rgba(0, 0, 0, 0.14)'
+        activeShadow='var(--opl-composer-focus-shadow)'
+        dragHandlers={{}}
+        mentionOpen={false}
+        mentionDropdown={null}
+        files={[]}
+        onRemoveFile={vi.fn()}
+        actionRow={<div data-testid='action-row' />}
+        workspaceDir=''
+        onSelectWorkspace={vi.fn()}
+        onClearWorkspace={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('guid-input-card-inner')).toHaveStyle({
+      boxShadow: 'var(--opl-composer-focus-shadow)',
+    });
   });
 
   it('renders the slash command menu below the composer when provided', () => {

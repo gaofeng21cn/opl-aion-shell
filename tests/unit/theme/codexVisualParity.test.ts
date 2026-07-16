@@ -55,6 +55,12 @@ describe('Codex visual parity overlay', () => {
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
+    expect(guidStyles).toContain('background: var(--dialog-fill-0);');
+    expect(guidStyles).toContain('border: 1px solid var(--opl-composer-border);');
+    expect(guidStyles).toContain('color: var(--color-text-3) !important;');
+    expect(guidStyles).not.toContain('background: #262626;');
+    expect(guidStyles).not.toContain('border-color: #3a3a3a;');
+    expect(guidStyles).not.toContain('color: #b4b5bc');
     expect(guidStyles).toMatch(
       /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*12px\s*!important;/
     );

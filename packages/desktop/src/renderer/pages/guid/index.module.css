@@ -49,6 +49,7 @@
 
 .homeStarter:global(.arco-btn) {
   display: inline-flex !important;
+  box-sizing: border-box;
   flex: 0 1 auto;
   width: auto !important;
   max-width: min(180px, 100%);
@@ -62,12 +63,22 @@
   background: transparent !important;
   color: var(--color-text-2) !important;
   font-size: 13px !important;
+  font-weight: 500 !important;
   line-height: 18px !important;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    outline-color 140ms ease !important;
 }
 
 .homeStarter:global(.arco-btn):hover {
   border-color: transparent !important;
   background: var(--color-fill-2) !important;
+}
+
+.homeStarter:global(.arco-btn):focus-visible {
+  outline: 2px solid var(--opl-focus-ring) !important;
+  outline-offset: 2px;
 }
 
 .homeStarter:global(.arco-btn) :global(.arco-btn-content) {
@@ -624,8 +635,8 @@
 .guidInputInner {
   min-height: 98px;
   padding: 12px 8px 8px;
-  background: var(--bg-base, #fff);
-  border: 1px solid var(--color-border-3);
+  background: var(--dialog-fill-0);
+  border: 1px solid var(--opl-composer-border);
   border-radius: 22px;
   box-sizing: border-box;
 }
@@ -636,11 +647,6 @@
   font-weight: 400;
   line-height: 20px;
   letter-spacing: 0;
-}
-
-:global([data-theme='dark']) .guidInputInner {
-  background: #262626;
-  border-color: #3a3a3a;
 }
 
 .actionRow {
@@ -715,8 +721,8 @@
 }
 
 .actionConfigGroup :global(.sendbox-model-btn svg) {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .actionSubmit {
@@ -946,7 +952,7 @@
 }
 
 .lightPlaceholder::placeholder {
-  color: #b4b5bc;
+  color: var(--color-text-3);
   opacity: 1;
 }
 
@@ -1102,8 +1108,17 @@
 
 /* 浅色占位符 */
 .lightPlaceholder :global(textarea::placeholder) {
-  color: #b4b5bc !important;
+  color: var(--color-text-3) !important;
   opacity: 1 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plusButtonRotate,
+  .skeleton,
+  .skeletonPill,
+  .agentItemSelected {
+    animation: none !important;
+  }
 }
 
 /* 助手卡片网格（首页 list view） */
@@ -1170,7 +1185,7 @@
 }
 
 :global([data-theme='dark']) .assistantCard {
-  background: #262626;
+  background: var(--dialog-fill-0);
 }
 
 :global([data-theme='dark']) .assistantCard:hover {
@@ -1178,7 +1193,7 @@
 }
 
 :global([data-theme='dark']) .assistantCardSelected {
-  background: color-mix(in srgb, var(--color-primary-6) 18%, #262626);
+  background: color-mix(in srgb, var(--color-primary-6) 18%, var(--dialog-fill-0));
 }
 
 .assistantCardAvatar {

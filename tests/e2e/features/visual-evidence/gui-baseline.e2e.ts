@@ -405,6 +405,124 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
   };
 }
 
+async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCheck> {
+  const geometry = await page.evaluate(() => {
+    const active = document.querySelector<HTMLElement>('[data-testid^="home-starter-"][aria-pressed="true"]');
+    const inactive = document.querySelector<HTMLElement>('[data-testid^="home-starter-"][aria-pressed="false"]');
+    const content = active?.querySelector<HTMLElement>('.arco-btn-content');
+    const icon = active?.querySelector<HTMLElement>('[data-testid^="starter-icon-"]');
+    const check = active?.querySelector<HTMLElement>('[data-testid="starter-active-check"]');
+    const label = content ? Array.from(content.children).find((child) => child !== icon && child !== check) : null;
+    if (!active || !inactive || !content || !icon || !check || !(label instanceof HTMLElement)) return null;
+
+    const activeRect = active.getBoundingClientRect();
+    const inactiveRect = inactive.getBoundingClientRect();
+    const iconRect = icon.getBoundingClientRect();
+    const labelRect = label.getBoundingClientRect();
+    const checkRect = check.getBoundingClientRect();
+    const style = window.getComputedStyle(active);
+    const contentStyle = window.getComputedStyle(content);
+    return {
+      activeHeight: activeRect.height,
+      inactiveHeight: inactiveRect.height,
+      rowTopDelta: Math.abs(activeRect.top - inactiveRect.top),
+      iconLabelCenterDelta: Math.abs(iconRect.top + iconRect.height / 2 - (labelRect.top + labelRect.height / 2)),
+      checkLabelCenterDelta: Math.abs(checkRect.top + checkRect.height / 2 - (labelRect.top + labelRect.height / 2)),
+      fontSize: style.fontSize,
+      lineHeight: style.lineHeight,
+      fontWeight: style.fontWeight,
+      alignItems: contentStyle.alignItems,
+    };
+  });
+
+  const passed = Boolean(
+    geometry &&
+    Math.abs(geometry.activeHeight - 34) <= 1 &&
+    Math.abs(geometry.activeHeight - geometry.inactiveHeight) <= 1 &&
+    geometry.rowTopDelta <= 1 &&
+    geometry.iconLabelCenterDelta <= 1 &&
+    geometry.checkLabelCenterDelta <= 1 &&
+    geometry.fontSize === '13px' &&
+    geometry.lineHeight === '18px' &&
+    geometry.fontWeight === '500' &&
+    geometry.alignItems === 'center'
+  );
+  return {
+    id: 'home_starter_active_geometry_stable',
+    passed,
+    details: geometry ? JSON.stringify(geometry) : 'active_or_inactive_starter_geometry_missing',
+  };
+}
+
+async function homeComposerVisualCheck(
+  page: Page,
+  expectedBackground: 'rgb(255, 255, 255)' | 'rgb(32, 34, 36)',
+  verifyFocus: boolean
+): Promise<GuiBaselineLayoutCheck> {
+  const inner = page.locator('[data-testid="guid-input-card-inner"]');
+  const textarea = page.locator('[data-testid="guid-input"]');
+  const read = async () =>
+    inner.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      const input = element.querySelector('textarea');
+      const inputStyle = input ? window.getComputedStyle(input) : null;
+      const rect = element.getBoundingClientRect();
+      const modelButton = element.querySelector<HTMLElement>('.sendbox-model-btn');
+      const modelStyle = modelButton ? window.getComputedStyle(modelButton) : null;
+      const modelIcon = modelButton?.querySelector<SVGElement>('svg');
+      const modelIconRect = modelIcon?.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        background: style.backgroundColor,
+        borderWidth: style.borderTopWidth,
+        shadow: style.boxShadow,
+        inputFontSize: inputStyle?.fontSize ?? null,
+        inputLineHeight: inputStyle?.lineHeight ?? null,
+        inputWeight: inputStyle?.fontWeight ?? null,
+        modelFontSize: modelStyle?.fontSize ?? null,
+        modelLineHeight: modelStyle?.lineHeight ?? null,
+        modelIconWidth: modelIconRect?.width ?? null,
+        modelIconHeight: modelIconRect?.height ?? null,
+      };
+    });
+
+  const resting = await read();
+  let focused = resting;
+  if (verifyFocus) {
+    await textarea.focus();
+    await waitForStablePaint(page);
+    focused = await read();
+    await textarea.evaluate((element) => element.blur());
+    await waitForStablePaint(page);
+  }
+
+  const optionalModelPass =
+    resting.modelFontSize === null ||
+    (resting.modelFontSize === '12px' &&
+      resting.modelLineHeight === '18px' &&
+      resting.modelIconWidth !== null &&
+      resting.modelIconHeight !== null &&
+      Math.abs(resting.modelIconWidth - 16) <= 1 &&
+      Math.abs(resting.modelIconHeight - 16) <= 1);
+  const passed =
+    resting.background === expectedBackground &&
+    resting.borderWidth === '1px' &&
+    resting.shadow !== 'none' &&
+    resting.inputFontSize === '14px' &&
+    resting.inputLineHeight === '20px' &&
+    resting.inputWeight === '400' &&
+    focused.shadow !== 'none' &&
+    Math.abs(resting.width - focused.width) <= 1 &&
+    Math.abs(resting.height - focused.height) <= 1 &&
+    optionalModelPass;
+  return {
+    id: verifyFocus ? 'home_composer_resting_and_focus_geometry' : 'home_composer_visual_tokens',
+    passed,
+    details: JSON.stringify({ resting, focused }),
+  };
+}
+
 async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promise<GuiBaselineLayoutCheck> {
   const homeEntry = page.locator('[data-testid="opl-guid-entry"]');
   const box = await requiredBox(homeEntry, 'home_backdrop_clears_stale_pixels');
@@ -654,6 +772,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       layoutChecks: async (page) => [
         ...(await railMainChecks(page)),
         await textOverflowCheck(page, 'home_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+        await homeComposerVisualCheck(page, 'rgb(255, 255, 255)', true),
       ],
     },
     {
@@ -677,6 +796,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       layoutChecks: async (page) => [
         await viewportCheck(page, 'mobile_home_main_within_viewport', MAIN_CONTENT_SELECTOR),
         await textOverflowCheck(page, 'mobile_home_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+        await homeComposerVisualCheck(page, 'rgb(32, 34, 36)', false),
       ],
     },
     {
@@ -710,6 +830,8 @@ function buildTargets(conversationId: string): VisualTarget[] {
       layoutChecks: async (page) => [
         ...(await railMainChecks(page)),
         await textOverflowCheck(page, 'home_active_starter_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+        await homeStarterGeometryCheck(page),
+        await homeComposerVisualCheck(page, 'rgb(255, 255, 255)', false),
       ],
     },
     {
