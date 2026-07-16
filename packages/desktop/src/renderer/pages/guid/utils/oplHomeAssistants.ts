@@ -8,6 +8,7 @@ import {
   getOplHomeAgentShortcuts,
   getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
+import { parseOplProjectedPackageAction, type OplProjectedPackageAction } from '@/common/types/opl/appState';
 import { getOplVisibleHomeAgentShortcuts } from './oplHomeShortcutPreferences';
 
 const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
@@ -22,6 +23,7 @@ type OplHomePackageProfile = {
 };
 
 export type OplPackageLaunchGate = {
+  state: 'ready' | 'degraded' | 'package_unavailable';
   launchAllowed: boolean | null;
   launchBlockedReason: string | null;
   allowedWhenBlocked: string[];
@@ -29,6 +31,35 @@ export type OplPackageLaunchGate = {
 };
 
 const BLOCKED_PACKAGE_ACTIONS = new Set(['status', 'doctor', 'repair']);
+const PACKAGE_UNAVAILABLE_REASONS = new Set([
+  'package_not_installed',
+  'package_disabled',
+  'package_identity_mismatch',
+  'package_version_mismatch',
+  'incompatible_package_version',
+  'entrypoint_missing',
+  'required_export_missing',
+  'unsafe_managed_target',
+  'managed_target_unavailable',
+  'permission_denied',
+  'authorization_denied',
+]);
+const DEGRADED_PACKAGE_REASONS = new Set([
+  'package_status_read_failed',
+  'package_dependency_missing',
+  'physical_surface_not_ready',
+  'runtime_source_missing',
+  'runtime_source_incompatible',
+  'carrier_authority_invalid',
+  'live_verification_deferred',
+  'verification_deferred',
+  'stale_status',
+  'status_stale',
+  'update_available',
+  'optional_dependency_missing',
+  'package_activation_required',
+  'operational_not_ready',
+]);
 
 function appStateRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -42,34 +73,109 @@ function packageStatusRecords(value: unknown): Record<string, unknown>[] {
   }));
 }
 
-export function resolveOplPackageLaunchGate(appState: unknown, packageId: string): OplPackageLaunchGate {
+function packageDirectoryEntry(appState: unknown, packageId: string): Record<string, unknown> | null {
+  const payload = appStateRecord(appState);
+  const state = appStateRecord(payload.app_state ?? payload);
+  const packages = appStateRecord(state.agent_packages);
+  const directory = appStateRecord(packages.directory);
+  const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
+  return (
+    (Array.isArray(directory.entries) ? directory.entries : [])
+      .map(appStateRecord)
+      .find(
+        (entry) =>
+          typeof entry.package_id === 'string' &&
+          canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+      ) ?? null
+  );
+}
+
+function packageStatusEntry(appState: unknown, packageId: string): Record<string, unknown> | null {
   const payload = appStateRecord(appState);
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const statusIndex = appStateRecord(packages.status_index);
   const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
-  const status = packageStatusRecords(statusIndex.packages).find(
-    (entry) =>
-      typeof entry.package_id === 'string' &&
-      canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+  return (
+    packageStatusRecords(statusIndex.packages).find(
+      (entry) =>
+        typeof entry.package_id === 'string' &&
+        canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+    ) ?? null
   );
-  if (!status) {
-    return { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
+}
+
+/** Resolve the owner-projected installed version for the current package selection. */
+export function resolveOplPackageSelectionVersion(appState: unknown, packageId: string): string | null {
+  const status = packageStatusEntry(appState, packageId);
+  const directoryEntry = packageDirectoryEntry(appState, packageId);
+  for (const value of [
+    status?.package_version,
+    status?.installed_version,
+    status?.version,
+    directoryEntry?.package_version,
+    directoryEntry?.installed_version,
+    directoryEntry?.version,
+  ]) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
-  const operationalReady = typeof status.operational_ready === 'boolean' ? status.operational_ready : null;
-  const projectedLaunchAllowed = typeof status.launch_allowed === 'boolean' ? status.launch_allowed : null;
-  const launchBlockedReason =
-    typeof status.launch_blocked_reason === 'string' && status.launch_blocked_reason.trim()
-      ? status.launch_blocked_reason.trim()
-      : operationalReady === false
-        ? 'operational_not_ready'
+  return null;
+}
+
+/** Resolve the exact owner-projected activation action for one package. */
+export function resolveOplPackageActivationAction(
+  appState: unknown,
+  packageId: string
+): OplProjectedPackageAction | null {
+  const entry = packageDirectoryEntry(appState, packageId);
+  const actions = Array.isArray(entry?.available_actions) ? entry.available_actions : [];
+  for (const candidate of actions) {
+    const action = parseOplProjectedPackageAction(candidate);
+    if (action?.actionId === 'agent_package_activate') return action;
+  }
+  return null;
+}
+
+export function resolveOplPackageLaunchGate(appState: unknown, packageId: string): OplPackageLaunchGate {
+  const status = packageStatusEntry(appState, packageId);
+  const directoryEntry = packageDirectoryEntry(appState, packageId);
+  const directoryReadiness = appStateRecord(directoryEntry?.readiness);
+  const operationalReady =
+    typeof status?.operational_ready === 'boolean'
+      ? status.operational_ready
+      : typeof directoryReadiness.operational_ready === 'boolean'
+        ? directoryReadiness.operational_ready
         : null;
-  const activationRequired = launchBlockedReason?.startsWith('scope_materialization_') === true;
+  const projectedLaunchAllowed =
+    typeof status?.launch_allowed === 'boolean'
+      ? status.launch_allowed
+      : typeof directoryReadiness.launch_allowed === 'boolean'
+        ? directoryReadiness.launch_allowed
+        : null;
+  const launchBlockedReason =
+    typeof status?.launch_blocked_reason === 'string' && status.launch_blocked_reason.trim()
+      ? status.launch_blocked_reason.trim()
+      : typeof directoryReadiness.reason === 'string' && directoryReadiness.reason.trim()
+        ? directoryReadiness.reason.trim()
+        : null;
+  const activationRequired = resolveOplPackageActivationAction(appState, packageId) !== null;
+  const degradedReason = Boolean(
+    launchBlockedReason &&
+    (DEGRADED_PACKAGE_REASONS.has(launchBlockedReason) ||
+      launchBlockedReason.startsWith('scope_materialization_') ||
+      launchBlockedReason.startsWith('optional_'))
+  );
+  const unavailable = Boolean(
+    (launchBlockedReason && PACKAGE_UNAVAILABLE_REASONS.has(launchBlockedReason)) ||
+    (projectedLaunchAllowed === false && launchBlockedReason && !degradedReason) ||
+    (projectedLaunchAllowed === false && operationalReady === true && !launchBlockedReason)
+  );
+  const launchState = unavailable ? 'package_unavailable' : operationalReady === true ? 'ready' : 'degraded';
   return {
-    launchAllowed:
-      operationalReady === false || launchBlockedReason === 'package_not_installed' ? false : projectedLaunchAllowed,
+    state: launchState,
+    launchAllowed: unavailable ? false : projectedLaunchAllowed,
     launchBlockedReason,
-    allowedWhenBlocked: Array.isArray(status.allowed_when_blocked)
+    allowedWhenBlocked: Array.isArray(status?.allowed_when_blocked)
       ? status.allowed_when_blocked.filter(
           (action): action is string => typeof action === 'string' && BLOCKED_PACKAGE_ACTIONS.has(action)
         )

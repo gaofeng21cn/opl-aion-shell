@@ -2061,13 +2061,13 @@ export interface ICreateConversationParams {
     opl_agent_package_activation?: {
       action_id: 'agent_package_activate';
       package_id: string;
-      package_version: string;
-      scope: 'workspace';
-      target_workspace: string;
+      package_version?: string;
+      scope?: string;
+      target_workspace?: string;
       use_boundary_id?: string;
       launch_allowed: true;
       use_receipt_ref?: string;
-      use_binding: Record<string, unknown>;
+      use_binding?: Record<string, unknown>;
     };
     opl_flow_context?: {
       flow_id: string;

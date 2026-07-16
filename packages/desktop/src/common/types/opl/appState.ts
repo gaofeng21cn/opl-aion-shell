@@ -14,6 +14,113 @@ export type OplAppStatePayload = {
   app_state?: OplAppStateRecord;
 } & OplAppStateRecord;
 
+export type OplProjectedPackageAction = {
+  actionId: string;
+  actionRef: string;
+  payloadRefsOnlyJson: Record<string, unknown>;
+  requiredPayloadFields: string[];
+  confirmationRequired: boolean;
+};
+
+export type OplProjectedActionPayload = {
+  payloadRefsOnlyJson: Record<string, unknown>;
+  missingRequiredPayloadFields: string[];
+};
+
+const OPL_PACKAGE_ACTION_IDS = new Set([
+  'refresh_registry',
+  'install_from_manifest_url',
+  'agent_package_update',
+  'agent_package_repair',
+  'agent_package_activate',
+  'agent_package_uninstall',
+  'agent_package_preferences_set',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasPayloadValue(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '';
+}
+
+/** Parse one exact Framework-projected package action without adding Shell fields. */
+export function parseOplProjectedPackageAction(value: unknown): OplProjectedPackageAction | null {
+  if (!isRecord(value)) return null;
+  const expectedFields = new Set([
+    'action_id',
+    'action_ref',
+    'payload',
+    'required_payload_fields',
+    'confirmation_required',
+  ]);
+  const fields = Object.keys(value);
+  const actionId = typeof value.action_id === 'string' ? value.action_id.trim() : '';
+  const actionRef = typeof value.action_ref === 'string' ? value.action_ref.trim() : '';
+  if (
+    fields.length !== expectedFields.size ||
+    fields.some((field) => !expectedFields.has(field)) ||
+    !OPL_PACKAGE_ACTION_IDS.has(actionId) ||
+    actionRef !== `app_state.actions#${actionId}` ||
+    !isRecord(value.payload) ||
+    !Array.isArray(value.required_payload_fields) ||
+    typeof value.confirmation_required !== 'boolean'
+  ) {
+    return null;
+  }
+  const requiredPayloadFields = value.required_payload_fields.map((field) =>
+    typeof field === 'string' ? field.trim() : ''
+  );
+  if (requiredPayloadFields.some((field) => !field)) return null;
+  return {
+    actionId,
+    actionRef,
+    payloadRefsOnlyJson: { ...value.payload },
+    requiredPayloadFields,
+    confirmationRequired: value.confirmation_required,
+  };
+}
+
+/** Return the alternative field names accepted by one projected requirement. */
+export function oplProjectedRequirementAlternatives(requirement: string): string[] {
+  return requirement
+    .split(/\s+or\s+/i)
+    .map((field) => field.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Fill only context fields explicitly named by required_payload_fields. The
+ * projected payload remains authoritative for every other field.
+ */
+export function buildOplProjectedActionPayload(
+  action: OplProjectedPackageAction,
+  requiredContext: Record<string, unknown> = {}
+): OplProjectedActionPayload {
+  const payloadRefsOnlyJson = { ...action.payloadRefsOnlyJson };
+  const missingRequiredPayloadFields: string[] = [];
+  for (const requirement of action.requiredPayloadFields) {
+    const alternatives = oplProjectedRequirementAlternatives(requirement);
+    if (alternatives.some((field) => hasPayloadValue(payloadRefsOnlyJson[field]))) continue;
+    const providedField = alternatives.find((field) => hasPayloadValue(requiredContext[field]));
+    if (providedField) {
+      payloadRefsOnlyJson[providedField] = requiredContext[providedField];
+      continue;
+    }
+    missingRequiredPayloadFields.push(requirement);
+  }
+  return { payloadRefsOnlyJson, missingRequiredPayloadFields };
+}
+
+/** Check whether an unresolved projected requirement names a context field. */
+export function oplProjectedActionNeedsContextField(action: OplProjectedPackageAction, field: string): boolean {
+  const { missingRequiredPayloadFields } = buildOplProjectedActionPayload(action);
+  return missingRequiredPayloadFields.some((requirement) =>
+    oplProjectedRequirementAlternatives(requirement).includes(field)
+  );
+}
+
 export type OplGatewayAccountStatus =
   | 'not_connected'
   | 'setup_required'

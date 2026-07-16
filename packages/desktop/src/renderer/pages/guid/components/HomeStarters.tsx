@@ -69,7 +69,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
           const label = assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
           const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
-          const launchReady = launchGate.launchAllowed !== false;
+          const launchReady = launchGate.state !== 'package_unavailable';
           const blockedTitle = !launchReady
             ? t('guid.home.launchBlocked', {
                 reason: launchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
@@ -85,7 +85,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               title={blockedTitle}
               aria-pressed={active}
               data-opl-active={String(active)}
-              data-opl-launch-ready={String(launchGate.launchAllowed !== false)}
+              data-opl-launch-ready={String(launchReady)}
               data-testid={`home-starter-${assistant.id}`}
             >
               <span

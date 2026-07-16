@@ -29,6 +29,11 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import { getOplAgentPackageRegistryUrl } from '@/common/config/oplProductProfile';
+import {
+  buildOplProjectedActionPayload,
+  oplProjectedActionNeedsContextField,
+  oplProjectedRequirementAlternatives,
+} from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
@@ -1015,12 +1020,11 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     activation: boolean,
     explicitInput: Record<string, unknown> = {}
   ): Record<string, unknown> => {
-    const payload = { ...action.payloadRefsOnlyJson, ...explicitInput };
-    if (activation) {
-      if (!payload.scope) payload.scope = 'workspace';
-      if (!payload.target_workspace && workspaceRootPath) payload.target_workspace = workspaceRootPath;
-    }
-    return payload;
+    if (!activation) return { ...action.payloadRefsOnlyJson, ...explicitInput };
+    return buildOplProjectedActionPayload(action, {
+      ...explicitInput,
+      ...(workspaceRootPath ? { target_workspace: workspaceRootPath } : {}),
+    }).payloadRefsOnlyJson;
   };
 
   const projectedActionMissingFields = (
@@ -1030,10 +1034,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const hasValue = (field: string) =>
       payload[field] !== undefined && payload[field] !== null && payload[field] !== '';
     return action.requiredPayloadFields.filter((requirement) => {
-      const alternatives = requirement
-        .split(/\s+or\s+/i)
-        .map((field) => field.trim())
-        .filter(Boolean);
+      const alternatives = oplProjectedRequirementAlternatives(requirement);
       return alternatives.length === 0 || !alternatives.some(hasValue);
     });
   };
@@ -1043,9 +1044,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     options: { activation?: boolean; explicitInput?: Record<string, unknown> } = {}
   ): boolean => {
     const activation = options.activation === true;
-    if (activation && !workspaceRootPath) return false;
     const payload = projectedActionPayload(action, activation, options.explicitInput);
-    if (activation && payload.scope !== 'workspace') return false;
     return projectedActionMissingFields(action, payload).length === 0;
   };
 
@@ -1184,7 +1183,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   }).length;
   const workspaceActivationRequired =
     !workspaceRootPath &&
-    purposeCapabilities.some((item) => capabilityRowAction(item)?.actionId === 'agent_package_activate');
+    purposeCapabilities.some((item) => {
+      const action = capabilityRowAction(item);
+      return Boolean(
+        action?.actionId === 'agent_package_activate' && oplProjectedActionNeedsContextField(action, 'target_workspace')
+      );
+    });
 
   const resetCatalogFilters = () => {
     setCatalogSearch('');
@@ -1532,13 +1536,16 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
               const rowAction = capabilityRowAction(item);
               const rowActivation = rowAction?.actionId === 'agent_package_activate';
+              const rowNeedsWorkspace = Boolean(
+                rowActivation && rowAction && oplProjectedActionNeedsContextField(rowAction, 'target_workspace')
+              );
               const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
               const rowActivationDisabledReason = rowActivation
-                ? !workspaceRootPath
+                ? rowNeedsWorkspace && !workspaceRootPath
                   ? 'workspace_root_not_configured'
-                  : item.activationAction?.enabled === true
-                    ? null
-                    : (item.activationAction?.reasonCode ?? 'activation_status_unavailable')
+                  : item.activationAction?.enabled === false
+                    ? (item.activationAction.reasonCode ?? 'activation_disabled')
+                    : null
                 : null;
               const rowActionDisabled = Boolean(
                 packageMutationBusy ||
@@ -1627,7 +1634,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                         loading={busyAction === rowAction.actionId}
                         disabled={rowActionDisabled}
                         aria-describedby={
-                          rowActivation && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
+                          rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
                         }
                         data-disabled-reason={rowActivationDisabledReason ?? undefined}
                         onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}

@@ -6,29 +6,31 @@ type MinimalPackageUseBinding = {
   surface_kind: 'opl_agent_package_use_binding.v1';
   root_package: {
     package_id: string;
-    package_version: string;
+    package_version?: string;
   };
-  scope: 'workspace';
-  target_root: string;
+  scope?: string;
+  target_root?: string;
 };
 
 export type OplAgentPackageActivationReceipt = {
   action_id: 'agent_package_activate';
   package_id: string;
-  package_version: string;
-  scope: 'workspace';
-  target_workspace: string;
+  package_version?: string;
+  scope?: string;
+  target_workspace?: string;
   use_boundary_id?: string;
   launch_allowed: true;
   use_receipt_ref?: string;
-  use_binding: MinimalPackageUseBinding;
+  use_binding?: MinimalPackageUseBinding;
 };
 
 export type OplAgentPackageLaunchFailureCode =
+  | 'agent_package_unavailable'
   | 'agent_package_launch_blocked'
   | 'agent_package_activation_invalid'
   | 'agent_package_selection_mismatch'
   | 'agent_package_version_mismatch'
+  | 'agent_package_entrypoint_missing'
   | 'agent_package_target_mismatch';
 
 export class OplAgentPackageLaunchError extends Error {
@@ -52,7 +54,11 @@ function nonemptyString(value: unknown): string | null {
 }
 
 function bindingValue(activation: JsonRecord): JsonRecord | null {
-  return recordValue(activation.use_binding) ?? recordValue(activation.package_use_binding);
+  const candidate = activation.use_binding ?? activation.package_use_binding;
+  if (candidate === undefined || candidate === null) return null;
+  const binding = recordValue(candidate);
+  if (!binding) throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+  return binding;
 }
 
 function canonicalTarget(value: unknown): string | null {
@@ -64,13 +70,21 @@ function targetMatches(value: unknown, expectedTarget: string): boolean {
   return canonicalTarget(value) === expectedTarget;
 }
 
-function scopeMaterializationsMatch(value: unknown, expectedTarget: string): boolean {
-  if (value === undefined || value === null) return true;
-  if (!Array.isArray(value)) return false;
-  return value.every((entry) => {
-    const materialization = recordValue(entry);
-    return materialization?.scope === 'workspace' && targetMatches(materialization.target_root, expectedTarget);
-  });
+function optionalRecord(value: unknown): JsonRecord | null {
+  if (value === undefined || value === null) return null;
+  const record = recordValue(value);
+  if (!record) throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+  return record;
+}
+
+function optionalRecordList(value: unknown): JsonRecord[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+  const records = value.map(recordValue);
+  if (records.some((entry) => !entry)) {
+    throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+  }
+  return records as JsonRecord[];
 }
 
 /**
@@ -81,7 +95,9 @@ function scopeMaterializationsMatch(value: unknown, expectedTarget: string): boo
 export function parseOplAgentPackageLaunchResult(input: {
   parsed: unknown;
   packageId: string;
-  targetWorkspace: string;
+  packageVersion: string | null;
+  targetWorkspace: string | null;
+  scope: string | null;
 }): OplAgentPackageActivationReceipt {
   const parsed = recordValue(input.parsed);
   const execution = recordValue(parsed?.app_action_execution);
@@ -91,82 +107,118 @@ export function parseOplAgentPackageLaunchResult(input: {
     throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
   }
 
-  if (activation.launch_allowed !== true) {
-    const blockedReason = nonemptyString(activation.launch_blocked_reason);
-    if (!blockedReason) {
-      throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
-    }
-    throw new OplAgentPackageLaunchError('agent_package_launch_blocked', blockedReason);
-  }
-
+  const launchState = nonemptyString(activation.launch_state);
+  const launchStateReason = nonemptyString(activation.launch_state_reason);
   if (
-    !['activated', 'already_activated'].includes(String(activation.status)) ||
-    activation.operational_ready !== true
+    (launchState && !['ready', 'degraded', 'package_unavailable'].includes(launchState)) ||
+    (launchState === 'ready' && (activation.launch_allowed !== true || launchStateReason)) ||
+    (launchState === 'degraded' && (activation.launch_allowed !== true || !launchStateReason)) ||
+    (launchState === 'package_unavailable' && (activation.launch_allowed !== false || !launchStateReason))
   ) {
     throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
   }
 
-  const packageLock = recordValue(activation.package_lock);
+  if (activation.launch_allowed !== true) {
+    const blockedReason = launchStateReason ?? nonemptyString(activation.launch_blocked_reason);
+    if (!blockedReason) {
+      throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+    }
+    if (blockedReason.includes('entrypoint')) {
+      throw new OplAgentPackageLaunchError('agent_package_entrypoint_missing', blockedReason);
+    }
+    throw new OplAgentPackageLaunchError('agent_package_unavailable', blockedReason);
+  }
+
+  if (activation.package_id !== input.packageId) {
+    throw new OplAgentPackageLaunchError('agent_package_selection_mismatch');
+  }
+  if (activation.status === 'blocked' || activation.status === 'failed' || activation.status === 'unavailable') {
+    throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
+  }
+
+  const packageLock = optionalRecord(activation.package_lock);
   const binding = bindingValue(activation);
-  const rootPackage = recordValue(binding?.root_package);
-  if (!packageLock || !binding || !rootPackage) {
+  const rootPackage = binding ? optionalRecord(binding.root_package) : null;
+  if (binding && (binding.surface_kind !== 'opl_agent_package_use_binding.v1' || !rootPackage)) {
     throw new OplAgentPackageLaunchError('agent_package_activation_invalid');
   }
 
   if (
-    activation.package_id !== input.packageId ||
-    packageLock.package_id !== input.packageId ||
-    rootPackage.package_id !== input.packageId
+    (packageLock && packageLock.package_id !== input.packageId) ||
+    (rootPackage && rootPackage.package_id !== input.packageId)
   ) {
     throw new OplAgentPackageLaunchError('agent_package_selection_mismatch');
   }
 
-  const lockVersion = nonemptyString(packageLock.package_version);
-  const activeVersion = nonemptyString(rootPackage.package_version);
-  const topLevelVersion = nonemptyString(activation.package_version);
+  const versions = [
+    nonemptyString(activation.package_version),
+    nonemptyString(packageLock?.package_version),
+    nonemptyString(rootPackage?.package_version),
+  ].filter((version): version is string => Boolean(version));
   if (
-    !lockVersion ||
-    !activeVersion ||
-    lockVersion !== activeVersion ||
-    (topLevelVersion && topLevelVersion !== lockVersion)
+    new Set(versions).size > 1 ||
+    (input.packageVersion && versions.some((version) => version !== input.packageVersion))
   ) {
     throw new OplAgentPackageLaunchError('agent_package_version_mismatch');
   }
 
-  const targetWorkspace = canonicalTarget(input.targetWorkspace);
-  const readiness = recordValue(activation.materialization_readiness);
-  const readinessTarget = readiness?.target_root;
+  const targetWorkspace = input.targetWorkspace ? canonicalTarget(input.targetWorkspace) : null;
+  if (input.targetWorkspace && !targetWorkspace) {
+    throw new OplAgentPackageLaunchError('agent_package_target_mismatch');
+  }
+  const readiness = optionalRecord(activation.materialization_readiness);
+  const scopeMaterializations = optionalRecordList(activation.scope_materializations);
+  const targetValues = [
+    activation.target_workspace,
+    binding?.target_root,
+    readiness?.target_root,
+    ...scopeMaterializations.map((materialization) => materialization.target_root),
+  ].filter((value) => value !== undefined && value !== null);
   if (
-    !targetWorkspace ||
-    binding.scope !== 'workspace' ||
-    !targetMatches(binding.target_root, targetWorkspace) ||
-    (readiness?.scope !== undefined && readiness.scope !== null && readiness.scope !== 'workspace') ||
-    (readinessTarget !== undefined && readinessTarget !== null && !targetMatches(readinessTarget, targetWorkspace)) ||
-    !scopeMaterializationsMatch(activation.scope_materializations, targetWorkspace)
+    targetWorkspace &&
+    (targetValues.length === 0 || targetValues.some((value) => !targetMatches(value, targetWorkspace)))
   ) {
     throw new OplAgentPackageLaunchError('agent_package_target_mismatch');
   }
+  const scopeValues = [
+    activation.scope,
+    binding?.scope,
+    readiness?.scope,
+    ...scopeMaterializations.map((materialization) => materialization.scope),
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+  if (input.scope && scopeValues.some((scope) => scope !== input.scope)) {
+    throw new OplAgentPackageLaunchError('agent_package_target_mismatch');
+  }
 
-  const useBoundaryId = nonemptyString(activation.use_boundary_id) ?? nonemptyString(binding.use_boundary_id);
-  const useReceiptRef = nonemptyString(activation.use_receipt_ref) ?? nonemptyString(binding.use_receipt_ref);
+  const useBoundaryId = nonemptyString(activation.use_boundary_id) ?? nonemptyString(binding?.use_boundary_id);
+  const useReceiptRef = nonemptyString(activation.use_receipt_ref) ?? nonemptyString(binding?.use_receipt_ref);
+  const packageVersion = versions[0];
+  const returnedScope = input.scope ?? scopeValues[0] ?? null;
+  const bindingVersion = nonemptyString(rootPackage?.package_version);
+  const bindingScope = nonemptyString(binding?.scope);
+  const bindingTarget = canonicalTarget(binding?.target_root);
 
   return {
     action_id: 'agent_package_activate',
     package_id: input.packageId,
-    package_version: lockVersion,
-    scope: 'workspace',
-    target_workspace: targetWorkspace,
+    ...(packageVersion ? { package_version: packageVersion } : {}),
+    ...(returnedScope ? { scope: returnedScope } : {}),
+    ...(targetWorkspace ? { target_workspace: targetWorkspace } : {}),
     ...(useBoundaryId ? { use_boundary_id: useBoundaryId } : {}),
     launch_allowed: true,
     ...(useReceiptRef ? { use_receipt_ref: useReceiptRef } : {}),
-    use_binding: {
-      surface_kind: 'opl_agent_package_use_binding.v1',
-      root_package: {
-        package_id: input.packageId,
-        package_version: lockVersion,
-      },
-      scope: 'workspace',
-      target_root: targetWorkspace,
-    },
+    ...(binding && rootPackage
+      ? {
+          use_binding: {
+            surface_kind: 'opl_agent_package_use_binding.v1' as const,
+            root_package: {
+              package_id: input.packageId,
+              ...(bindingVersion ? { package_version: bindingVersion } : {}),
+            },
+            ...(bindingScope ? { scope: bindingScope } : {}),
+            ...(bindingTarget ? { target_root: bindingTarget } : {}),
+          },
+        }
+      : {}),
   };
 }

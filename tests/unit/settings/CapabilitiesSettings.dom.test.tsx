@@ -1326,11 +1326,11 @@ describe('Agents and capabilities settings', () => {
     installView.unmount();
 
     bridgeMocks.executeActionInvoke.mockClear();
-    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
-      'package_id',
-      'scope',
-      'target_workspace or target_quest',
-    ]);
+    const activationAction = actionFixture(
+      'agent_package_activate',
+      { package_id: 'example-agent', scope: 'workspace' },
+      ['package_id', 'scope', 'target_workspace or target_quest']
+    );
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
@@ -1376,6 +1376,43 @@ describe('Agents and capabilities settings', () => {
           scope: 'workspace',
           target_workspace: '/workspace/selected',
         },
+      })
+    );
+  });
+
+  it('executes a package-id-only activation without a Workspace or status-index precondition', async () => {
+    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, ['package_id']);
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          display_name: 'Example Agent',
+          installed: true,
+          readiness: {
+            status: 'verification_deferred',
+            operational_ready: false,
+            launch_allowed: false,
+            verification_deferred: true,
+            reason: 'live_verification_deferred',
+          },
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: activationAction,
+          available_actions: [activationAction],
+        },
+      ],
+      { workspaceRootPath: null, statusEntries: [] }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const activation = screen.getByTestId('agent-package-activate-example');
+    expect(activation).toBeEnabled();
+    expect(activation).not.toHaveAttribute('aria-describedby');
+    fireEvent.click(activation);
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_activate',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'example-agent' },
       })
     );
   });
@@ -1441,11 +1478,11 @@ describe('Agents and capabilities settings', () => {
   });
 
   it('disables activation without a Workspace and routes its accessible reason to the Workspace anchor', () => {
-    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
-      'package_id',
-      'scope',
-      'target_workspace or target_quest',
-    ]);
+    const activationAction = actionFixture(
+      'agent_package_activate',
+      { package_id: 'example-agent', scope: 'workspace' },
+      ['package_id', 'scope', 'target_workspace or target_quest']
+    );
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
@@ -1494,15 +1531,48 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('current-location')).toHaveTextContent('/settings/workspace#workspace');
   });
 
-  it.each([
-    ['missing', 'activation_status_unavailable'],
-    ['disabled', 'package_disabled'],
-  ] as const)('fails activation closed when status-index activation is %s', (projectionState, expectedReason) => {
-    const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, [
-      'package_id',
-      'scope',
-      'target_workspace or target_quest',
-    ]);
+  it('uses the exact directory action when status-index activation is missing', async () => {
+    const activationAction = actionFixture(
+      'agent_package_activate',
+      { package_id: 'example-agent', scope: 'workspace' },
+      ['package_id', 'scope', 'target_workspace or target_quest']
+    );
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          installed: true,
+          recommended_action: 'agent_package_activate',
+          recommended_action_ref: activationAction,
+          available_actions: [activationAction],
+        },
+      ],
+      { workspaceRootPath: '/workspace/selected', statusEntries: [] }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const activation = screen.getByTestId('agent-package-activate-example');
+    expect(activation).toBeEnabled();
+    fireEvent.click(activation);
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_activate',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: 'example-agent',
+          scope: 'workspace',
+          target_workspace: '/workspace/selected',
+        },
+      })
+    );
+  });
+
+  it('fails activation closed for an explicit disabled authority verdict', () => {
+    const activationAction = actionFixture(
+      'agent_package_activate',
+      { package_id: 'example-agent', scope: 'workspace' },
+      ['package_id', 'scope', 'target_workspace or target_quest']
+    );
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
@@ -1515,28 +1585,25 @@ describe('Agents and capabilities settings', () => {
       ],
       {
         workspaceRootPath: '/workspace/selected',
-        statusEntries:
-          projectionState === 'disabled'
-            ? [
-                {
-                  package_id: 'example-agent',
-                  activation_action: {
-                    action_id: 'agent_package_activate',
-                    command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
-                    enabled: false,
-                    preparation_status: 'ready',
-                    reason_code: 'package_disabled',
-                  },
-                },
-              ]
-            : [],
+        statusEntries: [
+          {
+            package_id: 'example-agent',
+            activation_action: {
+              action_id: 'agent_package_activate',
+              command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+              enabled: false,
+              preparation_status: 'ready',
+              reason_code: 'package_disabled',
+            },
+          },
+        ],
       }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const activation = screen.getByTestId('agent-package-activate-example');
     expect(activation).toBeDisabled();
-    expect(activation).toHaveAttribute('data-disabled-reason', expectedReason);
+    expect(activation).toHaveAttribute('data-disabled-reason', 'package_disabled');
     fireEvent.click(activation);
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });

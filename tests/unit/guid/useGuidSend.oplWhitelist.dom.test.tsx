@@ -150,9 +150,45 @@ function buildPackageUseBinding(packageId: string, targetWorkspace: string) {
   };
 }
 
+function buildActivationAction(packageId: string, workspaceRequired = true) {
+  return {
+    action_id: 'agent_package_activate',
+    action_ref: 'app_state.actions#agent_package_activate',
+    payload: {
+      package_id: packageId,
+      ...(workspaceRequired ? { scope: 'workspace' } : {}),
+    },
+    required_payload_fields: workspaceRequired
+      ? ['package_id', 'scope', 'target_workspace or target_quest']
+      : ['package_id'],
+    confirmation_required: false,
+  };
+}
+
+function buildPackageAppState(packageId: string, status: Record<string, unknown> | null, workspaceRequired = true) {
+  return {
+    agent_packages: {
+      directory: {
+        entries: [
+          {
+            package_id: packageId,
+            package_version: '1.0.0',
+            available_actions: [buildActivationAction(packageId, workspaceRequired)],
+          },
+        ],
+      },
+      status_index: {
+        packages: status ? { [packageId]: { package_id: packageId, ...status } } : {},
+      },
+    },
+  };
+}
+
 function buildActivationExecution(payloadRefsOnlyJson: Record<string, unknown>) {
   const packageId = String(payloadRefsOnlyJson.package_id);
-  const targetWorkspace = String(payloadRefsOnlyJson.target_workspace);
+  const targetWorkspace =
+    typeof payloadRefsOnlyJson.target_workspace === 'string' ? payloadRefsOnlyJson.target_workspace : null;
+  const scope = typeof payloadRefsOnlyJson.scope === 'string' ? payloadRefsOnlyJson.scope : null;
   return {
     ok: true,
     parsed: {
@@ -174,18 +210,22 @@ function buildActivationExecution(payloadRefsOnlyJson: Record<string, unknown>) 
               package_id: packageId,
               package_version: '1.0.0',
             },
-            materialization_readiness: {
-              status: 'current',
-              scope: 'workspace',
-              target_root: targetWorkspace,
-            },
-            scope_materializations: [
-              {
-                scope: 'workspace',
-                target_root: targetWorkspace,
-              },
-            ],
-            package_use_binding: buildPackageUseBinding(packageId, targetWorkspace),
+            ...(targetWorkspace
+              ? {
+                  materialization_readiness: {
+                    status: 'current',
+                    scope,
+                    target_root: targetWorkspace,
+                  },
+                  scope_materializations: [
+                    {
+                      scope,
+                      target_root: targetWorkspace,
+                    },
+                  ],
+                  package_use_binding: buildPackageUseBinding(packageId, targetWorkspace),
+                }
+              : {}),
           },
         },
       },
@@ -207,19 +247,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
         Promise.resolve(buildActivationExecution(payloadRefsOnlyJson))
     );
     mocks.navigate.mockReset();
-    mocks.appState = {
-      agent_packages: {
-        status_index: {
-          packages: {
-            mas: {
-              package_id: 'mas',
-              operational_ready: true,
-              launch_allowed: true,
-            },
-          },
-        },
-      },
-    };
+    mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true });
     mocks.messageError.mockReset();
     sessionStorage.clear();
   });
@@ -317,19 +345,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
   });
 
   it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {
-    mocks.appState = {
-      agent_packages: {
-        status_index: {
-          packages: {
-            oma: {
-              package_id: 'oma',
-              operational_ready: true,
-              launch_allowed: true,
-            },
-          },
-        },
-      },
-    };
+    mocks.appState = buildPackageAppState('oma', { operational_ready: true, launch_allowed: true });
     const deps = buildDeps();
     deps.activeShortcut = resolveOplActiveShortcut('oma');
     deps.guidEnabledSkills = ['opl-meta-agent'];
@@ -382,7 +398,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
   });
 
   it('continues package launch while its Framework status entry is still loading', async () => {
-    mocks.appState = { agent_packages: { status_index: { packages: {} } } };
+    mocks.appState = buildPackageAppState('mas', null);
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
 
@@ -397,21 +413,12 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
   });
 
   it('activates a scope-required package before creating its workspace conversation', async () => {
-    mocks.appState = {
-      agent_packages: {
-        status_index: {
-          packages: {
-            mas: {
-              package_id: 'mas',
-              operational_ready: false,
-              launch_allowed: false,
-              launch_blocked_reason: 'scope_materialization_scope_required',
-              allowed_when_blocked: ['status', 'doctor', 'repair'],
-            },
-          },
-        },
-      },
-    };
+    mocks.appState = buildPackageAppState('mas', {
+      operational_ready: false,
+      launch_allowed: false,
+      launch_blocked_reason: 'scope_materialization_scope_required',
+      allowed_when_blocked: ['status', 'doctor', 'repair'],
+    });
     const { result } = renderHook(() => useGuidSend(buildDeps()));
 
     await act(async () => {
@@ -436,12 +443,55 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.messageError).toHaveBeenCalledWith('guid.workspace.specifyWorkspace');
   });
 
+  it('activates a package-id-only projected action without a Workspace', async () => {
+    mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true }, false);
+    const deps = buildDeps();
+    deps.dir = '';
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.activatePackage).toHaveBeenCalledWith({
+      actionId: 'agent_package_activate',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation.mock.calls[0][0].extra.workspace).toBe('');
+    expect(mocks.messageError).not.toHaveBeenCalled();
+  });
+
+  it('JIT activates live_verification_deferred instead of pre-blocking the package', async () => {
+    mocks.appState = buildPackageAppState(
+      'mas',
+      {
+        operational_ready: false,
+        launch_allowed: false,
+        launch_blocked_reason: 'live_verification_deferred',
+      },
+      false
+    );
+    const deps = buildDeps();
+    deps.dir = '';
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.messageError).not.toHaveBeenCalled();
+  });
+
   it('shows a localized invalid-activation error before creating a conversation', async () => {
     mocks.activatePackage.mockResolvedValue({
       ok: true,
       parsed: {
         app_action_execution: {
-          action_id: 'agent_package_activate',
+          action_id: 'unexpected_action',
           result: {
             opl_agent_package_activation: {
               package_id: 'mas',
@@ -480,6 +530,9 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       mutate: (activation: Record<string, unknown>) => {
         const lock = activation.package_lock as Record<string, unknown>;
         lock.package_version = '9.9.9';
+        const binding = activation.package_use_binding as Record<string, unknown>;
+        const rootPackage = binding.root_package as Record<string, unknown>;
+        rootPackage.package_version = '9.9.9';
       },
     },
     {

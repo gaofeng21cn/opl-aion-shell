@@ -6,7 +6,12 @@ import {
   isGuidSkillChecked,
   mergeRequiredSkills,
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
-import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import {
+  resolveOplHomeAssistants,
+  resolveOplPackageActivationAction,
+  resolveOplPackageLaunchGate,
+  resolveOplPackageSelectionVersion,
+} from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
@@ -23,6 +28,18 @@ const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): 
   prompts_i18n: {},
   models: [],
   ...input,
+});
+
+const activationAction = (
+  packageId: string,
+  payload: Record<string, unknown> = { package_id: packageId },
+  requiredPayloadFields: string[] = ['package_id']
+) => ({
+  action_id: 'agent_package_activate',
+  action_ref: 'app_state.actions#agent_package_activate',
+  payload,
+  required_payload_fields: requiredPayloadFields,
+  confirmation_required: false,
 });
 
 describe('OPL home assistants', () => {
@@ -126,6 +143,7 @@ describe('OPL home assistants', () => {
     );
 
     expect(gate).toEqual({
+      state: 'package_unavailable',
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
@@ -137,6 +155,20 @@ describe('OPL home assistants', () => {
     const gate = resolveOplPackageLaunchGate(
       {
         agent_packages: {
+          directory: {
+            entries: [
+              {
+                package_id: 'mas',
+                available_actions: [
+                  activationAction('mas', { package_id: 'mas', scope: 'workspace' }, [
+                    'package_id',
+                    'scope',
+                    'target_workspace or target_quest',
+                  ]),
+                ],
+              },
+            ],
+          },
           status_index: {
             packages: {
               mas: {
@@ -154,6 +186,7 @@ describe('OPL home assistants', () => {
     );
 
     expect(gate).toEqual({
+      state: 'degraded',
       launchAllowed: false,
       launchBlockedReason: 'scope_materialization_scope_required',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
@@ -165,12 +198,14 @@ describe('OPL home assistants', () => {
     expect(
       resolveOplPackageLaunchGate({ agent_packages: { status_index: { packages: {} } } }, 'med-autoscience')
     ).toEqual({
+      state: 'degraded',
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],
       activationRequired: false,
     });
     expect(resolveOplPackageLaunchGate({}, 'unknown-agent')).toEqual({
+      state: 'degraded',
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],
@@ -178,7 +213,7 @@ describe('OPL home assistants', () => {
     });
   });
 
-  it('blocks ordinary launch when operational readiness is false even if launch_allowed is true', () => {
+  it('keeps operational_ready=false as a degraded continuation when launch is still allowed', () => {
     const gate = resolveOplPackageLaunchGate(
       {
         agent_packages: {
@@ -197,8 +232,90 @@ describe('OPL home assistants', () => {
       'future-agent'
     );
 
-    expect(gate.launchAllowed).toBe(false);
+    expect(gate.state).toBe('degraded');
+    expect(gate.launchAllowed).toBe(true);
     expect(gate.allowedWhenBlocked).toEqual(['status', 'doctor', 'repair']);
+  });
+
+  it.each([
+    'package_status_read_failed',
+    'package_dependency_missing',
+    'physical_surface_not_ready',
+    'runtime_source_missing',
+    'runtime_source_incompatible',
+    'carrier_authority_invalid',
+    'live_verification_deferred',
+    'update_available',
+    'optional_dependency_missing',
+  ])('keeps %s local and degraded instead of hard-blocking the selected starter', (reason) => {
+    const gate = resolveOplPackageLaunchGate(
+      {
+        agent_packages: {
+          status_index: {
+            packages: {
+              mas: {
+                package_id: 'mas',
+                operational_ready: false,
+                launch_allowed: false,
+                launch_blocked_reason: reason,
+              },
+            },
+          },
+        },
+      },
+      'mas'
+    );
+
+    expect(gate).toMatchObject({ state: 'degraded', launchAllowed: false, launchBlockedReason: reason });
+  });
+
+  it('reads the selected package version from owner projections without parsing a manifest', () => {
+    expect(
+      resolveOplPackageSelectionVersion(
+        {
+          agent_packages: {
+            directory: { entries: [{ package_id: 'med-autoscience', package_version: null }] },
+            status_index: { packages: { mas: { package_id: 'mas', package_version: '0.2.10' } } },
+          },
+        },
+        'med-autoscience'
+      )
+    ).toBe('0.2.10');
+  });
+
+  it('keeps live verification deferred JIT-eligible from the exact projected action', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'med-autoscience',
+              readiness: {
+                status: 'verification_deferred',
+                operational_ready: false,
+                launch_allowed: false,
+                verification_deferred: true,
+                reason: 'live_verification_deferred',
+              },
+              available_actions: [activationAction('med-autoscience')],
+            },
+          ],
+        },
+        status_index: { packages: {} },
+      },
+    };
+
+    expect(resolveOplPackageActivationAction(appState, 'mas')).toMatchObject({
+      actionId: 'agent_package_activate',
+      payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+      requiredPayloadFields: ['package_id'],
+    });
+    expect(resolveOplPackageLaunchGate(appState, 'mas')).toMatchObject({
+      state: 'degraded',
+      launchAllowed: false,
+      launchBlockedReason: 'live_verification_deferred',
+      activationRequired: true,
+    });
   });
 
   it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {

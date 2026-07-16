@@ -6,7 +6,9 @@ type JsonRecord = Record<string, unknown>;
 
 const expected = {
   packageId: 'med-autoscience',
+  packageVersion: '0.2.9',
   targetWorkspace: '/Users/example/Research',
+  scope: 'workspace',
 };
 
 function useBinding(): JsonRecord {
@@ -149,23 +151,47 @@ describe('OPL agent package launch validation', () => {
     expectFailure(envelope, 'agent_package_selection_mismatch');
   });
 
-  it.each([
-    {
-      caseId: 'missing installed version',
-      mutate: (envelope: JsonRecord) => {
-        delete (activationFromEnvelope(envelope).package_lock as JsonRecord).package_version;
-      },
-    },
-    {
-      caseId: 'selected version drift',
-      mutate: (envelope: JsonRecord) => {
-        (bindingFromEnvelope(envelope).root_package as JsonRecord).package_version = '9.9.9';
-      },
-    },
-  ])('rejects $caseId', ({ mutate }) => {
+  it('rejects internally consistent returned versions that drift from the current selection', () => {
     const envelope = activationEnvelope();
-    mutate(envelope);
+    (activationFromEnvelope(envelope).package_lock as JsonRecord).package_version = '9.9.9';
+    (bindingFromEnvelope(envelope).root_package as JsonRecord).package_version = '9.9.9';
     expectFailure(envelope, 'agent_package_version_mismatch');
+  });
+
+  it('accepts omitted diagnostic binding, receipt, and package lock for a package-id-only action', () => {
+    const envelope = activationEnvelope();
+    const activation = activationFromEnvelope(envelope);
+    activation.operational_ready = false;
+    delete activation.package_lock;
+    delete activation.package_use_binding;
+    delete activation.materialization_readiness;
+    delete activation.scope_materializations;
+
+    expect(
+      parseOplAgentPackageLaunchResult({
+        parsed: envelope,
+        packageId: expected.packageId,
+        packageVersion: expected.packageVersion,
+        targetWorkspace: null,
+        scope: null,
+      })
+    ).toEqual({
+      action_id: 'agent_package_activate',
+      package_id: expected.packageId,
+      launch_allowed: true,
+    });
+  });
+
+  it('accepts a normalized degraded result and rejects contradictory launch state fields', () => {
+    const envelope = activationEnvelope();
+    const activation = activationFromEnvelope(envelope);
+    activation.launch_state = 'degraded';
+    activation.launch_state_reason = 'live_verification_deferred';
+
+    expect(parse(envelope).launch_allowed).toBe(true);
+
+    activation.launch_allowed = false;
+    expectFailure(envelope, 'agent_package_activation_invalid');
   });
 
   it.each([
@@ -203,13 +229,13 @@ describe('OPL agent package launch validation', () => {
     activation.launch_allowed = false;
     activation.launch_blocked_reason = 'package_disabled';
 
-    expectFailure(envelope, 'agent_package_launch_blocked');
-    expect(() => parse(envelope)).toThrow('agent_package_launch_blocked: package_disabled');
+    expectFailure(envelope, 'agent_package_unavailable');
+    expect(() => parse(envelope)).toThrow('agent_package_unavailable: package_disabled');
   });
 
   it('reports malformed activation as an explicit invalid result', () => {
     const envelope = activationEnvelope();
-    delete activationFromEnvelope(envelope).package_lock;
+    activationFromEnvelope(envelope).package_use_binding = 'invalid-binding';
 
     expectFailure(envelope, 'agent_package_activation_invalid');
     expect(() => parse(envelope)).toThrow('agent_package_activation_invalid');

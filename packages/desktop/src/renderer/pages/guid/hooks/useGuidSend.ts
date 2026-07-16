@@ -11,12 +11,18 @@ import {
   filterOplOrdinarySkillNames,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
+import {
+  buildOplProjectedActionPayload,
+  oplProjectedActionNeedsContextField,
+  type OplProjectedPackageAction,
+} from '@/common/types/opl/appState';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { toSessionMcpServer } from '@/renderer/hooks/mcp/catalog';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspace/workspaceHistory';
+import { canonicalWorkspacePath } from '@/renderer/utils/workspace/workspacePath';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
@@ -24,7 +30,11 @@ import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
+import {
+  resolveOplPackageActivationAction,
+  resolveOplPackageLaunchGate,
+  resolveOplPackageSelectionVersion,
+} from '../utils/oplHomeAssistants';
 import {
   buildOplShortcutInvocationReceipt,
   buildOplShortcutRouteReceipt,
@@ -120,17 +130,29 @@ function buildLegacyOplAgentPackageInvocationReceipt(
 }
 
 async function activateOplAgentPackage(
+  action: OplProjectedPackageAction,
   packageId: string,
-  targetWorkspace: string
+  packageVersion: string | null,
+  targetWorkspace: string | null
 ): Promise<OplAgentPackageActivationReceipt> {
+  const normalizedTarget = targetWorkspace ? canonicalWorkspacePath(targetWorkspace) : null;
+  const actionPayload = buildOplProjectedActionPayload(
+    action,
+    normalizedTarget ? { target_workspace: normalizedTarget } : {}
+  );
+  if (actionPayload.missingRequiredPayloadFields.length > 0) {
+    throw new OplAgentPackageLaunchError(
+      actionPayload.missingRequiredPayloadFields.some((requirement) =>
+        requirement.split(/\s+or\s+/i).includes('target_workspace')
+      )
+        ? 'agent_package_target_mismatch'
+        : 'agent_package_activation_invalid'
+    );
+  }
   const result = await ipcBridge.oplRuntime.executeAction.invoke({
-    actionId: 'agent_package_activate',
+    actionId: action.actionId,
     dryRun: false,
-    payloadRefsOnlyJson: {
-      package_id: packageId,
-      scope: 'workspace',
-      target_workspace: targetWorkspace,
-    },
+    payloadRefsOnlyJson: actionPayload.payloadRefsOnlyJson,
   });
   if (result.ok === false) {
     throw new Error(result.error?.message || result.command);
@@ -138,7 +160,12 @@ async function activateOplAgentPackage(
   return parseOplAgentPackageLaunchResult({
     parsed: result.parsed,
     packageId,
-    targetWorkspace,
+    packageVersion,
+    targetWorkspace:
+      typeof actionPayload.payloadRefsOnlyJson.target_workspace === 'string'
+        ? actionPayload.payloadRefsOnlyJson.target_workspace
+        : null,
+    scope: typeof actionPayload.payloadRefsOnlyJson.scope === 'string' ? actionPayload.payloadRefsOnlyJson.scope : null,
   });
 }
 
@@ -146,7 +173,9 @@ function getOplAgentPackageLaunchErrorMessage(error: unknown, t: TFunction): str
   if (!(error instanceof OplAgentPackageLaunchError)) return null;
 
   switch (error.code) {
+    case 'agent_package_unavailable':
     case 'agent_package_launch_blocked':
+    case 'agent_package_entrypoint_missing':
       return t('guid.home.packageLaunchErrors.blocked');
     case 'agent_package_selection_mismatch':
       return t('guid.home.packageLaunchErrors.selectionMismatch');
@@ -210,9 +239,23 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const selectedPackageId = selectedShortcut?.package_id ?? null;
   const selectedPackageLaunchGate = selectedPackageId
     ? resolveOplPackageLaunchGate(appState, selectedPackageId)
-    : { launchAllowed: null, launchBlockedReason: null, allowedWhenBlocked: [], activationRequired: false };
-  const packageLaunchHardBlocked =
-    selectedPackageLaunchGate.launchAllowed === false && !selectedPackageLaunchGate.activationRequired;
+    : {
+        state: 'ready' as const,
+        launchAllowed: null,
+        launchBlockedReason: null,
+        allowedWhenBlocked: [],
+        activationRequired: false,
+      };
+  const selectedPackageActivationAction = selectedPackageId
+    ? resolveOplPackageActivationAction(appState, selectedPackageId)
+    : null;
+  const selectedPackageVersion = selectedPackageId
+    ? resolveOplPackageSelectionVersion(appState, selectedPackageId)
+    : null;
+  const packageWorkspaceRequired = selectedPackageActivationAction
+    ? oplProjectedActionNeedsContextField(selectedPackageActivationAction, 'target_workspace')
+    : false;
+  const packageLaunchHardBlocked = selectedPackageLaunchGate.state === 'package_unavailable';
   const launchBlockedMessage = () =>
     t('guid.home.launchBlocked', {
       reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
@@ -224,16 +267,22 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       Message.error(launchBlockedMessage());
       return;
     }
-    if (selectedPackageId && !dir) {
+    if (selectedPackageId && packageWorkspaceRequired && !dir) {
       Message.error(t('guid.workspace.specifyWorkspace'));
       return;
     }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
     const initialFiles = Array.from(new Set(files));
-    const oplAgentPackageActivation = selectedPackageId
-      ? await activateOplAgentPackage(selectedPackageId, finalWorkspace)
-      : undefined;
+    const oplAgentPackageActivation =
+      selectedPackageId && selectedPackageActivationAction
+        ? await activateOplAgentPackage(
+            selectedPackageActivationAction,
+            selectedPackageId,
+            selectedPackageVersion,
+            finalWorkspace || null
+          )
+        : undefined;
 
     const agentInfo = selectedAgentInfo;
     const is_preset = is_presetAgent;
@@ -574,6 +623,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
     selectedPackageLaunchGate.activationRequired,
+    selectedPackageActivationAction,
+    selectedPackageVersion,
+    packageWorkspaceRequired,
     selectedPackageId,
     packageLaunchHardBlocked,
   ]);
@@ -584,7 +636,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       Message.error(launchBlockedMessage());
       return;
     }
-    if (selectedPackageId && !dir) {
+    if (selectedPackageId && packageWorkspaceRequired && !dir) {
       Message.error(t('guid.workspace.specifyWorkspace'));
       return;
     }
@@ -626,6 +678,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.activationRequired,
     selectedPackageId,
     dir,
+    packageWorkspaceRequired,
     packageLaunchHardBlocked,
   ]);
 

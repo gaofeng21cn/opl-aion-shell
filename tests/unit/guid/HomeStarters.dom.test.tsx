@@ -130,7 +130,7 @@ describe('HomeStarters', () => {
     expect(screen.queryByTestId('starter-next-oma')).not.toBeInTheDocument();
   });
 
-  it('keeps an operationally blocked package selectable and defers its typed gate to send', async () => {
+  it('keeps an explicitly unavailable package selectable and defers its typed gate to send', async () => {
     const appState = readyAppState();
     appState.agent_packages.status_index.packages.mag = {
       package_id: 'mag',
@@ -167,9 +167,30 @@ describe('HomeStarters', () => {
     const activationStarter = screen.getByTestId('home-starter-mas');
     expect(activationStarter).not.toBeDisabled();
     expect(activationStarter).toHaveAttribute('aria-pressed', 'false');
-    expect(activationStarter).toHaveAttribute('data-opl-launch-ready', 'false');
+    expect(activationStarter).toHaveAttribute('data-opl-launch-ready', 'true');
     await userEvent.click(activationStarter);
     expect(onSelect).toHaveBeenCalledWith('mas');
+  });
+
+  it('keeps package_unavailable selectable for recovery while marking the send gate', async () => {
+    const appState = readyAppState();
+    appState.agent_packages.status_index.packages.mag = {
+      package_id: 'mag',
+      operational_ready: false,
+      launch_allowed: false,
+      launch_blocked_reason: 'package_not_installed',
+      allowed_when_blocked: ['status', 'doctor', 'repair'],
+    };
+    mocks.appState = appState;
+    const onSelect = vi.fn();
+    render(<HomeStarters assistants={[assistant('mag')]} localeKey='en-US' onSelect={onSelect} />);
+
+    const unavailableStarter = screen.getByTestId('home-starter-mag');
+    expect(unavailableStarter).not.toBeDisabled();
+    expect(unavailableStarter).toHaveAttribute('data-opl-launch-ready', 'false');
+    expect(unavailableStarter).toHaveAttribute('title', expect.stringContaining('package_not_installed'));
+    await userEvent.click(unavailableStarter);
+    expect(onSelect).toHaveBeenCalledWith('mag');
   });
 
   it('keeps starters selectable while package state is still loading', async () => {

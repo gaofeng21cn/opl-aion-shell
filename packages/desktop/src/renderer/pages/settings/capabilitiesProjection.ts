@@ -10,7 +10,11 @@ import {
   getOplProfessionalAgentPackages,
   type OplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
-import type { OplAppStateRecord } from '@/common/types/opl/appState';
+import {
+  parseOplProjectedPackageAction,
+  type OplAppStateRecord,
+  type OplProjectedPackageAction,
+} from '@/common/types/opl/appState';
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
 
 export type CapabilityStatus =
@@ -58,13 +62,7 @@ export type CapabilityActivationActionViewModel = {
   reasonCode: string;
 };
 
-export type CapabilityPackageActionViewModel = {
-  actionId: string;
-  actionRef: string;
-  payloadRefsOnlyJson: Record<string, unknown>;
-  requiredPayloadFields: string[];
-  confirmationRequired: boolean;
-};
+export type CapabilityPackageActionViewModel = OplProjectedPackageAction;
 
 export type CapabilitySourceExplanationViewModel = {
   kind: string | null;
@@ -1235,52 +1233,6 @@ function capabilityPhysicalSurface(
   };
 }
 
-const CANONICAL_PACKAGE_ACTION_IDS = new Set([
-  'refresh_registry',
-  'install_from_manifest_url',
-  'agent_package_update',
-  'agent_package_repair',
-  'agent_package_activate',
-  'agent_package_uninstall',
-  'agent_package_preferences_set',
-]);
-
-function parseCapabilityPackageAction(value: unknown): CapabilityPackageActionViewModel | null {
-  if (!isRecord(value)) return null;
-  const expectedFields = new Set([
-    'action_id',
-    'action_ref',
-    'payload',
-    'required_payload_fields',
-    'confirmation_required',
-  ]);
-  const fields = Object.keys(value);
-  const actionId = firstString(value.action_id);
-  const actionRef = firstString(value.action_ref);
-  if (
-    fields.length !== expectedFields.size ||
-    fields.some((field) => !expectedFields.has(field)) ||
-    !actionId ||
-    !CANONICAL_PACKAGE_ACTION_IDS.has(actionId) ||
-    !actionRef ||
-    actionRef !== `app_state.actions#${actionId}` ||
-    !isRecord(value.payload) ||
-    !Array.isArray(value.required_payload_fields) ||
-    typeof value.confirmation_required !== 'boolean'
-  ) {
-    return null;
-  }
-  const requiredPayloadFields = value.required_payload_fields.map(oplString);
-  if (requiredPayloadFields.some((field) => !field)) return null;
-  return {
-    actionId,
-    actionRef,
-    payloadRefsOnlyJson: { ...value.payload },
-    requiredPayloadFields: requiredPayloadFields as string[],
-    confirmationRequired: value.confirmation_required,
-  };
-}
-
 function sameCapabilityPackageAction(
   left: CapabilityPackageActionViewModel,
   right: CapabilityPackageActionViewModel
@@ -1301,11 +1253,11 @@ function capabilityPackageActions(packageState: RuntimePackageStateItem | undefi
 } {
   const availableActions: Record<string, CapabilityPackageActionViewModel> = {};
   for (const candidate of oplRecordList(packageState?.available_actions)) {
-    const action = parseCapabilityPackageAction(candidate);
+    const action = parseOplProjectedPackageAction(candidate);
     if (action && !availableActions[action.actionId]) availableActions[action.actionId] = action;
   }
   const recommendedActionId = firstString(packageState?.recommended_action);
-  const recommendedActionRef = parseCapabilityPackageAction(packageState?.recommended_action_ref);
+  const recommendedActionRef = parseOplProjectedPackageAction(packageState?.recommended_action_ref);
   const availableRecommendedAction = recommendedActionId ? availableActions[recommendedActionId] : undefined;
   const recommendedAction =
     recommendedActionRef &&
