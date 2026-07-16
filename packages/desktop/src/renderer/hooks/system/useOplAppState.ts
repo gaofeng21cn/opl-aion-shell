@@ -54,7 +54,9 @@ function refreshFastStateAfterStartupMaintenance(): void {
 
 function ensureStartupMaintenanceRefreshSubscription(): void {
   if (startupMaintenanceRefreshUnsubscribe || typeof window === 'undefined') return;
-  startupMaintenanceRefreshUnsubscribe = ipcBridge.oplRuntime.startupMaintenanceCompleted.on(() => {
+  const completionEmitter = ipcBridge.oplRuntime.startupMaintenanceCompleted;
+  if (!completionEmitter?.on) return;
+  startupMaintenanceRefreshUnsubscribe = completionEmitter.on(() => {
     refreshFastStateAfterStartupMaintenance();
   });
 }
