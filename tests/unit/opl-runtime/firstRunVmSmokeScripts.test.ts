@@ -56,6 +56,26 @@ function createPassedAssistantRouteSmokeSummary(assistantIds = ['mas', 'mag', 'r
   };
 }
 
+function createPassedTemporalServiceSupervisorProof() {
+  const readySupervisor = { ready: true };
+  return {
+    schema: 'opl_temporal_service_supervisor_proof.v1',
+    status: 'passed',
+    applicable: true,
+    required: true,
+    initial_readback: { supervisor: readySupervisor },
+    keep_alive_recovery: { readback: { supervisor: readySupervisor } },
+    restart_readback: { supervisor: readySupervisor },
+    session_reload: { readback: { supervisor: readySupervisor } },
+    persistent_database: {
+      sqlite_header_valid: true,
+      same_file_after_keep_alive_recovery: true,
+      same_file_after_restart: true,
+      same_file_after_session_reload: true,
+    },
+  };
+}
+
 function writeRuntimeModule(
   runtimeHome: string,
   input: {
@@ -1192,6 +1212,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
         assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
         codex_functional_check: {
           status: 'diagnostic_skipped',
@@ -1209,6 +1230,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
         assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
       })
     ).toThrow(/Codex functional check/);
@@ -1230,6 +1252,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
         assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
         codex_functional_check: {
           status: 'diagnostic_skipped',
@@ -1441,8 +1464,30 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
       })
     ).not.toThrow();
+  });
+
+  it('fails closed when a Full guest summary omits the Temporal supervisor proof', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab-Full.dmg',
+      '--runtime-profile',
+      'full',
+      '--dry-run',
+    ]);
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+      })
+    ).toThrow(/Temporal service supervisor lifecycle/);
   });
 
   it('can still explicitly require the Codex config wizard for targeted wizard smokes', () => {
@@ -1473,6 +1518,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
       })
     ).toThrow(/Codex configuration wizard/);
   });
@@ -2181,6 +2227,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
         assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
       })
     ).not.toThrow();
@@ -2191,6 +2238,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
+        temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
         assistant_route_smoke: createPassedAssistantRouteSmokeSummary(['mas', 'mag']),
       })
     ).toThrow(/assistant route smoke/);

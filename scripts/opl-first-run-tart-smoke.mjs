@@ -1225,6 +1225,7 @@ function writeInterruptedSummary(signal) {
   if (!options) return;
   try {
     fs.mkdirSync(options.artifacts, { recursive: true });
+    const guestSummary = readGuestSmokeSummary(options.artifacts);
     const summary = {
       surface_id: 'opl_tart_gui_first_run_smoke',
       status: 'interrupted',
@@ -1239,7 +1240,8 @@ function writeInterruptedSummary(signal) {
       codex_install_preseed: codexInstallPreseedPlan(options),
       guest_node_staging: runtimeState.guestNodeStaging,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
-      guest_summary: readGuestSmokeSummary(options.artifacts),
+      temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
+      guest_summary: guestSummary,
     };
     fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   } catch (_) {
@@ -1464,6 +1466,25 @@ function assertGuestSmokeSummary(options, guestSummary) {
       }`
     );
   }
+  if (options.runtimeProfile === 'full' && !options.bootstrapLaunchDiagnostics) {
+    const proof = guestSummary.temporal_service_supervisor_proof;
+    if (
+      proof?.schema !== 'opl_temporal_service_supervisor_proof.v1' ||
+      proof?.status !== 'passed' ||
+      proof?.applicable !== true ||
+      proof?.required !== true ||
+      proof?.initial_readback?.supervisor?.ready !== true ||
+      proof?.keep_alive_recovery?.readback?.supervisor?.ready !== true ||
+      proof?.restart_readback?.supervisor?.ready !== true ||
+      proof?.session_reload?.readback?.supervisor?.ready !== true ||
+      proof?.persistent_database?.sqlite_header_valid !== true ||
+      proof?.persistent_database?.same_file_after_keep_alive_recovery !== true ||
+      proof?.persistent_database?.same_file_after_restart !== true ||
+      proof?.persistent_database?.same_file_after_session_reload !== true
+    ) {
+      throw new Error('Guest Full smoke did not prove the required Temporal service supervisor lifecycle.');
+    }
+  }
   if (options.bootstrapLaunchDiagnostics) {
     if (guestSummary.diagnostic_scope !== 'bootstrap_launch_diagnostics') {
       throw new Error('Guest smoke did not run bootstrap launch diagnostics.');
@@ -1558,6 +1579,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
@@ -1602,6 +1624,7 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
     error_classification: summarizeError(error),

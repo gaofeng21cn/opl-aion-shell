@@ -136,6 +136,9 @@ const PACKAGED_APP_LAUNCH_ENV_BLOCKLIST = new Set([
 ]);
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
 const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
+const TEMPORAL_SERVICE_START_ACTION_ID = 'provider_service_start';
+const TEMPORAL_SERVICE_RESTART_ACTION_ID = 'provider_service_restart';
+const TEMPORAL_SERVICE_SUPERVISOR_LABEL = 'ai.opl.family-runtime.temporal-service';
 const HOST_DEADLINE_SAFETY_MARGIN_MS = 120_000;
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
@@ -2074,6 +2077,351 @@ function collectAppReleaseRuntimeEvidence(options, secret) {
     action_id: summary.action_id,
     artifacts: written,
   };
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function expectedOplStateDir() {
+  return process.env.OPL_STATE_DIR?.trim() || defaultOplStatePath();
+}
+
+function temporalSupervisorPlistPath() {
+  return path.join(userHomeDir(), 'Library', 'LaunchAgents', `${TEMPORAL_SERVICE_SUPERVISOR_LABEL}.plist`);
+}
+
+function expectedTemporalDatabasePath() {
+  return path.join(expectedOplStateDir(), 'family-runtime', 'temporal-server', 'temporal.sqlite');
+}
+
+function temporalLifecycleFromFastState(payload) {
+  const appState = isRecord(payload?.app_state) ? payload.app_state : null;
+  const provider = isRecord(appState?.provider) ? appState.provider : null;
+  const temporal = isRecord(provider?.temporal) ? provider.temporal : null;
+  const details = isRecord(temporal?.details) ? temporal.details : null;
+  const workerReadiness = isRecord(details?.worker_readiness) ? details.worker_readiness : null;
+  const lifecycle = isRecord(workerReadiness?.temporal_service_lifecycle)
+    ? workerReadiness.temporal_service_lifecycle
+    : null;
+  const supervisor = isRecord(lifecycle?.supervisor) ? lifecycle.supervisor : null;
+  if (!temporal || !workerReadiness || !lifecycle || !supervisor) {
+    throw new Error('Fast App state is missing the Temporal service supervisor projection.');
+  }
+  return { temporal, workerReadiness, lifecycle, supervisor };
+}
+
+function assertTemporalSupervisorReady(payload, phase) {
+  const state = temporalLifecycleFromFastState(payload);
+  const errors = [];
+  const expectedDatabase = expectedTemporalDatabasePath();
+  if (state.workerReadiness.service_ready !== true) errors.push('service_ready is not true');
+  if (state.workerReadiness.server_reachable !== true) errors.push('server_reachable is not true');
+  if (state.supervisor.supported !== true) errors.push('supervisor.supported is not true');
+  if (state.supervisor.applicable !== true) errors.push('supervisor.applicable is not true');
+  if (state.supervisor.required !== true) errors.push('supervisor.required is not true');
+  if (state.supervisor.installed !== true) errors.push('supervisor.installed is not true');
+  if (state.supervisor.loaded !== true) errors.push('supervisor.loaded is not true');
+  if (state.supervisor.ready !== true) errors.push('supervisor.ready is not true');
+  if (state.supervisor.configuration_current !== true) errors.push('supervisor.configuration_current is not true');
+  if (state.supervisor.process_state !== 'running') errors.push(`process_state is ${state.supervisor.process_state}`);
+  if (!Number.isSafeInteger(state.supervisor.pid) || state.supervisor.pid <= 0) {
+    errors.push(`pid is ${state.supervisor.pid}`);
+  }
+  if (state.supervisor.error !== null) errors.push(`error is ${state.supervisor.error}`);
+  if (state.supervisor.run_at_load !== true) errors.push('run_at_load is not true');
+  if (state.supervisor.keep_alive !== true) errors.push('keep_alive is not true');
+  if (state.supervisor.schedule_independent !== true) errors.push('schedule_independent is not true');
+  if (state.supervisor.database_path !== expectedDatabase) {
+    errors.push(`database_path is ${state.supervisor.database_path}; expected ${expectedDatabase}`);
+  }
+  if (errors.length > 0) {
+    throw new Error(`Temporal supervisor ${phase} readback is not ready: ${errors.join('; ')}`);
+  }
+  return state;
+}
+
+function summarizeTemporalSupervisorReadback(state) {
+  return {
+    service_ready: state.workerReadiness.service_ready,
+    server_reachable: state.workerReadiness.server_reachable,
+    service_status: state.lifecycle.service_status,
+    supervisor: {
+      surface_kind: state.supervisor.surface_kind,
+      status: state.supervisor.status,
+      installed: state.supervisor.installed,
+      loaded: state.supervisor.loaded,
+      ready: state.supervisor.ready,
+      observed_at: state.supervisor.observed_at,
+      error: state.supervisor.error,
+      supported: state.supervisor.supported,
+      applicable: state.supervisor.applicable,
+      required: state.supervisor.required,
+      configuration_current: state.supervisor.configuration_current,
+      process_state: state.supervisor.process_state,
+      pid: state.supervisor.pid,
+      last_exit_status: state.supervisor.last_exit_status,
+      last_exit_signal: state.supervisor.last_exit_signal,
+      run_at_load: state.supervisor.run_at_load,
+      keep_alive: state.supervisor.keep_alive,
+      throttle_interval_seconds: state.supervisor.throttle_interval_seconds,
+      address: state.supervisor.address,
+      database_path: state.supervisor.database_path,
+      launcher_source: state.supervisor.launcher_source,
+      schedule_independent: state.supervisor.schedule_independent,
+    },
+  };
+}
+
+function assertAppActionExecution(payload, actionId) {
+  const execution = isRecord(payload?.app_action_execution) ? payload.app_action_execution : null;
+  if (!execution || execution.action_id !== actionId || execution.dry_run !== false) {
+    throw new Error(`Temporal maintenance action ${actionId} did not return a live App action execution receipt.`);
+  }
+  return {
+    action_id: execution.action_id,
+    dry_run: execution.dry_run,
+    delegated_surface: execution.delegated_surface,
+    result: execution.result,
+  };
+}
+
+function runTemporalMaintenanceAction(actionId, options) {
+  const args = ['app', 'action', 'execute', '--action', actionId, '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  return assertAppActionExecution(
+    parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args),
+    actionId
+  );
+}
+
+function readTemporalSupervisorPlist(plistPath, options = {}) {
+  if (options.__testHooks?.readTemporalSupervisorPlist) {
+    return options.__testHooks.readTemporalSupervisorPlist(plistPath);
+  }
+  const result = spawnSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plistPath], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  if (result.status !== 0 || result.error) {
+    throw new Error(
+      `Unable to read Temporal supervisor plist: ${result.stderr || result.error?.message || `status=${result.status}`}`
+    );
+  }
+  return JSON.parse(result.stdout);
+}
+
+function assertTemporalSupervisorPlist(plist, plistPath) {
+  const expectedDatabase = expectedTemporalDatabasePath();
+  const programArguments = Array.isArray(plist?.ProgramArguments) ? plist.ProgramArguments : [];
+  const databaseArgumentIndex = programArguments.indexOf('--db-filename');
+  const errors = [];
+  if (plist?.Label !== TEMPORAL_SERVICE_SUPERVISOR_LABEL) errors.push(`Label is ${plist?.Label}`);
+  if (plist?.RunAtLoad !== true) errors.push('RunAtLoad is not true');
+  if (plist?.KeepAlive !== true) errors.push('KeepAlive is not true');
+  if (programArguments.length < 4) errors.push('ProgramArguments is incomplete');
+  if (!programArguments.includes('server') || !programArguments.includes('start-dev')) {
+    errors.push('ProgramArguments does not start the Temporal development server');
+  }
+  if (databaseArgumentIndex < 0 || programArguments[databaseArgumentIndex + 1] !== expectedDatabase) {
+    errors.push(`ProgramArguments --db-filename is not ${expectedDatabase}`);
+  }
+  if (errors.length > 0) {
+    throw new Error(`Temporal supervisor plist ${plistPath} is invalid: ${errors.join('; ')}`);
+  }
+  return {
+    path: plistPath,
+    label: plist.Label,
+    program_arguments: programArguments,
+    run_at_load: plist.RunAtLoad,
+    keep_alive: plist.KeepAlive,
+    database_path: programArguments[databaseArgumentIndex + 1],
+  };
+}
+
+function inspectTemporalSqlite(databasePath, options = {}) {
+  if (options.__testHooks?.inspectTemporalSqlite) {
+    return options.__testHooks.inspectTemporalSqlite(databasePath);
+  }
+  const stat = fs.statSync(databasePath);
+  const header = fs.readFileSync(databasePath).subarray(0, 16).toString('binary');
+  return {
+    path: databasePath,
+    exists: stat.isFile(),
+    size_bytes: stat.size,
+    file_identity: `${stat.dev}:${stat.ino}`,
+    sqlite_header_valid: header === 'SQLite format 3\u0000',
+  };
+}
+
+function assertTemporalSqlite(databasePath, options = {}) {
+  const inspection = inspectTemporalSqlite(databasePath, options);
+  if (
+    inspection.path !== expectedTemporalDatabasePath() ||
+    inspection.exists !== true ||
+    !Number.isFinite(inspection.size_bytes) ||
+    inspection.size_bytes <= 0 ||
+    inspection.sqlite_header_valid !== true ||
+    typeof inspection.file_identity !== 'string' ||
+    !inspection.file_identity
+  ) {
+    throw new Error(`Temporal persistent SQLite proof is invalid: ${JSON.stringify(inspection)}`);
+  }
+  return inspection;
+}
+
+function runTemporalSupervisorLaunchctl(args, options = {}) {
+  if (options.__testHooks?.runTemporalSupervisorLaunchctl) {
+    return options.__testHooks.runTemporalSupervisorLaunchctl(args);
+  }
+  const result = spawnSync('launchctl', args, { encoding: 'utf8', timeout: 10_000 });
+  const receipt = {
+    args,
+    status: result.status ?? null,
+    signal: result.signal ?? null,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? result.error?.message ?? '',
+  };
+  if (result.status !== 0 || result.error) {
+    throw new Error(`launchctl ${args.join(' ')} failed: ${receipt.stderr || `status=${receipt.status}`}`);
+  }
+  return receipt;
+}
+
+function terminateTemporalSupervisorPid(pid, options = {}) {
+  if (options.__testHooks?.terminateTemporalSupervisorPid) {
+    return options.__testHooks.terminateTemporalSupervisorPid(pid);
+  }
+  process.kill(pid, 'SIGTERM');
+  return { pid, signal: 'SIGTERM', status: 'sent' };
+}
+
+async function waitForTemporalSupervisorReady(options, phase, previousPid = null) {
+  const startedAt = Date.now();
+  const timeoutMs = Math.min(Math.max(Number(options.timeoutMs) || 0, 15_000), 90_000);
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  let lastError = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const args = ['app', 'state', '--profile', 'fast', '--json'];
+      const payload = parseOplJsonResult(
+        runOplJsonImpl(args, { ...options, timeoutMs: Math.min(timeoutMs, 30_000) }),
+        args
+      );
+      const state = assertTemporalSupervisorReady(payload, phase);
+      if (previousPid === null || state.supervisor.pid !== previousPid) {
+        return { payload, state };
+      }
+      lastError = new Error(`Temporal supervisor ${phase} retained the previous PID ${previousPid}.`);
+    } catch (error) {
+      lastError = error;
+    }
+    await (options.__testHooks?.sleep ?? sleep)(1_000);
+  }
+  throw new Error(
+    `Timed out waiting for Temporal supervisor ${phase}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+  );
+}
+
+async function collectTemporalServiceSupervisorProof(options, secret) {
+  if (options.runtimeProfile !== 'full') {
+    return {
+      schema: 'opl_temporal_service_supervisor_proof.v1',
+      status: 'not_applicable_standard',
+      runtime_profile: options.runtimeProfile,
+      applicable: false,
+      required: false,
+    };
+  }
+
+  const startAction = runTemporalMaintenanceAction(TEMPORAL_SERVICE_START_ACTION_ID, options);
+  const initial = await waitForTemporalSupervisorReady(options, 'after_start');
+  const initialReadback = summarizeTemporalSupervisorReadback(initial.state);
+  const plistPath = options.__testTemporalSupervisorPlistPath || temporalSupervisorPlistPath();
+  const plist = assertTemporalSupervisorPlist(readTemporalSupervisorPlist(plistPath, options), plistPath);
+  const initialDatabase = assertTemporalSqlite(initial.state.supervisor.database_path, options);
+
+  const keepAliveTermination = terminateTemporalSupervisorPid(initial.state.supervisor.pid, options);
+  const keepAliveRecovered = await waitForTemporalSupervisorReady(
+    options,
+    'after_keep_alive_recovery',
+    initial.state.supervisor.pid
+  );
+  const keepAliveReadback = summarizeTemporalSupervisorReadback(keepAliveRecovered.state);
+  const keepAliveDatabase = assertTemporalSqlite(keepAliveRecovered.state.supervisor.database_path, options);
+  if (
+    keepAliveDatabase.path !== initialDatabase.path ||
+    keepAliveDatabase.file_identity !== initialDatabase.file_identity
+  ) {
+    throw new Error('Temporal KeepAlive recovery did not preserve the exact persistent SQLite file.');
+  }
+
+  const restartAction = runTemporalMaintenanceAction(TEMPORAL_SERVICE_RESTART_ACTION_ID, options);
+  const restarted = await waitForTemporalSupervisorReady(
+    options,
+    'after_restart',
+    keepAliveRecovered.state.supervisor.pid
+  );
+  const restartedReadback = summarizeTemporalSupervisorReadback(restarted.state);
+  const restartedDatabase = assertTemporalSqlite(restarted.state.supervisor.database_path, options);
+  if (
+    restartedDatabase.path !== initialDatabase.path ||
+    restartedDatabase.file_identity !== initialDatabase.file_identity
+  ) {
+    throw new Error('Temporal restart did not preserve the exact persistent SQLite file.');
+  }
+
+  const launchctlTarget = `gui/${process.getuid()}/${TEMPORAL_SERVICE_SUPERVISOR_LABEL}`;
+  const bootout = runTemporalSupervisorLaunchctl(['bootout', launchctlTarget], options);
+  await (options.__testHooks?.sleep ?? sleep)(1_000);
+  const bootstrap = runTemporalSupervisorLaunchctl(['bootstrap', `gui/${process.getuid()}`, plistPath], options);
+  const reloaded = await waitForTemporalSupervisorReady(
+    options,
+    'after_session_reload',
+    restarted.state.supervisor.pid
+  );
+  const reloadedReadback = summarizeTemporalSupervisorReadback(reloaded.state);
+  const reloadedDatabase = assertTemporalSqlite(reloaded.state.supervisor.database_path, options);
+  if (
+    reloadedDatabase.path !== initialDatabase.path ||
+    reloadedDatabase.file_identity !== initialDatabase.file_identity
+  ) {
+    throw new Error('Temporal launchd session reload did not preserve the exact persistent SQLite file.');
+  }
+
+  const proof = {
+    schema: 'opl_temporal_service_supervisor_proof.v1',
+    status: 'passed',
+    runtime_profile: 'full',
+    applicable: true,
+    required: true,
+    supervisor_label: TEMPORAL_SERVICE_SUPERVISOR_LABEL,
+    start_action: startAction,
+    restart_action: restartAction,
+    plist,
+    initial_readback: initialReadback,
+    keep_alive_recovery: {
+      termination: keepAliveTermination,
+      readback: keepAliveReadback,
+    },
+    restart_readback: restartedReadback,
+    session_reload: {
+      bootout,
+      bootstrap,
+      readback: reloadedReadback,
+    },
+    persistent_database: {
+      path: initialDatabase.path,
+      sqlite_header_valid: initialDatabase.sqlite_header_valid,
+      initial_size_bytes: initialDatabase.size_bytes,
+      file_identity: initialDatabase.file_identity,
+      same_file_after_keep_alive_recovery: keepAliveDatabase.file_identity === initialDatabase.file_identity,
+      same_file_after_restart: restartedDatabase.file_identity === initialDatabase.file_identity,
+      same_file_after_session_reload: reloadedDatabase.file_identity === initialDatabase.file_identity,
+    },
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'temporal-service-supervisor-proof.json'), proof, secret);
+  return proof;
 }
 
 function firstRunAccessibilityExpectedLabels() {
@@ -5825,6 +6173,7 @@ async function main() {
     }
 
     let appReleaseRuntimeEvidence = null;
+    let temporalServiceSupervisorProof = null;
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
@@ -5840,6 +6189,16 @@ async function main() {
       );
       writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
       writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+      temporalServiceSupervisorProof = await runSmokePhase(
+        writeSmokeEvent,
+        'temporal_service_supervisor_proof',
+        () => collectTemporalServiceSupervisorProof(installedAppOptions, codexApiKey),
+        {
+          start_action_id: TEMPORAL_SERVICE_START_ACTION_ID,
+          restart_action_id: TEMPORAL_SERVICE_RESTART_ACTION_ID,
+          timeout_ms: options.timeoutMs,
+        }
+      );
       appReleaseRuntimeEvidence = await runSmokePhase(
         writeSmokeEvent,
         'app_release_runtime_evidence',
@@ -5911,6 +6270,7 @@ async function main() {
       codex_functional_check: codexFunctionalCheck,
       codex_ai_self_check: codexAiSelfCheck,
       app_release_runtime_evidence: appReleaseRuntimeEvidence,
+      temporal_service_supervisor_proof: temporalServiceSupervisorProof,
       guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
@@ -5922,6 +6282,7 @@ async function main() {
       codex_functional_check: summary.codex_functional_check?.status ?? null,
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
       app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
+      temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -6044,6 +6405,12 @@ export const __test =
         buildCodexAiSelfCheckReceipt,
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
+        collectTemporalServiceSupervisorProof,
+        assertTemporalSupervisorReady,
+        assertTemporalSupervisorPlist,
+        TEMPORAL_SERVICE_START_ACTION_ID,
+        TEMPORAL_SERVICE_RESTART_ACTION_ID,
+        TEMPORAL_SERVICE_SUPERVISOR_LABEL,
         parseCodexJsonOutput,
         probeCodexCli,
         unwrapBackendResponseEnvelope,

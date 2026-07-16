@@ -1298,6 +1298,144 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
+  it('proves the Full Temporal supervisor survives kill, restart, and launchd session reload', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-supervisor-proof-'));
+    const stateDir = path.join(artifacts, 'state');
+    const databasePath = path.join(stateDir, 'family-runtime', 'temporal-server', 'temporal.sqlite');
+    const plistPath = path.join(artifacts, 'ai.opl.family-runtime.temporal-service.plist');
+    const previousStateDir = process.env.OPL_STATE_DIR;
+    const pids = [4101, 4102, 4103, 4104];
+    const calls: string[][] = [];
+    const launchctlCalls: string[][] = [];
+    const terminated: number[] = [];
+    const fastState = (pid: number) => ({
+      app_state: {
+        provider: {
+          temporal: {
+            details: {
+              worker_readiness: {
+                service_ready: true,
+                server_reachable: true,
+                temporal_service_lifecycle: {
+                  service_status: 'running',
+                  supervisor: {
+                    surface_kind: 'opl_temporal_service_supervisor_state',
+                    status: 'loaded_running',
+                    installed: true,
+                    loaded: true,
+                    ready: true,
+                    observed_at: '2026-07-17T00:00:00.000Z',
+                    error: null,
+                    supported: true,
+                    applicable: true,
+                    required: true,
+                    configuration_current: true,
+                    process_state: 'running',
+                    pid,
+                    last_exit_status: 0,
+                    last_exit_signal: null,
+                    run_at_load: true,
+                    keep_alive: true,
+                    throttle_interval_seconds: 15,
+                    address: '127.0.0.1:7233',
+                    database_path: databasePath,
+                    launcher_source: 'temporal_cli_path',
+                    schedule_independent: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    let stateIndex = 0;
+    process.env.OPL_STATE_DIR = stateDir;
+    try {
+      const proof = await __test.collectTemporalServiceSupervisorProof(
+        {
+          artifacts,
+          runtimeProfile: 'full',
+          timeoutMs: 1_000,
+          __testTemporalSupervisorPlistPath: plistPath,
+          __testHooks: {
+            runOplJson: (args: string[]) => {
+              calls.push(args);
+              if (args[1] === 'action') {
+                const actionId = args[4];
+                return JSON.stringify({
+                  app_action_execution: {
+                    action_id: actionId,
+                    dry_run: false,
+                    delegated_surface: `opl family-runtime service ${actionId === 'provider_service_start' ? 'start' : 'restart'} --provider temporal`,
+                    result: { status: 'ready' },
+                  },
+                });
+              }
+              return JSON.stringify(fastState(pids[stateIndex++]));
+            },
+            readTemporalSupervisorPlist: () => ({
+              Label: 'ai.opl.family-runtime.temporal-service',
+              ProgramArguments: ['/runtime/bin/temporal', 'server', 'start-dev', '--db-filename', databasePath],
+              RunAtLoad: true,
+              KeepAlive: true,
+            }),
+            inspectTemporalSqlite: () => ({
+              path: databasePath,
+              exists: true,
+              size_bytes: 4096,
+              file_identity: '1:42',
+              sqlite_header_valid: true,
+            }),
+            terminateTemporalSupervisorPid: (pid: number) => {
+              terminated.push(pid);
+              return { pid, signal: 'SIGTERM', status: 'sent' };
+            },
+            runTemporalSupervisorLaunchctl: (args: string[]) => {
+              launchctlCalls.push(args);
+              return { args, status: 0, signal: null, stdout: '', stderr: '' };
+            },
+            sleep: async () => {},
+          },
+        },
+        null
+      );
+
+      expect(proof).toMatchObject({
+        schema: 'opl_temporal_service_supervisor_proof.v1',
+        status: 'passed',
+        applicable: true,
+        required: true,
+        supervisor_label: 'ai.opl.family-runtime.temporal-service',
+        initial_readback: { supervisor: { pid: 4101, ready: true } },
+        keep_alive_recovery: { readback: { supervisor: { pid: 4102, ready: true } } },
+        restart_readback: { supervisor: { pid: 4103, ready: true } },
+        session_reload: { readback: { supervisor: { pid: 4104, ready: true } } },
+        persistent_database: {
+          path: databasePath,
+          sqlite_header_valid: true,
+          same_file_after_keep_alive_recovery: true,
+          same_file_after_restart: true,
+          same_file_after_session_reload: true,
+        },
+      });
+      expect(terminated).toEqual([4101]);
+      expect(launchctlCalls[0]).toEqual(['bootout', `gui/${process.getuid()}/ai.opl.family-runtime.temporal-service`]);
+      expect(launchctlCalls[1]).toEqual(['bootstrap', `gui/${process.getuid()}`, plistPath]);
+      expect(calls.filter((args) => args[1] === 'action').map((args) => args[4])).toEqual([
+        'provider_service_start',
+        'provider_service_restart',
+      ]);
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'temporal-service-supervisor-proof.json'), 'utf8'))
+      ).toEqual(proof);
+    } finally {
+      if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+      else process.env.OPL_STATE_DIR = previousStateDir;
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('keeps Settings smoke passed when Runtime action evidence is unavailable', async () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-settings-smoke-'));
     const calls: string[] = [];
