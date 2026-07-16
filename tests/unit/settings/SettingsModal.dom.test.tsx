@@ -93,7 +93,7 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent
 
 vi.mock('@/renderer/pages/settings/sections/AccessSettings', () => ({
   AccessSettingsContent: () => <div data-testid='access-content'>Model & Account remote Docker WebUI access</div>,
-  GatewaySettingsContent: () => <div data-testid='gateway-content'>Account & Gateway</div>,
+  GatewaySettingsContent: () => <div data-testid='gateway-content'>OPL Gateway account</div>,
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
     <div data-testid='access-content'>Access content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
   ),
@@ -155,11 +155,11 @@ vi.mock('react-i18next', () => ({
         'settings.overview': 'Overview',
         'settings.maintenance': 'Maintenance',
         'settings.workspace': 'Workspace',
-        'settings.workspacePersonalization': 'Workspace & Personalization',
+        'settings.workspacePersonalization': 'Workspace',
         'settings.localServices': 'Local Services',
         'settings.storage': 'Data & Storage',
         'settings.capabilities': 'Capabilities',
-        'settings.gateway': 'Account & Gateway',
+        'settings.gateway': 'Account & Access',
         'settings.models': 'Models',
         'settings.onboarding': 'Access',
         'settings.resources': 'Resources & Connections',
@@ -211,7 +211,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('runtime-content')).not.toBeInTheDocument();
   });
 
-  it('renders Account & Gateway and Models as separate owner pages', () => {
+  it('renders Account & Access and Models as separate owner pages', () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='gateway' />);
 
     expect(screen.getByTestId('gateway-content')).toBeInTheDocument();
@@ -230,9 +230,9 @@ describe('SettingsModal OPL App navigation', () => {
     expect(overviewButton).toBeInTheDocument();
     expect(overviewButton.querySelector('svg')).not.toBeNull();
     expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).toBeNull();
-    expect(screen.getByText('Account & Gateway')).toBeInTheDocument();
+    expect(screen.getByText('Account & Access')).toBeInTheDocument();
     expect(screen.getByText('Models')).toBeInTheDocument();
-    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
@@ -259,9 +259,9 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('settings-search-input')).toBeInTheDocument();
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Account & Gateway')).toBeInTheDocument();
+    expect(screen.getByText('Account & Access')).toBeInTheDocument();
     expect(screen.getByText('Models')).toBeInTheDocument();
-    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
@@ -333,7 +333,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('sider-footer-help')).not.toBeInTheDocument();
   });
 
-  it('shows the connected Gateway account compactly and opens Account & Gateway', () => {
+  it('shows the connected Gateway account compactly and opens Account & Access', () => {
     const onSettingsClick = vi.fn();
 
     render(
@@ -403,7 +403,7 @@ describe('SettingsModal OPL App navigation', () => {
   it('keeps Resources ordinary while routing diagnostics search to Maintenance', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
 

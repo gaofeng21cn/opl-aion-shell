@@ -40,8 +40,8 @@ const { controlPlane } = vi.hoisted(() => ({
         id: 'workspace',
         path: '/settings/workspace',
         label_key: 'settings.workspacePersonalization',
-        default_label_en: 'Workspace & Personalization',
-        default_label_zh: '工作区与个性化',
+        default_label_en: 'Workspace',
+        default_label_zh: '工作区',
         icon_token: 'workspace',
         ia_group: 'overview',
         slot_id: 'workspace',
@@ -249,7 +249,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
       'Overview',
       'Setup & Access',
-      'Workspace & Personalization',
+      'Workspace',
       'Agents',
       'Capabilities',
       'Resources & Connections',
@@ -480,9 +480,7 @@ describe('settingsNav App-owned tabs', () => {
   });
 
   it('includes route metadata in Settings search text', () => {
-    expect(getSettingsTabSearchText('workspace', 'Workspace & Personalization')).toContain('workspace');
-    expect(getSettingsTabSearchText('workspace', 'Workspace & Personalization')).toContain(
-      'first_run_or_project_switch'
-    );
+    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('workspace');
+    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('first_run_or_project_switch');
   });
 });

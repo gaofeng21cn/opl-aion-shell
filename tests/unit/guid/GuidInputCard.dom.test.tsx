@@ -44,12 +44,10 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 
 vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
   default: ({
-    activeCapabilityLabel,
     launchMode,
     selectedStartRef,
     worktreeError,
   }: {
-    activeCapabilityLabel?: string;
     launchMode: string;
     selectedStartRef: string;
     worktreeError?: string | null;
@@ -59,9 +57,7 @@ vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
       data-launch-mode={launchMode}
       data-start-ref={selectedStartRef}
       data-worktree-error={worktreeError || ''}
-    >
-      {activeCapabilityLabel}
-    </div>
+    />
   ),
 }));
 
@@ -106,7 +102,6 @@ function createCard(
       selectedStartRef={options.selectedStartRef ?? ''}
       onSelectedStartRefChange={vi.fn()}
       worktreeError={options.worktreeError}
-      activeCapabilityLabel='Research'
       fileAccessEnabled={options.fileAccessEnabled}
     />
   );
@@ -136,11 +131,12 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.queryByTestId('mention-badge')).not.toBeInTheDocument();
     expect(screen.getByTestId('upload-progress')).toBeInTheDocument();
     expect(screen.getByTestId('action-row')).toBeInTheDocument();
-    expect(screen.getByTestId('workspace-footnote')).toHaveTextContent('Research');
     const contextBar = screen.getByTestId('workspace-footnote');
     const input = screen.getByTestId('guid-input');
-    expect(contextBar.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(input.parentElement).not.toContainElement(contextBar);
+    const actionRow = screen.getByTestId('action-row');
+    expect(input.compareDocumentPosition(contextBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(contextBar.compareDocumentPosition(actionRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(input.parentElement).toContainElement(contextBar);
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
   });

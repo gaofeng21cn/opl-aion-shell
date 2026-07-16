@@ -83,7 +83,8 @@ describe('HomeStarters', () => {
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
     expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
     expect(screen.getByTestId('starter-icon-mas').querySelector('svg')).not.toBeNull();
-    expect(screen.getByTestId('starter-next-mag')).toBeInTheDocument();
+    expect(screen.queryByTestId('starter-next-mag')).not.toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-mag')).toHaveAttribute('data-opl-launch-ready', 'true');
 
     await userEvent.click(screen.getByTestId('home-starter-mag'));
     expect(onSelect).toHaveBeenCalledWith('mag');
@@ -129,7 +130,7 @@ describe('HomeStarters', () => {
     expect(screen.queryByTestId('starter-next-oma')).not.toBeInTheDocument();
   });
 
-  it('keeps an operationally blocked package visible but disables its Home shortcut', async () => {
+  it('keeps an operationally blocked package selectable and defers its typed gate to send', async () => {
     const appState = readyAppState();
     appState.agent_packages.status_index.packages.mag = {
       package_id: 'mag',
@@ -143,10 +144,11 @@ describe('HomeStarters', () => {
     render(<HomeStarters assistants={['mas', 'mag'].map(assistant)} localeKey='en-US' onSelect={onSelect} />);
 
     const blockedStarter = screen.getByTestId('home-starter-mag');
-    expect(blockedStarter).toBeDisabled();
+    expect(blockedStarter).not.toBeDisabled();
+    expect(blockedStarter).toHaveAttribute('data-opl-launch-ready', 'false');
     expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('required_export_missing'));
     await userEvent.click(blockedStarter);
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith('mag');
   });
 
   it('keeps a scope-materialization package selectable so send can activate its workspace', async () => {
@@ -165,6 +167,7 @@ describe('HomeStarters', () => {
     const activationStarter = screen.getByTestId('home-starter-mas');
     expect(activationStarter).not.toBeDisabled();
     expect(activationStarter).toHaveAttribute('aria-pressed', 'false');
+    expect(activationStarter).toHaveAttribute('data-opl-launch-ready', 'false');
     await userEvent.click(activationStarter);
     expect(onSelect).toHaveBeenCalledWith('mas');
   });

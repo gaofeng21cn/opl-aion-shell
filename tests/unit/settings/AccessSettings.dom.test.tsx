@@ -998,8 +998,8 @@ describe('AccessSettingsContent', () => {
     expect(account).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
     const stale = view.getByTestId('settings-gateway-stale');
     expect(stale.className).not.toContain('border');
-    expect(view.getByTestId('settings-gateway-account-footer')).toHaveClass('border-t');
-    expect(account.querySelectorAll('.border-t')).toHaveLength(1);
+    expect(view.getByTestId('settings-gateway-account-footer')).not.toHaveClass('border-t');
+    expect(account.querySelectorAll('.border-t')).toHaveLength(0);
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
     expect(view.queryByText('Resync')).toBeNull();
     expect(view.queryByText('Use for model access')).toBeNull();

@@ -205,7 +205,7 @@
   "system": "系统",
   "about": "关于",
   "onboarding": "模型与访问",
-  "workspacePersonalization": "工作区与个性化",
+  "workspacePersonalization": "工作区",
   "resources": "资源与连接",
   "maintenance": "维护",
   "preferences": "偏好",
@@ -1507,11 +1507,11 @@
     }
   },
   "workspacePage": {
-    "title": "工作区与个性化",
-    "description": "设置项目与日志的存放位置，并管理 Codex 长期指令和 OPL App 新对话上下文。",
+    "title": "工作区",
+    "description": "设置本机默认工作目录与日志位置，并管理 Codex 长期指令和新对话附加说明。",
     "locations": {
       "title": "文件位置",
-      "description": "项目产物和 App 日志分别写入下面两个目录。"
+      "description": "这些目录只决定新建任务产物与本机日志的默认位置，不决定对话归属。"
     },
     "status": {
       "ready": "可用",
@@ -1536,7 +1536,7 @@
     },
     "root": {
       "title": "工作目录",
-      "current": "新项目和本机任务产物会存放在 {{path}}。",
+      "current": "新建本机任务默认把产物存放在 {{path}}。",
       "missing": "开始本机任务前，请先选择工作目录。",
       "dockerMount": "Docker /projects"
     },
@@ -3000,9 +3000,9 @@
   },
   "personalization": {
     "pageTitle": "个性化",
-    "pageDescription": "管理 Codex 的长期指令，以及新建 OPL App 对话时使用的上下文。",
-    "title": "指令与会话上下文",
-    "description": "管理 Codex 长期遵循的用户指令，以及 OPL App 新对话使用的智能体路由说明。",
+    "pageDescription": "管理 Codex 的长期指令和新对话附加说明。",
+    "title": "Codex 指令",
+    "description": "管理 Codex 长期遵循的用户指令，以及只对新对话生效的附加说明。",
     "systemAgentsTitle": "系统级 AGENTS.md",
     "systemAgentsDescription": "Codex 会在所有任务中读取这份用户级指令。保存时会校验文件是否被其他程序修改，并保留上一版备份。",
     "systemAgentsPlaceholder": "输入希望 Codex 在所有任务中遵循的长期指令",
@@ -3013,20 +3013,20 @@
     "systemAgentsRestored": "已恢复 OPL Flow 默认指令",
     "oplFlowDefaultVersion": "本机 OPL Flow 默认版本：{{version}}",
     "oplFlowDefaultUnavailable": "当前 OPL Flow 包未提供可用的默认指令。",
-    "sessionContextTitle": "OPL App 会话上下文",
-    "sessionContextDescription": "基础上下文由 OPL App 根据当前智能体目录生成且不可覆盖；你可以追加只对 OPL App 新对话生效的说明。",
-    "generatedContextLabel": "动态生成的基础上下文",
-    "generatedContextHelp": "由当前 OPL 智能体目录生成，只读且自动更新。",
+    "sessionContextTitle": "新对话附加说明",
+    "sessionContextDescription": "OPL App 会按当前智能体生成必要的只读说明；你可以追加不依附于项目目录的新对话指令。",
+    "generatedContextLabel": "自动生成的智能体说明",
+    "generatedContextHelp": "由当前智能体配置生成，只读且自动更新；不属于任何项目目录。",
     "viewGeneratedContext": "查看",
-    "additionalContextLabel": "用户附加说明",
-    "additionalContextPlaceholder": "输入需要追加到 OPL App 新对话的说明；留空则只使用动态基础上下文",
+    "additionalContextLabel": "附加说明",
+    "additionalContextPlaceholder": "输入只对新 OPL App 对话生效的说明；留空则不追加",
     "restoreDefault": "恢复默认",
     "save": "保存",
     "reload": "重新加载",
     "nextConversationEffect": "保存后从下一次新建 Codex 对话开始生效。",
     "systemAgentsSaved": "系统级 AGENTS.md 已保存",
-    "sessionContextSaved": "OPL App 会话附加说明已保存",
-    "sessionContextRestored": "已清空附加说明并恢复动态基础上下文",
+    "sessionContextSaved": "新对话附加说明已保存",
+    "sessionContextRestored": "已清空新对话附加说明",
     "saveFailed": "保存失败"
   },
   "appearancePage": {

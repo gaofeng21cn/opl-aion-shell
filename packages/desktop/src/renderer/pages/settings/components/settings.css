@@ -6,6 +6,8 @@
 
 .settings-page-content {
   max-width: 760px;
+  container-name: settings-page;
+  container-type: inline-size;
 }
 
 .settings-page-wrapper .arco-card {
@@ -235,6 +237,48 @@
 .opl-settings-row__main,
 .opl-settings-row__meta {
   min-width: 0;
+}
+
+.opl-settings-path {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.opl-personalization-group {
+  min-width: 0;
+  border-top: 1px solid var(--border-base);
+  padding-top: 16px;
+}
+
+.opl-personalization-group__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.opl-personalization-group__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.opl-personalization-group__body {
+  min-width: 0;
+}
+
+.opl-personalization-generated {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  margin-bottom: 14px;
 }
 
 .opl-settings-row__meta.opl-settings-capability-meta {
@@ -504,6 +548,32 @@
 [id='feedback'],
 [id='technical-details'] {
   scroll-margin-top: 20px;
+}
+
+@container settings-page (max-width: 620px) {
+  .opl-settings-page-header,
+  .opl-settings-section__header,
+  .opl-personalization-group__header,
+  .opl-personalization-generated {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .opl-settings-page-header__actions,
+  .opl-personalization-group__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .opl-settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .opl-settings-row__meta {
+    justify-content: flex-start;
+    text-align: left;
+  }
 }
 
 @media (max-width: 767px) {

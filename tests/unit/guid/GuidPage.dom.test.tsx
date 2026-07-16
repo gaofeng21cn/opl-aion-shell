@@ -387,7 +387,6 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
     placeholder,
     actionRow,
-    activeCapabilityLabel,
     fileAccessDisabled,
     workspaceAccessDisabled,
     fileAccessEnabled,
@@ -404,7 +403,6 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
-    activeCapabilityLabel?: string;
     fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
     fileAccessEnabled?: boolean;
@@ -427,7 +425,6 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       onDrop={fileAccessEnabled ? dragHandlers.onDrop : undefined}
     >
       <div data-testid='guid-placeholder'>{placeholder}</div>
-      {activeCapabilityLabel ? <div data-testid='guid-active-capability'>{activeCapabilityLabel}</div> : null}
       {actionRow}
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
@@ -589,18 +586,19 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.useGuidSend.mockClear();
   });
 
-  it('shows a dynamic capability question and keeps purpose outside the composer controls', async () => {
+  it('shows a dynamic capability question without duplicating capability context in the composer', async () => {
     render(<GuidPage />);
 
     expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
     expect(screen.getByTestId('home-starter-mas')).toBeInTheDocument();
-    expect(screen.getByTestId('guid-active-capability')).toHaveTextContent('Med Auto Science');
+    expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('要让 Med Auto Science 推进什么？')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-home-model-status')).not.toBeInTheDocument();
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Med Auto Science')).toHaveLength(2);
+    expect(screen.getAllByText('Med Auto Science')).toHaveLength(1);
+    expect(screen.queryByText('推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
     await waitFor(() => {

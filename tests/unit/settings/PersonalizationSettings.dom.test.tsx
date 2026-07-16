@@ -66,7 +66,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) =>
       ({
         'settings.personalization.pageTitle': 'Personalization',
-        'settings.personalization.pageDescription': 'Instructions and new conversation context.',
+        'settings.personalization.pageDescription': 'Instructions and new conversation additions.',
         'settings.personalization.systemAgentsTitle': 'System AGENTS.md',
         'settings.personalization.systemAgentsDescription': 'Instructions for every task.',
         'settings.personalization.systemAgentsPlaceholder': 'Persistent instructions',
@@ -77,10 +77,10 @@ vi.mock('react-i18next', () => ({
         'settings.personalization.systemAgentsRestored': 'Restored',
         'settings.personalization.oplFlowDefaultVersion': `Installed OPL Flow default version: ${options?.version}`,
         'settings.personalization.oplFlowDefaultUnavailable': 'Default unavailable',
-        'settings.personalization.sessionContextTitle': 'OPL App session context',
-        'settings.personalization.sessionContextDescription': 'Context for new conversations.',
-        'settings.personalization.generatedContextLabel': 'Generated base context',
-        'settings.personalization.generatedContextHelp': 'Read-only and updated automatically.',
+        'settings.personalization.sessionContextTitle': 'New conversation additions',
+        'settings.personalization.sessionContextDescription': 'Instructions for new conversations.',
+        'settings.personalization.generatedContextLabel': 'Generated agent guidance',
+        'settings.personalization.generatedContextHelp': 'Read-only, automatic, and project-independent.',
         'settings.personalization.viewGeneratedContext': 'View',
         'settings.personalization.additionalContextLabel': 'Additional user instructions',
         'settings.personalization.additionalContextPlaceholder': 'Additional instructions',
@@ -108,10 +108,13 @@ describe('OplPersonalizationSettings', () => {
     expect(screen.getByTestId('settings-system-agents-editor')).toHaveTextContent(
       'Installed OPL Flow default version: 0.1.16'
     );
+    expect(screen.getByTestId('settings-system-agents-editor')).toHaveClass('opl-personalization-group');
+    expect(screen.getByTestId('settings-system-agents-editor').querySelector('.border-t')).toBeNull();
     const contextEditors = screen.getByTestId('settings-opl-app-context-editor').querySelectorAll('textarea');
     expect(contextEditors).toHaveLength(1);
     expect(contextEditors[0]).not.toHaveAttribute('readonly');
     expect(screen.queryByTestId('settings-generated-context-preview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-opl-app-context-editor').querySelector('.bg-fill-1')).toBeNull();
     fireEvent.click(screen.getByTestId('settings-generated-context-action'));
     expect(await screen.findByTestId('settings-generated-context-preview')).toHaveTextContent('MAS (Med Auto Science)');
     expect(screen.queryByText('Workspace')).not.toBeInTheDocument();

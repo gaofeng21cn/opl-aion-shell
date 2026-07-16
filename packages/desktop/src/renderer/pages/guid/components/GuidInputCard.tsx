@@ -63,7 +63,6 @@ type GuidInputCardProps = {
   worktreeError?: string | null;
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
-  activeCapabilityLabel?: string;
   fileAccessEnabled?: boolean;
 };
 
@@ -100,7 +99,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   worktreeError,
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
-  activeCapabilityLabel,
   fileAccessEnabled = true,
 }) => {
   const layout = useLayoutContext();
@@ -140,22 +138,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       }}
       {...(fileAccessEnabled ? dragHandlers : {})}
     >
-      <GuidWorkspaceFootnote
-        workspaceDir={workspaceDir}
-        onSelectWorkspace={onSelectWorkspace}
-        onClearWorkspace={onClearWorkspace}
-        launchMode={launchMode}
-        onLaunchModeChange={onLaunchModeChange}
-        branchOptions={branchOptions}
-        selectedStartRef={selectedStartRef}
-        onSelectedStartRefChange={onSelectedStartRefChange}
-        worktreeLoading={worktreeLoading}
-        worktreeControlsDisabled={worktreeControlsDisabled}
-        worktreeError={worktreeError}
-        accessDisabled={workspaceAccessDisabled}
-        accessDisabledReason={workspaceAccessDisabledReason}
-        activeCapabilityLabel={activeCapabilityLabel}
-      />
       <div
         className={`${styles.guidInputInner} relative z-1 flex flex-col bg-dialog-fill-0`}
         style={{
@@ -192,6 +174,21 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           </div>
         )}
         <UploadProgressBar source='sendbox' />
+        <GuidWorkspaceFootnote
+          workspaceDir={workspaceDir}
+          onSelectWorkspace={onSelectWorkspace}
+          onClearWorkspace={onClearWorkspace}
+          launchMode={launchMode}
+          onLaunchModeChange={onLaunchModeChange}
+          branchOptions={branchOptions}
+          selectedStartRef={selectedStartRef}
+          onSelectedStartRefChange={onSelectedStartRefChange}
+          worktreeLoading={worktreeLoading}
+          worktreeControlsDisabled={worktreeControlsDisabled}
+          worktreeError={worktreeError}
+          accessDisabled={workspaceAccessDisabled}
+          accessDisabledReason={workspaceAccessDisabledReason}
+        />
         {actionRow}
         {slashCommandMenu && (
           <div className='absolute left-0 right-0 top-[calc(100%+4px)] z-70'>{slashCommandMenu}</div>

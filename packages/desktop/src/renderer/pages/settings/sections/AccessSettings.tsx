@@ -636,7 +636,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                 </div>
 
                 <div
-                  className='mt-2px flex flex-wrap items-center justify-between gap-12px border-t border-solid border-[var(--border-base)] py-12px'
+                  className='mt-2px flex flex-wrap items-center justify-between gap-12px py-12px'
                   data-testid='settings-gateway-account-footer'
                 >
                   <div className='min-w-0'>

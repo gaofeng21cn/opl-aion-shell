@@ -120,8 +120,8 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'common.open': 'Open',
         'common.refresh': 'Refresh',
-        'settings.workspacePage.title': 'Workspace & Personalization',
-        'settings.workspacePage.description': 'Review local paths and personalization.',
+        'settings.workspacePage.title': 'Workspace',
+        'settings.workspacePage.description': 'Review default local paths and Codex instructions.',
         'settings.workspacePage.status.ready': 'Available',
         'settings.workspacePage.status.writable': 'Work directory writable',
         'settings.workspacePage.status.needsAction': 'Needs setup',
@@ -199,8 +199,8 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.status.dirty': 'dirty',
         'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot': `From ${options?.root}`,
         'settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace': 'Sibling workspace',
-        'settings.personalization.title': 'Personalization',
-        'settings.personalization.description': 'Instructions and new-conversation context.',
+        'settings.personalization.title': 'Codex instructions',
+        'settings.personalization.description': 'Persistent and new-conversation instructions.',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -237,14 +237,16 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
   it('renders workspace, App logs, and personalization on one Settings page', async () => {
     render(<WorkspaceSettings withWrapper={false} />);
 
-    expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).not.toHaveClass('md:grid-cols-2');
     expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
     expect(screen.queryByTestId('opl-workspace-settings-permission')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
-    expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
+    const workspacePath = screen.getByText('Work root: /Users/example/OPL Workspace');
+    expect(workspacePath).toHaveClass('opl-settings-path');
+    expect(workspacePath).not.toHaveClass('break-all');
     expect(screen.queryByText('Writes are allowed')).not.toBeInTheDocument();
     expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();
     expect(screen.getByText('Work directory writable')).toBeInTheDocument();
@@ -259,9 +261,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
     expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab App')).toBeInTheDocument()
-    );
+    const logsPath = await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
+    expect(logsPath).toHaveClass('opl-settings-path');
+    expect(logsPath).not.toHaveClass('break-all');
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
     expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument();
     expect(screen.queryByText('Modules root: /Users/example/workspace/modules')).not.toBeInTheDocument();

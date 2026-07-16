@@ -776,9 +776,6 @@ const GuidPage: React.FC = () => {
         : t('guid.home.question'),
     [activeCapabilityLabel, t]
   );
-  const selectedAssistantDescription = useMemo(() => {
-    return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
-  }, [selectedAssistantRecord, localeKey]);
   const composerSurface = useMemo(() => resolveOplHomeComposerSurface(activeShortcut), [activeShortcut]);
 
   // Reset guid-local UI state before paint so same-route navigations do not
@@ -1007,15 +1004,9 @@ const GuidPage: React.FC = () => {
           <div className={styles.guidHero}>
             <div className={styles.heroHeader}>
               <div className='text-center'>
-                <p className='text-20px leading-28px font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+                <p className={styles.homePrompt}>{heroTitle}</p>
               </div>
             </div>
-
-            {selectedAssistantDescription ? (
-              <p className='m-0 mb-12px text-center text-13px leading-20px text-t-secondary'>
-                {selectedAssistantDescription}
-              </p>
-            ) : null}
 
             <HomeStarters
               assistants={agentSelection.assistants}
@@ -1070,7 +1061,6 @@ const GuidPage: React.FC = () => {
               worktreeError={worktreeError}
               workspaceAccessDisabled={workspaceAccessBlocked}
               workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
-              activeCapabilityLabel={activeCapabilityLabel}
               fileAccessEnabled={true}
             />
 

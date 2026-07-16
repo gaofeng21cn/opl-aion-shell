@@ -123,9 +123,9 @@ const OplPersonalizationSettings: React.FC = () => {
   const instructionsAlreadyDefault = defaultInstructionsAvailable && loadedSha256 === defaultInstructionsSha256;
 
   return (
-    <div className='flex flex-col gap-14px' data-testid='settings-personalization-instructions'>
-      <section className='opl-settings-section' id='system-agents' data-testid='settings-system-agents-editor'>
-        <div className='opl-settings-section__header'>
+    <div className='flex flex-col gap-20px' data-testid='settings-personalization-instructions'>
+      <section className='opl-personalization-group' id='system-agents' data-testid='settings-system-agents-editor'>
+        <div className='opl-personalization-group__header'>
           <div className='flex min-w-0 items-start gap-12px'>
             <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
               <EditTwo theme='outline' size='16' />
@@ -151,7 +151,7 @@ const OplPersonalizationSettings: React.FC = () => {
               )}
             </div>
           </div>
-          <div className='flex shrink-0 flex-wrap items-center justify-end gap-8px'>
+          <div className='opl-personalization-group__actions'>
             <Button
               size='small'
               loading={instructionsRestoring}
@@ -179,7 +179,7 @@ const OplPersonalizationSettings: React.FC = () => {
             </Button>
           </div>
         </div>
-        <div className='border-t border-solid border-[var(--border-base)] p-16px'>
+        <div className='opl-personalization-group__body'>
           {instructionsUnavailable ? (
             <div className='text-12px text-danger'>{t('settings.personalization.systemAgentsTooLarge')}</div>
           ) : (
@@ -194,8 +194,8 @@ const OplPersonalizationSettings: React.FC = () => {
         </div>
       </section>
 
-      <section className='opl-settings-section' id='opl-app-context' data-testid='settings-opl-app-context-editor'>
-        <div className='opl-settings-section__header'>
+      <section className='opl-personalization-group' id='opl-app-context' data-testid='settings-opl-app-context-editor'>
+        <div className='opl-personalization-group__header'>
           <div className='flex min-w-0 items-start gap-12px'>
             <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
               <MessageOne theme='outline' size='16' />
@@ -210,8 +210,8 @@ const OplPersonalizationSettings: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className='border-t border-solid border-[var(--border-base)] p-16px'>
-          <div className='flex items-center justify-between gap-12px rd-6px bg-fill-1 px-12px py-10px'>
+        <div className='opl-personalization-group__body'>
+          <div className='opl-personalization-generated'>
             <div className='min-w-0'>
               <div className='text-12px font-medium text-t-secondary'>
                 {t('settings.personalization.generatedContextLabel')}

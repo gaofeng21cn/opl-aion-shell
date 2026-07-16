@@ -27,7 +27,6 @@ type GuidWorkspaceFootnoteProps = {
   worktreeError?: string | null;
   accessDisabled?: boolean;
   accessDisabledReason?: string;
-  activeCapabilityLabel?: string;
 };
 
 export type GuidWorkspaceLaunchMode = 'local' | 'worktree';
@@ -80,7 +79,6 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   worktreeError,
   accessDisabled = false,
   accessDisabledReason,
-  activeCapabilityLabel,
 }) => {
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
@@ -475,13 +473,6 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         </div>
       ) : null}
 
-      {activeCapabilityLabel ? (
-        <div className={styles.taskContextSecondary} data-testid='guid-task-context-secondary'>
-          <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
-            {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
-          </span>
-        </div>
-      ) : null}
       <Modal
         visible={managementOpen}
         title={t('guid.workspace.registeredTitle')}

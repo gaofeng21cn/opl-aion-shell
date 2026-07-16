@@ -29,6 +29,25 @@ const createImage = (empty = false) => ({
   setTemplateImage: vi.fn(),
 });
 
+function alphaBounds(data: Buffer, width: number, height: number, channels: number, threshold: number) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (data[(y * width + x) * channels + 3] < threshold) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+}
+
 describe('macOS tray icon', () => {
   beforeEach(() => {
     nativeImageMock.createFromPath.mockReset();
@@ -86,5 +105,33 @@ describe('macOS tray icon', () => {
 
     expect(visiblePixels).toBeGreaterThan(size * size * 0.2);
     expect(visiblePixels).toBeLessThan(size * size * 0.6);
+  });
+});
+
+describe('desktop application icon', () => {
+  it('keeps the official source artwork unchanged and derives Codex-sized macOS assets', async () => {
+    const sourcePath = path.resolve(process.cwd(), 'resources', 'icon.png');
+    const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(source.info.width).toBe(1024);
+    expect(source.info.height).toBe(1024);
+    expect(alphaBounds(source.data, source.info.width, source.info.height, source.info.channels, 128)).toEqual({
+      x: 0,
+      y: 0,
+      width: 1024,
+      height: 1024,
+    });
+
+    for (const filename of ['app.png', 'app_dev.png']) {
+      const assetPath = path.resolve(process.cwd(), 'resources', filename);
+      const asset = await sharp(assetPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      expect(asset.info.width).toBe(1024);
+      expect(asset.info.height).toBe(1024);
+      expect(alphaBounds(asset.data, asset.info.width, asset.info.height, asset.info.channels, 128)).toEqual({
+        x: 100,
+        y: 100,
+        width: 824,
+        height: 824,
+      });
+    }
   });
 });

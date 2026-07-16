@@ -111,13 +111,8 @@ describe('GuidWorkspaceFootnote', () => {
     await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'feature/research' })).not.toBeInTheDocument());
   });
 
-  it('orders working directory, location, and branch while keeping the active capability secondary', async () => {
-    render(
-      <GuidWorkspaceFootnote
-        {...createLaunchProps({ workspaceDir: '/workspace/research' })}
-        activeCapabilityLabel='Research'
-      />
-    );
+  it('orders working directory, location, and branch without a duplicate capability label', async () => {
+    render(<GuidWorkspaceFootnote {...createLaunchProps({ workspaceDir: '/workspace/research' })} />);
 
     expect(screen.getByText('research')).toBeInTheDocument();
     expect(screen.getByTestId('guid-local-context')).toBeInTheDocument();
@@ -128,7 +123,7 @@ describe('GuidWorkspaceFootnote', () => {
       'guid.home.localContext',
       'codex/context',
     ]);
-    expect(screen.getByTestId('guid-active-capability')).toHaveTextContent('guid.home.activeCapability');
+    expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-project-context-ref')).not.toBeInTheDocument();
   });
 

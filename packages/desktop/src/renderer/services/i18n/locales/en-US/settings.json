@@ -205,7 +205,7 @@
   "system": "System",
   "about": "About",
   "onboarding": "Models & Access",
-  "workspacePersonalization": "Workspace & Personalization",
+  "workspacePersonalization": "Workspace",
   "resources": "Resources & Connections",
   "maintenance": "Maintenance",
   "preferences": "Preferences",
@@ -1506,11 +1506,11 @@
     }
   },
   "workspacePage": {
-    "title": "Workspace & Personalization",
-    "description": "Choose where projects and logs are stored, then manage the instructions used by Codex and new OPL App conversations.",
+    "title": "Workspace",
+    "description": "Choose the default local work and log locations, then manage Codex instructions and additions for new conversations.",
     "locations": {
       "title": "File locations",
-      "description": "Project output and App logs are written to the two locations below."
+      "description": "These locations set defaults for new task output and local logs; they do not own conversations."
     },
     "status": {
       "ready": "Available",
@@ -1535,7 +1535,7 @@
     },
     "root": {
       "title": "Work directory",
-      "current": "New projects and local task output are stored under {{path}}.",
+      "current": "New local tasks store output under {{path}} by default.",
       "missing": "Choose a work directory before starting local tasks.",
       "dockerMount": "Docker /projects"
     },
@@ -2999,9 +2999,9 @@
   },
   "personalization": {
     "pageTitle": "Personalization",
-    "pageDescription": "Manage persistent Codex instructions and the context used for new OPL App conversations.",
-    "title": "Instructions and session context",
-    "description": "Manage persistent Codex user instructions and the OPL agent-routing context used for new App conversations.",
+    "pageDescription": "Manage persistent Codex instructions and additions for new conversations.",
+    "title": "Codex instructions",
+    "description": "Manage persistent Codex user instructions and additions that apply only to new conversations.",
     "systemAgentsTitle": "System AGENTS.md",
     "systemAgentsDescription": "Codex reads these user-level instructions for every task. Saving checks for external changes and keeps a backup of the previous version.",
     "systemAgentsPlaceholder": "Enter persistent instructions for Codex to follow in every task",
@@ -3012,20 +3012,20 @@
     "systemAgentsRestored": "OPL Flow default instructions restored",
     "oplFlowDefaultVersion": "Installed OPL Flow default version: {{version}}",
     "oplFlowDefaultUnavailable": "The current OPL Flow package does not provide usable default instructions.",
-    "sessionContextTitle": "OPL App session context",
-    "sessionContextDescription": "OPL App generates the base context from the current agent directory and keeps it read-only. You can append instructions that apply only to new OPL App conversations.",
-    "generatedContextLabel": "Generated base context",
-    "generatedContextHelp": "Generated from the current OPL agent directory; read-only and updated automatically.",
+    "sessionContextTitle": "New conversation additions",
+    "sessionContextDescription": "OPL App generates the required read-only agent guidance. You can add instructions for new conversations without tying them to a project directory.",
+    "generatedContextLabel": "Generated agent guidance",
+    "generatedContextHelp": "Generated from the current agent configuration; read-only, automatic, and independent of project directories.",
     "viewGeneratedContext": "View",
-    "additionalContextLabel": "Additional user instructions",
-    "additionalContextPlaceholder": "Add instructions for new OPL App conversations; leave blank to use only the generated base context",
+    "additionalContextLabel": "Additional instructions",
+    "additionalContextPlaceholder": "Add instructions for new OPL App conversations; leave blank to add nothing",
     "restoreDefault": "Restore default",
     "save": "Save",
     "reload": "Reload",
     "nextConversationEffect": "Changes apply to the next new Codex conversation.",
     "systemAgentsSaved": "System AGENTS.md saved",
-    "sessionContextSaved": "OPL App additional instructions saved",
-    "sessionContextRestored": "Additional instructions cleared; generated base context restored",
+    "sessionContextSaved": "New conversation additions saved",
+    "sessionContextRestored": "New conversation additions cleared",
     "saveFailed": "Save failed"
   },
   "appearancePage": {

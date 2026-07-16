@@ -7,7 +7,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { BookOpen, ChartHistogram, CheckOne, Flask, Microscope, Right, WritingFluently } from '@icon-park/react';
+import { BookOpen, ChartHistogram, CheckOne, Flask, Microscope, WritingFluently } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useMemo } from 'react';
@@ -69,8 +69,8 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
           const label = assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
           const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
-          const launchBlocked = launchGate.launchAllowed === false && !launchGate.activationRequired;
-          const blockedTitle = launchBlocked
+          const launchReady = launchGate.launchAllowed !== false;
+          const blockedTitle = !launchReady
             ? t('guid.home.launchBlocked', {
                 reason: launchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
                 actions: launchGate.allowedWhenBlocked.join(', '),
@@ -82,10 +82,10 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               type='text'
               className={classNames(styles.homeStarter, active && styles.homeStarterActive)}
               onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
-              disabled={launchBlocked}
               title={blockedTitle}
               aria-pressed={active}
               data-opl-active={String(active)}
+              data-opl-launch-ready={String(launchGate.launchAllowed !== false)}
               data-testid={`home-starter-${assistant.id}`}
             >
               <span
@@ -100,16 +100,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 <span className='inline-flex shrink-0' data-testid='starter-active-check' aria-hidden='true'>
                   <CheckOne theme='filled' size={14} fill='currentColor' />
                 </span>
-              ) : (
-                <Right
-                  theme='outline'
-                  size={13}
-                  fill='currentColor'
-                  className='shrink-0 text-t-tertiary'
-                  data-testid={`starter-next-${assistant.id}`}
-                  aria-hidden='true'
-                />
-              )}
+              ) : null}
             </Button>
           );
         })}

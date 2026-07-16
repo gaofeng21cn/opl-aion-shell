@@ -203,7 +203,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                       <Typography.Text className='block font-600 text-t-primary'>
                         {t('settings.workspacePage.root.title')}
                       </Typography.Text>
-                      <Typography.Text className='block break-all text-12px text-t-secondary'>
+                      <Typography.Text className='opl-settings-path block text-12px text-t-secondary'>
                         {workspaceSummary}
                       </Typography.Text>
                     </div>
@@ -266,7 +266,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                             : 'settings.workspacePage.logs.webuiDescription'
                         )}
                       </Typography.Text>
-                      <Typography.Text className='block break-all text-12px text-t-secondary'>
+                      <Typography.Text className='opl-settings-path block text-12px text-t-secondary'>
                         {logsRoot
                           ? t('settings.workspacePage.logs.current', { path: logsRoot })
                           : systemDirectoryLoadFailed
