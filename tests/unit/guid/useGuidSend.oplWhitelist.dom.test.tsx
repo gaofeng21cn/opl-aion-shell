@@ -224,6 +224,33 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     sessionStorage.clear();
   });
 
+  it('creates a projectless ordinary Codex conversation without an Agent Package or workspace', async () => {
+    const deps = buildDeps();
+    deps.dir = '';
+    deps.selectedAgentInfo = undefined;
+    deps.is_presetAgent = false;
+    deps.activeShortcut = null;
+    deps.guidEnabledSkills = [];
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        type: 'acp',
+        extra: expect.objectContaining({
+          workspace: '',
+          custom_workspace: false,
+          opl_agent_package_invocation: undefined,
+        }),
+      })
+    );
+  });
+
   it('filters skills and MCP servers before creating an ordinary OPL Codex conversation', async () => {
     const { result } = renderHook(() => useGuidSend(buildDeps()));
 
@@ -287,29 +314,6 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       source: 'opl_app_home',
     });
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
-  });
-
-  it('persists the managed Worktree handoff metadata with the new Codex conversation', async () => {
-    const workspaceHandoff = {
-      schema: 'opl_workspace_handoff.v1' as const,
-      locality: 'worktree' as const,
-      localWorkspace: '/tmp/opl',
-      worktreePath: '/Users/test/.codex/worktrees/opl-task',
-      taskId: 'guid-task-1',
-      startRef: 'main',
-      startCommit: '1111111111111111111111111111111111111111',
-      worktreeRetention: 'preserve_for_reuse' as const,
-    };
-    const deps = buildDeps();
-    deps.dir = workspaceHandoff.worktreePath;
-    deps.workspaceHandoff = workspaceHandoff;
-    const { result } = renderHook(() => useGuidSend(deps));
-
-    await act(async () => {
-      await result.current.handleSend();
-    });
-
-    expect(mocks.createConversation.mock.calls[0][0].extra.workspace_handoff).toEqual(workspaceHandoff);
   });
 
   it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {

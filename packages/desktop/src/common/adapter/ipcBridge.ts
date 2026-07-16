@@ -43,8 +43,6 @@ import type {
 import type {
   GitCommitStagedRequest,
   GitCommitStagedResult,
-  GitManagedWorktreeRequest,
-  GitManagedWorktreeResult,
   GitPushCurrentBranchRequest,
   GitPushCurrentBranchResult,
   GitWorkspaceInspectRequest,
@@ -79,7 +77,6 @@ import type {
   CodexThreadIdRequest,
   CodexThreadRenameRequest,
   CodexThreadStartRequest,
-  CodexThreadWorkspaceRequest,
 } from '../types/codex/appServerThreads';
 import type {
   AutoUpdateStatus,
@@ -753,7 +750,6 @@ export const codexThreads = {
   resume: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.resume'),
   fork: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.fork'),
   rename: bridge.buildProvider<void, CodexThreadRenameRequest>('codex-threads.rename'),
-  updateWorkspace: bridge.buildProvider<void, CodexThreadWorkspaceRequest>('codex-threads.update-workspace'),
   archive: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.archive'),
   unarchive: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.unarchive'),
   delete: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.delete'),
@@ -1184,9 +1180,6 @@ export const fileSnapshot = {
 // unstaging, and diff reads remain owned by fileSnapshot above.
 export const gitWorkspace = {
   inspect: bridge.buildProvider<GitWorkspaceInspection, GitWorkspaceInspectRequest>('git-workspace.inspect'),
-  ensureManagedWorktree: bridge.buildProvider<GitManagedWorktreeResult, GitManagedWorktreeRequest>(
-    'git-workspace.ensure-managed-worktree'
-  ),
   commitStaged: bridge.buildProvider<GitCommitStagedResult, GitCommitStagedRequest>('git-workspace.commit-staged'),
   pushCurrentBranch: bridge.buildProvider<GitPushCurrentBranchResult, GitPushCurrentBranchRequest>(
     'git-workspace.push-current-branch'
@@ -2102,7 +2095,6 @@ export interface ICreateConversationParams {
     current_model_id?: string;
     cached_config_options?: import('../types/platform/acpTypes').AcpSessionConfigOption[];
     pending_config_options?: Record<string, string>;
-    workspace_handoff?: import('../types/platform/gitWorkspace').GitWorkspaceHandoffMetadata | null;
     runtime_validation?: {
       expected_workspace?: string;
       expected_backend?: string;

@@ -459,13 +459,6 @@ export class CodexAppServerAdapter {
     await this.rpc.request('thread/name/set', { threadId, name: requiredString(name, 'thread name') });
   }
 
-  async updateThreadWorkspace(threadId: string, workspace: string): Promise<void> {
-    await this.rpc.request('thread/settings/update', {
-      threadId,
-      cwd: requiredString(workspace, 'thread workspace'),
-    });
-  }
-
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
   }

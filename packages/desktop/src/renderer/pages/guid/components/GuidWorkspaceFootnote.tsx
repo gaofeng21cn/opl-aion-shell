@@ -6,8 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { addRecentWorkspace, getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
-import { Button, Dropdown, Menu, Modal, Tooltip, Typography } from '@arco-design/web-react';
-import { Attention, BranchOne, Computer, Fork } from '@icon-park/react';
+import { Button, Modal, Tooltip, Typography } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -17,24 +16,8 @@ type GuidWorkspaceFootnoteProps = {
   workspaceDir: string;
   onSelectWorkspace: (dir: string) => void;
   onClearWorkspace: () => void;
-  launchMode: GuidWorkspaceLaunchMode;
-  onLaunchModeChange: (mode: GuidWorkspaceLaunchMode) => void;
-  branchOptions: GuidStartingBranchOption[];
-  selectedStartRef: string;
-  onSelectedStartRefChange: (startRef: string) => void;
-  worktreeLoading?: boolean;
-  worktreeControlsDisabled?: boolean;
-  worktreeError?: string | null;
   accessDisabled?: boolean;
   accessDisabledReason?: string;
-};
-
-export type GuidWorkspaceLaunchMode = 'local' | 'worktree';
-
-export type GuidStartingBranchOption = {
-  value: string;
-  label: string;
-  current: boolean;
 };
 
 const FolderIcon = ({ size = 12 }: { size?: number }) => (
@@ -69,14 +52,6 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   workspaceDir,
   onSelectWorkspace,
   onClearWorkspace,
-  launchMode,
-  onLaunchModeChange,
-  branchOptions,
-  selectedStartRef,
-  onSelectedStartRefChange,
-  worktreeLoading = false,
-  worktreeControlsDisabled = false,
-  worktreeError,
   accessDisabled = false,
   accessDisabledReason,
 }) => {
@@ -86,30 +61,10 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   const [managementOpen, setManagementOpen] = useState(false);
   const [registeredWorkspaces, setRegisteredWorkspaces] = useState(() => getRecentWorkspaces());
   const [searchQuery, setSearchQuery] = useState('');
-  const [branch, setBranch] = useState<string>();
-  const [launchModeMenuOpen, setLaunchModeMenuOpen] = useState(false);
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setBranch(undefined);
-    if (!workspaceDir) return;
-
-    void ipcBridge.gitWorkspace.inspect
-      .invoke({ cwd: workspaceDir })
-      .then((inspection) => {
-        if (!cancelled && inspection.currentBranch) setBranch(inspection.currentBranch);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceDir]);
 
   const handleBrowseWorkspace = useCallback(() => {
     setOpen(false);
@@ -201,111 +156,6 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   });
 
   const workspaceName = workspaceDir ? workspaceDir.split(/[\\/]/).pop() || workspaceDir : '';
-  const selectedBranch = branchOptions.find((option) => option.value === selectedStartRef);
-  const branchLabel = launchMode === 'worktree' ? selectedBranch?.label || branch : branch;
-
-  const launchModeButton = (
-    <Button
-      type='text'
-      size='small'
-      className={styles.taskContextControl}
-      disabled={worktreeControlsDisabled}
-      aria-label={t('guid.worktree.modeLabel')}
-      data-testid='guid-launch-mode-trigger'
-    >
-      <span className={styles.taskContextControlContent}>
-        {launchMode === 'worktree' ? <Fork size={16} /> : <Computer size={16} />}
-        <span>{launchMode === 'worktree' ? t('guid.worktree.worktreeLabel') : t('guid.home.localContext')}</span>
-      </span>
-    </Button>
-  );
-
-  const launchModeControl = worktreeControlsDisabled ? (
-    launchModeButton
-  ) : (
-    <Dropdown
-      trigger='click'
-      position='bl'
-      popupVisible={launchModeMenuOpen}
-      onVisibleChange={setLaunchModeMenuOpen}
-      droplist={
-        <Menu
-          selectedKeys={[launchMode]}
-          onClickMenuItem={(key) => {
-            setLaunchModeMenuOpen(false);
-            onLaunchModeChange(key === 'worktree' ? 'worktree' : 'local');
-          }}
-        >
-          <Menu.Item key='local'>
-            <span className={styles.taskContextMenuItem} data-testid='guid-launch-mode-local'>
-              <Computer size={15} />
-              {t('guid.home.localContext')}
-            </span>
-          </Menu.Item>
-          <Menu.Item key='worktree'>
-            <span className={styles.taskContextMenuItem} data-testid='guid-launch-mode-worktree'>
-              <Fork size={15} />
-              {t('guid.worktree.worktreeLabel')}
-            </span>
-          </Menu.Item>
-        </Menu>
-      }
-    >
-      {launchModeButton}
-    </Dropdown>
-  );
-
-  const branchButton = branchLabel ? (
-    <Button
-      type='text'
-      size='small'
-      className={styles.taskContextControl}
-      disabled={worktreeLoading || worktreeControlsDisabled}
-      aria-label={t('guid.worktree.startingBranch')}
-      aria-busy={worktreeLoading}
-      data-testid='guid-starting-branch-selector'
-    >
-      <span className={styles.taskContextControlContent}>
-        <BranchOne size={16} />
-        <span className={styles.taskContextBranchLabel}>{branchLabel}</span>
-      </span>
-    </Button>
-  ) : null;
-
-  const branchControl =
-    launchMode === 'worktree' && branchButton && branchOptions.length > 0 ? (
-      <Dropdown
-        trigger='click'
-        position='bl'
-        popupVisible={branchMenuOpen}
-        onVisibleChange={setBranchMenuOpen}
-        droplist={
-          <Menu
-            selectedKeys={selectedStartRef ? [selectedStartRef] : []}
-            onClickMenuItem={(key) => {
-              setBranchMenuOpen(false);
-              onSelectedStartRefChange(String(key));
-            }}
-          >
-            {branchOptions.map((option) => (
-              <Menu.Item key={option.value}>
-                <span className={styles.taskContextMenuItem}>
-                  <BranchOne size={15} />
-                  <span>{option.label}</span>
-                  {option.current ? (
-                    <span className={styles.taskContextMenuMeta}>{t('guid.worktree.currentBranch')}</span>
-                  ) : null}
-                </span>
-              </Menu.Item>
-            ))}
-          </Menu>
-        }
-      >
-        {branchButton}
-      </Dropdown>
-    ) : (
-      branchButton
-    );
 
   const dropdownEl = open
     ? createPortal(
@@ -414,7 +264,7 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
       data-testid='guid-new-task-context-bar'
       data-access-disabled={accessDisabled ? 'true' : 'false'}
     >
-      <div className={styles.taskContextPrimary} data-testid='guid-task-location-controls'>
+      <div className={styles.taskContextPrimary} data-testid='guid-workspace-controls'>
         {workspaceDir ? (
           <>
             <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>
@@ -456,22 +306,7 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
             {dropdownEl}
           </>
         )}
-        <span className={styles.taskContextItem} data-testid='guid-local-context'>
-          {launchModeControl}
-        </span>
-        {workspaceDir && branchControl ? (
-          <span className={styles.taskContextItem} data-testid='guid-branch-context'>
-            {branchControl}
-          </span>
-        ) : null}
       </div>
-
-      {worktreeError ? (
-        <div className={styles.taskContextError} role='alert' data-testid='guid-worktree-error'>
-          <Attention className='mt-2px shrink-0' size={13} />
-          <span className='min-w-0 break-words'>{worktreeError}</span>
-        </div>
-      ) : null}
 
       <Modal
         visible={managementOpen}

@@ -1,6 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import GuidWorkspaceFootnote from '@/renderer/pages/guid/components/GuidWorkspaceFootnote';
 
@@ -15,9 +14,6 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     dialog: {
       showOpen: { invoke: vi.fn().mockResolvedValue([]) },
-    },
-    gitWorkspace: {
-      inspect: { invoke: vi.fn().mockResolvedValue({ currentBranch: 'codex/context' }) },
     },
   },
 }));
@@ -39,31 +35,20 @@ function createLaunchProps(
     workspaceDir: '',
     onSelectWorkspace: vi.fn(),
     onClearWorkspace: vi.fn(),
-    launchMode: 'local',
-    onLaunchModeChange: vi.fn(),
-    branchOptions: [],
-    selectedStartRef: '',
-    onSelectedStartRefChange: vi.fn(),
     ...overrides,
   };
 }
 
 describe('GuidWorkspaceFootnote', () => {
-  it('disables project and Worktree controls while workspace setup is incomplete', () => {
+  it('disables project selection while workspace setup is incomplete', () => {
     render(
-      <GuidWorkspaceFootnote
-        {...createLaunchProps()}
-        accessDisabled
-        accessDisabledReason='complete workspace setup'
-        worktreeControlsDisabled
-      />
+      <GuidWorkspaceFootnote {...createLaunchProps()} accessDisabled accessDisabledReason='complete workspace setup' />
     );
 
     expect(screen.getByTestId('guid-new-task-context-bar')).toHaveAttribute('data-access-disabled', 'true');
     const selector = screen.getByTestId('workspace-selector-btn');
     expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toContainElement(selector);
     expect(selector).toBeDisabled();
-    expect(screen.getByTestId('guid-launch-mode-trigger')).toBeDisabled();
   });
 
   it('describes projectless context without implying a file restriction', () => {
@@ -73,56 +58,12 @@ describe('GuidWorkspaceFootnote', () => {
     expect(screen.getByTestId('guid-projectless-context')).toHaveTextContent('guid.workspace.noProject');
   });
 
-  it('renders compact location and branch menus with an inline Worktree failure', async () => {
-    const onLaunchModeChange = vi.fn();
-    const onSelectedStartRefChange = vi.fn();
-    render(
-      <GuidWorkspaceFootnote
-        {...createLaunchProps({
-          workspaceDir: '/workspace/research',
-          launchMode: 'worktree',
-          onLaunchModeChange,
-          branchOptions: [
-            { value: 'refs/heads/main', label: 'main', current: true },
-            { value: 'refs/heads/feature/research', label: 'feature/research', current: false },
-          ],
-          selectedStartRef: 'refs/heads/main',
-          onSelectedStartRefChange,
-          worktreeError: 'worktree failed',
-        })}
-      />
-    );
-
-    expect(screen.getByTestId('guid-new-task-context-bar')).toBeInTheDocument();
-    expect(screen.getByTestId('guid-starting-branch-selector')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('worktree failed');
-    await screen.findByTestId('guid-branch-context');
-
-    await userEvent.click(screen.getByTestId('guid-launch-mode-trigger'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'guid.home.localContext' }));
-    expect(onLaunchModeChange).toHaveBeenCalledWith('local');
-    await waitFor(() =>
-      expect(screen.queryByRole('menuitem', { name: 'guid.home.localContext' })).not.toBeInTheDocument()
-    );
-
-    await userEvent.click(screen.getByTestId('guid-starting-branch-selector'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'feature/research' }));
-    expect(onSelectedStartRefChange).toHaveBeenCalledWith('refs/heads/feature/research');
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'feature/research' })).not.toBeInTheDocument());
-  });
-
-  it('orders working directory, location, and branch without a duplicate capability label', async () => {
+  it('keeps the new-task workspace selector as the only context control', () => {
     render(<GuidWorkspaceFootnote {...createLaunchProps({ workspaceDir: '/workspace/research' })} />);
 
     expect(screen.getByText('research')).toBeInTheDocument();
-    expect(screen.getByTestId('guid-local-context')).toBeInTheDocument();
-    expect(await screen.findByTestId('guid-branch-context')).toHaveTextContent('codex/context');
-    const contextButtons = within(screen.getByTestId('guid-task-location-controls')).getAllByRole('button');
-    expect(contextButtons.map((button) => button.textContent)).toEqual([
-      'research',
-      'guid.home.localContext',
-      'codex/context',
-    ]);
+    const contextButtons = within(screen.getByTestId('guid-workspace-controls')).getAllByRole('button');
+    expect(contextButtons.map((button) => button.textContent)).toEqual(['research']);
     expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-project-context-ref')).not.toBeInTheDocument();
   });

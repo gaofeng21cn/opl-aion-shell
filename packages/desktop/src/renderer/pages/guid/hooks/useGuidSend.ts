@@ -11,7 +11,6 @@ import {
   filterOplOrdinarySkillNames,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import type { GitWorkspaceHandoffMetadata } from '@/common/types/platform/gitWorkspace';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
@@ -47,7 +46,6 @@ export type GuidSendDeps = {
   files: string[];
   setFiles: React.Dispatch<React.SetStateAction<string[]>>;
   dir: string;
-  workspaceHandoff?: GitWorkspaceHandoffMetadata;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   loading: boolean;
@@ -171,7 +169,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     files,
     setFiles,
     dir,
-    workspaceHandoff,
     setDir,
     setLoading,
     loading,
@@ -510,7 +507,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           opl_agent_package_invocation: oplAgentPackageInvocation,
           opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
-          workspace_handoff: workspaceHandoff,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,
           // Non-preset agents still forward user-selected custom skills via the
@@ -553,7 +549,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     input,
     files,
     dir,
-    workspaceHandoff,
     selectedAgent,
     selectedAgentKey,
     selectedAgentInfo,

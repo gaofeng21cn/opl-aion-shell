@@ -58,7 +58,6 @@ export type CodexThreadStartRequest = {
 
 export type CodexThreadIdRequest = { threadId: string };
 export type CodexThreadRenameRequest = CodexThreadIdRequest & { name: string };
-export type CodexThreadWorkspaceRequest = CodexThreadIdRequest & { workspace: string };
 
 export type CodexReviewDelivery = 'inline' | 'detached';
 export type CodexReviewTarget =

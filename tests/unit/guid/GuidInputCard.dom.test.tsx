@@ -44,19 +44,16 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 
 vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
   default: ({
-    launchMode,
-    selectedStartRef,
-    worktreeError,
+    workspaceDir,
+    accessDisabled,
   }: {
-    launchMode: string;
-    selectedStartRef: string;
-    worktreeError?: string | null;
+    workspaceDir: string;
+    accessDisabled?: boolean;
   }) => (
     <div
       data-testid='workspace-footnote'
-      data-launch-mode={launchMode}
-      data-start-ref={selectedStartRef}
-      data-worktree-error={worktreeError || ''}
+      data-workspace-dir={workspaceDir}
+      data-access-disabled={accessDisabled ? 'true' : 'false'}
     />
   ),
 }));
@@ -67,9 +64,8 @@ function createCard(
     fileAccessEnabled?: boolean;
     onPaste?: React.ClipboardEventHandler;
     dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
-    launchMode?: 'local' | 'worktree';
-    selectedStartRef?: string;
-    worktreeError?: string;
+    workspaceDir?: string;
+    workspaceAccessDisabled?: boolean;
   } = {}
 ) {
   return (
@@ -93,15 +89,10 @@ function createCard(
       onRemoveFile={vi.fn()}
       actionRow={<div data-testid='action-row' />}
       slashCommandMenu={options.slashCommandMenu}
-      workspaceDir=''
+      workspaceDir={options.workspaceDir ?? ''}
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
-      launchMode={options.launchMode ?? 'local'}
-      onLaunchModeChange={vi.fn()}
-      branchOptions={[]}
-      selectedStartRef={options.selectedStartRef ?? ''}
-      onSelectedStartRefChange={vi.fn()}
-      worktreeError={options.worktreeError}
+      workspaceAccessDisabled={options.workspaceAccessDisabled}
       fileAccessEnabled={options.fileAccessEnabled}
     />
   );
@@ -147,16 +138,14 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
   });
 
-  it('forwards the Worktree draft controls and visible error to the workspace footnote', () => {
+  it('forwards only the new-session workspace selection state to the workspace footnote', () => {
     renderCard({
-      launchMode: 'worktree',
-      selectedStartRef: 'refs/heads/main',
-      worktreeError: 'worktree failed',
+      workspaceDir: '/workspace/research',
+      workspaceAccessDisabled: true,
     });
 
-    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-launch-mode', 'worktree');
-    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-start-ref', 'refs/heads/main');
-    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-worktree-error', 'worktree failed');
+    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-workspace-dir', '/workspace/research');
+    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-access-disabled', 'true');
   });
 
   it('accepts file paste and drop without a selected workspace', () => {

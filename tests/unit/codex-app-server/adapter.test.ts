@@ -163,7 +163,6 @@ describe('CodexAppServerAdapter', () => {
       .mockResolvedValueOnce({ thread: rawThread('forked', { parentThreadId: 'resumed' }) })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ thread: rawThread('resumed') })
       .mockResolvedValueOnce(undefined);
 
@@ -171,7 +170,6 @@ describe('CodexAppServerAdapter', () => {
     await adapter.resumeThread('resumed');
     await adapter.forkThread('resumed');
     await adapter.renameThread('resumed', 'Renamed task');
-    await adapter.updateThreadWorkspace('resumed', '/workspace/next');
     await adapter.archiveThread('resumed');
     await adapter.unarchiveThread('resumed');
     await adapter.deleteThread('resumed');
@@ -181,7 +179,6 @@ describe('CodexAppServerAdapter', () => {
       ['thread/resume', { threadId: 'resumed', excludeTurns: false }],
       ['thread/fork', { threadId: 'resumed', excludeTurns: true }],
       ['thread/name/set', { threadId: 'resumed', name: 'Renamed task' }],
-      ['thread/settings/update', { threadId: 'resumed', cwd: '/workspace/next' }],
       ['thread/archive', { threadId: 'resumed' }],
       ['thread/unarchive', { threadId: 'resumed' }],
       ['thread/delete', { threadId: 'resumed' }],

@@ -4,16 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createHash } from 'node:crypto';
-import type { Stats } from 'node:fs';
-import { lstat, mkdir, realpath } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import path from 'node:path';
 import type {
   GitCommitStagedRequest,
   GitCommitStagedResult,
-  GitManagedWorktreeRequest,
-  GitManagedWorktreeResult,
   GitPullRequestContext,
   GitPushCurrentBranchRequest,
   GitPushCurrentBranchResult,
@@ -33,33 +27,15 @@ import {
 } from './commandRunner';
 import { parseBranches, parsePullRequest, parseWorktrees } from './gitWorkspaceParsers';
 
-export type GitWorktreeCreatePrimitiveRequest = {
-  repositoryPath: string;
-  targetPath: string;
-  startRef: string;
-  newBranch?: string;
-};
-
-export type GitWorktreeCreatePrimitiveResult = {
-  repositoryRoot: string;
-  startCommit: string;
-  worktree: GitWorktreeSummary;
-};
-
 export type GitWorkspaceAdapterOptions = {
   commandRunner?: CommandRunner;
-  codexHome?: string;
-  worktreeRoot?: string;
 };
 
 export class GitWorkspaceAdapter {
   private readonly commandRunner: CommandRunner;
-  private readonly managedWorktreeRoot: string;
 
   constructor(options: GitWorkspaceAdapterOptions = {}) {
     this.commandRunner = options.commandRunner ?? execFileCommand;
-    const codexHome = options.codexHome ?? process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
-    this.managedWorktreeRoot = options.worktreeRoot ?? path.join(codexHome, 'worktrees');
   }
 
   async inspect({ cwd }: GitWorkspaceInspectRequest): Promise<GitWorkspaceInspection> {
@@ -99,62 +75,6 @@ export class GitWorkspaceAdapter {
       worktrees,
       pullRequest: await this.readPullRequest(root, currentBranch),
     };
-  }
-
-  async ensureManagedWorktree(request: GitManagedWorktreeRequest): Promise<GitManagedWorktreeResult> {
-    const taskId = this.normalizeTaskId(request.taskId);
-    this.assertAbsolutePath(this.managedWorktreeRoot, 'Managed worktree root');
-
-    const repositoryRoot = await this.resolveRepository(request.repositoryPath);
-    const startCommit = await this.resolveStartCommit(repositoryRoot, request.startRef);
-    const targetPath = this.deriveManagedWorktreePath(repositoryRoot, taskId);
-    const [worktrees, targetExists] = await Promise.all([
-      this.readWorktrees(repositoryRoot),
-      this.pathExists(targetPath),
-    ]);
-    const existingWorktree = await this.findWorktreeByPath(worktrees, targetPath);
-
-    if (targetExists || existingWorktree) {
-      if (!targetExists || !existingWorktree) {
-        throw new GitWorkspaceAdapterError(
-          'TARGET_EXISTS',
-          'The managed worktree target is already occupied by an unrelated or stale path.',
-          targetPath
-        );
-      }
-      const liveWorktree = await this.readLiveWorktree(existingWorktree);
-      this.assertReusableWorktree(liveWorktree, startCommit, request.newBranch);
-      return {
-        status: 'reused',
-        repositoryRoot,
-        targetPath,
-        startRef: request.startRef,
-        startCommit,
-        worktree: liveWorktree,
-      };
-    }
-
-    const created = await this.createWorktreeAtCommit(repositoryRoot, targetPath, startCommit, request.newBranch);
-    return {
-      status: 'created',
-      repositoryRoot,
-      targetPath,
-      startRef: request.startRef,
-      startCommit,
-      worktree: created,
-    };
-  }
-
-  async createWorktreePrimitive(request: GitWorktreeCreatePrimitiveRequest): Promise<GitWorktreeCreatePrimitiveResult> {
-    const repositoryRoot = await this.resolveRepository(request.repositoryPath);
-    const startCommit = await this.resolveStartCommit(repositoryRoot, request.startRef);
-    const worktree = await this.createWorktreeAtCommit(
-      repositoryRoot,
-      request.targetPath,
-      startCommit,
-      request.newBranch
-    );
-    return { repositoryRoot, startCommit, worktree };
   }
 
   async commitStaged({ cwd, message }: GitCommitStagedRequest): Promise<GitCommitStagedResult> {
@@ -222,184 +142,6 @@ export class GitWorkspaceAdapter {
     return { root, branch, remote, upstream };
   }
 
-  private normalizeTaskId(value: string): string {
-    const taskId = value.trim();
-    if (!taskId) {
-      throw new GitWorkspaceAdapterError('INVALID_TASK_ID', 'A non-empty task id is required.');
-    }
-    return taskId;
-  }
-
-  private managedWorktreeIdentity(repositoryRoot: string, taskId: string): string {
-    return createHash('sha256').update(repositoryRoot).update('\0').update(taskId).digest('hex').slice(0, 16);
-  }
-
-  private deriveManagedWorktreePath(repositoryRoot: string, taskId: string): string {
-    const repositoryName = path.basename(repositoryRoot).replaceAll(/[^a-zA-Z0-9._-]+/g, '-') || 'repository';
-    const identity = this.managedWorktreeIdentity(repositoryRoot, taskId);
-    return path.join(this.managedWorktreeRoot, `${repositoryName}-${identity}`);
-  }
-
-  private async createWorktreeAtCommit(
-    repositoryRoot: string,
-    targetPath: string,
-    startCommit: string,
-    newBranch?: string
-  ): Promise<GitWorktreeSummary> {
-    this.assertAbsolutePath(targetPath, 'Worktree target');
-    if (await this.pathExists(targetPath)) {
-      throw new GitWorkspaceAdapterError('TARGET_EXISTS', 'Worktree target already exists.', targetPath);
-    }
-    const registered = await this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), targetPath);
-    if (registered) {
-      throw new GitWorkspaceAdapterError('TARGET_EXISTS', 'Worktree target is already registered.', targetPath);
-    }
-    await this.validateNewBranch(repositoryRoot, newBranch);
-    await mkdir(path.dirname(targetPath), { recursive: true });
-
-    const args = ['-C', repositoryRoot, 'worktree', 'add'];
-    if (newBranch) args.push('-b', newBranch);
-    else args.push('--detach');
-    args.push(targetPath, startCommit);
-
-    let added = false;
-    try {
-      await this.git(args, { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS }, 'create worktree');
-      added = true;
-      const worktree = await this.findWorktreeByPath(await this.readWorktrees(repositoryRoot), targetPath);
-      if (!worktree) {
-        throw new GitWorkspaceAdapterError('INVALID_COMMAND_OUTPUT', 'Created worktree was not reported by Git.');
-      }
-      return worktree;
-    } catch (error) {
-      if (!added && error instanceof GitWorkspaceAdapterError && error.detail?.includes('already used by worktree')) {
-        throw new GitWorkspaceAdapterError('BRANCH_OCCUPIED', 'The requested branch is already used by a worktree.');
-      }
-      if (added) await this.rollbackCreatedWorktree(repositoryRoot, targetPath, newBranch, error);
-      throw error;
-    }
-  }
-
-  private async validateNewBranch(repositoryRoot: string, newBranch?: string): Promise<void> {
-    if (!newBranch) return;
-    const branch = newBranch.trim();
-    if (!branch || branch !== newBranch) {
-      throw new GitWorkspaceAdapterError('INVALID_BRANCH_NAME', 'New branch name is invalid.');
-    }
-    try {
-      await this.commandRunner('git', ['check-ref-format', '--branch', branch]);
-    } catch {
-      throw new GitWorkspaceAdapterError('INVALID_BRANCH_NAME', `New branch name "${branch}" is invalid.`);
-    }
-
-    const existing = await this.git(
-      ['-C', repositoryRoot, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
-      { allowExitCodes: [1] },
-      'check new branch'
-    );
-    if (existing.exitCode === 0) {
-      const occupied = (await this.readWorktrees(repositoryRoot)).find(
-        (worktree) => worktree.branchRef === `refs/heads/${branch}`
-      );
-      if (occupied) {
-        throw new GitWorkspaceAdapterError(
-          'BRANCH_OCCUPIED',
-          `Branch "${branch}" is already used by another worktree.`,
-          occupied.path
-        );
-      }
-      throw new GitWorkspaceAdapterError('BRANCH_ALREADY_EXISTS', `Branch "${branch}" already exists.`);
-    }
-  }
-
-  private async rollbackCreatedWorktree(
-    repositoryRoot: string,
-    targetPath: string,
-    newBranch: string | undefined,
-    originalError: unknown
-  ): Promise<void> {
-    try {
-      await this.git(
-        ['-C', repositoryRoot, 'worktree', 'remove', '--force', targetPath],
-        { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
-        'roll back worktree'
-      );
-      if (newBranch) {
-        await this.git(
-          ['-C', repositoryRoot, 'branch', '-D', newBranch],
-          { timeoutMs: MUTATION_COMMAND_TIMEOUT_MS },
-          'roll back worktree branch'
-        );
-      }
-    } catch (cleanupError) {
-      const original = originalError instanceof Error ? originalError.message : String(originalError);
-      const cleanup = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-      throw new GitWorkspaceAdapterError(
-        'COMMAND_FAILED',
-        'Worktree operation failed and rollback was incomplete.',
-        `${original}; rollback: ${cleanup}`
-      );
-    }
-  }
-
-  private async findWorktreeByPath(
-    worktrees: GitWorktreeSummary[],
-    targetPath: string
-  ): Promise<GitWorktreeSummary | undefined> {
-    const matches = await Promise.all(
-      worktrees.map(async (worktree) => ({
-        worktree,
-        matches: await this.pathsReferToSameLocation(worktree.path, targetPath),
-      }))
-    );
-    return matches.find((candidate) => candidate.matches)?.worktree;
-  }
-
-  private async pathsReferToSameLocation(left: string, right: string): Promise<boolean> {
-    if (path.resolve(left) === path.resolve(right)) return true;
-    try {
-      const [canonicalLeft, canonicalRight] = await Promise.all([realpath(left), realpath(right)]);
-      return canonicalLeft === canonicalRight;
-    } catch {
-      return false;
-    }
-  }
-
-  private async readLiveWorktree(worktree: GitWorktreeSummary): Promise<GitWorktreeSummary> {
-    const [head, branch] = await Promise.all([this.readHead(worktree.path), this.readCurrentBranch(worktree.path)]);
-    return {
-      ...worktree,
-      head,
-      branch,
-      branchRef: branch ? `refs/heads/${branch}` : null,
-      detached: branch === null,
-    };
-  }
-
-  private assertReusableWorktree(
-    worktree: GitWorktreeSummary,
-    startCommit: string,
-    newBranch: string | undefined
-  ): void {
-    const requestedBranch = newBranch || null;
-    const requestedDetached = !newBranch;
-    if (
-      worktree.head === startCommit &&
-      worktree.branch === requestedBranch &&
-      worktree.detached === requestedDetached
-    ) {
-      return;
-    }
-
-    const expectedState = requestedBranch ? `branch=${requestedBranch}` : 'detached=true';
-    const actualState = worktree.branch ? `branch=${worktree.branch}` : `detached=${worktree.detached}`;
-    throw new GitWorkspaceAdapterError(
-      'TARGET_EXISTS',
-      'The managed worktree target does not match the requested starting state.',
-      `path=${worktree.path}; expected HEAD=${startCommit}, ${expectedState}; actual HEAD=${worktree.head}, ${actualState}`
-    );
-  }
-
   private async hasStagedChanges(repositoryRoot: string): Promise<boolean> {
     const result = await this.git(
       ['-C', repositoryRoot, 'diff', '--cached', '--quiet', '--exit-code', '--'],
@@ -434,32 +176,6 @@ export class GitWorkspaceAdapter {
       'read current branch'
     );
     return result.exitCode === 0 ? result.stdout.trim() || null : null;
-  }
-
-  private async resolveStartCommit(repositoryRoot: string, startRef: string): Promise<string> {
-    const ref = startRef.trim();
-    if (!ref) {
-      throw new GitWorkspaceAdapterError('INVALID_START_REF', 'Starting ref must not be empty.');
-    }
-    try {
-      const result = await this.commandRunner('git', [
-        '-C',
-        repositoryRoot,
-        'rev-parse',
-        '--verify',
-        '--end-of-options',
-        `${ref}^{commit}`,
-      ]);
-      const commit = result.stdout.trim();
-      if (!/^[0-9a-f]{40,64}$/i.test(commit)) throw new Error('invalid commit id');
-      return commit;
-    } catch (error) {
-      throw new GitWorkspaceAdapterError(
-        'INVALID_START_REF',
-        `Starting ref "${ref}" does not resolve to a commit.`,
-        commandErrorDetail(error)
-      );
-    }
   }
 
   private async resolveRepository(cwd: string): Promise<string> {
@@ -531,23 +247,6 @@ export class GitWorkspaceAdapter {
   private assertAbsolutePath(value: string, label: string): void {
     if (!path.isAbsolute(value)) {
       throw new GitWorkspaceAdapterError('ABSOLUTE_PATH_REQUIRED', `${label} must be an absolute path.`, value);
-    }
-  }
-
-  private async pathExists(candidate: string): Promise<boolean> {
-    return Boolean(await this.tryLstat(candidate));
-  }
-
-  private async tryLstat(candidate: string): Promise<Stats | null> {
-    try {
-      return await lstat(candidate);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw new GitWorkspaceAdapterError(
-        'COMMAND_FAILED',
-        `Failed to inspect path "${candidate}".`,
-        error instanceof Error ? error.message : String(error)
-      );
     }
   }
 }

@@ -470,18 +470,13 @@
       "session_workspace_model": {
         "primary_unit": "session_backed_by_codex_thread_id",
         "identity_authority": "codex_core_app_server_thread_id",
-        "workspace_binding_role": "new_session_initial_cwd_mutable_default_working_directory_and_sidebar_grouping_metadata_only",
+        "workspace_binding_role": "new_session_initial_cwd_and_sidebar_grouping_metadata_only",
+        "runtime_pwd_role": "command_or_turn_execution_context_not_persisted_as_session_workspace_binding",
+        "existing_session_workspace_rebinding": "not_exposed",
         "workspace_owns_session": false,
         "workspace_owns_context": false,
         "workspace_owns_artifacts": false,
-        "workspace_group_cascade_session_delete_allowed": false,
-        "workspace_change_preserves": ["thread_id", "transcript", "turn_history", "title", "task_state"],
-        "workspace_change_forbids": [
-          "fork_thread",
-          "copy_history",
-          "create_replacement_session",
-          "change_session_owner"
-        ]
+        "workspace_group_cascade_session_delete_allowed": false
       },
       "explicit_session_input_policy": {
         "scope": "current_session_composer",
@@ -497,10 +492,11 @@
         "composer_consumption": "current_send_only",
         "composer_persistence_after_send": "none",
         "workspace_readiness_boundary": {
-          "gates": ["project_selection", "worktree_creation", "opl_workspace_controls"],
+          "gates": ["project_selection", "opl_workspace_controls"],
           "plain_local_conversation_requires_workspace_root": false,
           "send_scoped_local_file_inputs_require_workspace_root": false,
-          "worktree_requires_git_repository": true,
+          "agent_package_workspace_requirement_policy": "package_manifest_declared_workspace_or_managed_target_only",
+          "ordinary_codex_conversation_independent_of_agent_package_readiness": true,
           "codex_and_model_prerequisites_unchanged": true
         }
       },
@@ -1265,7 +1261,7 @@
       },
       "workspace_controls": {
         "required_items": ["workspace_root"],
-        "restricted_capabilities": ["project_workspace_selection", "worktree_creation", "opl_workspace_controls"],
+        "restricted_capabilities": ["project_workspace_selection", "opl_workspace_controls"],
         "blocked_feedback": "disabled_control_with_local_explanation_and_persistent_setup_entry",
         "plain_conversation_remains_available": true,
         "send_scoped_local_inputs_remain_available": true

@@ -703,13 +703,6 @@
   display: none;
 }
 
-.taskContextItem {
-  display: inline-flex;
-  min-width: 0;
-  flex: 0 0 auto;
-}
-
-.taskContextControl,
 .workspaceEmptyBtn,
 .workspacePillMain {
   height: 32px !important;
@@ -725,50 +718,10 @@
   line-height: 20px !important;
 }
 
-.taskContextControl:hover,
 .workspaceEmptyBtn:hover,
 .workspacePillMain:hover {
   background: var(--color-fill-3) !important;
   color: var(--color-text-1) !important;
-}
-
-.taskContextControlContent,
-.taskContextMenuItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.taskContextBranchLabel {
-  display: block;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.taskContextMenuItem {
-  width: 100%;
-}
-
-.taskContextMenuMeta {
-  margin-left: auto;
-  padding-left: 12px;
-  color: var(--color-text-3);
-  font-size: 11px;
-}
-
-.taskContextError {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  color: rgb(var(--danger-6));
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .workspaceEmptyBtn {
@@ -922,7 +875,6 @@
     gap: 10px;
   }
 
-  .taskContextControl,
   .workspaceEmptyBtn,
   .workspacePillMain {
     font-size: 13px !important;
@@ -930,10 +882,6 @@
 
   .workspacePillMain {
     max-width: 150px;
-  }
-
-  .taskContextBranchLabel {
-    max-width: 120px;
   }
 }
 

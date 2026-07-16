@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { GitWorkspaceHandoffMetadata, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
+import type { GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import {
   summarizeCurrentTaskReferences,
   type ConversationCurrentTask,
@@ -16,7 +16,6 @@ import { Down, FolderOpen, Info, Link } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import WorkspaceOpenButton from './WorkspaceOpenButton';
-import WorkspaceHandoffControl, { readWorkspaceHandoffMetadata } from './WorkspaceHandoffControl';
 
 const VISIBLE_REF_LIMIT = 3;
 
@@ -59,22 +58,11 @@ const ConversationEnvironmentPopover: React.FC<{
   const { openPreview } = usePreviewContext();
   const extra = useMemo(() => (conversation?.extra ?? {}) as Record<string, unknown>, [conversation?.extra]);
   const persistedWorkspace = text(extra.workspace);
-  const persistedHandoff = useMemo(
-    () => readWorkspaceHandoffMetadata(extra.workspace_handoff),
-    [extra.workspace_handoff]
-  );
-  const [activeWorkspace, setActiveWorkspace] = useState(persistedWorkspace);
-  const [activeHandoff, setActiveHandoff] = useState<GitWorkspaceHandoffMetadata | null>(persistedHandoff);
   const [gitInspection, setGitInspection] = useState<GitWorkspaceInspection>();
   const [gitUnavailable, setGitUnavailable] = useState(false);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [browserUrl, setBrowserUrl] = useState('');
   const [browserUrlInvalid, setBrowserUrlInvalid] = useState(false);
-
-  useEffect(() => {
-    setActiveWorkspace(persistedWorkspace);
-    setActiveHandoff(persistedHandoff);
-  }, [conversation?.id, persistedHandoff, persistedWorkspace]);
 
   const summary = useMemo(() => {
     const task = (currentTask ?? {}) as Record<string, unknown>;
@@ -83,25 +71,19 @@ const ConversationEnvironmentPopover: React.FC<{
       : typeof task.subtask_count === 'number'
         ? task.subtask_count
         : undefined;
-    const taskLocality =
-      activeHandoff && activeWorkspace === activeHandoff.worktreePath ? ('worktree' as const) : ('local' as const);
-
     return {
-      workspace: activeWorkspace,
+      workspace: persistedWorkspace,
       isRemote: conversation?.type === 'remote',
-      locality:
-        conversation?.type === 'remote'
-          ? t('conversation.environment.remote')
-          : t(`conversation.environment.${taskLocality}`),
-      taskLocality,
-      handoff: activeHandoff,
+      locality: t(
+        conversation?.type === 'remote' ? 'conversation.environment.remote' : 'conversation.environment.local'
+      ),
       isTemporaryWorkspace: Boolean(extra.is_temporary_workspace),
       supportsWorkspaceSurface:
         conversation?.type === 'acp' || conversation?.type === 'codex' || conversation?.type === 'aionrs',
       subtasks,
       references: summarizeCurrentTaskReferences(currentTask),
     };
-  }, [activeHandoff, activeWorkspace, conversation?.type, currentTask, extra.is_temporary_workspace, t]);
+  }, [conversation?.type, currentTask, extra.is_temporary_workspace, persistedWorkspace, t]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -233,19 +215,6 @@ const ConversationEnvironmentPopover: React.FC<{
           </div>
         )}
       </div>
-
-      {conversation && (
-        <WorkspaceHandoffControl
-          conversation={conversation}
-          workspace={summary.workspace}
-          locality={summary.taskLocality}
-          handoff={summary.handoff}
-          onChanged={(workspace, handoff) => {
-            setActiveWorkspace(workspace);
-            setActiveHandoff(handoff);
-          }}
-        />
-      )}
 
       {summary.references.sources.length > 0 && (
         <div className='conversation-environment-popover__section'>

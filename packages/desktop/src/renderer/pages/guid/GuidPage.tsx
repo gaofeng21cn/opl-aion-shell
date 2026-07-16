@@ -15,14 +15,12 @@ import {
   getOplAssistantSkillProfile,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
-import type { GitWorkspaceHandoffMetadata, GitWorkspaceInspection } from '@/common/types/platform/gitWorkspace';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
-import type { GuidStartingBranchOption, GuidWorkspaceLaunchMode } from './components/GuidWorkspaceFootnote';
 import GuidModelSelector from './components/GuidModelSelector';
 import HomeStarters from './components/HomeStarters';
 import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
@@ -101,26 +99,6 @@ function buildPostInstallSelfCheckPrompt(
   });
 }
 
-type GuidWorktreeTaskIdentity = {
-  key: string;
-  taskId: string;
-};
-
-function createGuidWorktreeTaskId(): string {
-  const randomId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `guid-${randomId}`;
-}
-
-function selectDefaultStartingBranch(inspection: GitWorkspaceInspection): string {
-  return (
-    inspection.branches.find((branch) => branch.current)?.fullRef ??
-    inspection.branches.find((branch) => branch.kind === 'local' && branch.head === inspection.head)?.fullRef ??
-    inspection.branches.find((branch) => branch.head === inspection.head)?.fullRef ??
-    inspection.branches[0]?.fullRef ??
-    ''
-  );
-}
-
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -130,20 +108,6 @@ const GuidPage: React.FC = () => {
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
-  const [launchMode, setLaunchMode] = useState<GuidWorkspaceLaunchMode>('local');
-  const [branchOptions, setBranchOptions] = useState<GuidStartingBranchOption[]>([]);
-  const [selectedStartRef, setSelectedStartRef] = useState('');
-  const [worktreeRepositoryRoot, setWorktreeRepositoryRoot] = useState('');
-  const [worktreeInspecting, setWorktreeInspecting] = useState(false);
-  const [worktreePreparing, setWorktreePreparing] = useState(false);
-  const [worktreeError, setWorktreeError] = useState<string | null>(null);
-  const [preparedWorktreePath, setPreparedWorktreePath] = useState<string | null>(null);
-  const [preparedWorktreeMetadata, setPreparedWorktreeMetadata] = useState<GitWorkspaceHandoffMetadata | null>(null);
-  const [worktreeSendRequest, setWorktreeSendRequest] = useState(0);
-  const worktreeTaskIdentityRef = useRef<GuidWorktreeTaskIdentity | null>(null);
-  const worktreePrepareRequestRef = useRef(0);
-  const worktreePreparingRef = useRef(false);
-  const consumedWorktreeSendRequestRef = useRef(0);
   const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(() =>
     resolveOplActiveShortcut(navState?.selectedCapabilityId)
   );
@@ -263,65 +227,6 @@ const GuidPage: React.FC = () => {
     fileAccessEnabled: true,
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    setPreparedWorktreePath(null);
-
-    if (launchMode === 'local') {
-      setBranchOptions([]);
-      setSelectedStartRef('');
-      setWorktreeRepositoryRoot('');
-      setWorktreeInspecting(false);
-      setWorktreeError(null);
-      return;
-    }
-
-    if (!guidInput.dir) {
-      setBranchOptions([]);
-      setSelectedStartRef('');
-      setWorktreeRepositoryRoot('');
-      setWorktreeInspecting(false);
-      setWorktreeError(t('guid.worktree.errors.projectRequired'));
-      return;
-    }
-
-    setWorktreeInspecting(true);
-    setWorktreeError(null);
-    void ipcBridge.gitWorkspace.inspect
-      .invoke({ cwd: guidInput.dir })
-      .then((inspection) => {
-        if (cancelled) return;
-        const nextBranchOptions = inspection.branches.map((branch) => ({
-          value: branch.fullRef,
-          label: branch.name,
-          current: branch.current,
-        }));
-        setWorktreeRepositoryRoot(inspection.root);
-        setBranchOptions(nextBranchOptions);
-        setSelectedStartRef((current) =>
-          nextBranchOptions.some((branch) => branch.value === current)
-            ? current
-            : selectDefaultStartingBranch(inspection)
-        );
-        setWorktreeError(nextBranchOptions.length > 0 ? null : t('guid.worktree.errors.noBranches'));
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        console.error('[GuidPage] Failed to inspect Git workspace:', error);
-        setBranchOptions([]);
-        setSelectedStartRef('');
-        setWorktreeRepositoryRoot('');
-        setWorktreeError(t('guid.worktree.errors.inspectFailed'));
-      })
-      .finally(() => {
-        if (!cancelled) setWorktreeInspecting(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [guidInput.dir, launchMode, t]);
-
   const appendSlashSelectedFiles = useCallback(
     (selectedFiles: string[]) => {
       guidInput.setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
@@ -428,16 +333,13 @@ const GuidPage: React.FC = () => {
     selectedAgentLabelOverride: selectedAssistantLabel,
   });
 
-  const taskWorkspaceDir = launchMode === 'worktree' ? preparedWorktreePath || guidInput.dir : guidInput.dir;
-
   const send = useGuidSend({
     // Input state
     input: guidInput.input,
     setInput: guidInput.setInput,
     files: guidInput.files,
     setFiles: guidInput.setFiles,
-    dir: taskWorkspaceDir,
-    workspaceHandoff: launchMode === 'worktree' ? (preparedWorktreeMetadata ?? undefined) : undefined,
+    dir: guidInput.dir,
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
     loading: guidInput.loading,
@@ -478,19 +380,6 @@ const GuidPage: React.FC = () => {
     language: i18n.language,
   });
 
-  useEffect(() => {
-    if (
-      launchMode !== 'worktree' ||
-      !preparedWorktreePath ||
-      worktreeSendRequest === 0 ||
-      consumedWorktreeSendRequestRef.current === worktreeSendRequest
-    ) {
-      return;
-    }
-    consumedWorktreeSendRequestRef.current = worktreeSendRequest;
-    send.sendMessageHandler();
-  }, [launchMode, preparedWorktreePath, send.sendMessageHandler, worktreeSendRequest]);
-
   const openFirstRunSetup = useCallback(() => {
     void navigate('/first-run');
   }, [navigate]);
@@ -505,76 +394,8 @@ const GuidPage: React.FC = () => {
       return;
     }
     setSetupNoticeKind(null);
-    if (launchMode === 'local') {
-      setWorktreeError(null);
-      send.sendMessageHandler();
-      return;
-    }
-    if (worktreePreparingRef.current || worktreeInspecting) return;
-    if (!guidInput.dir) {
-      setWorktreeError(t('guid.worktree.errors.projectRequired'));
-      return;
-    }
-    if (!worktreeRepositoryRoot || !selectedStartRef) {
-      setWorktreeError((current) => current || t('guid.worktree.errors.noBranches'));
-      return;
-    }
-
-    const taskKey = `${worktreeRepositoryRoot}\0${selectedStartRef}`;
-    if (!worktreeTaskIdentityRef.current || worktreeTaskIdentityRef.current.key !== taskKey) {
-      worktreeTaskIdentityRef.current = { key: taskKey, taskId: createGuidWorktreeTaskId() };
-    }
-    const requestId = worktreePrepareRequestRef.current + 1;
-    worktreePrepareRequestRef.current = requestId;
-    worktreePreparingRef.current = true;
-    setWorktreePreparing(true);
-    setWorktreeError(null);
-
-    void ipcBridge.gitWorkspace.ensureManagedWorktree
-      .invoke({
-        repositoryPath: worktreeRepositoryRoot,
-        taskId: worktreeTaskIdentityRef.current.taskId,
-        startRef: selectedStartRef,
-      })
-      .then((result) => {
-        if (worktreePrepareRequestRef.current !== requestId) return;
-        if (!result.targetPath) {
-          setWorktreeError(t('guid.worktree.errors.createFailed'));
-          return;
-        }
-        setPreparedWorktreeMetadata({
-          schema: 'opl_workspace_handoff.v1',
-          locality: 'worktree',
-          localWorkspace: result.repositoryRoot,
-          worktreePath: result.targetPath,
-          taskId: worktreeTaskIdentityRef.current?.taskId ?? '',
-          startRef: result.startRef,
-          startCommit: result.startCommit,
-          worktreeRetention: 'preserve_for_reuse',
-        });
-        setPreparedWorktreePath(result.targetPath);
-        setWorktreeSendRequest((current) => current + 1);
-      })
-      .catch((error: unknown) => {
-        if (worktreePrepareRequestRef.current !== requestId) return;
-        console.error('[GuidPage] Failed to create managed worktree:', error);
-        setWorktreeError(t('guid.worktree.errors.createFailed'));
-      })
-      .finally(() => {
-        if (worktreePrepareRequestRef.current !== requestId) return;
-        worktreePreparingRef.current = false;
-        setWorktreePreparing(false);
-      });
-  }, [
-    coreReadiness,
-    guidInput.dir,
-    launchMode,
-    selectedStartRef,
-    send.sendMessageHandler,
-    t,
-    worktreeInspecting,
-    worktreeRepositoryRoot,
-  ]);
+    send.sendMessageHandler();
+  }, [coreReadiness, send.sendMessageHandler]);
 
   useEffect(() => {
     if (!setupNoticeKind || !coreReadiness.known) return;
@@ -585,47 +406,16 @@ const GuidPage: React.FC = () => {
     if (resolved) setSetupNoticeKind(null);
   }, [coreReadiness, setupNoticeKind]);
 
-  const invalidatePreparedWorktree = useCallback(() => {
-    worktreePrepareRequestRef.current += 1;
-    worktreePreparingRef.current = false;
-    worktreeTaskIdentityRef.current = null;
-    setWorktreePreparing(false);
-    setPreparedWorktreePath(null);
-    setPreparedWorktreeMetadata(null);
-  }, []);
-
-  const handleLaunchModeChange = useCallback(
-    (mode: GuidWorkspaceLaunchMode) => {
-      invalidatePreparedWorktree();
-      setLaunchMode(mode);
-      setWorktreeError(null);
-    },
-    [invalidatePreparedWorktree]
-  );
-
-  const handleStartingBranchChange = useCallback(
-    (startRef: string) => {
-      invalidatePreparedWorktree();
-      setSelectedStartRef(startRef);
-      setWorktreeError(null);
-    },
-    [invalidatePreparedWorktree]
-  );
-
   const handleWorkspaceSelect = useCallback(
     (dir: string) => {
-      invalidatePreparedWorktree();
       guidInput.setDir(dir);
-      setWorktreeError(null);
     },
-    [guidInput.setDir, invalidatePreparedWorktree]
+    [guidInput.setDir]
   );
 
   const handleWorkspaceClear = useCallback(() => {
-    invalidatePreparedWorktree();
     guidInput.setDir('');
-    setWorktreeError(launchMode === 'worktree' ? t('guid.worktree.errors.projectRequired') : null);
-  }, [guidInput.setDir, invalidatePreparedWorktree, launchMode, t]);
+  }, [guidInput.setDir]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -781,15 +571,6 @@ const GuidPage: React.FC = () => {
   // Reset guid-local UI state before paint so same-route navigations do not
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
-    invalidatePreparedWorktree();
-    setLaunchMode('local');
-    setBranchOptions([]);
-    setSelectedStartRef('');
-    setWorktreeRepositoryRoot('');
-    setWorktreeInspecting(false);
-    setWorktreeError(null);
-    setWorktreeSendRequest(0);
-    consumedWorktreeSendRequestRef.current = 0;
     if (navState?.selectedCapabilityId) {
       setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId));
     } else if (resetAssistantRequested) {
@@ -813,7 +594,6 @@ const GuidPage: React.FC = () => {
     guidInput.setFiles,
     guidInput.setInput,
     guidInput.setLoading,
-    invalidatePreparedWorktree,
     localeKey,
     location.key,
     navState?.selectedCapabilityId,
@@ -954,13 +734,13 @@ const GuidPage: React.FC = () => {
       hidePresetTag
       speechInputNode={
         <SpeechInputButton
-          disabled={guidInput.loading || worktreePreparing}
+          disabled={guidInput.loading}
           onLiveTranscript={handleLiveTranscript}
           onTranscript={handleSpeechTranscript}
         />
       }
-      loading={guidInput.loading || worktreePreparing}
-      isButtonDisabled={send.isButtonDisabled || worktreePreparing || worktreeInspecting}
+      loading={guidInput.loading}
+      isButtonDisabled={send.isButtonDisabled}
       onSend={sendWithPrerequisiteCheck}
     />
   );
@@ -993,9 +773,6 @@ const GuidPage: React.FC = () => {
         data-opl-active-shortcut={composerSurface.active_shortcut_id ?? ''}
         data-opl-workspace-selected={String(Boolean(guidInput.dir))}
         data-opl-workspace-path={guidInput.dir}
-        data-opl-task-location={launchMode}
-        data-opl-task-workspace-path={taskWorkspaceDir}
-        data-opl-starting-branch={selectedStartRef}
         data-opl-model-reasoning-visible={String(composerSurface.model_reasoning_visible)}
         data-opl-permission-access-visible={String(composerSurface.permission_access_visible)}
         data-opl-executor-selector-visible={String(composerSurface.executor_selector_visible)}
@@ -1051,14 +828,6 @@ const GuidPage: React.FC = () => {
               workspaceDir={guidInput.dir}
               onSelectWorkspace={handleWorkspaceSelect}
               onClearWorkspace={handleWorkspaceClear}
-              launchMode={launchMode}
-              onLaunchModeChange={handleLaunchModeChange}
-              branchOptions={branchOptions}
-              selectedStartRef={selectedStartRef}
-              onSelectedStartRefChange={handleStartingBranchChange}
-              worktreeLoading={worktreeInspecting || worktreePreparing}
-              worktreeControlsDisabled={workspaceAccessBlocked || worktreePreparing || guidInput.loading}
-              worktreeError={worktreeError}
               workspaceAccessDisabled={workspaceAccessBlocked}
               workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
               fileAccessEnabled={true}
