@@ -18,9 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Experiment, FilePpt, FileWord, Robot } from '@icon-park/react';
-import { faRotate } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Close, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -1556,7 +1554,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   key={item.key}
                 >
                   <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
-                    <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
+                    <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
                       {capabilityIcon(item)}
                     </span>
                     <div className='min-w-0'>
@@ -2221,7 +2219,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         <div className='opl-settings-page-header__actions'>
           <Button
             type='primary'
-            icon={<FontAwesomeIcon icon={faRotate} />}
+            icon={<Refresh theme='outline' size='16' />}
             loading={flowSyncing}
             onClick={() => void syncFlowCapabilities()}
             data-testid='settings-capabilities-primary-action'
@@ -2256,9 +2254,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Tabs.TabPane>
           <Tabs.TabPane
             key='manual_and_third_party'
-            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Local capabilities' })}
+            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manually added' })}
           >
-            <div id='third-party' className='flex flex-col gap-16px' data-testid='settings-capabilities-third-party'>
+            <div id='third-party' className='flex flex-col gap-24px' data-testid='settings-capabilities-third-party'>
               <SkillsHubSettings
                 withWrapper={false}
                 displayGroup='manual'
@@ -2275,7 +2273,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     </Typography.Text>
                   </div>
                 </div>
-                <ToolsModalContent />
+                <div className='border-t border-solid border-border-1 pt-12px'>
+                  <ToolsModalContent />
+                </div>
               </section>
               <div data-testid='settings-capabilities-voice-input'>
                 <VoiceInputSection />

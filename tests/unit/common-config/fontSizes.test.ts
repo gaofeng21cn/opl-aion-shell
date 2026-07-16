@@ -4,7 +4,7 @@ import { FONT_SIZE_SPECS, FONT_SIZE_KEYS, clampFontSize, defaultFontSizes } from
 describe('fontSizes', () => {
   it('exposes three keys with sane defaults', () => {
     expect(FONT_SIZE_KEYS).toEqual(['chat', 'markdown', 'code']);
-    expect(defaultFontSizes()).toEqual({ chat: 16, markdown: 15, code: 13 });
+    expect(defaultFontSizes()).toEqual({ chat: 15, markdown: 15, code: 13 });
   });
 
   it('clamps below min and above max per key', () => {

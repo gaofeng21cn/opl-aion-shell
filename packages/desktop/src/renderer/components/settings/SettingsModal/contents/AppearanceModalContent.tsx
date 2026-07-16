@@ -70,9 +70,7 @@ const SectionHeading: React.FC<{
 }> = ({ icon, title, description }) => (
   <div className='opl-settings-section__header'>
     <div className='flex min-w-0 items-start gap-12px'>
-      <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
-        {icon}
-      </span>
+      <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>{icon}</span>
       <div className='min-w-0'>
         <div className='text-14px font-medium text-t-primary leading-22px'>{title}</div>
         {description && <div className='mt-2px text-12px text-t-tertiary leading-18px'>{description}</div>}

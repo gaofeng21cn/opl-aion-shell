@@ -191,7 +191,7 @@ const ModalMcpManagementSection: React.FC<{
 
       <div className='flex-1 min-h-0'>
         {visibleMcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='py-24px text-center text-t-secondary text-14px border border-dashed border-border-2 rd-12px'>
+          <div className='border-t border-solid border-border-1 py-16px text-left text-13px text-t-secondary'>
             {t('settings.mcpNoServersFound')}
           </div>
         ) : (
@@ -199,7 +199,7 @@ const ModalMcpManagementSection: React.FC<{
             className={classNames('max-h-360px', isPageMode && 'max-h-none')}
             disableOverflow={isPageMode}
           >
-            <div className='space-y-12px'>
+            <div className='divide-y divide-border-1 border-t border-solid border-border-1'>
               {visibleMcpServers.map((server) => (
                 <McpServerItem
                   key={server.id}
@@ -479,14 +479,14 @@ const ToolsModalContent: React.FC = () => {
   const isImageGenerationModelUnavailable = !imageGenerationModelList.length || !imageGenerationModel?.use_model;
 
   return (
-    <div className='flex flex-col h-full w-full'>
+    <div className='opl-settings-flat-tools flex h-full w-full flex-col'>
       {mcpMessageContext}
 
       {/* Content Area */}
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
-        <div className='space-y-16px'>
+        <div className='flex flex-col'>
           {/* MCP 工具配置 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
+          <div className='flex min-h-0 flex-col py-12px'>
             <div className='flex-1 min-h-0'>
               <AionScrollArea
                 className={classNames('h-full', isPageMode && 'overflow-visible')}
@@ -504,7 +504,7 @@ const ToolsModalContent: React.FC = () => {
             </div>
           </div>
           {/* 图像生成 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-border-2'>
+          <div className='border-t border-solid border-border-1 py-16px'>
             <div className='flex items-center justify-between mb-16px'>
               <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
               <Switch

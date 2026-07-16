@@ -253,6 +253,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-log-directory')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toBe(
+      screen.getByTestId('settings-workspace-log-directory').parentElement
+    );
+    expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
     expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
     await waitFor(() =>
@@ -334,7 +338,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     render(<WorkspaceSettings withWrapper={false} />);
 
-    expect(screen.getByTestId('opl-workspace-settings-root')).toHaveClass('opl-settings-section--attention');
+    expect(screen.getByTestId('opl-workspace-settings-root').closest('section')).toHaveClass(
+      'opl-settings-section--attention'
+    );
     expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
     expect(screen.getByText('Needs setup')).toBeInTheDocument();
     expect(screen.queryByText('Permission needs attention')).not.toBeInTheDocument();

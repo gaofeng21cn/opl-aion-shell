@@ -230,9 +230,10 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
             so we drop the row entirely — system-level long-press still copies. */}
         {!isMobile && (
           <div
-            className={classNames('h-32px flex items-center mt-4px gap-8px', {
+            className={classNames('h-20px flex items-center mt-2px gap-6px', {
               'flex-row-reverse': isUserMessage,
             })}
+            data-testid='message-hover-actions'
           >
             {copyButton}
             {message.created_at && (

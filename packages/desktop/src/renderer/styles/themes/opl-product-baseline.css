@@ -24,11 +24,11 @@
   --bg-4: #d9d9d7;
   --bg-hover: #ececea;
   --bg-active: #e3e3e1;
-  --text-primary: #1f2023;
-  --color-text-1: #1f2023;
-  --text-secondary: #5d6269;
-  --color-text-2: #5d6269;
-  --color-text-3: #85898f;
+  --text-primary: #202124;
+  --color-text-1: #202124;
+  --text-secondary: #5f6368;
+  --color-text-2: #5f6368;
+  --color-text-3: #80868b;
   --text-disabled: #a7aaae;
   --color-text-4: #a7aaae;
   --border-base: rgba(22, 24, 28, 0.12);
@@ -81,15 +81,15 @@
 
   --bg-base: var(--opl-main-bg);
   --bg-1: var(--opl-main-bg);
-  --bg-2: #202125;
+  --bg-2: #202224;
   --bg-3: #2d2f34;
   --bg-4: #3b3e44;
   --bg-hover: #292b30;
   --bg-active: #36393f;
-  --text-primary: #f2f3f5;
-  --color-text-1: #f2f3f5;
-  --text-secondary: #c1c5cb;
-  --color-text-2: #c1c5cb;
+  --text-primary: #f4f5f6;
+  --color-text-1: #f4f5f6;
+  --text-secondary: #aeb4bc;
+  --color-text-2: #aeb4bc;
   --color-text-3: #9298a1;
   --text-disabled: #737983;
   --color-text-4: #737983;
@@ -105,7 +105,7 @@
   --color-fill-3: #34363c;
   --color-fill-4: #41444b;
   --fill-0: rgba(255, 255, 255, 0.08);
-  --dialog-fill-0: #202125;
+  --dialog-fill-0: #202224;
   --workspace-btn-bg: #27292e;
   --message-user-bg: #292c32;
   --message-tips-bg: #202329;

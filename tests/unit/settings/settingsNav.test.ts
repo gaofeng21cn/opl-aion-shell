@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   BUILTIN_TAB_IDS,
   LEGACY_SETTINGS_ROUTE_REDIRECTS,
@@ -264,13 +263,13 @@ describe('settingsNav App-owned tabs', () => {
     expect(getBuiltinSettingsNavItems(true, t, 'zh-CN').find((item) => item.id === 'agents')?.label).toBe('智能体');
   });
 
-  it('uses Font Awesome for App-owned Settings navigation icons', () => {
+  it('uses uniform monochrome IconPark glyphs for App-owned Settings navigation icons', () => {
     for (const tabId of [...BUILTIN_TAB_IDS, 'advanced', 'about']) {
       const icon = getSettingsTabIcon(tabId, 'modal');
-      const props = icon.props as { className?: string; style?: { color?: string } };
-      expect(icon.type).toBe(FontAwesomeIcon);
-      expect(props.style?.color).toBe('var(--text-secondary)');
-      expect(props.className).toBe('text-18px');
+      const props = icon.props as { className?: string; children?: { props?: { theme?: string; size?: number } } };
+      expect(icon.type).toBe('span');
+      expect(props.className).toContain('text-t-secondary');
+      expect(props.children?.props).toMatchObject({ theme: 'outline', size: 16 });
     }
   });
 
@@ -414,12 +413,19 @@ describe('settingsNav App-owned tabs', () => {
       },
     ];
 
-    const items = buildSettingsNavItems({
+    const navItems = buildSettingsNavItems({
       builtinItems: getBuiltinSettingsNavItems(true, t),
       extensionTabs,
       resolveExtTabName: (tab) => tab.label,
       extensionIconClassName: 'icon',
-    }).map((item) => item.id);
+    });
+    const items = navItems.map((item) => item.id);
+
+    expect(navItems.find((item) => item.id === 'skills-extension')).toMatchObject({ isImageIcon: false });
+    expect(navItems.find((item) => item.id === 'skills-extension')?.icon.props).toMatchObject({
+      theme: 'outline',
+      size: '16',
+    });
 
     expect(items).toEqual([
       'general',

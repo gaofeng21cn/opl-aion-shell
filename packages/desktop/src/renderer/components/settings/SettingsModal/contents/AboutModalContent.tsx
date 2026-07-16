@@ -213,7 +213,7 @@ const AboutModalContent: React.FC = () => {
               )}
               <div className='opl-settings-section__header'>
                 <div className='flex min-w-0 items-start gap-12px'>
-                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                  <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
                     <Info theme='outline' size='16' />
                   </span>
                   <div className='min-w-0'>
@@ -276,7 +276,7 @@ const AboutModalContent: React.FC = () => {
               <span id='help-feedback' aria-hidden='true' />
               <div className='opl-settings-section__header'>
                 <div className='flex min-w-0 items-start gap-12px'>
-                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+                  <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
                     <Help theme='outline' size='16' />
                   </span>
                   <div className='min-w-0'>

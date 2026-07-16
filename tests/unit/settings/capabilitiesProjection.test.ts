@@ -378,6 +378,39 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.codexVisibility).toBe('visible');
   });
 
+  it('distinguishes an optional activation from a missing required scope', () => {
+    const capabilities = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'optional-agent',
+          display_name: 'Optional agent',
+          installed: true,
+          readiness: {
+            status: 'activation_required',
+            operational_ready: true,
+            launch_allowed: true,
+            reason: 'package_activation_required',
+          },
+        },
+        {
+          package_id: 'blocked-agent',
+          display_name: 'Blocked agent',
+          installed: true,
+          readiness: {
+            status: 'activation_required',
+            operational_ready: true,
+            launch_allowed: true,
+            reason: 'scope_materialization_missing',
+          },
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capabilities.find((item) => item.packageId === 'optional-agent')?.status).toBe('inactive');
+    expect(capabilities.find((item) => item.packageId === 'blocked-agent')?.status).toBe('attention');
+  });
+
   it('normalizes generic repair, dependent guard, and closure diagnostics', () => {
     const capability = buildCapabilitiesViewModel(
       {

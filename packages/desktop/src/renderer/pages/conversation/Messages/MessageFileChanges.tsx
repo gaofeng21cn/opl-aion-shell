@@ -86,6 +86,7 @@ const MessageFileChanges: React.FC<MessageFileChangesProps> = ({
       onFileClick={handleFileClick}
       onDiffClick={handleDiffClick}
       className={className}
+      variant='conversation'
     />
   );
 };

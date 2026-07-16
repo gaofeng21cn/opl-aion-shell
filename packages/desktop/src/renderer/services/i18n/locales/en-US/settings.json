@@ -9,7 +9,7 @@
     "title": "Skills Hub",
     "description": "Centrally manage AI agent skills. Install once, use across all assistants.",
     "mySkillsTitle": "My Skills",
-    "noSkills": "No skills found. Import some to get started.",
+    "noSkills": "No skills have been added manually. OPL Flow managed capabilities are counted separately.",
     "custom": "Custom",
     "builtin": "Built-in",
     "manualImport": "Import Skills",
@@ -297,7 +297,7 @@
   "capabilities": "Capabilities",
   "capabilitiesTab": {
     "oplFlowManaged": "Recommended by OPL Flow",
-    "manualAndThirdParty": "Local capabilities",
+    "manualAndThirdParty": "Manually added",
     "skills": "Skills",
     "tools": "External tools & voice",
     "assistants": "Custom assistants"
@@ -1500,6 +1500,10 @@
   "workspacePage": {
     "title": "Workspace & Personalization",
     "description": "Choose where projects and logs are stored, then manage the instructions used by Codex and new OPL App conversations.",
+    "locations": {
+      "title": "File locations",
+      "description": "Project output and App logs are written to the two locations below."
+    },
     "status": {
       "ready": "Available",
       "writable": "Work directory writable",
@@ -2229,10 +2233,10 @@
         "cliVersion": "CLI version: {{version}}"
       },
       "manualAndThirdParty": {
-        "title": "Local capabilities",
-        "description": "Inspect and manage local skills, plugins, and extensions outside the OPL Flow recommendation set.",
-        "toolsTitle": "MCP and image tools",
-        "toolsDescription": "Manage MCP servers and image generation here; voice input is configured below."
+        "title": "Manually added",
+        "description": "This count covers only skills you imported manually. OPL Flow managed capabilities are shown in the other tab.",
+        "toolsTitle": "Tools and input",
+        "toolsDescription": "Manage MCP, image generation, and voice input."
       }
     },
     "developerSource": {
@@ -2305,6 +2309,7 @@
       "sync": "Needs sync",
       "source": "Developer source",
       "verification": "Verification pending",
+      "inactive": "Not enabled",
       "attention": "Needs attention",
       "repair": "Needs repair",
       "missing": "Missing"

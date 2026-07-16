@@ -9,7 +9,7 @@
     "title": "技能中心",
     "description": "集中管理 AI 智能体技能。一次安装，全助手通用。",
     "mySkillsTitle": "我的技能",
-    "noSkills": "未发现技能。请导入技能以开始使用。",
+    "noSkills": "尚未手工添加 Skill。OPL Flow 托管能力不在这里计数。",
     "custom": "自定义",
     "builtin": "内置",
     "manualImport": "导入技能",
@@ -297,7 +297,7 @@
   "capabilities": "能力",
   "capabilitiesTab": {
     "oplFlowManaged": "OPL Flow 推荐",
-    "manualAndThirdParty": "本机能力",
+    "manualAndThirdParty": "手工添加",
     "skills": "技能",
     "tools": "外部工具与语音",
     "assistants": "自定义助手"
@@ -1501,6 +1501,10 @@
   "workspacePage": {
     "title": "工作区与个性化",
     "description": "设置项目与日志的存放位置，并管理 Codex 长期指令和 OPL App 新对话上下文。",
+    "locations": {
+      "title": "文件位置",
+      "description": "项目产物和 App 日志分别写入下面两个目录。"
+    },
     "status": {
       "ready": "可用",
       "writable": "工作目录可写",
@@ -2230,10 +2234,10 @@
         "cliVersion": "CLI 版本：{{version}}"
       },
       "manualAndThirdParty": {
-        "title": "本机能力",
-        "description": "查看和管理不属于 OPL Flow 推荐范围的本机 Skill、插件与扩展。",
-        "toolsTitle": "MCP 与图像工具",
-        "toolsDescription": "在这里管理 MCP 服务器和图像生成；语音输入可在下方配置。"
+        "title": "手工添加",
+        "description": "这里只统计你手工导入的 Skill；OPL Flow 托管能力在左侧标签页中单独显示。",
+        "toolsTitle": "工具与输入",
+        "toolsDescription": "管理 MCP、图像生成和语音输入。"
       }
     },
     "developerSource": {
@@ -2306,6 +2310,7 @@
       "sync": "需同步",
       "source": "开发源",
       "verification": "待验证",
+      "inactive": "未启用",
       "attention": "需关注",
       "repair": "需修复",
       "missing": "缺失"

@@ -412,8 +412,8 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
             {modelAccessNeedsAttention && <span data-testid='settings-models-exception' aria-hidden='true' />}
             <div className='opl-settings-row h-full items-start'>
               <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                  <CheckOne theme='outline' />
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                  <CheckOne theme='outline' size='16' />
                 </span>
                 <div className='min-w-0'>
                   <Typography.Text className='block font-600 text-t-primary'>
@@ -443,8 +443,8 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
             <span id='model' aria-hidden='true' />
             <div className='opl-settings-row h-full items-start'>
               <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                  <Terminal theme='outline' />
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                  <Terminal theme='outline' size='16' />
                 </span>
                 <div className='min-w-0'>
                   <Typography.Text className='block font-600 text-t-primary'>
@@ -484,8 +484,8 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
             <span data-testid='settings-gateway-manual-key' aria-hidden='true' />
             <div className='opl-settings-section__header'>
               <div className='flex min-w-0 items-start gap-10px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                  <Key theme='outline' />
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                  <Key theme='outline' size='16' />
                 </span>
                 <div className='min-w-0'>
                   <Typography.Text className='block font-600 text-t-primary'>
@@ -515,7 +515,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
 
             {gatewayAccount?.freshness.stale && (
               <div
-                className='mx-16px mb-12px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'
+                className='mb-12px border-t border-solid border-border-1 py-8px text-12px text-t-secondary'
                 data-testid='settings-gateway-stale'
               >
                 {t('settings.accessPage.gatewayAccount.stale', {
@@ -526,7 +526,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
 
             {gatewayStatusError && !gatewayFormVisible && (
               <div
-                className='mx-16px mb-12px rd-6px bg-fill-2 px-10px py-8px text-12px text-t-secondary'
+                className='mb-12px border-t border-solid border-border-1 py-8px text-12px text-t-secondary'
                 data-testid='settings-gateway-exception'
               >
                 {t(gatewayErrorTranslationKey(gatewayStatusError))}
@@ -560,7 +560,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               >
                 <div className='flex flex-wrap items-center justify-between gap-12px px-16px py-14px'>
                   <div className='flex min-w-0 items-center gap-12px'>
-                    <span className='flex h-44px w-44px shrink-0 items-center justify-center rd-full bg-primary-1 text-15px font-600 text-primary-6'>
+                    <span className='flex h-40px w-40px shrink-0 items-center justify-center rd-full bg-success-1 text-14px font-600 text-success-6'>
                       {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
                     </span>
                     <div className='min-w-0'>

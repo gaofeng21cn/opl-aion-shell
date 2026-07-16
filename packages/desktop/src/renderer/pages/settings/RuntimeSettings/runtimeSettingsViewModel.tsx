@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
+import { CheckOne, Puzzle, Refresh, Toolkit } from '@icon-park/react';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 import type { RuntimeMaintenanceHubItem } from '../sections/RuntimeSettingsPanels';
@@ -80,7 +80,7 @@ export function buildRuntimeSettingsViewModel({
         : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
       status: formatStatus(oplAppComponent?.state ?? 'unknown', t),
       tone: oplAppComponent ? componentStatusTone(oplAppComponent) : 'gray',
-      icon: <UpdateRotation theme='outline' />,
+      icon: <Refresh theme='outline' size='16' />,
       actionLabel: t('settings.checkForUpdates'),
       onAction: actions.openUpdateModal,
     },
@@ -92,7 +92,7 @@ export function buildRuntimeSettingsViewModel({
         : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.description'),
       status: formatStatus(oplBaseComponent?.state ?? 'unknown', t),
       tone: oplBaseComponent ? componentStatusTone(oplBaseComponent) : 'gray',
-      icon: <Repair theme='outline' />,
+      icon: <Toolkit theme='outline' size='16' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'),
       actionLoading: makeUsableRunning,
@@ -123,7 +123,7 @@ export function buildRuntimeSettingsViewModel({
             })
         : formatStatus('unknown', t),
       tone: oplPackagesChecked ? (oplPackagesHealthy ? 'green' : 'orange') : 'gray',
-      icon: <Repair theme='outline' />,
+      icon: <Puzzle theme='outline' size='16' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.actionHelp'),
       actionLoading: maintenanceHubCheckTarget === 'oplPackages',
@@ -139,7 +139,7 @@ export function buildRuntimeSettingsViewModel({
           ? t('settings.oplEnvironmentPage.healthSummary.values.none')
           : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
       tone: attentionCount === 0 ? 'green' : 'orange',
-      icon: <CheckOne theme='outline' />,
+      icon: <CheckOne theme='outline' size='16' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'),
       onAction: actions.runServiceCheck,
     },

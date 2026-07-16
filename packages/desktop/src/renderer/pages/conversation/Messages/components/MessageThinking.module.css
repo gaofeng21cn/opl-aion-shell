@@ -12,6 +12,11 @@
   cursor: pointer;
   user-select: none;
   line-height: 1;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .header:hover {
@@ -47,19 +52,14 @@
 .body {
   color: #86909c;
   font-size: 13px;
-  line-height: 1.7;
-  padding: 10px 14px;
-  margin-top: 6px;
+  line-height: 1.55;
+  padding: 6px 0 0 12px;
+  margin-top: 4px;
   margin-left: 20px;
-  background: color-mix(in srgb, var(--aou-1) 50%, #fff);
-  border-radius: 8px;
+  border-left: 2px solid var(--color-border-2);
   white-space: pre-wrap;
   word-break: break-word;
   overflow: hidden;
-}
-
-:global([data-theme='dark']) .body {
-  background: var(--aou-1);
 }
 
 .collapsed {

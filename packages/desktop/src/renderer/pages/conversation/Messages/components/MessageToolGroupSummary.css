@@ -25,6 +25,11 @@
   cursor: pointer;
   user-select: none;
   line-height: 1;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .tool-group-summary__header:hover {
@@ -64,16 +69,10 @@
 .tool-group-summary__body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px;
-  margin-top: 6px;
+  gap: 6px;
+  padding: 6px 0 0;
+  margin-top: 4px;
   margin-left: 20px;
-  background: color-mix(in srgb, var(--aou-1) 50%, #fff);
-  border-radius: 8px;
-}
-
-[data-theme='dark'] .tool-group-summary__body {
-  background: var(--aou-1);
 }
 
 .tool-detail-panel {

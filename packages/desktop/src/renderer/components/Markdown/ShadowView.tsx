@@ -9,17 +9,11 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { addImportantToAll } from '@renderer/utils/theme/customCssProcessor';
 import { ipcBridge } from '@/common';
-import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
 /**
  * Create the base style element for Shadow DOM with CSS variables, theme styles, and optional custom CSS.
  */
-const createInitStyle = (
-  currentTheme = 'light',
-  cssVars?: Record<string, string>,
-  customCss?: string,
-  isMobile?: boolean
-) => {
+const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string>, customCss?: string) => {
   const style = document.createElement('style');
   // Inject external CSS variables into Shadow DOM for dark mode support
   const cssVarsDeclaration = cssVars
@@ -28,9 +22,6 @@ const createInitStyle = (
         .join('\n    ')
     : '';
 
-  const lineHeight = isMobile ? '19.6px' : '28px';
-  const fontSize = isMobile ? 'var(--chat-font-size, 14px)' : 'var(--chat-font-size, 16px)';
-
   style.innerHTML = `
   /* Shadow DOM CSS variable definitions */
   :host {
@@ -38,8 +29,8 @@ const createInitStyle = (
   }
 
   * {
-    line-height:${lineHeight};
-    font-size:${fontSize};
+    line-height: 1.4667;
+    font-size: var(--chat-font-size, 15px);
     color: inherit;
   }
 
@@ -58,12 +49,12 @@ const createInitStyle = (
     margin-block-end:0px;
   }
   .markdown-shadow-body p {
-    margin-block-start: 16px;
-    margin-block-end: 16px;
+    margin-block-start: 10px;
+    margin-block-end: 10px;
   }
   .markdown-shadow-body li {
-    margin-block-start: 6px;
-    margin-block-end: 6px;
+    margin-block-start: 2px;
+    margin-block-end: 2px;
   }
   a{
     color:${theme.Color.PrimaryColor};
@@ -73,16 +64,16 @@ const createInitStyle = (
     overflow-wrap: anywhere;
   }
   h1{
-    font-size: 24px;
-    line-height: 32px;
-    font-weight: bold;
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 600;
   }
   h2,h3,h4,h5,h6{
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: bold;
-    margin-top: 20px;
-    margin-bottom: 12px;
+    font-size: var(--chat-font-size, 15px);
+    line-height: 1.4667;
+    font-weight: 600;
+    margin-top: 16px;
+    margin-bottom: 6px;
   }
   code span{
     font-size:var(--code-font-size, 13px);
@@ -94,7 +85,8 @@ const createInitStyle = (
     margin-bottom:0px;
   }
   ol, ul {
-    padding-inline-start:24px;
+    margin-block: 10px;
+    padding-inline-start: 22px;
   }
   hr {
     border: none;
@@ -106,11 +98,12 @@ const createInitStyle = (
     color: var(--text-primary);
   }
   .markdown-shadow-body code:not(pre code) {
-    background: var(--bg-3);
+    background: var(--color-fill-2);
     color: var(--text-primary);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.875em;
+    padding: 1px 5px;
+    border-radius: 5px;
+    font-size: 12px;
+    line-height: 18px;
     font-family: var(--font-mono);
   }
   blockquote {
@@ -263,9 +256,6 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
   const [root, setRoot] = useState<ShadowRoot | null>(null);
   const styleRef = React.useRef<HTMLStyleElement | null>(null);
   const [customCss, setCustomCss] = useState<string>('');
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
-
   React.useEffect(() => {
     let mounted = true;
     const applyCss = (t: { css?: string } | null) => {
@@ -298,6 +288,7 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
         '--text-primary': computedStyle.getPropertyValue('--text-primary'),
         '--text-secondary': computedStyle.getPropertyValue('--text-secondary'),
         '--chat-font-size': computedStyle.getPropertyValue('--chat-font-size'),
+        '--color-fill-2': computedStyle.getPropertyValue('--color-fill-2'),
         '--code-font-size': computedStyle.getPropertyValue('--code-font-size'),
       };
 
@@ -305,7 +296,7 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
       if (styleRef.current) {
         styleRef.current.remove();
       }
-      const newStyle = createInitStyle(currentTheme, cssVars, customCss, isMobile);
+      const newStyle = createInitStyle(currentTheme, cssVars, customCss);
       styleRef.current = newStyle;
       shadowRoot.appendChild(newStyle);
 
@@ -316,7 +307,7 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
         shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, katexSheet];
       }
     },
-    [customCss, isMobile]
+    [customCss]
   );
 
   React.useEffect(() => {

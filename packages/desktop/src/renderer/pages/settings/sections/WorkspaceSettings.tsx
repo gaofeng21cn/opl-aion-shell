@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { Button, Message, Tag, Typography } from '@arco-design/web-react';
-import { FolderOpen } from '@icon-park/react';
+import { FileText, FolderOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -174,117 +174,126 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
 
         <div className='flex flex-col gap-14px' data-testid='settings-workspace-primary'>
           <section
-            className={`opl-settings-section opl-settings-surface--configuration flex ${
+            className={`opl-settings-section opl-settings-surface--configuration ${
               workspaceNeedsAction ? 'opl-settings-section--attention' : ''
             }`}
             id='current-workspace'
-            data-testid='opl-workspace-settings-root'
           >
             <span id='work-directory' aria-hidden='true' />
             <span id='permissions' aria-hidden='true' />
             {!workspaceReady && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
-            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
-              <div className='flex min-w-0 items-start gap-10px'>
-                <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                  <FolderOpen theme='outline' />
-                </span>
-                <div className='min-w-0'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.workspacePage.root.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block break-all text-12px text-t-secondary'>
-                    {workspaceSummary}
-                  </Typography.Text>
-                </div>
-              </div>
-              <div className='flex flex-wrap items-center gap-8px'>
-                {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.root.dockerMount')}</Tag>}
-                <span
-                  className={`opl-settings-status ${
-                    workspaceReady
-                      ? 'opl-settings-status--ready'
-                      : workspaceNeedsAction
-                        ? 'opl-settings-status--attention'
-                        : ''
-                  }`}
-                >
-                  {workspaceReady
-                    ? t('settings.workspacePage.status.writable')
-                    : workspaceNeedsAction
-                      ? t('settings.workspacePage.status.needsAction')
-                      : t('settings.oplEnvironmentPage.status.unknown')}
-                </span>
-                {isDesktop && (
-                  <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
-                    {t('settings.workspacePage.actions.openWorkspace')}
-                  </Button>
-                )}
-                {!workspaceReady && (
-                  <Button onClick={() => (window.location.hash = '#/settings/environment')}>
-                    {t('settings.workspacePage.actions.openMaintenance')}
-                  </Button>
-                )}
-                {isDesktop && (
-                  <Button
-                    type='primary'
-                    loading={workspaceAction === 'choose'}
-                    onClick={chooseWorkspaceRoot}
-                    data-testid='settings-workspace-primary-action'
-                  >
-                    {t('settings.workspacePage.actions.changeWorkspace')}
-                  </Button>
-                )}
+            <div className='opl-settings-section__header'>
+              <div>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.workspacePage.locations.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.workspacePage.locations.description')}
+                </Typography.Text>
               </div>
             </div>
-          </section>
-
-          <section
-            className='opl-settings-section opl-settings-surface--configuration flex'
-            id='logs'
-            data-testid='settings-workspace-log-directory'
-          >
-            <div className='flex min-w-0 flex-1 flex-col gap-16px p-16px'>
-              <div className='flex min-w-0 items-start gap-10px'>
-                <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                  <FolderOpen theme='outline' />
-                </span>
-                <div className='min-w-0'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.workspacePage.logs.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t(
-                      isDesktop
-                        ? 'settings.workspacePage.logs.description'
-                        : 'settings.workspacePage.logs.webuiDescription'
-                    )}
-                  </Typography.Text>
-                  <Typography.Text className='block break-all text-12px text-t-secondary'>
-                    {logsRoot
-                      ? t('settings.workspacePage.logs.current', { path: logsRoot })
-                      : systemDirectoryLoadFailed
-                        ? t('settings.workspacePage.logs.unavailable')
-                        : t('settings.workspacePage.logs.loading')}
-                  </Typography.Text>
+            <div className='opl-settings-list'>
+              <div className='opl-settings-row' data-testid='opl-workspace-settings-root'>
+                <div className='opl-settings-row__main'>
+                  <div className='flex min-w-0 items-start gap-10px'>
+                    <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                      <FolderOpen theme='outline' size='16' />
+                    </span>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('settings.workspacePage.root.title')}
+                      </Typography.Text>
+                      <Typography.Text className='block break-all text-12px text-t-secondary'>
+                        {workspaceSummary}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </div>
+                <div className='opl-settings-row__meta'>
+                  {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.root.dockerMount')}</Tag>}
+                  <span
+                    className={`opl-settings-status ${
+                      workspaceReady
+                        ? 'opl-settings-status--ready'
+                        : workspaceNeedsAction
+                          ? 'opl-settings-status--attention'
+                          : ''
+                    }`}
+                  >
+                    {workspaceReady
+                      ? t('settings.workspacePage.status.writable')
+                      : workspaceNeedsAction
+                        ? t('settings.workspacePage.status.needsAction')
+                        : t('settings.oplEnvironmentPage.status.unknown')}
+                  </span>
+                  {isDesktop && (
+                    <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
+                      {t('settings.workspacePage.actions.openWorkspace')}
+                    </Button>
+                  )}
+                  {!workspaceReady && (
+                    <Button onClick={() => (window.location.hash = '#/settings/environment')}>
+                      {t('settings.workspacePage.actions.openMaintenance')}
+                    </Button>
+                  )}
+                  {isDesktop && (
+                    <Button
+                      type='primary'
+                      loading={workspaceAction === 'choose'}
+                      onClick={chooseWorkspaceRoot}
+                      data-testid='settings-workspace-primary-action'
+                    >
+                      {t('settings.workspacePage.actions.changeWorkspace')}
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className='flex flex-wrap items-center gap-8px'>
-                {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.logs.dockerMount')}</Tag>}
-                {isDesktop && (
-                  <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
-                    {t('settings.workspacePage.actions.openLogs')}
-                  </Button>
-                )}
-                {isDesktop && (
-                  <Button
-                    loading={logDirectoryAction === 'choose'}
-                    disabled={!systemDirectories}
-                    onClick={() => void chooseLogDirectory()}
-                    data-testid='settings-workspace-log-directory-action'
-                  >
-                    {t('settings.workspacePage.actions.changeLogs')}
-                  </Button>
-                )}
+
+              <div className='opl-settings-row' id='logs' data-testid='settings-workspace-log-directory'>
+                <div className='opl-settings-row__main'>
+                  <div className='flex min-w-0 items-start gap-10px'>
+                    <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                      <FileText theme='outline' size='16' />
+                    </span>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('settings.workspacePage.logs.title')}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t(
+                          isDesktop
+                            ? 'settings.workspacePage.logs.description'
+                            : 'settings.workspacePage.logs.webuiDescription'
+                        )}
+                      </Typography.Text>
+                      <Typography.Text className='block break-all text-12px text-t-secondary'>
+                        {logsRoot
+                          ? t('settings.workspacePage.logs.current', { path: logsRoot })
+                          : systemDirectoryLoadFailed
+                            ? t('settings.workspacePage.logs.unavailable')
+                            : t('settings.workspacePage.logs.loading')}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </div>
+                <div className='opl-settings-row__meta'>
+                  {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.logs.dockerMount')}</Tag>}
+                  {isDesktop && (
+                    <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
+                      {t('settings.workspacePage.actions.openLogs')}
+                    </Button>
+                  )}
+                  {isDesktop && (
+                    <Button
+                      loading={logDirectoryAction === 'choose'}
+                      disabled={!systemDirectories}
+                      onClick={() => void chooseLogDirectory()}
+                      data-testid='settings-workspace-log-directory-action'
+                    >
+                      {t('settings.workspacePage.actions.changeLogs')}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </section>

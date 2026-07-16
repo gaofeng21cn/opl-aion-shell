@@ -1,20 +1,17 @@
-import { Puzzle } from '@icon-park/react';
-import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
-  faCircleInfo,
-  faCloud,
-  faFolderOpen,
-  faGaugeHigh,
-  faHardDrive,
-  faKey,
-  faLink,
-  faPalette,
-  faPuzzlePiece,
-  faRobot,
-  faScrewdriverWrench,
-  faSliders,
-} from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+  CloudStorage,
+  DashboardOne,
+  FolderOpen,
+  HardDisk,
+  Info,
+  Key,
+  Link,
+  Puzzle,
+  Robot,
+  SettingConfig,
+  Theme,
+  Toolkit,
+} from '@icon-park/react';
 import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
@@ -25,8 +22,6 @@ import {
   type OplSettingsControlPlaneRoute,
   type OplSettingsControlPlaneSecondaryPage,
 } from '@/common/config/oplProductProfile';
-import { iconColors } from '@/renderer/styles/colors';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'general',
@@ -216,22 +211,24 @@ export type TranslateFn = (key: string, options?: { defaultValue?: string }) => 
 
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
-const SETTINGS_FONT_AWESOME_ICONS: Record<string, IconDefinition> = {
-  dashboard: faGaugeHigh,
-  general: faGaugeHigh,
-  gateway: faCloud,
-  access: faKey,
-  workspace: faFolderOpen,
-  agents: faRobot,
-  capabilities: faPuzzlePiece,
-  resources: faLink,
-  maintenance: faScrewdriverWrench,
-  'local-services': faScrewdriverWrench,
-  environment: faScrewdriverWrench,
-  storage: faHardDrive,
-  appearance: faPalette,
-  advanced: faSliders,
-  about: faCircleInfo,
+type SettingsIconFactory = (size: number) => React.ReactElement;
+
+const SETTINGS_ICON_PARK_ICONS: Record<string, SettingsIconFactory> = {
+  dashboard: (size) => <DashboardOne theme='outline' size={size} />,
+  general: (size) => <DashboardOne theme='outline' size={size} />,
+  gateway: (size) => <CloudStorage theme='outline' size={size} />,
+  access: (size) => <Key theme='outline' size={size} />,
+  workspace: (size) => <FolderOpen theme='outline' size={size} />,
+  agents: (size) => <Robot theme='outline' size={size} />,
+  capabilities: (size) => <Puzzle theme='outline' size={size} />,
+  resources: (size) => <Link theme='outline' size={size} />,
+  maintenance: (size) => <Toolkit theme='outline' size={size} />,
+  'local-services': (size) => <Toolkit theme='outline' size={size} />,
+  environment: (size) => <Toolkit theme='outline' size={size} />,
+  storage: (size) => <HardDisk theme='outline' size={size} />,
+  appearance: (size) => <Theme theme='outline' size={size} />,
+  advanced: (size) => <SettingConfig theme='outline' size={size} />,
+  about: (size) => <Info theme='outline' size={size} />,
 };
 
 export function getSettingsTabLabel(tabId: string, t: TranslateFn, language = 'en'): string {
@@ -273,16 +270,14 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
   );
 }
 
-export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React.ReactElement {
+export function getSettingsTabIcon(tabId: string, _slot: SettingsIconSlot): React.ReactElement {
   const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
-  const icon = SETTINGS_FONT_AWESOME_ICONS[iconToken] ?? SETTINGS_FONT_AWESOME_ICONS[tabId] ?? faCloud;
+  const icon =
+    SETTINGS_ICON_PARK_ICONS[iconToken] ?? SETTINGS_ICON_PARK_ICONS[tabId] ?? SETTINGS_ICON_PARK_ICONS.gateway;
   return (
-    <FontAwesomeIcon
-      icon={icon}
-      className={slot === 'modal' ? 'text-18px' : 'text-16px'}
-      style={{ color: iconColors.secondary }}
-      aria-hidden='true'
-    />
+    <span className='inline-flex text-t-secondary' aria-hidden='true'>
+      {icon(16)}
+    </span>
   );
 }
 
@@ -445,19 +440,17 @@ export function buildSettingsNavItems({
   builtinItems,
   extensionTabs,
   resolveExtTabName,
-  extensionIconClassName,
 }: BuildNavOptions): SettingsNavItem[] {
   return buildSettingsItemsWithExtensions({
     builtinItems,
     extensionTabs,
     toExtensionItem: (tab) => {
-      const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
       const label = resolveExtTabName(tab);
       return {
         id: tab.id,
         label,
-        icon: resolvedIcon ? <img src={resolvedIcon} alt='' className={extensionIconClassName} /> : <Puzzle />,
-        isImageIcon: Boolean(resolvedIcon),
+        icon: <Puzzle theme='outline' size='16' />,
+        isImageIcon: false,
         path: `ext/${tab.id}`,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
@@ -511,16 +504,11 @@ export function buildSettingsModalMenuItems({
     builtinItems: getBuiltinSettingsModalItems(t),
     extensionTabs,
     toExtensionItem: (tab) => {
-      const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
       const label = resolveExtTabName(tab);
       return {
         id: tab.id,
         label,
-        icon: resolvedIcon ? (
-          <img src={resolvedIcon} alt='' className='w-20px h-20px object-contain' />
-        ) : (
-          <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
-        ),
+        icon: <Puzzle theme='outline' size='16' />,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
     },

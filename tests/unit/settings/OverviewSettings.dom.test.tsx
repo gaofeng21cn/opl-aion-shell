@@ -176,7 +176,9 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('1.25M');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('2.5 USD');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('42 USD');
-    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('AvailabilityConnected');
+    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('Availability: Connected');
+    expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('opl-settings-list');
+    expect(screen.getByTestId('settings-overview-summary-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('settings-overview-technical-codex')).toHaveTextContent('0.142.4 · Connected');
     expect(screen.getByTestId('settings-overview-technical-background')).toHaveTextContent('ready');
     expect(screen.getByTestId('settings-overview-technical-capabilities')).toHaveTextContent('5/5');

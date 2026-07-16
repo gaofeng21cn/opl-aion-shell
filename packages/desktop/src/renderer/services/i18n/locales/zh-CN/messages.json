@@ -1,6 +1,6 @@
 {
   "fileChanges": "文件变更",
-  "fileChangesCount": "{{count}} 个文件变更",
+  "fileChangesCount": "已编辑 {{count}} 个文件",
   "conversationInProgress": "当前正在进行对话中...",
   "confirm": "确认",
   "canceledExecution": "已取消执行",
@@ -63,6 +63,14 @@
   "option": "选项",
   "noOptionsAvailable": "无可用选项",
   "processing": "处理中...",
+  "toolSteps": {
+    "completed": "已完成步骤 · {{count}}",
+    "running": "正在执行步骤 · {{count}}",
+    "loading": "正在加载完整输出...",
+    "loadFailed": "无法加载完整输出",
+    "input": "输入",
+    "output": "输出"
+  },
   "responseSentSuccessfully": "响应已成功发送",
   "confirmation": {
     "applyChange": "应用此更改？",

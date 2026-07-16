@@ -64,7 +64,9 @@ describe('MessageToolGroupSummary', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('View Steps · 1'));
+    const summary = screen.getByRole('button');
+    expect(summary).not.toHaveTextContent('View Steps');
+    fireEvent.click(summary);
     fireEvent.click(screen.getByText('rg'));
 
     await waitFor(() => {

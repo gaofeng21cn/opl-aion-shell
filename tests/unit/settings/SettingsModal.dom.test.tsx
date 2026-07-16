@@ -228,7 +228,8 @@ describe('SettingsModal OPL App navigation', () => {
 
     const overviewButton = screen.getByRole('button', { name: 'Overview' });
     expect(overviewButton).toBeInTheDocument();
-    expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).not.toBeNull();
+    expect(overviewButton.querySelector('svg')).not.toBeNull();
+    expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).toBeNull();
     expect(screen.getByText('Account & Gateway')).toBeInTheDocument();
     expect(screen.getByText('Models')).toBeInTheDocument();
     expect(screen.getByText('Workspace & Personalization')).toBeInTheDocument();

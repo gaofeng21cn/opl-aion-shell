@@ -35,6 +35,12 @@ describe('Codex visual parity overlay', () => {
     expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
     expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('rgba(0, 0, 0, 0.045)');
     expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('#f0f0f0');
+    expect(firstCustomProperty(baseline, '--text-primary')).toBe('#202124');
+    expect(firstCustomProperty(baseline, '--text-secondary')).toBe('#5f6368');
+    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('#80868b');
+    expect(baseline).toMatch(
+      /\[data-color-scheme='default'\]\[data-theme='dark'\]\s*{[\s\S]*?--bg-2:\s*#202224;[\s\S]*?--text-primary:\s*#f4f5f6;[\s\S]*?--text-secondary:\s*#aeb4bc;[\s\S]*?--dialog-fill-0:\s*#202224;/
+    );
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-bg')).toBe('var(--opl-sidebar-bg)');
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-active')).toBe('var(--opl-sidebar-active)');
     expect(codexPreset).not.toContain('rgba(246, 246, 244, 0.84)');
@@ -54,6 +60,47 @@ describe('Codex visual parity overlay', () => {
     expect(settingsStyles).toContain('max-width: 760px;');
     expect(settingsStyles).not.toContain('inset 3px 0 0');
     expect(settingsRegistry).not.toContain('SETTINGS_ICON_COLORS');
-    expect(settingsRegistry).toContain('style={{ color: iconColors.secondary }}');
+    expect(settingsRegistry).toContain("from '@icon-park/react'");
+    expect(settingsRegistry).toContain("<span className='inline-flex text-t-secondary'");
+    expect(settingsRegistry).toContain('{icon(16)}');
+    expect(settingsRegistry).toContain("<Puzzle theme='outline' size='16' />");
+    expect(settingsRegistry).not.toContain('@fortawesome');
+  });
+
+  it('uses the observed Codex conversation typography and unframed process rows', () => {
+    const fontSizes = read('packages/desktop/src/common/config/fontSizes.ts');
+    const markdown = read('packages/desktop/src/renderer/components/Markdown/ShadowView.tsx');
+    const messages = read('packages/desktop/src/renderer/pages/conversation/Messages/components/MessageText.tsx');
+    const messageStyles = read('packages/desktop/src/renderer/pages/conversation/Messages/messages.css');
+    const toolStyles = read(
+      'packages/desktop/src/renderer/pages/conversation/Messages/components/MessageToolGroupSummary.css'
+    );
+    const messageList = read('packages/desktop/src/renderer/pages/conversation/Messages/MessageList.tsx');
+    const thinkingStyles = read(
+      'packages/desktop/src/renderer/pages/conversation/Messages/components/MessageThinking.module.css'
+    );
+    const fileChanges = read('packages/desktop/src/renderer/components/base/FileChangesPanel.tsx');
+
+    expect(fontSizes).toContain('chat: { default: 15');
+    expect(markdown).toContain('line-height: 1.4667;');
+    expect(markdown).toContain('font-size: var(--chat-font-size, 15px);');
+    expect(markdown).toContain('margin-block-start: 10px;');
+    expect(markdown).toContain('margin-block-start: 2px;');
+    expect(markdown).toContain('font-size: 12px;');
+    expect(markdown).not.toMatch(/isMobile \? '19\.6px'|'28px'/);
+    expect(messageStyles).toMatch(
+      /\.message-item \.whitespace-pre-wrap\s*{[^}]*font-size:\s*var\(--chat-font-size, 15px\);[^}]*line-height:\s*1\.4667;/
+    );
+    expect(messageStyles).not.toMatch(/font-size:\s*14px\s*!important|line-height:\s*1\.4\s*!important/);
+    expect(messages).toContain("className={classNames('h-20px flex items-center mt-2px gap-6px'");
+    expect(messages).not.toContain("className={classNames('h-32px");
+    expect(toolStyles).toMatch(/\.tool-group-summary__body\s*{[^}]*padding:\s*6px 0 0;/);
+    expect(toolStyles).not.toMatch(/\.tool-group-summary__body\s*{[^}]*background:/);
+    expect(messageList).toContain("data-testid='message-list-skeleton-lines'");
+    expect(messageList).not.toContain("border: '1px solid var(--color-border-2)'");
+    expect(thinkingStyles).toMatch(/\.body\s*{[^}]*border-left:\s*2px solid var\(--color-border-2\);/);
+    expect(thinkingStyles).not.toMatch(/\.body\s*{[^}]*background:/);
+    expect(fileChanges).toContain("variant?: 'panel' | 'conversation'");
+    expect(fileChanges).toContain("compact ? 'py-2px'");
   });
 });

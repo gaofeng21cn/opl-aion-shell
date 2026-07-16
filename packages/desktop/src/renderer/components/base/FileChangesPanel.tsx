@@ -6,7 +6,7 @@
 
 import classNames from 'classnames';
 import React, { useState } from 'react';
-import { Down, PreviewOpen } from '@icon-park/react';
+import { Down, Edit, PreviewOpen, Right } from '@icon-park/react';
 import { diffColors, iconColors } from '@/renderer/styles/colors';
 import { useTranslation } from 'react-i18next';
 
@@ -40,6 +40,8 @@ export interface FileChangesPanelProps {
   onDiffClick?: (file: FileChangeItem) => void;
   /** 额外的类名 / Additional class name */
   className?: string;
+  /** Conversation timelines use the compact Codex-style disclosure row. */
+  variant?: 'panel' | 'conversation';
 }
 
 /**
@@ -52,13 +54,15 @@ export interface FileChangesPanelProps {
 const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
   title,
   files,
-  defaultExpanded = true,
+  defaultExpanded,
   onFileClick,
   onDiffClick,
   className,
+  variant = 'panel',
 }) => {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const compact = variant === 'conversation';
+  const [expanded, setExpanded] = useState(defaultExpanded ?? !compact);
 
   if (files.length === 0) {
     return null;
@@ -67,44 +71,73 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({
   return (
     <div
       className={classNames(
-        'w-full box-border rounded-8px overflow-hidden border border-solid border-[var(--aou-2)]',
+        'w-full box-border',
+        compact ? 'text-t-secondary' : 'rounded-8px overflow-hidden border border-solid border-[var(--aou-2)]',
         className
       )}
       style={{ width: '100%' }}
+      data-variant={variant}
     >
       {/* 标题栏 / Header */}
-      <div
-        className='flex items-center justify-between px-16px py-12px cursor-pointer select-none'
+      <button
+        type='button'
+        className={classNames(
+          'w-full flex items-center justify-between cursor-pointer select-none border-0 bg-transparent font-inherit text-left',
+          compact ? 'py-2px' : 'px-16px py-12px'
+        )}
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
         <div className='flex items-center gap-8px'>
-          {/* 绿色圆点 / Green dot */}
-          <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: diffColors.addition }}></span>
+          {compact ? (
+            <Edit theme='outline' size='14' />
+          ) : (
+            <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: diffColors.addition }} />
+          )}
           {/* 标题 / Title */}
-          <span className='text-14px text-t-primary font-medium'>{title}</span>
+          <span className={compact ? 'text-13px text-t-secondary font-400' : 'text-14px text-t-primary font-medium'}>
+            {title}
+          </span>
         </div>
         {/* 展开/收起箭头 / Expand/collapse arrow */}
-        <Down
-          theme='outline'
-          size='16'
-          fill={iconColors.secondary}
-          className={classNames('transition-transform duration-200', expanded && 'rotate-180')}
-        />
-      </div>
+        {compact ? (
+          <Right
+            theme='outline'
+            size='12'
+            fill={iconColors.secondary}
+            className={classNames('transition-transform duration-200', expanded && 'rotate-90')}
+          />
+        ) : (
+          <Down
+            theme='outline'
+            size='16'
+            fill={iconColors.secondary}
+            className={classNames('transition-transform duration-200', expanded && 'rotate-180')}
+          />
+        )}
+      </button>
 
       {/* 文件列表 / File list */}
       {expanded && (
-        <div className='w-full bg-2'>
+        <div
+          className={classNames(
+            'w-full',
+            compact ? 'ml-20px border-l border-solid border-border-1 py-4px pl-12px' : 'bg-2'
+          )}
+        >
           {files.map((file, index) => (
             <div
               key={`${file.fullPath}-${index}`}
               className={classNames(
-                'group flex items-center justify-between px-16px py-12px hover:bg-3 transition-colors'
+                'group flex items-center justify-between transition-colors',
+                compact ? 'py-6px pr-20px hover:bg-fill-1' : 'px-16px py-12px hover:bg-3'
               )}
             >
               {/* 文件名 / File name */}
               <div className='flex items-center min-w-0'>
-                <span className='text-14px text-t-primary truncate'>{file.file_name}</span>
+                <span className={compact ? 'text-12px text-t-secondary truncate' : 'text-14px text-t-primary truncate'}>
+                  {file.file_name}
+                </span>
               </div>
               {/* 变更统计 + 预览按钮 / Change statistics + Preview button */}
               <div className='flex items-center gap-8px shrink-0'>

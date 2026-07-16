@@ -103,15 +103,15 @@ export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ 
 
 const MessageListSkeleton: React.FC = () => {
   const rows = [
-    { align: 'left', bubbleWidth: '100%', lines: [72, 58, 64] },
-    { align: 'right', bubbleWidth: '82%', lines: [54, 48] },
-    { align: 'left', bubbleWidth: '100%', lines: [68, 76, 44] },
-    { align: 'left', bubbleWidth: '100%', lines: [46, 52] },
-    { align: 'right', bubbleWidth: '78%', lines: [60, 42, 36] },
-    { align: 'left', bubbleWidth: '100%', lines: [74, 62] },
-    { align: 'right', bubbleWidth: '84%', lines: [52, 66] },
-    { align: 'left', bubbleWidth: '100%', lines: [64, 56, 40] },
-    { align: 'right', bubbleWidth: '80%', lines: [58, 46] },
+    { width: '100%', lines: [72, 58, 64] },
+    { width: '82%', lines: [54, 48] },
+    { width: '100%', lines: [68, 76, 44] },
+    { width: '100%', lines: [46, 52] },
+    { width: '78%', lines: [60, 42, 36] },
+    { width: '100%', lines: [74, 62] },
+    { width: '84%', lines: [52, 66] },
+    { width: '100%', lines: [64, 56, 40] },
+    { width: '80%', lines: [58, 46] },
   ] as const;
 
   return (
@@ -124,28 +124,21 @@ const MessageListSkeleton: React.FC = () => {
         {rows.map((row, index) => (
           <div
             key={index}
-            className={classNames(
-              'w-full min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto',
-              {
-                'justify-start': row.align === 'left',
-                'justify-end': row.align === 'right',
-              }
-            )}
+            className='w-full min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto'
           >
             <div
-              className='flex-none min-w-0 rd-16px p-14px'
+              className='min-w-0 py-4px'
               style={{
-                width: row.bubbleWidth,
+                width: row.width,
                 maxWidth: '100%',
-                background: 'var(--color-fill-1)',
-                border: '1px solid var(--color-border-2)',
               }}
+              data-testid='message-list-skeleton-lines'
             >
-              <div className='flex flex-col gap-10px'>
+              <div className='flex flex-col gap-8px'>
                 {row.lines.map((width, lineIndex) => (
                   <div
                     key={lineIndex}
-                    className='h-12px rd-999px'
+                    className='h-10px rd-999px'
                     style={{
                       width: `${width}%`,
                       background:

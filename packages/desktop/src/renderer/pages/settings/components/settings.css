@@ -78,7 +78,7 @@
 .opl-settings-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   min-width: 0;
 }
 
@@ -124,20 +124,20 @@
 
 .opl-settings-section {
   min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-1);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
 /* Stable Settings surfaces: editable configuration, quiet status, explicit action, and gated diagnostics. */
 .opl-settings-surface--configuration {
-  border-color: var(--border-base);
+  border-color: transparent;
 }
 
 .opl-settings-surface--configuration:focus-within {
-  border-color: var(--color-primary-5);
+  border-color: transparent;
 }
 
 .opl-settings-surface--status {
@@ -151,7 +151,7 @@
 }
 
 .opl-settings-surface--action {
-  background: var(--bg-1);
+  background: transparent;
 }
 
 .opl-settings-action-result {
@@ -184,7 +184,7 @@
 }
 
 .opl-settings-section--attention {
-  border-color: var(--color-warning-5);
+  border-color: transparent;
 }
 
 .opl-settings-section.bg-transparent {
@@ -192,10 +192,10 @@
 }
 
 .opl-settings-page > .opl-settings-list {
-  overflow: hidden;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-1);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .opl-settings-section__header {
@@ -204,7 +204,7 @@
   justify-content: space-between;
   gap: 16px;
   min-width: 0;
-  padding: 14px 16px 12px;
+  padding: 0 0 10px;
 }
 
 .opl-settings-section__header + .opl-settings-list {
@@ -221,7 +221,7 @@
   align-items: center;
   gap: 20px;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 12px 0;
 }
 
 .opl-settings-row + .opl-settings-row {
@@ -375,14 +375,37 @@
   padding: 0;
 }
 
+.opl-settings-flat-tools .arco-collapse {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.opl-settings-flat-tools .arco-collapse-item {
+  border: 0;
+  background: transparent;
+}
+
+.opl-settings-flat-tools .arco-collapse-item-header {
+  min-height: 44px;
+  padding-inline: 0;
+  background: transparent;
+}
+
+.opl-settings-flat-tools .arco-collapse-item-content,
+.opl-settings-flat-tools .arco-collapse-item-content-box {
+  background: transparent;
+}
+
 .opl-settings-empty {
   display: flex;
-  min-height: 96px;
+  min-height: 64px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 24px;
+  padding: 16px 0;
   color: var(--text-secondary);
   text-align: center;
 }

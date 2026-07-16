@@ -347,7 +347,7 @@ const PersonalPreferenceSettings: React.FC = () => {
         <span id='files-notifications' aria-hidden='true' />
         <div className='opl-settings-section__header'>
           <div className='flex min-w-0 items-start gap-12px'>
-            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
               <SettingConfig theme='outline' size='16' />
             </span>
             <div className='min-w-0'>
@@ -383,7 +383,7 @@ const PersonalPreferenceSettings: React.FC = () => {
         <span id='hardware' aria-hidden='true' />
         <div className='opl-settings-section__header'>
           <div className='flex min-w-0 items-start gap-12px'>
-            <span className='flex h-28px w-28px shrink-0 items-center justify-center rounded-6px bg-fill-2 text-t-secondary'>
+            <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
               <SettingConfig theme='outline' size='16' />
             </span>
             <div className='min-w-0'>

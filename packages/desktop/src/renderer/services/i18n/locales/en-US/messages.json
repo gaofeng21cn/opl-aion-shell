@@ -1,6 +1,6 @@
 {
   "fileChanges": "File Changes",
-  "fileChangesCount": "{{count}} File Changes",
+  "fileChangesCount": "Edited {{count}} files",
   "conversationInProgress": "A conversation is currently in progress...",
   "confirm": "Confirm",
   "canceledExecution": "Execution canceled",
@@ -63,6 +63,14 @@
   "option": "Option",
   "noOptionsAvailable": "No options available",
   "processing": "Processing...",
+  "toolSteps": {
+    "completed": "Completed steps · {{count}}",
+    "running": "Running steps · {{count}}",
+    "loading": "Loading full output...",
+    "loadFailed": "Failed to load full output",
+    "input": "Input",
+    "output": "Output"
+  },
   "responseSentSuccessfully": "Response sent successfully",
   "confirmation": {
     "applyChange": "Apply this change?",

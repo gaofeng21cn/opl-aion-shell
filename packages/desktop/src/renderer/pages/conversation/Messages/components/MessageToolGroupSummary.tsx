@@ -1,8 +1,8 @@
 import type { BadgeProps } from '@arco-design/web-react';
 import { Badge, Spin } from '@arco-design/web-react';
-import { IconDown, IconRight } from '@arco-design/web-react/icon';
-import { Checklist, Right } from '@icon-park/react';
+import { Checklist, Down, Right } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { NormalizedToolCall, NormalizedToolStatus, ToolMessage } from '@/common/chat/normalizeToolCall';
 import { normalizeToolMessages, hasRunningToolMessages } from '@/common/chat/normalizeToolCall';
@@ -25,6 +25,7 @@ const statusToBadge = (status: NormalizedToolStatus): BadgeProps['status'] => {
 };
 
 const ToolItemDetail: React.FC<{ item: NormalizedToolCall }> = ({ item }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [fullItem, setFullItem] = useState<NormalizedToolCall | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
@@ -75,23 +76,23 @@ const ToolItemDetail: React.FC<{ item: NormalizedToolCall }> = ({ item }) => {
         </span>
         {hasDetail && (
           <span className='flex-shrink-0 cursor-pointer hover:color-#4E5969 transition-colors' onClick={toggleExpanded}>
-            {expanded ? <IconDown style={{ fontSize: 12 }} /> : <IconRight style={{ fontSize: 12 }} />}
+            {expanded ? <Down theme='outline' size='12' /> : <Right theme='outline' size='12' />}
           </span>
         )}
       </div>
       {expanded && hasDetail && (
         <div className='tool-detail-panel m-l-20px m-t-4px'>
-          {loadingFull && <div className='tool-detail-label'>Loading...</div>}
-          {loadError && <div className='tool-detail-label'>Failed to load full output</div>}
+          {loadingFull && <div className='tool-detail-label'>{t('messages.toolSteps.loading')}</div>}
+          {loadError && <div className='tool-detail-label'>{t('messages.toolSteps.loadFailed')}</div>}
           {displayItem.input && (
             <div className='tool-detail-section'>
-              <div className='tool-detail-label'>Input</div>
+              <div className='tool-detail-label'>{t('messages.toolSteps.input')}</div>
               <pre className='tool-detail-content'>{displayItem.input}</pre>
             </div>
           )}
           {displayItem.output && (
             <div className='tool-detail-section'>
-              <div className='tool-detail-label'>Output</div>
+              <div className='tool-detail-label'>{t('messages.toolSteps.output')}</div>
               <pre className='tool-detail-content'>{displayItem.output}</pre>
             </div>
           )}
@@ -102,6 +103,7 @@ const ToolItemDetail: React.FC<{ item: NormalizedToolCall }> = ({ item }) => {
 };
 
 const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messages }) => {
+  const { t } = useTranslation();
   const hasRunning = hasRunningToolMessages(messages);
   const [showMore, setShowMore] = useState(hasRunning);
 
@@ -113,15 +115,22 @@ const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messag
 
   return (
     <div className='tool-group-summary'>
-      <div className='tool-group-summary__header' onClick={() => setShowMore(!showMore)}>
+      <button
+        type='button'
+        className='tool-group-summary__header'
+        onClick={() => setShowMore(!showMore)}
+        aria-expanded={showMore}
+      >
         <span className='tool-group-summary__icon'>
           {hasRunning ? <Spin size={12} /> : <Checklist theme='outline' size='14' />}
         </span>
-        <span className='tool-group-summary__label'>View Steps {tools.length > 0 ? `· ${tools.length}` : ''}</span>
+        <span className='tool-group-summary__label'>
+          {t(hasRunning ? 'messages.toolSteps.running' : 'messages.toolSteps.completed', { count: tools.length })}
+        </span>
         <span className={`tool-group-summary__arrow${showMore ? ' tool-group-summary__arrow--open' : ''}`}>
           <Right theme='outline' size='12' />
         </span>
-      </div>
+      </button>
       {showMore && (
         <div className='tool-group-summary__body'>
           {tools.map((item) => (

@@ -250,7 +250,8 @@ describe('RuntimeSettings maintenance structure', () => {
   it('renders quiet status rows and explicit action surfaces while gating diagnostics in a modal', () => {
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('md:grid-cols-2');
+    expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('opl-settings-list');
+    expect(screen.getByTestId('maintenance-domain-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('opl-runtime-health-summary').closest('section')).toHaveClass(
       'opl-settings-surface--status'
     );

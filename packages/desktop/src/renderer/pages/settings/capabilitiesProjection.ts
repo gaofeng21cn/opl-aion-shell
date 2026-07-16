@@ -19,6 +19,7 @@ export type CapabilityStatus =
   | 'sync'
   | 'source'
   | 'verification'
+  | 'inactive'
   | 'attention'
   | 'repair'
   | 'missing';
@@ -798,6 +799,8 @@ function mapCapabilityStatus(
   );
   const exactReadinessStatus = normalizeStatusToken(firstString(readiness.status));
   const readinessReason = normalizeStatusToken(firstString(readiness.reason));
+  const operationalReady = nullableBool(readiness.operational_ready) ?? nullableBool(packageStatus?.operational_ready);
+  const launchAllowed = nullableBool(readiness.launch_allowed) ?? nullableBool(packageStatus?.launch_allowed);
   if (
     directoryState.installed === false ||
     (!firstString(directoryState.installed_version) &&
@@ -810,11 +813,16 @@ function mapCapabilityStatus(
   }
   if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error))
     return 'repair';
+  if (readinessReason === 'scopematerializationmissing') {
+    return 'attention';
+  }
   if (
     ['activationrequired', 'pendingactivation'].includes(exactReadinessStatus ?? '') ||
-    ['packageactivationrequired', 'scopematerializationmissing'].includes(readinessReason ?? '')
+    readinessReason === 'packageactivationrequired'
   ) {
-    return 'attention';
+    return readinessReason === 'packageactivationrequired' && operationalReady !== false && launchAllowed !== false
+      ? 'inactive'
+      : 'attention';
   }
   if (['blocked', 'failed', 'repairrequired'].includes(exactReadinessStatus ?? '')) {
     return 'repair';

@@ -79,13 +79,13 @@ const MessageThinking: React.FC<{ message: IMessageThinking }> = ({ message }) =
 
   return (
     <div className={styles.container}>
-      <div className={styles.header} onClick={() => setExpanded((v) => !v)}>
+      <button type='button' className={styles.header} onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
         <span className={styles.headerIcon}>{!isDone ? <Spin size={12} /> : <Brain theme='outline' size='14' />}</span>
         <span className={styles.summary}>{summaryText}</span>
         <span className={`${styles.arrow} ${expanded ? styles.arrowExpanded : ''}`}>
           <Right theme='outline' size='12' />
         </span>
-      </div>
+      </button>
       <div ref={bodyRef} className={`${styles.body} ${!expanded ? styles.collapsed : ''}`}>
         {text}
       </div>

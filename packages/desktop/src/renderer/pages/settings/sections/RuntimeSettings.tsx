@@ -1361,7 +1361,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Typography.Text>
               )}
             </div>
-            <div className='grid grid-cols-1 gap-12px md:grid-cols-2' data-testid='maintenance-domain-grid'>
+            <div
+              className='opl-settings-list border-t border-solid border-border-1'
+              data-testid='maintenance-domain-grid'
+            >
               {maintenanceHubItems.map((item) => {
                 const anchors: Record<string, string> = {
                   appUpdates: 'updates',
@@ -1370,36 +1373,40 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   localServicesRepair: 'services',
                 };
                 return (
-                  <section
+                  <div
                     key={`maintenance-hub-${item.key}`}
-                    className='opl-settings-section opl-settings-surface--action flex'
+                    className='opl-settings-row opl-settings-surface--action'
                     id={anchors[item.key]}
                     data-testid={`opl-maintenance-hub-${item.key}`}
                   >
-                    <div className='flex min-w-0 flex-1 flex-col gap-14px p-16px'>
-                      <div>
-                        <Typography.Text className='block font-600 text-t-primary'>{item.title}</Typography.Text>
-                        <Typography.Text className='mt-4px block text-12px text-t-secondary'>
-                          {item.detail}
-                        </Typography.Text>
-                      </div>
-                      <div className='mt-auto flex flex-wrap items-center justify-between gap-10px'>
-                        <span className='opl-settings-action-result'>
-                          {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}: {item.status}
+                    <div className='opl-settings-row__main'>
+                      <div className='flex min-w-0 items-start gap-10px'>
+                        <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                          {item.icon}
                         </span>
-                        <Button
-                          icon={item.icon}
-                          title={item.actionHelp}
-                          loading={item.actionLoading}
-                          disabled={maintenanceOperationBusy || item.actionDisabled}
-                          onClick={item.onAction}
-                          data-testid={`opl-maintenance-action-${item.key}`}
-                        >
-                          {item.actionLabel}
-                        </Button>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block font-600 text-t-primary'>{item.title}</Typography.Text>
+                          <Typography.Text className='mt-4px block text-12px text-t-secondary'>
+                            {item.detail}
+                          </Typography.Text>
+                        </div>
                       </div>
                     </div>
-                  </section>
+                    <div className='opl-settings-row__meta'>
+                      <span className='opl-settings-action-result'>
+                        {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}: {item.status}
+                      </span>
+                      <Button
+                        title={item.actionHelp}
+                        loading={item.actionLoading}
+                        disabled={maintenanceOperationBusy || item.actionDisabled}
+                        onClick={item.onAction}
+                        data-testid={`opl-maintenance-action-${item.key}`}
+                      >
+                        {item.actionLabel}
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
             </div>

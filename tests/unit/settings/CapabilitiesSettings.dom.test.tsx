@@ -706,6 +706,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.sync': 'Needs sync',
         'settings.capabilitiesPage.status.source': 'Developer source',
         'settings.capabilitiesPage.status.verification': 'Verification pending',
+        'settings.capabilitiesPage.status.inactive': 'Not enabled',
         'settings.capabilitiesPage.status.attention': 'Needs attention',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
@@ -897,7 +898,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
         'settings.capabilitiesTab.oplFlowManaged': 'Recommended by OPL Flow',
-        'settings.capabilitiesTab.manualAndThirdParty': 'Local capabilities',
+        'settings.capabilitiesTab.manualAndThirdParty': 'Manually added',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -1240,6 +1241,27 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-stale')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
+  });
+
+  it('keeps an installed package that only needs activation quiet until the user enables it', () => {
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'example-agent',
+        display_name: 'Example Agent',
+        installed: true,
+        readiness: {
+          status: 'activation_required',
+          operational_ready: true,
+          launch_allowed: true,
+          reason: 'package_activation_required',
+        },
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Not enabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-exception')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready');
   });
 
   it('keeps a row status read error local to that package and exposes its failure detail', () => {
@@ -1597,7 +1619,7 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Local capabilities' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Manually added' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
@@ -1609,7 +1631,7 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<CapabilitiesSettings />, false, '/settings/capabilities?section=third-party');
 
     await waitFor(() =>
-      expect(screen.getByRole('tab', { name: 'Local capabilities' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('tab', { name: 'Manually added' })).toHaveAttribute('aria-selected', 'true')
     );
     expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument();
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();

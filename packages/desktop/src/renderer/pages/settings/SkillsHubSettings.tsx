@@ -1,9 +1,7 @@
 import { ipcBridge } from '@/common';
 import { getOplDefaultPackagedCodexSkills, getOplPackagedCodexSkills } from '@/common/config/oplProductProfile';
 import { Button, Message, Modal, Typography } from '@arco-design/web-react';
-import { Delete, FolderOpen, Info, Lightning, Puzzle, Search } from '@icon-park/react';
-import { faRotate } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Delete, FolderOpen, Lightning, Puzzle, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -28,23 +26,6 @@ interface SkillInfo {
 // Normalize skill name for data-testid usage
 const normalizeTestId = (name: string): string => {
   return name.replace(/[:/\s<>"'|?*]/g, '-');
-};
-
-const getAvatarColorClass = (name: string) => {
-  if (!name) return 'bg-[#165DFF] text-white';
-  const colors = [
-    'bg-[#165DFF] text-white', // Blue
-    'bg-[#00B42A] text-white', // Green
-    'bg-[#722ED1] text-white', // Purple
-    'bg-[#F5319D] text-white', // Pink
-    'bg-[#F77234] text-white', // Orange
-    'bg-[#14C9C9] text-white', // Cyan
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
 };
 
 interface SkillsHubSettingsProps {
@@ -215,10 +196,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
     <div className='flex flex-col h-full w-full'>
       <div className='space-y-16px pb-24px'>
         {flowManagedSkillIds !== undefined && displayGroup !== 'manual' && (
-          <section
-            data-testid='opl-flow-managed-capabilities'
-            className='px-[16px] md:px-[32px] py-24px bg-base rd-8px border border-b-base relative overflow-hidden'
-          >
+          <section data-testid='opl-flow-managed-capabilities' className='relative overflow-hidden'>
             <div className='flex flex-col gap-12px sm:flex-row sm:items-start sm:justify-between'>
               <div>
                 <Typography.Title heading={6} className='mb-4px'>
@@ -233,7 +211,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               </div>
               {onSyncFlow && (
                 <Button
-                  icon={<FontAwesomeIcon icon={faRotate} />}
+                  icon={<Refresh theme='outline' size='16' />}
                   loading={flowSyncing}
                   onClick={onSyncFlow}
                   data-testid='opl-flow-sync-capabilities'
@@ -338,29 +316,27 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               data-testid={
                 flowManagedSkillIds === undefined ? 'my-skills-section' : 'manual-and-third-party-capabilities'
               }
-              className='px-[16px] md:px-[32px] py-24px bg-base rd-8px border border-b-base relative overflow-hidden transition-all'
+              className='relative overflow-hidden'
             >
               {/* Toolbar for My Skills */}
-              <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-16px mb-24px relative z-10'>
+              <div className='relative z-10 mb-14px flex flex-col justify-between gap-12px lg:flex-row lg:items-center'>
                 <div className='flex items-center gap-10px shrink-0'>
-                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
+                  <span className='text-14px text-t-primary font-600'>
                     {flowManagedSkillIds === undefined
                       ? t('settings.skillsHub.mySkillsTitle', { defaultValue: 'My Skills' })
                       : t('settings.capabilitiesPage.groups.manualAndThirdParty.title')}
                   </span>
-                  <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                    {mySkills.length}
-                  </span>
+                  <span className='text-12px text-t-tertiary'>{mySkills.length}</span>
                   <button
                     data-testid='btn-refresh-my-skills'
-                    className='outline-none border-none bg-transparent cursor-pointer p-6px text-t-tertiary hover:text-primary-6 transition-colors rd-full hover:bg-fill-2 ml-4px'
+                    className='ml-2px flex size-28px cursor-pointer items-center justify-center border-none bg-transparent text-t-tertiary outline-none transition-colors hover:bg-fill-2 hover:text-t-primary'
                     onClick={async () => {
                       await fetchData();
                       Message.success(t('common.refreshSuccess', { defaultValue: 'Refreshed' }));
                     }}
                     title={t('common.refresh', { defaultValue: 'Refresh' })}
                   >
-                    <FontAwesomeIcon icon={faRotate} className={loading ? 'animate-spin' : ''} />
+                    <Refresh theme='outline' size='16' className={loading ? 'animate-spin' : ''} />
                   </button>
                 </div>
 
@@ -372,7 +348,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                     <input
                       data-testid='input-search-my-skills'
                       type='text'
-                      className='w-full bg-fill-1 hover:bg-fill-2 border border-border-1 focus:border-primary-5 focus:bg-base outline-none rd-8px py-6px pl-36px pr-12px text-13px text-t-primary placeholder:text-t-tertiary transition-all shadow-sm box-border m-0'
+                      className='m-0 box-border w-full border border-border-1 bg-fill-1 py-6px pl-36px pr-12px text-13px text-t-primary outline-none rd-7px transition-all placeholder:text-t-tertiary hover:bg-fill-2 focus:border-primary-5 focus:bg-base'
                       placeholder={t('settings.skillsHub.searchPlaceholder', { defaultValue: 'Search skills...' })}
                       value={search_query}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -381,7 +357,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
                   <button
                     data-testid='btn-manual-import'
-                    className='flex items-center justify-center gap-6px px-16px py-6px bg-base border border-border-1 hover:border-border-2 hover:bg-fill-1 text-t-primary rd-8px shadow-sm transition-all focus:outline-none shrink-0 cursor-pointer whitespace-nowrap'
+                    className='flex shrink-0 cursor-pointer items-center justify-center gap-6px whitespace-nowrap border border-border-1 bg-base px-14px py-6px text-t-primary rd-7px transition-all hover:bg-fill-1 focus:outline-none'
                     onClick={handleManualImport}
                   >
                     <FolderOpen size={15} className='text-t-secondary' />
@@ -394,7 +370,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
               {/* Path Display moved below the toolbar */}
               {skillPaths && (
-                <div className='flex items-center gap-8px text-12px text-t-tertiary font-mono bg-transparent py-4px mb-16px relative z-10 pt-4px border-t border-t-transparent'>
+                <div className='relative z-10 mb-10px flex items-center gap-8px py-4px font-mono text-12px text-t-tertiary'>
                   <FolderOpen size={16} className='shrink-0' />
                   <span className='truncate' title={skillPaths.user_skills_dir}>
                     {skillPaths.user_skills_dir}
@@ -403,7 +379,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               )}
 
               {mySkills.length > 0 ? (
-                <div className='w-full flex flex-col gap-6px relative z-10'>
+                <div className='relative z-10 flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
                   {filteredSkills.map((skill) => (
                     <div
                       key={skill.name}
@@ -411,13 +387,11 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                       ref={(el) => {
                         skillRefs.current[skill.name] = el;
                       }}
-                      className={`group flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 hover:shadow-sm rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
+                      className={`group flex flex-col gap-12px py-12px transition-colors sm:flex-row ${highlightedSkill === skill.name ? 'bg-fill-1' : 'hover:bg-fill-1'}`}
                     >
                       <div className='shrink-0 flex items-start sm:mt-2px'>
-                        <div
-                          className={`w-40px h-40px rd-10px flex items-center justify-center font-bold text-16px shadow-sm text-transform-uppercase ${getAvatarColorClass(skill.name)}`}
-                        >
-                          {skill.name.charAt(0).toUpperCase()}
+                        <div className='flex size-28px items-center justify-center text-t-secondary'>
+                          <Puzzle theme='outline' size='16' />
                         </div>
                       </div>
 
@@ -425,11 +399,11 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                         <div className='flex items-center gap-10px flex-wrap'>
                           <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
                           {skill.source === 'custom' ? (
-                            <span className='bg-[rgba(var(--orange-6),0.08)] text-orange-6 border border-[rgba(var(--orange-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
+                            <span className='text-11px text-t-tertiary'>
                               {t('settings.skillsHub.custom', { defaultValue: 'Custom' })}
                             </span>
                           ) : (
-                            <span className='bg-[rgba(var(--blue-6),0.08)] text-blue-6 border border-[rgba(var(--blue-6),0.2)] text-11px px-6px py-1px rd-4px font-medium'>
+                            <span className='text-11px text-t-tertiary'>
                               {t('settings.skillsHub.builtin', { defaultValue: 'Built-in' })}
                             </span>
                           )}
@@ -448,7 +422,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                         {skill.source === 'custom' && !flowManagedIdSet.has(skill.name) && (
                           <button
                             data-testid={`btn-delete-${normalizeTestId(skill.name)}`}
-                            className='p-8px hover:bg-danger-1 hover:text-danger-6 text-t-tertiary rd-6px outline-none flex items-center justify-center border border-transparent cursor-pointer transition-colors shadow-sm bg-base sm:bg-transparent sm:shadow-none'
+                            className='flex cursor-pointer items-center justify-center border border-transparent bg-transparent p-8px text-t-tertiary outline-none rd-6px transition-colors hover:bg-danger-1 hover:text-danger-6'
                             onClick={() => {
                               Modal.confirm({
                                 title: t('settings.skillsHub.deleteConfirmTitle', { defaultValue: 'Delete Skill' }),
@@ -472,7 +446,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className='text-center text-t-secondary text-13px py-40px bg-fill-1 rd-12px border border-b-base border-dashed relative z-10'>
+                <div className='relative z-10 border-t border-solid border-border-1 py-18px text-left text-13px text-t-secondary'>
                   {loading
                     ? t('common.loading', { defaultValue: 'Please wait...' })
                     : t('settings.skillsHub.noSkills', {
@@ -484,37 +458,32 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
             {/* ======== Extension Skills ======== */}
             {extensionSkills.length > 0 && (
-              <div
-                data-testid='extension-skills-section'
-                className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
-              >
-                <div className='flex items-center gap-10px mb-24px'>
-                  <Puzzle theme='filled' size={20} fill='var(--color-primary-6)' />
-                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
+              <div data-testid='extension-skills-section' className='relative overflow-hidden'>
+                <div className='mb-10px flex items-center gap-10px'>
+                  <Puzzle theme='outline' size='16' />
+                  <span className='text-14px text-t-primary font-600'>
                     {t('settings.extensionSkills', { defaultValue: 'Extension Skills' })}
                   </span>
-                  <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                    {extensionSkills.length}
-                  </span>
+                  <span className='text-12px text-t-tertiary'>{extensionSkills.length}</span>
                 </div>
-                <div className='w-full flex flex-col gap-6px'>
+                <div className='flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
                   {extensionSkills.map((skill) => (
                     <div
                       key={skill.name}
                       ref={(el) => {
                         skillRefs.current[skill.name] = el;
                       }}
-                      className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
+                      className={`flex flex-col gap-12px py-12px transition-colors sm:flex-row ${highlightedSkill === skill.name ? 'bg-fill-1' : 'hover:bg-fill-1'}`}
                     >
                       <div className='shrink-0 flex items-start sm:mt-2px'>
-                        <div className='w-40px h-40px rd-10px bg-[rgba(var(--primary-6),0.08)] flex items-center justify-center shadow-sm'>
-                          <Puzzle theme='filled' size={20} fill='rgb(var(--primary-6))' />
+                        <div className='flex size-28px items-center justify-center text-t-secondary'>
+                          <Puzzle theme='outline' size='16' />
                         </div>
                       </div>
                       <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
                         <div className='flex items-center gap-10px'>
                           <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                          <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 border border-[rgba(var(--primary-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
+                          <span className='text-10px text-t-tertiary uppercase'>
                             {t('settings.extensionSkillsBadge', { defaultValue: 'Extension' })}
                           </span>
                         </div>
@@ -532,37 +501,30 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
             {/* ======== Builtin Auto-injected Skills ======== */}
             {builtinAutoSkills.length > 0 && (
-              <div
-                data-testid='auto-skills-section'
-                className='px-[16px] md:px-[32px] py-32px bg-base rd-16px md:rd-24px shadow-sm border border-b-base relative overflow-hidden transition-all'
-              >
-                <div className='flex items-center gap-10px mb-24px'>
-                  <Lightning theme='filled' size={20} fill='var(--color-primary-6)' />
-                  <span className='text-16px md:text-18px text-t-primary font-bold tracking-tight'>
-                    {t('settings.autoInjectedSkills')}
-                  </span>
-                  <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] text-12px px-10px py-2px rd-[100px] font-medium ml-4px'>
-                    {builtinAutoSkills.length}
-                  </span>
+              <div data-testid='auto-skills-section' className='relative overflow-hidden'>
+                <div className='mb-10px flex items-center gap-10px'>
+                  <Lightning theme='outline' size='16' />
+                  <span className='text-14px text-t-primary font-600'>{t('settings.autoInjectedSkills')}</span>
+                  <span className='text-12px text-t-tertiary'>{builtinAutoSkills.length}</span>
                 </div>
-                <div className='w-full flex flex-col gap-6px'>
+                <div className='flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
                   {builtinAutoSkills.map((skill) => (
                     <div
                       key={skill.name}
                       ref={(el) => {
                         skillRefs.current[skill.name] = el;
                       }}
-                      className={`flex flex-col sm:flex-row gap-16px p-16px bg-base border hover:border-border-1 hover:bg-fill-1 rd-12px transition-all duration-200 ${highlightedSkill === skill.name ? 'border-primary-5 bg-primary-1' : 'border-transparent'}`}
+                      className={`flex flex-col gap-12px py-12px transition-colors sm:flex-row ${highlightedSkill === skill.name ? 'bg-fill-1' : 'hover:bg-fill-1'}`}
                     >
                       <div className='shrink-0 flex items-start sm:mt-2px'>
-                        <div className='w-40px h-40px rd-10px bg-[rgba(var(--success-6),0.08)] flex items-center justify-center shadow-sm'>
-                          <Lightning theme='filled' size={20} fill='rgb(var(--success-6))' />
+                        <div className='flex size-28px items-center justify-center text-t-secondary'>
+                          <Lightning theme='outline' size='16' />
                         </div>
                       </div>
                       <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
                         <div className='flex items-center gap-10px'>
                           <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                          <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] border border-[rgba(var(--success-6),0.2)] text-10px px-6px py-1px rd-4px font-medium uppercase'>
+                          <span className='text-10px text-t-tertiary uppercase'>
                             {t('settings.autoInjectedSkillsBadge')}
                           </span>
                         </div>
@@ -577,17 +539,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 </div>
               </div>
             )}
-
-            {/* ======== Usage Tip ======== */}
-            <div className='px-16px md:px-[24px] py-20px bg-base border border-b-base shadow-sm rd-16px flex items-start gap-12px text-t-secondary'>
-              <Info size={18} className='text-primary-6 mt-2px shrink-0' />
-              <div className='flex flex-col gap-4px'>
-                <span className='font-bold text-t-primary text-14px'>
-                  {t('settings.skillsHub.tipTitle', { defaultValue: 'Usage Tip:' })}
-                </span>
-                <span className='text-13px leading-relaxed'>{t('settings.skillsHub.tipContent')}</span>
-              </div>
-            </div>
           </>
         )}
       </div>

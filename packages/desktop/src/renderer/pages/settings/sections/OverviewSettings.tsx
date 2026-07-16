@@ -6,8 +6,7 @@
 
 import React from 'react';
 import { Button, Typography } from '@arco-design/web-react';
-import { faCloud, faGaugeHigh, faTerminal } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { CloudStorage, DashboardOne, Terminal } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -171,11 +170,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       <header className='opl-settings-page-header'>
         <div className='flex min-w-0 items-start gap-10px'>
           <span
-            className='mt-1px flex h-32px w-32px shrink-0 items-center justify-center rd-7px bg-primary-1 text-primary-6'
+            className='mt-1px flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'
             data-testid='settings-overview-icon'
             aria-hidden='true'
           >
-            <FontAwesomeIcon icon={faGaugeHigh} className='text-16px' />
+            <DashboardOne theme='outline' size='16' />
           </span>
           <div className='opl-settings-page-header__copy'>
             <Typography.Title heading={4}>{t('settings.overviewPage.title')}</Typography.Title>
@@ -256,44 +255,43 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       )}
 
       <div
-        className='grid grid-cols-1 gap-14px md:grid-cols-2'
+        className='opl-settings-list border-t border-solid border-border-1'
         id='common-actions'
         data-testid='settings-overview-summary-grid'
       >
-        <section className='opl-settings-section flex' data-testid='settings-overview-card-codex'>
-          <div className='flex min-w-0 flex-1 flex-col gap-12px p-16px'>
-            <div className='flex min-w-0 items-start justify-between gap-12px'>
-              <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-primary-6'>
-                <FontAwesomeIcon icon={faTerminal} className='text-14px' aria-hidden='true' />
+        <div className='opl-settings-row' data-testid='settings-overview-card-codex'>
+          <div className='opl-settings-row__main'>
+            <div className='flex min-w-0 items-start gap-10px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <Terminal theme='outline' size='16' aria-hidden='true' />
               </span>
-              <span className={`opl-settings-status ${codexStatusClass}`.trim()}>{codexStatusLabel}</span>
+              <div className='min-w-0 flex-1'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.overviewPage.codexTitle')}
+                </Typography.Text>
+                <Typography.Text className='block break-words text-12px text-t-secondary'>
+                  {codexVersion
+                    ? t('settings.accessPage.cards.codexCli.version', { version: codexVersion })
+                    : t('settings.overviewPage.codexDescription')}
+                </Typography.Text>
+              </div>
             </div>
-            <div className='min-w-0 flex-1'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.overviewPage.codexTitle')}
-              </Typography.Text>
-              <Typography.Text className='block break-words text-12px text-t-secondary'>
-                {codexVersion
-                  ? t('settings.accessPage.cards.codexCli.version', { version: codexVersion })
-                  : t('settings.overviewPage.codexDescription')}
-              </Typography.Text>
-            </div>
-            <Button type='text' className='self-start px-0' onClick={() => navigate('/settings/access')}>
+          </div>
+          <div className='opl-settings-row__meta'>
+            <span className={`opl-settings-status ${codexStatusClass}`.trim()}>{codexStatusLabel}</span>
+            <Button type='text' className='px-0' onClick={() => navigate('/settings/access')}>
               {t('common.open')}
             </Button>
           </div>
-        </section>
+        </div>
 
-        <section className='opl-settings-section flex' id='gateway-usage' data-testid='settings-overview-card-gateway'>
-          <div className='flex min-w-0 flex-1 flex-col'>
-            <div className='flex min-w-0 flex-1 flex-col gap-12px p-16px'>
-              <div className='flex min-w-0 items-start justify-between gap-12px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-[rgb(var(--blue-6))]'>
-                  <FontAwesomeIcon icon={faCloud} className='text-14px' aria-hidden='true' />
-                </span>
-                <span className={`opl-settings-status ${gatewayStatusClass}`.trim()}>{gatewayStatusLabel}</span>
-              </div>
-              <div className='min-w-0'>
+        <div className='opl-settings-row' id='gateway-usage' data-testid='settings-overview-card-gateway'>
+          <div className='opl-settings-row__main'>
+            <div className='flex min-w-0 items-start gap-10px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <CloudStorage theme='outline' size='16' aria-hidden='true' />
+              </span>
+              <div className='min-w-0 flex-1'>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t('settings.overviewPage.gateway.title')}
                 </Typography.Text>
@@ -304,82 +302,79 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                       ? t('settings.overviewPage.gateway.manualKeyDescription')
                       : t('settings.overviewPage.gateway.notConnectedDescription')}
                 </Typography.Text>
-              </div>
-            </div>
-
-            {gatewayConnected && gatewayAccount?.account && (
-              <div
-                className='border-t border-solid border-[var(--border-base)]'
-                data-testid='settings-overview-gateway-account'
-              >
-                <div className='flex min-w-0 items-center gap-10px px-16px py-12px'>
-                  <span className='flex h-34px w-34px shrink-0 items-center justify-center rd-full bg-primary-1 text-12px font-600 text-primary-6'>
-                    {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
-                  </span>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block truncate font-600 text-t-primary'>
-                      {gatewayAccountName}
-                    </Typography.Text>
-                    {gatewayAccount.account.email && (
-                      <Typography.Text className='block break-all text-12px text-t-secondary'>
-                        {gatewayAccount.account.email}
-                      </Typography.Text>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {gatewayConnected && gatewayAccount?.account && (
-              <div
-                className='grid grid-cols-2 border-t border-solid border-[var(--border-base)]'
-                data-testid='settings-overview-gateway-metrics'
-              >
-                {[
-                  {
-                    id: 'today-tokens',
-                    label: t('settings.accessPage.gatewayAccount.metrics.todayTokens'),
-                    value: formatGatewayTokenCount(gatewayAccount.usage?.today_tokens ?? null, i18n.resolvedLanguage),
-                  },
-                  {
-                    id: 'today-cost',
-                    label: t('settings.accessPage.gatewayAccount.metrics.todayCost'),
-                    value: formatGatewayAmount(gatewayAccount.usage?.today_actual_cost, gatewayAccount.usage?.currency),
-                  },
-                  {
-                    id: 'balance',
-                    label: t('settings.accessPage.gatewayAccount.metrics.balance'),
-                    value: formatGatewayAmount(
-                      gatewayAccount.account.balance.amount,
-                      gatewayAccount.account.balance.currency
-                    ),
-                  },
-                  {
-                    id: 'availability',
-                    label: t('settings.overviewPage.gateway.metrics.availability'),
-                    value: gatewayStatusLabel,
-                  },
-                ].map((metric) => (
+                {gatewayConnected && gatewayAccount?.account && (
                   <div
-                    key={metric.id}
-                    className='min-w-0 border-b border-r border-solid border-[var(--border-base)] px-16px py-10px last:border-r-0'
+                    className='mt-8px flex min-w-0 items-center gap-8px'
+                    data-testid='settings-overview-gateway-account'
                   >
-                    <Typography.Text className='block truncate text-12px text-t-secondary'>
-                      {metric.label}
-                    </Typography.Text>
-                    <Typography.Text className='block truncate font-600 text-t-primary'>{metric.value}</Typography.Text>
+                    <span className='flex size-28px shrink-0 items-center justify-center rd-full bg-success-1 text-11px font-600 text-success-6'>
+                      {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
+                    </span>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block truncate text-12px font-500 text-t-primary'>
+                        {gatewayAccountName}
+                      </Typography.Text>
+                      {gatewayAccount.account.email && (
+                        <Typography.Text className='block break-all text-11px text-t-secondary'>
+                          {gatewayAccount.account.email}
+                        </Typography.Text>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            <div className='mt-auto border-t border-solid border-[var(--border-base)] px-16px py-10px'>
-              <Button type='text' className='px-0' onClick={() => navigate('/settings/gateway')}>
-                {t('common.open')}
-              </Button>
+                {gatewayConnected && gatewayAccount?.account && (
+                  <div
+                    className='mt-8px flex flex-wrap gap-x-16px gap-y-4px'
+                    data-testid='settings-overview-gateway-metrics'
+                  >
+                    {[
+                      {
+                        id: 'today-tokens',
+                        label: t('settings.accessPage.gatewayAccount.metrics.todayTokens'),
+                        value: formatGatewayTokenCount(
+                          gatewayAccount.usage?.today_tokens ?? null,
+                          i18n.resolvedLanguage
+                        ),
+                      },
+                      {
+                        id: 'today-cost',
+                        label: t('settings.accessPage.gatewayAccount.metrics.todayCost'),
+                        value: formatGatewayAmount(
+                          gatewayAccount.usage?.today_actual_cost,
+                          gatewayAccount.usage?.currency
+                        ),
+                      },
+                      {
+                        id: 'balance',
+                        label: t('settings.accessPage.gatewayAccount.metrics.balance'),
+                        value: formatGatewayAmount(
+                          gatewayAccount.account.balance.amount,
+                          gatewayAccount.account.balance.currency
+                        ),
+                      },
+                      {
+                        id: 'availability',
+                        label: t('settings.overviewPage.gateway.metrics.availability'),
+                        value: gatewayStatusLabel,
+                      },
+                    ].map((metric) => (
+                      <span className='min-w-0 text-11px text-t-secondary' key={metric.id}>
+                        {metric.label}: <strong className='font-500 text-t-primary'>{metric.value}</strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </section>
+          <div className='opl-settings-row__meta'>
+            <span className={`opl-settings-status ${gatewayStatusClass}`.trim()}>{gatewayStatusLabel}</span>
+            <Button type='text' className='px-0' onClick={() => navigate('/settings/gateway')}>
+              {t('common.open')}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <section className='opl-settings-section' data-testid='settings-overview-technical-details'>

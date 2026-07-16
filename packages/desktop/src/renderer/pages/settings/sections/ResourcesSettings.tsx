@@ -352,8 +352,8 @@ export const ResourcesSettingsContent: React.FC = () => {
           <span id='web-remote' aria-hidden='true' />
           <div className='opl-settings-row items-start'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
-              <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                <Earth theme='outline' />
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <Earth theme='outline' size='16' />
               </span>
               <div className='min-w-0'>
                 <Typography.Text className='block font-600 text-t-primary'>
@@ -404,8 +404,8 @@ export const ResourcesSettingsContent: React.FC = () => {
           <div className='opl-settings-list'>
             <div className='opl-settings-row' id='action-readiness'>
               <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
-                <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                  <Toolkit theme='outline' />
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                  <Toolkit theme='outline' size='16' />
                 </span>
                 <div className='min-w-0'>
                   <Typography.Text className='block font-600 text-t-primary'>
