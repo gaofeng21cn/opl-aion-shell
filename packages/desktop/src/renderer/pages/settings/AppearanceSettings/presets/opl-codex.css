@@ -509,7 +509,7 @@ body {
 .send-box,
 .message-input,
 .prompt-input,
-[class*='input'][class*='shell'] {
+[class*='input'][class*='shell']:not(.guid-input-card-shell) {
   border-radius: 14px !important;
   background: var(--opl-codex-surface) !important;
   border: 1px solid var(--border-base) !important;
@@ -524,13 +524,13 @@ body {
 
 .guid-input-card-shell > div:first-child,
 .guid-input-card-inner {
-  border: 1px solid var(--border-base) !important;
+  border: 1px solid var(--opl-composer-border) !important;
   background: var(--opl-codex-surface) !important;
-  box-shadow: 0 1px 2px rgba(24, 32, 44, 0.06) !important;
+  box-shadow: var(--opl-composer-shadow) !important;
 }
 
 .guid-input-card-shell > div:first-child {
-  border-radius: 14px !important;
+  border-radius: 22px !important;
 }
 
 .guid-input-card-shell > div:first-child textarea,
@@ -542,6 +542,8 @@ body {
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+  font-size: 14px !important;
+  line-height: 20px !important;
 }
 
 .guid-input-card-shell > div:first-child .arco-textarea-wrapper:focus-within,
@@ -558,7 +560,7 @@ body {
 .send-box:focus-within,
 .message-input:focus-within,
 .prompt-input:focus-within,
-[class*='input'][class*='shell']:focus-within {
+[class*='input'][class*='shell']:not(.guid-input-card-shell):focus-within {
   border-color: var(--color-primary-light-2) !important;
   box-shadow:
     0 0 0 3px var(--opl-codex-focus-ring),
@@ -572,10 +574,8 @@ body {
 
 .guid-input-card-shell > div:first-child:focus-within,
 .guid-input-card-inner:focus-within {
-  border-color: var(--color-primary-light-2) !important;
-  box-shadow:
-    0 0 0 3px var(--opl-codex-focus-ring),
-    0 1px 2px rgba(24, 32, 44, 0.06) !important;
+  border-color: var(--opl-composer-border-focus) !important;
+  box-shadow: var(--opl-composer-focus-shadow) !important;
 }
 
 .arco-card .arco-typography,

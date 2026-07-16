@@ -999,6 +999,12 @@ describe('AccessSettingsContent', () => {
     const stale = view.getByTestId('settings-gateway-stale');
     expect(stale.className).not.toContain('border');
     expect(view.getByTestId('settings-gateway-account-footer')).not.toHaveClass('border-t');
+    expect(view.getByTestId('settings-gateway-identity-actions')).toContainElement(
+      view.getByRole('button', { name: 'Disconnect' })
+    );
+    expect(view.getByTestId('settings-gateway-account-footer')).not.toContainElement(
+      view.getByRole('button', { name: 'Disconnect' })
+    );
     expect(account.querySelectorAll('.border-t')).toHaveLength(0);
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
     expect(view.queryByText('Resync')).toBeNull();

@@ -335,6 +335,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                       Message.success(t('common.refreshSuccess', { defaultValue: 'Refreshed' }));
                     }}
                     title={t('common.refresh', { defaultValue: 'Refresh' })}
+                    aria-label={t('common.refresh', { defaultValue: 'Refresh' })}
                   >
                     <Refresh theme='outline' size='16' className={loading ? 'animate-spin' : ''} />
                   </button>
@@ -355,16 +356,17 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                     />
                   </div>
 
-                  <button
+                  <Button
+                    htmlType='button'
+                    type='secondary'
+                    size='small'
+                    icon={<FolderOpen theme='outline' size='16' fill='currentColor' />}
                     data-testid='btn-manual-import'
-                    className='flex shrink-0 cursor-pointer items-center justify-center gap-6px whitespace-nowrap border border-border-1 bg-base px-14px py-6px text-t-primary rd-7px transition-all hover:bg-fill-1 focus:outline-none'
+                    className='shrink-0 whitespace-nowrap'
                     onClick={handleManualImport}
                   >
-                    <FolderOpen size={15} className='text-t-secondary' />
-                    <span className='text-13px font-medium'>
-                      {t('settings.skillsHub.manualImport', { defaultValue: 'Import Skills' })}
-                    </span>
-                  </button>
+                    {t('settings.skillsHub.manualImport', { defaultValue: 'Import Skills' })}
+                  </Button>
                 </div>
               </div>
 
@@ -418,7 +420,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                         )}
                       </div>
 
-                      <div className='shrink-0 sm:self-center flex items-center justify-end gap-6px mt-12px sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity pl-4px'>
+                      <div className='shrink-0 sm:self-center flex items-center justify-end gap-6px mt-12px sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pl-4px'>
                         {skill.source === 'custom' && !flowManagedIdSet.has(skill.name) && (
                           <button
                             data-testid={`btn-delete-${normalizeTestId(skill.name)}`}
@@ -437,8 +439,9 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                               });
                             }}
                             title={t('common.delete', { defaultValue: 'Delete' })}
+                            aria-label={t('common.delete', { defaultValue: 'Delete' })}
                           >
-                            <Delete size={16} />
+                            <Delete theme='outline' size='16' fill='currentColor' />
                           </button>
                         )}
                       </div>

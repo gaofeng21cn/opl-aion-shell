@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import HomeStarters from '@/renderer/pages/guid/components/HomeStarters';
+import PresetAgentTag from '@/renderer/pages/guid/components/PresetAgentTag';
 
 const mocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
@@ -127,6 +128,8 @@ describe('HomeStarters', () => {
     expect(activeStarter.className).toContain('homeStarterActive');
     expect(activeStarter).not.toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
     expect(screen.getByTestId('starter-active-check')).toBeInTheDocument();
+    expect(screen.getByTestId('starter-icon-oma').className).toContain('homeStarterIcon');
+    expect(screen.getByTestId('starter-active-check').className).toContain('homeStarterCheck');
     expect(screen.queryByTestId('starter-next-oma')).not.toBeInTheDocument();
   });
 
@@ -202,5 +205,53 @@ describe('HomeStarters', () => {
     expect(starter).not.toBeDisabled();
     await userEvent.click(starter);
     expect(onSelect).toHaveBeenCalledWith('oma');
+  });
+});
+
+describe('PresetAgentTag agent switcher', () => {
+  it('supports keyboard opening and selection without adding button chrome', async () => {
+    const user = userEvent.setup();
+    const onAgentSwitch = vi.fn();
+
+    render(
+      <PresetAgentTag
+        agentInfo={{ agent_type: 'codex', name: 'Codex', custom_agent_id: 'codex' }}
+        assistants={[assistant('codex')]}
+        localeKey='en-US'
+        onClose={vi.fn()}
+        agentSwitcherItems={[
+          { key: 'codex', label: 'Codex', isCurrent: true },
+          { key: 'research', label: 'Research', isCurrent: false },
+        ]}
+        onAgentSwitch={onAgentSwitch}
+      />
+    );
+
+    const trigger = screen.getByTestId('preset-agent-switcher-trigger');
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveClass('border-0', 'bg-transparent', 'appearance-none');
+    expect(trigger).not.toHaveClass('arco-btn');
+    expect(trigger).not.toHaveAttribute('style');
+
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'));
+
+    const menu = await screen.findByRole('menu');
+    const researchItem = within(menu).getByRole('menuitem', { name: 'Research' });
+    researchItem.focus();
+    fireEvent.keyDown(researchItem, { key: 'Enter', code: 'Enter', keyCode: 13 });
+
+    expect(onAgentSwitch).toHaveBeenCalledWith('research');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard(' ');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'));
+    await user.keyboard(' ');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
   });
 });

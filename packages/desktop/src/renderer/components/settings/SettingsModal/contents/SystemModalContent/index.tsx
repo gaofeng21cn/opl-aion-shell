@@ -33,7 +33,9 @@ const ReadOnlyPathRow: React.FC<ReadOnlyPathRowProps> = ({ label, path, onOpen }
       <div className='opl-settings-row__main'>
         <Typography.Text className='font-500 text-t-primary'>{label}</Typography.Text>
         <Tooltip content={displayPath} position='top'>
-          <Typography.Text className='block break-all text-12px text-t-secondary'>{displayPath}</Typography.Text>
+          <Typography.Text className='block break-words [overflow-wrap:anywhere] text-12px text-t-secondary'>
+            {displayPath}
+          </Typography.Text>
         </Tooltip>
       </div>
       <div className='opl-settings-row__meta'>
@@ -41,7 +43,7 @@ const ReadOnlyPathRow: React.FC<ReadOnlyPathRowProps> = ({ label, path, onOpen }
           <Button
             type='text'
             aria-label={openLabel}
-            icon={<FolderSearch theme='outline' size='18' />}
+            icon={<FolderSearch theme='outline' size='16' strokeWidth={2} />}
             disabled={!path}
             onClick={onOpen}
           />

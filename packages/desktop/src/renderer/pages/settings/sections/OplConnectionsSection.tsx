@@ -252,6 +252,8 @@ const OplConnectionsSection: React.FC<{
                   <Button
                     size='mini'
                     icon={<EditTwo theme='outline' />}
+                    aria-label={t('common.edit')}
+                    title={t('common.edit')}
                     disabled={busy}
                     onClick={() => {
                       setFormValue(connectionFormValue(connection));
@@ -266,6 +268,8 @@ const OplConnectionsSection: React.FC<{
                       size='mini'
                       status='danger'
                       icon={<Delete theme='outline' />}
+                      aria-label={t('common.delete')}
+                      title={t('common.delete')}
                       disabled={busy || isDefault}
                       onClick={() => setConnectionToDelete(connection)}
                       data-testid={`opl-connection-delete-${connection.connectionId}`}

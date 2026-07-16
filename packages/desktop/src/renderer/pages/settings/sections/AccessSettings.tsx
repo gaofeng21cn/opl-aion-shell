@@ -554,7 +554,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
 
             {gatewayAccount?.account_card_visible && gatewayAccount.account && (
               <div className='sm:pl-38px' id='account' data-testid='settings-gateway-account'>
-                <div className='flex flex-wrap items-center justify-between gap-12px py-12px'>
+                <div
+                  className='flex flex-wrap items-center justify-between gap-12px py-12px'
+                  data-testid='settings-gateway-identity-row'
+                >
                   <div className='flex min-w-0 items-center gap-12px'>
                     <span className='flex h-32px w-32px shrink-0 items-center justify-center rd-full bg-success-1 text-12px font-600 text-success-6'>
                       {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
@@ -580,6 +583,29 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                         </Typography.Text>
                       )}
                     </div>
+                  </div>
+                  <div
+                    className='flex shrink-0 flex-wrap items-center justify-end gap-8px'
+                    data-testid='settings-gateway-identity-actions'
+                  >
+                    {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
+                      <Button
+                        size='small'
+                        type='primary'
+                        onClick={() => {
+                          setGatewayMode('account');
+                          setGatewayFormVisible(true);
+                          setGatewayLoginError(null);
+                        }}
+                      >
+                        {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
+                      </Button>
+                    )}
+                    {gatewayAccount.actions.disconnect && (
+                      <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
+                        {t('settings.accessPage.gatewayAccount.actions.disconnect')}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -635,10 +661,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   </div>
                 </div>
 
-                <div
-                  className='mt-2px flex flex-wrap items-center justify-between gap-12px py-12px'
-                  data-testid='settings-gateway-account-footer'
-                >
+                <div className='mt-2px py-12px' data-testid='settings-gateway-account-footer'>
                   <div className='min-w-0'>
                     {gatewayAccount.managed_key && (
                       <Typography.Text className='block break-words text-12px text-t-secondary'>
@@ -664,26 +687,6 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                         />
                       )}
                     </div>
-                  </div>
-                  <div className='flex flex-wrap items-center justify-end gap-8px'>
-                    {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
-                      <Button
-                        size='small'
-                        type='primary'
-                        onClick={() => {
-                          setGatewayMode('account');
-                          setGatewayFormVisible(true);
-                          setGatewayLoginError(null);
-                        }}
-                      >
-                        {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
-                      </Button>
-                    )}
-                    {gatewayAccount.actions.disconnect && (
-                      <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
-                        {t('settings.accessPage.gatewayAccount.actions.disconnect')}
-                      </Button>
-                    )}
                   </div>
                 </div>
               </div>

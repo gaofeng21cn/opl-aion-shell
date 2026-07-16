@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Modal, Space, Tag, Typography } from '@arco-design/web-react';
-import { Delete, FolderSearch, Repair, Undo, UpdateRotation } from '@icon-park/react';
+import { Delete, FolderSearch, Info, Repair, Undo, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -85,6 +85,12 @@ const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = 
 };
 
 const LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY = 'opl.storage.latestConversationArchiveReceipt.v1';
+const STORAGE_ACTION_ICON_PROPS = {
+  theme: 'outline' as const,
+  size: 16,
+  fill: 'currentColor',
+  strokeWidth: 2,
+};
 
 // This pointer only locates a restore candidate; restoreConversationProof remains authoritative.
 const readLatestConversationArchiveReceiptPath = (): string | null => {
@@ -136,33 +142,31 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
   const isEmpty = hasInventory && item.bytes <= 0;
 
   return (
-    <section
-      className='opl-settings-section opl-settings-surface--action flex'
-      id={SECTION_ANCHORS[item.id]}
-      data-testid={`storage-inventory-${item.id}`}
-    >
-      <div className='flex min-w-0 flex-1 flex-col gap-14px p-16px'>
-        <div className='min-w-0'>
-          <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
-          <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
-        </div>
-        <Typography.Text className='text-16px font-600 text-t-primary'>
-          {hasInventory ? formatStorageBytes(item.bytes) : t('settings.storagePage.inventory.unknownSize')}
-        </Typography.Text>
+    <div className='opl-settings-row' id={SECTION_ANCHORS[item.id]} data-testid={`storage-inventory-${item.id}`}>
+      <div className='opl-settings-row__main'>
+        <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
+        <Typography.Text className='text-12px text-t-secondary break-words'>{t(meta.descriptionKey)}</Typography.Text>
         {isEmpty && (
-          <div className='opl-settings-action-result'>{t('settings.storagePage.inventory.noCleanupNeeded')}</div>
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.storagePage.inventory.noCleanupNeeded')}
+          </Typography.Text>
         )}
-        {!isEmpty && status && <div className='opl-settings-action-result'>{status}</div>}
+        {!isEmpty && status && <div className='text-12px text-t-secondary break-words'>{status}</div>}
         {!hasInventory && (
-          <Typography.Text className='block text-12px text-t-secondary'>
+          <Typography.Text className='text-12px text-t-secondary'>
             {t('settings.storagePage.inventory.notLoaded')}
           </Typography.Text>
         )}
+      </div>
+      <div className='opl-settings-row__meta'>
+        <Typography.Text className='text-13px font-600 text-t-primary whitespace-nowrap'>
+          {hasInventory ? formatStorageBytes(item.bytes) : t('settings.storagePage.inventory.unknownSize')}
+        </Typography.Text>
         {hasInventory && (!isEmpty || actionsWhenEmpty) && (
-          <div className='mt-auto flex flex-wrap items-center gap-8px'>{actions}</div>
+          <div className='flex flex-wrap items-center justify-end gap-8px'>{actions}</div>
         )}
       </div>
-    </section>
+    </div>
   );
 };
 
@@ -530,7 +534,7 @@ export const StorageSettingsContent: React.FC = () => {
           {!viewModel.conversationProof.receiptPath && (
             <Button
               htmlType='button'
-              icon={<FolderSearch />}
+              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked}
               loading={loading === 'archive'}
               onClick={archiveConversations}
@@ -541,7 +545,7 @@ export const StorageSettingsContent: React.FC = () => {
           {conversationArchiveCanRestore && (
             <Button
               htmlType='button'
-              icon={<Undo />}
+              icon={<Undo {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked}
               loading={loading === 'restore-conversations'}
               onClick={() => requestDangerAction('restore-conversations')}
@@ -554,7 +558,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               status='danger'
-              icon={<Delete />}
+              icon={<Delete {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked || !viewModel.canDeleteConversationArtifacts}
               loading={loading === 'delete-conversations'}
               onClick={() => requestDangerAction('delete-conversations')}
@@ -580,7 +584,7 @@ export const StorageSettingsContent: React.FC = () => {
         <Button
           htmlType='button'
           status='danger'
-          icon={<Repair />}
+          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'runtime-execute'}
           onClick={() => requestDangerAction('runtime-execute')}
@@ -591,7 +595,7 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch />}
+          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'runtime-plan'}
           onClick={dryRunRuntimePrune}
@@ -611,7 +615,7 @@ export const StorageSettingsContent: React.FC = () => {
         <Button
           htmlType='button'
           status='danger'
-          icon={<UpdateRotation />}
+          icon={<UpdateRotation {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'logs-execute'}
           onClick={() => requestDangerAction('logs-execute')}
@@ -622,7 +626,7 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch />}
+          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'logs-plan'}
           onClick={dryRunLogRotation}
@@ -653,7 +657,7 @@ export const StorageSettingsContent: React.FC = () => {
       actions: viewModel.updaterPlan.canExecute ? (
         <Button
           htmlType='button'
-          icon={<Repair />}
+          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'updater-execute'}
           onClick={() => requestDangerAction('updater-execute')}
@@ -664,7 +668,7 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch />}
+          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'updater-plan'}
           onClick={dryRunUpdaterCleanup}
@@ -713,7 +717,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               type='primary'
-              icon={<FolderSearch />}
+              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked}
               loading={loading === 'cleanup-preview'}
               onClick={previewCleanup}
@@ -722,6 +726,14 @@ export const StorageSettingsContent: React.FC = () => {
               {t('settings.storagePage.actions.previewAll')}
             </Button>
           )}
+          <Button
+            type='secondary'
+            icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
+            data-testid='settings-storage-diagnostics-action'
+            onClick={() => setDiagnosticsVisible(true)}
+          >
+            {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+          </Button>
           <OplRefreshIconButton
             htmlType='button'
             label={t('settings.storagePage.actions.refresh')}
@@ -775,7 +787,7 @@ export const StorageSettingsContent: React.FC = () => {
 
       <div id='storage-categories' data-testid='settings-storage-primary'>
         <span id='cleanup-preview' aria-hidden='true' />
-        <div className='grid grid-cols-1 gap-14px md:grid-cols-2' data-testid='storage-category-list'>
+        <div className='opl-settings-list' data-testid='storage-category-list'>
           {viewModel.sections.map((item) => (
             <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
           ))}
@@ -784,11 +796,7 @@ export const StorageSettingsContent: React.FC = () => {
 
       <span id='cleanup-history' aria-hidden='true' />
 
-      <div className='flex justify-end' data-testid='storage-research-lifecycle'>
-        <Button data-testid='settings-storage-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
-          {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-        </Button>
-      </div>
+      <span data-testid='storage-research-lifecycle' aria-hidden='true' />
       <Modal
         visible={diagnosticsVisible}
         title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}

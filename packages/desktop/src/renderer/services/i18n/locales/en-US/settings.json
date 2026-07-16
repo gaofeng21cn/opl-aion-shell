@@ -1496,6 +1496,7 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway data",
       "backgroundService": "Background service",
+      "temporalNotConfigured": "Temporal server and worker are not configured",
       "capabilities": "Capability packages"
     },
     "developerSource": {
@@ -2776,7 +2777,82 @@
       }
     },
     "temporal": {
-      "workerSourceStaleDetail": "Worker restart needed"
+      "title": "Temporal services",
+      "description": "Temporal keeps durable OPL tasks running in the background. Check and maintain the server, worker, and scheduler here.",
+      "workerSourceStaleDetail": "Worker restart needed",
+      "server": {
+        "title": "Temporal server",
+        "address": "{{address}} · {{source}}",
+        "namespace": "Namespace: {{namespace}}"
+      },
+      "worker": {
+        "title": "OPL worker",
+        "taskQueue": "Task queue: {{taskQueue}}",
+        "blockers": "Needs attention: {{blockers}}",
+        "developerGuardBlocked": "The active OPL CLI points to a developer checkout, so it cannot take over the shared managed worker.",
+        "developerGuardNextSteps": "Switch back to the managed runtime, or explicitly enable authorized developer maintenance.",
+        "manageSources": "Manage runtime source"
+      },
+      "scheduler": {
+        "title": "OPL scheduler",
+        "description": "Maintains the recurring OPL family runtime schedule."
+      },
+      "values": {
+        "ready": "Ready",
+        "reachable": "Reachable",
+        "unreachable": "Unreachable",
+        "notChecked": "Not checked",
+        "needsCheck": "Check required",
+        "needsAttention": "Needs attention",
+        "notConfigured": "Not configured",
+        "notInstalled": "Not installed",
+        "restartRequired": "Restart required",
+        "paused": "Paused",
+        "none": "No reported blockers"
+      },
+      "addressSources": {
+        "managed": "OPL-managed local service",
+        "environment": "Environment configuration",
+        "notConfigured": "No configured address",
+        "unknown": "Address source unknown"
+      },
+      "blockers": {
+        "notConfigured": "Temporal is not configured",
+        "serverUnreachable": "Temporal server is unreachable",
+        "workerDependencyUnavailable": "Worker dependencies are unavailable",
+        "duplicateWorker": "Another worker is already running",
+        "workerExited": "Worker process exited",
+        "workerSourceStale": "Worker source is out of date",
+        "workerNotReady": "Worker is not ready",
+        "unknown": "An unknown worker blocker was reported"
+      },
+      "actions": {
+        "checkServer": "Check server",
+        "configureAndStartServer": "Configure and start",
+        "checkWorker": "Check worker",
+        "startWorker": "Start worker",
+        "restartWorker": "Restart worker",
+        "checkScheduler": "Check scheduler",
+        "installScheduler": "Install scheduler",
+        "triggerScheduler": "Run scheduler now",
+        "unavailable": "This maintenance action is not available in the current App state."
+      },
+      "outcomes": {
+        "checked": "checked",
+        "completed": "completed",
+        "needsAttention": "needs attention",
+        "blocked": "blocked",
+        "failed": "failed"
+      },
+      "readback": "{{action}}: {{outcome}} · read back at {{observedAt}}",
+      "messages": {
+        "actionComplete": "Temporal maintenance completed and the new state was verified.",
+        "needsAttention": "The check completed, but this Temporal service still needs attention.",
+        "actionBlocked": "Temporal maintenance was blocked by the current safety policy.",
+        "actionFailed": "Temporal maintenance failed.",
+        "readbackFailed": "The action ran, but the App could not read back the fresh Temporal state.",
+        "postconditionFailed": "The action ran, but the expected Temporal state was not reached."
+      }
     },
     "installOrigins": {
       "managed_root": "From OPL-managed directory",

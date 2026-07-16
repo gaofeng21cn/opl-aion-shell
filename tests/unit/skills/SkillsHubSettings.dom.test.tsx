@@ -96,6 +96,9 @@ describe('SkillsHubSettings', () => {
 
     expect(screen.queryByText('aionui-skills')).not.toBeInTheDocument();
     expect(screen.queryByText('AionUI implementation helper')).not.toBeInTheDocument();
+    const manualImport = screen.getByTestId('btn-manual-import');
+    expect(manualImport).toHaveClass('arco-btn');
+    expect(manualImport.querySelector('svg')).not.toBeNull();
   });
 
   it('uses the typed Flow catalog instead of the App-local skill directory for managed status', async () => {

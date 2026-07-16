@@ -13,6 +13,7 @@ vi.mock('@/common', () => ({
 
 import {
   cacheFastOplAppState,
+  loadOplAppStateFromBridge,
   OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES,
   resetOplAppStateLoadsForTest,
   useOplAppState,
@@ -99,6 +100,26 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     renderHook(() => useOplAppState('fast', { autoLoad: false }));
 
     expect(getAppStateInvoke).not.toHaveBeenCalled();
+  });
+
+  it('waits for a shared request before issuing the required fresh read', async () => {
+    let resolveShared!: (value: { ok: true; parsed: { app_state: { version: string } } }) => void;
+    const sharedRequest = new Promise<{ ok: true; parsed: { app_state: { version: string } } }>((resolve) => {
+      resolveShared = resolve;
+    });
+    getAppStateInvoke
+      .mockReturnValueOnce(sharedRequest)
+      .mockResolvedValueOnce({ ok: true, parsed: { app_state: { version: 'fresh' } } });
+
+    const sharedLoad = loadOplAppStateFromBridge('fast');
+    const freshLoad = loadOplAppStateFromBridge('fast', { forceFresh: true });
+
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
+
+    resolveShared({ ok: true, parsed: { app_state: { version: 'shared' } } });
+    await expect(sharedLoad).resolves.toEqual({ app_state: { version: 'shared' } });
+    await expect(freshLoad).resolves.toEqual({ app_state: { version: 'fresh' } });
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
   });
 
   it('renders the cached connected account before the background refresh resolves', () => {

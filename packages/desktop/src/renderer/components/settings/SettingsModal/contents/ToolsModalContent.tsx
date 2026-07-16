@@ -10,7 +10,7 @@ import { removeImageGenerationEnvKeys, resolveImageGenerationMcpEnv } from '@/co
 import { mcpService } from '@/common/adapter/ipcBridge';
 import { type IMcpServer, BUILTIN_IMAGE_GEN_ID, BUILTIN_IMAGE_GEN_NAME } from '@/common/config/storage';
 import { isImageGenSupported } from '@/common/utils/imageModelAllowlist';
-import { Divider, Form, Tooltip, Message, Button, Dropdown, Menu, Modal, Switch } from '@arco-design/web-react';
+import { Form, Tooltip, Message, Button, Dropdown, Menu, Modal, Switch } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -175,7 +175,7 @@ const ModalMcpManagementSection: React.FC<{
           </Menu>
         }
       >
-        <Button type='outline' icon={<Plus size={'16'} />} shape='round' onClick={(e) => e.stopPropagation()}>
+        <Button type='secondary' icon={<Plus theme='outline' size='16' />} onClick={(e) => e.stopPropagation()}>
           {t('settings.mcpAddServer')} <Down size='12' />
         </Button>
       </Dropdown>
@@ -486,7 +486,7 @@ const ToolsModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='flex flex-col'>
           {/* MCP 工具配置 */}
-          <div className='flex min-h-0 flex-col py-12px'>
+          <section className='flex min-h-0 flex-col py-12px' data-testid='settings-capabilities-manual-mcp'>
             <div className='flex-1 min-h-0'>
               <AionScrollArea
                 className={classNames('h-full', isPageMode && 'overflow-visible')}
@@ -502,9 +502,12 @@ const ToolsModalContent: React.FC = () => {
                 />
               </AionScrollArea>
             </div>
-          </div>
+          </section>
           {/* 图像生成 */}
-          <div className='border-t border-solid border-border-1 py-16px'>
+          <section
+            className='border-t border-solid border-border-1 py-16px'
+            data-testid='settings-capabilities-image-generation'
+          >
             <div className='flex items-center justify-between mb-16px'>
               <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
               <Switch
@@ -520,9 +523,7 @@ const ToolsModalContent: React.FC = () => {
               />
             </div>
 
-            <Divider className='mt-0px mb-20px' />
-
-            <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
+            <Form layout='horizontal' labelAlign='left' className='mt-14px space-y-12px'>
               <Form.Item
                 label={t('settings.imageGenerationModel')}
                 tooltip={
@@ -608,7 +609,7 @@ const ToolsModalContent: React.FC = () => {
                 )}
               </Form.Item>
             </Form>
-          </div>
+          </section>
         </div>
       </AionScrollArea>
     </div>

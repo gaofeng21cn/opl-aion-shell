@@ -19,6 +19,44 @@ const bridgeMocks = vi.hoisted(() => ({
   loadAppState: vi.fn(),
 }));
 
+const messageMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+}));
+
+type TemporalFixture = {
+  status: string;
+  health_status: string;
+  ready?: boolean;
+  details?: {
+    address?: string;
+    address_source?: string;
+    namespace?: string;
+    task_queue?: string;
+    scheduler_status?: string;
+    worker_readiness?: {
+      blockers?: string[];
+      lifecycle_status?: string;
+      server_reachable?: boolean;
+      worker_mutation_guard?: {
+        mutation_guard_status?: string;
+      };
+      worker_ready?: boolean;
+    };
+  };
+};
+
+type TemporalActionFixture = {
+  action_id: string;
+  label: string;
+};
+
+const defaultTemporalState: TemporalFixture = {
+  status: 'ready',
+  health_status: 'ready',
+};
+
 const appState = {
   schema_version: 'opl_app_state.v1',
   core: {
@@ -31,8 +69,9 @@ const appState = {
     },
   },
   provider: {
-    temporal: { status: 'ready', health_status: 'ready' },
+    temporal: structuredClone(defaultTemporalState),
   },
+  actions: [] as TemporalActionFixture[],
   paths: {
     workspace_root_path: '/Users/example/workspace',
     family_workspace_root: {
@@ -71,6 +110,17 @@ const appState = {
     },
   },
 };
+
+function exposeTemporalActions(...actionIds: string[]) {
+  appState.actions = actionIds.map((actionId) => ({
+    action_id: actionId,
+    label: actionId,
+  }));
+}
+
+function setTemporalState(temporal: TemporalFixture) {
+  appState.provider.temporal = temporal;
+}
 
 const updateStatus = {
   managed_update: {
@@ -151,6 +201,17 @@ vi.mock('@/common', () => ({
   },
 }));
 
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      ...actual.Message,
+      useMessage: () => [messageMocks, null],
+    },
+  };
+});
+
 vi.mock('@/common/config/oplProductProfile', () => ({
   canonicalizeOplProfessionalAgentId: (id: string) =>
     (
@@ -202,6 +263,35 @@ vi.mock('@/renderer/services/managedUpdateMaintenance', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string | number>) => {
+      const labels: Record<string, string> = {
+        'settings.oplEnvironmentPage.temporal.actions.checkScheduler': '检查调度器',
+        'settings.oplEnvironmentPage.temporal.actions.checkServer': '检查 Server',
+        'settings.oplEnvironmentPage.temporal.actions.checkWorker': '检查 Worker',
+        'settings.oplEnvironmentPage.temporal.actions.configureAndStartServer': '配置并启动 Server',
+        'settings.oplEnvironmentPage.temporal.actions.installScheduler': '安装调度器',
+        'settings.oplEnvironmentPage.temporal.actions.restartWorker': '重启 Worker',
+        'settings.oplEnvironmentPage.temporal.actions.startWorker': '启动 Worker',
+        'settings.oplEnvironmentPage.temporal.messages.actionComplete': '维护已完成',
+        'settings.oplEnvironmentPage.temporal.outcomes.blocked': '已拦截',
+        'settings.oplEnvironmentPage.temporal.outcomes.checked': '检查完成',
+        'settings.oplEnvironmentPage.temporal.outcomes.completed': '执行完成',
+        'settings.oplEnvironmentPage.temporal.outcomes.failed': '执行失败',
+        'settings.oplEnvironmentPage.temporal.outcomes.needsAttention': '需要处理',
+        'settings.oplEnvironmentPage.temporal.blockers.unknown': '详情见技术信息',
+        'settings.oplEnvironmentPage.temporal.values.needsCheck': '需要检查',
+        'settings.oplEnvironmentPage.temporal.values.needsAttention': '需要检查',
+        'settings.oplEnvironmentPage.temporal.values.notChecked': '尚未检查',
+        'settings.oplEnvironmentPage.temporal.values.notConfigured': '未配置',
+        'settings.oplEnvironmentPage.temporal.values.notInstalled': '未安装',
+        'settings.oplEnvironmentPage.temporal.values.reachable': '可连接',
+        'settings.oplEnvironmentPage.temporal.values.ready': '运行正常',
+        'settings.oplEnvironmentPage.temporal.worker.developerGuardBlocked':
+          '当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。',
+        'settings.oplEnvironmentPage.temporal.worker.developerGuardNextSteps':
+          '请切回托管运行来源，或明确启用已授权的开发仓库维护。',
+        'settings.oplEnvironmentPage.temporal.worker.manageSources': '管理运行来源',
+      };
+      if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
         .filter((value) => value !== undefined && value !== null && String(value).length > 0)
         .map(String)
@@ -222,6 +312,11 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.executeManagedUpdateRead.mockReset();
     bridgeMocks.executeManagedUpdateMutation.mockReset();
     bridgeMocks.loadAppState.mockReset();
+    messageMocks.error.mockReset();
+    messageMocks.success.mockReset();
+    messageMocks.warning.mockReset();
+    setTemporalState(structuredClone(defaultTemporalState));
+    appState.actions = [];
     maintenanceSnapshot.result = {
       stdout: '{}',
       parsed: updateStatus,
@@ -245,6 +340,390 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it('treats a ready provider with a managed address as a reachable server when reachability is omitted', () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler_status: 'ready',
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          worker_ready: true,
+        },
+      },
+    });
+    exposeTemporalActions(
+      'provider_service_status',
+      'provider_service_start',
+      'provider_worker_status',
+      'provider_worker_restart',
+      'provider_scheduler_status'
+    );
+
+    render(<RuntimeSettings />);
+
+    const serverRow = screen.getByTestId('opl-temporal-server-row');
+    expect(within(serverRow).getByText('可连接')).toBeVisible();
+    expect(within(serverRow).queryByText('尚未检查')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-temporal-action-provider_service_start')).not.toBeInTheDocument();
+  });
+
+  it('does not let provider readiness override an explicitly unready worker', () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        worker_readiness: {
+          lifecycle_status: 'worker_not_ready',
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions(
+      'provider_service_status',
+      'provider_worker_status',
+      'provider_worker_start',
+      'provider_worker_restart'
+    );
+
+    render(<RuntimeSettings />);
+
+    expect(within(screen.getByTestId('opl-temporal-server-row')).getByText('可连接')).toBeVisible();
+    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    expect(within(workerRow).queryByText('运行正常')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-temporal-action-provider_worker_start')).toBeEnabled();
+    expect(screen.queryByTestId('opl-temporal-action-provider_worker_restart')).not.toBeInTheDocument();
+  });
+
+  it('fails closed when a ready provider omits explicit worker readiness', () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        worker_readiness: {
+          lifecycle_status: 'not_checked',
+          server_reachable: true,
+        },
+      },
+    });
+    exposeTemporalActions('provider_worker_status', 'provider_worker_start', 'provider_worker_restart');
+
+    render(<RuntimeSettings />);
+
+    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    expect(within(workerRow).queryByText('运行正常')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-temporal-action-provider_worker_start')).toBeEnabled();
+    expect(screen.queryByTestId('opl-temporal-action-provider_worker_restart')).not.toBeInTheDocument();
+  });
+
+  it('labels the landed-but-unconfigured provider consistently and offers server setup', () => {
+    setTemporalState({
+      status: 'provider_code_landed_unconfigured',
+      health_status: 'attention_needed',
+      details: {
+        address_source: 'not_configured',
+        worker_readiness: {
+          lifecycle_status: 'not_configured',
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_status', 'provider_service_start');
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('opl-temporal-provider-status')).toHaveTextContent('未配置');
+    expect(screen.getByTestId('opl-temporal-action-provider_service_start')).toBeEnabled();
+    expect(screen.getByTestId('opl-temporal-maintenance')).not.toHaveTextContent('provider_code_landed_unconfigured');
+  });
+
+  it('localizes ordinary Temporal status and blocker codes without exposing raw implementation identifiers', () => {
+    setTemporalState({
+      status: 'managed_local_service_state',
+      health_status: 'managed_local_service_state',
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler_status: 'opaque_scheduler_state',
+        worker_readiness: {
+          blockers: ['opaque_worker_blocker'],
+          lifecycle_status: 'opaque_worker_state',
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions(
+      'provider_service_status',
+      'provider_worker_status',
+      'provider_worker_start',
+      'provider_scheduler_status'
+    );
+
+    render(<RuntimeSettings />);
+
+    const panel = screen.getByTestId('opl-temporal-maintenance');
+    expect(panel).toHaveTextContent('需要检查');
+    expect(panel).toHaveTextContent('详情见技术信息');
+    expect(panel.textContent).not.toMatch(
+      /\bready\b|managed_local_service_state|opaque_scheduler_state|opaque_worker_state|opaque_worker_blocker|provider_(service|worker|scheduler)_/i
+    );
+  });
+
+  it('checks an unknown scheduler before offering installation and localizes the resulting evidence', async () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          server_reachable: true,
+          worker_ready: true,
+        },
+      },
+    });
+    exposeTemporalActions('provider_scheduler_status', 'provider_scheduler_install');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            schedule_status: 'not_installed',
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('opl-temporal-action-provider_scheduler_status')).toBeEnabled();
+    expect(screen.queryByTestId('opl-temporal-action-provider_scheduler_install')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_scheduler_status'));
+
+    const installButton = await screen.findByTestId('opl-temporal-action-provider_scheduler_install');
+    expect(installButton).toBeEnabled();
+    const evidence = screen.getByTestId('opl-temporal-action-readback');
+    expect(evidence).toHaveTextContent('检查调度器');
+    expect(evidence).toHaveTextContent('需要处理');
+    expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
+    expect(evidence).not.toHaveTextContent('provider_scheduler_status');
+    expect(evidence).not.toHaveTextContent('not_installed');
+  });
+
+  it('renders localized action evidence instead of action ids and raw outcomes', async () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler_status: 'ready',
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          server_reachable: true,
+          worker_ready: true,
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_status');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            service_status: 'running',
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_service_status'));
+
+    const evidence = await screen.findByTestId('opl-temporal-action-readback');
+    expect(evidence).toHaveTextContent('检查 Server');
+    expect(evidence).toHaveTextContent('检查完成');
+    expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
+    expect(evidence).not.toHaveTextContent('provider_service_status');
+    expect(evidence).not.toHaveTextContent('running');
+  });
+
+  it('polls fresh state until a newly started Temporal server becomes reachable', async () => {
+    setTemporalState({
+      status: 'provider_code_landed_unconfigured',
+      health_status: 'attention_needed',
+      details: {
+        address_source: 'not_configured',
+        worker_readiness: {
+          lifecycle_status: 'not_configured',
+          server_reachable: false,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_status', 'provider_service_start');
+    const pendingAppState = structuredClone(appState);
+    const readyAppState = structuredClone(appState);
+    readyAppState.provider.temporal = {
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed_local_service_state',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        worker_readiness: {
+          lifecycle_status: 'not_checked',
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    };
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            start_status: 'started',
+            status: {
+              address: '127.0.0.1:7233',
+              server_reachable: false,
+            },
+          },
+        },
+      },
+    });
+    bridgeMocks.loadAppState
+      .mockResolvedValueOnce({ app_state: pendingAppState })
+      .mockResolvedValueOnce({ app_state: readyAppState });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_service_start'));
+
+    await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'), { timeout: 1_500 });
+    expect(messageMocks.error).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.loadAppState).toHaveBeenNthCalledWith(1, 'fast', {
+      showRefreshing: true,
+      forceFresh: true,
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenNthCalledWith(2, 'fast', {
+      showRefreshing: false,
+      forceFresh: true,
+    });
+  });
+
+  it('keeps blocked worker mutations out of the success path and shows localized evidence', async () => {
+    setTemporalState({
+      status: 'attention_needed',
+      health_status: 'attention_needed',
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler_status: 'ready',
+        worker_readiness: {
+          lifecycle_status: 'worker_not_ready',
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions('provider_worker_status', 'provider_worker_start');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            status: 'blocked',
+            worker_mutation_guard: {
+              mutation_guard_status: 'blocked_developer_checkout_shared_state',
+            },
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_worker_start'));
+
+    const evidence = await screen.findByTestId('opl-temporal-action-readback');
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledTimes(1);
+    expect(evidence).toHaveTextContent('启动 Worker');
+    expect(evidence).toHaveTextContent('已拦截');
+    expect(evidence).not.toHaveTextContent('provider_worker_start');
+    expect(evidence).not.toHaveTextContent('blocked_developer_checkout_shared_state');
+    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    expect(workerRow).toHaveTextContent('当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。');
+    expect(workerRow).toHaveTextContent('请切回托管运行来源，或明确启用已授权的开发仓库维护。');
+    expect(workerRow).not.toHaveTextContent(/环境变量|OPL_ALLOW_/);
+
+    fireEvent.click(screen.getByTestId('opl-temporal-worker-open-source-settings'));
+    expect(window.location.hash).toBe('#/settings/agents?section=source');
+  });
+
+  it('keeps Temporal maintenance controls visible but disabled when the action catalog omits them', () => {
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler_status: 'not_installed',
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          server_reachable: true,
+          worker_ready: true,
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    for (const actionId of [
+      'provider_service_status',
+      'provider_worker_status',
+      'provider_worker_restart',
+      'provider_scheduler_status',
+      'provider_scheduler_install',
+    ]) {
+      expect(screen.getByTestId(`opl-temporal-action-${actionId}`)).toBeDisabled();
+    }
   });
 
   it('renders quiet status rows and explicit action surfaces while gating diagnostics in a modal', () => {
@@ -401,9 +880,9 @@ describe('RuntimeSettings maintenance structure', () => {
 
     await waitFor(() => {
       expect(syncButton).not.toBeDisabled();
-      expect(
-        screen.getByText('settings.oplEnvironmentPage.updates.messages.capabilitySyncManualRequired')
-      ).toBeVisible();
+      expect(messageMocks.warning).toHaveBeenCalledWith(
+        'settings.oplEnvironmentPage.updates.messages.capabilitySyncManualRequired'
+      );
     });
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
   });

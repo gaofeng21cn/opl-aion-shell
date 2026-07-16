@@ -1497,6 +1497,7 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway 数据",
       "backgroundService": "后台服务",
+      "temporalNotConfigured": "Temporal server 和 worker 尚未配置",
       "capabilities": "能力包"
     },
     "developerSource": {
@@ -2777,7 +2778,82 @@
       }
     },
     "temporal": {
-      "workerSourceStaleDetail": "后台执行器需重启"
+      "title": "Temporal 服务",
+      "description": "Temporal 负责让 OPL 的持久任务在后台可靠运行。可在这里检查和维护 server、worker 与 scheduler。",
+      "workerSourceStaleDetail": "后台执行器需重启",
+      "server": {
+        "title": "Temporal server",
+        "address": "{{address}} · {{source}}",
+        "namespace": "命名空间：{{namespace}}"
+      },
+      "worker": {
+        "title": "OPL worker",
+        "taskQueue": "任务队列：{{taskQueue}}",
+        "blockers": "需要处理：{{blockers}}",
+        "developerGuardBlocked": "当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。",
+        "developerGuardNextSteps": "请切回托管运行来源，或明确启用已授权的开发仓库维护。",
+        "manageSources": "管理运行来源"
+      },
+      "scheduler": {
+        "title": "OPL scheduler",
+        "description": "维护 OPL 系列运行时的周期调度。"
+      },
+      "values": {
+        "ready": "已就绪",
+        "reachable": "可连接",
+        "unreachable": "无法连接",
+        "notChecked": "尚未检查",
+        "needsCheck": "需要检查",
+        "needsAttention": "需要处理",
+        "notConfigured": "尚未配置",
+        "notInstalled": "尚未安装",
+        "restartRequired": "需要重启",
+        "paused": "已暂停",
+        "none": "未报告阻塞项"
+      },
+      "addressSources": {
+        "managed": "OPL 托管的本机服务",
+        "environment": "环境配置",
+        "notConfigured": "尚未配置地址",
+        "unknown": "地址来源未知"
+      },
+      "blockers": {
+        "notConfigured": "Temporal 尚未配置",
+        "serverUnreachable": "Temporal server 无法连接",
+        "workerDependencyUnavailable": "worker 依赖不可用",
+        "duplicateWorker": "已有另一个 worker 在运行",
+        "workerExited": "worker 进程已退出",
+        "workerSourceStale": "worker 源码已过期",
+        "workerNotReady": "worker 尚未就绪",
+        "unknown": "worker 报告了未知阻塞项"
+      },
+      "actions": {
+        "checkServer": "检查 server",
+        "configureAndStartServer": "配置并启动",
+        "checkWorker": "检查 worker",
+        "startWorker": "启动 worker",
+        "restartWorker": "重启 worker",
+        "checkScheduler": "检查 scheduler",
+        "installScheduler": "安装 scheduler",
+        "triggerScheduler": "立即运行 scheduler",
+        "unavailable": "当前 App 状态不提供这项维护操作。"
+      },
+      "outcomes": {
+        "checked": "检查完成",
+        "completed": "执行完成",
+        "needsAttention": "仍需处理",
+        "blocked": "已阻止",
+        "failed": "失败"
+      },
+      "readback": "{{action}}：{{outcome}} · {{observedAt}} 已读回",
+      "messages": {
+        "actionComplete": "Temporal 维护已完成，并已验证新的运行状态。",
+        "needsAttention": "检查已完成，但该 Temporal 服务仍需处理。",
+        "actionBlocked": "当前安全策略阻止了这项 Temporal 维护操作。",
+        "actionFailed": "Temporal 维护失败。",
+        "readbackFailed": "操作已执行，但 App 无法读回最新 Temporal 状态。",
+        "postconditionFailed": "操作已执行，但 Temporal 未达到预期状态。"
+      }
     },
     "installOrigins": {
       "managed_root": "来自 OPL 托管目录",

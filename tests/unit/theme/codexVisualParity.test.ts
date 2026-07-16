@@ -51,6 +51,17 @@ describe('Codex visual parity overlay', () => {
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
+    expect(guidStyles).toMatch(/\.guidInputInner\s*{[^}]*border-radius:\s*22px;/);
+    expect(codexPreset).toMatch(
+      /\.guid-input-card-shell > div:first-child\s*{[^}]*border-radius:\s*22px\s*!important;/
+    );
+    expect(codexPreset).toMatch(
+      /\.guid-input-card-shell > div:first-child,[\s\S]*?\.guid-input-card-inner\s*{[^}]*box-shadow:\s*var\(--opl-composer-shadow\)\s*!important;/
+    );
+    expect(codexPreset).toContain("[class*='input'][class*='shell']:not(.guid-input-card-shell)");
+    expect(codexPreset).toMatch(
+      /\.guid-input-card-shell > div:first-child:focus-within,[\s\S]*?\.guid-input-card-inner:focus-within\s*{[^}]*box-shadow:\s*var\(--opl-composer-focus-shadow\)\s*!important;/
+    );
   });
 
   it('keeps Settings navigation and grouped surfaces neutral', () => {
@@ -65,6 +76,24 @@ describe('Codex visual parity overlay', () => {
     expect(settingsRegistry).toContain('{icon(16)}');
     expect(settingsRegistry).toContain("<Puzzle theme='outline' size='16' />");
     expect(settingsRegistry).not.toContain('@fortawesome');
+  });
+
+  it('keeps active Home controls flat, compact, and outline-only', () => {
+    const starters = read('packages/desktop/src/renderer/pages/guid/components/HomeStarters.tsx');
+    const presetAgent = read('packages/desktop/src/renderer/pages/guid/components/PresetAgentTag.tsx');
+    const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
+    const skills = read('packages/desktop/src/renderer/pages/settings/SkillsHubSettings.tsx');
+    const runtime = read('packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx');
+
+    expect(starters).toContain("<CheckOne theme='outline' size={14} fill='currentColor' />");
+    expect(presetAgent).toContain("<CheckOne theme='outline'");
+    expect(presetAgent).toContain("<CloseSmall theme='outline'");
+    expect(presetAgent).not.toContain('<span>✓</span>');
+    expect(guidStyles).toMatch(/\.presetAgentTag\s*{[^}]*border:\s*0;[^}]*border-radius:\s*6px;/);
+    expect(skills).toContain("type='secondary'");
+    expect(skills).toContain("data-testid='btn-manual-import'");
+    expect(skills).toContain('group-focus-within:opacity-100');
+    expect(runtime).toContain('flex min-w-0 flex-wrap items-center justify-start gap-8px sm:justify-end');
   });
 
   it('uses the observed Codex conversation typography and unframed process rows', () => {

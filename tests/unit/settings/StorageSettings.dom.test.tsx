@@ -328,7 +328,7 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
   });
 
-  it('renders bounded storage category cards and keeps technical storage paths in details', async () => {
+  it('renders one flat storage category list and keeps technical storage paths in details', async () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
@@ -337,7 +337,8 @@ describe('StorageSettingsContent', () => {
     expect(bridgeMocks.refreshInventory).not.toHaveBeenCalled();
 
     const categoryList = screen.getByTestId('storage-category-list');
-    expect(categoryList).toHaveClass('md:grid-cols-2');
+    expect(categoryList).toHaveClass('opl-settings-list');
+    expect(categoryList).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total');
     expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
     expect(screen.getByTestId('storage-inventory-freshness')).toHaveTextContent('42 ms');
@@ -357,8 +358,12 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('Review runtime cleanup');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Review log cleanup');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
+    const previewCleanup = screen.getByTestId('settings-storage-primary-action');
+    expect(previewCleanup.querySelector('svg')).not.toBeNull();
+    expect(previewCleanup.querySelector('svg')?.innerHTML).toContain('currentColor');
     for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
-      expect(screen.getByTestId(`storage-inventory-${id}`)).toHaveClass('opl-settings-surface--action');
+      expect(screen.getByTestId(`storage-inventory-${id}`)).toHaveClass('opl-settings-row');
+      expect(screen.getByTestId(`storage-inventory-${id}`)).not.toHaveClass('opl-settings-surface--action');
     }
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
@@ -456,12 +461,15 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
-    expect(lifecycle).toHaveTextContent('Diagnostics');
+    expect(lifecycle).not.toHaveTextContent('Diagnostics');
     expect(lifecycle).not.toHaveTextContent('Work data protection rules');
     expect(lifecycle).not.toHaveTextContent('Open only when troubleshooting cleanup boundaries.');
     expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
 
-    fireEvent.click(screen.getByText('Diagnostics'));
+    const diagnosticsAction = screen.getByTestId('settings-storage-diagnostics-action');
+    expect(diagnosticsAction).toHaveTextContent('Diagnostics');
+    expect(diagnosticsAction.querySelector('svg')).not.toBeNull();
+    fireEvent.click(diagnosticsAction);
 
     const diagnostics = screen.getByTestId('settings-storage-technical-details');
     expect(diagnostics).toHaveTextContent('Work data protection rules');

@@ -413,6 +413,7 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.oplConnections.actions.connection_deleteSuccess': '连接已删除。',
         'common.cancel': '取消',
         'common.save': '保存',
+        'common.edit': '编辑',
         'common.delete': '删除',
         'settings.resourcesPage.statusLabels.action_available': '可用',
         'settings.resourcesPage.statusLabels.available': '可用',
@@ -508,6 +509,8 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('使用环境变量 PRIMARY_API_TOKEN')).toBeTruthy();
     expect(view.getByText('对应环境变量尚未配置。')).toBeTruthy();
     expect(view.getByTestId('opl-connection-delete-primary')).toBeDisabled();
+    expect(view.getByTestId('opl-connection-edit-primary')).toHaveAttribute('aria-label', '编辑');
+    expect(view.getByTestId('opl-connection-delete-primary')).toHaveAttribute('aria-label', '删除');
 
     fireEvent.click(view.getByTestId('opl-connection-test-secondary'));
     await waitFor(() => {

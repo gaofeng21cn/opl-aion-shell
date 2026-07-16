@@ -49,6 +49,7 @@ export type UseOplAppStateResult = {
 export type OplAppStateLoadOptions = {
   showRefreshing?: boolean;
   background?: boolean;
+  forceFresh?: boolean;
 };
 
 export type UseOplAppStateOptions = {
@@ -454,9 +455,22 @@ function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undef
   return payload as OplAppStatePayload;
 }
 
-export function loadOplAppStateFromBridge(profile: OplAppStateProfile): Promise<OplAppStatePayload | null> {
+export function loadOplAppStateFromBridge(
+  profile: OplAppStateProfile,
+  options: Pick<OplAppStateLoadOptions, 'forceFresh'> = {}
+): Promise<OplAppStatePayload | null> {
   const inflight = inflightAppStateLoads.get(profile);
-  if (inflight) return inflight;
+  if (inflight) {
+    if (!options.forceFresh) return inflight;
+    return inflight
+      .catch((): null => null)
+      .then(() => {
+        if (inflightAppStateLoads.get(profile) === inflight) {
+          inflightAppStateLoads.delete(profile);
+        }
+        return loadOplAppStateFromBridge(profile, { forceFresh: true });
+      });
+  }
 
   const request = ipcBridge.oplRuntime.getAppState.invoke({ profile }).then(payloadFromBridgeResult);
   inflightAppStateLoads.set(profile, request);
@@ -615,7 +629,7 @@ export function useOplAppState(
       }
       setError(null);
       try {
-        const loadedPayload = await loadOplAppStateFromBridge(profile);
+        const loadedPayload = await loadOplAppStateFromBridge(profile, { forceFresh: options.forceFresh });
         if (requestSeq.current !== requestId) return null;
         if (!loadedPayload) {
           throw new Error('Invalid OPL App state payload');

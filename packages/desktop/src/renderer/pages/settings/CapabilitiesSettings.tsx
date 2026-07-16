@@ -2263,30 +2263,27 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             key='manual_and_third_party'
             title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manually added' })}
           >
-            <div id='third-party' className='flex flex-col gap-24px' data-testid='settings-capabilities-third-party'>
-              <SkillsHubSettings
-                withWrapper={false}
-                displayGroup='manual'
-                flowManagedSkillIds={flowManagedCatalog.skillIds}
-              />
-              <section className='opl-settings-section opl-settings-surface--configuration'>
-                <div className='opl-settings-section__header'>
-                  <div>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsTitle')}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.capabilitiesPage.groups.manualAndThirdParty.toolsDescription')}
-                    </Typography.Text>
-                  </div>
-                </div>
-                <div className='border-t border-solid border-border-1 pt-12px'>
-                  <ToolsModalContent />
-                </div>
+            <div
+              id='third-party'
+              className='opl-settings-flat-capabilities'
+              data-testid='settings-capabilities-third-party'
+            >
+              <section
+                className='opl-settings-flat-section opl-settings-flat-section--first'
+                data-testid='settings-capabilities-manual-skills'
+              >
+                <SkillsHubSettings
+                  withWrapper={false}
+                  displayGroup='manual'
+                  flowManagedSkillIds={flowManagedCatalog.skillIds}
+                />
               </section>
-              <div data-testid='settings-capabilities-voice-input'>
+              <section className='opl-settings-flat-section' data-testid='settings-capabilities-manual-tools'>
+                <ToolsModalContent />
+              </section>
+              <section className='opl-settings-flat-section' data-testid='settings-capabilities-voice-input'>
                 <VoiceInputSection />
-              </div>
+              </section>
             </div>
           </Tabs.TabPane>
         </Tabs>

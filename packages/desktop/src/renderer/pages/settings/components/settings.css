@@ -217,6 +217,35 @@
   min-width: 0;
 }
 
+.opl-settings-flat-capabilities,
+.opl-settings-flat-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.opl-settings-flat-section,
+.opl-settings-flat-stack > .opl-settings-section {
+  min-width: 0;
+}
+
+.opl-settings-flat-section + .opl-settings-flat-section,
+.opl-settings-flat-stack > .opl-settings-section + .opl-settings-section {
+  margin-top: 18px;
+  border-top: 1px solid var(--border-base);
+  padding-top: 18px;
+}
+
+.opl-settings-flat-section--first {
+  padding-top: 0;
+}
+
+.opl-settings-flat-subgroup {
+  min-width: 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-base);
+}
+
 .opl-settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
@@ -237,6 +266,28 @@
 .opl-settings-row__main,
 .opl-settings-row__meta {
   min-width: 0;
+}
+
+.opl-settings-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  line-height: 0;
+}
+
+.opl-temporal-maintenance .opl-settings-row__meta {
+  max-width: 340px;
+}
+
+.opl-temporal-action-readback {
+  min-width: 0;
+  margin-top: 2px;
+  border-top: 1px solid var(--border-base);
+  padding-top: 10px;
 }
 
 .opl-settings-path {
@@ -574,6 +625,11 @@
     justify-content: flex-start;
     text-align: left;
   }
+
+  .opl-temporal-maintenance .opl-settings-row__meta {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 @media (max-width: 767px) {
@@ -644,14 +700,14 @@
 
   .settings-mobile-top-nav__item {
     display: inline-flex;
-    height: 36px;
+    height: 44px;
     flex: 0 0 auto;
     align-items: center;
     gap: 6px;
-    border: 1px solid var(--border-base);
-    border-radius: 999px;
-    background: var(--bg-2);
-    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    padding: 0 10px;
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 20px;
@@ -666,8 +722,8 @@
 
   .settings-mobile-top-nav__item--active {
     color: var(--text-primary);
-    border-color: var(--border-base);
-    background: var(--fill-3);
+    border-color: transparent;
+    background: var(--fill-2);
   }
 
   .settings-mobile-top-nav__item--active::after {

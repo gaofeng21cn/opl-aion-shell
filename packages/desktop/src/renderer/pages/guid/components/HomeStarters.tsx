@@ -88,17 +88,13 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               data-opl-launch-ready={String(launchReady)}
               data-testid={`home-starter-${assistant.id}`}
             >
-              <span
-                className='mr-7px inline-flex h-16px w-16px shrink-0 items-center justify-center text-t-secondary'
-                data-testid={`starter-icon-${assistant.id}`}
-                aria-hidden='true'
-              >
+              <span className={styles.homeStarterIcon} data-testid={`starter-icon-${assistant.id}`} aria-hidden='true'>
                 {starterIcon(assistant.id)}
               </span>
-              <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+              <span className={styles.homeStarterLabel}>{label}</span>
               {active ? (
-                <span className='inline-flex shrink-0' data-testid='starter-active-check' aria-hidden='true'>
-                  <CheckOne theme='filled' size={14} fill='currentColor' />
+                <span className={styles.homeStarterCheck} data-testid='starter-active-check' aria-hidden='true'>
+                  <CheckOne theme='outline' size={14} fill='currentColor' />
                 </span>
               ) : null}
             </Button>

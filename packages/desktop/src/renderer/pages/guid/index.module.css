@@ -52,15 +52,17 @@
   flex: 0 1 auto;
   width: auto !important;
   max-width: min(180px, 100%);
-  height: 32px !important;
+  height: 34px !important;
   min-width: 0 !important;
-  justify-content: flex-start !important;
-  padding: 0 8px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 10px !important;
   border: 1px solid transparent !important;
   border-radius: 6px !important;
   background: transparent !important;
   color: var(--color-text-2) !important;
   font-size: 13px !important;
+  line-height: 18px !important;
 }
 
 .homeStarter:global(.arco-btn):hover {
@@ -70,9 +72,44 @@
 
 .homeStarter:global(.arco-btn) :global(.arco-btn-content) {
   display: flex;
+  height: 100%;
   width: auto;
   min-width: 0;
   align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  line-height: 18px;
+}
+
+.homeStarterIcon,
+.homeStarterCheck {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.homeStarterIcon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-2);
+}
+
+.homeStarterLabel {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: inherit;
+  line-height: 18px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.homeStarterCheck {
+  width: 14px;
+  height: 14px;
 }
 
 .homeStarterActive:global(.arco-btn) {
@@ -658,11 +695,27 @@
 }
 
 .actionConfigGroup :global(.sendbox-model-btn .arco-btn-content) {
+  height: 100%;
+  align-items: center;
   gap: 0 !important;
+  line-height: 18px;
 }
 
 .actionConfigGroup :global(.sendbox-model-btn .arco-btn-content > span:first-child) {
   gap: 4px !important;
+}
+
+.actionConfigGroup :global(.sendbox-model-btn) {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.actionConfigGroup :global(.sendbox-model-btn svg) {
+  width: 14px;
+  height: 14px;
 }
 
 .actionSubmit {
@@ -713,9 +766,9 @@
   background: transparent !important;
   box-shadow: none !important;
   color: var(--color-text-1) !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
-  line-height: 20px !important;
+  line-height: 18px !important;
 }
 
 .workspaceEmptyBtn:hover,
@@ -733,6 +786,12 @@
   transition:
     color 0.15s,
     background 0.15s;
+}
+
+.workspaceEmptyBtn svg,
+.workspacePillMain svg {
+  width: 16px;
+  height: 16px;
 }
 
 .workspaceEmptyBtn:disabled,
@@ -877,7 +936,7 @@
 
   .workspaceEmptyBtn,
   .workspacePillMain {
-    font-size: 13px !important;
+    font-size: 12px !important;
   }
 
   .workspacePillMain {
@@ -1202,43 +1261,34 @@
   display: inline-flex;
   align-items: center;
   gap: 0;
-  background: var(--color-fill-2);
-  border: 1px solid var(--color-border-2);
+  min-height: 28px;
+  background: var(--color-fill-1);
+  border: 0;
   padding: 0;
-  border-radius: 16px;
-  cursor: pointer;
+  border-radius: 6px;
   user-select: none;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
 }
 
 .presetAgentTag:hover {
-  background: color-mix(in srgb, var(--color-fill-3) 92%, transparent);
-}
-
-.presetAgentTagActiveDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgb(var(--success-6));
-  box-shadow: 0 0 8px color-mix(in srgb, rgb(var(--success-6)) 45%, transparent);
-  flex-shrink: 0;
+  background: var(--color-fill-2);
 }
 
 /* Left clickable area: agent logo + avatar + name */
 .presetAgentTagMain {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px 6px 12px;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 6px;
   min-width: 0;
 }
 
 .presetAgentTagMain:hover {
-  background: var(--color-fill-3);
-  border-radius: 16px 0 0 16px;
+  background: transparent;
 }
 
 .presetAgentTagAgentLogo {
@@ -1246,36 +1296,20 @@
   flex-shrink: 0;
 }
 
-/* Inner divider between agent logo and assistant avatar/name */
-.presetAgentTagInnerDivider {
-  width: 1px;
-  height: 14px;
-  background: var(--color-border-3);
-  flex-shrink: 0;
-}
-
-/* Vertical divider between main area and right chevron/close */
-.presetAgentTagDivider {
-  width: 1px;
-  height: 14px;
-  background: var(--color-border-3);
-  flex-shrink: 0;
-}
-
 .presetAgentTagName {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 180px;
 }
 
 .presetAgentTagAt {
   color: var(--color-text-3);
-  font-size: 14px;
-  line-height: 15px;
+  font-size: 13px;
+  line-height: 18px;
   flex-shrink: 0;
 }
 
@@ -1284,34 +1318,38 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  margin-left: 2px;
-  margin-right: 6px;
-  transition: background-color 0.2s;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
-}
-
-.presetAgentTagChevron:hover {
-  background: var(--color-fill-4);
 }
 
 .presetAgentTagClose {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  margin-left: 2px;
-  margin-right: 8px;
-  transition: background-color 0.2s;
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
   flex-shrink: 0;
 }
 
 .presetAgentTagClose:hover {
-  background: var(--color-fill-4);
+  background: var(--color-fill-3);
+  color: var(--color-text-1);
+}
+
+.presetAgentTagClose:focus-visible {
+  outline: 2px solid var(--color-primary-light-3);
+  outline-offset: -2px;
 }
 
 /* 移动端助手标签优化 */

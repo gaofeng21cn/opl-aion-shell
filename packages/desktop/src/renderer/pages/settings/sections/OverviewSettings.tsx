@@ -30,10 +30,141 @@ type AttentionItem = {
   route: string;
 };
 
+type TemporalStatusKind = 'ready' | 'not_configured' | 'attention' | 'unknown';
+
+type TemporalStatusProjection = {
+  server: TemporalStatusKind;
+  worker: TemporalStatusKind;
+  workerNeedsRestart: boolean;
+};
+
+const TEMPORAL_READY_STATUSES = new Set(['ready', 'ok', 'healthy', 'connected', 'running', 'configured']);
+const TEMPORAL_NOT_CONFIGURED_STATUSES = new Set([
+  'not_configured',
+  'provider_code_landed_unconfigured',
+  'temporal_runtime_not_configured',
+]);
+const TEMPORAL_ATTENTION_STATUSES = new Set([
+  'attention_needed',
+  'attention_required',
+  'needs_attention',
+  'degraded',
+  'failed',
+  'blocked',
+]);
+const TEMPORAL_WORKER_ATTENTION_STATUSES = new Set([
+  ...TEMPORAL_ATTENTION_STATUSES,
+  'duplicate_worker',
+  'server_unreachable',
+  'worker_dependency_unavailable',
+  'worker_exited',
+  'worker_not_ready',
+  'worker_source_stale',
+]);
+const TEMPORAL_WORKER_RESTART_STATUSES = new Set(['duplicate_worker', 'worker_source_stale']);
+const CAPABILITY_READY_STATUSES = new Set(['ready', 'current', 'healthy', 'ok']);
+const CAPABILITY_ATTENTION_STATUSES = new Set([
+  'attention_needed',
+  'attention_required',
+  'needs_attention',
+  'degraded',
+  'failed',
+  'blocked',
+  'missing',
+  'not_installed',
+]);
+
+function normalizedStatus(value: unknown): string | null {
+  return oplString(value)?.toLowerCase() ?? null;
+}
+
+function normalizedStatusList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(normalizedStatus).filter((entry): entry is string => entry !== null) : [];
+}
+
+function workerStatusNeedsRestart(status: string): boolean {
+  return (
+    TEMPORAL_WORKER_RESTART_STATUSES.has(status) ||
+    status.includes('worker_source_stale') ||
+    status.includes('duplicate_worker')
+  );
+}
+
+function workerStatusNeedsAttention(status: string): boolean {
+  return (
+    TEMPORAL_WORKER_ATTENTION_STATUSES.has(status) ||
+    status.includes('blocked') ||
+    status.includes('worker_not_ready') ||
+    status.includes('dependency_unavailable') ||
+    status.includes('process_exited') ||
+    workerStatusNeedsRestart(status)
+  );
+}
+
+function temporalStatusProjection(
+  appState: Record<string, unknown>,
+  statusSummary: Record<string, unknown>
+): TemporalStatusProjection {
+  const temporal = oplRecord(oplRecord(appState.provider).temporal);
+  const details = oplRecord(temporal.details);
+  const workerReadiness = oplRecord(details.worker_readiness);
+  const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
+  const providerCandidates = [
+    normalizedStatus(temporal.status),
+    normalizedStatus(temporal.degraded_reason),
+    normalizedStatus(statusSummary.temporal_provider),
+    normalizedStatus(temporal.health_status),
+  ].filter((value): value is string => Boolean(value));
+  const addressSource = normalizedStatus(details.address_source);
+  const serverReachable =
+    typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
+  const serverNotConfigured =
+    (addressSource !== null && TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)) ||
+    providerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
+  const server = serverNotConfigured
+    ? 'not_configured'
+    : serverReachable === true
+      ? 'ready'
+      : serverReachable === false
+        ? 'attention'
+        : temporal.ready === true || providerCandidates.some((value) => TEMPORAL_READY_STATUSES.has(value))
+          ? 'ready'
+          : providerCandidates.some((value) => TEMPORAL_ATTENTION_STATUSES.has(value))
+            ? 'attention'
+            : 'unknown';
+
+  const workerCandidates = [
+    normalizedStatus(workerReadiness.lifecycle_status),
+    normalizedStatus(workerReadiness.readiness_status),
+    normalizedStatus(temporal.worker_status),
+    normalizedStatus(workerMutationGuard.mutation_guard_status),
+    ...normalizedStatusList(workerReadiness.blockers),
+  ].filter((value): value is string => Boolean(value));
+  const workerNeedsRestart = workerCandidates.some(workerStatusNeedsRestart);
+  const workerNotConfigured = workerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
+  const workerReadyValue =
+    typeof workerReadiness.worker_ready === 'boolean'
+      ? workerReadiness.worker_ready
+      : typeof details.worker_ready === 'boolean'
+        ? details.worker_ready
+        : null;
+  const worker = workerNotConfigured
+    ? 'not_configured'
+    : workerNeedsRestart || workerCandidates.some(workerStatusNeedsAttention) || workerReadyValue === false
+      ? 'attention'
+      : workerReadyValue === true || workerCandidates.some((value) => TEMPORAL_READY_STATUSES.has(value))
+        ? 'ready'
+        : temporal.ready === true
+          ? 'ready'
+          : 'unknown';
+
+  return { server, worker, workerNeedsRestart };
+}
+
 function issueSettingsRoute(issue: Record<string, unknown>): string {
   const issueId = oplString(issue.issue_id) ?? '';
   const actionId = oplString(issue.recommended_action_id) ?? '';
-  if (issueId === 'provider_failed_with_repair') return '/settings/environment';
+  if (issueId === 'provider_failed_with_repair') return '/settings/environment?section=services';
   if (actionId === 'settings_configure_webui_api_key' || actionId === 'settings_repair_model_access') {
     return '/settings/gateway';
   }
@@ -53,6 +184,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const coreCodex = oplRecord(oplRecord(appState.core).codex);
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const statusSummary = oplRecord(settingsControlCenter.status_summary);
+  const temporalStatus = temporalStatusProjection(appState, statusSummary);
   const issueQueue = oplRecordList(settingsControlCenter.issue_queue);
   const actionableIssues = issueQueue.filter((issue) => {
     const severity = oplString(issue.severity);
@@ -96,7 +228,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       description: isModelAccessIssue
         ? t('settings.overviewPage.quickEntries.modelAccount.description')
         : isProviderIssue
-          ? t('settings.overviewPage.quickEntries.localServices.description')
+          ? temporalStatus.server === 'not_configured' && temporalStatus.worker === 'not_configured'
+            ? t('settings.overviewPage.technical.temporalNotConfigured', {
+                defaultValue: 'Temporal server and worker are not configured',
+              })
+            : t('settings.overviewPage.quickEntries.localServices.description')
           : t('settings.overviewPage.attention.capabilitiesDescription'),
       label: t('common.open'),
       route,
@@ -142,6 +278,23 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     return `${amount}${currency ? ` ${currency}` : ''}`;
   };
   const technicalUnknown = t('settings.oplEnvironmentPage.status.unknown');
+  const temporalComponentLabel = (kind: TemporalStatusKind, needsRestart = false): string => {
+    if (needsRestart) return t('settings.oplEnvironmentPage.temporal.values.restartRequired');
+    if (kind === 'ready') return t('settings.oplEnvironmentPage.temporal.values.ready');
+    if (kind === 'not_configured') return t('settings.oplEnvironmentPage.temporal.values.notConfigured');
+    if (kind === 'attention') return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
+    return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
+  };
+  const rawCapabilityHealth = oplString(statusSummary.runtime_source_carrier_health);
+  const capabilityHealthLabel = rawCapabilityHealth
+    ? /^\d+\s*\/\s*\d+$/.test(rawCapabilityHealth)
+      ? rawCapabilityHealth
+      : CAPABILITY_READY_STATUSES.has(rawCapabilityHealth)
+        ? t('settings.oplEnvironmentPage.status.ready')
+        : CAPABILITY_ATTENTION_STATUSES.has(rawCapabilityHealth)
+          ? t('settings.oplEnvironmentPage.status.attention_required')
+          : technicalUnknown
+    : technicalUnknown;
   const technicalRows = [
     {
       id: 'codex',
@@ -154,14 +307,21 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       value: gatewayObservedAt ?? technicalUnknown,
     },
     {
-      id: 'background',
-      label: t('settings.overviewPage.technical.backgroundService'),
-      value: oplString(statusSummary.temporal_provider) ?? technicalUnknown,
+      id: 'temporal-server',
+      label: t('settings.oplEnvironmentPage.temporal.server.title'),
+      value: temporalComponentLabel(temporalStatus.server),
+      route: '/settings/environment?section=services',
+      actionLabel: t('settings.overviewPage.actions.openRuntimeSettings'),
+    },
+    {
+      id: 'temporal-worker',
+      label: t('settings.oplEnvironmentPage.temporal.worker.title'),
+      value: temporalComponentLabel(temporalStatus.worker, temporalStatus.workerNeedsRestart),
     },
     {
       id: 'capabilities',
       label: t('settings.overviewPage.technical.capabilities'),
-      value: oplString(statusSummary.runtime_source_carrier_health) ?? technicalUnknown,
+      value: capabilityHealthLabel,
     },
   ];
 
@@ -387,7 +547,21 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           {technicalRows.map((row) => (
             <div className='opl-settings-row' key={row.id} data-testid={`settings-overview-technical-${row.id}`}>
               <Typography.Text className='font-500 text-t-primary'>{row.label}</Typography.Text>
-              <Typography.Text className='break-all text-right text-12px text-t-secondary'>{row.value}</Typography.Text>
+              <div className='opl-settings-row__meta'>
+                <Typography.Text className='break-words text-right text-12px text-t-secondary'>
+                  {row.value}
+                </Typography.Text>
+                {'route' in row && row.route && (
+                  <Button
+                    type='text'
+                    className='px-0'
+                    onClick={() => navigate(row.route)}
+                    data-testid='settings-overview-temporal-maintenance'
+                  >
+                    {row.actionLabel}
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
         </div>

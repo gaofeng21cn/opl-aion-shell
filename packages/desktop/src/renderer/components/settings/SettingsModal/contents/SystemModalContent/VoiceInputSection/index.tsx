@@ -9,7 +9,7 @@ import type { SpeechToTextConfig } from '@/common/types/provider/speech';
 import AionSelect from '@/renderer/components/base/AionSelect';
 import { SPEECH_TO_TEXT_CONFIG_CHANGED_EVENT } from '@/renderer/services/SpeechToTextService';
 import { getModelStreamCapability } from '@/renderer/services/speech/speechStreamPolicy';
-import { Divider, Form, Input, Switch } from '@arco-design/web-react';
+import { Form, Input, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SpeechTestPanel from './SpeechTestPanel';
@@ -177,7 +177,7 @@ const VoiceInputSection: React.FC = () => {
   );
 
   return (
-    <div className='border-t border-solid border-border-1 py-16px'>
+    <div className='opl-settings-flat-voice py-16px'>
       <div className='flex items-center justify-between gap-12px mb-8px'>
         <div className='flex flex-col gap-4px'>
           <span className='text-14px text-t-primary'>{t('settings.speechToText')}</span>
@@ -191,9 +191,7 @@ const VoiceInputSection: React.FC = () => {
 
       {config.enabled && (
         <>
-          <Divider className='mt-0px mb-20px' />
-
-          <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
+          <Form layout='horizontal' labelAlign='left' className='mt-14px space-y-12px'>
             <Form.Item label={t('settings.speechToTextSource')}>
               <AionSelect value={source} onChange={handleSourceChange}>
                 <AionSelect.Option value='openai'>{t('settings.speechToTextSourceOpenAI')}</AionSelect.Option>

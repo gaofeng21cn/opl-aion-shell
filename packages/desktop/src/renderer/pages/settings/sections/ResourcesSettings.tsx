@@ -6,7 +6,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Input, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Earth, Open, Toolkit } from '@icon-park/react';
+import { Download, Earth, Open, Search, SettingTwo, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -183,6 +183,15 @@ function dockerActionCtaLabel(
   return t('settings.resourcesPage.docker.runDryRoute');
 }
 
+function dockerActionIcon(action: DockerWebuiAction): React.ReactNode {
+  const kind = dockerActionKind(action);
+  if (kind === 'open') return <Open theme='outline' size='16' />;
+  if (kind === 'check') return <Search theme='outline' size='16' />;
+  if (kind === 'configure') return <Download theme='outline' size='16' />;
+  if (kind === 'modelAccess') return <SettingTwo theme='outline' size='16' />;
+  return <Toolkit theme='outline' size='16' />;
+}
+
 function preferredDockerAction(actions: DockerWebuiAction[], readiness: ResourceReadiness): DockerWebuiAction | null {
   const candidates = actions.filter((action) => !action.payloadRequired || dockerActionKind(action) === 'modelAccess');
   const priority =
@@ -347,7 +356,7 @@ export const ResourcesSettingsContent: React.FC = () => {
         </div>
       </header>
 
-      <div className='flex flex-col gap-14px' data-testid='settings-resources-primary'>
+      <div className='opl-settings-flat-stack' data-testid='settings-resources-primary'>
         <section className='opl-settings-section' id='browser-access' data-testid='settings-resources-browser-access'>
           <span id='web-remote' aria-hidden='true' />
           <div className='opl-settings-row items-start'>
@@ -399,6 +408,15 @@ export const ResourcesSettingsContent: React.FC = () => {
                 })}
               </Typography.Text>
             </div>
+            <Button
+              type='text'
+              size='small'
+              icon={<SettingTwo theme='outline' size='14' />}
+              data-testid='settings-resources-diagnostics-action'
+              onClick={() => setDiagnosticsVisible(true)}
+            >
+              {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+            </Button>
           </div>
 
           <div className='opl-settings-list'>
@@ -556,8 +574,8 @@ export const ResourcesSettingsContent: React.FC = () => {
       />
 
       {resourceSources.length > 0 && (
-        <>
-          <section className='flex flex-col gap-12px' id='workspace-resources'>
+        <div className='opl-settings-flat-stack' data-testid='settings-resources-sources'>
+          <section className='opl-settings-section' id='workspace-resources'>
             <Typography.Text className='block text-12px text-t-secondary'>
               {t('settings.resourcesPage.connections.workspaceDescription')}
             </Typography.Text>
@@ -568,14 +586,16 @@ export const ResourcesSettingsContent: React.FC = () => {
             />
           </section>
 
-          <section className='flex flex-col gap-12px' id='reported-resources'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.resourcesPage.connections.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.resourcesPage.connections.description')}
-              </Typography.Text>
+          <section className='opl-settings-section' id='reported-resources'>
+            <div className='opl-settings-section__header'>
+              <div>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.resourcesPage.connections.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.resourcesPage.connections.description')}
+                </Typography.Text>
+              </div>
             </div>
             <ResourceSources
               sources={externalSources}
@@ -583,14 +603,9 @@ export const ResourcesSettingsContent: React.FC = () => {
               testId='opl-settings-resource-sources'
             />
           </section>
-        </>
+        </div>
       )}
 
-      <div className='flex justify-end'>
-        <Button data-testid='settings-resources-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
-          {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-        </Button>
-      </div>
       <Modal
         visible={diagnosticsVisible}
         title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
@@ -672,7 +687,7 @@ const DockerActionButton: React.FC<{
       data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
       type={primary ? 'primary' : 'secondary'}
       size={size}
-      icon={<Open theme='outline' />}
+      icon={dockerActionIcon(action)}
       loading={loading}
       disabled={singleFlight}
       onClick={() => void onAction(action)}
@@ -691,8 +706,8 @@ const DockerMoreActions: React.FC<{
 }> = ({ actions, runningActionId, onAction }) => {
   const { t } = useTranslation();
   return (
-    <div className='border-t border-solid border-[var(--border-base)]' data-testid='opl-settings-docker-webui-actions'>
-      <div className='px-16px pt-14px text-12px font-600 text-t-secondary'>
+    <div className='opl-settings-flat-subgroup' data-testid='opl-settings-docker-webui-actions'>
+      <div className='pt-12px text-12px font-600 text-t-secondary'>
         {t('settings.resourcesPage.docker.availableActions')}
       </div>
       <div className='opl-settings-list mt-6px'>
@@ -811,7 +826,7 @@ const ResourceSources: React.FC<{
     );
   }
   return (
-    <div className='grid grid-cols-1 gap-12px md:grid-cols-2' data-testid={testId}>
+    <div className='opl-settings-list border-t border-solid border-border-1' data-testid={testId}>
       {sources.map((source) => (
         <ResourceSourceRow key={source.key} source={source} />
       ))}
@@ -825,36 +840,34 @@ const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection }> = ({ sou
   const readiness = resourceReadiness(source.status);
 
   return (
-    <section className='opl-settings-section'>
-      <div className='opl-settings-row'>
-        <div className='opl-settings-row__main min-w-0'>
-          <Typography.Text className='block break-words font-600 text-t-primary'>{source.title}</Typography.Text>
-          <div className='mt-4px flex flex-wrap gap-6px'>
-            {source.category !== 'oplWorkspace' && (
-              <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
-            )}
-            {source.management && (
-              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-                {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
-              </Tag>
-            )}
-            {source.managementRefs.length > 0 && (
-              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
-            )}
-            {source.environmentRefs.length > 0 && (
-              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
-            )}
-          </div>
-          {refs.length === 0 && (
-            <Typography.Text className='mt-4px block text-12px text-t-secondary'>
-              {t('settings.resourcesPage.resourceSources.noRefs')}
-            </Typography.Text>
+    <div className='opl-settings-row'>
+      <div className='opl-settings-row__main min-w-0'>
+        <Typography.Text className='block break-words font-600 text-t-primary'>{source.title}</Typography.Text>
+        <div className='mt-4px flex flex-wrap gap-6px'>
+          {source.category !== 'oplWorkspace' && (
+            <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
+          )}
+          {source.management && (
+            <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+              {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
+            </Tag>
+          )}
+          {source.managementRefs.length > 0 && (
+            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
+          )}
+          {source.environmentRefs.length > 0 && (
+            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
           )}
         </div>
-        <div className='opl-settings-row__meta'>
-          <Tag color={resourceReadinessColor(readiness)}>{resourceReadinessLabel(readiness, t)}</Tag>
-        </div>
+        {refs.length === 0 && (
+          <Typography.Text className='mt-4px block text-12px text-t-secondary'>
+            {t('settings.resourcesPage.resourceSources.noRefs')}
+          </Typography.Text>
+        )}
       </div>
-    </section>
+      <div className='opl-settings-row__meta'>
+        <Tag color={resourceReadinessColor(readiness)}>{resourceReadinessLabel(readiness, t)}</Tag>
+      </div>
+    </div>
   );
 };

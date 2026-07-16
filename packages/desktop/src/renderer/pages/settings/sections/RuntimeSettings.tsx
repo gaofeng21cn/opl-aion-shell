@@ -17,12 +17,28 @@ import {
   Tooltip,
   Typography,
 } from '@arco-design/web-react';
-import { Copy, FolderSearch, UpdateRotation } from '@icon-park/react';
+import {
+  Application,
+  Command,
+  Copy,
+  FolderSearch,
+  Puzzle,
+  Server,
+  Terminal,
+  Toolkit,
+  UpdateRotation,
+} from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
-import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  getAppState,
+  oplRecord,
+  oplRecordList,
+  oplString,
+  useOplAppState,
+} from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
   executeManagedUpdateRead,
@@ -63,7 +79,15 @@ import {
   updateComponentUserAction,
 } from '../RuntimeSettings/environmentProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
-import { RuntimeHealthSummary, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
+import {
+  RuntimeHealthSummary,
+  RuntimeReadinessGrid,
+  TemporalMaintenancePanel,
+  type TemporalMaintenanceAction,
+  type TemporalMaintenanceActionId,
+  type TemporalMaintenanceEvidence,
+  type TemporalMaintenanceSnapshot,
+} from './RuntimeSettingsPanels';
 
 const DEVELOPER_SOURCE_MODES = new Set([
   'developer_checkout',
@@ -84,6 +108,26 @@ type PendingUpdateAction = {
 } | null;
 
 type SettingsAppActionId = 'doctor' | 'repair';
+
+const TEMPORAL_MAINTENANCE_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
+  'provider_service_status',
+  'provider_service_start',
+  'provider_scheduler_status',
+  'provider_scheduler_install',
+  'provider_scheduler_trigger',
+  'provider_worker_status',
+  'provider_worker_start',
+  'provider_worker_restart',
+]);
+
+const TEMPORAL_POSTCONDITION_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
+  'provider_service_start',
+  'provider_scheduler_install',
+  'provider_worker_start',
+  'provider_worker_restart',
+]);
+const TEMPORAL_READBACK_ATTEMPTS = 4;
+const TEMPORAL_READBACK_RETRY_DELAY_MS = 350;
 
 const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
 
@@ -149,6 +193,193 @@ function componentApplyAllowed(component: ManagedUpdateComponent): boolean {
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function isTemporalMaintenanceActionId(value: string | null): value is TemporalMaintenanceActionId {
+  return Boolean(value && TEMPORAL_MAINTENANCE_ACTION_IDS.has(value as TemporalMaintenanceActionId));
+}
+
+function temporalMaintenanceActions(
+  appState: Record<string, unknown>
+): Partial<Record<TemporalMaintenanceActionId, TemporalMaintenanceAction>> {
+  return Object.fromEntries(
+    oplRecordList(appState.actions).flatMap((entry) => {
+      const actionId = oplString(entry.action_id);
+      if (!isTemporalMaintenanceActionId(actionId)) return [];
+      return [
+        [
+          actionId,
+          {
+            actionId,
+            label: oplString(entry.label) ?? actionId,
+          },
+        ],
+      ];
+    })
+  );
+}
+
+function temporalStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    : [];
+}
+
+function temporalMaintenanceSnapshot(
+  appState: Record<string, unknown>,
+  schedulerStatusOverride?: string | null,
+  workerMutationGuardOverride?: string | null,
+  serverReachableOverride?: boolean | null
+): TemporalMaintenanceSnapshot {
+  const temporal = oplRecord(oplRecord(appState.provider).temporal);
+  const details = oplRecord(temporal.details);
+  const workerReadiness = oplRecord(details.worker_readiness);
+  const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
+  const scheduler = oplRecord(details.scheduler);
+  const address = oplString(details.address);
+  const providerReady = temporal.ready === true || oplString(temporal.health_status) === 'ready';
+  const projectedServerReachable =
+    typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
+  const serverReachable =
+    projectedServerReachable ?? serverReachableOverride ?? (address && providerReady ? true : null);
+  const projectedWorkerReady =
+    typeof workerReadiness.worker_ready === 'boolean'
+      ? workerReadiness.worker_ready
+      : typeof details.worker_ready === 'boolean'
+        ? details.worker_ready
+        : null;
+  const workerReady = projectedWorkerReady === true;
+  const workerStatus =
+    oplString(workerReadiness.lifecycle_status) ??
+    oplString(workerReadiness.readiness_status) ??
+    oplString(temporal.worker_status) ??
+    (workerReady ? 'ready' : 'not_checked');
+  const projectedSchedulerStatus =
+    oplString(details.scheduler_status) ?? oplString(scheduler.status) ?? oplString(scheduler.health_status);
+  const schedulerStatus = projectedSchedulerStatus ?? schedulerStatusOverride ?? 'not_checked';
+  const projectedWorkerMutationGuardStatus = oplString(workerMutationGuard.mutation_guard_status);
+  return {
+    providerStatus: oplString(temporal.status) ?? 'unknown',
+    healthStatus: oplString(temporal.health_status) ?? 'unknown',
+    ready: providerReady,
+    address,
+    addressSource: oplString(details.address_source) ?? 'unknown',
+    namespace: oplString(details.namespace) ?? 'default',
+    taskQueue: oplString(details.task_queue) ?? 'opl-stage-attempts',
+    serverReachable,
+    workerReady,
+    workerStatus,
+    workerMutationGuardStatus: projectedWorkerMutationGuardStatus ?? workerMutationGuardOverride,
+    schedulerStatus,
+    blockers: temporalStringList(workerReadiness.blockers),
+  };
+}
+
+function nestedStringForKeys(value: unknown, keys: ReadonlySet<string>, depth = 0): string | null {
+  const record = oplRecord(value);
+  for (const [key, candidate] of Object.entries(record)) {
+    if (keys.has(key) && typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  if (depth >= 5) return null;
+  for (const candidate of Object.values(record)) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    const nested = nestedStringForKeys(candidate, keys, depth + 1);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function nestedStringsForKeys(value: unknown, keys: ReadonlySet<string>, depth = 0): string[] {
+  if (depth > 5) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((candidate) => nestedStringsForKeys(candidate, keys, depth + 1));
+  }
+  const record = oplRecord(value);
+  const matches = Object.entries(record).flatMap(([key, candidate]) =>
+    keys.has(key) && typeof candidate === 'string' && candidate.trim() ? [candidate.trim()] : []
+  );
+  const nested = Object.values(record).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    return nestedStringsForKeys(candidate, keys, depth + 1);
+  });
+  return [...matches, ...nested];
+}
+
+function nestedBooleanForKeys(value: unknown, keys: ReadonlySet<string>, depth = 0): boolean | null {
+  if (depth > 5) return null;
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      const nested = nestedBooleanForKeys(candidate, keys, depth + 1);
+      if (nested !== null) return nested;
+    }
+    return null;
+  }
+  const record = oplRecord(value);
+  for (const [key, candidate] of Object.entries(record)) {
+    if (keys.has(key) && typeof candidate === 'boolean') return candidate;
+  }
+  for (const candidate of Object.values(record)) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const nested = nestedBooleanForKeys(candidate, keys, depth + 1);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
+const TEMPORAL_STATUS_KEYS = new Set([
+  'status',
+  'start_status',
+  'service_status',
+  'lifecycle_status',
+  'readiness_status',
+  'schedule_status',
+  'health_status',
+  'install_status',
+]);
+
+function temporalActionFailure(result: IOplRuntimeCommandResult): 'blocked' | 'failed' | null {
+  const statusValues = [
+    ...nestedStringsForKeys(result.parsed, TEMPORAL_STATUS_KEYS),
+    ...nestedStringsForKeys(result.parsed, new Set(['mutation_guard_status'])),
+  ].map((status) => status.toLowerCase());
+  if (statusValues.some((status) => status.startsWith('blocked'))) return 'blocked';
+  return statusValues.some(
+    (status) => /^(failed|error)/.test(status) || status === 'launcher_missing' || status === 'unavailable'
+  )
+    ? 'failed'
+    : null;
+}
+
+function temporalSchedulerStatusFromResult(result: IOplRuntimeCommandResult): string | null {
+  const statuses = nestedStringsForKeys(result.parsed, new Set(['schedule_status', 'health_status', 'status'])).map(
+    (status) => status.toLowerCase()
+  );
+  if (statuses.some((status) => ['not_installed', 'missing', 'absent'].includes(status))) return 'not_installed';
+  if (statuses.includes('paused')) return 'paused';
+  if (statuses.some((status) => ['active', 'healthy', 'ok', 'ready', 'installed'].includes(status))) {
+    return 'ready';
+  }
+  return null;
+}
+
+function temporalPostconditionSatisfied(
+  actionId: TemporalMaintenanceActionId,
+  snapshot: TemporalMaintenanceSnapshot
+): boolean {
+  if (actionId === 'provider_service_start') {
+    return Boolean(snapshot.address && snapshot.serverReachable === true);
+  }
+  if (actionId === 'provider_worker_start' || actionId === 'provider_worker_restart') {
+    return snapshot.workerReady;
+  }
+  if (actionId === 'provider_scheduler_install') {
+    return snapshot.schedulerStatus === 'ready';
+  }
+  return true;
+}
+
+async function waitForTemporalReadbackRetry(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, TEMPORAL_READBACK_RETRY_DELAY_MS));
 }
 
 function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): boolean {
@@ -248,6 +479,19 @@ function dependencyDisplayLabel(dependency: ManagedDependency, t: Translate): st
   });
 }
 
+function dependencyIcon(dependency: ManagedDependency): React.ReactNode {
+  if (dependency.id === 'codex-cli') return <Terminal theme='outline' size='16' />;
+  if (dependency.id === 'temporal-runtime') return <Server theme='outline' size='16' />;
+  if (dependency.id === 'temporal-system-cli') return <Command theme='outline' size='16' />;
+  return <Toolkit theme='outline' size='16' />;
+}
+
+function managedComponentIcon(component: ManagedUpdateComponent): React.ReactNode {
+  if (component.id === 'opl_app') return <Application theme='outline' size='16' />;
+  if (component.id === 'opl_packages') return <Puzzle theme='outline' size='16' />;
+  return <Toolkit theme='outline' size='16' />;
+}
+
 function BaseDependencyCatalog({
   component,
   busyDependencyId,
@@ -269,15 +513,17 @@ function BaseDependencyCatalog({
       data-testid='settings-maintenance-managed-dependencies'
     >
       <span data-testid='opl-base-dependency-catalog' aria-hidden='true' />
-      <div>
-        <Typography.Text className='block font-600 text-t-primary'>
-          {t('settings.oplEnvironmentPage.dependencies.title')}
-        </Typography.Text>
-        <Typography.Text className='block text-12px text-t-secondary'>
-          {t('settings.oplEnvironmentPage.dependencies.description')}
-        </Typography.Text>
+      <div className='opl-settings-section__header'>
+        <div>
+          <Typography.Text className='block font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.dependencies.title')}
+          </Typography.Text>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.oplEnvironmentPage.dependencies.description')}
+          </Typography.Text>
+        </div>
       </div>
-      <div className='mt-8px flex flex-col divide-y divide-border-1'>
+      <div className='opl-settings-list'>
         {catalog.dependencies.map((dependency, index) => {
           const canDelegateUpdate =
             dependency.updateMode === 'explicit_owner_delegated' &&
@@ -293,51 +539,58 @@ function BaseDependencyCatalog({
           return (
             <div
               key={`${dependency.id}-${dependency.binaryPath ?? index}`}
-              className='flex flex-col gap-8px py-10px md:flex-row md:items-center md:justify-between'
+              className='opl-settings-row'
               data-testid={`opl-base-dependency-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
             >
-              <div className='min-w-0'>
-                <div className='flex flex-wrap items-center gap-6px'>
-                  <Typography.Text className='font-600 text-t-primary break-words'>
-                    {dependencyDisplayLabel(dependency, t)}
-                  </Typography.Text>
-                  {dependency.external && <Tag>{t('settings.oplEnvironmentPage.dependencies.external')}</Tag>}
-                  <Tag
-                    color={
-                      dependency.currentness === 'update_available' || dependency.currentness === 'missing'
-                        ? 'orange'
-                        : 'gray'
-                    }
-                  >
-                    {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
-                      defaultValue: formatStatus(dependency.currentness, t),
-                    })}
-                  </Tag>
-                </div>
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.dependencies.version', { value: versionDetail })}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {t(`settings.oplEnvironmentPage.dependencies.updateModes.${dependency.updateMode}`)}
-                </Typography.Text>
-                {dependency.guidance && (
+              <div className='opl-settings-row__main flex-row items-start gap-10px'>
+                <span className='opl-settings-icon' aria-hidden='true'>
+                  {dependencyIcon(dependency)}
+                </span>
+                <div className='min-w-0'>
+                  <div className='flex flex-wrap items-center gap-6px'>
+                    <Typography.Text className='font-600 text-t-primary break-words'>
+                      {dependencyDisplayLabel(dependency, t)}
+                    </Typography.Text>
+                    {dependency.external && <Tag>{t('settings.oplEnvironmentPage.dependencies.external')}</Tag>}
+                  </div>
                   <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {dependency.guidance}
+                    {t('settings.oplEnvironmentPage.dependencies.version', { value: versionDetail })}
                   </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {t(`settings.oplEnvironmentPage.dependencies.updateModes.${dependency.updateMode}`)}
+                  </Typography.Text>
+                  {dependency.guidance && (
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {dependency.guidance}
+                    </Typography.Text>
+                  )}
+                </div>
+              </div>
+              <div className='opl-settings-row__meta'>
+                <Tag
+                  color={
+                    dependency.currentness === 'update_available' || dependency.currentness === 'missing'
+                      ? 'orange'
+                      : 'gray'
+                  }
+                >
+                  {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+                    defaultValue: formatStatus(dependency.currentness, t),
+                  })}
+                </Tag>
+                {canDelegateUpdate && dependency.currentness === 'update_available' && (
+                  <Button
+                    size='small'
+                    loading={busyDependencyId === dependency.id}
+                    disabled={Boolean(busyDependencyId)}
+                    onClick={() => onRequestExternalUpdate(dependency)}
+                    data-testid={`opl-base-dependency-update-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
+                  >
+                    {dependency.updateAction?.label ??
+                      t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
+                  </Button>
                 )}
               </div>
-              {canDelegateUpdate && dependency.currentness === 'update_available' && (
-                <Button
-                  size='small'
-                  loading={busyDependencyId === dependency.id}
-                  disabled={Boolean(busyDependencyId)}
-                  onClick={() => onRequestExternalUpdate(dependency)}
-                  data-testid={`opl-base-dependency-update-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
-                >
-                  {dependency.updateAction?.label ??
-                    t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
-                </Button>
-              )}
             </div>
           );
         })}
@@ -657,29 +910,123 @@ function ManagedUpdatesPanel({
           />
         )}
 
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+        <div className='opl-settings-list border-t border-solid border-border-1'>
           {plane.components.map((component) => (
             <div
               key={component.id}
-              className='opl-settings-technical-subgroup'
+              className='opl-settings-row items-start'
               data-testid={`opl-managed-update-${component.id}`}
             >
-              <div className='flex flex-col gap-10px'>
-                <div className='flex items-center justify-between gap-12px'>
-                  <Typography.Text className='font-600 text-t-primary break-words'>
+              <div className='opl-settings-row__main flex-row items-start gap-10px'>
+                <span className='opl-settings-icon' aria-hidden='true'>
+                  {managedComponentIcon(component)}
+                </span>
+                <div className='min-w-0'>
+                  <Typography.Text className='block font-600 text-t-primary break-words'>
                     {componentDisplayLabel(component, t)}
                   </Typography.Text>
-                  <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {componentUserSummary(component, t)}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.updates.nextStep', {
+                      action: updateComponentUserAction(component, t),
+                    })}
+                  </Typography.Text>
+                  <HostRouteDetail component={component} t={t} />
+                  {(component.conditions.length > 0 ||
+                    component.substatuses.length > 0 ||
+                    component.receiptRef ||
+                    component.repairAction ||
+                    component.rollbackRef ||
+                    component.reloadGuidance ||
+                    component.manualGuidance ||
+                    component.hostUpdateRoute ||
+                    component.dataVolumePreservation ||
+                    component.preservedMounts.length > 0 ||
+                    component.requiredPreservationEvidence.length > 0) && (
+                    <Collapse className='mt-6px' bordered={false}>
+                      <Collapse.Item
+                        header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
+                        name={`component-${component.id}`}
+                      >
+                        <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
+                          {component.substatuses.map((substatus) => (
+                            <div key={substatus.id} data-testid={`opl-managed-update-substatus-${substatus.id}`}>
+                              <Tag size='small'>{formatStatus(substatus.state, t)}</Tag>
+                              <span className='ml-6px font-500 text-t-primary'>
+                                {t(`settings.oplEnvironmentPage.updates.substatuses.${substatus.id}`)}
+                              </span>
+                              {substatus.summary && <span className='ml-6px'>{substatus.summary}</span>}
+                            </div>
+                          ))}
+                          {component.conditions.map((condition) => (
+                            <div key={condition.id}>
+                              <Tag size='small'>{condition.status}</Tag>
+                              <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
+                              {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
+                              {condition.message && <span className='ml-6px'>{condition.message}</span>}
+                            </div>
+                          ))}
+                          {component.receiptRef && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}
+                            </span>
+                          )}
+                          {component.repairAction && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.repairAction', {
+                                action: component.repairAction,
+                              })}
+                            </span>
+                          )}
+                          {component.rollbackRef && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}
+                            </span>
+                          )}
+                          {component.needsRestart && (
+                            <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>
+                          )}
+                          {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
+                          {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
+                          {component.manualGuidance && <span>{component.manualGuidance}</span>}
+                          {component.hostUpdateRoute && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.hostUpdateRoute', {
+                                route: component.hostUpdateRoute,
+                              })}
+                            </span>
+                          )}
+                          {component.dataVolumePreservation && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
+                                value: component.dataVolumePreservation,
+                              })}
+                            </span>
+                          )}
+                          {component.preservedMounts.length > 0 && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.preservedMounts', {
+                                value: component.preservedMounts.join(', '),
+                              })}
+                            </span>
+                          )}
+                          {component.requiredPreservationEvidence.length > 0 && (
+                            <span>
+                              {t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
+                                value: component.requiredPreservationEvidence.join(', '),
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </Collapse.Item>
+                    </Collapse>
+                  )}
                 </div>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {componentUserSummary(component, t)}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.updates.nextStep', {
-                    action: updateComponentUserAction(component, t),
-                  })}
-                </Typography.Text>
-
+              </div>
+              <div className='opl-settings-row__meta'>
+                <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
                 <Space wrap size='small'>
                   {componentApplyAllowed(component) && (
                     <Button
@@ -716,92 +1063,6 @@ function ManagedUpdatesPanel({
                     </Button>
                   )}
                 </Space>
-                <HostRouteDetail component={component} t={t} />
-                {(component.conditions.length > 0 ||
-                  component.substatuses.length > 0 ||
-                  component.receiptRef ||
-                  component.repairAction ||
-                  component.rollbackRef ||
-                  component.reloadGuidance ||
-                  component.manualGuidance ||
-                  component.hostUpdateRoute ||
-                  component.dataVolumePreservation ||
-                  component.preservedMounts.length > 0 ||
-                  component.requiredPreservationEvidence.length > 0) && (
-                  <Collapse className='mt-2px' bordered={false}>
-                    <Collapse.Item
-                      header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
-                      name={`component-${component.id}`}
-                    >
-                      <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
-                        {component.substatuses.map((substatus) => (
-                          <div key={substatus.id} data-testid={`opl-managed-update-substatus-${substatus.id}`}>
-                            <Tag size='small'>{formatStatus(substatus.state, t)}</Tag>
-                            <span className='ml-6px font-500 text-t-primary'>
-                              {t(`settings.oplEnvironmentPage.updates.substatuses.${substatus.id}`)}
-                            </span>
-                            {substatus.summary && <span className='ml-6px'>{substatus.summary}</span>}
-                          </div>
-                        ))}
-                        {component.conditions.map((condition) => (
-                          <div key={condition.id}>
-                            <Tag size='small'>{condition.status}</Tag>
-                            <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
-                            {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
-                            {condition.message && <span className='ml-6px'>{condition.message}</span>}
-                          </div>
-                        ))}
-                        {component.receiptRef && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}
-                          </span>
-                        )}
-                        {component.repairAction && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.repairAction', { action: component.repairAction })}
-                          </span>
-                        )}
-                        {component.rollbackRef && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}
-                          </span>
-                        )}
-                        {component.needsRestart && <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>}
-                        {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
-                        {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
-                        {component.manualGuidance && <span>{component.manualGuidance}</span>}
-                        {component.hostUpdateRoute && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.hostUpdateRoute', {
-                              route: component.hostUpdateRoute,
-                            })}
-                          </span>
-                        )}
-                        {component.dataVolumePreservation && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
-                              value: component.dataVolumePreservation,
-                            })}
-                          </span>
-                        )}
-                        {component.preservedMounts.length > 0 && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.preservedMounts', {
-                              value: component.preservedMounts.join(', '),
-                            })}
-                          </span>
-                        )}
-                        {component.requiredPreservationEvidence.length > 0 && (
-                          <span>
-                            {t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
-                              value: component.requiredPreservationEvidence.join(', '),
-                            })}
-                          </span>
-                        )}
-                      </div>
-                    </Collapse.Item>
-                  </Collapse>
-                )}
               </div>
             </div>
           ))}
@@ -927,6 +1188,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [updateChannelSaving, setUpdateChannelSaving] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const [busyDependencyId, setBusyDependencyId] = React.useState<string | null>(null);
+  const [busyTemporalActionId, setBusyTemporalActionId] = React.useState<TemporalMaintenanceActionId | null>(null);
+  const [temporalActionEvidence, setTemporalActionEvidence] = React.useState<TemporalMaintenanceEvidence | null>(null);
+  const [temporalSchedulerStatus, setTemporalSchedulerStatus] = React.useState<string | null>(null);
+  const [temporalWorkerMutationGuard, setTemporalWorkerMutationGuard] = React.useState<string | null>(null);
+  const [temporalServerReachable, setTemporalServerReachable] = React.useState<boolean | null>(null);
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
   const appStateQuery = useOplAppState('fast');
@@ -1229,8 +1495,109 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     [appStateQuery.load, beginMaintenanceOperation, finishMaintenanceOperation, message, t]
   );
 
+  const runTemporalMaintenanceAction = useCallback(
+    async (actionId: TemporalMaintenanceActionId) => {
+      if (!beginMaintenanceOperation()) return;
+      setBusyTemporalActionId(actionId);
+      const observedAt = new Date().toLocaleTimeString();
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({ actionId, dryRun: false });
+        if (!bridgeResultSucceeded(result)) {
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          message.error(t('settings.oplEnvironmentPage.temporal.messages.actionFailed'));
+          return;
+        }
+
+        const actionFailure = temporalActionFailure(result);
+        const workerGuardStatus = nestedStringForKeys(result.parsed, new Set(['mutation_guard_status']));
+        const schedulerStatus = temporalSchedulerStatusFromResult(result);
+        const serviceReachable = nestedBooleanForKeys(result.parsed, new Set(['server_reachable']));
+        if (workerGuardStatus) setTemporalWorkerMutationGuard(workerGuardStatus);
+        if (schedulerStatus) setTemporalSchedulerStatus(schedulerStatus);
+        if (serviceReachable !== null) setTemporalServerReachable(serviceReachable);
+
+        if (actionFailure) {
+          setTemporalActionEvidence({ actionId, outcome: actionFailure, observedAt });
+          message.error(
+            t(
+              actionFailure === 'blocked'
+                ? 'settings.oplEnvironmentPage.temporal.messages.actionBlocked'
+                : 'settings.oplEnvironmentPage.temporal.messages.actionFailed'
+            )
+          );
+          return;
+        }
+
+        const requiresPostcondition = TEMPORAL_POSTCONDITION_ACTION_IDS.has(actionId);
+        const attempts = requiresPostcondition ? TEMPORAL_READBACK_ATTEMPTS : 1;
+        const readFreshSnapshot = async (attempt: number): Promise<TemporalMaintenanceSnapshot | null> => {
+          if (attempt > 0) await waitForTemporalReadbackRetry();
+          const freshPayload = await appStateQuery.load('fast', {
+            showRefreshing: attempt === 0,
+            forceFresh: true,
+          });
+          if (!freshPayload) {
+            return attempt + 1 < attempts ? readFreshSnapshot(attempt + 1) : null;
+          }
+          const snapshot = temporalMaintenanceSnapshot(
+            getAppState(freshPayload),
+            schedulerStatus,
+            workerGuardStatus,
+            serviceReachable
+          );
+          if (!requiresPostcondition || temporalPostconditionSatisfied(actionId, snapshot) || attempt + 1 >= attempts) {
+            return snapshot;
+          }
+          return readFreshSnapshot(attempt + 1);
+        };
+        const freshSnapshot = await readFreshSnapshot(0);
+
+        if (!freshSnapshot) {
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          message.error(t('settings.oplEnvironmentPage.temporal.messages.readbackFailed'));
+          return;
+        }
+        if (requiresPostcondition && !temporalPostconditionSatisfied(actionId, freshSnapshot)) {
+          setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+          message.error(t('settings.oplEnvironmentPage.temporal.messages.postconditionFailed'));
+          return;
+        }
+
+        const readNeedsAttention =
+          (actionId === 'provider_service_status' && freshSnapshot.serverReachable !== true) ||
+          (actionId === 'provider_worker_status' &&
+            (!freshSnapshot.workerReady ||
+              freshSnapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state')) ||
+          (actionId === 'provider_scheduler_status' && freshSnapshot.schedulerStatus !== 'ready');
+        if (readNeedsAttention) {
+          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt });
+          message.warning(t('settings.oplEnvironmentPage.temporal.messages.needsAttention'));
+          return;
+        }
+
+        setTemporalActionEvidence({
+          actionId,
+          outcome: actionId.endsWith('_status') ? 'checked' : 'completed',
+          observedAt,
+        });
+        message.success(t('settings.oplEnvironmentPage.temporal.messages.actionComplete'));
+      } catch {
+        setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
+        message.error(t('settings.oplEnvironmentPage.temporal.messages.actionFailed'));
+      } finally {
+        setBusyTemporalActionId(null);
+        finishMaintenanceOperation();
+      }
+    },
+    [appStateQuery.load, beginMaintenanceOperation, finishMaintenanceOperation, message, t]
+  );
+
   const openUpdateModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'settings-runtime' } }));
+  }, []);
+
+  const openTemporalWorkerSourceSettings = useCallback(() => {
+    window.location.hash = '#/settings/agents?section=source';
   }, []);
 
   const viewModel = useMemo(
@@ -1301,6 +1668,17 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     healthSummaryItems.some((item) => item.tone === 'orange') ||
     maintenanceHubItems.some((item) => item.tone === 'orange');
   const maintenanceOperationBusy = maintenanceOperationRunning || managedUpdateMaintenance.running;
+  const temporalActions = useMemo(() => temporalMaintenanceActions(appState), [appState]);
+  const temporalSnapshot = useMemo(
+    () =>
+      temporalMaintenanceSnapshot(
+        appState,
+        temporalSchedulerStatus,
+        temporalWorkerMutationGuard,
+        temporalServerReachable
+      ),
+    [appState, temporalSchedulerStatus, temporalServerReachable, temporalWorkerMutationGuard]
+  );
 
   const openLogDir = useCallback(() => {
     if (!logsRoot) return;
@@ -1331,6 +1709,17 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </div>
           <RuntimeHealthSummary items={healthSummaryItems} />
         </section>
+
+        <TemporalMaintenancePanel
+          snapshot={temporalSnapshot}
+          actions={temporalActions}
+          evidence={temporalActionEvidence}
+          busyActionId={busyTemporalActionId}
+          disabled={maintenanceOperationBusy}
+          onAction={(actionId) => void runTemporalMaintenanceAction(actionId)}
+          onOpenWorkerSourceSettings={openTemporalWorkerSourceSettings}
+          t={t}
+        />
 
         {oplBaseComponent && (
           <BaseDependencyCatalog
@@ -1485,7 +1874,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </section>
         )}
 
-        <div className='flex justify-end gap-8px'>
+        <div className='flex min-w-0 flex-wrap items-center justify-start gap-8px sm:justify-end'>
           <Button data-testid='settings-maintenance-management-action' onClick={() => setManagementVisible(true)}>
             {t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
           </Button>
