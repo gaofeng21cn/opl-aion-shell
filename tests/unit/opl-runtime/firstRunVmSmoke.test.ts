@@ -25,6 +25,19 @@ function withFakeOpl(payloadBytes: number, run: (root: string) => void): void {
   }
 }
 
+function temporalServiceActionLifecycle(pid: number) {
+  return {
+    service_status: 'running',
+    server_reachable: true,
+    supervisor: {
+      required: true,
+      ready: true,
+      error: null,
+      pid,
+    },
+  };
+}
+
 describe('packaged first-run VM smoke helpers', () => {
   it('accepts OPL JSON output above the Node spawnSync default buffer', () => {
     withFakeOpl(2 * 1024 * 1024, (root) => {
@@ -158,6 +171,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(launchEnv).toMatchObject({
       HOME: '/Users/admin',
       PATH: '/usr/bin:/bin',
+      OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233',
+      OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default',
       AIONUI_CDP_PORT: '9239',
       OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: '/tmp/codex.tgz',
       OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: '/tmp/platform.tgz',
@@ -168,6 +183,33 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(launchEnv).not.toHaveProperty('ELECTRON_RUN_AS_NODE');
     expect(launchEnv).not.toHaveProperty('NODE_OPTIONS');
     expect(launchEnv).not.toHaveProperty('GITHUB_ACTIONS');
+
+    expect(
+      __test.buildPackagedTemporalAddressEnv({
+        OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233',
+        OPL_TEMPORAL_ADDRESS_SOURCE: 'environment',
+      })
+    ).toEqual({
+      OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233',
+      OPL_TEMPORAL_ADDRESS_SOURCE: 'environment',
+    });
+    expect(
+      __test.buildPackagedTemporalAddressEnv({
+        OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233',
+        OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default',
+      })
+    ).toEqual({ OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233' });
+    expect(__test.buildPackagedTemporalAddressEnv({ OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233' })).toEqual({
+      OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233',
+    });
+    expect(__test.buildPackagedTemporalAddressEnv({ TEMPORAL_ADDRESS: 'remote.example.test:7233' })).toEqual({
+      TEMPORAL_ADDRESS: 'remote.example.test:7233',
+    });
+    expect(
+      __test.buildPackagedTemporalAddressEnv({
+        OPL_TEMPORAL_SERVICE_START_COMMAND: '/opt/custom/start-temporal',
+      })
+    ).toEqual({ OPL_TEMPORAL_SERVICE_START_COMMAND: '/opt/custom/start-temporal' });
   });
 
   it('parses packaged app process rows for launch diagnostics', () => {
@@ -1363,12 +1405,31 @@ describe('packaged first-run VM smoke helpers', () => {
               calls.push(args);
               if (args[1] === 'action') {
                 const actionId = args[4];
+                const restart = actionId === 'provider_service_restart';
                 return JSON.stringify({
                   app_action_execution: {
                     action_id: actionId,
                     dry_run: false,
-                    delegated_surface: `opl family-runtime service ${actionId === 'provider_service_start' ? 'start' : 'restart'} --provider temporal`,
-                    result: { status: 'ready' },
+                    delegated_surface: `opl family-runtime service ${restart ? 'restart' : 'start'} --provider temporal`,
+                    result: {
+                      version: 'g2',
+                      family_runtime_service: restart
+                        ? {
+                            action: 'restart',
+                            restart_status: 'restarted',
+                            ready: true,
+                            previous_supervisor_pid: 4102,
+                            supervisor_pid: 4103,
+                            supervisor_pid_changed: true,
+                            status: temporalServiceActionLifecycle(4103),
+                          }
+                        : {
+                            action: 'start',
+                            start_status: 'started_supervised',
+                            status: temporalServiceActionLifecycle(4101),
+                            supervisor_operation: { action: 'install', status: 'ready', ready: true, error: null },
+                          },
+                    },
                   },
                 });
               }
@@ -1434,6 +1495,75 @@ describe('packaged first-run VM smoke helpers', () => {
       else process.env.OPL_STATE_DIR = previousStateDir;
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('fails closed on unready Temporal start and restart action results before readback', () => {
+    const lifecycle = {
+      service_status: 'running',
+      server_reachable: true,
+      supervisor: { required: true, ready: true, error: null },
+    };
+    const start = {
+      app_action_execution: {
+        action_id: 'provider_service_start',
+        dry_run: false,
+        delegated_surface: 'opl family-runtime service start --provider temporal',
+        result: {
+          family_runtime_service: {
+            action: 'start',
+            start_status: 'started_supervised',
+            status: lifecycle,
+          },
+        },
+      },
+    };
+    const restart = {
+      app_action_execution: {
+        action_id: 'provider_service_restart',
+        dry_run: false,
+        delegated_surface: 'opl family-runtime service restart --provider temporal',
+        result: {
+          family_runtime_service: {
+            action: 'restart',
+            restart_status: 'restarted',
+            ready: true,
+            previous_supervisor_pid: 4102,
+            supervisor_pid: 4103,
+            supervisor_pid_changed: true,
+            status: lifecycle,
+          },
+        },
+      },
+    };
+
+    expect(() => __test.assertAppActionExecution(start, 'provider_service_start')).not.toThrow();
+    expect(() => __test.assertAppActionExecution(restart, 'provider_service_restart')).not.toThrow();
+
+    const startUnready = structuredClone(start);
+    startUnready.app_action_execution.result.family_runtime_service.start_status = 'supervisor_unready';
+    expect(() => __test.assertAppActionExecution(startUnready, 'provider_service_start')).toThrow(
+      /start_status is supervisor_unready/
+    );
+
+    const startReadbackUnready = structuredClone(start);
+    startReadbackUnready.app_action_execution.result.family_runtime_service.status.supervisor.ready = false;
+    expect(() => __test.assertAppActionExecution(startReadbackUnready, 'provider_service_start')).toThrow(
+      /status\.supervisor\.ready is not true/
+    );
+
+    const restartUnready = structuredClone(restart);
+    restartUnready.app_action_execution.result.family_runtime_service.restart_status = 'restart_unready';
+    restartUnready.app_action_execution.result.family_runtime_service.ready = false;
+    expect(() => __test.assertAppActionExecution(restartUnready, 'provider_service_restart')).toThrow(
+      /restart_status is restart_unready; ready is not true/
+    );
+
+    const restartSamePid = structuredClone(restart);
+    restartSamePid.app_action_execution.result.family_runtime_service.supervisor_pid = 4102;
+    restartSamePid.app_action_execution.result.family_runtime_service.supervisor_pid_changed = false;
+    expect(() => __test.assertAppActionExecution(restartSamePid, 'provider_service_restart')).toThrow(
+      /supervisor_pid_changed is not true; supervisor_pid did not change/
+    );
   });
 
   it('keeps Settings smoke passed when Runtime action evidence is unavailable', async () => {

@@ -329,9 +329,13 @@ export function TemporalMaintenancePanel({
     : t('settings.oplEnvironmentPage.temporal.values.none');
   const workerStatusLabel = temporalWorkerStatusLabel(snapshot, t);
   const schedulerStatusLabel = temporalSchedulerStatusLabel(snapshot, t);
+  const providerNotConfigured =
+    TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
+    TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus);
   const componentFailureReported =
     serverFailed ||
-    (snapshot.serviceSupervisorRequired &&
+    (!providerNotConfigured &&
+      snapshot.serviceSupervisorRequired &&
       (!snapshot.serviceSupervisorInstalled ||
         !snapshot.serviceSupervisorLoaded ||
         !snapshot.serviceSupervisorConfigurationCurrent ||
@@ -343,8 +347,7 @@ export function TemporalMaintenancePanel({
     ? t('settings.oplEnvironmentPage.temporal.values.ready')
     : componentFailureReported
       ? t('settings.oplEnvironmentPage.temporal.values.needsAttention')
-      : TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
-          TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus)
+      : providerNotConfigured
         ? t('settings.oplEnvironmentPage.temporal.values.notConfigured')
         : t('settings.oplEnvironmentPage.temporal.values.needsCheck');
 

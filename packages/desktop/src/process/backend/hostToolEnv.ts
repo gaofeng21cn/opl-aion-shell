@@ -6,7 +6,11 @@ type BuildOplHostToolEnvInput = {
   baseEnv?: NodeJS.ProcessEnv;
   runtimeEnv?: NodeJS.ProcessEnv | null;
   extraPathEntries?: string[];
+  usePackagedLocalTemporalDefault?: boolean;
 };
+
+const PACKAGED_LOCAL_TEMPORAL_ADDRESS = '127.0.0.1:7233';
+const PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE = 'packaged_local_default';
 
 function normalizePathEntries(entries: Array<string | undefined>): string[] {
   const seen = new Set<string>();
@@ -83,9 +87,42 @@ export function buildOplHostToolEnv(input: BuildOplHostToolEnvInput = {}): NodeJ
     baseEnv.PATH,
   ]);
 
-  const mergedEnv = Object.assign({}, baseEnv, runtimeEnv || {});
-  return {
-    ...mergedEnv,
+  const mergedEnv: NodeJS.ProcessEnv = {
+    ...baseEnv,
+    ...runtimeEnv,
     PATH: pathEntries.join(path.delimiter),
   };
+  if (input.usePackagedLocalTemporalDefault) {
+    const baseOplAddress = baseEnv.OPL_TEMPORAL_ADDRESS?.trim();
+    const baseTemporalAddress = baseEnv.TEMPORAL_ADDRESS?.trim();
+    const baseCustomServiceCommand = baseEnv.OPL_TEMPORAL_SERVICE_START_COMMAND?.trim();
+    const runtimeAddress = runtimeEnv?.OPL_TEMPORAL_ADDRESS?.trim();
+    if (baseOplAddress) {
+      mergedEnv.OPL_TEMPORAL_ADDRESS = baseOplAddress;
+      const baseAddressSource = baseEnv.OPL_TEMPORAL_ADDRESS_SOURCE?.trim();
+      if (
+        !baseAddressSource ||
+        (baseAddressSource === PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE &&
+          baseOplAddress !== PACKAGED_LOCAL_TEMPORAL_ADDRESS)
+      ) {
+        delete mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE;
+      }
+    } else if (baseTemporalAddress || baseCustomServiceCommand) {
+      delete mergedEnv.OPL_TEMPORAL_ADDRESS;
+      if (mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE === PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE) {
+        delete mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE;
+      }
+    } else if (!runtimeAddress) {
+      mergedEnv.OPL_TEMPORAL_ADDRESS = PACKAGED_LOCAL_TEMPORAL_ADDRESS;
+      mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE = PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE;
+    } else if (runtimeAddress === PACKAGED_LOCAL_TEMPORAL_ADDRESS) {
+      mergedEnv.OPL_TEMPORAL_ADDRESS = PACKAGED_LOCAL_TEMPORAL_ADDRESS;
+      if (!runtimeEnv?.OPL_TEMPORAL_ADDRESS_SOURCE?.trim()) {
+        mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE = PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE;
+      }
+    } else if (mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE === PACKAGED_LOCAL_TEMPORAL_ADDRESS_SOURCE) {
+      delete mergedEnv.OPL_TEMPORAL_ADDRESS_SOURCE;
+    }
+  }
+  return mergedEnv;
 }

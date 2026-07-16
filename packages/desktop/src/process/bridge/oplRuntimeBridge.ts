@@ -32,6 +32,13 @@ type RuntimeCommandSpec = {
   timeoutMs?: number;
 };
 
+type DesktopStartupMaintenanceDependencies = {
+  logInfo?: (message: string) => void;
+  logWarn?: (message: string) => void;
+  now?: () => Date;
+  runCommand?: (spec: RuntimeCommandSpec) => Promise<IOplRuntimeCommandResult>;
+};
+
 type OplDeveloperSupervisorEnabled = 'auto' | 'on' | 'off';
 type OplDeveloperSupervisorMode = 'external_observe' | 'developer_apply_safe';
 type OplDeveloperSupervisorConfig = {
@@ -1589,6 +1596,56 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
       }
     );
   }
+}
+
+export async function runDesktopStartupMaintenance(
+  dependencies: DesktopStartupMaintenanceDependencies = {}
+): Promise<IOplRuntimeCommandResult> {
+  const spec = buildStartupMaintenanceCommand();
+  let result: IOplRuntimeCommandResult;
+  try {
+    result = await (dependencies.runCommand ?? runOplCommand)(spec);
+  } catch (error) {
+    result = commandFailureResult(
+      spec,
+      'opl system startup-maintenance --json',
+      error instanceof Error ? error.message : String(error),
+      {
+        code: error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : undefined,
+      }
+    );
+  }
+
+  const parsed = isRecord(result.parsed) ? result.parsed : null;
+  const systemAction = isRecord(parsed?.system_action) ? parsed.system_action : null;
+  const maintenanceStatus = typeof systemAction?.status === 'string' ? systemAction.status : null;
+  const maintenanceSucceeded = result.ok && maintenanceStatus === 'completed';
+  const record = {
+    schema: 'opl.desktop_startup_maintenance.v1',
+    observed_at: (dependencies.now ?? (() => new Date()))().toISOString(),
+    host_kind: 'desktop',
+    surface: result.surface,
+    command: result.command,
+    ok: maintenanceSucceeded,
+    command_ok: result.ok,
+    maintenance_status: maintenanceStatus,
+    result: result.parsed,
+    error: result.error ?? null,
+  };
+  const message = `[AionUi:opl-startup] ${JSON.stringify(record)}`;
+  if (maintenanceSucceeded) {
+    (dependencies.logInfo ?? console.log)(message);
+  } else {
+    (dependencies.logWarn ?? console.warn)(message);
+  }
+  return result;
+}
+
+export async function runStartupMaintenanceForHost(
+  hostKind: 'desktop' | 'web',
+  dependencies: DesktopStartupMaintenanceDependencies = {}
+): Promise<IOplRuntimeCommandResult | null> {
+  return hostKind === 'desktop' ? runDesktopStartupMaintenance(dependencies) : null;
 }
 
 export function initOplRuntimeBridge(): void {

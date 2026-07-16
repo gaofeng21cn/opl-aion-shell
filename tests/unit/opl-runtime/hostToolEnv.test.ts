@@ -60,4 +60,78 @@ describe('buildOplHostToolEnv', () => {
     }
     expect(entries).not.toContain(path.join(homeDir, '.nvm', 'versions', 'node', '*', 'bin'));
   });
+
+  it('labels only the packaged Desktop local Temporal default and preserves explicit remote provenance', () => {
+    const packagedDefault = buildOplHostToolEnv({
+      baseEnv: { HOME: '/Users/tester', PATH: '/usr/bin:/bin' },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(packagedDefault).toMatchObject({
+      OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233',
+      OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default',
+    });
+
+    const runtimeDefault = buildOplHostToolEnv({
+      baseEnv: { HOME: '/Users/tester', PATH: '/usr/bin:/bin' },
+      runtimeEnv: { OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233' },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(runtimeDefault.OPL_TEMPORAL_ADDRESS_SOURCE).toBe('packaged_local_default');
+
+    const explicitLocal = buildOplHostToolEnv({
+      baseEnv: {
+        HOME: '/Users/tester',
+        PATH: '/usr/bin:/bin',
+        OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233',
+      },
+      runtimeEnv: { OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default' },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(explicitLocal.OPL_TEMPORAL_ADDRESS).toBe('127.0.0.1:7233');
+    expect(explicitLocal.OPL_TEMPORAL_ADDRESS_SOURCE).toBeUndefined();
+
+    const remote = buildOplHostToolEnv({
+      baseEnv: {
+        HOME: '/Users/tester',
+        PATH: '/usr/bin:/bin',
+        OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233',
+        OPL_TEMPORAL_ADDRESS_SOURCE: 'environment',
+      },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(remote.OPL_TEMPORAL_ADDRESS).toBe('temporal.example.test:7233');
+    expect(remote.OPL_TEMPORAL_ADDRESS_SOURCE).toBe('environment');
+
+    const stalePackagedSource = buildOplHostToolEnv({
+      baseEnv: {
+        HOME: '/Users/tester',
+        PATH: '/usr/bin:/bin',
+        OPL_TEMPORAL_ADDRESS: 'temporal.example.test:7233',
+        OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default',
+      },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(stalePackagedSource.OPL_TEMPORAL_ADDRESS).toBe('temporal.example.test:7233');
+    expect(stalePackagedSource.OPL_TEMPORAL_ADDRESS_SOURCE).toBeUndefined();
+
+    const temporalAddress = buildOplHostToolEnv({
+      baseEnv: { HOME: '/Users/tester', PATH: '/usr/bin:/bin', TEMPORAL_ADDRESS: 'remote.example.test:7233' },
+      runtimeEnv: { OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233' },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(temporalAddress.TEMPORAL_ADDRESS).toBe('remote.example.test:7233');
+    expect(temporalAddress.OPL_TEMPORAL_ADDRESS).toBeUndefined();
+    expect(temporalAddress.OPL_TEMPORAL_ADDRESS_SOURCE).toBeUndefined();
+
+    const customCommand = buildOplHostToolEnv({
+      baseEnv: {
+        HOME: '/Users/tester',
+        PATH: '/usr/bin:/bin',
+        OPL_TEMPORAL_SERVICE_START_COMMAND: '/opt/custom/start-temporal',
+      },
+      usePackagedLocalTemporalDefault: true,
+    });
+    expect(customCommand.OPL_TEMPORAL_ADDRESS).toBeUndefined();
+    expect(customCommand.OPL_TEMPORAL_ADDRESS_SOURCE).toBeUndefined();
+  });
 });

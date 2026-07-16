@@ -1,8 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { __oplRuntimeBridgeTest } from '@/process/bridge/oplRuntimeBridge';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  __oplRuntimeBridgeTest,
+  runDesktopStartupMaintenance,
+  runStartupMaintenanceForHost,
+} from '@/process/bridge/oplRuntimeBridge';
 
 const tmpRoots: string[] = [];
 const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
@@ -567,6 +571,94 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(JSON.stringify(uiResult)).not.toContain('OPL_APP_PROCESS_INSTANCE_ID');
     expect(JSON.stringify(uiResult)).not.toContain('OPL_APP_HOST_KIND');
     expect(JSON.stringify(uiResult)).not.toContain(nextProcessId);
+  });
+
+  it('runs startup maintenance once for Desktop after storage initialization and never for Web', async () => {
+    const desktopEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.ts'), 'utf8');
+    expect(desktopEntry).toContain("initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' })");
+    const processEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/process/index.ts'), 'utf8');
+    expect(processEntry.indexOf('await (options.initializeStorage ?? initStorage)()')).toBeLessThan(
+      processEntry.indexOf('await runStartupMaintenanceForHost(options.hostKind)')
+    );
+
+    const specs: Array<{ surface: string; args: string[] }> = [];
+    const dependencies: NonNullable<Parameters<typeof runDesktopStartupMaintenance>[0]> = {
+      logInfo: vi.fn(),
+      runCommand: async (spec) => {
+        specs.push(spec);
+        return {
+          surface: 'startup_maintenance' as const,
+          command: 'opl system startup-maintenance --json',
+          stdout: '{}',
+          parsed: { system_action: { action: 'startup_maintenance', status: 'completed' } },
+          ok: true as const,
+        };
+      },
+    };
+    await runStartupMaintenanceForHost('desktop', dependencies);
+    await runStartupMaintenanceForHost('web', dependencies);
+
+    expect(specs).toEqual([{ surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] }]);
+  });
+
+  it('records a structured startup-maintenance failure without throwing', async () => {
+    const warnings: string[] = [];
+    const specs: Array<{ surface: string; args: string[] }> = [];
+
+    const result = await runDesktopStartupMaintenance({
+      now: () => new Date('2026-07-17T00:00:00.000Z'),
+      logWarn: (message) => warnings.push(message),
+      runCommand: async (spec) => {
+        specs.push(spec);
+        return {
+          surface: 'startup_maintenance',
+          command: 'opl system startup-maintenance --json',
+          stdout: '',
+          parsed: null,
+          ok: false,
+          error: { code: 'startup_maintenance_failed', message: 'Temporal supervisor unavailable' },
+        };
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(specs).toEqual([{ surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] }]);
+    expect(warnings).toHaveLength(1);
+    expect(JSON.parse(warnings[0]!.replace('[AionUi:opl-startup] ', ''))).toEqual({
+      schema: 'opl.desktop_startup_maintenance.v1',
+      observed_at: '2026-07-17T00:00:00.000Z',
+      host_kind: 'desktop',
+      surface: 'startup_maintenance',
+      command: 'opl system startup-maintenance --json',
+      ok: false,
+      command_ok: false,
+      maintenance_status: null,
+      result: null,
+      error: { code: 'startup_maintenance_failed', message: 'Temporal supervisor unavailable' },
+    });
+  });
+
+  it('warns instead of reporting green when startup maintenance exits zero with manual work remaining', async () => {
+    const warnings: string[] = [];
+
+    const result = await runDesktopStartupMaintenance({
+      logWarn: (message) => warnings.push(message),
+      runCommand: async () => ({
+        surface: 'startup_maintenance',
+        command: 'opl system startup-maintenance --json',
+        stdout: '{}',
+        parsed: { system_action: { action: 'startup_maintenance', status: 'manual_required' } },
+        ok: true,
+      }),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(warnings).toHaveLength(1);
+    expect(JSON.parse(warnings[0]!.replace('[AionUi:opl-startup] ', ''))).toMatchObject({
+      ok: false,
+      command_ok: true,
+      maintenance_status: 'manual_required',
+    });
   });
 
   it('prefers the installed App-managed runtime/current when no explicit full runtime env is set', () => {

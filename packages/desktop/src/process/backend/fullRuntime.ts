@@ -316,6 +316,7 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(normalized)}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(normalized, 'skills'))}`,
     'export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"',
+    'if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ] && [ -z "${TEMPORAL_ADDRESS:-}" ] && [ -z "${OPL_TEMPORAL_SERVICE_START_COMMAND:-}" ]; then export OPL_TEMPORAL_ADDRESS="127.0.0.1:7233"; export OPL_TEMPORAL_ADDRESS_SOURCE="packaged_local_default"; elif [ "${OPL_TEMPORAL_ADDRESS_SOURCE:-}" = "packaged_local_default" ] && [ "${OPL_TEMPORAL_ADDRESS:-}" != "127.0.0.1:7233" ]; then unset OPL_TEMPORAL_ADDRESS_SOURCE; fi',
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,

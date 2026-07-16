@@ -146,7 +146,13 @@ const oplRuntime = ensurePackagedOplFullRuntime({
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
 });
-applyOplFullRuntimeEnv(buildOplHostToolEnv({ runtimeEnv: oplRuntime?.env }));
+const isWebUIBootstrap = process.argv.includes('--webui') || app.commandLine.hasSwitch('webui');
+applyOplFullRuntimeEnv(
+  buildOplHostToolEnv({
+    runtimeEnv: oplRuntime?.env,
+    usePackagedLocalTemporalDefault: app.isPackaged && !isWebUIBootstrap,
+  })
+);
 
 // Handle Squirrel startup events (Windows installer)
 if (electronSquirrelStartup) {
@@ -599,7 +605,7 @@ const handleAppReady = async (): Promise<void> => {
   setSentryDeviceId();
 
   try {
-    await initializeProcess();
+    await initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' });
     rendererInitialLanguage = ProcessConfig.getSync('language') ?? app.getLocale();
     mark('initializeProcess');
   } catch (error) {

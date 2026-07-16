@@ -365,6 +365,7 @@ function nestedBooleanForKeys(value: unknown, keys: ReadonlySet<string>, depth =
 const TEMPORAL_STATUS_KEYS = new Set([
   'status',
   'start_status',
+  'restart_status',
   'service_status',
   'lifecycle_status',
   'readiness_status',
@@ -382,6 +383,7 @@ function temporalActionFailure(result: IOplRuntimeCommandResult): 'blocked' | 'f
   return statusValues.some(
     (status) =>
       /^(failed|error)/.test(status) ||
+      /(^|[_-])unready($|[_-])/.test(status) ||
       /(^|[_-])stale($|[_-])/.test(status) ||
       /(^|[_-])guidance_only($|[_-])/.test(status) ||
       status === 'launcher_missing' ||

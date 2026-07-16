@@ -991,9 +991,31 @@ function buildPackagedAppLaunchBaseEnv(sourceEnv = process.env) {
   return env;
 }
 
+function buildPackagedTemporalAddressEnv(sourceEnv = process.env) {
+  const explicitAddress = sourceEnv.OPL_TEMPORAL_ADDRESS?.trim();
+  if (explicitAddress) {
+    const explicitSource = sourceEnv.OPL_TEMPORAL_ADDRESS_SOURCE?.trim();
+    return {
+      OPL_TEMPORAL_ADDRESS: explicitAddress,
+      ...(explicitSource && explicitSource !== 'packaged_local_default'
+        ? { OPL_TEMPORAL_ADDRESS_SOURCE: explicitSource }
+        : {}),
+    };
+  }
+  const temporalAddress = sourceEnv.TEMPORAL_ADDRESS?.trim();
+  if (temporalAddress) return { TEMPORAL_ADDRESS: temporalAddress };
+  const customServiceCommand = sourceEnv.OPL_TEMPORAL_SERVICE_START_COMMAND?.trim();
+  if (customServiceCommand) return { OPL_TEMPORAL_SERVICE_START_COMMAND: customServiceCommand };
+  return {
+    OPL_TEMPORAL_ADDRESS: '127.0.0.1:7233',
+    OPL_TEMPORAL_ADDRESS_SOURCE: 'packaged_local_default',
+  };
+}
+
 function buildLaunchAppEnv(options, sourceEnv = process.env) {
   return {
     ...buildPackagedAppLaunchBaseEnv(sourceEnv),
+    ...buildPackagedTemporalAddressEnv(sourceEnv),
     AIONUI_CDP_PORT: String(options.cdpPort),
     ...buildCodexInstallPreseedEnv(options),
   };
@@ -2177,6 +2199,42 @@ function assertAppActionExecution(payload, actionId) {
   const execution = isRecord(payload?.app_action_execution) ? payload.app_action_execution : null;
   if (!execution || execution.action_id !== actionId || execution.dry_run !== false) {
     throw new Error(`Temporal maintenance action ${actionId} did not return a live App action execution receipt.`);
+  }
+  const result = isRecord(execution.result) ? execution.result : null;
+  const service = isRecord(result?.family_runtime_service) ? result.family_runtime_service : null;
+  const status = isRecord(service?.status) ? service.status : null;
+  const supervisor = isRecord(status?.supervisor) ? status.supervisor : null;
+  const errors = [];
+  if (!service) errors.push('result.family_runtime_service is missing');
+
+  if (actionId === TEMPORAL_SERVICE_START_ACTION_ID) {
+    if (service?.action !== 'start') errors.push(`action is ${service?.action}`);
+    if (!['started_supervised', 'already_running'].includes(service?.start_status)) {
+      errors.push(`start_status is ${service?.start_status}`);
+    }
+  } else if (actionId === TEMPORAL_SERVICE_RESTART_ACTION_ID) {
+    if (service?.action !== 'restart') errors.push(`action is ${service?.action}`);
+    if (service?.restart_status !== 'restarted') errors.push(`restart_status is ${service?.restart_status}`);
+    if (service?.ready !== true) errors.push('ready is not true');
+    if (service?.supervisor_pid_changed !== true) errors.push('supervisor_pid_changed is not true');
+    if (!Number.isSafeInteger(service?.previous_supervisor_pid) || service.previous_supervisor_pid <= 0) {
+      errors.push(`previous_supervisor_pid is ${service?.previous_supervisor_pid}`);
+    }
+    if (!Number.isSafeInteger(service?.supervisor_pid) || service.supervisor_pid <= 0) {
+      errors.push(`supervisor_pid is ${service?.supervisor_pid}`);
+    }
+    if (service?.previous_supervisor_pid === service?.supervisor_pid) {
+      errors.push('supervisor_pid did not change');
+    }
+  }
+
+  if (status?.service_status !== 'running') errors.push(`status.service_status is ${status?.service_status}`);
+  if (status?.server_reachable !== true) errors.push('status.server_reachable is not true');
+  if (supervisor?.required !== true) errors.push('status.supervisor.required is not true');
+  if (supervisor?.ready !== true) errors.push('status.supervisor.ready is not true');
+  if (supervisor?.error !== null) errors.push(`status.supervisor.error is ${supervisor?.error}`);
+  if (errors.length > 0) {
+    throw new Error(`Temporal maintenance action ${actionId} result is not ready: ${errors.join('; ')}`);
   }
   return {
     action_id: execution.action_id,
@@ -6363,6 +6421,7 @@ export const __test =
         assertPackagedMainBootstrap,
         buildLaunchExecutableArgs,
         buildPackagedAppLaunchBaseEnv,
+        buildPackagedTemporalAddressEnv,
         buildLaunchAppEnv,
         launchEnvDiagnostics,
         parseProcessRows,
@@ -6406,6 +6465,7 @@ export const __test =
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
         collectTemporalServiceSupervisorProof,
+        assertAppActionExecution,
         assertTemporalSupervisorReady,
         assertTemporalSupervisorPlist,
         TEMPORAL_SERVICE_START_ACTION_ID,

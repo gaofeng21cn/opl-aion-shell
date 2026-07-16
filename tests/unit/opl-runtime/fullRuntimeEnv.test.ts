@@ -160,4 +160,14 @@ describe('ensurePackagedOplFullRuntime', () => {
   it('returns an empty shell prefix when no runtime is active', () => {
     expect(buildOplFullRuntimeShellPrefix(null)).toBe('');
   });
+
+  it('labels the Full wrapper local Temporal default without overwriting an explicit remote address', () => {
+    const runtimeHome = makeTempRoot('opl-full-shell-prefix');
+    const prefix = buildOplFullRuntimeShellPrefix(runtimeHome);
+
+    expect(prefix).toContain('export OPL_TEMPORAL_ADDRESS="127.0.0.1:7233"');
+    expect(prefix).toContain('export OPL_TEMPORAL_ADDRESS_SOURCE="packaged_local_default"');
+    expect(prefix).toContain('if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ]');
+    expect(prefix).toContain('unset OPL_TEMPORAL_ADDRESS_SOURCE');
+  });
 });

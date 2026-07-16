@@ -447,6 +447,31 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects restart success when the action reports restart_unready even if fast state is ready', async () => {
+    exposeTemporalActions('provider_service_status', 'provider_service_restart');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            family_runtime_service: {
+              action: 'restart',
+              restart_status: 'restart_unready',
+              ready: false,
+            },
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_restart'));
+
+    await waitFor(() => expect(messageMocks.error).toHaveBeenCalled());
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).not.toHaveBeenCalled();
+  });
+
   it('fails closed when a ready provider omits explicit service readiness', () => {
     setTemporalState({
       status: 'ready',

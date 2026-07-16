@@ -312,6 +312,12 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
 
   const inheritedEnv: NodeJS.ProcessEnv = { ...process.env };
   delete inheritedEnv.OPL_APP_HOST_KIND;
+  if (inheritedEnv.OPL_TEMPORAL_ADDRESS_SOURCE === 'packaged_local_default') {
+    delete inheritedEnv.OPL_TEMPORAL_ADDRESS_SOURCE;
+    if (inheritedEnv.OPL_TEMPORAL_ADDRESS === '127.0.0.1:7233') {
+      delete inheritedEnv.OPL_TEMPORAL_ADDRESS;
+    }
+  }
 
   return {
     ...inheritedEnv,

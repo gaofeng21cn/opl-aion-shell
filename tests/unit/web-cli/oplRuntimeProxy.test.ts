@@ -59,8 +59,12 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
     };
     const originalValue = process.env.OPL_APP_PROCESS_INSTANCE_ID;
     const originalHostKind = process.env.OPL_APP_HOST_KIND;
+    const originalTemporalAddress = process.env.OPL_TEMPORAL_ADDRESS;
+    const originalTemporalAddressSource = process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
     process.env.OPL_APP_PROCESS_INSTANCE_ID = 'user-supplied-value';
     process.env.OPL_APP_HOST_KIND = 'desktop';
+    process.env.OPL_TEMPORAL_ADDRESS = '127.0.0.1:7233';
+    process.env.OPL_TEMPORAL_ADDRESS_SOURCE = 'packaged_local_default';
 
     try {
       const firstEnv = __oplRuntimeProxyTest.buildOplEnv(options);
@@ -72,6 +76,14 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
       expect(firstId).not.toBe('user-supplied-value');
       expect(firstEnv.OPL_APP_HOST_KIND).toBeUndefined();
       expect(secondEnv.OPL_APP_HOST_KIND).toBeUndefined();
+      expect(firstEnv.OPL_TEMPORAL_ADDRESS).toBeUndefined();
+      expect(firstEnv.OPL_TEMPORAL_ADDRESS_SOURCE).toBeUndefined();
+
+      process.env.OPL_TEMPORAL_ADDRESS = 'temporal.example.test:7233';
+      process.env.OPL_TEMPORAL_ADDRESS_SOURCE = 'environment';
+      const remoteEnv = __oplRuntimeProxyTest.buildOplEnv(options);
+      expect(remoteEnv.OPL_TEMPORAL_ADDRESS).toBe('temporal.example.test:7233');
+      expect(remoteEnv.OPL_TEMPORAL_ADDRESS_SOURCE).toBe('environment');
 
       const nextProcessId = __oplRuntimeProxyTest.resetOplAppProcessInstanceIdForTest();
       expect(nextProcessId).not.toBe(firstId);
@@ -94,6 +106,16 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
         delete process.env.OPL_APP_HOST_KIND;
       } else {
         process.env.OPL_APP_HOST_KIND = originalHostKind;
+      }
+      if (originalTemporalAddress === undefined) {
+        delete process.env.OPL_TEMPORAL_ADDRESS;
+      } else {
+        process.env.OPL_TEMPORAL_ADDRESS = originalTemporalAddress;
+      }
+      if (originalTemporalAddressSource === undefined) {
+        delete process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
+      } else {
+        process.env.OPL_TEMPORAL_ADDRESS_SOURCE = originalTemporalAddressSource;
       }
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
