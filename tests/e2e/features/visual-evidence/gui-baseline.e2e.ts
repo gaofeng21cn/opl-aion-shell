@@ -116,7 +116,7 @@ async function applyAppearance(
   await waitForStablePaint(page);
   await httpInvoke(page, 'PUT', '/api/settings/client', {
     language: locale,
-    'theme.activeId': theme === 'light' ? 'default-theme' : 'dark',
+    'theme.appearanceMode': theme,
   });
   await page.reload();
   await ensureRendererReady(page);
@@ -131,7 +131,7 @@ async function applyAppearance(
 
   const settings = await httpGet<ClientSettings>(page, '/api/settings/client');
   expect(settings.language).toBe(locale);
-  expect(settings['theme.activeId']).toBe(theme === 'light' ? 'default-theme' : 'dark');
+  expect(settings['theme.appearanceMode']).toBe(theme);
 }
 
 async function createFixtureConversation(page: Page): Promise<string> {
@@ -977,7 +977,7 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     if (originalSettings) {
       await httpInvoke(page, 'PUT', '/api/settings/client', {
         language: originalSettings.language ?? null,
-        'theme.activeId': originalSettings['theme.activeId'] ?? null,
+        'theme.appearanceMode': originalSettings['theme.appearanceMode'] ?? null,
       }).catch(() => {});
     }
     fs.rmSync(WORKSPACE_PATH, { recursive: true, force: true });

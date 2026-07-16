@@ -66,7 +66,7 @@
 }
 
 .homeStarter:global(.arco-btn):hover {
-  border-color: var(--color-border-1) !important;
+  border-color: transparent !important;
   background: var(--color-fill-2) !important;
 }
 
@@ -113,9 +113,10 @@
 }
 
 .homeStarterActive:global(.arco-btn) {
-  border-color: var(--color-border-2) !important;
+  border-color: transparent !important;
   background: var(--opl-sidebar-active) !important;
   color: var(--color-text-1) !important;
+  box-shadow: none !important;
 }
 
 .guidSetupNotice {
@@ -709,7 +710,7 @@
   height: 28px !important;
   min-height: 28px !important;
   padding: 0 4px !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   line-height: 18px !important;
 }
 

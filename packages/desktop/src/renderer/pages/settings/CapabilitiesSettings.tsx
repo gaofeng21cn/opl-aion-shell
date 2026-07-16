@@ -1301,12 +1301,15 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className='grid gap-x-18px gap-y-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary sm:grid-cols-2'>
-            <span>
+          <div
+            className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
+            data-testid='settings-agents-developer-summary'
+          >
+            <span className='min-w-0'>
               {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
               {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
             </span>
-            <span>
+            <span className='min-w-0'>
               {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
               {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
                 defaultValue: developerConfigSource,
@@ -1394,8 +1397,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             </div>
           </div>
 
-          <div className='grid gap-8px border-t border-solid border-[var(--border-base)] px-16px py-12px md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(132px,0.45fr))_auto]'>
+          <div
+            className='grid min-w-0 grid-cols-1 gap-8px py-12px sm:grid-cols-2'
+            data-testid='settings-agents-catalog-filters'
+          >
             <Input
+              className='sm:col-span-2'
               allowClear
               value={catalogSearch}
               onChange={setCatalogSearch}
@@ -1453,7 +1460,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
           {(catalogLoading || catalogRefreshing) && (
             <div
-              className='border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+              className='py-10px text-12px text-t-secondary'
               data-state={catalogLoading ? 'loading' : 'refreshing'}
               data-testid='settings-agents-loading'
             >
@@ -1465,16 +1472,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             </div>
           )}
           {catalogStaleReason && (
-            <div
-              className='border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
-              data-testid='settings-agents-stale'
-            >
+            <div className='py-10px text-12px text-t-secondary' data-testid='settings-agents-stale'>
               {t('settings.capabilitiesPage.packageManager.staleWithReason', { reason: catalogStaleReason })}
             </div>
           )}
           {catalogError && (
             <div
-              className='flex flex-wrap items-center justify-between gap-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-[rgb(var(--red-6))]'
+              className='flex flex-wrap items-center justify-between gap-8px py-10px text-12px text-[rgb(var(--red-6))]'
               data-testid='settings-agents-error'
             >
               <span>{t('settings.capabilitiesPage.packageManager.failed', { reason: catalogError })}</span>
@@ -1489,7 +1493,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           )}
           {workspaceActivationRequired && (
             <div
-              className='flex flex-wrap items-center justify-between gap-8px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+              className='flex flex-wrap items-center justify-between gap-8px py-10px text-12px text-t-secondary'
               data-disabled-reason='workspace_root_not_configured'
               data-testid='settings-agents-workspace-required'
             >
@@ -1503,7 +1507,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           )}
 
           <div
-            className='flex flex-wrap items-center gap-x-18px gap-y-6px border-t border-solid border-[var(--border-base)] px-16px py-10px text-12px text-t-secondary'
+            className='flex flex-wrap items-center gap-x-18px gap-y-6px py-10px text-12px text-t-secondary'
             data-testid='capability-summary-grid'
           >
             <span data-testid='capability-summary-catalog'>

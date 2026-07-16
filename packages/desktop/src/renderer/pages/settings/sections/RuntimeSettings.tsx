@@ -237,17 +237,13 @@ function temporalMaintenanceSnapshot(
   const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
   const scheduler = oplRecord(details.scheduler);
   const address = oplString(details.address);
-  const providerReady = temporal.ready === true || oplString(temporal.health_status) === 'ready';
+  const projectedServiceReady =
+    typeof workerReadiness.service_ready === 'boolean' ? workerReadiness.service_ready : null;
   const projectedServerReachable =
     typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
-  const serverReachable =
-    projectedServerReachable ?? serverReachableOverride ?? (address && providerReady ? true : null);
-  const projectedWorkerReady =
-    typeof workerReadiness.worker_ready === 'boolean'
-      ? workerReadiness.worker_ready
-      : typeof details.worker_ready === 'boolean'
-        ? details.worker_ready
-        : null;
+  const serverReachable = projectedServerReachable ?? serverReachableOverride;
+  const serviceReady = projectedServiceReady;
+  const projectedWorkerReady = typeof workerReadiness.worker_ready === 'boolean' ? workerReadiness.worker_ready : null;
   const workerReady = projectedWorkerReady === true;
   const workerStatus =
     oplString(workerReadiness.lifecycle_status) ??
@@ -255,22 +251,27 @@ function temporalMaintenanceSnapshot(
     oplString(temporal.worker_status) ??
     (workerReady ? 'ready' : 'not_checked');
   const projectedSchedulerStatus =
-    oplString(details.scheduler_status) ?? oplString(scheduler.status) ?? oplString(scheduler.health_status);
+    oplString(scheduler.status) ?? oplString(details.scheduler_status) ?? oplString(scheduler.health_status);
   const schedulerStatus = projectedSchedulerStatus ?? schedulerStatusOverride ?? 'not_checked';
+  const schedulerReady = typeof scheduler.ready === 'boolean' ? scheduler.ready : null;
+  const schedulerObservedAt = oplString(scheduler.observed_at);
   const projectedWorkerMutationGuardStatus = oplString(workerMutationGuard.mutation_guard_status);
   return {
     providerStatus: oplString(temporal.status) ?? 'unknown',
     healthStatus: oplString(temporal.health_status) ?? 'unknown',
-    ready: providerReady,
+    ready: serviceReady === true && workerReady && schedulerReady === true,
     address,
     addressSource: oplString(details.address_source) ?? 'unknown',
     namespace: oplString(details.namespace) ?? 'default',
     taskQueue: oplString(details.task_queue) ?? 'opl-stage-attempts',
+    serviceReady,
     serverReachable,
     workerReady,
     workerStatus,
     workerMutationGuardStatus: projectedWorkerMutationGuardStatus ?? workerMutationGuardOverride,
     schedulerStatus,
+    schedulerReady,
+    schedulerObservedAt,
     blockers: temporalStringList(workerReadiness.blockers),
   };
 }
@@ -367,13 +368,13 @@ function temporalPostconditionSatisfied(
   snapshot: TemporalMaintenanceSnapshot
 ): boolean {
   if (actionId === 'provider_service_start') {
-    return Boolean(snapshot.address && snapshot.serverReachable === true);
+    return snapshot.serviceReady === true;
   }
   if (actionId === 'provider_worker_start' || actionId === 'provider_worker_restart') {
     return snapshot.workerReady;
   }
   if (actionId === 'provider_scheduler_install') {
-    return snapshot.schedulerStatus === 'ready';
+    return snapshot.schedulerReady === true;
   }
   return true;
 }
@@ -1511,7 +1512,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         const actionFailure = temporalActionFailure(result);
         const workerGuardStatus = nestedStringForKeys(result.parsed, new Set(['mutation_guard_status']));
         const schedulerStatus = temporalSchedulerStatusFromResult(result);
-        const serviceReachable = nestedBooleanForKeys(result.parsed, new Set(['server_reachable']));
+        const serviceReachable = nestedBooleanForKeys(result.parsed, new Set(['service_ready', 'server_reachable']));
         if (workerGuardStatus) setTemporalWorkerMutationGuard(workerGuardStatus);
         if (schedulerStatus) setTemporalSchedulerStatus(schedulerStatus);
         if (serviceReachable !== null) setTemporalServerReachable(serviceReachable);
@@ -1564,12 +1565,18 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         }
 
         const readNeedsAttention =
-          (actionId === 'provider_service_status' && freshSnapshot.serverReachable !== true) ||
+          (actionId === 'provider_service_status' && freshSnapshot.serviceReady !== true) ||
           (actionId === 'provider_worker_status' &&
             (!freshSnapshot.workerReady ||
               freshSnapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state')) ||
-          (actionId === 'provider_scheduler_status' && freshSnapshot.schedulerStatus !== 'ready');
+          (actionId === 'provider_scheduler_status' && freshSnapshot.schedulerReady !== true);
         if (readNeedsAttention) {
+          setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt });
+          message.warning(t('settings.oplEnvironmentPage.temporal.messages.needsAttention'));
+          return;
+        }
+
+        if (requiresPostcondition && !freshSnapshot.ready) {
           setTemporalActionEvidence({ actionId, outcome: 'needsAttention', observedAt });
           message.warning(t('settings.oplEnvironmentPage.temporal.messages.needsAttention'));
           return;
@@ -1750,10 +1757,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Typography.Text>
               )}
             </div>
-            <div
-              className='opl-settings-list border-t border-solid border-border-1'
-              data-testid='maintenance-domain-grid'
-            >
+            <div className='opl-settings-list' data-testid='maintenance-domain-grid'>
               {maintenanceHubItems.map((item) => {
                 const anchors: Record<string, string> = {
                   appUpdates: 'updates',

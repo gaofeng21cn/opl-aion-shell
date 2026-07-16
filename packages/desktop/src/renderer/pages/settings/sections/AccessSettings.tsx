@@ -563,7 +563,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
                     </span>
                     <div className='min-w-0'>
-                      <div className='flex flex-wrap items-center gap-8px'>
+                      <div className='flex flex-wrap items-center gap-8px' data-testid='settings-gateway-identity-name'>
                         <Typography.Text className='font-600 text-t-primary'>
                           {gatewayAccount.account.display_name ||
                             gatewayAccount.account.email ||
@@ -576,6 +576,17 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                         >
                           {accountStatusLabel}
                         </span>
+                        {gatewayAccount.actions.disconnect && (
+                          <Button
+                            size='mini'
+                            type='text'
+                            status='danger'
+                            onClick={() => setDisconnectConfirmVisible(true)}
+                            data-testid='settings-gateway-disconnect'
+                          >
+                            {t('settings.accessPage.gatewayAccount.actions.disconnect')}
+                          </Button>
+                        )}
                       </div>
                       {gatewayAccount.account.email && (
                         <Typography.Text className='block break-all text-12px text-t-secondary'>
@@ -584,11 +595,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       )}
                     </div>
                   </div>
-                  <div
-                    className='flex shrink-0 flex-wrap items-center justify-end gap-8px'
-                    data-testid='settings-gateway-identity-actions'
-                  >
-                    {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
+                  {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
+                    <div
+                      className='flex shrink-0 flex-wrap items-center justify-end gap-8px'
+                      data-testid='settings-gateway-identity-actions'
+                    >
                       <Button
                         size='small'
                         type='primary'
@@ -600,13 +611,8 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       >
                         {t('settings.accessPage.gatewayAccount.actions.signInAgain')}
                       </Button>
-                    )}
-                    {gatewayAccount.actions.disconnect && (
-                      <Button size='small' status='danger' onClick={() => setDisconnectConfirmVisible(true)}>
-                        {t('settings.accessPage.gatewayAccount.actions.disconnect')}
-                      </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div

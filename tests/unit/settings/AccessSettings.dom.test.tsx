@@ -999,9 +999,10 @@ describe('AccessSettingsContent', () => {
     const stale = view.getByTestId('settings-gateway-stale');
     expect(stale.className).not.toContain('border');
     expect(view.getByTestId('settings-gateway-account-footer')).not.toHaveClass('border-t');
-    expect(view.getByTestId('settings-gateway-identity-actions')).toContainElement(
-      view.getByRole('button', { name: 'Disconnect' })
+    expect(view.getByTestId('settings-gateway-identity-name')).toContainElement(
+      view.getByTestId('settings-gateway-disconnect')
     );
+    expect(view.queryByTestId('settings-gateway-identity-actions')).toBeNull();
     expect(view.getByTestId('settings-gateway-account-footer')).not.toContainElement(
       view.getByRole('button', { name: 'Disconnect' })
     );

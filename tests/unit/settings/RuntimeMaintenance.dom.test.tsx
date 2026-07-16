@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 
@@ -35,9 +36,17 @@ type TemporalFixture = {
     namespace?: string;
     task_queue?: string;
     scheduler_status?: string;
+    scheduler?: {
+      status?: string;
+      ready?: boolean;
+      observed_at?: string;
+      schedule_status?: string;
+      health_status?: string;
+    };
     worker_readiness?: {
       blockers?: string[];
       lifecycle_status?: string;
+      service_ready?: boolean;
       server_reachable?: boolean;
       worker_mutation_guard?: {
         mutation_guard_status?: string;
@@ -55,6 +64,24 @@ type TemporalActionFixture = {
 const defaultTemporalState: TemporalFixture = {
   status: 'ready',
   health_status: 'ready',
+  ready: true,
+  details: {
+    address: '127.0.0.1:7233',
+    address_source: 'managed_local_service_state',
+    namespace: 'default',
+    task_queue: 'opl-stage-attempts',
+    scheduler: {
+      status: 'ready',
+      ready: true,
+      observed_at: '2026-07-17T08:00:00Z',
+    },
+    worker_readiness: {
+      lifecycle_status: 'ready',
+      service_ready: true,
+      server_reachable: true,
+      worker_ready: true,
+    },
+  },
 };
 
 const appState = {
@@ -279,12 +306,13 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.temporal.outcomes.needsAttention': '需要处理',
         'settings.oplEnvironmentPage.temporal.blockers.unknown': '详情见技术信息',
         'settings.oplEnvironmentPage.temporal.values.needsCheck': '需要检查',
-        'settings.oplEnvironmentPage.temporal.values.needsAttention': '需要检查',
+        'settings.oplEnvironmentPage.temporal.values.needsAttention': '需要处理',
         'settings.oplEnvironmentPage.temporal.values.notChecked': '尚未检查',
         'settings.oplEnvironmentPage.temporal.values.notConfigured': '未配置',
         'settings.oplEnvironmentPage.temporal.values.notInstalled': '未安装',
         'settings.oplEnvironmentPage.temporal.values.reachable': '可连接',
         'settings.oplEnvironmentPage.temporal.values.ready': '运行正常',
+        'settings.oplEnvironmentPage.temporal.values.restartRequired': '需要重启',
         'settings.oplEnvironmentPage.temporal.worker.developerGuardBlocked':
           '当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。',
         'settings.oplEnvironmentPage.temporal.worker.developerGuardNextSteps':
@@ -342,7 +370,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
   });
 
-  it('treats a ready provider with a managed address as a reachable server when reachability is omitted', () => {
+  it('fails closed when a ready provider omits explicit service readiness', () => {
     setTemporalState({
       status: 'ready',
       health_status: 'ready',
@@ -352,9 +380,13 @@ describe('RuntimeSettings maintenance structure', () => {
         address_source: 'managed',
         namespace: 'default',
         task_queue: 'opl-stage-attempts',
-        scheduler_status: 'ready',
+        scheduler: {
+          status: 'ready',
+          ready: true,
+        },
         worker_readiness: {
           lifecycle_status: 'ready',
+          server_reachable: true,
           worker_ready: true,
         },
       },
@@ -369,10 +401,10 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    const serverRow = screen.getByTestId('opl-temporal-server-row');
-    expect(within(serverRow).getByText('可连接')).toBeVisible();
-    expect(within(serverRow).queryByText('尚未检查')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-temporal-action-provider_service_start')).not.toBeInTheDocument();
+    const serverRow = screen.getByTestId('settings-maintenance-temporal-server');
+    expect(within(serverRow).getByText('尚未检查')).toBeVisible();
+    expect(within(serverRow).queryByText('可连接')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
   });
 
   it('does not let provider readiness override an explicitly unready worker', () => {
@@ -387,6 +419,7 @@ describe('RuntimeSettings maintenance structure', () => {
         task_queue: 'opl-stage-attempts',
         worker_readiness: {
           lifecycle_status: 'worker_not_ready',
+          service_ready: true,
           server_reachable: true,
           worker_ready: false,
         },
@@ -401,11 +434,13 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(within(screen.getByTestId('opl-temporal-server-row')).getByText('可连接')).toBeVisible();
-    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    expect(within(screen.getByTestId('settings-maintenance-temporal-server')).getByText('可连接')).toBeVisible();
+    const workerRow = screen.getByTestId('settings-maintenance-temporal-worker');
     expect(within(workerRow).queryByText('运行正常')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-temporal-action-provider_worker_start')).toBeEnabled();
-    expect(screen.queryByTestId('opl-temporal-action-provider_worker_restart')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeEnabled();
+    expect(
+      screen.queryByTestId('settings-maintenance-temporal-action-provider_worker_restart')
+    ).not.toBeInTheDocument();
   });
 
   it('fails closed when a ready provider omits explicit worker readiness', () => {
@@ -420,6 +455,7 @@ describe('RuntimeSettings maintenance structure', () => {
         task_queue: 'opl-stage-attempts',
         worker_readiness: {
           lifecycle_status: 'not_checked',
+          service_ready: true,
           server_reachable: true,
         },
       },
@@ -428,10 +464,12 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    const workerRow = screen.getByTestId('settings-maintenance-temporal-worker');
     expect(within(workerRow).queryByText('运行正常')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-temporal-action-provider_worker_start')).toBeEnabled();
-    expect(screen.queryByTestId('opl-temporal-action-provider_worker_restart')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeEnabled();
+    expect(
+      screen.queryByTestId('settings-maintenance-temporal-action-provider_worker_restart')
+    ).not.toBeInTheDocument();
   });
 
   it('labels the landed-but-unconfigured provider consistently and offers server setup', () => {
@@ -450,9 +488,36 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('opl-temporal-provider-status')).toHaveTextContent('未配置');
-    expect(screen.getByTestId('opl-temporal-action-provider_service_start')).toBeEnabled();
-    expect(screen.getByTestId('opl-temporal-maintenance')).not.toHaveTextContent('provider_code_landed_unconfigured');
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('未配置');
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
+    expect(screen.getByTestId('settings-maintenance-temporal')).not.toHaveTextContent(
+      'provider_code_landed_unconfigured'
+    );
+  });
+
+  it('prioritizes a concrete worker failure over an aggregate unconfigured provider status', () => {
+    setTemporalState({
+      status: 'provider_code_landed_unconfigured',
+      health_status: 'attention_needed',
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed_local_service_state',
+        scheduler: { status: 'ready', ready: true },
+        worker_readiness: {
+          lifecycle_status: 'worker_source_stale',
+          service_ready: true,
+          server_reachable: true,
+          worker_ready: false,
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要处理');
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).not.toHaveTextContent('未配置');
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('可连接');
+    expect(screen.getByTestId('settings-maintenance-temporal-worker')).toHaveTextContent('需要重启');
   });
 
   it('localizes ordinary Temporal status and blocker codes without exposing raw implementation identifiers', () => {
@@ -468,6 +533,7 @@ describe('RuntimeSettings maintenance structure', () => {
         worker_readiness: {
           blockers: ['opaque_worker_blocker'],
           lifecycle_status: 'opaque_worker_state',
+          service_ready: true,
           server_reachable: true,
           worker_ready: false,
         },
@@ -482,7 +548,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    const panel = screen.getByTestId('opl-temporal-maintenance');
+    const panel = screen.getByTestId('settings-maintenance-temporal');
     expect(panel).toHaveTextContent('需要检查');
     expect(panel).toHaveTextContent('详情见技术信息');
     expect(panel.textContent).not.toMatch(
@@ -502,6 +568,7 @@ describe('RuntimeSettings maintenance structure', () => {
         task_queue: 'opl-stage-attempts',
         worker_readiness: {
           lifecycle_status: 'ready',
+          service_ready: true,
           server_reachable: true,
           worker_ready: true,
         },
@@ -521,19 +588,75 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('opl-temporal-action-provider_scheduler_status')).toBeEnabled();
-    expect(screen.queryByTestId('opl-temporal-action-provider_scheduler_install')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_status')).toBeEnabled();
+    expect(
+      screen.queryByTestId('settings-maintenance-temporal-action-provider_scheduler_install')
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_scheduler_status'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_status'));
 
-    const installButton = await screen.findByTestId('opl-temporal-action-provider_scheduler_install');
+    const installButton = await screen.findByTestId('settings-maintenance-temporal-action-provider_scheduler_install');
     expect(installButton).toBeEnabled();
-    const evidence = screen.getByTestId('opl-temporal-action-readback');
+    const evidence = screen.getByTestId('settings-maintenance-temporal-readback');
     expect(evidence).toHaveTextContent('检查调度器');
     expect(evidence).toHaveTextContent('需要处理');
     expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
     expect(evidence).not.toHaveTextContent('provider_scheduler_status');
     expect(evidence).not.toHaveTextContent('not_installed');
+  });
+
+  it('keeps a failed scheduler out of aggregate ready and the keyboard action success path', async () => {
+    const user = userEvent.setup();
+    setTemporalState({
+      status: 'ready',
+      health_status: 'ready',
+      ready: true,
+      details: {
+        address: '127.0.0.1:7233',
+        address_source: 'managed',
+        namespace: 'default',
+        task_queue: 'opl-stage-attempts',
+        scheduler: {
+          status: 'error',
+          ready: false,
+          observed_at: '2026-07-17T08:00:00Z',
+        },
+        worker_readiness: {
+          lifecycle_status: 'ready',
+          service_ready: true,
+          server_reachable: true,
+          worker_ready: true,
+        },
+      },
+    });
+    exposeTemporalActions('provider_scheduler_status');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            status: 'failed',
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).not.toHaveTextContent('运行正常');
+    expect(screen.getByTestId('settings-maintenance-exception')).toBeInTheDocument();
+    const action = screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_status');
+    action.focus();
+    await user.keyboard('{Enter}');
+
+    const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'provider_scheduler_status',
+      dryRun: false,
+    });
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledTimes(1);
+    expect(evidence).toHaveTextContent('失败');
   });
 
   it('renders localized action evidence instead of action ids and raw outcomes', async () => {
@@ -549,6 +672,7 @@ describe('RuntimeSettings maintenance structure', () => {
         scheduler_status: 'ready',
         worker_readiness: {
           lifecycle_status: 'ready',
+          service_ready: true,
           server_reachable: true,
           worker_ready: true,
         },
@@ -567,9 +691,9 @@ describe('RuntimeSettings maintenance structure', () => {
     });
 
     render(<RuntimeSettings />);
-    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_service_status'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_status'));
 
-    const evidence = await screen.findByTestId('opl-temporal-action-readback');
+    const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
     expect(evidence).toHaveTextContent('检查 Server');
     expect(evidence).toHaveTextContent('检查完成');
     expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
@@ -602,10 +726,16 @@ describe('RuntimeSettings maintenance structure', () => {
         address_source: 'managed_local_service_state',
         namespace: 'default',
         task_queue: 'opl-stage-attempts',
+        scheduler: {
+          status: 'ready',
+          ready: true,
+          observed_at: '2026-07-17T08:00:00Z',
+        },
         worker_readiness: {
-          lifecycle_status: 'not_checked',
+          lifecycle_status: 'ready',
+          service_ready: true,
           server_reachable: true,
-          worker_ready: false,
+          worker_ready: true,
         },
       },
     };
@@ -628,7 +758,7 @@ describe('RuntimeSettings maintenance structure', () => {
       .mockResolvedValueOnce({ app_state: readyAppState });
 
     render(<RuntimeSettings />);
-    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_service_start'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start'));
 
     await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'), { timeout: 1_500 });
     expect(messageMocks.error).not.toHaveBeenCalled();
@@ -655,6 +785,7 @@ describe('RuntimeSettings maintenance structure', () => {
         scheduler_status: 'ready',
         worker_readiness: {
           lifecycle_status: 'worker_not_ready',
+          service_ready: true,
           server_reachable: true,
           worker_ready: false,
         },
@@ -676,21 +807,21 @@ describe('RuntimeSettings maintenance structure', () => {
     });
 
     render(<RuntimeSettings />);
-    fireEvent.click(screen.getByTestId('opl-temporal-action-provider_worker_start'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start'));
 
-    const evidence = await screen.findByTestId('opl-temporal-action-readback');
+    const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
     expect(messageMocks.success).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledTimes(1);
     expect(evidence).toHaveTextContent('启动 Worker');
     expect(evidence).toHaveTextContent('已拦截');
     expect(evidence).not.toHaveTextContent('provider_worker_start');
     expect(evidence).not.toHaveTextContent('blocked_developer_checkout_shared_state');
-    const workerRow = screen.getByTestId('opl-temporal-worker-row');
+    const workerRow = screen.getByTestId('settings-maintenance-temporal-worker');
     expect(workerRow).toHaveTextContent('当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。');
     expect(workerRow).toHaveTextContent('请切回托管运行来源，或明确启用已授权的开发仓库维护。');
     expect(workerRow).not.toHaveTextContent(/环境变量|OPL_ALLOW_/);
 
-    fireEvent.click(screen.getByTestId('opl-temporal-worker-open-source-settings'));
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-worker-source'));
     expect(window.location.hash).toBe('#/settings/agents?section=source');
   });
 
@@ -707,6 +838,7 @@ describe('RuntimeSettings maintenance structure', () => {
         scheduler_status: 'not_installed',
         worker_readiness: {
           lifecycle_status: 'ready',
+          service_ready: true,
           server_reachable: true,
           worker_ready: true,
         },
@@ -722,7 +854,7 @@ describe('RuntimeSettings maintenance structure', () => {
       'provider_scheduler_status',
       'provider_scheduler_install',
     ]) {
-      expect(screen.getByTestId(`opl-temporal-action-${actionId}`)).toBeDisabled();
+      expect(screen.getByTestId(`settings-maintenance-temporal-action-${actionId}`)).toBeDisabled();
     }
   });
 
@@ -731,6 +863,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('maintenance-domain-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
+    expect(screen.getByTestId('maintenance-domain-grid').className).not.toMatch(/\bborder(?:-|\b)/);
     expect(screen.getByTestId('opl-runtime-health-summary').closest('section')).toHaveClass(
       'opl-settings-surface--status'
     );

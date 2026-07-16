@@ -1497,7 +1497,8 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway 数据",
       "backgroundService": "后台服务",
-      "temporalNotConfigured": "Temporal server 和 worker 尚未配置",
+      "temporalNotConfigured": "Temporal server 和 worker 尚未配置；scheduler 仍需检查。",
+      "temporalNeedsAttention": "Temporal 的 server、worker 或 scheduler 仍需处理。",
       "capabilities": "能力包"
     },
     "developerSource": {
@@ -2796,7 +2797,8 @@
       },
       "scheduler": {
         "title": "OPL scheduler",
-        "description": "维护 OPL 系列运行时的周期调度。"
+        "description": "维护 OPL 系列运行时的周期调度。",
+        "observedAt": "最近检查：{{observedAt}}"
       },
       "values": {
         "ready": "已就绪",

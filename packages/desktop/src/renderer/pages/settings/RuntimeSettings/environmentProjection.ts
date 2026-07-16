@@ -33,6 +33,12 @@ const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
 const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
 const MAKE_USABLE_COMPONENT_IDS = new Set(['opl_base', 'opl_packages']);
 const HEALTHY_MANAGED_UPDATE_STATES = new Set(['current', 'ready', 'ok', 'compatible', 'installed']);
+const TEMPORAL_NOT_CONFIGURED_STATES = new Set([
+  'not_configured',
+  'provider_code_landed_unconfigured',
+  'temporal_runtime_not_configured',
+]);
+const TEMPORAL_UNKNOWN_COMPONENT_STATES = new Set(['', 'unknown', 'not_checked', 'not_reported']);
 
 const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
   .map((assistant) => {
@@ -276,6 +282,9 @@ export function buildRuntimeEnvironmentProjection({
   const codex = oplRecord(core.codex);
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
+  const temporalDetails = oplRecord(temporal.details);
+  const temporalWorkerReadiness = oplRecord(temporalDetails.worker_readiness);
+  const temporalScheduler = oplRecord(temporalDetails.scheduler);
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   const statusSummary = oplRecord(settingsControlCenter.status_summary);
@@ -324,12 +333,50 @@ export function buildRuntimeEnvironmentProjection({
     oplString(statusSummary.model_access) ??
     oplString(codex.status) ??
     (oplString(statusSummary.codex_version) || oplString(codex.version) ? 'ready' : 'unknown');
-  const temporalStatus =
-    oplString(localEnvironment.temporal_provider) ??
-    oplString(temporal.health_status) ??
-    oplString(temporal.status) ??
-    oplString(temporal.worker_status) ??
-    'unknown';
+  const temporalServiceReady =
+    typeof temporalWorkerReadiness.service_ready === 'boolean' ? temporalWorkerReadiness.service_ready : null;
+  const temporalWorkerReadyValue =
+    typeof temporalWorkerReadiness.worker_ready === 'boolean' ? temporalWorkerReadiness.worker_ready : null;
+  const temporalSchedulerReadyValue = typeof temporalScheduler.ready === 'boolean' ? temporalScheduler.ready : null;
+  const temporalServerReady = temporalServiceReady === true;
+  const temporalWorkerReady = temporalWorkerReadyValue === true;
+  const temporalSchedulerReady = temporalSchedulerReadyValue === true;
+  const temporalComponentsReady = temporalServerReady && temporalWorkerReady && temporalSchedulerReady;
+  const temporalProviderStatuses = [
+    oplString(temporal.health_status),
+    oplString(temporal.status),
+    oplString(localEnvironment.temporal_provider),
+  ].filter((status): status is string => Boolean(status));
+  const normalizedAddressSource = oplString(temporalDetails.address_source)?.toLowerCase() ?? '';
+  const normalizedWorkerStatus =
+    (
+      oplString(temporalWorkerReadiness.lifecycle_status) ??
+      oplString(temporalWorkerReadiness.readiness_status) ??
+      oplString(temporal.worker_status)
+    )?.toLowerCase() ?? '';
+  const normalizedSchedulerStatus =
+    (
+      oplString(temporalScheduler.status) ??
+      oplString(temporalScheduler.health_status) ??
+      oplString(temporalDetails.scheduler_status)
+    )?.toLowerCase() ?? '';
+  const providerReportsNotConfigured = temporalProviderStatuses.some((status) =>
+    TEMPORAL_NOT_CONFIGURED_STATES.has(status.toLowerCase())
+  );
+  const hasExplicitReadyComponent = temporalServerReady || temporalWorkerReady || temporalSchedulerReady;
+  const hasSpecificComponentFailure =
+    (temporalServiceReady === false && !TEMPORAL_NOT_CONFIGURED_STATES.has(normalizedAddressSource)) ||
+    (temporalWorkerReadyValue === false &&
+      !TEMPORAL_NOT_CONFIGURED_STATES.has(normalizedWorkerStatus) &&
+      !TEMPORAL_UNKNOWN_COMPONENT_STATES.has(normalizedWorkerStatus)) ||
+    (temporalSchedulerReadyValue === false &&
+      !TEMPORAL_NOT_CONFIGURED_STATES.has(normalizedSchedulerStatus) &&
+      !TEMPORAL_UNKNOWN_COMPONENT_STATES.has(normalizedSchedulerStatus));
+  const temporalStatus = temporalComponentsReady
+    ? 'ready'
+    : providerReportsNotConfigured && !hasExplicitReadyComponent && !hasSpecificComponentFailure
+      ? 'not_configured'
+      : 'attention_required';
   const workspaceStatus = workspaceRoot ? 'ready' : 'unknown';
   const releaseChannel =
     oplString(localEnvironment.release_channel) ??

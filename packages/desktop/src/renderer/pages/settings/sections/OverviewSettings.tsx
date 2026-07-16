@@ -30,15 +30,15 @@ type AttentionItem = {
   route: string;
 };
 
-type TemporalStatusKind = 'ready' | 'not_configured' | 'attention' | 'unknown';
+type TemporalStatusKind = 'ready' | 'not_configured' | 'not_installed' | 'paused' | 'attention' | 'unknown';
 
 type TemporalStatusProjection = {
   server: TemporalStatusKind;
   worker: TemporalStatusKind;
+  scheduler: TemporalStatusKind;
   workerNeedsRestart: boolean;
 };
 
-const TEMPORAL_READY_STATUSES = new Set(['ready', 'ok', 'healthy', 'connected', 'running', 'configured']);
 const TEMPORAL_NOT_CONFIGURED_STATUSES = new Set([
   'not_configured',
   'provider_code_landed_unconfigured',
@@ -62,6 +62,7 @@ const TEMPORAL_WORKER_ATTENTION_STATUSES = new Set([
   'worker_source_stale',
 ]);
 const TEMPORAL_WORKER_RESTART_STATUSES = new Set(['duplicate_worker', 'worker_source_stale']);
+const TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES = new Set(['not_installed', 'missing', 'absent']);
 const CAPABILITY_READY_STATUSES = new Set(['ready', 'current', 'healthy', 'ok']);
 const CAPABILITY_ATTENTION_STATUSES = new Set([
   'attention_needed',
@@ -109,6 +110,7 @@ function temporalStatusProjection(
   const details = oplRecord(temporal.details);
   const workerReadiness = oplRecord(details.worker_readiness);
   const workerMutationGuard = oplRecord(workerReadiness.worker_mutation_guard ?? details.worker_mutation_guard);
+  const schedulerReadiness = oplRecord(details.scheduler);
   const providerCandidates = [
     normalizedStatus(temporal.status),
     normalizedStatus(temporal.degraded_reason),
@@ -116,19 +118,18 @@ function temporalStatusProjection(
     normalizedStatus(temporal.health_status),
   ].filter((value): value is string => Boolean(value));
   const addressSource = normalizedStatus(details.address_source);
-  const serverReachable =
-    typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
+  const serviceReady = typeof workerReadiness.service_ready === 'boolean' ? workerReadiness.service_ready : null;
   const serverNotConfigured =
-    (addressSource !== null && TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)) ||
-    providerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
-  const server = serverNotConfigured
-    ? 'not_configured'
-    : serverReachable === true
+    addressSource !== null
+      ? TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)
+      : serviceReady === null && providerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
+  const server =
+    serviceReady === true
       ? 'ready'
-      : serverReachable === false
-        ? 'attention'
-        : temporal.ready === true || providerCandidates.some((value) => TEMPORAL_READY_STATUSES.has(value))
-          ? 'ready'
+      : serverNotConfigured
+        ? 'not_configured'
+        : serviceReady === false
+          ? 'attention'
           : providerCandidates.some((value) => TEMPORAL_ATTENTION_STATUSES.has(value))
             ? 'attention'
             : 'unknown';
@@ -142,23 +143,39 @@ function temporalStatusProjection(
   ].filter((value): value is string => Boolean(value));
   const workerNeedsRestart = workerCandidates.some(workerStatusNeedsRestart);
   const workerNotConfigured = workerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value));
-  const workerReadyValue =
-    typeof workerReadiness.worker_ready === 'boolean'
-      ? workerReadiness.worker_ready
-      : typeof details.worker_ready === 'boolean'
-        ? details.worker_ready
-        : null;
+  const workerReadyValue = typeof workerReadiness.worker_ready === 'boolean' ? workerReadiness.worker_ready : null;
   const worker = workerNotConfigured
     ? 'not_configured'
     : workerNeedsRestart || workerCandidates.some(workerStatusNeedsAttention) || workerReadyValue === false
       ? 'attention'
-      : workerReadyValue === true || workerCandidates.some((value) => TEMPORAL_READY_STATUSES.has(value))
+      : workerReadyValue === true
         ? 'ready'
-        : temporal.ready === true
-          ? 'ready'
-          : 'unknown';
+        : 'unknown';
 
-  return { server, worker, workerNeedsRestart };
+  const schedulerCandidates = [
+    normalizedStatus(schedulerReadiness.status),
+    normalizedStatus(schedulerReadiness.schedule_status),
+    normalizedStatus(schedulerReadiness.health_status),
+    normalizedStatus(schedulerReadiness.degraded_reason),
+    normalizedStatus(details.scheduler_status),
+  ].filter((value): value is string => Boolean(value));
+  const schedulerReadyValue = typeof schedulerReadiness.ready === 'boolean' ? schedulerReadiness.ready : null;
+  const scheduler = schedulerCandidates.some((value) => TEMPORAL_NOT_CONFIGURED_STATUSES.has(value))
+    ? 'not_configured'
+    : schedulerCandidates.some((value) => TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES.has(value))
+      ? 'not_installed'
+      : schedulerCandidates.includes('paused')
+        ? 'paused'
+        : schedulerReadyValue === true
+          ? 'ready'
+          : schedulerReadyValue === false ||
+              schedulerCandidates.some(
+                (value) => TEMPORAL_ATTENTION_STATUSES.has(value) || value === 'error' || value === 'unhealthy'
+              )
+            ? 'attention'
+            : 'unknown';
+
+  return { server, worker, scheduler, workerNeedsRestart };
 }
 
 function issueSettingsRoute(issue: Record<string, unknown>): string {
@@ -213,7 +230,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       gatewayAccount.status === 'disconnect_pending' ||
       gatewayAccount.freshness.last_error_code)
   );
-  const attentionItems: AttentionItem[] = actionableIssues.map((issue, index) => {
+  const issueAttentionItems: AttentionItem[] = actionableIssues.map((issue, index) => {
     const issueId = oplString(issue.issue_id) ?? `issue-${index}`;
     const route = issueSettingsRoute(issue);
     const isModelAccessIssue = route === '/settings/gateway';
@@ -230,14 +247,33 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         : isProviderIssue
           ? temporalStatus.server === 'not_configured' && temporalStatus.worker === 'not_configured'
             ? t('settings.overviewPage.technical.temporalNotConfigured', {
-                defaultValue: 'Temporal server and worker are not configured',
+                defaultValue: 'Temporal server and worker are not configured; the scheduler still needs to be checked.',
               })
-            : t('settings.overviewPage.quickEntries.localServices.description')
+            : t('settings.overviewPage.technical.temporalNeedsAttention')
           : t('settings.overviewPage.attention.capabilitiesDescription'),
       label: t('common.open'),
       route,
     };
   });
+  const temporalNeedsAction = [temporalStatus.server, temporalStatus.worker, temporalStatus.scheduler].some(
+    (status) => status !== 'ready'
+  );
+  const issueQueueHasTemporal = actionableIssues.some(
+    (issue) => oplString(issue.issue_id) === 'provider_failed_with_repair'
+  );
+  const attentionItems: AttentionItem[] =
+    temporalNeedsAction && !issueQueueHasTemporal
+      ? [
+          ...issueAttentionItems,
+          {
+            key: 'temporal-required-components',
+            title: t('settings.overviewPage.quickEntries.localServices.title'),
+            description: t('settings.overviewPage.technical.temporalNeedsAttention'),
+            label: t('common.open'),
+            route: '/settings/environment?section=services',
+          },
+        ]
+      : issueAttentionItems;
   const attentionCount = attentionItems.length;
   const overviewNeedsAction = attentionCount > 0;
   const nextAction = attentionItems[0] ?? null;
@@ -282,6 +318,8 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     if (needsRestart) return t('settings.oplEnvironmentPage.temporal.values.restartRequired');
     if (kind === 'ready') return t('settings.oplEnvironmentPage.temporal.values.ready');
     if (kind === 'not_configured') return t('settings.oplEnvironmentPage.temporal.values.notConfigured');
+    if (kind === 'not_installed') return t('settings.oplEnvironmentPage.temporal.values.notInstalled');
+    if (kind === 'paused') return t('settings.oplEnvironmentPage.temporal.values.paused');
     if (kind === 'attention') return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
     return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   };
@@ -310,6 +348,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       id: 'temporal-server',
       label: t('settings.oplEnvironmentPage.temporal.server.title'),
       value: temporalComponentLabel(temporalStatus.server),
+      testId: 'settings-overview-temporal-server',
       route: '/settings/environment?section=services',
       actionLabel: t('settings.overviewPage.actions.openRuntimeSettings'),
     },
@@ -317,6 +356,13 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       id: 'temporal-worker',
       label: t('settings.oplEnvironmentPage.temporal.worker.title'),
       value: temporalComponentLabel(temporalStatus.worker, temporalStatus.workerNeedsRestart),
+      testId: 'settings-overview-temporal-worker',
+    },
+    {
+      id: 'temporal-scheduler',
+      label: t('settings.oplEnvironmentPage.temporal.scheduler.title'),
+      value: temporalComponentLabel(temporalStatus.scheduler),
+      testId: 'settings-overview-temporal-scheduler',
     },
     {
       id: 'capabilities',
@@ -545,7 +591,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         </div>
         <div className='opl-settings-list'>
           {technicalRows.map((row) => (
-            <div className='opl-settings-row' key={row.id} data-testid={`settings-overview-technical-${row.id}`}>
+            <div
+              className='opl-settings-row'
+              key={row.id}
+              data-testid={'testId' in row && row.testId ? row.testId : `settings-overview-technical-${row.id}`}
+            >
               <Typography.Text className='font-500 text-t-primary'>{row.label}</Typography.Text>
               <div className='opl-settings-row__meta'>
                 <Typography.Text className='break-words text-right text-12px text-t-secondary'>

@@ -130,6 +130,8 @@
   border: none !important;
   box-shadow: none !important;
   color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
 }
 
 .sendbox-tools .sendbox-model-btn:hover,

@@ -313,7 +313,15 @@ describe('buildRuntimeEnvironmentProjection', () => {
     const projection = buildRuntimeEnvironmentProjection({
       appState: {
         core: { codex: { status: 'ready' } },
-        provider: { temporal: { status: 'ready' } },
+        provider: {
+          temporal: {
+            status: 'ready',
+            details: {
+              scheduler: { status: 'ready', ready: true },
+              worker_readiness: { service_ready: true, worker_ready: true },
+            },
+          },
+        },
         paths: { workspace_root_path: '/Users/example/workspace' },
         agent_packages: {
           directory: { installed_packages: [] },
@@ -337,5 +345,76 @@ describe('buildRuntimeEnvironmentProjection', () => {
       value: 'settings.oplEnvironmentPage.noInstalledPackages',
       tone: 'green',
     });
+  });
+
+  it('does not infer Temporal readiness from the legacy server reachability field', () => {
+    const projection = buildRuntimeEnvironmentProjection({
+      appState: {
+        core: { codex: { status: 'ready' } },
+        provider: {
+          temporal: {
+            status: 'ready',
+            health_status: 'ready',
+            details: {
+              scheduler: { status: 'ready', ready: true },
+              worker_readiness: { server_reachable: true, worker_ready: true },
+            },
+          },
+        },
+        paths: { workspace_root_path: '/Users/example/workspace' },
+        agent_packages: {
+          directory: { installed_packages: [] },
+          status_index: { status: 'available', installed_package_count: 0, packages: {} },
+        },
+        runtime_source_carriers: { items: [] },
+      },
+      managedUpdatePlane: { components: [] },
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+
+    expect(projection.runtimeCards.find((card) => card.key === 'temporal')).toMatchObject({
+      value: 'attention_required',
+      tone: 'orange',
+    });
+    expect(projection.attentionCount).toBe(1);
+  });
+
+  it('prioritizes mixed explicit component state over an aggregate unconfigured provider status', () => {
+    const projection = buildRuntimeEnvironmentProjection({
+      appState: {
+        core: { codex: { status: 'ready' } },
+        provider: {
+          temporal: {
+            status: 'provider_code_landed_unconfigured',
+            health_status: 'provider_code_landed_unconfigured',
+            details: {
+              address_source: 'managed_local_service_state',
+              scheduler: { status: 'ready', ready: true },
+              worker_readiness: {
+                lifecycle_status: 'worker_source_stale',
+                service_ready: true,
+                worker_ready: false,
+              },
+            },
+          },
+        },
+        paths: { workspace_root_path: '/Users/example/workspace' },
+        agent_packages: {
+          directory: { installed_packages: [] },
+          status_index: { status: 'available', installed_package_count: 0, packages: {} },
+        },
+        runtime_source_carriers: { items: [] },
+      },
+      managedUpdatePlane: { components: [] },
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+
+    expect(projection.runtimeCards.find((card) => card.key === 'temporal')).toMatchObject({
+      value: 'attention_required',
+      tone: 'orange',
+    });
+    expect(projection.runtimeCards.find((card) => card.key === 'temporal')?.value).not.toBe('not_configured');
   });
 });

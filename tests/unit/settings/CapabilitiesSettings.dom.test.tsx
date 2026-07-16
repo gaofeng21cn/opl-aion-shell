@@ -952,6 +952,9 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByText('Agents')).toBeInTheDocument();
     expect(screen.getAllByText('Capability directory').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('settings-page-agents')).toHaveClass('opl-settings-page');
+    expect(screen.getByTestId('settings-agents-developer-summary').className).not.toMatch(/\bborder(?:-|\b)/);
+    expect(screen.getByTestId('settings-agents-catalog-filters')).toHaveClass('sm:grid-cols-2');
+    expect(screen.getByTestId('settings-agents-catalog-filters').className).not.toMatch(/\bborder(?:-|\b)/);
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
@@ -1701,6 +1704,15 @@ describe('Agents and capabilities settings', () => {
       expect(screen.getByRole('tab', { name: 'Manually added' })).toHaveAttribute('aria-selected', 'true')
     );
     expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-capabilities-third-party')).toHaveClass('opl-settings-flat-capabilities');
+    for (const testId of [
+      'settings-capabilities-manual-skills',
+      'settings-capabilities-manual-tools',
+      'settings-capabilities-voice-input',
+    ]) {
+      expect(screen.getByTestId(testId)).toHaveClass('opl-settings-flat-section');
+      expect(screen.getByTestId(testId).className).not.toMatch(/\brounded|\bshadow/);
+    }
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
     expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-capabilities-opl-flow-managed')).not.toBeInTheDocument();

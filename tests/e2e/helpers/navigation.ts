@@ -13,6 +13,7 @@ export const ROUTES = {
   guid: '#/guid',
   settings: {
     general: '#/settings/general',
+    gateway: '#/settings/gateway',
     access: '#/settings/access',
     workspace: '#/settings/workspace',
     capabilities: '#/settings/capabilities',

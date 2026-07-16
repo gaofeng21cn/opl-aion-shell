@@ -1496,7 +1496,8 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway data",
       "backgroundService": "Background service",
-      "temporalNotConfigured": "Temporal server and worker are not configured",
+      "temporalNotConfigured": "The Temporal server and worker are not configured; the scheduler still needs to be checked.",
+      "temporalNeedsAttention": "The Temporal server, worker, or scheduler still needs attention.",
       "capabilities": "Capability packages"
     },
     "developerSource": {
@@ -2795,7 +2796,8 @@
       },
       "scheduler": {
         "title": "OPL scheduler",
-        "description": "Maintains the recurring OPL family runtime schedule."
+        "description": "Maintains the recurring OPL family runtime schedule.",
+        "observedAt": "Last checked: {{observedAt}}"
       },
       "values": {
         "ready": "Ready",

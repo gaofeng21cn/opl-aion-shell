@@ -349,10 +349,10 @@
   align-items: center;
 }
 
-@media (min-width: 1280px) {
-  .opl-settings-row__meta.opl-settings-capability-meta {
-    grid-template-columns: auto minmax(120px, 1fr) minmax(140px, 1fr) auto auto;
-  }
+.opl-settings-agent-summary > span,
+.opl-settings-row__meta.opl-settings-capability-meta > * {
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .opl-settings-row__main {
@@ -624,6 +624,10 @@
   .opl-settings-row__meta {
     justify-content: flex-start;
     text-align: left;
+  }
+
+  .opl-settings-row__meta.opl-settings-capability-meta {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .opl-temporal-maintenance .opl-settings-row__meta {

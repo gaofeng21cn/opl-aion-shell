@@ -47,10 +47,20 @@ describe('Codex visual parity overlay', () => {
     expect(codexPreset).toMatch(/\.layout-sider\s*{[^}]*background:\s*var\(--opl-codex-sidebar-bg\)\s*!important;/);
     expect(baseline).toContain('--opl-composer-shadow:');
     expect(baseline).toContain('--opl-composer-focus-shadow:');
+    expect(firstCustomProperty(baseline, '--opl-composer-border-focus')).toBe('rgba(32, 33, 36, 0.24)');
+    expect(firstCustomProperty(baseline, '--opl-composer-shadow')).toBe(
+      '0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05)'
+    );
     expect(focusRing).toContain("activeShadow: 'var(--opl-composer-focus-shadow)'");
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
+    expect(guidStyles).toMatch(
+      /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*12px\s*!important;/
+    );
+    expect(read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css')).toMatch(
+      /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
+    );
     expect(guidStyles).toMatch(/\.guidInputInner\s*{[^}]*border-radius:\s*22px;/);
     expect(codexPreset).toMatch(
       /\.guid-input-card-shell > div:first-child\s*{[^}]*border-radius:\s*22px\s*!important;/
@@ -90,6 +100,9 @@ describe('Codex visual parity overlay', () => {
     expect(presetAgent).toContain("<CloseSmall theme='outline'");
     expect(presetAgent).not.toContain('<span>✓</span>');
     expect(guidStyles).toMatch(/\.presetAgentTag\s*{[^}]*border:\s*0;[^}]*border-radius:\s*6px;/);
+    expect(guidStyles).toMatch(
+      /\.homeStarterActive:global\(\.arco-btn\)\s*{[^}]*border-color:\s*transparent\s*!important;[^}]*box-shadow:\s*none\s*!important;/
+    );
     expect(skills).toContain("type='secondary'");
     expect(skills).toContain("data-testid='btn-manual-import'");
     expect(skills).toContain('group-focus-within:opacity-100');

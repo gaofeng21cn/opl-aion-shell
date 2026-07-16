@@ -63,11 +63,14 @@ export type TemporalMaintenanceSnapshot = {
   addressSource: string;
   namespace: string;
   taskQueue: string;
+  serviceReady: boolean | null;
   serverReachable: boolean | null;
   workerReady: boolean;
   workerStatus: string;
   workerMutationGuardStatus: string | null;
   schedulerStatus: string;
+  schedulerReady: boolean | null;
+  schedulerObservedAt: string | null;
   blockers: string[];
 };
 
@@ -177,11 +180,15 @@ function temporalWorkerStatusLabel(snapshot: TemporalMaintenanceSnapshot, t: Run
   return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
 }
 
-function temporalSchedulerStatusLabel(status: string, t: RuntimeSettingsPanelsTranslate): string {
-  if (status === 'ready') return t('settings.oplEnvironmentPage.temporal.values.ready');
+function temporalSchedulerStatusLabel(
+  snapshot: TemporalMaintenanceSnapshot,
+  t: RuntimeSettingsPanelsTranslate
+): string {
+  const status = snapshot.schedulerStatus;
+  if (snapshot.schedulerReady === true) return t('settings.oplEnvironmentPage.temporal.values.ready');
   if (status === 'not_installed') return t('settings.oplEnvironmentPage.temporal.values.notInstalled');
   if (status === 'paused') return t('settings.oplEnvironmentPage.temporal.values.paused');
-  if (status === 'not_checked' || status === 'unknown') {
+  if (snapshot.schedulerReady === null || status === 'not_checked' || status === 'unknown') {
     return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   }
   return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
@@ -241,7 +248,7 @@ function TemporalActionButton({
       loading={busyActionId === actionId}
       disabled={disabled || !action}
       onClick={() => action && onAction(action.actionId)}
-      data-testid={`opl-temporal-action-${actionId}`}
+      data-testid={`settings-maintenance-temporal-action-${actionId}`}
     >
       {label}
     </Button>
@@ -268,29 +275,39 @@ export function TemporalMaintenancePanel({
   onOpenWorkerSourceSettings: () => void;
   t: RuntimeSettingsPanelsTranslate;
 }) {
-  const serverConfigured = Boolean(snapshot.address);
-  const serverReady = serverConfigured && snapshot.serverReachable === true;
-  const serverFailed = serverConfigured && snapshot.serverReachable === false;
+  const serverNotConfigured =
+    !snapshot.address &&
+    (snapshot.addressSource === 'not_configured' ||
+      TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
+      TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus));
+  const serverReady = snapshot.serviceReady === true;
+  const serverFailed = snapshot.serviceReady === false && !serverNotConfigured;
   const workerNeedsRestart = ['worker_source_stale', 'duplicate_worker'].includes(snapshot.workerStatus);
   const workerMutationBlocked = snapshot.workerMutationGuardStatus === 'blocked_developer_checkout_shared_state';
   const unavailableHelp = t('settings.oplEnvironmentPage.temporal.actions.unavailable');
   const blockerText = snapshot.blockers.length
     ? snapshot.blockers.map((blocker) => temporalBlockerLabel(blocker, t)).join(', ')
     : t('settings.oplEnvironmentPage.temporal.values.none');
-  const providerStatusLabel = snapshot.ready
-    ? t('settings.oplEnvironmentPage.temporal.values.ready')
-    : TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
-        TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus)
-      ? t('settings.oplEnvironmentPage.temporal.values.notConfigured')
-      : t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   const workerStatusLabel = temporalWorkerStatusLabel(snapshot, t);
-  const schedulerStatusLabel = temporalSchedulerStatusLabel(snapshot.schedulerStatus, t);
+  const schedulerStatusLabel = temporalSchedulerStatusLabel(snapshot, t);
+  const componentFailureReported =
+    serverFailed ||
+    (!snapshot.workerReady && !['not_checked', 'unknown', 'not_configured'].includes(snapshot.workerStatus)) ||
+    snapshot.schedulerReady === false;
+  const aggregateStatusLabel = snapshot.ready
+    ? t('settings.oplEnvironmentPage.temporal.values.ready')
+    : componentFailureReported
+      ? t('settings.oplEnvironmentPage.temporal.values.needsAttention')
+      : TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
+          TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus)
+        ? t('settings.oplEnvironmentPage.temporal.values.notConfigured')
+        : t('settings.oplEnvironmentPage.temporal.values.needsCheck');
 
   return (
     <section
       className='opl-settings-section opl-temporal-maintenance'
       id='temporal-runtime'
-      data-testid='opl-temporal-maintenance'
+      data-testid='settings-maintenance-temporal'
     >
       <div className='opl-settings-section__header'>
         <div>
@@ -301,13 +318,13 @@ export function TemporalMaintenancePanel({
             {t('settings.oplEnvironmentPage.temporal.description')}
           </Typography.Text>
         </div>
-        <span className={temporalStatusClass(snapshot.ready)} data-testid='opl-temporal-provider-status'>
-          {providerStatusLabel}
+        <span className={temporalStatusClass(snapshot.ready)} data-testid='settings-maintenance-temporal-status'>
+          {aggregateStatusLabel}
         </span>
       </div>
 
       <div className='opl-settings-list'>
-        <div className='opl-settings-row' data-testid='opl-temporal-server-row'>
+        <div className='opl-settings-row' data-testid='settings-maintenance-temporal-server'>
           <div className='opl-settings-row__main flex-row items-start gap-10px'>
             <span className='opl-settings-icon' aria-hidden='true'>
               <Server theme='outline' size='16' />
@@ -333,7 +350,7 @@ export function TemporalMaintenancePanel({
                 ? t('settings.oplEnvironmentPage.temporal.values.reachable')
                 : serverFailed
                   ? t('settings.oplEnvironmentPage.temporal.values.unreachable')
-                  : serverConfigured
+                  : !serverNotConfigured
                     ? t('settings.oplEnvironmentPage.temporal.values.notChecked')
                     : t('settings.oplEnvironmentPage.temporal.values.notConfigured')}
             </span>
@@ -362,7 +379,7 @@ export function TemporalMaintenancePanel({
           </div>
         </div>
 
-        <div className='opl-settings-row' data-testid='opl-temporal-worker-row'>
+        <div className='opl-settings-row' data-testid='settings-maintenance-temporal-worker'>
           <div className='opl-settings-row__main flex-row items-start gap-10px'>
             <span className='opl-settings-icon' aria-hidden='true'>
               <Worker theme='outline' size='16' />
@@ -426,7 +443,7 @@ export function TemporalMaintenancePanel({
                 type='text'
                 icon={<Right theme='outline' size='14' />}
                 onClick={onOpenWorkerSourceSettings}
-                data-testid='opl-temporal-worker-open-source-settings'
+                data-testid='settings-maintenance-temporal-worker-source'
               >
                 {t('settings.oplEnvironmentPage.temporal.worker.manageSources')}
               </Button>
@@ -434,7 +451,7 @@ export function TemporalMaintenancePanel({
           </div>
         </div>
 
-        <div className='opl-settings-row' data-testid='opl-temporal-scheduler-row'>
+        <div className='opl-settings-row' data-testid='settings-maintenance-temporal-scheduler'>
           <div className='opl-settings-row__main flex-row items-start gap-10px'>
             <span className='opl-settings-icon' aria-hidden='true'>
               <Schedule theme='outline' size='16' />
@@ -446,10 +463,24 @@ export function TemporalMaintenancePanel({
               <Typography.Text className='block text-12px text-t-secondary break-words'>
                 {t('settings.oplEnvironmentPage.temporal.scheduler.description')}
               </Typography.Text>
+              {snapshot.schedulerObservedAt && (
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.scheduler.observedAt', {
+                    observedAt: snapshot.schedulerObservedAt,
+                  })}
+                </Typography.Text>
+              )}
             </div>
           </div>
           <div className='opl-settings-row__meta'>
-            <span className={temporalStatusClass(snapshot.schedulerStatus === 'ready')}>{schedulerStatusLabel}</span>
+            <span
+              className={temporalStatusClass(
+                snapshot.schedulerReady === true,
+                snapshot.schedulerReady === false && !['not_installed', 'paused'].includes(snapshot.schedulerStatus)
+              )}
+            >
+              {schedulerStatusLabel}
+            </span>
             <TemporalActionButton
               actionId='provider_scheduler_status'
               action={actions.provider_scheduler_status}
@@ -477,7 +508,7 @@ export function TemporalMaintenancePanel({
       </div>
 
       {evidence && (
-        <div className='opl-temporal-action-readback' data-testid='opl-temporal-action-readback'>
+        <div className='opl-temporal-action-readback' data-testid='settings-maintenance-temporal-readback'>
           <Typography.Text className='block text-12px text-t-secondary break-words'>
             {t('settings.oplEnvironmentPage.temporal.readback', {
               action: temporalActionLabel(evidence.actionId, t),

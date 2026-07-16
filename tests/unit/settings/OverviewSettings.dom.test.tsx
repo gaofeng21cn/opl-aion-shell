@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
@@ -16,8 +17,11 @@ const mocks = vi.hoisted(() => ({
   temporalAddressSource: 'configured',
   temporalWorkerStatus: 'ready',
   temporalWorkerMutationGuard: null as string | null,
-  temporalServerReachable: true as boolean | null,
-  temporalWorkerReady: true,
+  temporalServiceReady: true as boolean | null,
+  temporalWorkerReady: true as boolean | null,
+  temporalSchedulerStatus: 'ready',
+  temporalSchedulerReady: true as boolean | null,
+  temporalSchedulerObservedAt: '2026-07-17T08:00:00Z',
   capabilityHealth: '5/5',
 }));
 
@@ -100,11 +104,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               address_source: mocks.temporalAddressSource,
               worker_readiness: {
                 readiness_status: mocks.temporalWorkerStatus,
-                server_reachable: mocks.temporalServerReachable,
+                service_ready: mocks.temporalServiceReady,
                 worker_ready: mocks.temporalWorkerReady,
                 worker_mutation_guard: {
                   mutation_guard_status: mocks.temporalWorkerMutationGuard,
                 },
+              },
+              scheduler: {
+                status: mocks.temporalSchedulerStatus,
+                ready: mocks.temporalSchedulerReady,
+                observed_at: mocks.temporalSchedulerObservedAt,
               },
             },
           },
@@ -180,11 +189,16 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.status.attention_required': 'Needs attention',
         'settings.oplEnvironmentPage.temporal.server.title': 'Temporal server',
         'settings.oplEnvironmentPage.temporal.worker.title': 'OPL worker',
+        'settings.oplEnvironmentPage.temporal.scheduler.title': 'OPL scheduler',
         'settings.oplEnvironmentPage.temporal.values.ready': 'Ready',
         'settings.oplEnvironmentPage.temporal.values.notConfigured': 'Not configured',
         'settings.oplEnvironmentPage.temporal.values.needsAttention': 'Needs attention',
         'settings.oplEnvironmentPage.temporal.values.needsCheck': 'Check required',
+        'settings.oplEnvironmentPage.temporal.values.notInstalled': 'Not installed',
+        'settings.oplEnvironmentPage.temporal.values.paused': 'Paused',
         'settings.oplEnvironmentPage.temporal.values.restartRequired': 'Restart required',
+        'settings.overviewPage.technical.temporalNeedsAttention':
+          'The Temporal server, worker, or scheduler still needs attention.',
       };
       if (key === 'settings.overviewPage.overall.attentionCount') return `${options?.count ?? 0} item(s)`;
       return labels[key] ?? String(options?.defaultValue ?? key);
@@ -206,8 +220,11 @@ describe('OverviewSettings', () => {
     mocks.temporalAddressSource = 'configured';
     mocks.temporalWorkerStatus = 'ready';
     mocks.temporalWorkerMutationGuard = null;
-    mocks.temporalServerReachable = true;
+    mocks.temporalServiceReady = true;
     mocks.temporalWorkerReady = true;
+    mocks.temporalSchedulerStatus = 'ready';
+    mocks.temporalSchedulerReady = true;
+    mocks.temporalSchedulerObservedAt = '2026-07-17T08:00:00Z';
     mocks.capabilityHealth = '5/5';
   });
 
@@ -226,8 +243,9 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('settings-overview-summary-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('settings-overview-technical-codex')).toHaveTextContent('0.142.4 · Connected');
-    expect(screen.getByTestId('settings-overview-technical-temporal-server')).toHaveTextContent('Temporal serverReady');
-    expect(screen.getByTestId('settings-overview-technical-temporal-worker')).toHaveTextContent('OPL workerReady');
+    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverReady');
+    expect(screen.getByTestId('settings-overview-temporal-worker')).toHaveTextContent('OPL workerReady');
+    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent('OPL schedulerReady');
     expect(screen.getByTestId('settings-overview-technical-capabilities')).toHaveTextContent('5/5');
     expect(screen.queryByTestId('settings-overview-diagnostics-action')).not.toBeInTheDocument();
   });
@@ -287,7 +305,7 @@ describe('OverviewSettings', () => {
     mocks.temporalDegradedReason = 'temporal_runtime_not_configured';
     mocks.temporalAddressSource = 'not_configured';
     mocks.temporalWorkerStatus = 'not_configured';
-    mocks.temporalServerReachable = false;
+    mocks.temporalServiceReady = false;
     mocks.temporalWorkerReady = false;
     mocks.issueQueue = [
       {
@@ -299,8 +317,8 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-technical-temporal-server');
-    const worker = screen.getByTestId('settings-overview-technical-temporal-worker');
+    const server = screen.getByTestId('settings-overview-temporal-server');
+    const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverNot configured');
     expect(worker).toHaveTextContent('OPL workerNot configured');
     expect(server).not.toHaveTextContent('attention_needed');
@@ -309,18 +327,53 @@ describe('OverviewSettings', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
+  it('treats an unreachable configured Temporal server as attention instead of not configured', () => {
+    mocks.temporalProviderStatus = 'provider_code_landed_unconfigured';
+    mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
+    mocks.temporalDegradedReason = 'temporal_server_unreachable';
+    mocks.temporalAddressSource = 'environment';
+    mocks.temporalServiceReady = false;
+    mocks.temporalWorkerStatus = 'server_unreachable';
+    mocks.temporalWorkerReady = false;
+    mocks.temporalSchedulerStatus = 'error';
+    mocks.temporalSchedulerReady = false;
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    const server = screen.getByTestId('settings-overview-temporal-server');
+    expect(server).toHaveTextContent('Temporal serverNeeds attention');
+    expect(server).not.toHaveTextContent('Not configured');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
+  });
+
+  it('fails closed when a configured Temporal server omits explicit readiness', () => {
+    mocks.temporalProviderStatus = 'provider_code_landed_unconfigured';
+    mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
+    mocks.temporalAddressSource = 'managed_local_service_state';
+    mocks.temporalServiceReady = null;
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    const server = screen.getByTestId('settings-overview-temporal-server');
+    expect(server).toHaveTextContent('Temporal serverCheck required');
+    expect(server).not.toHaveTextContent('Ready');
+    expect(server).not.toHaveTextContent('Not configured');
+  });
+
   it('keeps a ready Temporal server separate when the worker source is stale', () => {
-    mocks.temporalProviderStatus = 'attention_needed';
-    mocks.temporalRuntimeStatus = 'attention_needed';
+    mocks.temporalProviderStatus = 'provider_code_landed_unconfigured';
+    mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
     mocks.temporalDegradedReason = 'worker_source_stale';
-    mocks.temporalServerReachable = true;
+    mocks.temporalServiceReady = true;
     mocks.temporalWorkerStatus = 'worker_source_stale';
     mocks.temporalWorkerReady = false;
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-technical-temporal-server');
-    const worker = screen.getByTestId('settings-overview-technical-temporal-worker');
+    const server = screen.getByTestId('settings-overview-temporal-server');
+    const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverReady');
     expect(worker).toHaveTextContent('OPL workerRestart required');
     expect(server).not.toHaveTextContent('attention_needed');
@@ -330,18 +383,49 @@ describe('OverviewSettings', () => {
   it('keeps a ready Temporal server separate when worker maintenance is blocked', () => {
     mocks.temporalProviderStatus = 'attention_needed';
     mocks.temporalRuntimeStatus = 'attention_needed';
-    mocks.temporalServerReachable = true;
+    mocks.temporalServiceReady = true;
     mocks.temporalWorkerStatus = 'worker_not_ready';
     mocks.temporalWorkerReady = false;
     mocks.temporalWorkerMutationGuard = 'blocked_developer_checkout_shared_state';
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-technical-temporal-server');
-    const worker = screen.getByTestId('settings-overview-technical-temporal-worker');
+    const server = screen.getByTestId('settings-overview-temporal-server');
+    const worker = screen.getByTestId('settings-overview-temporal-worker');
     expect(server).toHaveTextContent('Temporal serverReady');
     expect(worker).toHaveTextContent('OPL workerNeeds attention');
     expect(worker).not.toHaveTextContent('blocked_developer_checkout_shared_state');
+  });
+
+  it('fails closed when worker readiness is missing even if the provider reports ready', () => {
+    mocks.temporalProviderStatus = 'ready';
+    mocks.temporalRuntimeStatus = 'ready';
+    mocks.temporalServiceReady = true;
+    mocks.temporalWorkerStatus = 'ready';
+    mocks.temporalWorkerReady = null;
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-temporal-worker')).toHaveTextContent('Check required');
+    expect(screen.getByTestId('settings-overview-temporal-worker')).not.toHaveTextContent('Ready');
+  });
+
+  it('makes an explicit scheduler failure actionable without relying on the issue queue', async () => {
+    const user = userEvent.setup();
+    mocks.temporalProviderStatus = 'ready';
+    mocks.temporalRuntimeStatus = 'ready';
+    mocks.temporalSchedulerStatus = 'error';
+    mocks.temporalSchedulerReady = false;
+
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent('Needs attention');
+    const action = screen.getByTestId('settings-overview-primary-action');
+    action.focus();
+    await user.keyboard('{Enter}');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('prioritizes Codex access when access and background services both fail', () => {

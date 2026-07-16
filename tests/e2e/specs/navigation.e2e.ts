@@ -245,7 +245,16 @@ test.describe('Settings Pages', () => {
         anchor('overview_primary', '[data-testid="settings-overview-primary"]'),
         anchor('overview_status', '[data-testid="settings-overview-status"]'),
         anchor('overview_contextual_entries', '[data-testid="settings-overview-summary-grid"]'),
-        anchor('overview_diagnostics_action', '[data-testid="settings-overview-diagnostics-action"]'),
+      ],
+    },
+    {
+      tab: 'gateway',
+      name: 'Gateway Settings',
+      level: 'top-level',
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('gateway_page', '[data-testid="settings-page-gateway"]'),
+        anchor('gateway_primary', '[data-testid="settings-gateway-primary"]'),
       ],
     },
     {
@@ -254,10 +263,10 @@ test.describe('Settings Pages', () => {
       level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('access_page', '[data-testid="settings-page-access"]'),
-        anchor('access_primary', '[data-testid="settings-access-primary"]'),
-        anchor('access_codex_cli', '[data-testid="settings-access-codex-cli"]'),
-        anchor('access_gateway', '[data-testid="settings-access-gateway"]'),
+        anchor('access_page', '[data-testid="settings-page-models"]'),
+        anchor('access_primary', '[data-testid="settings-models-primary"]'),
+        anchor('access_codex_cli', '[data-testid="settings-models-codex-cli"]'),
+        anchor('access_gateway', '[data-testid="settings-models-gateway-link"]'),
       ],
     },
     {
@@ -407,6 +416,27 @@ test.describe('Settings Pages', () => {
   ];
   const allVisualTargets = [...tabs, ...secondaryTabs];
   const stateTargets: SettingsVisualStateTarget[] = [
+    {
+      id: 'capabilities_manual_and_third_party',
+      route: 'capabilities',
+      state: 'capabilities_manual_and_third_party',
+      action: async (page) => {
+        await page.evaluate(() => window.location.assign('#/settings/capabilities?tab=manual_and_third_party'));
+        await page.waitForFunction(
+          () =>
+            window.location.hash.includes('/settings/capabilities') &&
+            new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('tab') === 'manual_and_third_party',
+          { timeout: 10_000 }
+        );
+        await expect(page.locator('[data-testid="settings-capabilities-third-party"]')).toBeVisible();
+      },
+      anchors: [
+        anchor('capabilities_manual_root', '[data-testid="settings-capabilities-third-party"]'),
+        anchor('capabilities_manual_skills', '[data-testid="settings-capabilities-manual-skills"]'),
+        anchor('capabilities_manual_tools', '[data-testid="settings-capabilities-manual-tools"]'),
+        anchor('capabilities_voice_input', '[data-testid="settings-capabilities-voice-input"]'),
+      ],
+    },
     {
       id: 'settings_search_empty_state',
       route: 'general',
