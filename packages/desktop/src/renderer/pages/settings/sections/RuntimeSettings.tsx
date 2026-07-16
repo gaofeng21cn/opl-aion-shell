@@ -123,11 +123,10 @@ const TEMPORAL_MAINTENANCE_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
 const TEMPORAL_POSTCONDITION_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
   'provider_service_start',
   'provider_scheduler_install',
+  'provider_scheduler_trigger',
   'provider_worker_start',
   'provider_worker_restart',
 ]);
-const TEMPORAL_READBACK_ATTEMPTS = 4;
-const TEMPORAL_READBACK_RETRY_DELAY_MS = 350;
 
 const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
 
@@ -345,10 +344,22 @@ function temporalActionFailure(result: IOplRuntimeCommandResult): 'blocked' | 'f
   ].map((status) => status.toLowerCase());
   if (statusValues.some((status) => status.startsWith('blocked'))) return 'blocked';
   return statusValues.some(
-    (status) => /^(failed|error)/.test(status) || status === 'launcher_missing' || status === 'unavailable'
+    (status) =>
+      /^(failed|error)/.test(status) ||
+      /(^|[_-])stale($|[_-])/.test(status) ||
+      /(^|[_-])guidance_only($|[_-])/.test(status) ||
+      status === 'launcher_missing' ||
+      status === 'unavailable'
   )
     ? 'failed'
     : null;
+}
+
+function temporalReadbackGeneratedAfterAction(appState: Record<string, unknown>, actionStartedAtMs: number): boolean {
+  const generatedAt = oplString(oplRecord(appState.meta).generated_at);
+  if (!generatedAt) return false;
+  const generatedAtMs = Date.parse(generatedAt);
+  return Number.isFinite(generatedAtMs) && generatedAtMs >= actionStartedAtMs;
 }
 
 function temporalSchedulerStatusFromResult(result: IOplRuntimeCommandResult): string | null {
@@ -376,11 +387,10 @@ function temporalPostconditionSatisfied(
   if (actionId === 'provider_scheduler_install') {
     return snapshot.schedulerReady === true;
   }
+  if (actionId === 'provider_scheduler_trigger') {
+    return snapshot.ready;
+  }
   return true;
-}
-
-async function waitForTemporalReadbackRetry(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, TEMPORAL_READBACK_RETRY_DELAY_MS));
 }
 
 function capabilitySyncNeedsManualHandling(result: IOplRuntimeCommandResult): boolean {
@@ -1501,6 +1511,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       if (!beginMaintenanceOperation()) return;
       setBusyTemporalActionId(actionId);
       const observedAt = new Date().toLocaleTimeString();
+      const actionStartedAtMs = Date.now();
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({ actionId, dryRun: false });
         if (!bridgeResultSucceeded(result)) {
@@ -1530,34 +1541,23 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         }
 
         const requiresPostcondition = TEMPORAL_POSTCONDITION_ACTION_IDS.has(actionId);
-        const attempts = requiresPostcondition ? TEMPORAL_READBACK_ATTEMPTS : 1;
-        const readFreshSnapshot = async (attempt: number): Promise<TemporalMaintenanceSnapshot | null> => {
-          if (attempt > 0) await waitForTemporalReadbackRetry();
-          const freshPayload = await appStateQuery.load('fast', {
-            showRefreshing: attempt === 0,
-            forceFresh: true,
-          });
-          if (!freshPayload) {
-            return attempt + 1 < attempts ? readFreshSnapshot(attempt + 1) : null;
-          }
-          const snapshot = temporalMaintenanceSnapshot(
-            getAppState(freshPayload),
-            schedulerStatus,
-            workerGuardStatus,
-            serviceReachable
-          );
-          if (!requiresPostcondition || temporalPostconditionSatisfied(actionId, snapshot) || attempt + 1 >= attempts) {
-            return snapshot;
-          }
-          return readFreshSnapshot(attempt + 1);
-        };
-        const freshSnapshot = await readFreshSnapshot(0);
+        const freshPayload = await appStateQuery.load('fast', {
+          showRefreshing: true,
+          forceFresh: true,
+        });
+        const freshAppState = getAppState(freshPayload);
 
-        if (!freshSnapshot) {
+        if (!freshPayload || !temporalReadbackGeneratedAfterAction(freshAppState, actionStartedAtMs)) {
           setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
           message.error(t('settings.oplEnvironmentPage.temporal.messages.readbackFailed'));
           return;
         }
+        const freshSnapshot = temporalMaintenanceSnapshot(
+          freshAppState,
+          schedulerStatus,
+          workerGuardStatus,
+          serviceReachable
+        );
         if (requiresPostcondition && !temporalPostconditionSatisfied(actionId, freshSnapshot)) {
           setTemporalActionEvidence({ actionId, outcome: 'failed', observedAt });
           message.error(t('settings.oplEnvironmentPage.temporal.messages.postconditionFailed'));

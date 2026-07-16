@@ -86,6 +86,10 @@ const defaultTemporalState: TemporalFixture = {
 
 const appState = {
   schema_version: 'opl_app_state.v1',
+  meta: {
+    profile: 'fast',
+    generated_at: '2026-07-17T08:00:00Z',
+  },
   core: {
     codex: {
       status: 'ready',
@@ -147,6 +151,12 @@ function exposeTemporalActions(...actionIds: string[]) {
 
 function setTemporalState(temporal: TemporalFixture) {
   appState.provider.temporal = temporal;
+}
+
+function freshAppStatePayload() {
+  const freshAppState = structuredClone(appState);
+  freshAppState.meta.generated_at = new Date(Date.now() + 1_000).toISOString();
+  return { app_state: freshAppState };
 }
 
 const updateStatus = {
@@ -298,6 +308,7 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.temporal.actions.installScheduler': '安装调度器',
         'settings.oplEnvironmentPage.temporal.actions.restartWorker': '重启 Worker',
         'settings.oplEnvironmentPage.temporal.actions.startWorker': '启动 Worker',
+        'settings.oplEnvironmentPage.temporal.actions.triggerScheduler': '立即运行 scheduler',
         'settings.oplEnvironmentPage.temporal.messages.actionComplete': '维护已完成',
         'settings.oplEnvironmentPage.temporal.outcomes.blocked': '已拦截',
         'settings.oplEnvironmentPage.temporal.outcomes.checked': '检查完成',
@@ -359,7 +370,7 @@ describe('RuntimeSettings maintenance structure', () => {
       stdout: '{}',
       parsed: updateStatus,
     });
-    bridgeMocks.loadAppState.mockResolvedValue({ app_state: appState });
+    bridgeMocks.loadAppState.mockImplementation(async () => freshAppStatePayload());
   });
 
   it('does not probe update status, check, or plan when the page mounts without a startup snapshot', () => {
@@ -701,7 +712,82 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(evidence).not.toHaveTextContent('running');
   });
 
-  it('polls fresh state until a newly started Temporal server becomes reachable', async () => {
+  it.each(['stale', 'guidance_only'])('fails closed when a Temporal action returns %s', async (status) => {
+    exposeTemporalActions('provider_service_status');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { status },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_status'));
+
+    const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.loadAppState).not.toHaveBeenCalled();
+    expect(evidence).toHaveTextContent('执行失败');
+  });
+
+  it('runs an available scheduler immediately and performs one fresh readback', async () => {
+    exposeTemporalActions('provider_scheduler_trigger');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { status: 'triggered' },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    const triggerButton = screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_trigger');
+    expect(triggerButton).toBeEnabled();
+    fireEvent.click(triggerButton);
+
+    await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'provider_scheduler_trigger',
+      dryRun: false,
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
+      showRefreshing: true,
+      forceFresh: true,
+    });
+  });
+
+  it('fails closed when scheduler trigger readback no longer has all Temporal components ready', async () => {
+    exposeTemporalActions('provider_scheduler_trigger');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { status: 'triggered' },
+        },
+      },
+    });
+    const degradedAppState = freshAppStatePayload().app_state;
+    const temporal = degradedAppState.provider.temporal as TemporalFixture;
+    if (temporal.details?.worker_readiness) {
+      temporal.details.worker_readiness.worker_ready = false;
+      temporal.details.worker_readiness.lifecycle_status = 'worker_not_ready';
+    }
+    bridgeMocks.loadAppState.mockResolvedValueOnce({ app_state: degradedAppState });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_trigger'));
+
+    await waitFor(() => expect(messageMocks.error).toHaveBeenCalledTimes(1));
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses exactly one fresh state readback after starting a Temporal server', async () => {
     setTemporalState({
       status: 'provider_code_landed_unconfigured',
       health_status: 'attention_needed',
@@ -715,8 +801,7 @@ describe('RuntimeSettings maintenance structure', () => {
       },
     });
     exposeTemporalActions('provider_service_status', 'provider_service_start');
-    const pendingAppState = structuredClone(appState);
-    const readyAppState = structuredClone(appState);
+    const readyAppState = freshAppStatePayload().app_state;
     readyAppState.provider.temporal = {
       status: 'ready',
       health_status: 'ready',
@@ -753,24 +838,76 @@ describe('RuntimeSettings maintenance structure', () => {
         },
       },
     });
-    bridgeMocks.loadAppState
-      .mockResolvedValueOnce({ app_state: pendingAppState })
-      .mockResolvedValueOnce({ app_state: readyAppState });
+    bridgeMocks.loadAppState.mockResolvedValueOnce({ app_state: readyAppState });
 
     render(<RuntimeSettings />);
     fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start'));
 
-    await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'), { timeout: 1_500 });
+    await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'));
     expect(messageMocks.error).not.toHaveBeenCalled();
-    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(2);
-    expect(bridgeMocks.loadAppState).toHaveBeenNthCalledWith(1, 'fast', {
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
       showRefreshing: true,
       forceFresh: true,
     });
-    expect(bridgeMocks.loadAppState).toHaveBeenNthCalledWith(2, 'fast', {
-      showRefreshing: false,
+  });
+
+  it('fails closed after one fresh readback when a Temporal start postcondition is not ready', async () => {
+    setTemporalState({
+      status: 'provider_code_landed_unconfigured',
+      health_status: 'attention_needed',
+      details: {
+        address_source: 'not_configured',
+        worker_readiness: {
+          lifecycle_status: 'not_configured',
+          service_ready: false,
+          server_reachable: false,
+          worker_ready: false,
+        },
+      },
+    });
+    exposeTemporalActions('provider_service_start');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { start_status: 'started' },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start'));
+
+    await waitFor(() => expect(messageMocks.error).toHaveBeenCalledTimes(1));
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
+      showRefreshing: true,
       forceFresh: true,
     });
+  });
+
+  it('rejects a force-fresh readback whose generated_at predates the action', async () => {
+    exposeTemporalActions('provider_service_status');
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { service_status: 'running' },
+        },
+      },
+    });
+    const staleAppState = structuredClone(appState);
+    staleAppState.meta.generated_at = '2000-01-01T00:00:00.000Z';
+    bridgeMocks.loadAppState.mockResolvedValueOnce({ app_state: staleAppState });
+
+    render(<RuntimeSettings />);
+    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_status'));
+
+    await waitFor(() => expect(messageMocks.error).toHaveBeenCalledTimes(1));
+    expect(messageMocks.success).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledTimes(1);
   });
 
   it('keeps blocked worker mutations out of the success path and shows localized evidence', async () => {
@@ -853,6 +990,7 @@ describe('RuntimeSettings maintenance structure', () => {
       'provider_worker_restart',
       'provider_scheduler_status',
       'provider_scheduler_install',
+      'provider_scheduler_trigger',
     ]) {
       expect(screen.getByTestId(`settings-maintenance-temporal-action-${actionId}`)).toBeDisabled();
     }

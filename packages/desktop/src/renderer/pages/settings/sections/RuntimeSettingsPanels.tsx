@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Download, Refresh, Right, Schedule, Search, Server, Worker } from '@icon-park/react';
+import { Download, PlayOne, Refresh, Right, Schedule, Search, Server, Worker } from '@icon-park/react';
 
 export type RuntimeSettingsTone = 'green' | 'orange' | 'gray';
 
@@ -503,6 +503,16 @@ export function TemporalMaintenancePanel({
                 onAction={onAction}
               />
             )}
+            <TemporalActionButton
+              actionId='provider_scheduler_trigger'
+              action={actions.provider_scheduler_trigger}
+              label={t('settings.oplEnvironmentPage.temporal.actions.triggerScheduler')}
+              unavailableHelp={unavailableHelp}
+              busyActionId={busyActionId}
+              disabled={disabled || !serverReady || !snapshot.workerReady || snapshot.schedulerReady !== true}
+              icon={<PlayOne theme='outline' size='14' />}
+              onAction={onAction}
+            />
           </div>
         </div>
       </div>
