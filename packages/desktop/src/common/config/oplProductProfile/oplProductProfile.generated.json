@@ -2098,7 +2098,7 @@
             "verify_ref": "application.setLogDirectory.hostLogDir success value plus application.systemInfo.logDir readback",
             "risk": "low",
             "confirmation_required": false,
-            "editable_reason": "Workspace & Personalization owns the desktop App log root; WebUI /data/logs is a read-only projection of the existing OnePersonLab/data -> /data volume and Settings never rewires that volume."
+            "editable_reason": "Workspace owns the desktop App log root; WebUI /data/logs is a read-only projection of the existing OnePersonLab/data -> /data volume and Settings never rewires that volume."
           },
           {
             "stable_id": "settings.configuration.codex_user_instructions",
@@ -2764,7 +2764,7 @@
             },
             "cloud_remote_boundary": {
               "required_boundary_terms": ["App", "Workspace", "Gateway", "Fabric", "Console"],
-              "display_policy": "model selection stays on Models; Gateway credentials route to Account & Gateway; browser, resource, and deployment refs route to Settings Resources",
+              "display_policy": "model selection stays on Models; Gateway credentials route to Account & Access; browser, resource, and deployment refs route to Settings Resources",
               "refs_only": true,
               "forbidden_claims": [
                 "runtime_truth",
@@ -3417,7 +3417,7 @@
           {
             "id": "workspace_personalization_owner",
             "track": "user_task_ux",
-            "goal": "Workspace & Personalization is the single owner for workspace path, log path, AGENTS.md, and OPL App context.",
+            "goal": "Workspace is the single owner for workspace path, log path, AGENTS.md, and new-conversation additions.",
             "evidence_required": [
               "log_directory configuration page_id is workspace",
               "application.setLogDirectory { path } persists hostLogDir, switches the live writer, rolls persistence back with a typed failure when switching fails, preserves cacheDir/workDir, and never rewires the existing OnePersonLab/data -> /data volume",
@@ -3427,17 +3427,17 @@
           {
             "id": "gateway_single_owner",
             "track": "user_task_ux",
-            "goal": "Account & Gateway is the single owner for OPL Gateway identity, balance, usage, credentials, refresh, and disconnect.",
+            "goal": "Account & Access is the single owner for OPL Gateway identity, balance, usage, credentials, refresh, and disconnect.",
             "evidence_required": [
-              "Overview contains only an account summary and a link to Account & Gateway",
-              "Models contains only a Gateway source summary and a link to Account & Gateway",
+              "Overview contains only an account summary and a link to Account & Access",
+              "Models contains only a Gateway source summary and a link to Account & Access",
               "Resources excludes the built-in OPL Gateway connection and its count"
             ]
           },
           {
             "id": "model_access_source",
             "track": "user_task_ux",
-            "goal": "Models owns source and default model while Account & Gateway owns account and credential lifecycle.",
+            "goal": "Models owns source and default model while Account & Access owns account and credential lifecycle.",
             "evidence_required": [
               "Access carrier is labeled Models / 模型",
               "Gateway has an independent ordinary route and owner contract",
@@ -3474,7 +3474,7 @@
           {
             "id": "data_storage_safety",
             "track": "user_task_ux",
-            "goal": "Storage owns cached local and Docker usage plus previewed cleanup, while path configuration remains on Workspace & Personalization.",
+            "goal": "Storage owns cached local and Docker usage plus previewed cleanup, while path configuration remains on Workspace.",
             "evidence_required": [
               "storage-categories is the primary list",
               "cached inventory renders before background refresh without synthetic zero bytes",
@@ -3710,7 +3710,7 @@
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Account & Gateway owns login, identity, balance, usage, managed Key status, and manual API-key access.",
+                "normal_summary": "Account & Access owns login, identity, balance, usage, managed Key status, and manual API-key access.",
                 "next_action": "connect, refresh, or disconnect Gateway access on its owner page",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_gateway",
                 "editable_reason": "Gateway credentials and account lifecycle are user-initiated and reversible",
@@ -3727,7 +3727,7 @@
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
                 "normal_summary": "Models shows the real model source, selected and default model, and active Codex CLI without duplicating Gateway account details.",
-                "next_action": "change the model preference or open Account & Gateway when credentials need attention",
+                "next_action": "change the model preference or open Account & Access when credentials need attention",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_access",
                 "editable_reason": "model and reasoning preferences are local and reversible",
                 "surface_class": "configuration",
@@ -3742,7 +3742,7 @@
                 "scope": "workspace",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
-                "normal_summary": "Workspace & Personalization owns workspace and App log paths plus Codex AGENTS.md and OPL App context; desktop log changes preserve cache/work directories and do not rewire the Docker data volume.",
+                "normal_summary": "Workspace owns workspace and App log paths plus Codex AGENTS.md and new-conversation additions; desktop log changes preserve cache/work directories and do not rewire the Docker data volume.",
                 "next_action": "change workspace, log directory, or new-conversation personalization on the single owner page",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_workspace",
                 "editable_reason": "workspace mutations require explicit user action and confirmation while user instruction changes keep stale-write and backup guards",
@@ -3761,7 +3761,7 @@
                 "normal_summary": "Agents renders every Framework directory entry, keeps static professional package data as metadata only, and owns package search, role/status/source filters, registry refresh, projected lifecycle actions, Developer Mode, and Home visibility.",
                 "next_action": "search or filter the directory, refresh it, or execute the package row action projected by Framework",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_agents",
-                "editable_reason": "Framework owns directory and action truth; the App only renders canonical payloads and routes missing workspace activation to Workspace & Personalization",
+                "editable_reason": "Framework owns directory and action truth; the App only renders canonical payloads and routes missing workspace activation to Workspace",
                 "surface_class": "configuration",
                 "item_id": "agent_package_directory"
               }
@@ -3907,7 +3907,7 @@
           "style_exclusion": "multi_hue_card_dashboard",
           "baseline_shell_commit": "409dd0c3b693f1c7c93551654dfac8fb9420843d",
           "baseline_comparison_policy": "fresh_same_route_screenshots_must_preserve_or_improve_information_hierarchy",
-          "card_policy": "one_quiet_bounded_section_per_user_question_with_flat_internal_rows",
+          "card_policy": "unframed_sections_with_bounded_groups_only_for_repeated_entities_or_confirmation",
           "first_viewport_spatial_group_range": {
             "min": 2,
             "max": 4
@@ -4030,7 +4030,7 @@
               "signed-in Gateway identity, connection and availability with compact today token, cost, and balance summaries",
               "issue queue ordered by user impact and limited to actionable exceptions",
               "one next useful action",
-              "workspace path stays on Workspace & Personalization and is not a primary Overview card",
+              "workspace path stays on Workspace and is not a primary Overview card",
               "necessary Codex and Gateway technical rows remain directly visible after duplicate fields are removed"
             ],
             "first_viewport_groups": ["system_status", "attention_queue", "codex_and_gateway"],
@@ -4179,6 +4179,14 @@
               "webui_password_login_allowed": false,
               "generic_action_secret_payload_allowed": false
             },
+            "surface_rules": {
+              "content_group_presentation": "single_unframed_content_group",
+              "account_container_border_count": 0,
+              "metrics_container_border_count": 0,
+              "metric_cell_divider_count": 0,
+              "footer_border_count": 0,
+              "stale_error_presentation": "inline_status_text_without_banner_frame"
+            },
             "primary_action": {
               "id": "configure_gateway_access",
               "availability": "disconnected_or_user_requested_change",
@@ -4236,7 +4244,7 @@
               "selected and default model, with Auto showing its resolved friendly model",
               "persistent default model and reasoning effort for new conversations",
               "active Codex CLI version as the model execution prerequisite",
-              "one visible route to Account & Gateway when credentials need attention"
+              "one visible route to Account & Access when credentials need attention"
             ],
             "first_viewport_groups": ["model_access", "model_preference", "codex_cli"],
             "surface_inventory": {
@@ -4275,7 +4283,7 @@
               "label_zh": "前往账户与访问",
               "label_en": "Open Account & Access"
             },
-            "exception_state": "highlight unavailable model access and route credential repair to Account & Gateway",
+            "exception_state": "highlight unavailable model access and route credential repair to Account & Access",
             "technical_details_boundary": "Gateway account, balance, usage, Key management, raw provider ids, paths, and update actions stay on Gateway or Maintenance",
             "required_dom": {
               "always": [
@@ -4311,7 +4319,7 @@
               "where project and task artifacts are stored",
               "desktop App log directory through the existing typed system-info action; WebUI /data/logs remains read-only under the existing Docker data volume",
               "system-level Codex user instructions with stale-write protection and backup",
-              "read-only generated OPL App context plus editable additional instructions",
+              "read-only generated new-conversation additions plus editable additional instructions",
               "open workspace as an inline action and change workspace as the sole page-level primary action"
             ],
             "first_viewport_groups": ["workspace_configuration", "log_directory", "personalization"],
@@ -4686,7 +4694,7 @@
               "resource readiness",
               "whether the related operation is executable",
               "SSH, HPC, cloud, and external resources with owner or management mode without duplicating the selected Workspace page",
-              "only external connections; the built-in OPL Gateway is owned by Account & Gateway"
+              "only external connections; the built-in OPL Gateway is owned by Account & Access"
             ],
             "first_viewport_groups": ["local_browser_access", "deployed_web_access", "external_resources"],
             "surface_inventory": {
@@ -5505,10 +5513,10 @@
               "id": "personalization.opl_app_context",
               "page_id": "workspace",
               "anchor": "opl-app-context",
-              "label_zh": "OPL App 上下文",
-              "label_en": "OPL App context",
-              "keywords_zh": ["上下文", "对话"],
-              "keywords_en": ["context", "conversation"]
+              "label_zh": "新对话附加说明",
+              "label_en": "New conversation additions",
+              "keywords_zh": ["附加说明", "新对话"],
+              "keywords_en": ["additions", "new conversation"]
             },
             {
               "id": "storage.categories",
