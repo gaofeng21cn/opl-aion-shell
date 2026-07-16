@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { Button, Message, Tag, Typography } from '@arco-design/web-react';
-import { FileText, FolderOpen } from '@icon-park/react';
+import { FileText, FolderOpen, SettingTwo } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -191,6 +191,15 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                   {t('settings.workspacePage.locations.description')}
                 </Typography.Text>
               </div>
+              <Button
+                type='text'
+                size='small'
+                icon={<SettingTwo theme='outline' size='14' />}
+                data-testid='settings-workspace-diagnostics-action'
+                onClick={() => (window.location.hash = '#/settings/environment?section=diagnostics')}
+              >
+                {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+              </Button>
             </div>
             <div className='opl-settings-list'>
               <div className='opl-settings-row' data-testid='opl-workspace-settings-root'>

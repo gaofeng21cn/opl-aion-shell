@@ -210,6 +210,7 @@ vi.mock('react-i18next', () => ({
 describe('WorkspaceSettings and LocalServicesSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.location.hash = '';
     mocks.workspaceExists = true;
     mocks.workspaceWritable = true;
     mocks.workspaceHealthStatus = 'ready';
@@ -265,7 +266,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(logsPath).toHaveClass('opl-settings-path');
     expect(logsPath).not.toHaveClass('break-all');
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
-    expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-diagnostics-action')).toHaveTextContent('Diagnostics');
     expect(screen.queryByText('Modules root: /Users/example/workspace/modules')).not.toBeInTheDocument();
     expect(screen.queryByText('Framework logs: /Users/example/Library/Logs/One Person Lab')).not.toBeInTheDocument();
 
@@ -280,6 +281,17 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       folder_path: '/Users/example/Library/Logs/One Person Lab App',
       tool: 'explorer',
     });
+  });
+
+  it('routes the always-available lightweight diagnostics action to Maintenance diagnostics', () => {
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    const diagnosticsAction = screen.getByTestId('settings-workspace-diagnostics-action');
+    expect(diagnosticsAction).toHaveClass('arco-btn-text', 'arco-btn-size-small');
+    fireEvent.click(diagnosticsAction);
+
+    expect(window.location.hash).toBe('#/settings/environment?section=diagnostics');
+    expect(mocks.executeAction).not.toHaveBeenCalled();
   });
 
   it('updates the desktop App log directory and Docker projection through one local typed action', async () => {
