@@ -91,7 +91,7 @@ type GatewayAmountValueProps = {
 
 const GatewayAmountValue: React.FC<GatewayAmountValueProps> = ({ amount, currency, testId }) => (
   <Typography.Text
-    className='flex min-w-0 max-w-full flex-wrap items-baseline gap-x-4px text-18px font-600 leading-22px text-t-primary xl:min-h-44px'
+    className='flex min-w-0 max-w-full flex-wrap items-baseline gap-x-4px text-16px font-600 leading-22px text-t-primary xl:min-h-44px'
     data-testid={testId}
   >
     <span className='break-normal whitespace-nowrap'>{amount}</span>
@@ -515,7 +515,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
 
             {gatewayAccount?.freshness.stale && (
               <div
-                className='mb-12px border-t border-solid border-border-1 py-8px text-12px text-t-secondary'
+                className='mb-12px py-4px text-12px leading-18px text-t-secondary sm:pl-38px'
                 data-testid='settings-gateway-stale'
               >
                 {t('settings.accessPage.gatewayAccount.stale', {
@@ -526,7 +526,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
 
             {gatewayStatusError && !gatewayFormVisible && (
               <div
-                className='mb-12px border-t border-solid border-border-1 py-8px text-12px text-t-secondary'
+                className='mb-12px py-4px text-12px leading-18px text-t-secondary sm:pl-38px'
                 data-testid='settings-gateway-exception'
               >
                 {t(gatewayErrorTranslationKey(gatewayStatusError))}
@@ -537,7 +537,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               !gatewayAccount.account_card_visible &&
               accountLoginSupported &&
               !gatewayFormVisible && (
-                <div className='border-t border-solid border-[var(--border-base)] p-16px'>
+                <div className='py-10px sm:pl-38px'>
                   <Button
                     size='small'
                     type='primary'
@@ -553,14 +553,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               )}
 
             {gatewayAccount?.account_card_visible && gatewayAccount.account && (
-              <div
-                className='border-t border-solid border-[var(--border-base)]'
-                id='account'
-                data-testid='settings-gateway-account'
-              >
-                <div className='flex flex-wrap items-center justify-between gap-12px px-16px py-14px'>
+              <div className='sm:pl-38px' id='account' data-testid='settings-gateway-account'>
+                <div className='flex flex-wrap items-center justify-between gap-12px py-12px'>
                   <div className='flex min-w-0 items-center gap-12px'>
-                    <span className='flex h-40px w-40px shrink-0 items-center justify-center rd-full bg-success-1 text-14px font-600 text-success-6'>
+                    <span className='flex h-32px w-32px shrink-0 items-center justify-center rd-full bg-success-1 text-12px font-600 text-success-6'>
                       {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
                     </span>
                     <div className='min-w-0'>
@@ -588,10 +584,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                 </div>
 
                 <div
-                  className='grid grid-cols-2 border-t border-solid border-[var(--border-base)] md:grid-cols-3 xl:grid-cols-5'
+                  className='grid grid-cols-2 gap-x-24px gap-y-14px py-10px md:grid-cols-3 xl:grid-cols-5'
                   data-testid='settings-gateway-metrics'
                 >
-                  <div className='min-w-0 px-16px py-13px'>
+                  <div className='min-w-0'>
                     <GatewayAmountValue
                       amount={gatewayNumber(gatewayAccount.account.balance.amount)}
                       currency={gatewayAccount.account.balance.currency}
@@ -601,15 +597,15 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       {t('settings.accessPage.gatewayAccount.metrics.balance')}
                     </Typography.Text>
                   </div>
-                  <div className='min-w-0 px-16px py-13px'>
-                    <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block text-16px font-600 leading-22px text-t-primary xl:min-h-44px'>
                       {formatGatewayTokenCount(gatewayAccount.usage?.today_tokens ?? null, i18n.resolvedLanguage)}
                     </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {t('settings.accessPage.gatewayAccount.metrics.todayTokens')}
                     </Typography.Text>
                   </div>
-                  <div className='min-w-0 px-16px py-13px'>
+                  <div className='min-w-0'>
                     <GatewayAmountValue
                       amount={gatewayNumber(gatewayAccount.usage?.today_actual_cost ?? null)}
                       currency={gatewayAccount.usage?.currency ?? ''}
@@ -619,15 +615,15 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       {t('settings.accessPage.gatewayAccount.metrics.todayCost')}
                     </Typography.Text>
                   </div>
-                  <div className='min-w-0 px-16px py-13px'>
-                    <Typography.Text className='block text-18px font-600 text-t-primary'>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block text-16px font-600 leading-22px text-t-primary xl:min-h-44px'>
                       {formatGatewayTokenCount(gatewayAccount.usage?.total_tokens ?? null, i18n.resolvedLanguage)}
                     </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {t('settings.accessPage.gatewayAccount.metrics.totalTokens')}
                     </Typography.Text>
                   </div>
-                  <div className='min-w-0 px-16px py-13px'>
+                  <div className='min-w-0'>
                     <GatewayAmountValue
                       amount={gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}
                       currency={gatewayAccount.usage?.currency ?? ''}
@@ -639,7 +635,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   </div>
                 </div>
 
-                <div className='flex flex-wrap items-center justify-between gap-12px border-t border-solid border-[var(--border-base)] px-16px py-12px'>
+                <div
+                  className='mt-2px flex flex-wrap items-center justify-between gap-12px border-t border-solid border-[var(--border-base)] py-12px'
+                  data-testid='settings-gateway-account-footer'
+                >
                   <div className='min-w-0'>
                     {gatewayAccount.managed_key && (
                       <Typography.Text className='block break-words text-12px text-t-secondary'>
@@ -691,10 +690,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
             )}
 
             {gatewayFormVisible && (
-              <div
-                className='max-w-600px border-t border-solid border-[var(--border-base)] p-16px'
-                data-testid='settings-gateway-setup'
-              >
+              <div className='max-w-600px pt-14px sm:pl-38px' data-testid='settings-gateway-setup'>
                 {accountLoginSupported && manualKeySupported && (
                   <Radio.Group
                     type='button'

@@ -13,7 +13,7 @@ import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/focus';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/chat/timeline';
-import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import { Popconfirm, Input, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState } from 'react';
@@ -294,7 +294,15 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
         })}
       >
         {!chatHistory.length ? (
-          <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
+          <div
+            className='chat-history__placeholder flex flex-col items-center justify-center gap-8px px-12px py-32px text-center text-t-tertiary'
+            data-testid='conversation-history-empty'
+          >
+            <span className='flex h-20px w-20px items-center justify-center leading-none' aria-hidden='true'>
+              <MessageOne theme='outline' size='20' fill='currentColor' />
+            </span>
+            <span className='text-13px leading-18px'>{t('conversation.history.noHistory')}</span>
+          </div>
         ) : (
           chatHistory.map((item) => {
             const timeline = formatTimeline(item);

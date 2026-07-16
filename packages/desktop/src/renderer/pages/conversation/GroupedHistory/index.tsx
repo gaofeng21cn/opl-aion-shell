@@ -10,8 +10,8 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCronJobsMap } from '@/renderer/pages/cron';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Modal, Tooltip } from '@arco-design/web-react';
-import { Export, FolderOpen, Plus, Right } from '@icon-park/react';
+import { Button, Input, Modal, Tooltip } from '@arco-design/web-react';
+import { Export, FolderOpen, MessageOne, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -285,8 +285,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     return (
       <>
         {afterPinnedContent}
-        <div className='py-48px flex-center'>
-          <Empty description={t(archived ? 'conversation.history.noArchived' : 'conversation.history.noHistory')} />
+        <div
+          className='chat-history__placeholder flex flex-col items-center justify-center gap-8px px-12px py-32px text-center text-t-tertiary'
+          data-testid='conversation-history-empty'
+        >
+          <span className='flex h-20px w-20px items-center justify-center leading-none' aria-hidden='true'>
+            <MessageOne theme='outline' size='20' fill='currentColor' />
+          </span>
+          <span className='text-13px leading-18px'>
+            {t(archived ? 'conversation.history.noArchived' : 'conversation.history.noHistory')}
+          </span>
         </div>
       </>
     );

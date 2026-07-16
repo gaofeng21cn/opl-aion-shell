@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   handleExportConversation: vi.fn(),
   handleBatchExport: vi.fn(),
   navigate: vi.fn(),
+  emptyHistory: false,
 }));
 
 const conversation = {
@@ -50,27 +51,29 @@ vi.mock('@/renderer/components/settings/DirectorySelectionModal', () => ({ defau
 
 vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversations', () => ({
   useConversations: () => ({
-    conversations: [conversation],
+    conversations: mocks.emptyHistory ? [] : [conversation],
     isConversationGenerating: () => false,
     hasCompletionUnread: () => false,
     expandedWorkspaces: ['/workspace/review'],
     pinnedConversations: [],
-    timelineSections: [
-      {
-        key: 'today',
-        label: 'Today',
-        items: [
+    timelineSections: mocks.emptyHistory
+      ? []
+      : [
           {
-            type: 'workspace',
-            workspaceGroup: {
-              workspace: '/workspace/review',
-              display_name: 'review',
-              conversations: [conversation],
-            },
+            key: 'today',
+            label: 'Today',
+            items: [
+              {
+                type: 'workspace',
+                workspaceGroup: {
+                  workspace: '/workspace/review',
+                  display_name: 'review',
+                  conversations: [conversation],
+                },
+              },
+            ],
           },
         ],
-      },
-    ],
     handleToggleWorkspace: vi.fn(),
   }),
 }));
@@ -174,6 +177,7 @@ describe('GroupedHistory export entries', () => {
     mocks.handleExportConversation.mockReset();
     mocks.handleBatchExport.mockReset();
     mocks.navigate.mockReset();
+    mocks.emptyHistory = false;
   });
 
   it('wires the conversation row export entry to the existing export hook', () => {
@@ -196,5 +200,16 @@ describe('GroupedHistory export entries', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { state: { workspace: '/workspace/review' } });
     expect(screen.queryByText('conversation.history.removeProject')).not.toBeInTheDocument();
     expect(screen.queryByText('conversation.history.projectContext.add')).not.toBeInTheDocument();
+  });
+
+  it('renders a compact monochrome conversation empty state without the carrier illustration', () => {
+    mocks.emptyHistory = true;
+    render(<GroupedHistory />);
+
+    const emptyState = screen.getByTestId('conversation-history-empty');
+    expect(emptyState).toHaveTextContent('conversation.history.noHistory');
+    expect(emptyState.querySelector('svg')).not.toBeNull();
+    expect(emptyState.querySelector('.text-13px')).not.toBeNull();
+    expect(document.querySelector('.arco-empty')).toBeNull();
   });
 });

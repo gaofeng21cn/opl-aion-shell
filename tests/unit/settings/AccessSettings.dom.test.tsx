@@ -973,12 +973,16 @@ describe('AccessSettingsContent', () => {
     mocks.load.mockResolvedValue(makeGatewayPayload(refreshedGatewayAccount));
     const view = render(<AccessSettingsContent surface='gateway' />);
 
-    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('feng@example.com');
-    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('Active');
-    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('57,909.35 USD');
-    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('212.96B');
-    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('--');
-    expect(view.getByTestId('settings-gateway-metrics')).toHaveTextContent('210,545.39 USD');
+    const account = view.getByTestId('settings-gateway-account');
+    const metrics = view.getByTestId('settings-gateway-metrics');
+    expect(account).toHaveTextContent('feng@example.com');
+    expect(account).toHaveTextContent('Active');
+    expect(account.className).not.toContain('border');
+    expect(metrics).toHaveTextContent('57,909.35 USD');
+    expect(metrics).toHaveTextContent('212.96B');
+    expect(metrics).toHaveTextContent('--');
+    expect(metrics).toHaveTextContent('210,545.39 USD');
+    expect(metrics.className).not.toContain('border');
     for (const testId of [
       'settings-gateway-balance-value',
       'settings-gateway-today-cost-value',
@@ -991,8 +995,11 @@ describe('AccessSettingsContent', () => {
       expect(stableSegments).toHaveLength(2);
       expect(Array.from(stableSegments).every((segment) => segment.classList.contains('break-normal'))).toBe(true);
     }
-    expect(view.getByTestId('settings-gateway-account')).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
-    expect(view.getByTestId('settings-gateway-stale')).toBeTruthy();
+    expect(account).toHaveTextContent('OPL App · Feng-Mac · 7F31A9C2');
+    const stale = view.getByTestId('settings-gateway-stale');
+    expect(stale.className).not.toContain('border');
+    expect(view.getByTestId('settings-gateway-account-footer')).toHaveClass('border-t');
+    expect(account.querySelectorAll('.border-t')).toHaveLength(1);
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
     expect(view.queryByText('Resync')).toBeNull();
     expect(view.queryByText('Use for model access')).toBeNull();
