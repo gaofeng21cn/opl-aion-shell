@@ -385,7 +385,7 @@ export const ResourcesSettingsContent: React.FC = () => {
             <div className='opl-settings-row__meta'>
               <Button
                 data-testid='opl-settings-open-native-remote-settings'
-                icon={<Open theme='outline' />}
+                icon={<Open theme='outline' size='16' fill='currentColor' />}
                 onClick={() => setRemoteSettingsVisible(true)}
               >
                 {t('settings.accessPage.remote.openNativeSettings')}
@@ -565,46 +565,46 @@ export const ResourcesSettingsContent: React.FC = () => {
             </div>
           </Modal>
         </section>
-      </div>
 
-      <OplConnectionsSection
-        registry={connectionRegistry}
-        runningActionId={runningActionId}
-        onAction={executeConnectionAction}
-      />
+        <OplConnectionsSection
+          registry={connectionRegistry}
+          runningActionId={runningActionId}
+          onAction={executeConnectionAction}
+        />
 
-      {resourceSources.length > 0 && (
-        <div className='opl-settings-flat-stack' data-testid='settings-resources-sources'>
-          <section className='opl-settings-section' id='workspace-resources'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.resourcesPage.connections.workspaceDescription')}
-            </Typography.Text>
-            <ResourceSources
-              sources={workspaceSources}
-              emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
-              testId='opl-settings-workspace-resource-sources'
-            />
-          </section>
+        {resourceSources.length > 0 && (
+          <>
+            <section className='opl-settings-section' id='workspace-resources'>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.resourcesPage.connections.workspaceDescription')}
+              </Typography.Text>
+              <ResourceSources
+                sources={workspaceSources}
+                emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
+                testId='opl-settings-workspace-resource-sources'
+              />
+            </section>
 
-          <section className='opl-settings-section' id='reported-resources'>
-            <div className='opl-settings-section__header'>
-              <div>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.resourcesPage.connections.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('settings.resourcesPage.connections.description')}
-                </Typography.Text>
+            <section className='opl-settings-section' id='reported-resources'>
+              <div className='opl-settings-section__header'>
+                <div>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.resourcesPage.connections.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.resourcesPage.connections.description')}
+                  </Typography.Text>
+                </div>
               </div>
-            </div>
-            <ResourceSources
-              sources={externalSources}
-              emptyKey='settings.resourcesPage.connections.noSources'
-              testId='opl-settings-resource-sources'
-            />
-          </section>
-        </div>
-      )}
+              <ResourceSources
+                sources={externalSources}
+                emptyKey='settings.resourcesPage.connections.noSources'
+                testId='opl-settings-resource-sources'
+              />
+            </section>
+          </>
+        )}
+      </div>
 
       <Modal
         visible={diagnosticsVisible}

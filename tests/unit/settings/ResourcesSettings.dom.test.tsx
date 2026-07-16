@@ -505,6 +505,9 @@ describe('ResourcesSettingsContent', () => {
     const view = renderResources();
 
     expect(view.getByTestId('opl-connections-section')).toBeTruthy();
+    expect(view.getByTestId('opl-connections-section').parentElement).toBe(
+      view.getByTestId('settings-resources-primary')
+    );
     expect(view.getByText('Primary API')).toBeTruthy();
     expect(view.getByText('使用环境变量 PRIMARY_API_TOKEN')).toBeTruthy();
     expect(view.getByText('对应环境变量尚未配置。')).toBeTruthy();

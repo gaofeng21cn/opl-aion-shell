@@ -82,9 +82,30 @@ describe('Codex visual parity overlay', () => {
 
   it('keeps Settings navigation and grouped surfaces neutral', () => {
     const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
+    const settingsWrapper = read('packages/desktop/src/renderer/pages/settings/components/SettingsPageWrapper.tsx');
     const settingsRegistry = read('packages/desktop/src/renderer/pages/settings/registry/settingsRegistry.tsx');
+    const capabilities = read('packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx');
+    const resources = read('packages/desktop/src/renderer/pages/settings/sections/ResourcesSettings.tsx');
+    const localServices = read('packages/desktop/src/renderer/pages/settings/sections/LocalServicesSettings.tsx');
 
     expect(settingsStyles).toContain('max-width: 760px;');
+    expect(settingsWrapper).toContain("'settings-page-content mx-auto w-full'");
+    expect(settingsWrapper).not.toContain('md:max-w-1024px');
+    expect(capabilities).not.toContain("contentClassName='max-w-none'");
+    expect(settingsStyles).toMatch(
+      /\.opl-settings-details\s*{[^}]*border:\s*0;[^}]*border-top:\s*1px solid var\(--border-base\);[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-page-wrapper \.arco-btn > \.i-icon\s*{[^}]*width:\s*20px;[^}]*height:\s*20px;[^}]*background:\s*transparent;[^}]*color:\s*inherit;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-page-wrapper \.arco-btn:not\(\.arco-btn-icon-only\) > \.i-icon \+ span\s*{[^}]*margin-left:\s*8px;/
+    );
+    expect(resources).toMatch(
+      /data-testid='settings-resources-primary'[\s\S]*?<OplConnectionsSection[\s\S]*?id='workspace-resources'/
+    );
+    expect(localServices).toContain("className='opl-settings-flat-stack'");
+    expect(localServices).not.toMatch(/\bCard\b|<Card/);
     expect(settingsStyles).not.toContain('inset 3px 0 0');
     expect(settingsRegistry).not.toContain('SETTINGS_ICON_COLORS');
     expect(settingsRegistry).toContain("from '@icon-park/react'");

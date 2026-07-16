@@ -29,6 +29,31 @@
   border-radius: 6px;
 }
 
+.settings-page-wrapper .arco-btn > .i-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.settings-page-wrapper .arco-btn > .i-icon svg {
+  width: 16px;
+  height: 16px;
+  background: transparent;
+  color: inherit;
+}
+
+.settings-page-wrapper .arco-btn:not(.arco-btn-icon-only) > .i-icon + span {
+  margin-left: 8px;
+}
+
 .settings-sider .arco-input-wrapper,
 [data-testid='settings-host'] .arco-input-wrapper,
 .settings-mobile-top-search .arco-input-wrapper {
@@ -407,11 +432,12 @@
 
 .opl-settings-details {
   scroll-margin-top: 20px;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-2);
-  padding: 12px 16px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  border: 0;
+  border-top: 1px solid var(--border-base);
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 0 0;
+  box-shadow: none;
 }
 
 .opl-settings-details > summary {
@@ -432,6 +458,7 @@
   border-bottom: 0;
   border-left: 0;
   border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 

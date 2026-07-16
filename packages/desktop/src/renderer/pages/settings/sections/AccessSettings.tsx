@@ -460,7 +460,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               <div className='opl-settings-row__meta'>
                 <Button
                   type='text'
-                  icon={<UpdateRotation theme='outline' />}
+                  icon={<UpdateRotation theme='outline' size='16' fill='currentColor' />}
                   loading={appStateQuery.refreshing}
                   onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
                 >

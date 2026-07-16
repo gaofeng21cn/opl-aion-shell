@@ -391,7 +391,11 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByText('Codex CLI')).toBeInTheDocument();
     expect(screen.getByText('Background service address: 127.0.0.1:7233')).toBeInTheDocument();
     expect(screen.getByText('1 / 2 ready')).toBeInTheDocument();
-    expect(screen.getByText('Manual')).toBeInTheDocument();
+    expect(screen.getByText('Manual · dirty')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-local-services-cards')).toHaveClass('opl-settings-flat-stack');
+    expect(screen.getByTestId('settings-page-local-services').querySelector('.arco-card')).toBeNull();
+    expect(screen.getByTestId('opl-local-service-codex').querySelector('.i-icon-terminal')).not.toBeNull();
+    expect(screen.getByTestId('opl-local-service-background').querySelector('.i-icon-server')).not.toBeNull();
 
     fireEvent.click(screen.getByText('Open Maintenance'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');

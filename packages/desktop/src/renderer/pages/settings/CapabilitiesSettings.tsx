@@ -113,11 +113,11 @@ function capabilityConversationAvailabilityLabel(
 }
 
 function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
-  if (item.key === 'mas') return <Experiment theme='outline' />;
-  if (item.key === 'mag') return <FileWord theme='outline' />;
-  if (item.key === 'rca') return <FilePpt theme='outline' />;
-  if (item.key === 'obf') return <FileWord theme='outline' />;
-  return <Robot theme='outline' />;
+  if (item.key === 'mas') return <Experiment theme='outline' size='16' fill='currentColor' />;
+  if (item.key === 'mag') return <FileWord theme='outline' size='16' fill='currentColor' />;
+  if (item.key === 'rca') return <FilePpt theme='outline' size='16' fill='currentColor' />;
+  if (item.key === 'obf') return <FileWord theme='outline' size='16' fill='currentColor' />;
+  return <Robot theme='outline' size='16' fill='currentColor' />;
 }
 
 function capabilityActionLabel(
@@ -1732,7 +1732,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     <Button
                       type='text'
                       size='mini'
-                      icon={<Close theme='outline' />}
+                      icon={<Close theme='outline' size='16' fill='currentColor' />}
                       aria-label={t('common.close', { defaultValue: 'Close' })}
                       title={t('common.close', { defaultValue: 'Close' })}
                       onClick={closeCapabilityDetails}
@@ -2173,7 +2173,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 };
 
 export const AgentPackagesSettings: React.FC = () => (
-  <SettingsPageWrapper contentClassName='max-w-none'>
+  <SettingsPageWrapper>
     <AgentPackagesSettingsContent />
   </SettingsPageWrapper>
 );
@@ -2335,7 +2335,7 @@ const CapabilitiesSettings: React.FC = () => {
   };
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-none'>
+    <SettingsPageWrapper>
       <CapabilitiesSettingsContent activeTab={activeTab} onTabChange={handleTabChange} />
     </SettingsPageWrapper>
   );

@@ -148,7 +148,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     className
   );
 
-  const contentClass = classNames('settings-page-content mx-auto w-full md:max-w-1024px', contentClassName);
+  const contentClass = classNames('settings-page-content mx-auto w-full', contentClassName);
 
   const navigateToSettingsTab = React.useCallback(
     (tabId: string) => {

@@ -162,7 +162,7 @@ const OplConnectionsSection: React.FC<{
         </div>
         <Button
           type='secondary'
-          icon={<Plus theme='outline' />}
+          icon={<Plus theme='outline' size='16' fill='currentColor' />}
           disabled={busy}
           onClick={() => {
             setFormValue(EMPTY_CONNECTION_FORM);
@@ -177,7 +177,7 @@ const OplConnectionsSection: React.FC<{
       {registry.connections.length === 0 ? (
         <div className='opl-settings-row' data-testid='opl-connections-empty'>
           <div className='opl-settings-row__main flex min-w-0 items-center gap-10px'>
-            <LinkCloud className='shrink-0 text-t-secondary' theme='outline' />
+            <LinkCloud className='shrink-0 text-t-secondary' theme='outline' size='16' fill='currentColor' />
             <Typography.Text className='text-13px text-t-secondary'>
               {t('settings.resourcesPage.oplConnections.empty')}
             </Typography.Text>
@@ -228,7 +228,7 @@ const OplConnectionsSection: React.FC<{
                   <Button
                     size='mini'
                     type='secondary'
-                    icon={<CheckOne theme='outline' />}
+                    icon={<CheckOne theme='outline' size='16' fill='currentColor' />}
                     loading={runningActionId === `connection_test:${connection.connectionId}`}
                     disabled={busy || connection.disabled}
                     onClick={() => void onAction('connection_test', { connection_id: connection.connectionId })}
@@ -251,7 +251,7 @@ const OplConnectionsSection: React.FC<{
                   )}
                   <Button
                     size='mini'
-                    icon={<EditTwo theme='outline' />}
+                    icon={<EditTwo theme='outline' size='16' fill='currentColor' />}
                     aria-label={t('common.edit')}
                     title={t('common.edit')}
                     disabled={busy}
@@ -267,7 +267,7 @@ const OplConnectionsSection: React.FC<{
                     <Button
                       size='mini'
                       status='danger'
-                      icon={<Delete theme='outline' />}
+                      icon={<Delete theme='outline' size='16' fill='currentColor' />}
                       aria-label={t('common.delete')}
                       title={t('common.delete')}
                       disabled={busy || isDefault}

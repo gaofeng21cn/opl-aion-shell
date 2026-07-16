@@ -9,7 +9,7 @@ import AppearanceModalContent from '@/renderer/components/settings/SettingsModal
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 const AppearanceSettings: React.FC = () => (
-  <SettingsPageWrapper contentClassName='max-w-980px'>
+  <SettingsPageWrapper>
     <AppearanceModalContent />
   </SettingsPageWrapper>
 );

@@ -5,8 +5,8 @@
  */
 
 import React, { useMemo } from 'react';
-import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
-import { CheckOne, Toolkit } from '@icon-park/react';
+import { Button, Typography } from '@arco-design/web-react';
+import { Puzzle, Server, Terminal, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -96,41 +96,59 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
   };
 
   const content = (
-    <div className='flex flex-col gap-16px'>
-      <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
-        <div className='min-w-0'>
+    <div className='opl-settings-page' data-testid='settings-page-local-services'>
+      <header className='opl-settings-page-header'>
+        <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4} className='mb-6px'>
             {t('settings.localServicesPage.title')}
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.localServicesPage.description')}</Typography.Text>
         </div>
-        <OplRefreshIconButton label={t('common.refresh')} loading={appStateQuery.refreshing} onClick={refresh} />
-      </div>
+        <div className='opl-settings-page-header__actions'>
+          <OplRefreshIconButton label={t('common.refresh')} loading={appStateQuery.refreshing} onClick={refresh} />
+        </div>
+      </header>
 
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-14px' data-testid='opl-local-services-cards'>
-        {serviceCards.map((card) => (
-          <Card key={card.key} bordered className='rd-8px'>
-            <div className='flex flex-col gap-10px min-w-0'>
-              <div className='flex items-start justify-between gap-10px'>
-                <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                  {card.key === 'background' ? <Toolkit theme='outline' /> : <CheckOne theme='outline' />}
-                </span>
-                <Tag color={card.tone}>{card.status}</Tag>
-              </div>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>{card.title}</Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {card.detail}
-                </Typography.Text>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+      <div className='opl-settings-flat-stack' data-testid='opl-local-services-cards'>
+        <section className='opl-settings-section'>
+          <div className='opl-settings-list'>
+            {serviceCards.map((card) => {
+              const icon =
+                card.key === 'codex' ? (
+                  <Terminal theme='outline' size='16' fill='currentColor' />
+                ) : card.key === 'background' ? (
+                  <Server theme='outline' size='16' fill='currentColor' />
+                ) : (
+                  <Puzzle theme='outline' size='16' fill='currentColor' />
+                );
+              return (
+                <div className='opl-settings-row' key={card.key} data-testid={`opl-local-service-${card.key}`}>
+                  <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
+                    <span className='opl-settings-icon'>{icon}</span>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>{card.title}</Typography.Text>
+                      <Typography.Text className='block break-words text-12px text-t-secondary'>
+                        {card.detail}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <span
+                      className={`opl-settings-status ${
+                        card.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'
+                      }`}
+                    >
+                      {card.status}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-      <Card bordered className='rd-8px' data-testid='opl-local-services-module-health'>
-        <div className='flex flex-col gap-12px'>
-          <div className='flex flex-col gap-4px md:flex-row md:items-start md:justify-between'>
+        <section className='opl-settings-section' data-testid='opl-local-services-module-health'>
+          <div className='opl-settings-section__header'>
             <div className='min-w-0'>
               <Typography.Text className='block font-600 text-t-primary'>
                 {t('settings.localServicesPage.modules.title')}
@@ -139,21 +157,26 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
                 {t('settings.localServicesPage.modules.description')}
               </Typography.Text>
             </div>
-            <Tag color={attentionModules.length === 0 ? 'green' : 'orange'}>
+            <span
+              className={`opl-settings-status ${
+                attentionModules.length === 0 ? 'opl-settings-status--ready' : 'opl-settings-status--attention'
+              }`}
+            >
               {attentionModules.length === 0
                 ? t('settings.oplEnvironmentPage.healthSummary.values.none')
                 : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionModules.length })}
-            </Tag>
+            </span>
           </div>
 
-          <div className='flex flex-col divide-y divide-border-1'>
+          <div className='opl-settings-list'>
             {modules.map((module, index) => {
               const id = moduleId(module) || `module-${index + 1}`;
               const status = moduleStatus(module);
               const needsManualHandling = moduleNeedsManualHandling(module);
+              const ready = isReadyStatus(status) && !needsManualHandling;
               return (
-                <div key={id} className='flex flex-col gap-6px md:flex-row md:items-center md:justify-between py-12px'>
-                  <div className='min-w-0'>
+                <div className='opl-settings-row' key={id}>
+                  <div className='opl-settings-row__main'>
                     <Typography.Text className='block font-600 text-t-primary'>
                       {moduleDisplayLabel(module)}
                     </Typography.Text>
@@ -163,45 +186,60 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
                         : t('settings.localServicesPage.modules.normal')}
                     </Typography.Text>
                   </div>
-                  <Space wrap size='mini'>
-                    {needsManualHandling && (
-                      <Tag color='orange'>{t('settings.localServicesPage.modules.manualTag')}</Tag>
-                    )}
-                    <Tag color={isReadyStatus(status) && !needsManualHandling ? 'green' : 'orange'}>
-                      {formatStatus(status, t)}
-                    </Tag>
-                  </Space>
+                  <div className='opl-settings-row__meta'>
+                    <span
+                      className={`opl-settings-status ${
+                        ready ? 'opl-settings-status--ready' : 'opl-settings-status--attention'
+                      }`}
+                    >
+                      {needsManualHandling
+                        ? `${t('settings.localServicesPage.modules.manualTag')} · ${formatStatus(status, t)}`
+                        : formatStatus(status, t)}
+                    </span>
+                  </div>
                 </div>
               );
             })}
+            {modules.length === 0 && (
+              <div className='opl-settings-empty'>
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('settings.localServicesPage.modules.empty')}
+                </Typography.Text>
+              </div>
+            )}
           </div>
-          {modules.length === 0 && (
-            <Typography.Text className='text-13px text-t-secondary'>
-              {t('settings.localServicesPage.modules.empty')}
-            </Typography.Text>
-          )}
-        </div>
-      </Card>
+        </section>
 
-      <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-          <div className='min-w-0'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.localServicesPage.maintenance.title')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('settings.localServicesPage.maintenance.description')}
-            </Typography.Text>
+        <section className='opl-settings-section'>
+          <div className='opl-settings-row'>
+            <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
+              <span className='opl-settings-icon'>
+                <Toolkit theme='outline' size='16' fill='currentColor' />
+              </span>
+              <div className='min-w-0'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.localServicesPage.maintenance.title')}
+                </Typography.Text>
+                <Typography.Text className='block break-words text-12px text-t-secondary'>
+                  {t('settings.localServicesPage.maintenance.description')}
+                </Typography.Text>
+              </div>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <Button
+                icon={<Toolkit theme='outline' size='16' fill='currentColor' />}
+                onClick={() => navigate('/settings/environment')}
+              >
+                {t('settings.localServicesPage.actions.openMaintenance')}
+              </Button>
+            </div>
           </div>
-          <Button icon={<Toolkit theme='outline' />} onClick={() => navigate('/settings/environment')}>
-            {t('settings.localServicesPage.actions.openMaintenance')}
-          </Button>
-        </div>
-      </Card>
+        </section>
+      </div>
     </div>
   );
 
-  return withWrapper ? <SettingsPageWrapper contentClassName='max-w-1080px'>{content}</SettingsPageWrapper> : content;
+  return withWrapper ? <SettingsPageWrapper>{content}</SettingsPageWrapper> : content;
 };
 
 export default LocalServicesSettings;

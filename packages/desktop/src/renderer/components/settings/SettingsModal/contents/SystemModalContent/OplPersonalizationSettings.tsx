@@ -162,7 +162,7 @@ const OplPersonalizationSettings: React.FC = () => {
             </Button>
             <Button
               size='small'
-              icon={<Refresh theme='outline' />}
+              icon={<Refresh theme='outline' size='16' fill='currentColor' />}
               loading={appStateQuery.refreshing}
               onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
             >
@@ -222,7 +222,7 @@ const OplPersonalizationSettings: React.FC = () => {
             </div>
             <Button
               size='small'
-              icon={<PreviewOpen theme='outline' />}
+              icon={<PreviewOpen theme='outline' size='16' fill='currentColor' />}
               onClick={() => setGeneratedContextVisible(true)}
               data-testid='settings-generated-context-action'
             >
