@@ -63,6 +63,9 @@ const TEMPORAL_WORKER_ATTENTION_STATUSES = new Set([
 ]);
 const TEMPORAL_WORKER_RESTART_STATUSES = new Set(['duplicate_worker', 'worker_source_stale']);
 const TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES = new Set(['not_installed', 'missing', 'absent']);
+const TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS = 1_500;
+const TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS = 8;
+const TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS = 15_000;
 const CAPABILITY_READY_STATUSES = new Set(['ready', 'current', 'healthy', 'ok']);
 const CAPABILITY_ATTENTION_STATUSES = new Set([
   'attention_needed',
@@ -194,6 +197,55 @@ function temporalStatusProjection(
   return { server, worker, scheduler, workerNeedsRestart };
 }
 
+function useTemporalRecoveryRefresh(hydrated: boolean, ready: boolean, refresh: () => Promise<unknown>): void {
+  const evaluatedRef = React.useRef(false);
+  const readyRef = React.useRef(ready);
+  const refreshRef = React.useRef(refresh);
+
+  React.useEffect(() => {
+    readyRef.current = ready;
+    refreshRef.current = refresh;
+  }, [ready, refresh]);
+
+  React.useEffect(() => {
+    if (!hydrated || evaluatedRef.current) return undefined;
+    evaluatedRef.current = true;
+    if (ready) return undefined;
+
+    let active = true;
+    let attempts = 0;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const deadlineTimer = setTimeout(() => {
+      active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    }, TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS);
+
+    const scheduleRefresh = (): void => {
+      if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        if (!active || readyRef.current || attempts >= TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS) return;
+        attempts += 1;
+        void refreshRef.current().then(
+          () => {
+            if (active && !readyRef.current) scheduleRefresh();
+          },
+          () => {
+            if (active && !readyRef.current) scheduleRefresh();
+          }
+        );
+      }, TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS);
+    };
+
+    scheduleRefresh();
+    return () => {
+      active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      clearTimeout(deadlineTimer);
+    };
+  }, [hydrated, ready]);
+}
+
 function issueSettingsRoute(issue: Record<string, unknown>): string {
   const issueId = oplString(issue.issue_id) ?? '';
   const actionId = oplString(issue.recommended_action_id) ?? '';
@@ -273,6 +325,9 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   });
   const temporalNeedsAction = [temporalStatus.server, temporalStatus.worker, temporalStatus.scheduler].some(
     (status) => status !== 'ready'
+  );
+  useTemporalRecoveryRefresh(appStateQuery.payload !== null && !appStateQuery.loading, !temporalNeedsAction, () =>
+    appStateQuery.load('fast', { background: true, forceFresh: true })
   );
   const issueQueueHasTemporal = actionableIssues.some(
     (issue) => oplString(issue.issue_id) === 'provider_failed_with_repair'

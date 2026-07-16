@@ -1,7 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
 const mocks = vi.hoisted(() => ({
@@ -28,6 +28,9 @@ const mocks = vi.hoisted(() => ({
   temporalSchedulerReady: true as boolean | null,
   temporalSchedulerObservedAt: '2026-07-17T08:00:00Z',
   capabilityHealth: '5/5',
+  appStateHydrated: true,
+  appStateLoading: false,
+  loadAppState: vi.fn(),
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -38,6 +41,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => {
     const gatewayConnected = mocks.gatewayConnectionMode === 'account';
     return {
+      payload: mocks.appStateHydrated ? { app_state: {} } : null,
+      loading: mocks.appStateLoading,
+      load: mocks.loadAppState,
       appState: {
         core: {
           codex: {
@@ -246,6 +252,102 @@ describe('OverviewSettings', () => {
     mocks.temporalSchedulerReady = true;
     mocks.temporalSchedulerObservedAt = '2026-07-17T08:00:00Z';
     mocks.capabilityHealth = '5/5';
+    mocks.appStateHydrated = true;
+    mocks.appStateLoading = false;
+    mocks.loadAppState.mockReset().mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('refreshes a stale Temporal projection until the shared fast state becomes ready', async () => {
+    vi.useFakeTimers();
+    mocks.temporalWorkerStatus = 'worker_source_stale';
+    mocks.temporalWorkerReady = false;
+    mocks.appStateHydrated = false;
+    mocks.appStateLoading = true;
+    const view = render(<OverviewSettings withWrapper={false} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.loadAppState).not.toHaveBeenCalled();
+
+    mocks.appStateHydrated = true;
+    mocks.appStateLoading = false;
+    view.rerender(<OverviewSettings withWrapper={false} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_500);
+    });
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true });
+
+    mocks.temporalWorkerStatus = 'ready';
+    mocks.temporalWorkerReady = true;
+    view.rerender(<OverviewSettings withWrapper={false} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not poll when the first hydrated Temporal projection is ready', async () => {
+    vi.useFakeTimers();
+    render(<OverviewSettings withWrapper={false} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mocks.loadAppState).not.toHaveBeenCalled();
+  });
+
+  it('stops refreshing a persistently stale projection after the attempt budget', async () => {
+    vi.useFakeTimers();
+    mocks.temporalSchedulerStatus = 'not_installed';
+    mocks.temporalSchedulerReady = false;
+    render(<OverviewSettings withWrapper={false} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(8);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(8);
+  });
+
+  it('honors the recovery deadline when a fresh read is slow', async () => {
+    vi.useFakeTimers();
+    mocks.temporalSchedulerStatus = 'not_installed';
+    mocks.temporalSchedulerReady = false;
+    mocks.loadAppState.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(null), 4_000)));
+    render(<OverviewSettings withWrapper={false} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mocks.loadAppState).toHaveBeenCalledTimes(3);
+  });
+
+  it('clears the pending recovery refresh when Overview unmounts', async () => {
+    vi.useFakeTimers();
+    mocks.temporalWorkerStatus = 'worker_source_stale';
+    mocks.temporalWorkerReady = false;
+    const view = render(<OverviewSettings withWrapper={false} />);
+
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mocks.loadAppState).not.toHaveBeenCalled();
   });
 
   it('shows compact Gateway usage and the direct technical readback needed for an overview', () => {
