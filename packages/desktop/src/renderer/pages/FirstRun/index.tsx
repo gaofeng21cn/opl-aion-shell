@@ -4,9 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import type { IOplGatewayAccountErrorCode } from '@/common/adapter/ipcBridge';
 import { getOplProductDisplayName } from '@/common/config/oplProductProfile';
+import type { OplAppStatePayload } from '@/common/types/opl/appState';
 import appLogo from '@/renderer/assets/logos/brand/app.png';
 import WindowControls from '@/renderer/components/layout/WindowControls';
+import { getAppState } from '@/renderer/hooks/system/useOplAppState';
+import { readGatewayAccountProjection, resolveDefaultGatewayGroup } from '@/renderer/pages/settings/accessProjection';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import {
   FIRST_RUN_ITEM_IDS,
@@ -27,12 +31,22 @@ import type {
 import styles from './FirstRun.module.css';
 
 type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
-type AccessMethod = 'gateway' | 'existing_codex';
+type AccessMethod = 'gateway_account' | 'api_key';
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 type FirstRunError = {
-  source: 'initialize' | 'configure_codex' | 'maintenance' | 'workspace';
+  source: 'initialize' | 'configure_codex' | 'gateway_account' | 'maintenance' | 'workspace';
   detail: string;
+  gatewayErrorCode?: IOplGatewayAccountErrorCode;
 };
+
+class GatewayAccountFlowError extends Error {
+  readonly code: IOplGatewayAccountErrorCode;
+
+  constructor(code: IOplGatewayAccountErrorCode) {
+    super(code);
+    this.code = code;
+  }
+}
 
 const POST_INSTALL_SELF_CHECK_STATE = { postInstallSelfCheck: true };
 const PRODUCT_DISPLAY_NAME = getOplProductDisplayName();
@@ -208,9 +222,55 @@ function formatInitializeEvent(event: FirstRunInitializeEvent, t: Translate): st
 function formatFirstRunError(error: FirstRunError | null, t: (key: string) => string): string | null {
   if (!error) return null;
   if (error.source === 'configure_codex') return t('settings.firstRun.error.codexConfig');
+  if (error.source === 'gateway_account') return t(gatewayAccountErrorTranslationKey(error.gatewayErrorCode));
   if (error.source === 'workspace') return t('settings.firstRun.error.workspace');
   if (error.source === 'maintenance') return t('settings.firstRun.error.blocked');
   return t('settings.firstRun.error.general');
+}
+
+const GATEWAY_ACCOUNT_ERROR_CODES = new Set<IOplGatewayAccountErrorCode>([
+  'invalid_credentials',
+  'account_disabled',
+  'mfa_or_challenge_required',
+  'session_not_persistable',
+  'group_selection_required',
+  'auth_expired',
+  'network_unreachable',
+  'rate_limited',
+  'managed_key_missing',
+  'managed_key_conflict',
+  'managed_key_identity_drift',
+  'disconnect_pending',
+  'invalid_request',
+  'internal_contract_violation',
+  'gateway_account_failed',
+]);
+
+function normalizeGatewayAccountErrorCode(value: unknown): IOplGatewayAccountErrorCode {
+  return typeof value === 'string' && GATEWAY_ACCOUNT_ERROR_CODES.has(value as IOplGatewayAccountErrorCode)
+    ? (value as IOplGatewayAccountErrorCode)
+    : 'gateway_account_failed';
+}
+
+function gatewayAccountErrorTranslationKey(code: IOplGatewayAccountErrorCode | undefined): string {
+  const keys: Record<IOplGatewayAccountErrorCode, string> = {
+    invalid_request: 'settings.accessPage.gatewayAccount.errors.invalidRequest',
+    invalid_credentials: 'settings.accessPage.gatewayAccount.errors.invalidCredentials',
+    account_disabled: 'settings.accessPage.gatewayAccount.errors.accountDisabled',
+    mfa_or_challenge_required: 'settings.accessPage.gatewayAccount.errors.mfaOrChallengeRequired',
+    session_not_persistable: 'settings.accessPage.gatewayAccount.errors.sessionNotPersistable',
+    group_selection_required: 'settings.accessPage.gatewayAccount.errors.groupSelectionRequired',
+    auth_expired: 'settings.accessPage.gatewayAccount.errors.authExpired',
+    network_unreachable: 'settings.accessPage.gatewayAccount.errors.networkUnreachable',
+    rate_limited: 'settings.accessPage.gatewayAccount.errors.rateLimited',
+    managed_key_missing: 'settings.accessPage.gatewayAccount.errors.managedKeyMissing',
+    managed_key_conflict: 'settings.accessPage.gatewayAccount.errors.managedKeyConflict',
+    managed_key_identity_drift: 'settings.accessPage.gatewayAccount.errors.managedKeyIdentityDrift',
+    disconnect_pending: 'settings.accessPage.gatewayAccount.errors.disconnectPending',
+    internal_contract_violation: 'settings.accessPage.gatewayAccount.errors.internalContractViolation',
+    gateway_account_failed: 'settings.accessPage.gatewayAccount.errors.generic',
+  };
+  return keys[code ?? 'gateway_account_failed'];
 }
 
 function assertBridgeResultOk(result: Exclude<FirstRunCommandResult, null>): void {
@@ -278,23 +338,25 @@ function ReadinessItem({
 const FirstRun: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isDesktopRuntime = isElectronDesktop();
   const [initializeResult, setInitializeResult] = useState<FirstRunCommandResult>(null);
   const [actionResult, setActionResult] = useState<FirstRunCommandResult>(null);
   const [apiKey, setApiKey] = useState('');
-  const [accessMethod, setAccessMethod] = useState<AccessMethod>('gateway');
+  const [gatewayEmail, setGatewayEmail] = useState('');
+  const [gatewayPassword, setGatewayPassword] = useState('');
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>(isDesktopRuntime ? 'gateway_account' : 'api_key');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
-  const [actionLoading, setActionLoading] = useState<MaintenanceAction | 'configure_codex' | 'workspace_root' | null>(
-    null
-  );
+  const [actionLoading, setActionLoading] = useState<
+    MaintenanceAction | 'configure_codex' | 'gateway_account' | 'workspace_root' | null
+  >(null);
   const [error, setError] = useState<FirstRunError | null>(null);
   const pageRef = useRef<HTMLElement>(null);
   const taskPanelRef = useRef<HTMLElement>(null);
   const previousActivePrimaryStepRef = useRef<FirstRunItemId | null>(null);
   const readyEntryRef = useRef<HTMLButtonElement>(null);
   const technicalDetailsRef = useRef<HTMLDivElement>(null);
-  const isDesktopRuntime = isElectronDesktop();
   const isMacRuntime = isDesktopRuntime && isMacOS();
   const showWindowControls = isDesktopRuntime && !isMacRuntime && Boolean(ipcBridge.windowControls);
 
@@ -385,6 +447,73 @@ const FirstRun: React.FC = () => {
       setActionLoading(null);
     }
   }, [apiKey, refreshInitialize, t]);
+
+  const completeGatewayAccountSetup = useCallback(async () => {
+    const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+    if (stateResult.ok === false) {
+      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(stateResult.error?.code));
+    }
+    const gatewayAccount = readGatewayAccountProjection(getAppState(stateResult.parsed as OplAppStatePayload));
+    if (!gatewayAccount || gatewayAccount.connection_mode !== 'account' || !gatewayAccount.account_card_visible) {
+      throw new GatewayAccountFlowError('internal_contract_violation');
+    }
+    if (gatewayAccount.freshness.last_error_code) {
+      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(gatewayAccount.freshness.last_error_code));
+    }
+    if (gatewayAccount.managed_key) return;
+    if (gatewayAccount.actions.complete_setup !== 'gateway_account_complete_setup') {
+      throw new GatewayAccountFlowError('internal_contract_violation');
+    }
+    const groupId = resolveDefaultGatewayGroup(gatewayAccount.available_groups);
+    if (!groupId) throw new GatewayAccountFlowError('group_selection_required');
+    const setupResult = await ipcBridge.oplRuntime.executeAction.invoke({
+      actionId: 'gateway_account_complete_setup',
+      dryRun: false,
+      payloadJson: { group_id: groupId },
+    });
+    if (setupResult.ok === false) {
+      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(setupResult.error?.code));
+    }
+    setActionResult(setupResult);
+  }, []);
+
+  const loginGatewayAccount = useCallback(async () => {
+    const email = gatewayEmail.trim();
+    if (!isDesktopRuntime || !email || !gatewayPassword) {
+      setError({
+        source: 'gateway_account',
+        detail: 'invalid_request',
+        gatewayErrorCode: 'invalid_request',
+      });
+      setGatewayPassword('');
+      return;
+    }
+    setActionLoading('gateway_account');
+    setError(null);
+    try {
+      const result = await ipcBridge.oplRuntime.loginGatewayAccount.invoke({
+        email,
+        password: gatewayPassword,
+      });
+      if (!result.ok) {
+        throw new GatewayAccountFlowError(result.errorCode ?? 'gateway_account_failed');
+      }
+      await completeGatewayAccountSetup();
+      await refreshInitialize();
+    } catch (err) {
+      const code = err instanceof GatewayAccountFlowError ? err.code : 'gateway_account_failed';
+      setError({ source: 'gateway_account', detail: code, gatewayErrorCode: code });
+    } finally {
+      setGatewayPassword('');
+      setActionLoading(null);
+    }
+  }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword, isDesktopRuntime, refreshInitialize]);
+
+  const changeAccessMethod = useCallback((value: string | number) => {
+    setGatewayPassword('');
+    setError(null);
+    setAccessMethod(value === 'api_key' ? 'api_key' : 'gateway_account');
+  }, []);
 
   const chooseWorkspaceRoot = useCallback(async () => {
     setActionLoading('workspace_root');
@@ -692,24 +821,75 @@ const FirstRun: React.FC = () => {
                         <span>{t('settings.firstRun.modelAccess.oneStepRemaining')}</span>
                       </div>
 
-                      <Radio.Group
-                        type='button'
-                        value={accessMethod}
-                        onChange={(value) => setAccessMethod(value as AccessMethod)}
-                        disabled={requestInFlight}
-                        aria-label={t('settings.firstRun.modelAccess.methodLabel')}
-                        className={styles.firstRunAccessMethods}
-                        data-testid='opl-first-run-access-methods'
-                      >
-                        <Radio value='gateway' data-testid='opl-first-run-gateway-method'>
-                          {t('settings.firstRun.modelAccess.gateway')}
-                        </Radio>
-                        <Radio value='existing_codex' data-testid='opl-first-run-existing-codex-method'>
-                          {t('settings.firstRun.modelAccess.existingCodex')}
-                        </Radio>
-                      </Radio.Group>
+                      {isDesktopRuntime && (
+                        <Radio.Group
+                          type='button'
+                          value={accessMethod}
+                          onChange={changeAccessMethod}
+                          disabled={requestInFlight}
+                          aria-label={t('settings.firstRun.modelAccess.methodLabel')}
+                          className={styles.firstRunAccessMethods}
+                          data-testid='opl-first-run-access-methods'
+                        >
+                          <Radio value='gateway_account' data-testid='opl-first-run-gateway-account-method'>
+                            {t('settings.firstRun.modelAccess.gatewayAccount')}
+                          </Radio>
+                          <Radio value='api_key' data-testid='opl-first-run-gateway-key-method'>
+                            {t('settings.firstRun.modelAccess.apiKey')}
+                          </Radio>
+                        </Radio.Group>
+                      )}
 
-                      {accessMethod === 'gateway' ? (
+                      {accessMethod === 'gateway_account' && isDesktopRuntime ? (
+                        <div className={styles.firstRunAccessForm}>
+                          <div className={styles.firstRunAccessFields}>
+                            <div className={styles.firstRunAccessField}>
+                              <label htmlFor='opl-first-run-gateway-email'>
+                                {t('settings.firstRun.gatewayAccount.emailLabel')}
+                              </label>
+                              <Input
+                                id='opl-first-run-gateway-email'
+                                value={gatewayEmail}
+                                onChange={setGatewayEmail}
+                                disabled={requestInFlight}
+                                autoComplete='email'
+                                placeholder={t('settings.firstRun.gatewayAccount.emailPlaceholder')}
+                                data-testid='opl-first-run-gateway-email-input'
+                              />
+                            </div>
+                            <div className={styles.firstRunAccessField}>
+                              <label htmlFor='opl-first-run-gateway-password'>
+                                {t('settings.firstRun.gatewayAccount.passwordLabel')}
+                              </label>
+                              <Input.Password
+                                id='opl-first-run-gateway-password'
+                                value={gatewayPassword}
+                                onChange={setGatewayPassword}
+                                disabled={requestInFlight}
+                                autoComplete='current-password'
+                                placeholder={t('settings.firstRun.gatewayAccount.passwordPlaceholder')}
+                                data-testid='opl-first-run-gateway-password-input'
+                              />
+                            </div>
+                          </div>
+                          <div className={styles.firstRunSecurityNote}>
+                            <Shield aria-hidden='true' />
+                            <span>{t('settings.firstRun.gatewayAccount.securityNote')}</span>
+                          </div>
+                          <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
+                            <Button
+                              type='primary'
+                              size='large'
+                              loading={actionLoading === 'gateway_account'}
+                              disabled={requestInFlight}
+                              onClick={() => void loginGatewayAccount()}
+                              data-testid='opl-first-run-gateway-login-button'
+                            >
+                              {t('settings.firstRun.gatewayAccount.loginButton')}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
                         <div className={styles.firstRunAccessForm}>
                           <label htmlFor='opl-first-run-gateway-key'>{t('settings.firstRun.codex.apiKeyLabel')}</label>
                           <Input.Password
@@ -737,23 +917,19 @@ const FirstRun: React.FC = () => {
                             </Button>
                           </div>
                         </div>
-                      ) : (
-                        <div className={styles.firstRunExistingAccess}>
-                          <p>{t('settings.firstRun.modelAccess.existingDescription')}</p>
-                          <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
-                            <Button
-                              type='primary'
-                              size='large'
-                              loading={initializeLoading}
-                              disabled={requestInFlight}
-                              onClick={() => void refreshInitialize()}
-                              data-testid='opl-first-run-recheck-existing'
-                            >
-                              {t('settings.firstRun.modelAccess.recheckExisting')}
-                            </Button>
-                          </div>
-                        </div>
                       )}
+                      <div className={styles.firstRunExistingAccess}>
+                        <p>{t('settings.firstRun.modelAccess.existingDescription')}</p>
+                        <Button
+                          type='text'
+                          loading={initializeLoading}
+                          disabled={requestInFlight}
+                          onClick={() => void refreshInitialize()}
+                          data-testid='opl-first-run-recheck-existing'
+                        >
+                          {t('settings.firstRun.modelAccess.recheckExisting')}
+                        </Button>
+                      </div>
                     </div>
                   ) : readyToLaunch ? (
                     <div className={styles.firstRunStatePanel}>

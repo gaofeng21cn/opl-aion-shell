@@ -1136,13 +1136,21 @@
     },
     "modelAccess": {
       "title": "Connect a model service",
-      "description": "Give OPL access to your models. Use OPL Gateway or continue with an existing Codex configuration.",
+      "description": "Give OPL access to your models. Sign in to OPL Gateway, or use an API Key.",
       "methodLabel": "Model access method",
       "oneStepRemaining": "One step left before you can start",
-      "gateway": "OPL Gateway",
-      "existingCodex": "Existing Codex setup",
-      "existingDescription": "OPL will check Codex model access on this device again. If it still fails, switch back to OPL Gateway and enter an access key.",
+      "gatewayAccount": "Account sign-in",
+      "apiKey": "API Key",
+      "existingDescription": "Already configured Codex on this device? Check the existing model access again.",
       "recheckExisting": "Check existing setup again"
+    },
+    "gatewayAccount": {
+      "emailLabel": "Email",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Enter password",
+      "loginButton": "Sign in and continue",
+      "securityNote": "Your password is used only for this sign-in and is not stored by the App."
     },
     "readyPanel": {
       "title": "Everything is ready",

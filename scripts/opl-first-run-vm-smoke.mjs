@@ -14,6 +14,7 @@ const DEFAULT_LABELS = {
   blockersList: 'opl-first-run-blockers-list',
   beginnerPrimary: 'opl-first-run-beginner-primary',
   installButton: 'opl-first-run-install-button',
+  codexApiKeyMethod: 'opl-first-run-gateway-key-method',
   codexApiKeyInput: 'opl-first-run-codex-api-key-input',
   codexConfigureButton: 'opl-first-run-configure-codex-button',
   retryButton: 'opl-first-run-retry-button',
@@ -2080,6 +2081,7 @@ function firstRunAccessibilityExpectedLabels() {
     DEFAULT_LABELS.window,
     DEFAULT_LABELS.progress,
     DEFAULT_LABELS.blockersList,
+    DEFAULT_LABELS.codexApiKeyMethod,
     DEFAULT_LABELS.codexApiKeyInput,
     DEFAULT_LABELS.codexConfigureButton,
     DEFAULT_LABELS.deferredEntry,
@@ -2459,6 +2461,7 @@ function submitCodexWizard(processName, apiKey) {
   const script = `
 ObjC.import('stdlib');
 const procName = ${JSON.stringify(processName)};
+const methodLabel = ${JSON.stringify(DEFAULT_LABELS.codexApiKeyMethod)};
 const inputLabel = ${JSON.stringify(DEFAULT_LABELS.codexApiKeyInput)};
 const buttonLabel = ${JSON.stringify(DEFAULT_LABELS.codexConfigureButton)};
 const apiKey = $.getenv('OPL_FIRST_RUN_CODEX_API_KEY');
@@ -2517,6 +2520,14 @@ function findInWindows(predicate) {
   }
   return null;
 }
+const method = findInWindows((element) => hasLabel(element, methodLabel));
+if (!method) throw new Error('Codex API key method was not found');
+try {
+  method.actions.byName('AXPress').perform();
+} catch (_) {
+  method.click();
+}
+delay(0.2);
 const labelledInput = findInWindows((element) => hasLabel(element, inputLabel));
 let input = labelledInput ? find(labelledInput, isTextInput) : null;
 if (!input) input = findInWindows(isTextInput);
@@ -2650,8 +2661,9 @@ function createCodexWizardState() {
 function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state) {
   state.lastTree = queryAccessibility(processName);
   const hasCodexWizard =
-    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
-    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexConfigureButton);
+    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyMethod) ||
+    (treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+      treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexConfigureButton));
   if (!hasCodexWizard) return state;
 
   state.sawCodexWizard = true;
@@ -2890,8 +2902,9 @@ async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codex
     try {
       lastTree = queryAccessibility(processName);
       const hasCodexWizard =
-        treeContainsLabel(lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
-        treeContainsLabel(lastTree, DEFAULT_LABELS.codexConfigureButton);
+        treeContainsLabel(lastTree, DEFAULT_LABELS.codexApiKeyMethod) ||
+        (treeContainsLabel(lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+          treeContainsLabel(lastTree, DEFAULT_LABELS.codexConfigureButton));
       if (hasCodexWizard) {
         sawCodexWizard = true;
         if (!capturedCodexWizard) {

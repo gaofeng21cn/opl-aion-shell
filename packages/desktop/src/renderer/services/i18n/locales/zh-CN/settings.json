@@ -1137,13 +1137,21 @@
     },
     "modelAccess": {
       "title": "连接模型服务",
-      "description": "让 OPL 使用你的模型访问权限。你可以使用 OPL Gateway，也可以继续使用已配置的 Codex。",
+      "description": "让 OPL 使用你的模型访问权限。推荐登录 OPL Gateway，也可以使用 API Key。",
       "methodLabel": "模型访问方式",
       "oneStepRemaining": "还差一步即可开始使用",
-      "gateway": "OPL Gateway",
-      "existingCodex": "已有 Codex 配置",
-      "existingDescription": "OPL 会重新检查这台设备上的 Codex 模型访问。若仍未通过，请切回 OPL Gateway 并输入访问密钥。",
+      "gatewayAccount": "账户登录",
+      "apiKey": "API Key",
+      "existingDescription": "本机 Codex 已配置？可重新检测现有模型访问。",
       "recheckExisting": "重新检测已有配置"
+    },
+    "gatewayAccount": {
+      "emailLabel": "邮箱",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "输入密码",
+      "loginButton": "登录并继续",
+      "securityNote": "密码仅用于本次登录，不会保存在 App 中。"
     },
     "readyPanel": {
       "title": "已经准备好了",

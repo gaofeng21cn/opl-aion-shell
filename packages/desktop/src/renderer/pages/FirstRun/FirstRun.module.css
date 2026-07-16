@@ -417,6 +417,19 @@
   line-height: 20px;
 }
 
+.firstRunAccessFields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.firstRunAccessField {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
 .firstRunAccessForm :global(.arco-input-inner-wrapper) {
   min-height: 44px;
   border-radius: 6px;
@@ -450,6 +463,13 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 21px;
+}
+
+.firstRunExistingAccess :global(.arco-btn) {
+  width: fit-content;
+  min-height: 44px;
+  margin-top: 8px;
+  padding-inline: 0;
 }
 
 .firstRunTaskActions {
@@ -870,10 +890,20 @@
     line-height: 32px;
   }
 
-  .firstRunAccessMethods,
   .firstRunTaskContext,
   .firstRunGrid {
     grid-template-columns: 1fr;
+  }
+
+  .firstRunAccessMethods,
+  .firstRunAccessFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .firstRunAccessMethods,
+  .firstRunTaskContext,
+  .firstRunGrid {
+    min-width: 0;
   }
 
   .firstRunAccessMethods :global(.arco-radio-button) {
@@ -922,6 +952,14 @@
   .firstRunAccessForm,
   .firstRunExistingAccess {
     margin-top: 16px;
+  }
+
+  .firstRunExistingAccess p {
+    display: none;
+  }
+
+  .firstRunExistingAccess :global(.arco-btn) {
+    margin-top: 0;
   }
 
   .firstRunTaskActions {

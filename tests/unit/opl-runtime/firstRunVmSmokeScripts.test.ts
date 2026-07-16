@@ -448,6 +448,21 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
   });
 
+  it('selects the API Key compatibility method before submitting the first-run Codex wizard', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const submitSource = scriptSource.slice(
+      scriptSource.indexOf('function submitCodexWizard('),
+      scriptSource.indexOf('function readFirstRunEvents(')
+    );
+
+    expect(scriptSource).toContain("codexApiKeyMethod: 'opl-first-run-gateway-key-method'");
+    expect(submitSource).toContain('const methodLabel = ${JSON.stringify(DEFAULT_LABELS.codexApiKeyMethod)};');
+    expect(submitSource).toContain("if (!method) throw new Error('Codex API key method was not found')");
+    expect(submitSource.indexOf("method.actions.byName('AXPress').perform()")).toBeLessThan(
+      submitSource.indexOf('const labelledInput =')
+    );
+  });
+
   it('runs focused launch diagnostics after opening the packaged app before secondary release gates', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
     const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));

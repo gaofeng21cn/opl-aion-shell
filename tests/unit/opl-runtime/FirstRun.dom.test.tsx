@@ -5,15 +5,18 @@ import FirstRun from '@/renderer/pages/FirstRun';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInitializeInvoke: vi.fn(),
+  getAppStateInvoke: vi.fn(),
   initializeEventOn: vi.fn(),
   runInstallPrepInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   configureCodexInvoke: vi.fn(),
+  loginGatewayAccountInvoke: vi.fn(),
   runStartupMaintenanceInvoke: vi.fn(),
   runReconcileModulesInvoke: vi.fn(),
   showOpenInvoke: vi.fn(),
 }));
 const messageMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const platformMocks = vi.hoisted(() => ({ isElectronDesktop: vi.fn(), isMacOS: vi.fn() }));
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -32,10 +35,12 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
+      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
       initializeEvent: { on: bridgeMocks.initializeEventOn },
       runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
+      loginGatewayAccount: { invoke: bridgeMocks.loginGatewayAccountInvoke },
       runStartupMaintenance: { invoke: bridgeMocks.runStartupMaintenanceInvoke },
       runReconcileModules: { invoke: bridgeMocks.runReconcileModulesInvoke },
     },
@@ -43,6 +48,11 @@ vi.mock('@/common', () => ({
       showOpen: { invoke: bridgeMocks.showOpenInvoke },
     },
   },
+}));
+
+vi.mock('@/renderer/utils/platform', () => ({
+  isElectronDesktop: platformMocks.isElectronDesktop,
+  isMacOS: platformMocks.isMacOS,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -261,6 +271,53 @@ const configureCodexResult = {
   stdout: '{}',
   parsed: { codex_config: { status: 'completed' } },
 };
+const gatewayLoginResult = {
+  ok: true,
+  stateRefreshRequired: true,
+};
+const gatewayFastStateResult = {
+  surface: 'app_state_fast',
+  command: 'opl app state --profile fast --json',
+  stdout: '{}',
+  parsed: {
+    app_state: {
+      settings_control_center: {
+        app_settings_read_model: {
+          opl_gateway_account: {
+            surface_kind: 'opl_gateway_account_read_model.v1',
+            status: 'setup_required',
+            connection_mode: 'account',
+            account_card_visible: true,
+            account: {
+              display_name: 'OPL User',
+              email: 'user@example.com',
+              status: 'active',
+              balance: { amount: null, currency: 'CNY' },
+            },
+            usage: null,
+            managed_key: null,
+            installation: { device_label: 'Framework default', short_id: 'ABCD1234' },
+            available_groups: [{ group_id: 'codex-group', label: 'Codex Team' }],
+            freshness: {
+              observed_at: '2026-07-16T08:00:00Z',
+              stale_after: '2026-07-16T08:15:00Z',
+              stale: false,
+              last_error_code: null,
+            },
+            capabilities: { account_login_supported: true, manual_key_supported: true },
+            actions: {
+              complete_setup: 'gateway_account_complete_setup',
+              refresh: 'gateway_account_refresh',
+              repair: null,
+              use_for_model_access: null,
+              disconnect: 'gateway_account_disconnect',
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const startupMaintenanceResult = {
   surface: 'startup_maintenance',
   command: 'opl system startup-maintenance --json',
@@ -291,10 +348,14 @@ describe('FirstRun readiness page', () => {
       return vi.fn();
     });
     bridgeMocks.getInitializeInvoke.mockResolvedValue(initializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(gatewayFastStateResult);
     bridgeMocks.runStartupMaintenanceInvoke.mockResolvedValue(startupMaintenanceResult);
     bridgeMocks.executeActionInvoke.mockResolvedValue(workspaceActionResult);
     bridgeMocks.configureCodexInvoke.mockResolvedValue(configureCodexResult);
+    bridgeMocks.loginGatewayAccountInvoke.mockResolvedValue(gatewayLoginResult);
     bridgeMocks.showOpenInvoke.mockResolvedValue(['/Users/example/workspace']);
+    platformMocks.isElectronDesktop.mockReturnValue(true);
+    platformMocks.isMacOS.mockReturnValue(false);
   });
 
   it('keeps the beginner first-run surface visible when first-run Core is ready', async () => {
@@ -748,6 +809,144 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-task-panel')).toHaveFocus();
   });
 
+  it('defaults Desktop model access to Gateway account login and completes a uniquely resolved Codex group', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(within(screen.getByTestId('opl-first-run-gateway-account-method')).getByRole('radio')).toBeChecked();
+    expect(screen.getByTestId('opl-first-run-gateway-email-input')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-codex-api-key-input')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.accessPage.gatewayAccount.deviceLabel')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-email-input'), {
+      target: { value: ' user@example.com ' },
+    });
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'gateway-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
+
+    await waitFor(() =>
+      expect(bridgeMocks.loginGatewayAccountInvoke).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        password: 'gateway-password',
+      })
+    );
+    expect(bridgeMocks.loginGatewayAccountInvoke.mock.calls[0][0]).not.toHaveProperty('deviceLabel');
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'gateway_account_complete_setup',
+      dryRun: false,
+      payloadJson: { group_id: 'codex-group' },
+    });
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
+
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    expect(screen.getByTestId('opl-first-run-technical-details')).not.toHaveTextContent('gateway-password');
+  });
+
+  it('fails closed on unresolved Gateway groups and clears the password without claiming readiness', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      ...gatewayFastStateResult,
+      parsed: {
+        app_state: {
+          settings_control_center: {
+            app_settings_read_model: {
+              opl_gateway_account: {
+                ...gatewayFastStateResult.parsed.app_state.settings_control_center.app_settings_read_model
+                  .opl_gateway_account,
+                available_groups: [
+                  { group_id: 'research', label: 'Research' },
+                  { group_id: 'engineering', label: 'Engineering' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-email-input'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'gateway-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent(
+        'settings.accessPage.gatewayAccount.errors.groupSelectionRequired'
+      )
+    );
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('opl-first-run-ready-entry')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent('group_selection_required');
+    expect(screen.getByTestId('opl-first-run-technical-details')).not.toHaveTextContent('gateway-password');
+  });
+
+  it('clears Gateway passwords after typed login failure and after method switching', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+    bridgeMocks.loginGatewayAccountInvoke.mockResolvedValueOnce({
+      ok: false,
+      errorCode: 'invalid_credentials',
+      stateRefreshRequired: false,
+    });
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-email-input'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'wrong-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent(
+        'settings.accessPage.gatewayAccount.errors.invalidCredentials'
+      )
+    );
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
+    expect(bridgeMocks.getAppStateInvoke).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'new-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
+    expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-account-method'));
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
+  });
+
+  it('keeps Gateway password login out of WebUI while retaining API Key compatibility', async () => {
+    platformMocks.isElectronDesktop.mockReturnValue(false);
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('opl-first-run-access-methods')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-gateway-email-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-gateway-password-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-gateway-login-button')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toBeInTheDocument();
+    expect(bridgeMocks.loginGatewayAccountInvoke).not.toHaveBeenCalled();
+  });
+
   it('configures Codex through the narrow bridge when the Codex config blocks Core readiness', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
     bridgeMocks.configureCodexInvoke.mockReturnValueOnce(
@@ -761,6 +960,7 @@ describe('FirstRun readiness page', () => {
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     const taskPanel = screen.getByTestId('opl-first-run-task-panel');
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
     fireEvent.change(screen.getByTestId('opl-first-run-codex-api-key-input'), { target: { value: 'secret-key' } });
     expect(screen.getByRole('radiogroup', { name: 'settings.firstRun.modelAccess.methodLabel' })).toBeInTheDocument();
     expect(screen.getByLabelText('settings.firstRun.codex.apiKeyLabel')).toBeInTheDocument();
@@ -800,6 +1000,7 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
     fireEvent.change(screen.getByTestId('opl-first-run-codex-api-key-input'), { target: { value: 'secret-key' } });
     fireEvent.click(screen.getByTestId('opl-first-run-configure-codex-button'));
 
@@ -815,20 +1016,20 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-technical-error')).not.toHaveTextContent('secret-key');
   });
 
-  it('switches to existing Codex access and rechecks through the initialize bridge', async () => {
+  it('keeps existing Codex recheck outside the account and API Key method switch', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
 
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByTestId('opl-first-run-existing-codex-method'));
-
-    expect(screen.queryByTestId('opl-first-run-codex-api-key-input')).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('opl-first-run-access-methods')).queryByTestId('opl-first-run-recheck-existing')
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-recheck-existing')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('opl-first-run-recheck-existing'));
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByTestId('opl-first-run-gateway-method'));
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
     expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toBeInTheDocument();
   });
 
@@ -850,8 +1051,10 @@ describe('FirstRun readiness page', () => {
     for (const radio of within(screen.getByTestId('opl-first-run-access-methods')).getAllByRole('radio')) {
       expect(radio).toBeDisabled();
     }
-    expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toBeDisabled();
-    expect(screen.getByTestId('opl-first-run-configure-codex-button')).toBeDisabled();
+    expect(screen.getByTestId('opl-first-run-gateway-email-input')).toBeDisabled();
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toBeDisabled();
+    expect(screen.getByTestId('opl-first-run-gateway-login-button')).toBeDisabled();
+    expect(screen.getByTestId('opl-first-run-recheck-existing')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-retry-button')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-install-button')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-open-modules-button')).toBeDisabled();
