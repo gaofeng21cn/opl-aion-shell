@@ -7,8 +7,7 @@
 import type { MentionOption } from '../types';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
-import { IconClose } from '@arco-design/web-react/icon';
-import { Down, Robot } from '@icon-park/react';
+import { CloseSmall, Down, Robot } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -134,7 +133,7 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
           }}
           aria-label={t('common.clear')}
         >
-          <IconClose style={{ fontSize: 12, color: 'var(--color-text-3)' }} />
+          <CloseSmall theme='outline' size={12} fill='currentColor' />
         </Button>
       ) : null}
     </div>

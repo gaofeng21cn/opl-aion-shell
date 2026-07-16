@@ -112,4 +112,45 @@ describe('AssistantEditDrawer', () => {
     );
     expect(container).toBeTruthy();
   });
+
+  it('renders the editor and summary as flat hairline rows', () => {
+    renderWithProviders(<AssistantEditDrawer {...defaultProps} editVisible={true} />);
+
+    const content = screen.getByTestId('assistant-edit-flat-content');
+    expect(content).toHaveClass('bg-transparent');
+    expect(content).not.toHaveClass('bg-fill-2', 'rounded-16px', 'p-20px');
+
+    const summary = screen.getByTestId('assistant-summary-row');
+    expect(summary).toHaveClass('border-t', 'border-line');
+    expect(summary).not.toHaveClass('bg-fill-1', 'rd-10px');
+  });
+
+  it('renders builtin guidance as an unframed status row', () => {
+    renderWithProviders(
+      <AssistantEditDrawer
+        {...defaultProps}
+        editVisible={true}
+        activeAssistant={{
+          id: 'builtin-test',
+          source: 'builtin',
+          name: 'Builtin',
+          name_i18n: {},
+          description_i18n: {},
+          enabled: true,
+          sort_order: 0,
+          enabled_skills: [],
+          custom_skill_names: [],
+          disabled_builtin_skills: [],
+          context_i18n: {},
+          prompts: [],
+          prompts_i18n: {},
+          models: [],
+        }}
+      />
+    );
+
+    const guidance = screen.getByTestId('assistant-builtin-readonly-banner');
+    expect(guidance).toHaveClass('border-t', 'border-line');
+    expect(guidance).not.toHaveClass('rd-8px', 'bg-[rgba(var(--primary-6),0.06)]');
+  });
 });

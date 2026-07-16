@@ -101,6 +101,9 @@ describe('Codex visual parity overlay', () => {
     ].map((fileName) =>
       read(`packages/desktop/src/renderer/components/settings/SettingsModal/contents/channels/${fileName}`)
     );
+    const assistantDrawer = read(
+      'packages/desktop/src/renderer/pages/settings/AssistantSettings/AssistantEditDrawer.tsx'
+    );
 
     expect(settingsStyles).toContain('max-width: 760px;');
     expect(settingsWrapper).toContain("'settings-page-content mx-auto w-full'");
@@ -138,12 +141,27 @@ describe('Codex visual parity overlay', () => {
       expect(form).toContain("import { ChannelEmptyState } from './ChannelItem';");
       expect(form).not.toMatch(/\bEmpty\b[\s\S]*from '@arco-design\/web-react'/);
       expect(form).not.toContain('<Empty');
+      expect(form).not.toContain('rd-12px');
+      expect(form).not.toMatch(/bg-fill-[12]\s+rd-8px/);
+      expect(form.match(/border-0 border-t border-solid border-line/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
     }
+    expect(assistantDrawer).toContain("data-testid='assistant-edit-flat-content'");
+    expect(assistantDrawer).toContain(
+      "className='flex flex-col flex-1 gap-20px bg-transparent overflow-y-auto pr-4px'"
+    );
+    expect(assistantDrawer).toMatch(
+      /className='flex items-start gap-8px border-0 border-t border-solid border-line py-12px'[\s\S]*?data-testid='assistant-builtin-readonly-banner'/
+    );
+    expect(assistantDrawer).toMatch(
+      /data-testid='assistant-summary-row'[\s\S]*?<span className='text-12px font-500 text-t-primary'>/
+    );
+    expect(assistantDrawer).not.toContain('gap-16px bg-fill-2 rounded-16px p-20px overflow-y-auto');
   });
 
   it('keeps active Home controls flat, compact, and outline-only', () => {
     const starters = read('packages/desktop/src/renderer/pages/guid/components/HomeStarters.tsx');
     const presetAgent = read('packages/desktop/src/renderer/pages/guid/components/PresetAgentTag.tsx');
+    const mentionDropdown = read('packages/desktop/src/renderer/pages/guid/components/MentionDropdown.tsx');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
     const skills = read('packages/desktop/src/renderer/pages/settings/SkillsHubSettings.tsx');
     const runtime = read('packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx');
@@ -152,6 +170,9 @@ describe('Codex visual parity overlay', () => {
     expect(presetAgent).toContain("<CheckOne theme='outline'");
     expect(presetAgent).toContain("<CloseSmall theme='outline'");
     expect(presetAgent).not.toContain('<span>✓</span>');
+    expect(mentionDropdown).toContain("import { CloseSmall, Down, Robot } from '@icon-park/react';");
+    expect(mentionDropdown).toContain("<CloseSmall theme='outline' size={12} fill='currentColor' />");
+    expect(mentionDropdown).not.toContain('@arco-design/web-react/icon');
     expect(guidStyles).toMatch(/\.presetAgentTag\s*{[^}]*border:\s*0;[^}]*border-radius:\s*6px;/);
     expect(guidStyles).toMatch(
       /\.homeStarterActive:global\(\.arco-btn\)\s*{[^}]*border-color:\s*transparent\s*!important;[^}]*box-shadow:\s*none\s*!important;/

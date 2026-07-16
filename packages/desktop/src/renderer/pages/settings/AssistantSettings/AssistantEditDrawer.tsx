@@ -195,7 +195,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
           {logo ? (
             <img src={logo} alt='' className='h-full w-full object-contain' />
           ) : (
-            <Robot theme='outline' size={14} />
+            <Robot theme='outline' size={14} fill='currentColor' />
           )}
         </Avatar>
         <span className='truncate'>{option.name}</span>
@@ -217,16 +217,18 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
               ? t('settings.createAssistant', { defaultValue: 'Create Assistant' })
               : t('settings.editAssistant', { defaultValue: 'Assistant Details' })}
           </span>
-          <div
+          <button
+            type='button'
+            aria-label={t('common.close', { defaultValue: 'Close' })}
             onClick={(e) => {
               e.stopPropagation();
               setEditVisible(false);
             }}
-            className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+            className='absolute right-4 top-2 cursor-pointer border-0 bg-transparent text-t-secondary hover:text-t-primary transition-colors p-1'
             style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            <Close size={18} />
-          </div>
+            <Close theme='outline' size={18} fill='currentColor' />
+          </button>
         </>
       }
       closable={false}
@@ -276,16 +278,19 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
       }
     >
       <div className='flex flex-col h-full overflow-hidden' data-testid='assistant-edit-drawer'>
-        <div className='flex flex-col flex-1 gap-16px bg-fill-2 rounded-16px p-20px overflow-y-auto'>
+        <div
+          className='flex flex-col flex-1 gap-20px bg-transparent overflow-y-auto pr-4px'
+          data-testid='assistant-edit-flat-content'
+        >
           {/* Builtin readonly banner — only Main Agent is editable on builtin
               assistants. The inline link drives the user to duplicate so they
               can edit the copy. */}
           {isBuiltin && activeAssistant && (
             <div
-              className='flex items-start gap-8px p-12px rd-8px bg-[rgba(var(--primary-6),0.06)] border border-solid border-[rgba(var(--primary-6),0.18)]'
+              className='flex items-start gap-8px border-0 border-t border-solid border-line py-12px'
               data-testid='assistant-builtin-readonly-banner'
             >
-              <Info theme='outline' size={16} className='mt-2px text-primary-6 flex-shrink-0' />
+              <Info theme='outline' size={16} fill='currentColor' className='mt-2px flex-shrink-0 text-t-secondary' />
               <div className='text-13px leading-20px text-t-primary'>
                 <span>
                   {t('settings.assistantBuiltinReadonlyTip', {
@@ -322,7 +327,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                   ) : editAvatar ? (
                     <span className='text-24px'>{editAvatar}</span>
                   ) : (
-                    <Robot theme='outline' size={20} />
+                    <Robot theme='outline' size={20} fill='currentColor' />
                   )}
                 </Avatar>
               ) : (
@@ -334,7 +339,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                       ) : editAvatar ? (
                         <span className='text-24px'>{editAvatar}</span>
                       ) : (
-                        <Robot theme='outline' size={20} />
+                        <Robot theme='outline' size={20} fill='currentColor' />
                       )}
                     </Avatar>
                   </div>
@@ -372,7 +377,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
           <div className='flex-shrink-0'>
             <Typography.Text bold>
               <span className='inline-flex items-center gap-6px'>
-                <Robot theme='outline' size={14} />
+                <Robot theme='outline' size={14} fill='currentColor' />
                 {t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}
               </span>
             </Typography.Text>
@@ -391,19 +396,22 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
           </div>
 
           {/* Summary */}
-          <div className='flex flex-wrap items-center gap-8px p-10px rd-10px bg-fill-1'>
+          <div
+            className='flex flex-wrap items-center gap-x-8px gap-y-4px border-0 border-t border-solid border-line py-12px'
+            data-testid='assistant-summary-row'
+          >
             <span className='text-12px text-t-secondary'>
               {t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}:
             </span>
-            <Tag size='small' color='arcoblue'>
+            <span className='text-12px font-500 text-t-primary'>
               {selectedAgentOption?.name || selectedAgentOption?.runtimeKey || editAgent}
-            </Tag>
+            </span>
             <span className='text-12px text-t-secondary ml-6px'>
               {t('settings.assistantSkills', { defaultValue: 'Skills' })}:
             </span>
-            <Tag size='small' color={totalActiveSkillsCount > 0 ? 'green' : 'gray'}>
+            <span className='text-12px font-500 text-t-primary'>
               {totalActiveSkillsCount > 0 ? `${totalActiveSkillsCount}/${totalSkillsCount}` : totalSkillsCount}
-            </Tag>
+            </span>
           </div>
 
           {/* Rules / Prompt */}
@@ -489,7 +497,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                   <Button
                     size='small'
                     type='outline'
-                    icon={<Plus size={14} />}
+                    icon={<Plus theme='outline' size={14} fill='currentColor' />}
                     onClick={() => navigate('/settings/capabilities?tab=skills')}
                     className='rounded-[100px]'
                     data-testid='btn-add-skills'
@@ -562,7 +570,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                           }}
                           title={t('settings.removeFromAssistant', { defaultValue: 'Remove from assistant' })}
                         >
-                          <Delete size={16} fill='var(--color-text-3)' />
+                          <Delete theme='outline' size={16} fill='currentColor' className='text-t-tertiary' />
                         </button>
                       </div>
                     ))}
@@ -603,7 +611,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                           }}
                           title={t('settings.removeFromAssistant', { defaultValue: 'Remove from assistant' })}
                         >
-                          <Delete size={16} fill='var(--color-text-3)' />
+                          <Delete theme='outline' size={16} fill='currentColor' className='text-t-tertiary' />
                         </button>
                       </div>
                     ))}

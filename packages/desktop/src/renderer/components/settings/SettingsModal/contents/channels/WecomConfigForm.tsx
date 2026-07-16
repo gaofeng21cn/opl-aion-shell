@@ -453,9 +453,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
 
       {/* Connection Status */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div
-          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
-        >
+        <div className='border-0 border-t border-solid border-line pt-16px'>
           <SectionHeader
             title={t('settings.wecom.connectionStatus', 'Connection Status')}
             action={
@@ -508,7 +506,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
 
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
+        <div className='border-0 border-t border-solid border-line pt-16px'>
           <SectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
@@ -535,7 +533,10 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
           ) : (
             <div className='flex flex-col gap-12px'>
               {pendingPairings.map((pairing) => (
-                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div
+                  key={pairing.code}
+                  className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
+                >
                   <div className='flex-1'>
                     <div className='flex items-center gap-8px'>
                       <span className='text-14px font-500 text-t-primary'>
@@ -585,7 +586,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
 
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
+        <div className='border-0 border-t border-solid border-line pt-16px'>
           <SectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
@@ -612,7 +613,10 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
           ) : (
             <div className='flex flex-col gap-12px'>
               {authorizedUsers.map((user) => (
-                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div
+                  key={user.id}
+                  className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
+                >
                   <div className='flex-1'>
                     <div className='text-14px font-500 text-t-primary'>{user.display_name || 'Unknown User'}</div>
                     <div className='text-12px text-t-tertiary mt-4px'>
