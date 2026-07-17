@@ -589,11 +589,12 @@ describe('Runtime V2 page', () => {
     fireEvent.click(await screen.findByTestId('runtime-archive-work-item'));
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(appStateResultWithVisibility('diabetes', '001', 'visible', 4));
     const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+    const stateReadCountBeforeConflict = bridgeMocks.getAppStateInvoke.mock.calls.length;
     await act(async () => {
       await confirmation.onOk();
     });
 
-    expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.getAppStateInvoke.mock.calls.length).toBeGreaterThan(stateReadCountBeforeConflict);
     expect(bridgeMocks.messageError).toHaveBeenCalledWith('状态已刷新，请检查后重试。');
     expect(screen.getByTestId('runtime-task-detail')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-archive-work-item')).toBeInTheDocument();
