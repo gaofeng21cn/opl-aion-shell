@@ -18,7 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
+import { Close, Down, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +28,11 @@ import VoiceInputSection from '@/renderer/components/settings/SettingsModal/cont
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
-import { getOplAgentPackageRegistryUrl } from '@/common/config/oplProductProfile';
+import {
+  canonicalizeOplProfessionalAgentId,
+  getOplAgentPackageRegistryUrl,
+  getOplProfessionalAgentPackages,
+} from '@/common/config/oplProductProfile';
 import {
   buildOplProjectedActionPayload,
   oplProjectedActionNeedsContextField,
@@ -254,6 +258,44 @@ function capabilityCatalogStatusLabel(
   });
 }
 
+type CapabilityCatalogGroupKey = 'agents' | 'workflows' | 'supporting';
+
+type CapabilityCatalogEntry = {
+  item: CapabilityPurposeViewModel;
+  dependents: CapabilityPurposeViewModel[];
+};
+
+type CapabilityCatalogGroup = {
+  key: CapabilityCatalogGroupKey;
+  entries: CapabilityCatalogEntry[];
+};
+
+function capabilityPackageRoleLabel(
+  role: string | null,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  const labelKey =
+    role === 'standard_agent'
+      ? 'standardAgent'
+      : role === 'workflow_profile'
+        ? 'workflowProfile'
+        : role === 'framework_capability_package'
+          ? 'supportingCapability'
+          : 'other';
+  return t(`settings.capabilitiesPage.packageManager.roleLabels.${labelKey}`);
+}
+
+function capabilityCatalogGroupKey(item: CapabilityPurposeViewModel): CapabilityCatalogGroupKey {
+  if (item.packageRole === 'standard_agent') return 'agents';
+  if (item.packageRole === 'workflow_profile') return 'workflows';
+  return 'supporting';
+}
+
+function capabilityPackageIdentityValues(packageId: string | null): string[] {
+  if (!packageId) return [];
+  return [...new Set([packageId, canonicalizeOplProfessionalAgentId(packageId)])];
+}
+
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
   const action = item.recommendedAction;
   if (!action) return null;
@@ -314,7 +356,7 @@ function capabilityUserDetailRows(
       ? {
           key: 'packageRole',
           label: t('settings.capabilitiesPage.detailLabels.packageRole'),
-          value: item.packageRole,
+          value: capabilityPackageRoleLabel(item.packageRole, t),
         }
       : null,
     hasTextValue(item.trustTier)
@@ -820,6 +862,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const [advancedAddOpen, setAdvancedAddOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
+  const [developerAdvancedOpen, setDeveloperAdvancedOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -857,15 +900,32 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const catalogRefreshing = appStateQuery.refreshing;
   const catalogEmpty = !catalogLoading && !catalogError && purposeCapabilities.length === 0;
   const agentPackageRegistryUrl = getOplAgentPackageRegistryUrl();
-  const roleOptions = React.useMemo(
-    () =>
-      [
-        ...new Set(
-          purposeCapabilities.map((item) => item.packageRole).filter((value): value is string => Boolean(value))
-        ),
-      ].sort(),
-    [purposeCapabilities]
-  );
+  const professionalAgentOrder = React.useMemo(() => {
+    const order = new Map<string, number>();
+    getOplProfessionalAgentPackages().forEach((agentPackage, index) => {
+      capabilityPackageIdentityValues(agentPackage.package_id).forEach((id) => order.set(id, index));
+    });
+    return order;
+  }, []);
+  const roleOptions = React.useMemo(() => {
+    const roles = [
+      ...new Set(
+        purposeCapabilities.map((item) => item.packageRole).filter((value): value is string => Boolean(value))
+      ),
+    ];
+    const preferredOrder = ['standard_agent', 'workflow_profile', 'framework_capability_package'];
+    return roles.toSorted((left, right) => {
+      const leftIndex = preferredOrder.indexOf(left);
+      const rightIndex = preferredOrder.indexOf(right);
+      if (leftIndex !== -1 || rightIndex !== -1) {
+        return (
+          (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) -
+          (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex)
+        );
+      }
+      return left.localeCompare(right);
+    });
+  }, [purposeCapabilities]);
   const statusOptions = React.useMemo(
     () => [...new Set(purposeCapabilities.map(capabilityCatalogStatus))].sort(),
     [purposeCapabilities]
@@ -886,6 +946,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
         item.description,
         item.packageId,
         item.packageRole,
+        capabilityPackageRoleLabel(item.packageRole, t),
         item.publisher,
         item.sourceExplanation.summary,
         item.sourceExplanation.source,
@@ -895,7 +956,67 @@ export const AgentPackagesSettingsContent: React.FC = () => {
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(query));
     });
-  }, [catalogSearch, purposeCapabilities, roleFilter, sourceFilter, statusFilter]);
+  }, [catalogSearch, purposeCapabilities, roleFilter, sourceFilter, statusFilter, t]);
+  const catalogGroups = React.useMemo<CapabilityCatalogGroup[]>(() => {
+    const compareByTitle = (left: CapabilityPurposeViewModel, right: CapabilityPurposeViewModel) =>
+      left.title.localeCompare(right.title, i18n.language);
+    const compareAgents = (left: CapabilityPurposeViewModel, right: CapabilityPurposeViewModel) => {
+      const rank = (item: CapabilityPurposeViewModel) => {
+        const ranks = capabilityPackageIdentityValues(item.packageId)
+          .map((id) => professionalAgentOrder.get(id))
+          .filter((value): value is number => value !== undefined);
+        return ranks.length > 0 ? Math.min(...ranks) : Number.MAX_SAFE_INTEGER;
+      };
+      return rank(left) - rank(right) || compareByTitle(left, right);
+    };
+
+    const agents = visibleCapabilities
+      .filter((item) => capabilityCatalogGroupKey(item) === 'agents')
+      .toSorted(compareAgents);
+    const workflows = visibleCapabilities
+      .filter((item) => capabilityCatalogGroupKey(item) === 'workflows')
+      .toSorted(compareByTitle);
+    const supporting = visibleCapabilities
+      .filter((item) => capabilityCatalogGroupKey(item) === 'supporting')
+      .toSorted(compareByTitle);
+    const visibleAgentsById = new Map<string, CapabilityPurposeViewModel>();
+    agents.forEach((agent) => {
+      capabilityPackageIdentityValues(agent.packageId).forEach((id) => visibleAgentsById.set(id, agent));
+    });
+    const dependentsByAgentKey = new Map<string, CapabilityPurposeViewModel[]>();
+    const ungroupedSupporting: CapabilityPurposeViewModel[] = [];
+    supporting.forEach((item) => {
+      const parentMatches = new Map<string, CapabilityPurposeViewModel>();
+      item.dependentGuard?.requiredByPackageIds.forEach((requiredPackageId) => {
+        capabilityPackageIdentityValues(requiredPackageId).forEach((id) => {
+          const parent = visibleAgentsById.get(id);
+          if (parent) parentMatches.set(parent.key, parent);
+        });
+      });
+      if (parentMatches.size !== 1) {
+        ungroupedSupporting.push(item);
+        return;
+      }
+      const [parent] = parentMatches.values();
+      const current = dependentsByAgentKey.get(parent.key) ?? [];
+      dependentsByAgentKey.set(parent.key, [...current, item].toSorted(compareByTitle));
+    });
+
+    return [
+      {
+        key: 'agents',
+        entries: agents.map((item) => ({ item, dependents: dependentsByAgentKey.get(item.key) ?? [] })),
+      },
+      {
+        key: 'workflows',
+        entries: workflows.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
+      },
+      {
+        key: 'supporting',
+        entries: ungroupedSupporting.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
+      },
+    ].filter((group) => group.entries.length > 0) as CapabilityCatalogGroup[];
+  }, [i18n.language, professionalAgentOrder, visibleCapabilities]);
   const hasActiveCatalogFilters =
     Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
   const catalogFilterEmpty = purposeCapabilities.length > 0 && visibleCapabilities.length === 0;
@@ -932,6 +1053,14 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
     return 'inactive';
   })();
+  const developerModeLabel = t(
+    `settings.capabilitiesPage.developerSource.modes.${
+      developerModeEnabled === 'off' ? 'managed' : developerModeEnabled === 'on' ? 'developer' : 'auto'
+    }`
+  );
+  const developerEffectiveStateLabel = t(
+    `settings.capabilitiesPage.developerSource.effectiveStates.${developerMaintenanceEffectiveLabel}`
+  );
   const showDeveloperIdentity = developerIdentityStatus === 'ready' && Boolean(developerIdentityLogin);
   const showDeveloperAuthority =
     Boolean(developerAuthorityStatus) &&
@@ -1177,6 +1306,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
     );
   const conversationReadyCount = purposeCapabilities.filter((item) => item.codexVisibility === 'visible').length;
+  const catalogAgentCount = purposeCapabilities.filter((item) => capabilityCatalogGroupKey(item) === 'agents').length;
+  const catalogWorkflowCount = purposeCapabilities.filter(
+    (item) => capabilityCatalogGroupKey(item) === 'workflows'
+  ).length;
+  const catalogSupportingCount = purposeCapabilities.filter(
+    (item) => capabilityCatalogGroupKey(item) === 'supporting'
+  ).length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
     const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
     return shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
@@ -1223,6 +1359,140 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
   };
 
+  const renderCapabilityRow = (item: CapabilityPurposeViewModel, parent: CapabilityPurposeViewModel | null = null) => {
+    const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
+    const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
+    const sourceLabel = capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
+    const rowAction = capabilityRowAction(item);
+    const rowActivation = rowAction?.actionId === 'agent_package_activate';
+    const rowNeedsWorkspace = Boolean(
+      rowActivation && rowAction && oplProjectedActionNeedsContextField(rowAction, 'target_workspace')
+    );
+    const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
+    const rowActivationDisabledReason = rowActivation
+      ? rowNeedsWorkspace && !workspaceRootPath
+        ? 'workspace_root_not_configured'
+        : item.activationAction?.enabled === false
+          ? (item.activationAction.reasonCode ?? 'activation_disabled')
+          : null
+      : null;
+    const rowActionDisabled = Boolean(
+      packageMutationBusy ||
+      rowActivationDisabledReason ||
+      (rowAction && rowActionPayload && projectedActionMissingFields(rowAction, rowActionPayload).length > 0)
+    );
+    return (
+      <div
+        className={`opl-settings-row opl-settings-capability-row ${
+          parent ? 'opl-settings-capability-row--dependent' : ''
+        } ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
+        data-testid={`capability-purpose-${item.key}`}
+        data-selected={selectedCapabilityKey === item.key ? 'true' : 'false'}
+        data-parent-capability={parent?.key}
+        aria-current={selectedCapabilityKey === item.key ? 'true' : undefined}
+        key={item.key}
+      >
+        <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
+          <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+            {capabilityIcon(item)}
+          </span>
+          <div className='min-w-0'>
+            {parent && (
+              <Typography.Text className='block text-11px text-t-tertiary'>
+                {t('settings.capabilitiesPage.packageManager.supportingFor', { parent: parent.title })}
+              </Typography.Text>
+            )}
+            <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
+            <Typography.Text className='block break-words text-13px text-t-secondary'>
+              {item.description}
+            </Typography.Text>
+            <div className='mt-4px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
+              {item.packageRole && <Tag>{capabilityPackageRoleLabel(item.packageRole, t)}</Tag>}
+              {item.publisher && <span>{item.publisher}</span>}
+              {item.version && <span>{item.version}</span>}
+              {item.trustState && <span>{formatCapabilityDisplayToken(item.trustState)}</span>}
+            </div>
+          </div>
+        </div>
+        <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-11px text-t-tertiary'>
+              {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
+            </Typography.Text>
+            <Tag color={capabilityStatusColor(item.availabilityStatus)}>
+              {capabilityStatusLabel(item.availabilityStatus, t)}
+            </Tag>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-11px text-t-tertiary'>
+              {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
+            </Typography.Text>
+            <Typography.Text className='block break-words text-12px text-t-secondary'>{sourceLabel}</Typography.Text>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-11px text-t-tertiary'>
+              {t('settings.capabilitiesPage.visibility.conversation', {
+                defaultValue: 'Available in conversations',
+              })}
+            </Typography.Text>
+            <Typography.Text className='block break-words text-12px text-t-secondary'>
+              {capabilityConversationAvailabilityLabel(item, t)}
+            </Typography.Text>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-11px text-t-tertiary'>
+              {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
+            </Typography.Text>
+            {shortcut ? (
+              <Switch
+                size='small'
+                checked={shortcutVisible}
+                loading={pendingShortcutIds.has(shortcut.shortcut_id)}
+                disabled={
+                  packageActionBusy ||
+                  pendingShortcutIds.has(shortcut.shortcut_id) ||
+                  !item.availableActions.agent_package_preferences_set
+                }
+                onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
+                data-testid={`agent-package-home-toggle-details-${item.key}`}
+              />
+            ) : (
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
+              </Typography.Text>
+            )}
+          </div>
+          {rowAction && (
+            <Button
+              size='small'
+              type='primary'
+              loading={busyAction === rowAction.actionId}
+              disabled={rowActionDisabled}
+              aria-describedby={
+                rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
+              }
+              data-disabled-reason={rowActivationDisabledReason ?? undefined}
+              onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
+              data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
+            >
+              {capabilityProjectedActionLabel(rowAction.actionId, t)}
+            </Button>
+          )}
+          <Button
+            size='small'
+            type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
+            aria-expanded={selectedCapabilityKey === item.key}
+            aria-controls={`capability-details-${item.key}`}
+            onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
+            data-testid={`capability-open-details-${item.key}`}
+          >
+            {t('settings.capabilitiesPage.packageManager.management')}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-agents'>
       <span data-testid='agent-packages-settings-page' aria-hidden='true' />
@@ -1242,123 +1512,152 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
       <div className='flex flex-col gap-14px' data-testid='settings-agents-primary'>
         <section
-          className='opl-settings-section opl-settings-surface--configuration'
+          className='opl-settings-section opl-settings-agent-advanced'
           id='source'
           data-testid='opl-developer-profile-control'
         >
-          <div className='opl-settings-section__header'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.developerSource.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.developerSource.description')}
-              </Typography.Text>
-            </div>
-            <Radio.Group
-              type='button'
-              value={developerModeEnabled}
-              disabled={packageMutationBusy}
-              onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
-              aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
-              data-testid='opl-developer-profile-mode'
-            >
-              <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
-              <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
-              <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
-            </Radio.Group>
-          </div>
-          <div className='opl-settings-list'>
-            <div className='opl-settings-row'>
-              <div className='opl-settings-row__main'>
-                <Typography.Text className='block font-500 text-t-primary'>
-                  {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
-                </Typography.Text>
+          <button
+            type='button'
+            className='opl-settings-agent-disclosure'
+            aria-expanded={developerAdvancedOpen}
+            aria-controls='opl-developer-profile-details'
+            onClick={() => setDeveloperAdvancedOpen((open) => !open)}
+            data-testid='opl-developer-profile-disclosure'
+          >
+            <span className='min-w-0 text-left'>
+              <span className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.developerSource.advancedTitle')}
+              </span>
+              <span className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.developerSource.advancedSummary', {
+                  mode: developerModeLabel,
+                  state: developerEffectiveStateLabel,
+                })}
+              </span>
+            </span>
+            <Down
+              theme='outline'
+              size='14'
+              fill='currentColor'
+              className='opl-settings-agent-disclosure__icon'
+              aria-hidden='true'
+            />
+          </button>
+          {developerAdvancedOpen && (
+            <div className='opl-settings-agent-advanced__content' id='opl-developer-profile-details'>
+              <div className='opl-settings-section__header'>
+                <div>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.capabilitiesPage.developerSource.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.developerSource.description')}
+                  </Typography.Text>
+                </div>
+                <Radio.Group
+                  type='button'
+                  value={developerModeEnabled}
+                  disabled={packageMutationBusy}
+                  onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
+                  aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
+                  data-testid='opl-developer-profile-mode'
+                >
+                  <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
+                  <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
+                  <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
+                </Radio.Group>
               </div>
-              <div className='opl-settings-row__meta'>
-                <div className='flex flex-col items-end gap-6px'>
-                  <Tag data-testid='opl-developer-profile-effective-state'>
-                    {t(
-                      `settings.capabilitiesPage.developerSource.effectiveStates.${developerMaintenanceEffectiveLabel}`
-                    )}
-                  </Tag>
-                  <Radio.Group
-                    type='button'
-                    size='small'
-                    value={developerMaintenanceChoice}
-                    disabled={packageMutationBusy}
-                    onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
-                    aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
-                    data-testid='opl-developer-profile-maintenance'
-                  >
-                    <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}</Radio>
-                    <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
-                  </Radio.Group>
+              <div className='opl-settings-list'>
+                <div className='opl-settings-row'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='block font-500 text-t-primary'>
+                      {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <div className='flex flex-col items-end gap-6px'>
+                      <Tag data-testid='opl-developer-profile-effective-state'>{developerEffectiveStateLabel}</Tag>
+                      <Radio.Group
+                        type='button'
+                        size='small'
+                        value={developerMaintenanceChoice}
+                        disabled={packageMutationBusy}
+                        onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
+                        aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
+                        data-testid='opl-developer-profile-maintenance'
+                      >
+                        <Radio value='auto'>
+                          {t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}
+                        </Radio>
+                        <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
+                      </Radio.Group>
+                    </div>
+                  </div>
                 </div>
               </div>
+              <div
+                className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
+                data-testid='settings-agents-developer-summary'
+              >
+                <span className='min-w-0'>
+                  {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
+                  {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                </span>
+                <span className='min-w-0'>
+                  {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
+                  {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
+                    defaultValue: developerConfigSource,
+                  })}
+                </span>
+                {developerInspectionPending && (
+                  <span data-testid='opl-developer-profile-inspection-pending'>
+                    {t('settings.capabilitiesPage.developerSource.inspectionPending')}
+                  </span>
+                )}
+                {!developerInspectionPending && showDeveloperIdentity && (
+                  <span>
+                    {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
+                  </span>
+                )}
+                {!developerInspectionPending && showDeveloperAuthority && (
+                  <span>
+                    {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
+                    {t('settings.capabilitiesPage.developerSource.authoritySummary', {
+                      direct: String(directWriteRepoCount),
+                      pullRequest: String(prRouteRepoCount),
+                      total: String(requiredRepoCount),
+                    })}
+                  </span>
+                )}
+                {developerMaintenanceProtection.status === 'ready' && (
+                  <span data-testid='opl-developer-profile-protection'>
+                    {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
+                    {t('settings.capabilitiesPage.developerSource.protectionSummary', {
+                      dirty:
+                        developerDirtyProtection.requires_isolated_worktree === true
+                          ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
+                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                      branch:
+                        developerBranchProtection.direct_push_to_protected_branch === false
+                          ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
+                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                    })}
+                  </span>
+                )}
+                {!developerInspectionPending && developerInactiveReason && (
+                  <span data-testid='opl-developer-profile-inactive-reason'>
+                    {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
+                    {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
+                      defaultValue: developerInactiveReason,
+                    })}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-          <div
-            className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
-            data-testid='settings-agents-developer-summary'
-          >
-            <span className='min-w-0'>
-              {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
-              {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </span>
-            <span className='min-w-0'>
-              {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
-              {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
-                defaultValue: developerConfigSource,
-              })}
-            </span>
-            {developerInspectionPending && (
-              <span data-testid='opl-developer-profile-inspection-pending'>
-                {t('settings.capabilitiesPage.developerSource.inspectionPending')}
-              </span>
-            )}
-            {!developerInspectionPending && showDeveloperIdentity && (
-              <span>
-                {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
-              </span>
-            )}
-            {!developerInspectionPending && showDeveloperAuthority && (
-              <span>
-                {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
-                {t('settings.capabilitiesPage.developerSource.authoritySummary', {
-                  direct: String(directWriteRepoCount),
-                  pullRequest: String(prRouteRepoCount),
-                  total: String(requiredRepoCount),
-                })}
-              </span>
-            )}
-            {developerMaintenanceProtection.status === 'ready' && (
-              <span data-testid='opl-developer-profile-protection'>
-                {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
-                {t('settings.capabilitiesPage.developerSource.protectionSummary', {
-                  dirty:
-                    developerDirtyProtection.requires_isolated_worktree === true
-                      ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
-                      : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                  branch:
-                    developerBranchProtection.direct_push_to_protected_branch === false
-                      ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
-                      : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                })}
-              </span>
-            )}
-            {!developerInspectionPending && developerInactiveReason && (
-              <span data-testid='opl-developer-profile-inactive-reason'>
-                {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
-                {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
-                  defaultValue: developerInactiveReason,
-                })}
-              </span>
-            )}
-          </div>
+          )}
         </section>
 
         <section
@@ -1419,7 +1718,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allRoles')}</Select.Option>
               {roleOptions.map((role) => (
                 <Select.Option key={role} value={role}>
-                  {formatCapabilityDisplayToken(role)}
+                  {capabilityPackageRoleLabel(role, t)}
                 </Select.Option>
               ))}
             </Select>
@@ -1516,6 +1815,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 total: purposeCapabilities.length,
               })}
             </span>
+            <span data-testid='capability-summary-composition'>
+              {t('settings.capabilitiesPage.packageManager.composition', {
+                agents: String(catalogAgentCount),
+                workflows: String(catalogWorkflowCount),
+                supporting: String(catalogSupportingCount),
+              })}
+            </span>
             <span data-testid='capability-summary-conversation'>
               {t('settings.capabilitiesPage.visibility.conversation')}: {conversationReadyCount} /{' '}
               {purposeCapabilities.length}
@@ -1532,131 +1838,30 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             </span>
           </div>
 
-          <div className='opl-settings-list'>
-            {visibleCapabilities.map((item) => {
-              const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
-              const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
-              const sourceLabel =
-                capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
-              const rowAction = capabilityRowAction(item);
-              const rowActivation = rowAction?.actionId === 'agent_package_activate';
-              const rowNeedsWorkspace = Boolean(
-                rowActivation && rowAction && oplProjectedActionNeedsContextField(rowAction, 'target_workspace')
-              );
-              const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
-              const rowActivationDisabledReason = rowActivation
-                ? rowNeedsWorkspace && !workspaceRootPath
-                  ? 'workspace_root_not_configured'
-                  : item.activationAction?.enabled === false
-                    ? (item.activationAction.reasonCode ?? 'activation_disabled')
-                    : null
-                : null;
-              const rowActionDisabled = Boolean(
-                packageMutationBusy ||
-                rowActivationDisabledReason ||
-                (rowAction && rowActionPayload && projectedActionMissingFields(rowAction, rowActionPayload).length > 0)
-              );
+          <div className='opl-settings-agent-groups' data-testid='settings-agents-catalog-groups'>
+            {catalogGroups.map((group) => {
+              const titleId = `settings-agents-group-${group.key}-title`;
               return (
                 <div
-                  className={`opl-settings-row opl-settings-capability-row ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
-                  data-testid={`capability-purpose-${item.key}`}
-                  data-selected={selectedCapabilityKey === item.key ? 'true' : 'false'}
-                  aria-current={selectedCapabilityKey === item.key ? 'true' : undefined}
-                  key={item.key}
+                  className='opl-settings-agent-group'
+                  role='group'
+                  aria-labelledby={titleId}
+                  data-testid={`settings-agents-group-${group.key}`}
+                  key={group.key}
                 >
-                  <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
-                    <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
-                      {capabilityIcon(item)}
-                    </span>
-                    <div className='min-w-0'>
-                      <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-                      <Typography.Text className='block break-words text-13px text-t-secondary'>
-                        {item.description}
-                      </Typography.Text>
-                      <div className='mt-4px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
-                        {item.packageRole && <Tag>{formatCapabilityDisplayToken(item.packageRole)}</Tag>}
-                        {item.publisher && <span>{item.publisher}</span>}
-                        {item.version && <span>{item.version}</span>}
-                        {item.trustState && <span>{formatCapabilityDisplayToken(item.trustState)}</span>}
-                      </div>
-                    </div>
+                  <div className='opl-settings-agent-group__header'>
+                    <Typography.Text id={titleId} className='font-600 text-t-primary'>
+                      {t(`settings.capabilitiesPage.packageManager.groups.${group.key}`)}
+                    </Typography.Text>
+                    <Typography.Text className='text-12px text-t-tertiary'>{group.entries.length}</Typography.Text>
                   </div>
-                  <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-11px text-t-tertiary'>
-                        {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
-                      </Typography.Text>
-                      <Tag color={capabilityStatusColor(item.availabilityStatus)}>
-                        {capabilityStatusLabel(item.availabilityStatus, t)}
-                      </Tag>
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-11px text-t-tertiary'>
-                        {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
-                      </Typography.Text>
-                      <Typography.Text className='block break-words text-12px text-t-secondary'>
-                        {sourceLabel}
-                      </Typography.Text>
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-11px text-t-tertiary'>
-                        {t('settings.capabilitiesPage.visibility.conversation', {
-                          defaultValue: 'Available in conversations',
-                        })}
-                      </Typography.Text>
-                      <Typography.Text className='block break-words text-12px text-t-secondary'>
-                        {capabilityConversationAvailabilityLabel(item, t)}
-                      </Typography.Text>
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-11px text-t-tertiary'>
-                        {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
-                      </Typography.Text>
-                      {shortcut ? (
-                        <Switch
-                          size='small'
-                          checked={shortcutVisible}
-                          loading={pendingShortcutIds.has(shortcut.shortcut_id)}
-                          disabled={
-                            packageActionBusy ||
-                            pendingShortcutIds.has(shortcut.shortcut_id) ||
-                            !item.availableActions.agent_package_preferences_set
-                          }
-                          onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
-                          data-testid={`agent-package-home-toggle-details-${item.key}`}
-                        />
-                      ) : (
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
-                        </Typography.Text>
-                      )}
-                    </div>
-                    {rowAction && (
-                      <Button
-                        size='small'
-                        type='primary'
-                        loading={busyAction === rowAction.actionId}
-                        disabled={rowActionDisabled}
-                        aria-describedby={
-                          rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
-                        }
-                        data-disabled-reason={rowActivationDisabledReason ?? undefined}
-                        onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
-                        data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
-                      >
-                        {capabilityProjectedActionLabel(rowAction.actionId, t)}
-                      </Button>
-                    )}
-                    <Button
-                      size='small'
-                      type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
-                      aria-expanded={selectedCapabilityKey === item.key}
-                      aria-controls={`capability-details-${item.key}`}
-                      onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
-                      data-testid={`capability-open-details-${item.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.management')}
-                    </Button>
+                  <div className='opl-settings-list opl-settings-agent-group__rows'>
+                    {group.entries.map((entry) => (
+                      <React.Fragment key={entry.item.key}>
+                        {renderCapabilityRow(entry.item)}
+                        {entry.dependents.map((dependent) => renderCapabilityRow(dependent, entry.item))}
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
               );

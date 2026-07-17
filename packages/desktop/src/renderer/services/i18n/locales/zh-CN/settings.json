@@ -2279,6 +2279,8 @@
     },
     "developerSource": {
       "title": "运行来源",
+      "advancedTitle": "高级运行与维护",
+      "advancedSummary": "{{mode}} · {{state}}",
       "description": "普通使用保留 OPL 托管版；自动或开发模式可优先使用所选工作区中的开发仓库。",
       "modeLabel": "全局运行来源",
       "modes": {
@@ -2541,6 +2543,18 @@
       "searchPlaceholder": "搜索能力、用途或标签",
       "searchLabel": "搜索智能体包",
       "roleFilter": "按包角色筛选",
+      "roleLabels": {
+        "standardAgent": "可运行智能体",
+        "workflowProfile": "工作流",
+        "supportingCapability": "配套能力",
+        "other": "其他组件"
+      },
+      "groups": {
+        "agents": "专业智能体",
+        "workflows": "工作流",
+        "supporting": "配套能力"
+      },
+      "supportingFor": "为 {{parent}} 提供能力",
       "statusFilter": "按包状态筛选",
       "sourceFilter": "按来源筛选",
       "allRoles": "全部角色",
@@ -2577,6 +2591,7 @@
       "noHomeShortcut": "无首页快捷入口",
       "rowMeta": "{{sourceLabel}}：{{sourceValue}} · {{versionLabel}}：{{versionValue}} · {{homeLabel}}",
       "packageCount": "显示 {{count}} / {{total}}",
+      "composition": "{{agents}} 个可运行智能体 · {{workflows}} 个工作流 · {{supporting}} 个配套能力",
       "empty": "没有匹配的智能体包。",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",

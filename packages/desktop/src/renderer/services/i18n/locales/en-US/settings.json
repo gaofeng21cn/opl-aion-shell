@@ -2278,6 +2278,8 @@
     },
     "developerSource": {
       "title": "Runtime source",
+      "advancedTitle": "Advanced runtime and maintenance",
+      "advancedSummary": "{{mode}} · {{state}}",
       "description": "OPL keeps a managed copy for normal use; Automatic or Developer mode can prefer repositories in the selected workspace.",
       "modeLabel": "Global runtime source",
       "modes": {
@@ -2540,6 +2542,18 @@
       "searchPlaceholder": "Search capability, purpose, or tag",
       "searchLabel": "Search agent packages",
       "roleFilter": "Filter by package role",
+      "roleLabels": {
+        "standardAgent": "Runnable agent",
+        "workflowProfile": "Workflow profile",
+        "supportingCapability": "Supporting capability",
+        "other": "Other package"
+      },
+      "groups": {
+        "agents": "Agents",
+        "workflows": "Workflow profiles",
+        "supporting": "Supporting capabilities"
+      },
+      "supportingFor": "Supports {{parent}}",
       "statusFilter": "Filter by package status",
       "sourceFilter": "Filter by source",
       "allRoles": "All roles",
@@ -2576,6 +2590,7 @@
       "noHomeShortcut": "No Home shortcut",
       "rowMeta": "{{sourceLabel}}: {{sourceValue}} · {{versionLabel}}: {{versionValue}} · {{homeLabel}}",
       "packageCount": "Showing {{count}} / {{total}}",
+      "composition": "Runnable agents {{agents}} · Workflows {{workflows}} · Supporting capabilities {{supporting}}",
       "empty": "No matching agent packages.",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",

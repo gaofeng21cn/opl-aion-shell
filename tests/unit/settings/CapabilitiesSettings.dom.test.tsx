@@ -658,6 +658,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.groups.manualAndThirdParty.title': 'Manual and third-party capabilities',
         'settings.capabilitiesPage.groups.manualAndThirdParty.description': 'Manage other capabilities.',
         'settings.capabilitiesPage.developerSource.title': 'Runtime source',
+        'settings.capabilitiesPage.developerSource.advancedTitle': 'Advanced runtime and maintenance',
+        'settings.capabilitiesPage.developerSource.advancedSummary': `${options?.mode ?? ''} · ${options?.state ?? ''}`,
         'settings.capabilitiesPage.developerSource.description': 'Choose the source used at runtime.',
         'settings.capabilitiesPage.developerSource.modeLabel': 'Global runtime source',
         'settings.capabilitiesPage.developerSource.modes.managed': 'Managed',
@@ -728,6 +730,15 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.visibility.conversationUnavailable': 'Not available',
         'settings.capabilitiesPage.visibility.conversationUnverified': 'Not verified',
         'settings.capabilitiesPage.visibility.conversationVerificationPending': 'Verification pending',
+        'settings.capabilitiesPage.packageManager.roleLabels.standardAgent': 'Runnable agent',
+        'settings.capabilitiesPage.packageManager.roleLabels.workflowProfile': 'Workflow profile',
+        'settings.capabilitiesPage.packageManager.roleLabels.supportingCapability': 'Supporting capability',
+        'settings.capabilitiesPage.packageManager.roleLabels.other': 'Other package',
+        'settings.capabilitiesPage.packageManager.groups.agents': 'Agents',
+        'settings.capabilitiesPage.packageManager.groups.workflows': 'Workflow profiles',
+        'settings.capabilitiesPage.packageManager.groups.supporting': 'Supporting capabilities',
+        'settings.capabilitiesPage.packageManager.supportingFor': `Supports ${options?.parent ?? ''}`,
+        'settings.capabilitiesPage.packageManager.composition': `Runnable agents ${options?.agents ?? ''} · Workflows ${options?.workflows ?? ''} · Supporting capabilities ${options?.supporting ?? ''}`,
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
         'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
         'settings.capabilitiesPage.detailLabels.packageId': 'Package ID',
@@ -949,15 +960,24 @@ describe('Agents and capabilities settings', () => {
   it('shows runnable agent packages without embedding skills and tools', async () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.getByText('Agents')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Agents' })).toBeInTheDocument();
     expect(screen.getAllByText('Capability directory').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('settings-page-agents')).toHaveClass('opl-settings-page');
+    const developerDisclosure = screen.getByTestId('opl-developer-profile-disclosure');
+    expect(developerDisclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(developerDisclosure).toHaveTextContent('Automatic · Automatically active');
+    expect(screen.queryByTestId('settings-agents-developer-summary')).not.toBeInTheDocument();
+    fireEvent.click(developerDisclosure);
+    expect(developerDisclosure).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('settings-agents-developer-summary').className).not.toMatch(/\bborder(?:-|\b)/);
     expect(screen.getByTestId('settings-agents-catalog-filters')).toHaveClass('sm:grid-cols-2');
     expect(screen.getByTestId('settings-agents-catalog-filters').className).not.toMatch(/\bborder(?:-|\b)/);
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
+    expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
+      'Runnable agents 5 · Workflows 0 · Supporting capabilities 1'
+    );
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 6');
     expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 6');
     const catalog = screen.getByTestId('agent-package-catalog');
@@ -1028,6 +1048,7 @@ describe('Agents and capabilities settings', () => {
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
     expect(detailedResearch).toHaveTextContent('Local developer source');
+    expect(detailedResearch).not.toHaveTextContent('standard_agent');
     expect(detailedResearch).not.toHaveTextContent('Package ID');
     expect(detailedResearch).not.toHaveTextContent('git_checkout');
     expect(detailedResearch).not.toHaveTextContent('Not reported');
@@ -1038,6 +1059,8 @@ describe('Agents and capabilities settings', () => {
     expect(within(detailedResearch).queryByTestId('capability-connector-group-mas-oplConnect')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     detailedResearch = screen.getByTestId('capability-details-mas');
+    expect(detailedResearch).toHaveTextContent('Runnable agent');
+    expect(detailedResearch).not.toHaveTextContent('standard_agent');
     expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
     expect(within(detailedResearch).queryByText('git_checkout')).not.toBeInTheDocument();
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
@@ -1131,6 +1154,100 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('settings-agents-filter-empty')).not.toBeInTheDocument();
   });
 
+  it('orders professional agents, separates workflows, and nests Framework-reported dependencies', async () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'opl-meta-agent',
+          display_name: 'OPL Meta Agent',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'mas-scholar-skills',
+          display_name: 'MAS Scholar Skills',
+          description: 'Research capabilities used by MAS.',
+          package_role: 'framework_capability_package',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'opl-flow',
+          display_name: 'OPL Flow',
+          package_role: 'workflow_profile',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'med-autogrant',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'med-autoscience',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'opl-bookforge',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'redcube-ai',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+      ],
+      {
+        statusEntries: [
+          {
+            package_id: 'mas-scholar-skills',
+            dependent_guard: {
+              required_by_package_ids: ['med-autoscience'],
+              disable: { allowed: false, reason_code: 'required_by_installed_package' },
+              uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
+            },
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const groups = screen.getByTestId('settings-agents-catalog-groups');
+    const rowOrder = Array.from(groups.querySelectorAll<HTMLElement>("[data-testid^='capability-purpose-']")).map(
+      (row) => row.dataset.testid?.replace('capability-purpose-', '')
+    );
+    expect(rowOrder).toEqual(['mas', 'mas-scholar-skills', 'mag', 'rca', 'obf', 'oma', 'opl-flow']);
+    expect(screen.getByTestId('settings-agents-group-agents')).toHaveTextContent('Agents5');
+    expect(screen.getByTestId('settings-agents-group-workflows')).toHaveTextContent('Workflow profiles1');
+    expect(screen.queryByTestId('settings-agents-group-supporting')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
+      'Runnable agents 5 · Workflows 1 · Supporting capabilities 1'
+    );
+
+    const scholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
+    expect(scholarSkills).toHaveClass('opl-settings-capability-row--dependent');
+    expect(scholarSkills).toHaveAttribute('data-parent-capability', 'mas');
+    expect(scholarSkills).toHaveTextContent('Supports Med Auto Science');
+    expect(scholarSkills).toHaveTextContent('Supporting capability');
+    expect(groups).not.toHaveTextContent('standard_agent');
+    expect(groups).not.toHaveTextContent('workflow_profile');
+    expect(groups).not.toHaveTextContent('framework_capability_package');
+
+    await chooseSelectOption('settings-agents-role-filter', 'Supporting capability');
+    const filteredScholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
+    expect(filteredScholarSkills).not.toHaveClass('opl-settings-capability-row--dependent');
+    expect(filteredScholarSkills).not.toHaveAttribute('data-parent-capability');
+    expect(screen.getByTestId('settings-agents-group-supporting')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
+  });
+
   it('filters canonical package roles, statuses, and source explanation kinds', async () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
@@ -1181,7 +1298,8 @@ describe('Agents and capabilities settings', () => {
       within(screen.getByTestId('capability-purpose-oma')).getByText('Local developer source')
     ).toBeInTheDocument();
 
-    await chooseSelectOption('settings-agents-role-filter', 'framework_capability_package');
+    expect(screen.getByTestId('agent-package-catalog')).not.toHaveTextContent('framework_capability_package');
+    await chooseSelectOption('settings-agents-role-filter', 'Supporting capability');
     expect(screen.getByTestId('capability-purpose-oma')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
@@ -1725,6 +1843,12 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const profile = screen.getByTestId('opl-developer-profile-control');
+    const disclosure = within(profile).getByTestId('opl-developer-profile-disclosure');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    disclosure.focus();
+    expect(disclosure).toHaveFocus();
+    fireEvent.click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
     expect(profile).toHaveTextContent('/Users/test/workspace');
     expect(
       within(profile)
@@ -1812,6 +1936,7 @@ describe('Agents and capabilities settings', () => {
 
     renderCapabilities(<AgentPackagesSettingsContent />);
 
+    fireEvent.click(screen.getByTestId('opl-developer-profile-disclosure'));
     const pending = screen.getByTestId('opl-developer-profile-inspection-pending');
     expect(pending).toHaveTextContent('Checking GitHub identity and repository authority');
     expect(screen.queryByText(/identity mismatch/i)).not.toBeInTheDocument();
