@@ -1258,6 +1258,7 @@ describe('Agents and capabilities settings', () => {
         package_id: 'med-autoscience',
         package_role: 'standard_agent',
         installed: true,
+        trust_tier: 'first_party',
         readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
         source_explanation: {
           kind: 'first_party_release_catalog',
@@ -1296,7 +1297,13 @@ describe('Agents and capabilities settings', () => {
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(within(screen.getByTestId('capability-purpose-mas')).getByText('OPL managed package')).toBeInTheDocument();
+    const managedRow = screen.getByTestId('capability-purpose-mas');
+    expect(within(managedRow).getByTestId('capability-source-mas')).toHaveTextContent(/Source\s*OPL managed package/);
+    expect(within(managedRow).getByTestId('capability-conversation-mas')).toHaveTextContent(
+      /Available in conversations\s*Not available/
+    );
+    expect(within(managedRow).getByTestId('capability-controls-mas')).toBeInTheDocument();
+    expect(managedRow).not.toHaveTextContent('first_party');
     expect(within(screen.getByTestId('capability-purpose-mag')).getByText('Registry install')).toBeInTheDocument();
     expect(
       within(screen.getByTestId('capability-purpose-oma')).getByText('Local developer source')

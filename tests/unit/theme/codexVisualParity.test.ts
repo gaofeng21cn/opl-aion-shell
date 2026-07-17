@@ -198,6 +198,24 @@ describe('Codex visual parity overlay', () => {
     expect(refreshButton).not.toContain('@fortawesome');
   });
 
+  it('keeps the agent directory readable at compact desktop widths without raw package enums', () => {
+    const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
+    const capabilities = read('packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx');
+
+    expect(settingsStyles).toMatch(
+      /\.opl-settings-capability-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) max-content;[^}]*align-items:\s*flex-start;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.opl-settings-capability-description\s*{[^}]*overflow:\s*visible;[^}]*white-space:\s*normal;[^}]*text-overflow:\s*clip;/
+    );
+    expect(settingsStyles).toMatch(
+      /@container settings-page \(max-width: 720px\)\s*{[\s\S]*?\.opl-settings-capability-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[\s\S]*?\.opl-settings-row__meta\.opl-settings-capability-meta\s*{[^}]*width:\s*100%;[^}]*flex-direction:\s*row;/
+    );
+    expect(capabilities).toContain('data-testid={`capability-source-${item.key}`}');
+    expect(capabilities).toContain('data-testid={`capability-conversation-${item.key}`}');
+    expect(capabilities).not.toContain('formatCapabilityDisplayToken(item.trustState)');
+  });
+
   it('resets unused border sides before drawing Settings separators', () => {
     const separatorSources = [
       'packages/desktop/src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx',

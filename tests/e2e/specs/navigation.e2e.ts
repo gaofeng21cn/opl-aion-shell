@@ -715,6 +715,71 @@ test.describe('Settings Pages', () => {
     }
   });
 
+  test('seven-package agent directory stays readable at 1024x768', async ({ page, electronApp }) => {
+    test.skip(
+      process.env.AIONUI_E2E_REQUIRE_SEVEN_AGENT_PACKAGES !== '1',
+      'requires the release seven-package App state fixture'
+    );
+    await setElectronViewport(page, electronApp, { width: 1024, height: 768 });
+    await goToSettings(page, 'agents');
+    await expectUrlContains(page, 'agents');
+    await expectVisualStateReady(page);
+
+    const catalog = page.locator('[data-testid="agent-package-catalog"]');
+    const rows = catalog.locator('[data-testid^="capability-purpose-"]');
+    await expect(rows).toHaveCount(7, { timeout: 30_000 });
+    await expect(catalog).not.toContainText('first_party');
+
+    const metrics = await rows.evaluateAll((elements) =>
+      elements.map((element) => {
+        const row = element as HTMLElement;
+        const main = row.querySelector<HTMLElement>(':scope > .opl-settings-row__main');
+        const controls = row.querySelector<HTMLElement>(':scope > .opl-settings-capability-meta');
+        const description = row.querySelector<HTMLElement>('.opl-settings-capability-description');
+        const rowRect = row.getBoundingClientRect();
+        const mainRect = main?.getBoundingClientRect();
+        const controlsRect = controls?.getBoundingClientRect();
+        const descriptionRect = description?.getBoundingClientRect();
+        const intersectionWidth =
+          mainRect && controlsRect
+            ? Math.max(0, Math.min(mainRect.right, controlsRect.right) - Math.max(mainRect.left, controlsRect.left))
+            : null;
+        const intersectionHeight =
+          mainRect && controlsRect
+            ? Math.max(0, Math.min(mainRect.bottom, controlsRect.bottom) - Math.max(mainRect.top, controlsRect.top))
+            : null;
+
+        return {
+          id: row.dataset.testid ?? 'unknown',
+          rowWithinViewport: rowRect.left >= -1 && rowRect.right <= window.innerWidth + 1,
+          rowHasNoHorizontalOverflow: row.scrollWidth <= row.clientWidth + 1,
+          mainWithinRow: Boolean(mainRect && mainRect.left >= rowRect.left - 1 && mainRect.right <= rowRect.right + 1),
+          controlsWithinRow: Boolean(
+            controlsRect && controlsRect.left >= rowRect.left - 1 && controlsRect.right <= rowRect.right + 1
+          ),
+          mainAndControlsDoNotOverlap:
+            intersectionWidth !== null && intersectionHeight !== null
+              ? intersectionWidth <= 1 || intersectionHeight <= 1
+              : false,
+          descriptionVisible: Boolean(descriptionRect && descriptionRect.width > 0 && descriptionRect.height > 0),
+          descriptionHasNoHorizontalOverflow: Boolean(
+            description && description.scrollWidth <= description.clientWidth + 1
+          ),
+        };
+      })
+    );
+
+    for (const metric of metrics) {
+      expect(metric.rowWithinViewport, JSON.stringify(metric)).toBe(true);
+      expect(metric.rowHasNoHorizontalOverflow, JSON.stringify(metric)).toBe(true);
+      expect(metric.mainWithinRow, JSON.stringify(metric)).toBe(true);
+      expect(metric.controlsWithinRow, JSON.stringify(metric)).toBe(true);
+      expect(metric.mainAndControlsDoNotOverlap, JSON.stringify(metric)).toBe(true);
+      expect(metric.descriptionVisible, JSON.stringify(metric)).toBe(true);
+      expect(metric.descriptionHasNoHorizontalOverflow, JSON.stringify(metric)).toBe(true);
+    }
+  });
+
   test('compact 400x600 settings routes stay within the viewport', async ({ page, electronApp }) => {
     test.setTimeout(180_000);
     await setElectronViewport(page, electronApp, { width: 400, height: 600 });

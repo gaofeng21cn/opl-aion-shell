@@ -1396,98 +1396,110 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
             {capabilityIcon(item)}
           </span>
-          <div className='min-w-0'>
+          <div className='opl-settings-capability-copy min-w-0'>
             {parent && (
               <Typography.Text className='block text-11px text-t-tertiary'>
                 {t('settings.capabilitiesPage.packageManager.supportingFor', { parent: parent.title })}
               </Typography.Text>
             )}
             <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-            <Typography.Text className='block break-words text-13px text-t-secondary'>
+            <Typography.Text
+              className='opl-settings-capability-description block text-13px text-t-secondary'
+              data-testid={`capability-description-${item.key}`}
+            >
               {item.description}
             </Typography.Text>
-            <div className='mt-4px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
+            <div className='opl-settings-capability-identity mt-5px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
               {item.packageRole && <Tag>{capabilityPackageRoleLabel(item.packageRole, t)}</Tag>}
               {item.publisher && <span>{item.publisher}</span>}
               {item.version && <span>{item.version}</span>}
-              {item.trustState && <span>{formatCapabilityDisplayToken(item.trustState)}</span>}
+            </div>
+            <div className='opl-settings-capability-facts mt-5px text-12px text-t-secondary'>
+              <span className='opl-settings-capability-fact' data-testid={`capability-source-${item.key}`}>
+                <span className='opl-settings-capability-fact__label'>
+                  {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
+                </span>
+                <span>{sourceLabel}</span>
+              </span>
+              <span className='opl-settings-capability-fact' data-testid={`capability-conversation-${item.key}`}>
+                <span className='opl-settings-capability-fact__label'>
+                  {t('settings.capabilitiesPage.visibility.conversation', {
+                    defaultValue: 'Available in conversations',
+                  })}
+                </span>
+                <span>{capabilityConversationAvailabilityLabel(item, t)}</span>
+              </span>
             </div>
           </div>
         </div>
-        <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-11px text-t-tertiary'>
-              {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
-            </Typography.Text>
-            <Tag color={capabilityStatusColor(item.availabilityStatus)}>
-              {capabilityStatusLabel(item.availabilityStatus, t)}
-            </Tag>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-11px text-t-tertiary'>
-              {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
-            </Typography.Text>
-            <Typography.Text className='block break-words text-12px text-t-secondary'>{sourceLabel}</Typography.Text>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-11px text-t-tertiary'>
-              {t('settings.capabilitiesPage.visibility.conversation', {
-                defaultValue: 'Available in conversations',
-              })}
-            </Typography.Text>
-            <Typography.Text className='block break-words text-12px text-t-secondary'>
-              {capabilityConversationAvailabilityLabel(item, t)}
-            </Typography.Text>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-11px text-t-tertiary'>
-              {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
-            </Typography.Text>
-            {shortcut ? (
-              <Switch
-                size='small'
-                checked={shortcutVisible}
-                loading={pendingShortcutIds.has(shortcut.shortcut_id)}
-                disabled={
-                  packageActionBusy ||
-                  pendingShortcutIds.has(shortcut.shortcut_id) ||
-                  !item.availableActions.agent_package_preferences_set
-                }
-                onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
-                data-testid={`agent-package-home-toggle-details-${item.key}`}
-              />
-            ) : (
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
+        <div
+          className='opl-settings-row__meta opl-settings-capability-meta min-w-0'
+          data-testid={`capability-controls-${item.key}`}
+        >
+          <div className='opl-settings-capability-state'>
+            <span
+              className='opl-settings-capability-status'
+              aria-label={`${t('settings.capabilitiesPage.packageManager.tableHeaders.status')}: ${capabilityStatusLabel(
+                item.availabilityStatus,
+                t
+              )}`}
+            >
+              <Tag color={capabilityStatusColor(item.availabilityStatus)}>
+                {capabilityStatusLabel(item.availabilityStatus, t)}
+              </Tag>
+            </span>
+            <span className='opl-settings-capability-home'>
+              <Typography.Text className='text-11px text-t-tertiary'>
+                {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
               </Typography.Text>
-            )}
+              {shortcut ? (
+                <Switch
+                  size='small'
+                  checked={shortcutVisible}
+                  loading={pendingShortcutIds.has(shortcut.shortcut_id)}
+                  disabled={
+                    packageActionBusy ||
+                    pendingShortcutIds.has(shortcut.shortcut_id) ||
+                    !item.availableActions.agent_package_preferences_set
+                  }
+                  onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
+                  data-testid={`agent-package-home-toggle-details-${item.key}`}
+                />
+              ) : (
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
+                </Typography.Text>
+              )}
+            </span>
           </div>
-          {rowAction && (
+          <div className='opl-settings-capability-actions'>
+            {rowAction && (
+              <Button
+                size='small'
+                type='primary'
+                loading={busyAction === rowAction.actionId}
+                disabled={rowActionDisabled}
+                aria-describedby={
+                  rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
+                }
+                data-disabled-reason={rowActivationDisabledReason ?? undefined}
+                onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
+                data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
+              >
+                {capabilityProjectedActionLabel(rowAction.actionId, t)}
+              </Button>
+            )}
             <Button
               size='small'
-              type='primary'
-              loading={busyAction === rowAction.actionId}
-              disabled={rowActionDisabled}
-              aria-describedby={
-                rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
-              }
-              data-disabled-reason={rowActivationDisabledReason ?? undefined}
-              onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
-              data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
+              type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
+              aria-expanded={selectedCapabilityKey === item.key}
+              aria-controls={`capability-details-${item.key}`}
+              onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
+              data-testid={`capability-open-details-${item.key}`}
             >
-              {capabilityProjectedActionLabel(rowAction.actionId, t)}
+              {t('settings.capabilitiesPage.packageManager.management')}
             </Button>
-          )}
-          <Button
-            size='small'
-            type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
-            aria-expanded={selectedCapabilityKey === item.key}
-            aria-controls={`capability-details-${item.key}`}
-            onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
-            data-testid={`capability-open-details-${item.key}`}
-          >
-            {t('settings.capabilitiesPage.packageManager.management')}
-          </Button>
+          </div>
         </div>
       </div>
     );
