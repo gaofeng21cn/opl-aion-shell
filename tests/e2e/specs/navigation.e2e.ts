@@ -9,6 +9,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { GUID_INPUT, goToGuid, goToSettings, expectUrlContains, takeScreenshot, type SettingsTab } from '../helpers';
+import { httpInvoke } from '../helpers/httpBridge';
 
 const SETTINGS_SCREENSHOT_DIR = path.resolve(__dirname, '..', 'screenshots');
 const SETTINGS_VISUAL_MANIFEST = path.join(SETTINGS_SCREENSHOT_DIR, 'settings-control-center-manifest.json');
@@ -16,7 +17,7 @@ const SETTINGS_E2E_MODE =
   process.env.E2E_PACKAGED === '1' ? 'E2E_PACKAGED=1' : process.env.E2E_DEV === '1' ? 'E2E_DEV=1' : '';
 const SETTINGS_VISUAL_VIEWPORTS = [
   { name: 'desktop-light', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
-  { name: 'narrow-light', navigation: 'mobile', theme: 'light', size: { width: 720, height: 900 } },
+  { name: 'compact-light', navigation: 'mobile', theme: 'light', size: { width: 400, height: 600 } },
   { name: 'desktop-dark', navigation: 'desktop', theme: 'dark', size: { width: 1440, height: 960 } },
   { name: 'narrow-dark', navigation: 'mobile', theme: 'dark', size: { width: 720, height: 900 } },
 ] as const;
@@ -119,6 +120,72 @@ const expectVisualAnchors = async (page: import('@playwright/test').Page, anchor
       });
     }
   }
+};
+
+const setElectronViewport = async (
+  page: import('@playwright/test').Page,
+  electronApp: import('@playwright/test').ElectronApplication,
+  size: { width: number; height: number }
+) => {
+  await electronApp.evaluate(({ BrowserWindow }, viewport) => {
+    const mainWindow = BrowserWindow.getAllWindows()
+      .filter((window) => !window.isDestroyed())
+      .toSorted((left, right) => {
+        const leftBounds = left.getBounds();
+        const rightBounds = right.getBounds();
+        return rightBounds.width * rightBounds.height - leftBounds.width * leftBounds.height;
+      })[0];
+    if (!mainWindow) throw new Error('Settings visual QA could not resolve the Electron main window');
+    mainWindow.setContentSize(viewport.width, viewport.height);
+  }, size);
+  await page.setViewportSize(size);
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect
+    .poll(() => page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })))
+    .toEqual(size);
+};
+
+const applySettingsTheme = async (page: import('@playwright/test').Page, theme: 'light' | 'dark') => {
+  await page.waitForFunction(
+    () => typeof (window as unknown as { __backendPort?: number }).__backendPort === 'number',
+    undefined,
+    { timeout: 30_000 }
+  );
+  await httpInvoke(page, 'PUT', '/api/settings/client', { 'theme.appearanceMode': theme });
+  await page.reload();
+  await page.waitForFunction(
+    (expectedTheme) =>
+      typeof (window as unknown as { __backendPort?: number }).__backendPort === 'number' &&
+      document.documentElement.getAttribute('data-theme') === expectedTheme,
+    theme,
+    { timeout: 30_000 }
+  );
+};
+
+const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page) => {
+  const metrics = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>('.settings-page-content');
+    const contentRect = content?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      contentClientWidth: content?.clientWidth ?? null,
+      contentScrollWidth: content?.scrollWidth ?? null,
+      contentLeft: contentRect?.left ?? null,
+      contentRight: contentRect?.right ?? null,
+    };
+  });
+
+  expect(metrics.documentWidth, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+  expect(metrics.bodyWidth, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+  expect(metrics.contentClientWidth, JSON.stringify(metrics)).not.toBeNull();
+  expect(metrics.contentScrollWidth, JSON.stringify(metrics)).not.toBeNull();
+  expect(metrics.contentScrollWidth ?? Infinity, JSON.stringify(metrics)).toBeLessThanOrEqual(
+    (metrics.contentClientWidth ?? 0) + 1
+  );
+  expect(metrics.contentLeft ?? -1, JSON.stringify(metrics)).toBeGreaterThanOrEqual(0);
+  expect(metrics.contentRight ?? Infinity, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.viewportWidth + 1);
 };
 
 const expectStorageActionIconLayout = async (page: import('@playwright/test').Page) => {
@@ -284,10 +351,23 @@ const openCompatibilityTarget = async (page: import('@playwright/test').Page, ta
 };
 
 const expectSettingsAnchorLanding = async (page: import('@playwright/test').Page, section: string) => {
-  const target = page.locator(`#${section}`);
-  await expect(target).toBeVisible();
-  await expect(target).toBeInViewport();
-  await expect.poll(() => target.evaluate((element) => document.activeElement === element)).toBe(true);
+  const anchorLocator = page.locator(`#${section}`);
+  await expect(anchorLocator).toHaveCount(1);
+  await expect
+    .poll(() =>
+      anchorLocator.evaluate((element) => {
+        const target = element.hasAttribute('aria-hidden')
+          ? (element.closest<HTMLElement>('.opl-settings-section') ?? element)
+          : element;
+        const rect = target.getBoundingClientRect();
+        return {
+          active: document.activeElement === target,
+          visible: rect.width > 0 && rect.height > 0,
+          inViewport: rect.bottom > 0 && rect.top < window.innerHeight,
+        };
+      })
+    )
+    .toEqual({ active: true, visible: true, inViewport: true });
 };
 
 async function requireGuidInput(page: import('@playwright/test').Page) {
@@ -464,31 +544,8 @@ test.describe('Settings Pages', () => {
         anchor('preferences_display', '[data-testid="preferences-display-section"]'),
       ],
     },
-    {
-      tab: 'personalization',
-      name: 'Personalization Settings',
-      level: 'top-level',
-      anchors: [
-        ...commonSettingsAnchors,
-        anchor('personalization_page', '[data-testid="settings-page-personalization"]'),
-        anchor('personalization_primary', '[data-testid="settings-personalization-primary"]'),
-        anchor('personalization_instructions', '[data-testid="settings-personalization-instructions"]'),
-        anchor('personalization_system_agents', '[data-testid="settings-system-agents-editor"]'),
-        anchor('personalization_app_context', '[data-testid="settings-opl-app-context-editor"]'),
-      ],
-    },
   ];
   const secondaryTabs: SettingsVisualTarget[] = [
-    {
-      tab: 'advanced',
-      name: 'Advanced Settings',
-      level: 'secondary',
-      anchors: [
-        ...commonSettingsAnchors,
-        anchor('advanced_page', '[data-testid="settings-page-advanced"]'),
-        anchor('advanced_primary', '[data-testid="settings-advanced-primary"]'),
-      ],
-    },
     {
       tab: 'about',
       name: 'About Settings',
@@ -520,7 +577,7 @@ test.describe('Settings Pages', () => {
       section: 'themes',
       anchors: [
         anchor('preferences_page', '[data-testid="settings-page-preferences"]'),
-        anchor('themes_section', '#themes'),
+        anchor('themes_section', '[data-testid="appearance-mode-selector"]'),
       ],
     },
     {
@@ -531,6 +588,26 @@ test.describe('Settings Pages', () => {
       anchors: [
         anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
         anchor('services_section', '#services'),
+      ],
+    },
+    {
+      id: 'personalization_to_workspace',
+      source: 'personalization',
+      target: 'workspace',
+      section: 'personalization',
+      anchors: [
+        anchor('workspace_page', '[data-testid="settings-page-workspace"]'),
+        anchor('personalization_section', '#personalization'),
+      ],
+    },
+    {
+      id: 'advanced_to_maintenance_diagnostics',
+      source: 'advanced',
+      target: 'environment',
+      section: 'diagnostics',
+      anchors: [
+        anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
+        anchor('diagnostics_action', '#diagnostics'),
       ],
     },
   ];
@@ -579,7 +656,7 @@ test.describe('Settings Pages', () => {
       ],
     },
   ];
-  const legacyTabs = ['gemini', 'model', 'agent', 'assistants', 'display', 'webui', 'system'];
+  const legacyTabs = ['gemini', 'model', 'agent', 'assistants', 'display', 'webui', 'system', 'advanced'];
 
   for (const { tab, name } of tabs) {
     test(`${name} loads`, async ({ page }) => {
@@ -625,6 +702,29 @@ test.describe('Settings Pages', () => {
     }
   });
 
+  test('compact 400x600 settings routes stay within the viewport', async ({ page, electronApp }) => {
+    test.setTimeout(180_000);
+    await setElectronViewport(page, electronApp, { width: 400, height: 600 });
+
+    for (const { tab, anchors } of tabs) {
+      await goToSettings(page, tab);
+      await expectUrlContains(page, tab);
+      await expectSelectedSettingsNavigationItem(page, tab, 'mobile');
+      await expectVisualAnchors(page, anchors);
+      await expectNoHorizontalOverflow(page);
+      if (tab === 'storage') await expectStorageActionIconLayout(page);
+    }
+
+    const manualCapabilities = stateTargets.find(({ id }) => id === 'capabilities_manual_and_third_party');
+    expect(manualCapabilities).toBeDefined();
+    if (manualCapabilities) {
+      await goToSettings(page, manualCapabilities.route);
+      await manualCapabilities.action(page);
+      await expectVisualAnchors(page, manualCapabilities.anchors);
+      await expectNoHorizontalOverflow(page);
+    }
+  });
+
   test('settings search is unique and supports bilingual Enter navigation', async ({ page }) => {
     const searches = [
       { size: SETTINGS_VISUAL_VIEWPORTS[0].size, query: 'packages', route: 'environment', section: 'updates' },
@@ -652,7 +752,7 @@ test.describe('Settings Pages', () => {
     }
   });
 
-  test('screenshot: settings control center visual QA', async ({ page }) => {
+  test('screenshot: settings control center visual QA', async ({ page, electronApp }) => {
     test.skip(!process.env.E2E_SCREENSHOTS, 'screenshots disabled');
     test.setTimeout(900_000);
     const commit = gitCommit();
@@ -681,13 +781,11 @@ test.describe('Settings Pages', () => {
       .join(' ');
 
     for (const viewport of SETTINGS_VISUAL_VIEWPORTS) {
-      await page.setViewportSize(viewport.size);
+      await setElectronViewport(page, electronApp, viewport.size);
       await goToSettings(page, 'general');
       const currentTheme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
       if (currentTheme !== viewport.theme) {
-        const themeButton = page.locator('[data-testid="sider-footer-theme"]');
-        await expect(themeButton).toBeVisible();
-        await themeButton.click();
+        await applySettingsTheme(page, viewport.theme);
       }
       await page.waitForFunction(
         (theme) => document.documentElement.getAttribute('data-theme') === theme,

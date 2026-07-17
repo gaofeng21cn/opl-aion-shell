@@ -1958,7 +1958,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           <Button data-testid='settings-maintenance-management-action' onClick={() => setManagementVisible(true)}>
             {t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
           </Button>
-          <Button data-testid='settings-maintenance-diagnostics-action' onClick={() => setDiagnosticsVisible(true)}>
+          <Button
+            id='diagnostics'
+            data-testid='settings-maintenance-diagnostics-action'
+            onClick={() => setDiagnosticsVisible(true)}
+          >
             {t('settings.oplEnvironmentPage.advancedDetails.title')}
           </Button>
           <Modal

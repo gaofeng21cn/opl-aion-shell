@@ -409,7 +409,7 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
   const geometry = await page.evaluate(() => {
     const active = document.querySelector<HTMLElement>('[data-testid^="home-starter-"][aria-pressed="true"]');
     const inactive = document.querySelector<HTMLElement>('[data-testid^="home-starter-"][aria-pressed="false"]');
-    const content = active?.querySelector<HTMLElement>('.arco-btn-content');
+    const content = active?.querySelector<HTMLElement>('.arco-btn-content') ?? active;
     const icon = active?.querySelector<HTMLElement>('[data-testid^="starter-icon-"]');
     const check = active?.querySelector<HTMLElement>('[data-testid="starter-active-check"]');
     const label = content ? Array.from(content.children).find((child) => child !== icon && child !== check) : null;
@@ -862,7 +862,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
     {
       id: 'home-mobile-dark-en-US-rail-closed',
       screenshotName: 'gui-baseline/home/mobile/dark/en-US/rail-closed',
-      viewport: { name: 'mobile', width: 420, height: 844 },
+      viewport: { name: 'mobile', width: 400, height: 600 },
       theme: 'dark',
       locale: 'en-US',
       anchors: [
@@ -921,7 +921,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
     {
       id: 'home-mobile-dark-en-US-action-sheet-open',
       screenshotName: 'gui-baseline/home/mobile/dark/en-US/action-sheet-open',
-      viewport: { name: 'mobile', width: 420, height: 844 },
+      viewport: { name: 'mobile', width: 400, height: 600 },
       theme: 'dark',
       locale: 'en-US',
       anchors: [
@@ -1113,9 +1113,36 @@ function buildTargets(conversationId: string): VisualTarget[] {
       ],
     },
     {
+      id: 'conversation-mobile-light-en-US-composer',
+      screenshotName: 'gui-baseline/conversation/mobile/light/en-US/composer',
+      viewport: { name: 'mobile', width: 400, height: 600 },
+      theme: 'light',
+      locale: 'en-US',
+      anchors: [
+        anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
+        anchor('conversation_composer', '[data-testid="conversation-composer"]'),
+        anchor('mobile_rail_closed', `${NAVIGATION_RAIL_SELECTOR}.collapsed`, 'attached'),
+      ],
+      coverageGaps: [],
+      setup: async (page) => {
+        await openFixtureConversation(page, conversationId, 'closed');
+        await setNavigationRailExpanded(page, false);
+        await expectConversationLocale(page, 'en-US');
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', composer: 'mobile' };
+      },
+      layoutChecks: async (page) => [
+        ...(await conversationChecks(page)),
+        await viewportCheck(
+          page,
+          'mobile_conversation_composer_within_viewport',
+          '[data-testid="conversation-composer"]'
+        ),
+      ],
+    },
+    {
       id: 'conversation-mobile-light-en-US-preview-open',
       screenshotName: 'gui-baseline/conversation/mobile/light/en-US/preview-open',
-      viewport: { name: 'mobile', width: 420, height: 844 },
+      viewport: { name: 'mobile', width: 400, height: 600 },
       theme: 'light',
       locale: 'en-US',
       anchors: [

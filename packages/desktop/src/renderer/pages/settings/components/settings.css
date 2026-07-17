@@ -43,6 +43,12 @@
   vertical-align: middle;
 }
 
+.settings-page-wrapper .arco-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .settings-page-wrapper .arco-btn > .i-icon svg {
   width: 16px;
   height: 16px;
