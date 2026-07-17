@@ -347,6 +347,90 @@ describe('buildRuntimeEnvironmentProjection', () => {
     });
   });
 
+  it('separates desktop App update attention from runtime attention and managed App fallback', () => {
+    const readyState = {
+      core: { codex: { status: 'ready' } },
+      provider: {
+        temporal: {
+          status: 'ready',
+          details: {
+            scheduler: { status: 'ready', ready: true },
+            worker_readiness: { service_ready: true, worker_ready: true },
+          },
+        },
+      },
+      paths: { workspace_root_path: '/Users/example/workspace' },
+      agent_packages: {
+        directory: { installed_packages: [] },
+        status_index: { status: 'available', installed_package_count: 0, packages: {} },
+      },
+      runtime_source_carriers: { items: [] },
+    };
+    const managedApp = {
+      id: 'opl_app' as const,
+      label: 'OPL App',
+      state: 'update_available',
+      conditions: [],
+      substatuses: [],
+      safeToApply: false,
+      repairAllowed: false,
+      rollbackAllowed: false,
+      manualRequired: false,
+      developerCheckout: false,
+      dirtyCheckout: false,
+      needsRestart: false,
+      needsReload: false,
+      hostExecutorRequired: false,
+      hostUpdateRouteExamples: [],
+      preservedMounts: [],
+      requiredPreservationEvidence: [],
+    };
+    const buildProjection = (
+      desktopAutoUpdate?: Parameters<typeof buildRuntimeEnvironmentProjection>[0]['desktopAutoUpdate']
+    ) =>
+      buildRuntimeEnvironmentProjection({
+        appState: readyState,
+        managedUpdatePlane: { components: [managedApp] },
+        managedUpdateMaintenance: maintenance,
+        desktopAutoUpdate,
+        t,
+      });
+
+    expect(buildProjection()).toMatchObject({
+      runtimeAttentionCount: 0,
+      attentionCount: 1,
+      componentsNeedingMaintenance: 1,
+    });
+    expect(
+      buildProjection({
+        supported: true,
+        status: { status: 'not-available' },
+        label: 'current',
+        tone: 'green',
+        updateAvailable: false,
+        needsAttention: false,
+      })
+    ).toMatchObject({
+      runtimeAttentionCount: 0,
+      attentionCount: 0,
+      componentsNeedingMaintenance: 0,
+    });
+    expect(
+      buildProjection({
+        supported: true,
+        status: { status: 'available', version: '26.7.18' },
+        label: 'available',
+        tone: 'orange',
+        updateAvailable: true,
+        needsAttention: true,
+      })
+    ).toMatchObject({
+      runtimeAttentionCount: 0,
+      attentionCount: 1,
+      componentsNeedingMaintenance: 1,
+    });
+  });
+
   it('does not infer Temporal readiness from the legacy server reachability field', () => {
     const projection = buildRuntimeEnvironmentProjection({
       appState: {

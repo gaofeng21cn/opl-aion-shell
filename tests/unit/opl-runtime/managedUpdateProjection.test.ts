@@ -232,6 +232,75 @@ describe('managed update projection public lifecycle ids', () => {
     );
   });
 
+  it('deduplicates dependency installations by real path before falling back to binary path', () => {
+    const plane = readManagedUpdatePlane(
+      {
+        managed_update: {
+          components: [
+            {
+              component_id: 'opl_base',
+              state: 'current',
+              current: {
+                dependency_catalog: {
+                  lifecycle_owner: 'opl_base',
+                  dependencies: [
+                    {
+                      dependency_id: 'codex-cli',
+                      installed: true,
+                      currentness: 'current',
+                      ownership: 'opl_managed',
+                      update_mode: 'silent_managed',
+                      binary_path: '/managed/shims/codex',
+                      real_path: '/managed/runtime/codex',
+                      external_installations: [
+                        {
+                          dependency_id: 'codex-cli-real-alias',
+                          installed: true,
+                          currentness: 'current',
+                          ownership: 'global_path',
+                          update_mode: 'detect_only_guidance',
+                          binary_path: '/usr/local/bin/codex',
+                          real_path: '/managed/runtime/codex/',
+                        },
+                      ],
+                    },
+                    {
+                      dependency_id: 'temporal-system-cli',
+                      installed: true,
+                      currentness: 'current',
+                      ownership: 'global_path',
+                      update_mode: 'detect_only_guidance',
+                      binary_path: '/opt/homebrew/bin/temporal',
+                      external_installations: [
+                        {
+                          dependency_id: 'temporal-system-cli-alias',
+                          installed: true,
+                          currentness: 'current',
+                          ownership: 'global_path',
+                          update_mode: 'detect_only_guidance',
+                          binary_path: '/opt/homebrew/bin/temporal/',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+      {}
+    );
+
+    const dependencies = plane.components.find((component) => component.id === 'opl_base')?.dependencyCatalog
+      ?.dependencies;
+    expect(dependencies?.map((dependency) => dependency.id)).toEqual(['codex-cli', 'temporal-system-cli']);
+    expect(dependencies?.[0]).toMatchObject({
+      binaryPath: '/managed/shims/codex',
+      realPath: '/managed/runtime/codex',
+    });
+  });
+
   it('reads OPL Flow managed skills and tools from the typed dependency catalog', () => {
     const catalog = readOplFlowManagedCapabilityCatalog({
       lifecycleOwner: 'opl_base',

@@ -718,6 +718,11 @@
   "aboutSupportDesc": "查看文档、版本记录，或提交使用反馈。",
   "aboutUpdateChecking": "正在检查更新…",
   "aboutUpdateAvailable": "发现新版本 {{version}}",
+  "aboutUpdateAvailableGeneric": "发现新版本",
+  "aboutUpdateDownloading": "正在下载更新",
+  "aboutUpdateDownloaded": "更新已就绪，重启后安装",
+  "aboutUpdateCancelled": "更新已取消",
+  "aboutUpdateNotChecked": "尚未检查更新",
   "aboutUpdateCurrent": "已是最新版",
   "aboutUpdateUnknown": "暂时无法检查更新",
   "releasePage": "版本发布记录",
@@ -2684,6 +2689,7 @@
       "description": "查看 OPL App、OPL Base、OPL Packages 的维护状态，以及本机服务健康情况。",
       "lastChecked": "最近检查：{{value}}",
       "actions": {
+        "checkRuntimeEnvironment": "检查 OPL Base",
         "repairRuntimeEnvironment": "修复 OPL Base",
         "syncCapabilityPacks": "同步 OPL Packages",
         "checkBackgroundServices": "检查后台服务"
@@ -2693,7 +2699,7 @@
         "advancedDiagnostics": "运行状态 / 高级诊断"
       },
       "results": {
-        "title": "最近结果",
+        "title": "当前状态",
         "noAction": "此窗口内尚未运行维护操作。"
       },
       "makeUsable": {
@@ -2717,7 +2723,8 @@
         "runtimeEnvironment": {
           "title": "OPL Base",
           "description": "修复语言运行时、包与环境解析器、隔离前缀和回执可用性。",
-          "actionHelp": "运行现有安全维护流程；不会覆盖本机开发目录或删除用户数据。"
+          "actionHelp": "运行现有安全维护流程；不会覆盖本机开发目录或删除用户数据。",
+          "checkActionHelp": "检查 OPL Base 及其托管依赖的当前状态，不执行修复。"
         },
         "capabilitySurfaceSync": {
           "title": "OPL Packages",
@@ -2982,14 +2989,17 @@
     "dependencies": {
       "title": "OPL Base 依赖",
       "description": "OPL 托管依赖会静默更新；外部安装不会被覆盖，只有已验证的原渠道操作可在二次确认后执行。",
+      "summaryTitle": "OPL Base 运行依赖",
+      "summaryDescription": "普通使用只需关注这三项；完整安装路径与其他副本保留在管理维护的技术详情中。",
       "external": "外部安装",
       "otherInstallations": "其他安装（{{count}}）",
       "path": "位置：{{value}}",
       "ownership": "来源：{{value}}",
+      "source": "来源：{{value}}",
       "version": "版本：{{value}}",
       "items": {
         "codex-cli": "Codex CLI",
-        "temporal-runtime": "Temporal 运行时",
+        "temporal-runtime": "OPL 托管 Temporal 运行时",
         "temporal-system-cli": "系统 Temporal CLI",
         "officecli": "OfficeCLI",
         "mineru-open-api": "MinerU"
@@ -3004,6 +3014,19 @@
         "silent_managed": "由 OPL Base 静默更新；按返回的重启或进程策略切换生效。",
         "explicit_owner_delegated": "原安装渠道有可用更新；OPL 只会在你确认后委托原渠道执行。",
         "detect_only_guidance": "仅检测状态；请通过原包管理器或安装来源更新。"
+      },
+      "sources": {
+        "oplManaged": "OPL 托管",
+        "homebrew": "Homebrew",
+        "system": "系统安装",
+        "detected": "已检测安装"
+      },
+      "guidance": {
+        "oplManaged": "由 OPL Base 维护。",
+        "externalOwner": "由 {{owner}} 维护。",
+        "originalInstaller": "请通过原安装方式维护。",
+        "optional": "可选组件；未安装不影响 OPL 托管运行时。",
+        "notChecked": "尚未读取依赖状态。"
       },
       "actions": {
         "updateViaOwner": "通过原渠道更新"

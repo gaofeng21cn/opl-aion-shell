@@ -5,20 +5,19 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { AutoUpdateStatus } from '@/common/update/updateTypes';
+import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUpdateStatus';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import { Button, Modal, Typography } from '@arco-design/web-react';
 import { Help, Info, Refresh, Right } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FeedbackReportModal from './FeedbackReportModal';
 
 type LinkItem =
   | { id: string; title: string; url: string; onClick?: never }
   | { id: string; title: string; onClick: () => void; url?: never };
-
-type UpdateStatus = 'checking' | 'current' | 'available' | 'unknown';
 
 const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
 const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
@@ -84,7 +83,11 @@ const AboutModalContent: React.FC = () => {
   const isElectron = isElectronDesktop();
   const currentAppVersion = localAppVersion();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [updaterStatus, setUpdaterStatus] = useState<AutoUpdateStatus | null>(null);
+  const {
+    supported: updaterSupported,
+    status: updaterStatus,
+    setStatus: setUpdaterStatus,
+  } = useDesktopAutoUpdateStatus();
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const appStateQuery = useOplAppState('fast', { autoLoad: false });
   const release = oplRecord(appStateQuery.appState.release);
@@ -103,17 +106,7 @@ const AboutModalContent: React.FC = () => {
     releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
   };
 
-  const updateStatus: UpdateStatus =
-    updaterStatus?.status === 'checking'
-      ? 'checking'
-      : updaterStatus?.status === 'available' ||
-          updaterStatus?.status === 'downloading' ||
-          updaterStatus?.status === 'downloaded'
-        ? 'available'
-        : updaterStatus?.status === 'not-available'
-          ? 'current'
-          : 'unknown';
-  const latestStableVersion = updaterStatus?.version ?? '';
+  const updaterProjection = projectDesktopAutoUpdateStatus(updaterSupported, updaterStatus, t);
 
   const checkForUpdates = useCallback(async () => {
     if (!isElectron) {
@@ -136,27 +129,7 @@ const AboutModalContent: React.FC = () => {
     } catch {
       setUpdaterStatus({ status: 'error' });
     }
-  }, [appStateQuery.appState, currentAppVersion, isElectron]);
-
-  useEffect(() => {
-    if (!isElectron) return;
-    let active = true;
-    const unsubscribe = ipcBridge.autoUpdate.status.on((status) => {
-      if (active) setUpdaterStatus(status);
-    });
-    void ipcBridge.autoUpdate.getStatusSnapshot.invoke().then(
-      (status) => {
-        if (active) setUpdaterStatus(status);
-      },
-      () => {
-        if (active) setUpdaterStatus({ status: 'error' });
-      }
-    );
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [isElectron]);
+  }, [appStateQuery.appState, currentAppVersion, isElectron, setUpdaterStatus]);
 
   const openLink = async (url: string) => {
     try {
@@ -165,15 +138,6 @@ const AboutModalContent: React.FC = () => {
       console.log('Failed to open link:', error);
     }
   };
-
-  const updateStatusLabel =
-    updateStatus === 'checking'
-      ? t('settings.aboutUpdateChecking')
-      : updateStatus === 'available'
-        ? t('settings.aboutUpdateAvailable', { version: latestStableVersion })
-        : updateStatus === 'current'
-          ? t('settings.aboutUpdateCurrent')
-          : t('settings.aboutUpdateUnknown');
 
   const linkItems: LinkItem[] = [
     {
@@ -208,9 +172,7 @@ const AboutModalContent: React.FC = () => {
 
           <div className='flex min-w-0 flex-col gap-12px' data-testid='settings-about-primary'>
             <section className='opl-settings-section' id='version' data-testid='about-version-section'>
-              {(updateStatus === 'available' || updaterStatus?.status === 'error') && (
-                <span data-testid='settings-about-exception' aria-hidden='true' />
-              )}
+              {updaterProjection.needsAttention && <span data-testid='settings-about-exception' aria-hidden='true' />}
               <div className='opl-settings-section__header'>
                 <div className='flex min-w-0 items-start gap-12px'>
                   <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
@@ -252,7 +214,7 @@ const AboutModalContent: React.FC = () => {
                   <div className='min-w-0' id='update-status' data-testid='about-update-copy'>
                     <div className='text-12px text-t-tertiary'>{t('settings.checkForUpdates')}</div>
                     <div className='mt-4px text-13px text-t-primary' data-testid='about-update-status'>
-                      {updateStatusLabel}
+                      {updaterProjection.label}
                     </div>
                   </div>
                   <span data-testid='settings-about-primary-action'>
@@ -260,7 +222,7 @@ const AboutModalContent: React.FC = () => {
                       <Button
                         type='primary'
                         icon={<Refresh />}
-                        loading={updateStatus === 'checking'}
+                        loading={updaterStatus?.status === 'checking'}
                         onClick={() => void checkForUpdates()}
                         data-testid='about-check-updates'
                       >

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AutoUpdateStatus } from '@/common/update/updateTypes';
 import { buildRuntimeSettingsViewModel } from '@/renderer/pages/settings/RuntimeSettings/runtimeSettingsViewModel';
+import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import { readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 
@@ -116,6 +118,84 @@ const maintenance: ManagedUpdateMaintenanceSnapshot = {
 };
 
 describe('RuntimeSettings view model adapter', () => {
+  it.each([
+    { supported: false, status: null, label: 'settings.aboutUpdateNotChecked', tone: 'gray', attention: false },
+    { supported: true, status: null, label: 'settings.aboutUpdateNotChecked', tone: 'gray', attention: false },
+    {
+      supported: true,
+      status: { status: 'checking' },
+      label: 'settings.aboutUpdateChecking',
+      tone: 'gray',
+      attention: false,
+    },
+    {
+      supported: true,
+      status: { status: 'not-available' },
+      label: 'settings.aboutUpdateCurrent',
+      tone: 'green',
+      attention: false,
+    },
+    {
+      supported: true,
+      status: { status: 'available', version: '26.7.18' },
+      label: 'settings.aboutUpdateAvailable 26.7.18',
+      tone: 'orange',
+      attention: true,
+    },
+    {
+      supported: true,
+      status: { status: 'available' },
+      label: 'settings.aboutUpdateAvailableGeneric',
+      tone: 'orange',
+      attention: true,
+    },
+    {
+      supported: true,
+      status: { status: 'downloading' },
+      label: 'settings.aboutUpdateDownloading',
+      tone: 'orange',
+      attention: true,
+    },
+    {
+      supported: true,
+      status: { status: 'downloaded' },
+      label: 'settings.aboutUpdateDownloaded',
+      tone: 'orange',
+      attention: true,
+    },
+    {
+      supported: true,
+      status: { status: 'error' },
+      label: 'settings.aboutUpdateUnknown',
+      tone: 'orange',
+      attention: true,
+    },
+    {
+      supported: true,
+      status: { status: 'cancelled' },
+      label: 'settings.aboutUpdateCancelled',
+      tone: 'gray',
+      attention: false,
+    },
+  ] satisfies Array<{
+    supported: boolean;
+    status: AutoUpdateStatus | null;
+    label: string;
+    tone: 'green' | 'orange' | 'gray';
+    attention: boolean;
+  }>)(
+    'projects updater status $status.status without conflating attention',
+    ({ supported, status, label, tone, attention }) => {
+      expect(projectDesktopAutoUpdateStatus(supported, status, t)).toMatchObject({
+        supported,
+        status,
+        label,
+        tone,
+        needsAttention: attention,
+      });
+    }
+  );
+
   it('aggregates environment and maintenance hub state behind one adapter entrypoint', () => {
     const openUpdateModal = vi.fn();
     const runMaintenanceHubCheck = vi.fn();
@@ -167,5 +247,79 @@ describe('RuntimeSettings view model adapter', () => {
     expect(openUpdateModal).toHaveBeenCalledTimes(1);
     expect(runMaintenanceHubCheck).toHaveBeenCalledWith('oplPackages');
     expect(runServiceCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a check for historical repair receipts and repair only for live capability', () => {
+    const runMaintenanceHubCheck = vi.fn();
+    const runMakeOplUsable = vi.fn();
+    const actions = {
+      openStorageSettings: vi.fn(),
+      openUpdateModal: vi.fn(),
+      runMaintenanceHubCheck,
+      runMakeOplUsable,
+      runServiceCheck: vi.fn(),
+    };
+    const buildModel = (managedUpdatePlane: ReturnType<typeof readManagedUpdatePlane>) =>
+      buildRuntimeSettingsViewModel({
+        appState,
+        managedUpdateMaintenance: maintenance,
+        managedUpdatePlane,
+        activeReadOperation: null,
+        maintenanceHubCheckTarget: null,
+        makeUsableRunning: false,
+        actions,
+        t,
+      });
+    const historical = buildModel(
+      readManagedUpdatePlane(
+        {
+          managed_update: {
+            components: [
+              {
+                component_id: 'opl_base',
+                state: 'current',
+                receipt: { repair_action: 'historical_repair_action' },
+              },
+            ],
+          },
+        },
+        appState
+      )
+    );
+    const historicalRuntime = historical.maintenanceHubItems.find((item) => item.key === 'runtimeEnvironment');
+
+    expect(historicalRuntime).toMatchObject({
+      actionLabel: 'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment',
+      actionLoading: false,
+    });
+    historicalRuntime?.onAction?.();
+    expect(runMaintenanceHubCheck).toHaveBeenCalledWith('oplBase');
+    expect(runMakeOplUsable).not.toHaveBeenCalled();
+
+    const live = buildModel(
+      readManagedUpdatePlane(
+        {
+          managed_update: {
+            components: [
+              {
+                component_id: 'opl_base',
+                state: 'failed_with_repair',
+                repair_allowed: true,
+                repair_action: 'opl_base_repair_only',
+              },
+            ],
+          },
+        },
+        appState
+      )
+    );
+    const liveRuntime = live.maintenanceHubItems.find((item) => item.key === 'runtimeEnvironment');
+
+    expect(liveRuntime).toMatchObject({
+      actionLabel: 'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment',
+      actionLoading: false,
+    });
+    liveRuntime?.onAction?.();
+    expect(runMakeOplUsable).toHaveBeenCalledTimes(1);
   });
 });

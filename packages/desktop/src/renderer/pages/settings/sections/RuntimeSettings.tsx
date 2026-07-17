@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
+import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUpdateStatus';
 import {
   getAppState,
   oplRecord,
@@ -39,6 +40,7 @@ import {
   oplString,
   useOplAppState,
 } from '@/renderer/hooks/system/useOplAppState';
+import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import {
   executeManagedUpdateMutation,
   executeManagedUpdateRead,
@@ -550,11 +552,125 @@ function dependencyDisplayLabel(dependency: ManagedDependency, t: Translate): st
   });
 }
 
-function dependencyIcon(dependency: ManagedDependency): React.ReactNode {
+function dependencyIcon(dependency: Pick<ManagedDependency, 'id'>): React.ReactNode {
   if (dependency.id === 'codex-cli') return <Terminal theme='outline' size='16' />;
   if (dependency.id === 'temporal-runtime') return <Server theme='outline' size='16' />;
   if (dependency.id === 'temporal-system-cli') return <Command theme='outline' size='16' />;
   return <Toolkit theme='outline' size='16' />;
+}
+
+const PRIMARY_BASE_DEPENDENCY_IDS = ['codex-cli', 'temporal-runtime', 'temporal-system-cli'] as const;
+
+function normalizedDependencyPath(dependency: ManagedDependency): string | null {
+  const normalized = (dependency.realPath ?? dependency.binaryPath)?.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalized || null;
+}
+
+function dependencyStableKey(dependency: ManagedDependency, fallback: string): string {
+  return `${dependency.id}:${normalizedDependencyPath(dependency) ?? fallback}`;
+}
+
+function dependencySourceLabel(dependency: ManagedDependency, t: Translate): string {
+  const owner = dependency.ownership.toLowerCase();
+  if (owner.startsWith('opl_')) return t('settings.oplEnvironmentPage.dependencies.sources.oplManaged');
+  if (owner.includes('homebrew')) return t('settings.oplEnvironmentPage.dependencies.sources.homebrew');
+  if (owner.includes('global') || owner.includes('system')) {
+    return t('settings.oplEnvironmentPage.dependencies.sources.system');
+  }
+  return t('settings.oplEnvironmentPage.dependencies.sources.detected');
+}
+
+function dependencyGuidanceLabel(dependency: ManagedDependency, t: Translate): string {
+  if (!dependency.installed && dependency.id === 'temporal-system-cli') {
+    return t('settings.oplEnvironmentPage.dependencies.guidance.optional');
+  }
+  if (dependency.updateMode === 'silent_managed') {
+    return t('settings.oplEnvironmentPage.dependencies.guidance.oplManaged');
+  }
+  if (dependency.updateMode === 'explicit_owner_delegated') {
+    return t('settings.oplEnvironmentPage.dependencies.guidance.externalOwner', {
+      owner: dependencySourceLabel(dependency, t),
+    });
+  }
+  return t('settings.oplEnvironmentPage.dependencies.guidance.originalInstaller');
+}
+
+function BaseDependencySummary({ component, t }: { component?: ManagedUpdateComponent; t: Translate }) {
+  if (!component) return null;
+  const primaryDependencies =
+    component.dependencyCatalog?.dependencies.filter((dependency) => !dependency.external) ?? [];
+
+  return (
+    <section
+      className='opl-settings-section bg-transparent'
+      id='base-dependencies'
+      data-testid='settings-maintenance-base-dependency-summary'
+    >
+      <div className='opl-settings-section__header'>
+        <div>
+          <Typography.Text className='block font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.dependencies.summaryTitle')}
+          </Typography.Text>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.oplEnvironmentPage.dependencies.summaryDescription')}
+          </Typography.Text>
+        </div>
+      </div>
+      <div className='opl-settings-list'>
+        {PRIMARY_BASE_DEPENDENCY_IDS.map((dependencyId) => {
+          const dependency = primaryDependencies.find((candidate) => candidate.id === dependencyId);
+          const version = dependency?.installed
+            ? (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'))
+            : dependency
+              ? t('settings.oplEnvironmentPage.dependencies.currentness.missing')
+              : t('settings.oplEnvironmentPage.status.unknown');
+          const currentness = dependency
+            ? t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+                defaultValue: formatStatus(dependency.currentness, t),
+              })
+            : t('settings.oplEnvironmentPage.status.unknown');
+          const attention =
+            dependency?.currentness === 'update_available' ||
+            (dependency?.currentness === 'missing' && dependency.id !== 'temporal-system-cli');
+
+          return (
+            <div
+              key={dependencyId}
+              className='opl-settings-row'
+              data-testid={`opl-base-dependency-summary-${dependencyId}`}
+            >
+              <div className='opl-settings-row__main flex-row items-start gap-10px'>
+                <span className='opl-settings-icon' aria-hidden='true'>
+                  {dependencyIcon({ id: dependencyId })}
+                </span>
+                <div className='min-w-0'>
+                  <Typography.Text className='block font-600 text-t-primary break-words'>
+                    {t(`settings.oplEnvironmentPage.dependencies.items.${dependencyId}`)}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.dependencies.version', { value: version })}
+                    {dependency
+                      ? ` · ${t('settings.oplEnvironmentPage.dependencies.source', {
+                          value: dependencySourceLabel(dependency, t),
+                        })}`
+                      : ''}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {dependency
+                      ? dependencyGuidanceLabel(dependency, t)
+                      : t('settings.oplEnvironmentPage.dependencies.guidance.notChecked')}
+                  </Typography.Text>
+                </div>
+              </div>
+              <div className='opl-settings-row__meta'>
+                <Tag color={attention ? 'orange' : 'gray'}>{currentness}</Tag>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function managedComponentIcon(component: ManagedUpdateComponent): React.ReactNode {
@@ -598,7 +714,11 @@ function BaseDependencyCatalog({
       externalInstallation && dependency.binaryPath ? dependency.binaryPath : dependencyDisplayLabel(dependency, t);
 
     return (
-      <div key={rowId} className='opl-settings-row' data-testid={`opl-base-dependency-${rowId}`}>
+      <div
+        key={dependencyStableKey(dependency, rowId)}
+        className='opl-settings-row'
+        data-testid={`opl-base-dependency-${rowId}`}
+      >
         <div className='opl-settings-row__main flex-row items-start gap-10px'>
           <span className='opl-settings-icon' aria-hidden='true'>
             {dependencyIcon(dependency)}
@@ -679,7 +799,7 @@ function BaseDependencyCatalog({
             (candidate) => candidate.external && candidate.parentId === dependency.id
           );
           return (
-            <React.Fragment key={rowId}>
+            <React.Fragment key={dependencyStableKey(dependency, rowId)}>
               {renderDependencyRow(dependency, rowId, false)}
               {externalInstallations.length > 0 && (
                 <Collapse bordered={false} data-testid={`opl-base-dependency-other-installations-${rowId}`}>
@@ -1322,6 +1442,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
   const appStateQuery = useOplAppState('fast');
+  const desktopAutoUpdateState = useDesktopAutoUpdateStatus();
+  const desktopAutoUpdate = useMemo(
+    () => projectDesktopAutoUpdateStatus(desktopAutoUpdateState.supported, desktopAutoUpdateState.status, t),
+    [desktopAutoUpdateState.status, desktopAutoUpdateState.supported, t]
+  );
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
   const managedUpdateRunningRef = useRef(managedUpdateMaintenance.running);
   managedUpdateRunningRef.current = managedUpdateMaintenance.running;
@@ -1736,6 +1861,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         appState,
         managedUpdatePlane,
         managedUpdateMaintenance,
+        desktopAutoUpdate,
         loadedAt: appStateQuery.loadedAt,
         activeReadOperation,
         maintenanceHubCheckTarget,
@@ -1753,6 +1879,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       activeReadOperation,
       appState,
       appStateQuery.loadedAt,
+      desktopAutoUpdate,
       maintenanceHubCheckTarget,
       makeUsableRunning,
       managedUpdateMaintenance,
@@ -1846,6 +1973,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </div>
           <RuntimeHealthSummary items={healthSummaryItems} />
         </section>
+
+        <BaseDependencySummary component={oplBaseComponent} t={t} />
 
         <TemporalMaintenancePanel
           snapshot={temporalSnapshot}

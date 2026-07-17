@@ -18,6 +18,8 @@ const bridgeMocks = vi.hoisted(() => ({
   applyUpdateComponentInvoke: vi.fn(),
   repairUpdateInvoke: vi.fn(),
   rollbackUpdateComponentInvoke: vi.fn(),
+  autoUpdateGetStatusSnapshotInvoke: vi.fn(),
+  autoUpdateStatusOn: vi.fn(),
   modalConfirm: vi.fn(),
 }));
 
@@ -49,6 +51,10 @@ vi.mock('@/common', () => ({
     },
     shell: {
       openFolderWith: { invoke: vi.fn() },
+    },
+    autoUpdate: {
+      getStatusSnapshot: { invoke: bridgeMocks.autoUpdateGetStatusSnapshotInvoke },
+      status: { on: bridgeMocks.autoUpdateStatusOn },
     },
   },
 }));
@@ -411,6 +417,8 @@ describe('RuntimeSettings app state bridge usage', () => {
       surface: 'update_rollback',
       command: 'opl update rollback --json',
     });
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
+    bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve(
         detail === 'summary'

@@ -49,6 +49,7 @@ export type ManagedDependency = {
   updateAction?: ManagedDependencyUpdateAction;
   activationPolicy?: string;
   binaryPath?: string;
+  realPath?: string;
   guidance?: string;
   external: boolean;
 };
@@ -359,9 +360,19 @@ function readManagedDependency(
     updateAction,
     activationPolicy: firstOplString(dependency.activation_policy),
     binaryPath: firstOplString(dependency.binary_path, dependency.path),
+    realPath: firstOplString(dependency.real_path, dependency.realPath),
     guidance: firstOplString(dependency.guidance, dependency.note),
     external,
   };
+}
+
+function normalizedDependencyPath(value: string | undefined): string | null {
+  const normalized = value?.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalized || null;
+}
+
+function dependencyPathIdentity(dependency: ManagedDependency): string | null {
+  return normalizedDependencyPath(dependency.realPath ?? dependency.binaryPath);
 }
 
 export function readOplFlowManagedCapabilityCatalog(
@@ -383,6 +394,9 @@ function readManagedDependencyCatalog(component: Record<string, unknown>): Manag
   const catalog = oplRecord(component.dependency_catalog ?? current.dependency_catalog);
   const dependencies = oplRecordList(catalog.dependencies).flatMap((entry, index) => {
     const primary = readManagedDependency(entry, `dependency-${index + 1}`);
+    const seenPaths = new Set<string>();
+    const primaryIdentity = primary ? dependencyPathIdentity(primary) : null;
+    if (primaryIdentity) seenPaths.add(primaryIdentity);
     const externalInstallations = oplRecordList(entry.external_installations).flatMap((external, externalIndex) => {
       const externalDependency = readManagedDependency(
         external,
@@ -391,13 +405,9 @@ function readManagedDependencyCatalog(component: Record<string, unknown>): Manag
         primary?.id
       );
       if (!externalDependency) return [];
-      if (
-        primary?.binaryPath &&
-        externalDependency.binaryPath &&
-        primary.binaryPath === externalDependency.binaryPath
-      ) {
-        return [];
-      }
+      const identity = dependencyPathIdentity(externalDependency);
+      if (identity && seenPaths.has(identity)) return [];
+      if (identity) seenPaths.add(identity);
       return [externalDependency];
     });
     return primary ? [primary, ...externalInstallations] : externalInstallations;

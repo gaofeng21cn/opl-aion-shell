@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { SETTINGS_DEFAULT_ROUTE } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { gatewayAccountInitials, readGatewayAccountProjection } from '@/renderer/pages/settings/accessProjection';
+import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUpdateStatus';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { isManagedAppUpdateAvailable, readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
+import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import TeamSiderSection from './TeamSiderSection';
@@ -38,17 +39,15 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { logout, status } = useAuth();
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
+  const desktopAutoUpdateState = useDesktopAutoUpdateStatus();
   useTeamCreatedRedirect();
   const isSettings = pathname.startsWith('/settings');
   const showLogout =
     typeof window !== 'undefined' && !(window as { electronAPI?: unknown }).electronAPI && status === 'authenticated';
   const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
-  const managedUpdatePlane = React.useMemo(
-    () => readManagedUpdatePlane(appStateQuery.payload, appStateQuery.appState),
-    [appStateQuery.appState, appStateQuery.payload]
-  );
-  const appUpdateAvailable = isManagedAppUpdateAvailable(
-    managedUpdatePlane.components.find((component) => component.id === 'opl_app')
+  const desktopAutoUpdate = React.useMemo(
+    () => projectDesktopAutoUpdateStatus(desktopAutoUpdateState.supported, desktopAutoUpdateState.status, t),
+    [desktopAutoUpdateState.status, desktopAutoUpdateState.supported, t]
   );
   const footerAccount =
     gatewayAccount?.connection_mode === 'account' && gatewayAccount.account_card_visible && gatewayAccount.account
@@ -228,7 +227,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
       <SiderFooter
         isMobile={isMobile}
         collapsed={collapsed}
-        updateAvailable={appUpdateAvailable}
+        updateAvailable={desktopAutoUpdate.updateAvailable}
         account={footerAccount}
         siderTooltipProps={siderTooltipProps}
         onSettingsClick={handleSettingsClick}

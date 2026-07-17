@@ -718,6 +718,11 @@
   "aboutSupportDesc": "Open documentation, release notes, or send feedback.",
   "aboutUpdateChecking": "Checking for updates…",
   "aboutUpdateAvailable": "Version {{version}} is available",
+  "aboutUpdateAvailableGeneric": "A new version is available",
+  "aboutUpdateDownloading": "Downloading update",
+  "aboutUpdateDownloaded": "Update ready; restart to install",
+  "aboutUpdateCancelled": "Update cancelled",
+  "aboutUpdateNotChecked": "Not checked yet",
   "aboutUpdateCurrent": "You're up to date",
   "aboutUpdateUnknown": "Unable to check for updates right now",
   "releasePage": "Release notes",
@@ -2683,6 +2688,7 @@
       "description": "Review OPL App, OPL Base, and OPL Packages maintenance alongside local service health.",
       "lastChecked": "Last checked: {{value}}",
       "actions": {
+        "checkRuntimeEnvironment": "Check OPL Base",
         "repairRuntimeEnvironment": "Repair OPL Base",
         "syncCapabilityPacks": "Sync OPL Packages",
         "checkBackgroundServices": "Check background services"
@@ -2692,7 +2698,7 @@
         "advancedDiagnostics": "Runtime status / advanced diagnostics"
       },
       "results": {
-        "title": "Recent results",
+        "title": "Current status",
         "noAction": "No maintenance action has run in this window."
       },
       "makeUsable": {
@@ -2716,7 +2722,8 @@
         "runtimeEnvironment": {
           "title": "OPL Base",
           "description": "Repair language runtimes, package and environment resolver, isolated prefix, and receipts.",
-          "actionHelp": "Runs the existing safe maintenance path. It does not overwrite local developer checkouts or delete user data."
+          "actionHelp": "Runs the existing safe maintenance path. It does not overwrite local developer checkouts or delete user data.",
+          "checkActionHelp": "Checks OPL Base and its managed dependencies without running a repair."
         },
         "capabilitySurfaceSync": {
           "title": "OPL Packages",
@@ -2981,14 +2988,17 @@
     "dependencies": {
       "title": "OPL Base dependencies",
       "description": "OPL-managed dependencies update silently. External installations are never overwritten; a verified original-channel action always asks for confirmation.",
+      "summaryTitle": "OPL Base runtime dependencies",
+      "summaryDescription": "These are the three dependencies needed for ordinary use. Full paths and other installations stay in management diagnostics.",
       "external": "External installation",
       "otherInstallations": "Other installations ({{count}})",
       "path": "Location: {{value}}",
       "ownership": "Source: {{value}}",
+      "source": "Source: {{value}}",
       "version": "Version: {{value}}",
       "items": {
         "codex-cli": "Codex CLI",
-        "temporal-runtime": "Temporal runtime",
+        "temporal-runtime": "OPL-managed Temporal runtime",
         "temporal-system-cli": "Temporal system CLI",
         "officecli": "OfficeCLI",
         "mineru-open-api": "MinerU"
@@ -3003,6 +3013,19 @@
         "silent_managed": "Updated silently by OPL Base; activation follows the reported restart or process policy.",
         "explicit_owner_delegated": "An update is available from the original installation channel. OPL will ask before delegating it.",
         "detect_only_guidance": "Detected only. Update this installation through its original package manager or source."
+      },
+      "sources": {
+        "oplManaged": "Managed by OPL",
+        "homebrew": "Homebrew",
+        "system": "System installation",
+        "detected": "Detected installation"
+      },
+      "guidance": {
+        "oplManaged": "Maintained by OPL Base.",
+        "externalOwner": "Maintained by {{owner}}.",
+        "originalInstaller": "Maintain through the original installation method.",
+        "optional": "Optional; OPL-managed Temporal does not require it.",
+        "notChecked": "Dependency status has not been read yet."
       },
       "actions": {
         "updateViaOwner": "Update via original channel"

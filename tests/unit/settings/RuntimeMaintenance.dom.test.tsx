@@ -18,6 +18,8 @@ const bridgeMocks = vi.hoisted(() => ({
   executeManagedUpdateRead: vi.fn(),
   executeManagedUpdateMutation: vi.fn(),
   loadAppState: vi.fn(),
+  autoUpdateGetStatusSnapshotInvoke: vi.fn(),
+  autoUpdateStatusOn: vi.fn(),
 }));
 
 const messageMocks = vi.hoisted(() => ({
@@ -279,6 +281,10 @@ vi.mock('@/common', () => ({
     shell: {
       openFolderWith: { invoke: vi.fn() },
     },
+    autoUpdate: {
+      getStatusSnapshot: { invoke: bridgeMocks.autoUpdateGetStatusSnapshotInvoke },
+      status: { on: bridgeMocks.autoUpdateStatusOn },
+    },
   },
 }));
 
@@ -399,6 +405,8 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.executeManagedUpdateRead.mockReset();
     bridgeMocks.executeManagedUpdateMutation.mockReset();
     bridgeMocks.loadAppState.mockReset();
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockReset();
+    bridgeMocks.autoUpdateStatusOn.mockReset();
     messageMocks.error.mockReset();
     messageMocks.success.mockReset();
     messageMocks.warning.mockReset();
@@ -419,6 +427,8 @@ describe('RuntimeSettings maintenance structure', () => {
       parsed: updateStatus,
     });
     bridgeMocks.loadAppState.mockImplementation(async () => freshAppStatePayload());
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
+    bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
   });
 
   it('does not probe update status, check, or plan when the page mounts without a startup snapshot', () => {
@@ -427,6 +437,110 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it('uses the same main-process updater snapshot semantics as About without checking on mount', async () => {
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValueOnce({
+      status: 'available',
+      version: '26.7.18',
+    });
+
+    render(<RuntimeSettings />);
+
+    const appUpdateItem = await screen.findByTestId('opl-maintenance-hub-appUpdates');
+    await waitFor(() => {
+      expect(appUpdateItem).toHaveTextContent('settings.aboutUpdateAvailable 26.7.18');
+    });
+    expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it('keeps the canonical three base dependencies ordered and hides diagnostic-only bytes on the main page', async () => {
+    maintenanceSnapshot.result = {
+      stdout: '{}',
+      parsed: {
+        managed_update: {
+          operation: 'status',
+          components: [
+            {
+              component_id: 'opl_base',
+              state: 'current',
+              current: {
+                dependency_catalog: {
+                  lifecycle_owner: 'opl_base',
+                  dependencies: [
+                    {
+                      dependency_id: 'officecli',
+                      installed: true,
+                      version: '1.0.0',
+                      currentness: 'current',
+                      ownership: 'opl_managed',
+                      update_mode: 'silent_managed',
+                      binary_path: '/private/managed/bin/officecli',
+                    },
+                    {
+                      dependency_id: 'temporal-system-cli',
+                      installed: true,
+                      version: '1.4.0',
+                      currentness: 'current',
+                      ownership: 'global_path',
+                      update_mode: 'detect_only_guidance',
+                      binary_path: '/opt/homebrew/bin/temporal',
+                      guidance: 'Update with the original package manager.',
+                    },
+                    {
+                      dependency_id: 'codex-cli',
+                      installed: true,
+                      version: '0.144.3',
+                      currentness: 'current',
+                      ownership: 'opl_managed',
+                      update_mode: 'silent_managed',
+                      binary_path: '/private/managed/bin/codex',
+                    },
+                    {
+                      dependency_id: 'mineru',
+                      installed: true,
+                      version: '2.0.0',
+                      currentness: 'current',
+                      ownership: 'opl_managed',
+                      update_mode: 'silent_managed',
+                      binary_path: '/private/managed/bin/mineru',
+                    },
+                    {
+                      dependency_id: 'temporal-runtime',
+                      installed: true,
+                      version: '1.11.0',
+                      currentness: 'current',
+                      ownership: 'opl_managed_runtime_generation',
+                      update_mode: 'silent_managed',
+                      binary_path: '/private/managed/bin/temporal-runtime',
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    render(<RuntimeSettings />);
+
+    const summary = await screen.findByTestId('settings-maintenance-base-dependency-summary');
+    expect(
+      within(summary)
+        .getAllByTestId(/^opl-base-dependency-summary-/)
+        .map((row) => row.dataset.testid)
+    ).toEqual([
+      'opl-base-dependency-summary-codex-cli',
+      'opl-base-dependency-summary-temporal-runtime',
+      'opl-base-dependency-summary-temporal-system-cli',
+    ]);
+    expect(summary).not.toHaveTextContent('/private/managed/bin');
+    expect(summary).not.toHaveTextContent('opl_managed_runtime_generation');
+    expect(summary).not.toHaveTextContent('Update with the original package manager.');
+    expect(summary).not.toHaveTextContent('officecli');
+    expect(summary).not.toHaveTextContent('mineru');
   });
 
   it.each([
@@ -1326,7 +1440,7 @@ describe('RuntimeSettings maintenance structure', () => {
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
     expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
+      'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment'
     );
     expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
@@ -1375,7 +1489,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     expect(screen.getAllByTestId(/opl-maintenance-action-/)).toHaveLength(4);
     expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
+      'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment'
     );
   });
 

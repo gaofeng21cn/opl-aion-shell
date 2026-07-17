@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AboutModalContent from '@/renderer/components/settings/SettingsModal/contents/AboutModalContent';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const bridgeMocks = vi.hoisted(() => ({
   getStatusSnapshotInvoke: vi.fn(),
   autoUpdateCheckInvoke: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
+  isElectron: true,
 }));
 
 vi.mock('@/common', () => ({
@@ -45,6 +46,7 @@ vi.mock('react-i18next', () => ({
         'settings.aboutSupportDesc': 'Documentation, releases, and feedback.',
         'settings.aboutUpdateChecking': 'Checking for updates',
         'settings.aboutUpdateCurrent': 'You are up to date',
+        'settings.aboutUpdateNotChecked': 'Update not checked',
         'settings.aboutUpdateUnknown': 'Update status unavailable',
         'settings.runtimePage.releaseChannels.stable': 'Stable',
         'common.technical_details': 'Technical details',
@@ -63,7 +65,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
-  isElectronDesktop: () => true,
+  isElectronDesktop: () => bridgeMocks.isElectron,
   openExternalUrl: vi.fn(() => Promise.resolve()),
 }));
 
@@ -87,6 +89,7 @@ const cacheFastState = (release: Record<string, unknown>) => {
 describe('AboutModalContent OPL release metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bridgeMocks.isElectron = true;
     localStorage.clear();
     cacheFastState({
       version: '26.4.27',
@@ -203,6 +206,54 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(await screen.findByText('You are up to date')).toBeInTheDocument();
     statusListener?.({ status: 'available', version: '26.6.27' });
     expect(await screen.findByText('Version 26.6.27 available')).toBeInTheDocument();
+    expect(bridgeMocks.autoUpdateCheckInvoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps a newer status event when the initial snapshot resolves later', async () => {
+    let resolveSnapshot!: (status: { status: 'not-available' }) => void;
+    const snapshot = new Promise<{ status: 'not-available' }>((resolve) => {
+      resolveSnapshot = resolve;
+    });
+    let statusListener: ((status: { status: 'available'; version: string }) => void) | undefined;
+    bridgeMocks.getStatusSnapshotInvoke.mockReturnValueOnce(snapshot);
+    bridgeMocks.autoUpdateStatusOn.mockImplementationOnce((listener) => {
+      statusListener = listener;
+      return () => undefined;
+    });
+
+    renderAbout();
+    await act(async () => {
+      statusListener?.({ status: 'available', version: '26.7.18' });
+    });
+    expect(await screen.findByText('Version 26.7.18 available')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveSnapshot({ status: 'not-available' });
+      await snapshot;
+    });
+
+    expect(screen.getByText('Version 26.7.18 available')).toBeInTheDocument();
+    expect(screen.queryByText('You are up to date')).not.toBeInTheDocument();
+  });
+
+  it('unsubscribes from updater events when the page unmounts', () => {
+    const unsubscribe = vi.fn();
+    bridgeMocks.autoUpdateStatusOn.mockReturnValueOnce(unsubscribe);
+
+    const { unmount } = renderAbout();
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not touch desktop updater IPC in WebUI', async () => {
+    bridgeMocks.isElectron = false;
+
+    renderAbout();
+
+    expect(await screen.findByText('Update not checked')).toBeInTheDocument();
+    expect(bridgeMocks.autoUpdateStatusOn).not.toHaveBeenCalled();
+    expect(bridgeMocks.getStatusSnapshotInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.autoUpdateCheckInvoke).not.toHaveBeenCalled();
   });
 

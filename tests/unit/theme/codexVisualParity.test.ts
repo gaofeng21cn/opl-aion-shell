@@ -25,6 +25,10 @@ describe('Codex visual parity overlay', () => {
     const layoutStyles = read('packages/desktop/src/renderer/styles/layout.css');
 
     expect(sider).toMatch(/data-testid='conversation-history-header'[\s\S]*?<SiderSearchEntry/);
+    expect(sider).toContain('useDesktopAutoUpdateStatus');
+    expect(sider).toContain('projectDesktopAutoUpdateStatus');
+    expect(sider).toContain('updateAvailable={desktopAutoUpdate.updateAvailable}');
+    expect(sider).not.toContain('isManagedAppUpdateAvailable');
     expect(searchEntry).toContain("'!w-32px !h-32px'");
     expect(searchEntry).not.toMatch(/\sfullWidth(?:\s|=)/);
     expect(layoutStyles).toMatch(

@@ -6,6 +6,7 @@
 
 import { canonicalizeOplProfessionalAgentId, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 import { oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
+import type { DesktopAutoUpdateProjection } from '@/renderer/services/desktopAutoUpdateProjection';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdateComponent, ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 import {
@@ -80,6 +81,7 @@ export type RuntimeEnvironmentProjection = {
   guiVersion: string;
   releaseChannel: string;
   releaseRepo: string | null;
+  runtimeAttentionCount: number;
   attentionCount: number;
   componentsNeedingMaintenance: number;
   healthSummaryItems: EnvironmentHealthSummaryItem[];
@@ -269,12 +271,14 @@ export function buildRuntimeEnvironmentProjection({
   appState,
   managedUpdatePlane,
   managedUpdateMaintenance,
+  desktopAutoUpdate,
   loadedAt,
   t,
 }: {
   appState: Record<string, unknown>;
   managedUpdatePlane: ManagedUpdatePlane;
   managedUpdateMaintenance: ManagedUpdateMaintenanceSnapshot;
+  desktopAutoUpdate?: DesktopAutoUpdateProjection;
   loadedAt?: string | null;
   t: Translate;
 }): RuntimeEnvironmentProjection {
@@ -385,15 +389,28 @@ export function buildRuntimeEnvironmentProjection({
     oplString(release.release_channel) ??
     'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
-  const attentionCount = [
+  const runtimeAttentionCount = [
     workspaceStatus !== 'ready',
     !isReadyStatus(codexStatus),
     !isReadyStatus(temporalStatus),
     !packagesOperationalReady,
   ].filter(Boolean).length;
-  const componentsNeedingMaintenance = managedUpdatePlane.components.filter(
-    (component) => !componentIsHealthy(component) || component.needsReload || component.needsRestart
+  const oplAppComponent = componentById.get('opl_app');
+  const managedAppNeedsAttention = Boolean(
+    oplAppComponent &&
+    (!componentIsHealthy(oplAppComponent) || oplAppComponent.needsReload || oplAppComponent.needsRestart)
+  );
+  const appUpdateNeedsAttention = desktopAutoUpdate?.supported
+    ? desktopAutoUpdate.needsAttention
+    : managedAppNeedsAttention;
+  const attentionCount = runtimeAttentionCount + (appUpdateNeedsAttention ? 1 : 0);
+  const managedComponentsNeedingMaintenance = managedUpdatePlane.components.filter(
+    (component) =>
+      (!desktopAutoUpdate?.supported || component.id !== 'opl_app') &&
+      (!componentIsHealthy(component) || component.needsReload || component.needsRestart)
   ).length;
+  const componentsNeedingMaintenance =
+    managedComponentsNeedingMaintenance + (desktopAutoUpdate?.supported && appUpdateNeedsAttention ? 1 : 0);
   const lastCheckValue =
     managedUpdateMaintenance.lastRunAt ?? loadedAt ?? t('settings.oplEnvironmentPage.status.unknown');
   const healthSummaryItems: EnvironmentHealthSummaryItem[] = [
@@ -480,12 +497,13 @@ export function buildRuntimeEnvironmentProjection({
     guiVersion: __SHELL_VERSION__,
     releaseChannel,
     releaseRepo,
+    runtimeAttentionCount,
     attentionCount,
     componentsNeedingMaintenance,
     healthSummaryItems,
     runtimeCards,
     oplBaseComponent: componentById.get('opl_base'),
-    oplAppComponent: componentById.get('opl_app'),
+    oplAppComponent,
     oplPackagesComponent: componentById.get('opl_packages'),
   };
 }

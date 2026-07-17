@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { CheckOne, Puzzle, Refresh, Toolkit } from '@icon-park/react';
+import type { DesktopAutoUpdateProjection } from '@/renderer/services/desktopAutoUpdateProjection';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 import type { RuntimeMaintenanceHubItem } from '../sections/RuntimeSettingsPanels';
@@ -29,6 +30,7 @@ export type RuntimeSettingsViewModelInput = {
   loadedAt?: string | null;
   managedUpdateMaintenance: ManagedUpdateMaintenanceSnapshot;
   managedUpdatePlane: ManagedUpdatePlane;
+  desktopAutoUpdate?: DesktopAutoUpdateProjection;
   activeReadOperation: 'status' | 'check' | 'plan' | null;
   maintenanceHubCheckTarget: 'oplBase' | 'oplPackages' | null;
   makeUsableRunning: boolean;
@@ -43,6 +45,7 @@ export function buildRuntimeSettingsViewModel({
   loadedAt,
   managedUpdateMaintenance,
   managedUpdatePlane,
+  desktopAutoUpdate,
   activeReadOperation,
   maintenanceHubCheckTarget,
   makeUsableRunning,
@@ -53,6 +56,7 @@ export function buildRuntimeSettingsViewModel({
     appState,
     managedUpdatePlane,
     managedUpdateMaintenance,
+    desktopAutoUpdate,
     loadedAt,
     t,
   });
@@ -60,7 +64,7 @@ export function buildRuntimeSettingsViewModel({
     oplBaseComponent,
     oplAppComponent,
     oplPackagesComponent,
-    attentionCount,
+    runtimeAttentionCount,
     moduleInstalledCount,
     moduleManualMaintenanceCount,
     modules,
@@ -71,15 +75,19 @@ export function buildRuntimeSettingsViewModel({
   const oplPackagesHealthy =
     packagesOperationalReady && (!oplPackagesComponent || componentStatusTone(oplPackagesComponent) === 'green');
   const oplPackagesChecked = packageStatusAvailable || Boolean(oplPackagesComponent);
+  const oplBaseRepairAvailable = oplBaseComponent?.repairAllowed === true;
+  const desktopAppUpdate = desktopAutoUpdate?.supported === true;
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
     {
       key: 'appUpdates',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'),
-      detail: oplAppComponent
-        ? componentUserSummary(oplAppComponent, t)
-        : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
-      status: formatStatus(oplAppComponent?.state ?? 'unknown', t),
-      tone: oplAppComponent ? componentStatusTone(oplAppComponent) : 'gray',
+      detail: desktopAppUpdate
+        ? t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description')
+        : oplAppComponent
+          ? componentUserSummary(oplAppComponent, t)
+          : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
+      status: desktopAppUpdate ? desktopAutoUpdate.label : formatStatus(oplAppComponent?.state ?? 'unknown', t),
+      tone: desktopAppUpdate ? desktopAutoUpdate.tone : oplAppComponent ? componentStatusTone(oplAppComponent) : 'gray',
       icon: <Refresh theme='outline' size='16' />,
       actionLabel: t('settings.checkForUpdates'),
       onAction: actions.openUpdateModal,
@@ -93,11 +101,19 @@ export function buildRuntimeSettingsViewModel({
       status: formatStatus(oplBaseComponent?.state ?? 'unknown', t),
       tone: oplBaseComponent ? componentStatusTone(oplBaseComponent) : 'gray',
       icon: <Toolkit theme='outline' size='16' />,
-      actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'),
-      actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'),
-      actionLoading: makeUsableRunning,
+      actionLabel: t(
+        oplBaseRepairAvailable
+          ? 'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
+          : 'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment'
+      ),
+      actionHelp: t(
+        oplBaseRepairAvailable
+          ? 'settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'
+          : 'settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.checkActionHelp'
+      ),
+      actionLoading: oplBaseRepairAvailable ? makeUsableRunning : maintenanceHubCheckTarget === 'oplBase',
       actionDisabled: Boolean(activeReadOperation) || Boolean(maintenanceHubCheckTarget),
-      onAction: actions.runMakeOplUsable,
+      onAction: oplBaseRepairAvailable ? actions.runMakeOplUsable : () => actions.runMaintenanceHubCheck('oplBase'),
     },
     {
       key: 'capabilitySurfaceSync',
@@ -135,10 +151,10 @@ export function buildRuntimeSettingsViewModel({
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'),
       detail: t('settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.description'),
       status:
-        attentionCount === 0
+        runtimeAttentionCount === 0
           ? t('settings.oplEnvironmentPage.healthSummary.values.none')
-          : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
-      tone: attentionCount === 0 ? 'green' : 'orange',
+          : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: runtimeAttentionCount }),
+      tone: runtimeAttentionCount === 0 ? 'green' : 'orange',
       icon: <CheckOne theme='outline' size='16' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'),
       onAction: actions.runServiceCheck,
