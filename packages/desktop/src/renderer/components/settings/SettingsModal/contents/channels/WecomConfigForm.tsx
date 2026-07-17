@@ -510,10 +510,13 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                       </span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
                         <button
-                          className='p-4px bg-transparent border-none text-t-tertiary hover:text-t-primary cursor-pointer'
+                          type='button'
+                          className='inline-flex h-32px w-32px shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-t-tertiary rd-6px hover:bg-fill-2 hover:text-t-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                          aria-label={t('settings.assistant.copyCode', 'Copy pairing code')}
+                          title={t('settings.assistant.copyCode', 'Copy pairing code')}
                           onClick={() => copyToClipboard(pairing.code)}
                         >
-                          <Copy size={14} />
+                          <Copy aria-hidden='true' size={14} />
                         </button>
                       </Tooltip>
                     </div>

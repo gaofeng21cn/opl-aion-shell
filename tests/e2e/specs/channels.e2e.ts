@@ -26,9 +26,25 @@ test.describe('Channels', () => {
       await page.setViewportSize({ width: 400, height: 600 });
       await goToChannelsTab(page);
 
+      const channelsTab = page.getByRole('tab', { name: /^(Channels|频道)/i }).first();
+      await expect(channelsTab).toBeVisible();
+      await expect(channelsTab).toHaveAttribute('aria-selected', 'true');
+
+      const firstChannel = page.locator('[data-channel-id]').first();
+      await expect(firstChannel).toBeVisible();
+      const firstChannelBox = await firstChannel.boundingBox();
+      expect(firstChannelBox).not.toBeNull();
+      expect(firstChannelBox!.y).toBeGreaterThanOrEqual(0);
+      expect(firstChannelBox!.y + firstChannelBox!.height).toBeLessThanOrEqual(600);
+
       const lark = page.locator(channelItemById('lark')).first();
       await expect(lark).toBeVisible({ timeout: 8_000 });
-      await lark.locator('.arco-collapse-item-header').click();
+      const disclosure = lark.locator('[data-channel-disclosure]');
+      await disclosure.scrollIntoViewIfNeeded();
+      await disclosure.focus();
+      await expect(disclosure).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
 
       const firstRow = lark.locator('[data-channel-preference-row]').first();
       await expect(firstRow).toBeVisible({ timeout: 8_000 });
@@ -43,6 +59,10 @@ test.describe('Channels', () => {
         .locator('[data-channel-preference-row]')
         .evaluateAll((rows) => rows.filter((row) => row.scrollWidth > row.clientWidth + 1).length);
       expect(overflowingRows).toBe(0);
+
+      if (process.env.E2E_SCREENSHOTS) {
+        await takeScreenshot(page, 'channels-settings-400x600');
+      }
 
       const optionalToggle = lark.getByTestId('lark-optional-fields-toggle');
       await optionalToggle.scrollIntoViewIfNeeded();

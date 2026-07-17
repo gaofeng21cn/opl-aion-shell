@@ -117,11 +117,6 @@ export function channelSwitchById(id: string): string {
   return `[data-channel-switch-for="${id}"]`;
 }
 
-/** Match WebUI page tabs by key (`webui` / `channels`). */
-export function webuiTabByKey(key: 'webui' | 'channels'): string {
-  return `[data-webui-tab="${key}"]`;
-}
-
 // ── Assistant Settings ──────────────────────────────────────────────────────
 
 /** Assistant card by ID. */

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
-import {
+import ChannelItem, {
   ChannelEmptyState,
   ChannelPreferenceRow,
   ChannelStatusBadge,
@@ -243,6 +243,45 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<ChannelStatusBadge tone='warning'>Connecting</ChannelStatusBadge>);
     expect(screen.getByText('Connecting')).toHaveClass('bg-warning-1', 'text-warning-6');
     expect(screen.getByText('Connecting')).toHaveAttribute('data-channel-status-tone', 'warning');
+  });
+
+  it('renders channels as flat disclosure rows without nesting the enable switch', () => {
+    const onToggleCollapse = vi.fn();
+    const channel = {
+      id: 'telegram',
+      title: 'Telegram',
+      description: 'Telegram channel',
+      status: 'active' as const,
+      enabled: true,
+      content: <div>Telegram credentials</div>,
+    };
+    const { container, rerender } = render(
+      <ChannelItem channel={channel} isCollapsed onToggleCollapse={onToggleCollapse} onToggleEnabled={() => {}} />
+    );
+
+    const disclosure = screen.getByRole('button', { name: 'Telegram' });
+    const channelSwitch = container.querySelector('[data-channel-switch-for="telegram"]');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(disclosure).toHaveAttribute('aria-controls');
+    expect(disclosure).toHaveAttribute('data-channel-disclosure', 'telegram');
+    expect(channelSwitch).not.toBeNull();
+    expect(disclosure.contains(channelSwitch)).toBe(false);
+    expect(container.querySelector('.arco-collapse')).toBeNull();
+    expect(container.querySelector('[data-channel-panel="telegram"]')).toBeNull();
+
+    fireEvent.click(disclosure);
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ChannelItem
+        channel={channel}
+        isCollapsed={false}
+        onToggleCollapse={onToggleCollapse}
+        onToggleEnabled={() => {}}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Telegram' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Telegram' })).toHaveTextContent('Telegram credentials');
   });
 
   it('renders Account & Access and Models as separate owner pages', () => {

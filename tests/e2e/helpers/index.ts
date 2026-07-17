@@ -38,7 +38,6 @@ export {
   CHANNEL_IDS,
   channelItemById,
   channelSwitchById,
-  webuiTabByKey,
   type ChannelId,
 } from './selectors';
 export { expectBodyContainsAny, expectUrlContains, createErrorCollector } from './assertions';

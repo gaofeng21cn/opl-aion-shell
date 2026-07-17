@@ -511,6 +511,7 @@ const ToolsModalContent: React.FC = () => {
             <div className='flex items-center justify-between mb-16px'>
               <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
               <Switch
+                aria-label={t('settings.imageGeneration')}
                 disabled={
                   isUpdatingImageGeneration ||
                   isImageGenerationServerLoading ||

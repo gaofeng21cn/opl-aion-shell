@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Collapse } from '@arco-design/web-react';
+import { Switch } from '@arco-design/web-react';
+import { Down, Right } from '@icon-park/react';
 import React from 'react';
 import ChannelHeader from './ChannelHeader';
 import type { ChannelConfig } from './types';
@@ -101,6 +102,11 @@ interface ChannelItemProps {
 }
 
 const ChannelItem: React.FC<ChannelItemProps> = ({ channel, isCollapsed, onToggleCollapse, onToggleEnabled }) => {
+  const instanceId = React.useId().replace(/:/g, '');
+  const disclosureId = `channel-disclosure-${instanceId}`;
+  const panelId = `channel-panel-${instanceId}`;
+  const isDisabled = channel.status === 'coming_soon' || channel.disabled;
+
   return (
     <div
       className='w-full min-w-0 max-w-full'
@@ -108,19 +114,45 @@ const ChannelItem: React.FC<ChannelItemProps> = ({ channel, isCollapsed, onToggl
       data-channel-status={channel.status}
       data-channel-extension={channel.isExtension ? 'true' : 'false'}
     >
-      <Collapse
-        activeKey={isCollapsed ? [] : ['1']}
-        onChange={onToggleCollapse}
-        className='w-full min-w-0 max-w-full [&_div.arco-collapse-item-header-title]:flex-1'
-      >
-        <Collapse.Item
-          header={<ChannelHeader channel={channel} onToggleEnabled={onToggleEnabled} />}
-          name='1'
-          className='[&_div.arco-collapse-item-content-box]:py-3'
+      <div className='flex min-h-52px min-w-0 items-center gap-8px'>
+        <button
+          id={disclosureId}
+          type='button'
+          className='group flex min-h-44px min-w-0 flex-1 cursor-pointer items-center gap-8px border-0 bg-transparent px-0 py-10px text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+          aria-controls={panelId}
+          aria-expanded={!isCollapsed}
+          data-channel-disclosure={channel.id}
+          onClick={onToggleCollapse}
+        >
+          {isCollapsed ? (
+            <Right aria-hidden='true' className='shrink-0 text-t-tertiary' size={14} />
+          ) : (
+            <Down aria-hidden='true' className='shrink-0 text-t-tertiary' size={14} />
+          )}
+          <ChannelHeader channel={channel} />
+        </button>
+        <Switch
+          data-channel-switch-for={channel.id}
+          data-channel-switch-disabled={isDisabled ? 'true' : 'false'}
+          aria-label={channel.title}
+          aria-disabled={isDisabled ? 'true' : undefined}
+          checked={channel.enabled}
+          onChange={onToggleEnabled}
+          size='small'
+          disabled={isDisabled}
+        />
+      </div>
+      {!isCollapsed && (
+        <div
+          id={panelId}
+          className='min-w-0 pb-16px pl-22px'
+          role='region'
+          aria-labelledby={disclosureId}
+          data-channel-panel={channel.id}
         >
           {channel.content}
-        </Collapse.Item>
-      </Collapse>
+        </div>
+      )}
     </div>
   );
 };

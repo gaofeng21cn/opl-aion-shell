@@ -5,7 +5,7 @@
  * so individual test files stay DRY.
  */
 import type { Page } from '@playwright/test';
-import { channelItemById, webuiTabByKey } from './selectors';
+import { channelItemById } from './selectors';
 
 // ── Route constants ──────────────────────────────────────────────────────────
 
@@ -214,22 +214,33 @@ export async function goToChannelsTab(page: Page): Promise<void> {
 
   await goToLegacySettings(page, 'webui');
 
-  // Ensure route transition is actually complete before locating inner tabs
+  // The legacy route redirects to Resources; open the native remote-settings
+  // modal through the same entry a user sees before locating its inner tabs.
   await page
-    .waitForFunction(() => window.location.hash.startsWith('#/settings/webui'), { timeout: 12_000 })
+    .waitForFunction(
+      () =>
+        window.location.hash.startsWith('#/settings/webui') || window.location.hash.startsWith('#/settings/resources'),
+      { timeout: 12_000 }
+    )
     .catch(() => undefined);
 
-  const stableTab = page.locator(webuiTabByKey('channels')).first();
+  const stableTab = page.getByRole('tab', { name: /^(Channels|频道)/i }).first();
   const fallbackTab = page
     .locator('.arco-tabs-header-title, .arco-tabs-nav-tab-title')
     .filter({ hasText: /channel|频道|渠道/i })
     .first();
+  const openRemoteSettings = page.getByTestId('opl-settings-open-native-remote-settings');
 
   let switched = false;
   for (let attempt = 0; attempt < 2 && !switched; attempt++) {
     if (await channelItem.isVisible().catch(() => false)) {
       switched = true;
       break;
+    }
+
+    if (await openRemoteSettings.isVisible().catch(() => false)) {
+      await openRemoteSettings.click();
+      await stableTab.waitFor({ state: 'visible', timeout: 12_000 });
     }
 
     if (await stableTab.isVisible().catch(() => false)) {

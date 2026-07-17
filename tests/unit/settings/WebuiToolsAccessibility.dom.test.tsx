@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -164,6 +164,9 @@ describe('flat WebUI and Tools accessibility', () => {
 
     const serviceSection = screen.getByTestId('webui-service-settings');
     const loginSection = screen.getByTestId('webui-login-settings');
+    const webuiPanel = screen.getByRole('tabpanel');
+    expect(webuiPanel).toContainElement(serviceSection);
+    expect(screen.getAllByRole('tab').every((tab) => tab.querySelector('img') === null)).toBe(true);
     expect(serviceSection).toHaveClass('opl-settings-section');
     expect(loginSection).toHaveClass('opl-settings-section');
     expect(serviceSection.querySelector('.opl-settings-list')).not.toBeNull();
@@ -187,6 +190,9 @@ describe('flat WebUI and Tools accessibility', () => {
       expect(action.className).toContain('32px');
       expect(action.className).toContain('focus-visible:outline');
     }
+
+    fireEvent.click(screen.getByRole('tab', { name: 'settings.channels' }));
+    await waitFor(() => expect(within(screen.getByRole('tabpanel')).getByText('Channels')).toBeInTheDocument());
   });
 
   it('uses a real button for model navigation and names the image-generation help link', () => {
@@ -201,5 +207,6 @@ describe('flat WebUI and Tools accessibility', () => {
     expect(help).toHaveAttribute('href');
     expect(help.className).toContain('size-32px');
     expect(help.className).toContain('focus-visible:outline');
+    expect(screen.getByRole('switch', { name: 'settings.imageGeneration' })).toBeInTheDocument();
   });
 });

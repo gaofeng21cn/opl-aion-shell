@@ -871,7 +871,7 @@ const ChannelModalContent: React.FC = () => {
           </div>
         </div>
 
-        <div className='space-y-12px mt-12px'>
+        <div className='mt-12px divide-y divide-[var(--border-base)] border-0 border-t border-solid border-[var(--border-base)]'>
           {channels.map((channelConfig) => (
             <ChannelItem
               key={channelConfig.id}

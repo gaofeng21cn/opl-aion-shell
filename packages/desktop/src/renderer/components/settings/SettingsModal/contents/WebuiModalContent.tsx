@@ -10,29 +10,12 @@ import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { configService } from '@/common/config/configService';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
-import ChannelDiscordLogo from '@/renderer/assets/channel-logos/discord.svg';
-import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
-import ChannelSlackLogo from '@/renderer/assets/channel-logos/slack.svg';
-import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
-import ChannelWecomLogo from '@/renderer/assets/channel-logos/wecom.svg';
-import ChannelWeixinLogo from '@/renderer/assets/channel-logos/weixin.svg';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Button, Form, Input, Message, Switch, Tabs, Tooltip } from '@arco-design/web-react';
 import { Communication, Copy, Earth, EditTwo, Refresh } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
-
-const CHANNEL_LOGOS = [
-  { src: ChannelTelegramLogo, alt: 'Telegram' },
-  { src: ChannelLarkLogo, alt: 'Lark' },
-  { src: ChannelDingTalkLogo, alt: 'DingTalk' },
-  { src: ChannelWeixinLogo, alt: 'WeChat' },
-  { src: ChannelWecomLogo, alt: 'WeCom' },
-  { src: ChannelSlackLogo, alt: 'Slack' },
-  { src: ChannelDiscordLogo, alt: 'Discord' },
-] as const;
 
 const ChannelModalContentLazy = React.lazy(() => import('./channels/ChannelModalContent'));
 const QRCodeSVGLazy = React.lazy(async () => {
@@ -778,7 +761,7 @@ const WebuiModalContent: React.FC = () => {
         activeTab={activeTab}
         onChange={(key) => setActiveTab((key as 'webui' | 'channels') || 'webui')}
         type='line'
-        className='mb-12px settings-remote-tabs'
+        className='settings-remote-tabs flex min-h-0 flex-1 flex-col [&>.arco-tabs-content]:min-h-0 [&>.arco-tabs-content]:flex-1 [&>.arco-tabs-content]:pt-0 [&_.arco-tabs-pane]:h-full'
       >
         <Tabs.TabPane
           key='webui'
@@ -791,7 +774,9 @@ const WebuiModalContent: React.FC = () => {
               <span>WebUI</span>
             </span>
           }
-        />
+        >
+          {webuiPanel}
+        </Tabs.TabPane>
         <Tabs.TabPane
           key='channels'
           title={
@@ -800,35 +785,19 @@ const WebuiModalContent: React.FC = () => {
               className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'channels' ? 'text-t-primary font-600' : 'text-t-secondary'}`}
             >
               <Communication theme='outline' size='15' />
-              <span>Channels</span>
-              <span className='inline-flex items-center gap-4px ml-2px'>
-                {CHANNEL_LOGOS.map((item) => (
-                  <span
-                    key={item.alt}
-                    className='inline-flex items-center justify-center w-16px h-16px rd-50% border border-line bg-fill-1'
-                    title={item.alt}
-                    aria-label={item.alt}
-                  >
-                    <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
-                  </span>
-                ))}
-              </span>
+              <span>{t('settings.channels')}</span>
             </span>
           }
-        />
+        >
+          <div className='h-full min-h-0'>
+            <Suspense
+              fallback={<div className='px-[12px] text-13px text-t-secondary md:px-[28px]'>{t('common.loading')}</div>}
+            >
+              <ChannelModalContentLazy />
+            </Suspense>
+          </div>
+        </Tabs.TabPane>
       </Tabs>
-
-      {activeTab === 'webui' ? (
-        webuiPanel
-      ) : (
-        <div className='flex-1 min-h-0'>
-          <Suspense
-            fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}
-          >
-            <ChannelModalContentLazy />
-          </Suspense>
-        </div>
-      )}
 
       <AionModal
         visible={setUsernameModalVisible}
