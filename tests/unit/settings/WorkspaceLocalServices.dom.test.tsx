@@ -406,7 +406,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     const refreshButton = screen.getByRole('button', { name: 'Refresh' });
     expect(refreshButton).toHaveTextContent('');
-    expect(refreshButton.querySelector('[data-icon="rotate-right"]')).not.toBeNull();
+    expect(refreshButton.querySelector('.i-icon-refresh')).not.toBeNull();
 
     fireEvent.click(refreshButton);
     expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true });
