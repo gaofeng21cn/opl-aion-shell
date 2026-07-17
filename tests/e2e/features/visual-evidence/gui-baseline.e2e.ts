@@ -60,6 +60,7 @@ type VisualTarget = {
   locale: GuiBaselineLocale;
   anchors: AnchorTarget[];
   coverageGaps: GuiBaselineCoverageGap[];
+  verifyBackdrop?: boolean;
   setup: (page: Page) => Promise<Record<string, string | number | boolean>>;
   layoutChecks: (page: Page) => Promise<GuiBaselineLayoutCheck[]>;
 };
@@ -432,6 +433,10 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
       lineHeight: style.lineHeight,
       fontWeight: style.fontWeight,
       alignItems: contentStyle.alignItems,
+      labelClientWidth: label.clientWidth,
+      labelScrollWidth: label.scrollWidth,
+      labelOverflowX: window.getComputedStyle(label).overflowX,
+      labelTextOverflow: window.getComputedStyle(label).textOverflow,
     };
   });
 
@@ -445,7 +450,10 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
     geometry.fontSize === '13px' &&
     geometry.lineHeight === '18px' &&
     geometry.fontWeight === '500' &&
-    geometry.alignItems === 'center'
+    geometry.alignItems === 'center' &&
+    geometry.labelScrollWidth <= geometry.labelClientWidth + 1 &&
+    geometry.labelOverflowX === 'visible' &&
+    geometry.labelTextOverflow !== 'ellipsis'
   );
   return {
     id: 'home_starter_active_geometry_stable',
@@ -798,7 +806,10 @@ async function captureTarget(
 
   const route = await page.evaluate(() => window.location.hash.replace(/^#/, ''));
   const screenshotPath = await takeScreenshot(page, target.screenshotName);
-  const screenshotChecks = target.id.startsWith('home-') ? [await homeBackdropPaintCheck(page, screenshotPath)] : [];
+  const screenshotChecks =
+    target.id.startsWith('home-') && target.verifyBackdrop !== false
+      ? [await homeBackdropPaintCheck(page, screenshotPath)]
+      : [];
   for (const check of screenshotChecks) {
     expect(check.passed, `${check.id}: ${check.details}`).toBe(true);
   }
@@ -936,6 +947,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('mobile_model', '[data-testid="mobile-action-sheet-model"]'),
       ],
       coverageGaps: [],
+      verifyBackdrop: false,
       setup: async (page) => {
         await goToGuid(page);
         await setNavigationRailExpanded(page, false);

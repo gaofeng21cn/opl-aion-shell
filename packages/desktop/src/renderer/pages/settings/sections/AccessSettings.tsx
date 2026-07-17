@@ -400,7 +400,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
       </header>
 
       {surface === 'models' && (
-        <div className='grid grid-cols-1 gap-14px xl:grid-cols-2' data-testid='settings-models-primary'>
+        <div className='grid grid-cols-1 gap-14px' data-testid='settings-models-primary'>
           <section
             className={`opl-settings-section opl-settings-surface--status ${
               modelAccessNeedsAttention ? 'opl-settings-section--attention' : ''

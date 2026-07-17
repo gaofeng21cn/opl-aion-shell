@@ -744,7 +744,8 @@ describe('AccessSettingsContent', () => {
     const view = render(<AccessSettingsContent />);
 
     expect(view.getByText('Access')).toBeTruthy();
-    expect(view.getByTestId('settings-models-primary')).toHaveClass('grid-cols-1', 'xl:grid-cols-2');
+    expect(view.getByTestId('settings-models-primary')).toHaveClass('grid-cols-1');
+    expect(view.getByTestId('settings-models-primary')).not.toHaveClass('xl:grid-cols-2');
     expect(view.getByTestId('settings-models-codex-cli')).toHaveTextContent('Default model: gpt-5.5');
     expect(view.getByTestId('settings-models-model-preference')).toBeTruthy();
     expect(view.getByTestId('settings-models-preferred-model')).toHaveValue('__auto');

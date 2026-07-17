@@ -19,9 +19,17 @@ const SETTINGS_VISUAL_VIEWPORTS = [
   { name: 'desktop-light', navigation: 'desktop', theme: 'light', size: { width: 1440, height: 960 } },
   { name: 'compact-light', navigation: 'mobile', theme: 'light', size: { width: 400, height: 600 } },
   { name: 'desktop-dark', navigation: 'desktop', theme: 'dark', size: { width: 1440, height: 960 } },
-  { name: 'narrow-dark', navigation: 'mobile', theme: 'dark', size: { width: 720, height: 900 } },
+  { name: 'compact-dark', navigation: 'mobile', theme: 'dark', size: { width: 400, height: 600 } },
 ] as const;
-const SETTINGS_LONG_PAGE_TABS = new Set<SettingsTab>(['agents', 'capabilities', 'resources', 'environment']);
+const SETTINGS_LONG_PAGE_TABS = new Set<SettingsTab>([
+  'agents',
+  'capabilities',
+  'resources',
+  'environment',
+  'storage',
+  'appearance',
+  'about',
+]);
 
 type SettingsVisualAnchor = {
   id: string;
@@ -120,6 +128,11 @@ const expectVisualAnchors = async (page: import('@playwright/test').Page, anchor
       });
     }
   }
+};
+
+const expectVisualStateReady = async (page: import('@playwright/test').Page) => {
+  await expect(page.locator('.arco-message')).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.locator('[data-testid="settings-agents-loading"]')).toHaveCount(0, { timeout: 10_000 });
 };
 
 const setElectronViewport = async (
@@ -711,6 +724,7 @@ test.describe('Settings Pages', () => {
       await expectUrlContains(page, tab);
       await expectSelectedSettingsNavigationItem(page, tab, 'mobile');
       await expectVisualAnchors(page, anchors);
+      await expectVisualStateReady(page);
       await expectNoHorizontalOverflow(page);
       if (tab === 'storage') await expectStorageActionIconLayout(page);
     }
@@ -721,6 +735,7 @@ test.describe('Settings Pages', () => {
       await goToSettings(page, manualCapabilities.route);
       await manualCapabilities.action(page);
       await expectVisualAnchors(page, manualCapabilities.anchors);
+      await expectVisualStateReady(page);
       await expectNoHorizontalOverflow(page);
     }
   });
@@ -801,6 +816,7 @@ test.describe('Settings Pages', () => {
           viewport.navigation === 'mobile' && level === 'secondary'
         );
         await expectVisualAnchors(page, anchors);
+        await expectVisualStateReady(page);
         if (tab === 'storage') await expectStorageActionIconLayout(page);
         const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
@@ -863,6 +879,7 @@ test.describe('Settings Pages', () => {
         await goToSettings(page, target.route);
         await target.action(page);
         await expectVisualAnchors(page, target.anchors);
+        await expectVisualStateReady(page);
         const topScroll = await setSettingsScrollPosition(page, 'top');
         await resetSettingsScreenshotPointer(page, viewport.size);
         const anchorEvidence = await collectAnchorEvidence(page, target.anchors);

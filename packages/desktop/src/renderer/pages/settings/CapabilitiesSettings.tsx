@@ -18,7 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Down, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
+import { Close, Down, Experiment, FilePpt, FileWord, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -1503,11 +1503,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.agentsPage.description')}</Typography.Text>
         </div>
-        <div className='opl-settings-page-header__actions'>
-          <Button type='primary' onClick={openAddCapability} data-testid='settings-agents-primary-action'>
-            {t('settings.agentsPage.addAgent')}
-          </Button>
-        </div>
       </header>
 
       <div className='flex flex-col gap-14px' data-testid='settings-agents-primary'>
@@ -1676,7 +1671,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 {t('settings.capabilitiesPage.packageManager.catalogDescription')}
               </Typography.Text>
             </div>
-            <div className='flex items-center gap-8px'>
+            <div className='flex flex-wrap items-center gap-8px'>
               <Typography.Text className='text-12px text-t-secondary'>
                 {t('settings.capabilitiesPage.packageManager.packageCount', {
                   count: visibleCapabilities.length,
@@ -1693,6 +1688,14 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   data-testid='agent-package-refresh-registry'
                 />
               </span>
+              <Button
+                type='primary'
+                size='small'
+                onClick={openAddCapability}
+                data-testid='settings-agents-primary-action'
+              >
+                {t('settings.agentsPage.addAgent')}
+              </Button>
             </div>
           </div>
 
@@ -2432,17 +2435,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
-        <div className='opl-settings-page-header__actions'>
-          <Button
-            type='primary'
-            icon={<Refresh theme='outline' size='16' />}
-            loading={flowSyncing}
-            onClick={() => void syncFlowCapabilities()}
-            data-testid='settings-capabilities-primary-action'
-          >
-            {t('settings.capabilitiesPage.groups.oplFlowManaged.sync')}
-          </Button>
-        </div>
       </header>
       <div data-testid='settings-capabilities-primary'>
         <Tabs
@@ -2464,6 +2456,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   flowManagedSkillIds={flowManagedCatalog.skillIds}
                   flowManagedSkillDependencies={flowManagedCatalog.skillDependencies}
                   flowManagedCliDependencies={flowManagedCatalog.cliDependencies}
+                  flowSyncing={flowSyncing}
+                  onSyncFlow={() => void syncFlowCapabilities()}
                 />
               </div>
             </div>

@@ -712,37 +712,6 @@ export const StorageSettingsContent: React.FC = () => {
               : t('settings.storagePage.inventory.awaitingSnapshot')}
           </Typography.Text>
         </div>
-        <div className='opl-settings-page-header__actions'>
-          {cleanupCandidatesAvailable && (
-            <Button
-              htmlType='button'
-              type='primary'
-              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
-              disabled={interactionLocked}
-              loading={loading === 'cleanup-preview'}
-              onClick={previewCleanup}
-              data-testid='settings-storage-primary-action'
-            >
-              {t('settings.storagePage.actions.previewAll')}
-            </Button>
-          )}
-          <Button
-            type='secondary'
-            icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
-            data-testid='settings-storage-diagnostics-action'
-            onClick={() => setDiagnosticsVisible(true)}
-          >
-            {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-          </Button>
-          <OplRefreshIconButton
-            htmlType='button'
-            label={t('settings.storagePage.actions.refresh')}
-            disabled={interactionLocked}
-            loading={loading === 'inventory'}
-            onClick={loadInventory}
-            data-testid='storage-refresh'
-          />
-        </div>
       </div>
 
       {error && <Alert type='error' content={error} data-testid='settings-storage-exception' />}
@@ -787,6 +756,37 @@ export const StorageSettingsContent: React.FC = () => {
 
       <div id='storage-categories' data-testid='settings-storage-primary'>
         <span id='cleanup-preview' aria-hidden='true' />
+        <div className='mb-10px flex flex-wrap items-center gap-8px'>
+          {cleanupCandidatesAvailable && (
+            <Button
+              htmlType='button'
+              type='primary'
+              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
+              disabled={interactionLocked}
+              loading={loading === 'cleanup-preview'}
+              onClick={previewCleanup}
+              data-testid='settings-storage-primary-action'
+            >
+              {t('settings.storagePage.actions.previewAll')}
+            </Button>
+          )}
+          <Button
+            type='secondary'
+            icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
+            data-testid='settings-storage-diagnostics-action'
+            onClick={() => setDiagnosticsVisible(true)}
+          >
+            {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+          </Button>
+          <OplRefreshIconButton
+            htmlType='button'
+            label={t('settings.storagePage.actions.refresh')}
+            disabled={interactionLocked}
+            loading={loading === 'inventory'}
+            onClick={loadInventory}
+            data-testid='storage-refresh'
+          />
+        </div>
         <div className='opl-settings-list' data-testid='storage-category-list'>
           {viewModel.sections.map((item) => (
             <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />

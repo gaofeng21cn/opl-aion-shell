@@ -98,7 +98,11 @@ vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
         .join(',')}
     >
       Skills detail
-      {onSyncFlow && <button onClick={onSyncFlow}>Sync Flow</button>}
+      {onSyncFlow && (
+        <button data-testid='settings-capabilities-primary-action' onClick={onSyncFlow}>
+          Sync Flow
+        </button>
+      )}
     </div>
   ),
 }));
@@ -1813,6 +1817,10 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Manually added' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-capabilities-primary-action').closest('[role="tabpanel"]')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-voice-input')).toBeInTheDocument();
     expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
