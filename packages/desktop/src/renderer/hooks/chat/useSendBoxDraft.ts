@@ -23,6 +23,40 @@ type Draft =
       uploadFile: string[];
     };
 
+type SendBoxDraftValue = {
+  content: string;
+  atPath: Array<string | FileOrFolderItem>;
+  uploadFile: string[];
+};
+
+const filePathOf = (item: string | FileOrFolderItem): string => (typeof item === 'string' ? item : item.path);
+
+export const mergeFailedSendContent = (failedContent: string, currentContent: string): string => {
+  if (!failedContent) return currentContent;
+  if (!currentContent) return failedContent;
+  if (currentContent === failedContent || currentContent.startsWith(`${failedContent}\n\n`)) {
+    return currentContent;
+  }
+  return `${failedContent}\n\n${currentContent}`;
+};
+
+export const mergeFailedSendDraft = <T extends SendBoxDraftValue>(
+  currentDraft: T,
+  failedContent: string,
+  failedFiles: string[]
+): T => {
+  const atPathFiles = new Set(currentDraft.atPath.map(filePathOf));
+  const uploadFile = Array.from(
+    new Set([...failedFiles.filter(Boolean), ...currentDraft.uploadFile.filter(Boolean)])
+  ).filter((file) => !atPathFiles.has(file));
+
+  return {
+    ...currentDraft,
+    content: mergeFailedSendContent(failedContent, currentDraft.content),
+    uploadFile,
+  };
+};
+
 /**
  * 当前支持的对话类型以及对应的草稿对象
  */

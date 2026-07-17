@@ -121,7 +121,7 @@ export type GuidSendDeps = {
 };
 
 export type GuidSendResult = {
-  handleSend: () => Promise<void>;
+  handleSend: () => Promise<boolean>;
   sendMessageHandler: () => void;
   isButtonDisabled: boolean;
 };
@@ -277,7 +277,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
       actions: selectedPackageLaunchGate.allowedWhenBlocked.join(', '),
     });
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (): Promise<boolean> => {
     if (packageLaunchHardBlocked) {
       showOplAgentPackageLaunchBlocked(
         launchBlockedMessage(),
@@ -285,11 +285,11 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
         selectedPackageLaunchGate.allowedWhenBlocked
       );
-      return;
+      return false;
     }
     if (selectedPackageId && packageWorkspaceRequired && !dir) {
       Message.error(t('guid.workspace.specifyWorkspace'));
-      return;
+      return false;
     }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
@@ -382,7 +382,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         if (!conversation || !conversation.id) {
           Message.error(t('conversation.createFailed'));
-          return;
+          return false;
         }
 
         if (isCustomWorkspace) {
@@ -402,7 +402,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         console.error('Failed to create OpenClaw conversation:', error);
         throw error;
       }
-      return;
+      return true;
     }
 
     // Nanobot path
@@ -433,7 +433,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         if (!conversation || !conversation.id) {
           Message.error(t('conversation.createFailed'));
-          return;
+          return false;
         }
 
         if (isCustomWorkspace) {
@@ -453,14 +453,14 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         console.error('Failed to create Nanobot conversation:', error);
         throw error;
       }
-      return;
+      return true;
     }
 
     // Aionrs path (direct selection or preset assistant with aionrs as main agent)
     if (selectedAgent === 'aionrs' || (is_preset && finalEffectiveAgentType === 'aionrs')) {
       if (!current_model) {
         Message.warning(t('conversation.noModelConfigured'));
-        return;
+        return false;
       }
       try {
         const conversation = await ipcBridge.conversation.create.invoke({
@@ -492,7 +492,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         if (!conversation || !conversation.id) {
           Message.error(t('conversation.createFailed'));
-          return;
+          return false;
         }
 
         if (isCustomWorkspace) {
@@ -512,7 +512,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         console.error('Failed to create Aion CLI conversation:', error);
         throw error;
       }
-      return;
+      return true;
     }
 
     // Remaining agent path (ACP/remote/custom, including preset fallbacks)
@@ -593,7 +593,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const conversation = await ipcBridge.conversation.create.invoke(agentConversationParams);
         if (!conversation || !conversation.id) {
           console.error('Failed to create ACP conversation - conversation object is null or missing id');
-          return;
+          Message.error(t('conversation.createFailed'));
+          return false;
         }
 
         if (isCustomWorkspace) {
@@ -609,6 +610,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
         await navigate(`/conversation/${conversation.id}`);
+        return true;
       } catch (error: unknown) {
         console.error('Failed to create ACP conversation:', error);
         throw error;
@@ -667,15 +669,19 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
     sendingRef.current = true;
     setLoading(true);
+    const sentInput = input;
+    const sentFiles = new Set(files);
+    const sentDir = dir;
     handleSend()
-      .then(() => {
-        setInput('');
+      .then((accepted) => {
+        if (!accepted) return;
+        setInput((currentInput) => (currentInput === sentInput ? '' : currentInput));
         setMentionOpen(false);
         setMentionQuery(null);
         setMentionSelectorOpen(false);
         setMentionActiveIndex(0);
-        setFiles([]);
-        setDir('');
+        setFiles((currentFiles) => currentFiles.filter((file) => !sentFiles.has(file)));
+        setDir((currentDir) => (currentDir === sentDir ? '' : currentDir));
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
@@ -687,6 +693,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       });
   }, [
     loading,
+    input,
+    files,
     handleSend,
     setLoading,
     setInput,

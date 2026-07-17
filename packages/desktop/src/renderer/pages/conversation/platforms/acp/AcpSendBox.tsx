@@ -31,7 +31,11 @@ import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 import { useAgentModesForBackend } from '@/renderer/hooks/agent/useAgentModesForBackend';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
-import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/chat/useSendBoxDraft';
+import {
+  getSendBoxDraftHook,
+  mergeFailedSendDraft,
+  type FileOrFolderItem,
+} from '@/renderer/hooks/chat/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/chat/useSendBoxFiles';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -52,7 +56,7 @@ import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
-import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
+import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
@@ -102,10 +106,20 @@ const useSendBoxDraft = (conversation_id: string) => {
   const setUploadFile = createSetUploadFile(mutate, data);
 
   const setContent = useCallback(
-    (nextContent: string) => {
-      mutate((prev) => ({ ...prev, content: nextContent }));
+    (nextContent: React.SetStateAction<string>) => {
+      mutate((prev) => ({
+        ...prev,
+        content: typeof nextContent === 'function' ? nextContent(prev.content) : nextContent,
+      }));
     },
     [data, mutate]
+  );
+
+  const restoreFailedSend = useCallback(
+    (failedContent: string, failedFiles: string[]) => {
+      mutate((prev) => mergeFailedSendDraft(prev, failedContent, failedFiles));
+    },
+    [mutate]
   );
 
   return {
@@ -115,6 +129,7 @@ const useSendBoxDraft = (conversation_id: string) => {
     setUploadFile,
     content,
     setContent,
+    restoreFailedSend,
   };
 };
 
@@ -156,7 +171,8 @@ const AcpSendBox: React.FC<{
     backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
   const { checkAndUpdateTitle } = useAutoTitle();
-  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
+  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, restoreFailedSend } =
+    useSendBoxDraft(conversation_id);
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
@@ -335,6 +351,7 @@ const AcpSendBox: React.FC<{
     markSendFailed: runtimeView.markSendFailed,
     checkAndUpdateTitle,
     addOrUpdateMessage: addOrUpdateMessageRef.current,
+    restoreFailedSend,
   });
 
   const executeCommand = useCallback(
@@ -452,8 +469,7 @@ Please check your local CLI tool authentication status`,
   });
 
   const onSendHandler = async (message: string) => {
-    const atPathFiles = atPath.map((item) => (typeof item === 'string' ? item : item.path));
-    const allFiles = [...uploadFile, ...atPathFiles];
+    const allFiles = collectSelectedFiles(uploadFile, atPath);
 
     clearFiles();
     emitter.emit('acp.selected.file.clear');
@@ -465,11 +481,17 @@ Please check your local CLI tool authentication status`,
         hasPendingCommands,
       })
     ) {
-      enqueue({ input: message, files: allFiles });
+      const queued = enqueue({ input: message, files: allFiles });
+      if (!queued) restoreFailedSend(message, allFiles);
       return;
     }
 
-    await executeCommand({ input: message, files: allFiles });
+    try {
+      await executeCommand({ input: message, files: allFiles });
+    } catch (error) {
+      restoreFailedSend(message, allFiles);
+      throw error;
+    }
   };
 
   const handleEditQueuedCommand = useCallback(

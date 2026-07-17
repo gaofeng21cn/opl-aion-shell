@@ -23,7 +23,11 @@ import HorizontalFileList from '@/renderer/components/media/HorizontalFileList';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
-import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/chat/useSendBoxDraft';
+import {
+  getSendBoxDraftHook,
+  mergeFailedSendDraft,
+  type FileOrFolderItem,
+} from '@/renderer/hooks/chat/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/chat/useSendBoxFiles';
 import { useSlashCommands } from '@/renderer/hooks/chat/useSlashCommands';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
@@ -80,10 +84,20 @@ const useSendBoxDraft = (conversation_id: string) => {
   const setUploadFile = createSetUploadFile(mutate, data);
 
   const setContent = useCallback(
-    (nextContent: string) => {
-      mutate((prev) => ({ ...prev, content: nextContent }));
+    (nextContent: React.SetStateAction<string>) => {
+      mutate((prev) => ({
+        ...prev,
+        content: typeof nextContent === 'function' ? nextContent(prev.content) : nextContent,
+      }));
     },
     [data, mutate]
+  );
+
+  const restoreFailedSend = useCallback(
+    (failedContent: string, failedFiles: string[]) => {
+      mutate((prev) => mergeFailedSendDraft(prev, failedContent, failedFiles));
+    },
+    [mutate]
   );
 
   return {
@@ -93,6 +107,7 @@ const useSendBoxDraft = (conversation_id: string) => {
     setUploadFile,
     content,
     setContent,
+    restoreFailedSend,
   };
 };
 
@@ -145,7 +160,8 @@ const AionrsSendBox: React.FC<{
   });
   const runtimeView = useConversationRuntimeView(conversation_id);
 
-  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
+  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, restoreFailedSend } =
+    useSendBoxDraft(conversation_id);
 
   const handleContentChange = useCallback(
     (val: string) => {
@@ -308,17 +324,24 @@ const AionrsSendBox: React.FC<{
       sessionStorage.setItem(processedKey, '1');
       sessionStorage.removeItem(storageKey);
 
+      let input = '';
+      let initialFiles: string[] = [];
       try {
-        const { input, files: initialFiles } = JSON.parse(storedMessage);
-        await executeCommand({ input, files: initialFiles || [] });
+        const initialMessage = JSON.parse(storedMessage);
+        input = typeof initialMessage.input === 'string' ? initialMessage.input : '';
+        initialFiles = Array.isArray(initialMessage.files)
+          ? initialMessage.files.filter((file: unknown): file is string => typeof file === 'string')
+          : [];
+        await executeCommand({ input, files: initialFiles });
       } catch (error) {
         console.error('[AionrsSendBox] Failed to send initial message:', error);
+        restoreFailedSend(input, initialFiles);
         sessionStorage.removeItem(processedKey);
       }
     };
 
     void processInitialMessage();
-  }, [conversation_id, current_model?.use_model, executeCommand]);
+  }, [conversation_id, current_model?.use_model, executeCommand, restoreFailedSend]);
 
   const onSendHandler = async (message: string) => {
     const filesToSend = collectSelectedFiles(uploadFile, atPath);
@@ -332,11 +355,17 @@ const AionrsSendBox: React.FC<{
         hasPendingCommands,
       })
     ) {
-      enqueue({ input: message, files: filesToSend });
+      const queued = enqueue({ input: message, files: filesToSend });
+      if (!queued) restoreFailedSend(message, filesToSend);
       return;
     }
 
-    await executeCommand({ input: message, files: filesToSend });
+    try {
+      await executeCommand({ input: message, files: filesToSend });
+    } catch (error) {
+      restoreFailedSend(message, filesToSend);
+      throw error;
+    }
   };
 
   const handleEditQueuedCommand = useCallback(

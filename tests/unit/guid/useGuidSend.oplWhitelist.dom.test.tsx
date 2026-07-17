@@ -279,6 +279,53 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     );
   });
 
+  it('preserves the Home draft when conversation creation returns no conversation', async () => {
+    mocks.createConversation.mockResolvedValue(null);
+    const deps = buildDeps();
+    deps.files = ['/tmp/opl/draft.pdf'];
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    act(() => result.current.sendMessageHandler());
+
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('conversation.createFailed'));
+    expect(deps.setInput).not.toHaveBeenCalled();
+    expect(deps.setFiles).not.toHaveBeenCalled();
+    expect(deps.setDir).not.toHaveBeenCalled();
+  });
+
+  it('preserves the Home draft when conversation creation rejects', async () => {
+    mocks.createConversation.mockRejectedValue(new Error('create rejected'));
+    const deps = buildDeps();
+    deps.files = ['/tmp/opl/draft.pdf'];
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    act(() => result.current.sendMessageHandler());
+
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalled());
+    expect(deps.setInput).not.toHaveBeenCalled();
+    expect(deps.setFiles).not.toHaveBeenCalled();
+    expect(deps.setDir).not.toHaveBeenCalled();
+  });
+
+  it('consumes only the accepted Home snapshot and keeps post-submit input', async () => {
+    const deps = buildDeps();
+    deps.files = ['/tmp/opl/sent.pdf'];
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    act(() => result.current.sendMessageHandler());
+
+    await waitFor(() => expect(deps.setInput).toHaveBeenCalledTimes(1));
+    const updateInput = vi.mocked(deps.setInput).mock.calls[0][0] as (current: string) => string;
+    const updateFiles = vi.mocked(deps.setFiles).mock.calls[0][0] as (current: string[]) => string[];
+    const updateDir = vi.mocked(deps.setDir).mock.calls[0][0] as (current: string) => string;
+
+    expect(updateInput('hello')).toBe('');
+    expect(updateInput('typed while creating')).toBe('typed while creating');
+    expect(updateFiles(['/tmp/opl/sent.pdf', '/tmp/opl/new.pdf'])).toEqual(['/tmp/opl/new.pdf']);
+    expect(updateDir('/tmp/opl')).toBe('');
+    expect(updateDir('/tmp/other')).toBe('/tmp/other');
+  });
+
   it('filters skills and MCP servers before creating an ordinary OPL Codex conversation', async () => {
     const { result } = renderHook(() => useGuidSend(buildDeps()));
 

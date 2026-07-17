@@ -11,14 +11,30 @@ import { BackendHttpError } from '@/common/adapter/httpBridge';
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
-const { sendMessageInvokeMock, addOrUpdateMessageMock, resetStateMock, emitterEmitMock, setSendBoxHandlerMock } =
-  vi.hoisted(() => ({
-    sendMessageInvokeMock: vi.fn(),
-    addOrUpdateMessageMock: vi.fn(),
-    resetStateMock: vi.fn(),
-    emitterEmitMock: vi.fn(),
-    setSendBoxHandlerMock: vi.fn(),
-  }));
+const {
+  sendMessageInvokeMock,
+  addOrUpdateMessageMock,
+  resetStateMock,
+  emitterEmitMock,
+  setSendBoxHandlerMock,
+  clearFilesMock,
+  draftState,
+} = vi.hoisted(() => ({
+  sendMessageInvokeMock: vi.fn(),
+  addOrUpdateMessageMock: vi.fn(),
+  resetStateMock: vi.fn(),
+  emitterEmitMock: vi.fn(),
+  setSendBoxHandlerMock: vi.fn(),
+  clearFilesMock: vi.fn(),
+  draftState: {
+    current: {
+      _type: 'acp' as const,
+      atPath: [] as Array<string | { path: string; name: string; isFile: boolean }>,
+      uploadFile: [] as string[],
+      content: '',
+    },
+  },
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -95,20 +111,22 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
 vi.mock('@/renderer/hooks/agent/useAgentModesForBackend', () => ({
   useAgentModesForBackend: () => [],
 }));
-vi.mock('@/renderer/hooks/chat/useSendBoxDraft', () => ({
-  getSendBoxDraftHook: () => () => ({
-    data: {
-      atPath: [],
-      uploadFile: [],
-      content: '',
-    },
-    mutate: vi.fn(),
-  }),
-}));
+vi.mock('@/renderer/hooks/chat/useSendBoxDraft', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/renderer/hooks/chat/useSendBoxDraft')>();
+  return {
+    ...actual,
+    getSendBoxDraftHook: () => () => ({
+      data: draftState.current,
+      mutate: (updater: (current: typeof draftState.current) => typeof draftState.current) => {
+        draftState.current = updater(draftState.current);
+      },
+    }),
+  };
+});
 vi.mock('@/renderer/hooks/chat/useSendBoxFiles', () => ({
   useSendBoxFiles: () => ({
     handleFilesAdded: vi.fn(),
-    clearFiles: vi.fn(),
+    clearFiles: clearFilesMock,
   }),
   createSetUploadFile: () => vi.fn(),
 }));
@@ -178,6 +196,8 @@ vi.mock('@/renderer/utils/file/fileSelection', () => ({
 }));
 vi.mock('@/renderer/utils/file/messageFiles', () => ({
   buildDisplayMessage: (input: string) => input,
+  collectSelectedFiles: (uploadFile: string[], atPath: Array<string | { path: string }>) =>
+    Array.from(new Set([...uploadFile, ...atPath.map((item) => (typeof item === 'string' ? item : item.path))])),
 }));
 vi.mock('@/renderer/pages/conversation/platforms/acp/useAcpInitialMessage', () => ({
   useAcpInitialMessage: vi.fn(),
@@ -226,6 +246,12 @@ const makeMessageState = (): UseAcpMessageReturn => ({
 describe('AcpSendBox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    draftState.current = {
+      _type: 'acp',
+      atPath: [],
+      uploadFile: [],
+      content: '',
+    };
     sendMessageInvokeMock.mockResolvedValue({ msg_id: 'message-id', turn_id: 'turn-id', runtime: 'acp' });
   });
 
@@ -260,6 +286,40 @@ describe('AcpSendBox', () => {
     await waitFor(() => {
       expect(resetStateMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('restores the failed prompt and attachments without overwriting input typed while waiting', async () => {
+    let rejectSend: (error: Error) => void = () => {};
+    sendMessageInvokeMock.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectSend = reject;
+      })
+    );
+    draftState.current = {
+      _type: 'acp',
+      atPath: [],
+      uploadFile: ['/tmp/failed.pdf'],
+      content: '',
+    };
+
+    render(<AcpSendBox conversation_id='conv-1' backend='codex' messageState={makeMessageState()} />);
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'send' }).click();
+    });
+    await waitFor(() => expect(sendMessageInvokeMock).toHaveBeenCalled());
+
+    draftState.current = {
+      _type: 'acp',
+      atPath: [],
+      uploadFile: ['/tmp/new.pdf'],
+      content: 'typed while waiting',
+    };
+    rejectSend(new Error('send rejected'));
+
+    await waitFor(() => expect(draftState.current.content).toBe('Hello\n\ntyped while waiting'));
+    expect(draftState.current.uploadFile).toEqual(['/tmp/failed.pdf', '/tmp/new.pdf']);
+    expect(clearFilesMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose the retired head-down quick prompt button', () => {

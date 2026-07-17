@@ -27,6 +27,7 @@ type UseAcpInitialMessageParams = {
   markSendFailed?: (reason: string) => void;
   checkAndUpdateTitle: (conversation_id: string, input: string) => void;
   addOrUpdateMessage: (message: TMessage, prepend?: boolean) => void;
+  restoreFailedSend: (input: string, files: string[]) => void;
 };
 
 /**
@@ -44,6 +45,7 @@ export const useAcpInitialMessage = ({
   markSendFailed,
   checkAndUpdateTitle,
   addOrUpdateMessage,
+  restoreFailedSend,
 }: UseAcpInitialMessageParams): void => {
   const { t } = useTranslation();
 
@@ -57,10 +59,14 @@ export const useAcpInitialMessage = ({
     sessionStorage.removeItem(storageKey);
 
     const sendInitialMessage = async () => {
+      let input = '';
+      let files: string[] = [];
       try {
         const initialMessage = JSON.parse(storedMessage);
-        const input = typeof initialMessage.input === 'string' ? initialMessage.input : '';
-        const files = Array.isArray(initialMessage.files) ? initialMessage.files : [];
+        input = typeof initialMessage.input === 'string' ? initialMessage.input : '';
+        files = Array.isArray(initialMessage.files)
+          ? initialMessage.files.filter((file: unknown): file is string => typeof file === 'string')
+          : [];
         const displayMessage = buildDisplayMessage(input, files, workspacePath || '');
 
         markSendStarted?.();
@@ -109,6 +115,7 @@ export const useAcpInitialMessage = ({
           created_at: Date.now() + 2,
         };
         addOrUpdateMessage(errorMessage, true);
+        restoreFailedSend(input, files);
         resetState();
         setAiProcessing(false); // Keep the prop-setter in sync with the hook reset
       }
@@ -126,6 +133,7 @@ export const useAcpInitialMessage = ({
     markSendFailed,
     markSendStarted,
     resetState,
+    restoreFailedSend,
     setAiProcessing,
     t,
     workspacePath,
