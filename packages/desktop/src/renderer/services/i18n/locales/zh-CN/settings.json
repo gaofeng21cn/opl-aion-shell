@@ -2983,6 +2983,9 @@
       "title": "OPL Base 依赖",
       "description": "OPL 托管依赖会静默更新；外部安装不会被覆盖，只有已验证的原渠道操作可在二次确认后执行。",
       "external": "外部安装",
+      "otherInstallations": "其他安装（{{count}}）",
+      "path": "位置：{{value}}",
+      "ownership": "来源：{{value}}",
       "version": "版本：{{value}}",
       "items": {
         "codex-cli": "Codex CLI",

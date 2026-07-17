@@ -577,9 +577,87 @@ function BaseDependencyCatalog({
   const catalog = component.dependencyCatalog;
   if (!catalog || catalog.dependencies.length === 0) return null;
 
+  const primaryDependencies = catalog.dependencies.filter((dependency) => !dependency.external);
+  const orphanExternalDependencies = catalog.dependencies.filter(
+    (dependency) => dependency.external && !primaryDependencies.some((primary) => primary.id === dependency.parentId)
+  );
+
+  const renderDependencyRow = (dependency: ManagedDependency, rowId: string, externalInstallation: boolean) => {
+    const canDelegateUpdate =
+      dependency.updateMode === 'explicit_owner_delegated' &&
+      Boolean(dependency.updateAction) &&
+      dependency.updateAction?.surface === 'opl app action execute' &&
+      dependency.updateAction?.payloadFields.length === 0 &&
+      dependency.updateAction?.confirmationRequired === true &&
+      dependency.updateAction?.autoApplyAllowed === false;
+    const versionDetail =
+      dependency.latestVersion && dependency.latestVersion !== dependency.version
+        ? `${dependency.version ?? t('settings.oplEnvironmentPage.status.unknown')} -> ${dependency.latestVersion}`
+        : (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'));
+    const displayLabel =
+      externalInstallation && dependency.binaryPath ? dependency.binaryPath : dependencyDisplayLabel(dependency, t);
+
+    return (
+      <div key={rowId} className='opl-settings-row' data-testid={`opl-base-dependency-${rowId}`}>
+        <div className='opl-settings-row__main flex-row items-start gap-10px'>
+          <span className='opl-settings-icon' aria-hidden='true'>
+            {dependencyIcon(dependency)}
+          </span>
+          <div className='min-w-0'>
+            <div className='flex flex-wrap items-center gap-6px'>
+              <Typography.Text className='font-600 text-t-primary break-words'>{displayLabel}</Typography.Text>
+              {externalInstallation && <Tag>{t('settings.oplEnvironmentPage.dependencies.external')}</Tag>}
+            </div>
+            {!externalInstallation && dependency.binaryPath && (
+              <Typography.Text className='block text-12px text-t-secondary break-all'>
+                {t('settings.oplEnvironmentPage.dependencies.path', { value: dependency.binaryPath })}
+              </Typography.Text>
+            )}
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.dependencies.version', { value: versionDetail })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.dependencies.ownership', { value: dependency.ownership })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t(`settings.oplEnvironmentPage.dependencies.updateModes.${dependency.updateMode}`)}
+            </Typography.Text>
+            {dependency.guidance && (
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {dependency.guidance}
+              </Typography.Text>
+            )}
+          </div>
+        </div>
+        <div className='opl-settings-row__meta'>
+          <Tag
+            color={
+              dependency.currentness === 'update_available' || dependency.currentness === 'missing' ? 'orange' : 'gray'
+            }
+          >
+            {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+              defaultValue: formatStatus(dependency.currentness, t),
+            })}
+          </Tag>
+          {canDelegateUpdate && dependency.currentness === 'update_available' && (
+            <Button
+              size='small'
+              loading={busyDependencyId === dependency.id}
+              disabled={Boolean(busyDependencyId)}
+              onClick={() => onRequestExternalUpdate(dependency)}
+              data-testid={`opl-base-dependency-update-${rowId}`}
+            >
+              {dependency.updateAction?.label ?? t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <section
-      className='opl-settings-section opl-settings-surface--status'
+    <div
+      className='opl-settings-technical-subgroup opl-settings-flat-tools'
       id='managed-dependencies'
       data-testid='settings-maintenance-managed-dependencies'
     >
@@ -595,78 +673,42 @@ function BaseDependencyCatalog({
         </div>
       </div>
       <div className='opl-settings-list'>
-        {catalog.dependencies.map((dependency, index) => {
-          const canDelegateUpdate =
-            dependency.updateMode === 'explicit_owner_delegated' &&
-            Boolean(dependency.updateAction) &&
-            dependency.updateAction?.surface === 'opl app action execute' &&
-            dependency.updateAction?.payloadFields.length === 0 &&
-            dependency.updateAction?.confirmationRequired === true &&
-            dependency.updateAction?.autoApplyAllowed === false;
-          const versionDetail =
-            dependency.latestVersion && dependency.latestVersion !== dependency.version
-              ? `${dependency.version ?? t('settings.oplEnvironmentPage.status.unknown')} -> ${dependency.latestVersion}`
-              : (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'));
+        {primaryDependencies.map((dependency) => {
+          const rowId = dependency.id.replace(/[^a-z0-9-]/gi, '-');
+          const externalInstallations = catalog.dependencies.filter(
+            (candidate) => candidate.external && candidate.parentId === dependency.id
+          );
           return (
-            <div
-              key={`${dependency.id}-${dependency.binaryPath ?? index}`}
-              className='opl-settings-row'
-              data-testid={`opl-base-dependency-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
-            >
-              <div className='opl-settings-row__main flex-row items-start gap-10px'>
-                <span className='opl-settings-icon' aria-hidden='true'>
-                  {dependencyIcon(dependency)}
-                </span>
-                <div className='min-w-0'>
-                  <div className='flex flex-wrap items-center gap-6px'>
-                    <Typography.Text className='font-600 text-t-primary break-words'>
-                      {dependencyDisplayLabel(dependency, t)}
-                    </Typography.Text>
-                    {dependency.external && <Tag>{t('settings.oplEnvironmentPage.dependencies.external')}</Tag>}
-                  </div>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.dependencies.version', { value: versionDetail })}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {t(`settings.oplEnvironmentPage.dependencies.updateModes.${dependency.updateMode}`)}
-                  </Typography.Text>
-                  {dependency.guidance && (
-                    <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {dependency.guidance}
-                    </Typography.Text>
-                  )}
-                </div>
-              </div>
-              <div className='opl-settings-row__meta'>
-                <Tag
-                  color={
-                    dependency.currentness === 'update_available' || dependency.currentness === 'missing'
-                      ? 'orange'
-                      : 'gray'
-                  }
-                >
-                  {t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
-                    defaultValue: formatStatus(dependency.currentness, t),
-                  })}
-                </Tag>
-                {canDelegateUpdate && dependency.currentness === 'update_available' && (
-                  <Button
-                    size='small'
-                    loading={busyDependencyId === dependency.id}
-                    disabled={Boolean(busyDependencyId)}
-                    onClick={() => onRequestExternalUpdate(dependency)}
-                    data-testid={`opl-base-dependency-update-${dependency.id.replace(/[^a-z0-9-]/gi, '-')}`}
+            <React.Fragment key={rowId}>
+              {renderDependencyRow(dependency, rowId, false)}
+              {externalInstallations.length > 0 && (
+                <Collapse bordered={false} data-testid={`opl-base-dependency-other-installations-${rowId}`}>
+                  <Collapse.Item
+                    header={t('settings.oplEnvironmentPage.dependencies.otherInstallations', {
+                      count: externalInstallations.length,
+                    })}
+                    name={`external-installations-${rowId}`}
                   >
-                    {dependency.updateAction?.label ??
-                      t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
-                  </Button>
-                )}
-              </div>
-            </div>
+                    <div className='opl-settings-list'>
+                      {externalInstallations.map((externalDependency, index) =>
+                        renderDependencyRow(externalDependency, `${rowId}-external-${index + 1}`, true)
+                      )}
+                    </div>
+                  </Collapse.Item>
+                </Collapse>
+              )}
+            </React.Fragment>
           );
         })}
+        {orphanExternalDependencies.map((dependency, index) =>
+          renderDependencyRow(
+            dependency,
+            `${dependency.id.replace(/[^a-z0-9-]/gi, '-')}-external-orphan-${index + 1}`,
+            true
+          )
+        )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -840,6 +882,8 @@ function ManagedUpdatesPanel({
   onRequestAction,
   onCancelAction,
   onConfirmAction,
+  busyDependencyId,
+  onRequestExternalUpdate,
   t,
 }: {
   plane: ManagedUpdatePlane;
@@ -853,6 +897,8 @@ function ManagedUpdatesPanel({
   onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
   onCancelAction: () => void;
   onConfirmAction: () => void;
+  busyDependencyId: string | null;
+  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
@@ -1015,7 +1061,8 @@ function ManagedUpdatesPanel({
                     component.hostUpdateRoute ||
                     component.dataVolumePreservation ||
                     component.preservedMounts.length > 0 ||
-                    component.requiredPreservationEvidence.length > 0) && (
+                    component.requiredPreservationEvidence.length > 0 ||
+                    Boolean(component.dependencyCatalog)) && (
                     <Collapse className='mt-6px' bordered={false}>
                       <Collapse.Item
                         header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
@@ -1089,6 +1136,14 @@ function ManagedUpdatesPanel({
                                 value: component.requiredPreservationEvidence.join(', '),
                               })}
                             </span>
+                          )}
+                          {component.id === 'opl_base' && (
+                            <BaseDependencyCatalog
+                              component={component}
+                              busyDependencyId={busyDependencyId}
+                              onRequestExternalUpdate={onRequestExternalUpdate}
+                              t={t}
+                            />
                           )}
                         </div>
                       </Collapse.Item>
@@ -1804,15 +1859,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           t={t}
         />
 
-        {oplBaseComponent && (
-          <BaseDependencyCatalog
-            component={oplBaseComponent}
-            busyDependencyId={busyDependencyId}
-            onRequestExternalUpdate={requestExternalDependencyUpdate}
-            t={t}
-          />
-        )}
-
         <div className='flex flex-col gap-14px' data-testid='settings-maintenance-primary'>
           <div className='flex flex-col gap-12px' data-testid='opl-maintenance-hub'>
             {maintenanceNeedsAction && <span data-testid='settings-maintenance-exception' aria-hidden='true' />}
@@ -2003,6 +2049,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   onRequestAction={requestManagedUpdateAction}
                   onCancelAction={cancelManagedUpdateAction}
                   onConfirmAction={confirmManagedUpdateAction}
+                  busyDependencyId={busyDependencyId}
+                  onRequestExternalUpdate={requestExternalDependencyUpdate}
                   t={t}
                 />
               </div>

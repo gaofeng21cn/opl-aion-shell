@@ -58,6 +58,29 @@ describe('managed update projection public lifecycle ids', () => {
     expect(isManagedAppUpdateAvailable({ ...component, targetVersion: 'unknown' })).toBe(false);
   });
 
+  it('does not treat a historical receipt repair action as current repair availability', () => {
+    const plane = readManagedUpdatePlane(
+      {
+        managed_update: {
+          components: [
+            {
+              component_id: 'opl_base',
+              state: 'current',
+              receipt: { repair_action: 'historical_repair_action' },
+            },
+          ],
+        },
+      },
+      {}
+    );
+
+    expect(plane.components.find((component) => component.id === 'opl_base')).toMatchObject({
+      state: 'current',
+      repairAction: 'historical_repair_action',
+      repairAllowed: false,
+    });
+  });
+
   it('ignores legacy component ids instead of mapping them into public update targets', () => {
     const plane = readManagedUpdatePlane(
       {
@@ -144,7 +167,17 @@ describe('managed update projection public lifecycle ids', () => {
                       currentness: 'current',
                       ownership: 'opl_managed',
                       update_mode: 'silent_managed',
+                      binary_path: '/managed/bin/codex',
                       external_installations: [
+                        {
+                          dependency_id: 'codex-cli',
+                          installed: true,
+                          version: '1.2.3',
+                          currentness: 'current',
+                          ownership: 'global_path',
+                          update_mode: 'detect_only_guidance',
+                          binary_path: '/managed/bin/codex',
+                        },
                         {
                           dependency_id: 'codex-cli-homebrew',
                           installed: true,
@@ -153,6 +186,7 @@ describe('managed update projection public lifecycle ids', () => {
                           currentness: 'update_available',
                           ownership: 'homebrew',
                           update_mode: 'explicit_owner_delegated',
+                          binary_path: '/opt/homebrew/bin/codex',
                           update_action: {
                             action_id: 'update_external_codex_homebrew',
                             label: 'Update with Homebrew',
@@ -181,6 +215,7 @@ describe('managed update projection public lifecycle ids', () => {
         expect.objectContaining({ id: 'codex-cli', external: false, updateMode: 'silent_managed' }),
         expect.objectContaining({
           id: 'codex-cli-homebrew',
+          parentId: 'codex-cli',
           external: true,
           updateMode: 'explicit_owner_delegated',
           updateAction: expect.objectContaining({
@@ -191,6 +226,9 @@ describe('managed update projection public lifecycle ids', () => {
           }),
         }),
       ])
+    );
+    expect(catalog?.dependencies.filter((dependency) => dependency.binaryPath === '/managed/bin/codex')).toHaveLength(
+      1
     );
   });
 

@@ -363,6 +363,7 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.temporal.outcomes.failed': '执行失败',
         'settings.oplEnvironmentPage.temporal.outcomes.needsAttention': '需要处理',
         'settings.oplEnvironmentPage.temporal.blockers.unknown': '详情见技术信息',
+        'settings.oplEnvironmentPage.temporal.addressSources.managed': 'OPL 托管的本机服务',
         'settings.oplEnvironmentPage.temporal.values.needsCheck': '需要检查',
         'settings.oplEnvironmentPage.temporal.values.needsAttention': '需要处理',
         'settings.oplEnvironmentPage.temporal.values.notChecked': '尚未检查',
@@ -426,6 +427,22 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'managed',
+    'managed_local_service_state',
+    'managed_service_supervisor',
+    'packaged_local_default',
+    ' PACKAGED_LOCAL_DEFAULT ',
+  ])('labels %s as an OPL-managed Temporal address source', (addressSource) => {
+    const temporal = structuredClone(defaultTemporalState);
+    if (temporal.details) temporal.details.address_source = addressSource;
+    setTemporalState(temporal);
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('OPL 托管的本机服务');
   });
 
   it('shows the real server restart action when the managed Temporal service is healthy', async () => {

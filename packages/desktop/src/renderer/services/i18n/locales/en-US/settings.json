@@ -2982,6 +2982,9 @@
       "title": "OPL Base dependencies",
       "description": "OPL-managed dependencies update silently. External installations are never overwritten; a verified original-channel action always asks for confirmation.",
       "external": "External installation",
+      "otherInstallations": "Other installations ({{count}})",
+      "path": "Location: {{value}}",
+      "ownership": "Source: {{value}}",
       "version": "Version: {{value}}",
       "items": {
         "codex-cli": "Codex CLI",

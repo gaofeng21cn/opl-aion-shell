@@ -285,7 +285,17 @@ const managedUpdateStatusResult = {
                   currentness: 'current',
                   ownership: 'opl_managed',
                   update_mode: 'silent_managed',
+                  binary_path: '/managed/bin/codex',
                   external_installations: [
+                    {
+                      dependency_id: 'codex-cli',
+                      installed: true,
+                      version: '1.2.3',
+                      currentness: 'current',
+                      ownership: 'global_path',
+                      update_mode: 'detect_only_guidance',
+                      binary_path: '/managed/bin/codex',
+                    },
                     {
                       dependency_id: 'codex-cli-homebrew',
                       installed: true,
@@ -294,6 +304,7 @@ const managedUpdateStatusResult = {
                       currentness: 'update_available',
                       ownership: 'homebrew',
                       update_mode: 'explicit_owner_delegated',
+                      binary_path: '/opt/homebrew/bin/codex',
                       update_action: {
                         action_id: 'update_external_codex_homebrew',
                         label: 'Update with Homebrew',
@@ -531,6 +542,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-base-dependency-catalog')).not.toBeInTheDocument();
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-maintenance-update-channel')).toBeInTheDocument();
   });
@@ -552,18 +564,33 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.updates.actions.refreshStatus'
     );
     expect(screen.getByTestId('opl-managed-update-refresh')).toHaveTextContent('');
+    expect(screen.queryByTestId('opl-managed-update-repair-opl_base')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalled());
+    const oplBaseRow = screen.getByTestId('opl-managed-update-opl_base');
+    const componentDetails = within(oplBaseRow).getByRole('button', {
+      name: 'settings.oplEnvironmentPage.updates.diagnostics.componentDetails',
+    });
+    expect(componentDetails).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(componentDetails);
+    expect(componentDetails).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('opl-base-dependency-catalog')).toBeInTheDocument();
+    expect(screen.getAllByTestId('opl-base-dependency-codex-cli')).toHaveLength(1);
     expect(screen.getByTestId('opl-base-dependency-codex-cli')).toHaveTextContent('1.2.3');
     expect(screen.getByTestId('opl-base-dependency-temporal-runtime')).toHaveTextContent('client 1.11.0');
     expect(screen.getByTestId('opl-base-dependency-temporal-system-cli')).toHaveTextContent(
       'settings.oplEnvironmentPage.dependencies.updateModes.detect_only_guidance'
     );
-    expect(screen.getByTestId('opl-base-dependency-update-codex-cli-homebrew')).toHaveTextContent(
+    const otherInstallations = within(
+      screen.getByTestId('opl-base-dependency-other-installations-codex-cli')
+    ).getByRole('button');
+    expect(otherInstallations).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(otherInstallations);
+    expect(otherInstallations).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('opl-base-dependency-update-codex-cli-external-1')).toHaveTextContent(
       'Update with Homebrew'
     );
-    fireEvent.click(screen.getByTestId('opl-base-dependency-update-codex-cli-homebrew'));
+    fireEvent.click(screen.getByTestId('opl-base-dependency-update-codex-cli-external-1'));
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
       expect.objectContaining({ actionId: 'update_external_codex_homebrew' })
     );

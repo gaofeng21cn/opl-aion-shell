@@ -164,13 +164,19 @@ const TEMPORAL_NOT_CONFIGURED_STATUSES = new Set([
 ]);
 
 function temporalAddressSourceLabel(source: string, t: RuntimeSettingsPanelsTranslate): string {
-  if (source === 'managed_local_service_state' || source === 'managed_service_supervisor') {
+  const normalizedSource = source.trim().toLowerCase();
+  if (
+    normalizedSource === 'managed' ||
+    normalizedSource === 'managed_local_service_state' ||
+    normalizedSource === 'managed_service_supervisor' ||
+    normalizedSource === 'packaged_local_default'
+  ) {
     return t('settings.oplEnvironmentPage.temporal.addressSources.managed');
   }
-  if (source === 'environment') {
+  if (normalizedSource === 'environment') {
     return t('settings.oplEnvironmentPage.temporal.addressSources.environment');
   }
-  if (source === 'not_configured') {
+  if (normalizedSource === 'not_configured') {
     return t('settings.oplEnvironmentPage.temporal.addressSources.notConfigured');
   }
   return t('settings.oplEnvironmentPage.temporal.addressSources.unknown');

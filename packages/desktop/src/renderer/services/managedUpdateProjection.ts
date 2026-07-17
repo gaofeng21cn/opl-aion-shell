@@ -38,6 +38,7 @@ export type ManagedDependencyUpdateAction = {
 
 export type ManagedDependency = {
   id: string;
+  parentId?: string;
   kind?: string;
   installed: boolean;
   version?: string;
@@ -331,7 +332,12 @@ function readManagedDependencyAction(value: unknown): ManagedDependencyUpdateAct
   };
 }
 
-function readManagedDependency(value: unknown, fallbackId: string, external = false): ManagedDependency | null {
+function readManagedDependency(
+  value: unknown,
+  fallbackId: string,
+  external = false,
+  parentId?: string
+): ManagedDependency | null {
   const dependency = oplRecord(value);
   const id = firstOplString(dependency.dependency_id, dependency.id, fallbackId);
   if (!id) return null;
@@ -340,6 +346,7 @@ function readManagedDependency(value: unknown, fallbackId: string, external = fa
     updateMode === 'explicit_owner_delegated' ? readManagedDependencyAction(dependency.update_action) : undefined;
   return {
     id,
+    parentId,
     kind: firstOplString(dependency.dependency_kind, dependency.kind),
     installed: oplBoolean(dependency.installed) || Boolean(firstOplString(dependency.binary_path, dependency.path)),
     version: versionValue(dependency.version ?? dependency.current_version),
@@ -380,9 +387,18 @@ function readManagedDependencyCatalog(component: Record<string, unknown>): Manag
       const externalDependency = readManagedDependency(
         external,
         `${primary?.id ?? `dependency-${index + 1}`}-external-${externalIndex + 1}`,
-        true
+        true,
+        primary?.id
       );
-      return externalDependency ? [externalDependency] : [];
+      if (!externalDependency) return [];
+      if (
+        primary?.binaryPath &&
+        externalDependency.binaryPath &&
+        primary.binaryPath === externalDependency.binaryPath
+      ) {
+        return [];
+      }
+      return [externalDependency];
     });
     return primary ? [primary, ...externalInstallations] : externalInstallations;
   });
@@ -434,19 +450,15 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       receipt.rollback_ref,
       receipt.rollbackRef
     );
-    const repairActionRef = firstOplString(
-      component.repair_action,
-      receipt.repair_action,
-      repairAction.action_ref,
-      repairAction.ref
-    );
+    const currentRepairActionRef = firstOplString(component.repair_action, repairAction.action_ref, repairAction.ref);
+    const repairActionRef = currentRepairActionRef ?? firstOplString(receipt.repair_action);
     const rawSafeToApply =
       oplBoolean(component.safe_to_apply) || oplBoolean(component.apply_allowed) || oplBoolean(component.can_apply);
     const rawRepairAllowed =
       oplBoolean(component.repair_allowed) ||
       oplBoolean(component.can_repair) ||
       state === 'failed_with_repair' ||
-      Boolean(repairActionRef);
+      Boolean(currentRepairActionRef);
     const rawRollbackAllowed =
       oplBoolean(component.rollback_allowed) || oplBoolean(component.can_rollback) || Boolean(rollbackRef);
     const source = firstOplString(component.source, component.install_origin, component.checkout_source);
