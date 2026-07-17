@@ -2185,10 +2185,12 @@
         "openAiCompatible": "OpenAI-compatible API",
         "openAiCompatibleHelp": "OPL actions can use this connection. Test it after saving to verify that the endpoint and credential reference are reachable.",
         "endpoint": "Endpoint",
+        "endpointInvalid": "Enter a valid HTTP or HTTPS endpoint.",
         "credential": "Credential reference",
         "codexCredential": "Selected Codex provider",
         "envCredential": "Environment variable",
         "envName": "Environment variable name",
+        "envNameInvalid": "Start with an uppercase letter or underscore, then use uppercase letters, numbers, or underscores only.",
         "enabled": "Enable this connection",
         "enabledHelp": "When off, the configuration is kept but OPL will not use or test this connection."
       },

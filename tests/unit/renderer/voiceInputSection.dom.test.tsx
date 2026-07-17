@@ -69,6 +69,26 @@ describe('VoiceInputSection', () => {
     };
     render(<VoiceInputSection />);
     await waitFor(() => expect(screen.getByText('settings.speechToTextBaseUrl')).toBeTruthy());
+    expect(screen.getByTestId('speech-to-text-base-url')).toHaveAttribute('aria-required', 'true');
+    expect(screen.getByTestId('speech-to-text-api-key')).toHaveAttribute('aria-required', 'false');
+    for (const requirement of screen.getAllByText(/settings\.speechToText(?:Required|Optional)/)) {
+      expect(requirement).not.toHaveAttribute('aria-hidden');
+    }
+  });
+
+  it('marks the official provider API key as required for assistive technology', async () => {
+    configStore.value = {
+      enabled: true,
+      provider: 'openai',
+      openai: { api_key: '', base_url: '', model: 'gpt-4o-transcribe', language: '' },
+    };
+    render(<VoiceInputSection />);
+
+    await waitFor(() => expect(screen.getByTestId('speech-to-text-api-key')).toBeTruthy());
+    expect(screen.getByTestId('speech-to-text-api-key')).toHaveAttribute('aria-required', 'true');
+    expect(
+      screen.getByText((_content, element) => element?.textContent === '(settings.speechToTextRequired)')
+    ).not.toHaveAttribute('aria-hidden');
   });
 
   it('selecting custom keeps the base_url field visible before a url is entered', async () => {

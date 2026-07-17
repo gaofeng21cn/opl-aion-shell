@@ -417,7 +417,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({
       footer={{ render: renderFooter }}
       style={{ width: 680, height: 560 }}
       contentStyle={{
-        borderRadius: 16,
+        borderRadius: 8,
         padding: '24px',
         background: 'var(--dialog-fill-0)',
         overflow: 'hidden',
@@ -431,11 +431,11 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({
           <AionSteps current={currentStep} size='small'>
             <AionSteps.Step
               title={t('settings.mcpStepSelectAgent')}
-              icon={currentStep > 1 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined}
+              icon={currentStep > 1 ? <Check theme='filled' size={16} fill={iconColors.brand} /> : undefined}
             />
             <AionSteps.Step
               title={t('settings.mcpStepFetchTools')}
-              icon={currentStep > 2 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined}
+              icon={currentStep > 2 ? <Check theme='filled' size={16} fill={iconColors.brand} /> : undefined}
             />
             <AionSteps.Step title={t('settings.mcpStepImportSuccess')} />
           </AionSteps>

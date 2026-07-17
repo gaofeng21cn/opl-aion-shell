@@ -2100,7 +2100,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               <span data-testid='agent-package-add-capability' aria-hidden='true' />
               {advancedAddOpen && (
                 <div
-                  className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_minmax(180px,0.5fr)_auto]'
+                  className='opl-settings-flat-subgroup grid grid-cols-1 gap-8px py-10px md:grid-cols-[minmax(0,1fr)_minmax(180px,0.5fr)_auto]'
                   data-testid='agent-package-advanced-add'
                 >
                   <div className='md:col-span-3'>

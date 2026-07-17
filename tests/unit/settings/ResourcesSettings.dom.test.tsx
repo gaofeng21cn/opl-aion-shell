@@ -400,10 +400,13 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.oplConnections.form.type': '连接类型',
         'settings.resourcesPage.oplConnections.form.openAiCompatible': 'OpenAI 兼容 API',
         'settings.resourcesPage.oplConnections.form.endpoint': '服务地址',
+        'settings.resourcesPage.oplConnections.form.endpointInvalid': '请输入有效的 HTTP 或 HTTPS 服务地址。',
         'settings.resourcesPage.oplConnections.form.credential': '凭据引用',
         'settings.resourcesPage.oplConnections.form.codexCredential': '当前 Codex Provider',
         'settings.resourcesPage.oplConnections.form.envCredential': '环境变量',
         'settings.resourcesPage.oplConnections.form.envName': '环境变量名称',
+        'settings.resourcesPage.oplConnections.form.envNameInvalid':
+          '请以大写字母或下划线开头，且仅使用大写字母、数字或下划线。',
         'settings.resourcesPage.oplConnections.form.disabled': '停用',
         'settings.resourcesPage.oplConnections.deleteTitle': '删除连接？',
         'settings.resourcesPage.oplConnections.deleteDescription': '移除连接引用。',
@@ -560,6 +563,30 @@ describe('ResourcesSettingsContent', () => {
     });
     expect(JSON.stringify(mocks.executeActionInvoke.mock.calls)).not.toContain('api_key');
     expect(JSON.stringify(mocks.executeActionInvoke.mock.calls)).not.toContain('password');
+  });
+
+  it('describes invalid endpoint and environment variable names inline', () => {
+    const view = renderResources();
+
+    fireEvent.click(view.getByTestId('opl-settings-add-connection'));
+    const endpoint = view.getByTestId('opl-connection-field-endpoint');
+    fireEvent.change(endpoint, { target: { value: 'not-a-url' } });
+
+    expect(endpoint).toHaveAttribute('aria-invalid', 'true');
+    expect(endpoint).toHaveAttribute('aria-describedby', 'opl-connection-endpoint-error');
+    expect(view.getByTestId('opl-connection-endpoint-error')).toHaveTextContent(
+      '请输入有效的 HTTP 或 HTTPS 服务地址。'
+    );
+
+    fireEvent.change(view.getByTestId('opl-connection-field-credential-kind'), { target: { value: 'env' } });
+    const envName = view.getByTestId('opl-connection-field-env-name');
+    fireEvent.change(envName, { target: { value: 'invalid-name' } });
+
+    expect(envName).toHaveAttribute('aria-invalid', 'true');
+    expect(envName).toHaveAttribute('aria-describedby', 'opl-connection-env-name-error');
+    expect(view.getByTestId('opl-connection-env-name-error')).toHaveTextContent(
+      '请以大写字母或下划线开头，且仅使用大写字母、数字或下划线。'
+    );
   });
 
   it('renders action-oriented resource groups without exposing raw control-plane details by default', () => {

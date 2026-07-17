@@ -39,7 +39,7 @@ const FieldLabel: React.FC<{ labelKey: string; requirement: 'required' | 'option
   return (
     <span className='inline-flex items-center gap-6px'>
       <span>{t(labelKey)}</span>
-      <span aria-hidden='true' className='text-12px text-t-tertiary'>
+      <span className='text-12px text-t-tertiary'>
         ({t(requirement === 'required' ? 'settings.speechToTextRequired' : 'settings.speechToTextOptional')})
       </span>
     </span>
@@ -210,6 +210,9 @@ const VoiceInputSection: React.FC = () => {
                   value={customBaseUrl}
                   placeholder={t('settings.speechToTextBaseUrlPlaceholder')}
                   onChange={(value) => handleOpenAIChange('base_url', value)}
+                  aria-label={t('settings.speechToTextBaseUrl')}
+                  aria-required='true'
+                  data-testid='speech-to-text-base-url'
                 />
               </Form.Item>
             )}
@@ -219,7 +222,14 @@ const VoiceInputSection: React.FC = () => {
                 <FieldLabel labelKey='settings.speechToTextApiKey' requirement={isCustom ? 'optional' : 'required'} />
               }
             >
-              <Input.Password value={activeApiKey} visibilityToggle onChange={handleApiKeyChange} />
+              <Input.Password
+                value={activeApiKey}
+                visibilityToggle
+                onChange={handleApiKeyChange}
+                aria-label={t('settings.speechToTextApiKey')}
+                aria-required={!isCustom}
+                data-testid='speech-to-text-api-key'
+              />
             </Form.Item>
 
             <Form.Item label={t('settings.speechToTextModel')}>

@@ -2186,10 +2186,12 @@
         "openAiCompatible": "OpenAI 兼容 API",
         "openAiCompatibleHelp": "连接可供 OPL action 使用；保存后请执行一次测试，确认服务地址和凭据引用真实可达。",
         "endpoint": "服务地址",
+        "endpointInvalid": "请输入有效的 HTTP 或 HTTPS 服务地址。",
         "credential": "凭据引用",
         "codexCredential": "当前选择的 Codex Provider",
         "envCredential": "环境变量",
         "envName": "环境变量名称",
+        "envNameInvalid": "请以大写字母或下划线开头，且仅使用大写字母、数字或下划线。",
         "enabled": "启用此连接",
         "enabledHelp": "关闭后保留配置，但 OPL 不会使用或测试此连接。"
       },

@@ -30,6 +30,7 @@ describe('Codex visual parity overlay', () => {
     const codexPreset = read('packages/desktop/src/renderer/pages/settings/AppearanceSettings/presets/opl-codex.css');
     const focusRing = read('packages/desktop/src/renderer/hooks/chat/useInputFocusRing.ts');
     const sendBox = read('packages/desktop/src/renderer/components/chat/SendBox/index.tsx');
+    const sendBoxStyles = read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
 
     expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
@@ -64,9 +65,13 @@ describe('Codex visual parity overlay', () => {
     expect(guidStyles).toMatch(
       /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*12px\s*!important;/
     );
-    expect(read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css')).toMatch(
+    expect(sendBoxStyles).toMatch(
       /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
     );
+    expect(sendBoxStyles).toMatch(
+      /\.sendbox-panel textarea::placeholder\s*{[^}]*color:\s*var\(--text-secondary\)\s*!important;[^}]*opacity:\s*1;/
+    );
+    expect(sendBoxStyles).not.toContain('#a1a2aa');
     expect(guidStyles).toMatch(/\.guidInputInner\s*{[^}]*border-radius:\s*22px;/);
     expect(codexPreset).toMatch(
       /\.guid-input-card-shell > div:first-child\s*{[^}]*border-radius:\s*22px\s*!important;/
@@ -104,6 +109,7 @@ describe('Codex visual parity overlay', () => {
     const assistantDrawer = read(
       'packages/desktop/src/renderer/pages/settings/AssistantSettings/AssistantEditDrawer.tsx'
     );
+    const oneClickImport = read('packages/desktop/src/renderer/pages/settings/components/OneClickImportModal.tsx');
 
     expect(settingsStyles).toContain('max-width: 760px;');
     expect(settingsWrapper).toContain("'settings-page-content mx-auto w-full'");
@@ -156,6 +162,10 @@ describe('Codex visual parity overlay', () => {
       /data-testid='assistant-summary-row'[\s\S]*?<span className='text-12px font-500 text-t-primary'>/
     );
     expect(assistantDrawer).not.toContain('gap-16px bg-fill-2 rounded-16px p-20px overflow-y-auto');
+    expect(oneClickImport).toContain('borderRadius: 8');
+    expect(oneClickImport).toContain('fill={iconColors.brand}');
+    expect(oneClickImport).not.toContain('borderRadius: 16');
+    expect(oneClickImport).not.toContain("fill='#165dff'");
   });
 
   it('keeps active Home controls flat, compact, and outline-only', () => {

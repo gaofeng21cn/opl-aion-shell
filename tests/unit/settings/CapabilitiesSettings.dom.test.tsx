@@ -968,7 +968,10 @@ describe('Agents and capabilities settings', () => {
     expect(refreshRegistryButton).toHaveTextContent('');
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
-    expect(screen.getByTestId('agent-package-advanced-add')).toBeInTheDocument();
+    const advancedAdd = screen.getByTestId('agent-package-advanced-add');
+    expect(advancedAdd).toBeInTheDocument();
+    expect(advancedAdd).toHaveClass('opl-settings-flat-subgroup');
+    expect(advancedAdd.className).not.toMatch(/\brd-|\bbg-fill-/);
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);

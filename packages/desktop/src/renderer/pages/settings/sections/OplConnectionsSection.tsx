@@ -129,6 +129,11 @@ const OplConnectionsSection: React.FC<{
   const [formValue, setFormValue] = useState<ConnectionFormValue>(EMPTY_CONNECTION_FORM);
   const [connectionToDelete, setConnectionToDelete] = useState<OplConnection | null>(null);
   const busy = runningActionId !== null;
+  const endpointInvalid = Boolean(formValue.endpoint.trim()) && !isHttpEndpoint(formValue.endpoint);
+  const envNameInvalid =
+    formValue.credentialKind === 'env' &&
+    Boolean(formValue.envName.trim()) &&
+    !ENV_NAME_PATTERN.test(formValue.envName.trim());
   const formValid =
     Boolean(formValue.connectionId.trim() && formValue.name.trim() && formValue.connectionType.trim()) &&
     isHttpEndpoint(formValue.endpoint) &&
@@ -345,11 +350,24 @@ const OplConnectionsSection: React.FC<{
           <ConnectionField label={t('settings.resourcesPage.oplConnections.form.endpoint')}>
             <Input
               value={formValue.endpoint}
-              status={formValue.endpoint && !isHttpEndpoint(formValue.endpoint) ? 'error' : undefined}
+              status={endpointInvalid ? 'error' : undefined}
               onChange={(endpoint) => setFormValue((current) => ({ ...current, endpoint }))}
               placeholder='https://api.example.com/v1'
+              aria-required='true'
+              aria-invalid={endpointInvalid}
+              aria-describedby={endpointInvalid ? 'opl-connection-endpoint-error' : undefined}
               data-testid='opl-connection-field-endpoint'
             />
+            {endpointInvalid && (
+              <Typography.Text
+                id='opl-connection-endpoint-error'
+                role='alert'
+                className='text-12px text-danger'
+                data-testid='opl-connection-endpoint-error'
+              >
+                {t('settings.resourcesPage.oplConnections.form.endpointInvalid')}
+              </Typography.Text>
+            )}
           </ConnectionField>
           <ConnectionField label={t('settings.resourcesPage.oplConnections.form.credential')}>
             <Select
@@ -368,11 +386,24 @@ const OplConnectionsSection: React.FC<{
             <ConnectionField label={t('settings.resourcesPage.oplConnections.form.envName')}>
               <Input
                 value={formValue.envName}
-                status={formValue.envName && !ENV_NAME_PATTERN.test(formValue.envName) ? 'error' : undefined}
+                status={envNameInvalid ? 'error' : undefined}
                 onChange={(envName) => setFormValue((current) => ({ ...current, envName }))}
                 placeholder='OPENAI_API_KEY'
+                aria-required='true'
+                aria-invalid={envNameInvalid}
+                aria-describedby={envNameInvalid ? 'opl-connection-env-name-error' : undefined}
                 data-testid='opl-connection-field-env-name'
               />
+              {envNameInvalid && (
+                <Typography.Text
+                  id='opl-connection-env-name-error'
+                  role='alert'
+                  className='text-12px text-danger'
+                  data-testid='opl-connection-env-name-error'
+                >
+                  {t('settings.resourcesPage.oplConnections.form.envNameInvalid')}
+                </Typography.Text>
+              )}
             </ConnectionField>
           )}
           {formMode === 'edit' && (
