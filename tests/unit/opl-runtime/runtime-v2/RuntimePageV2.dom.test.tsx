@@ -439,7 +439,7 @@ describe('Runtime V2 page', () => {
       onOk: () => Promise<void>;
     };
     expect(modal.content).toContain('不会停止正在运行的自动流程，也不会删除证据');
-    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(appStateResultWithVisibility('diabetes', '001', 'archived', 4));
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResultWithVisibility('diabetes', '001', 'archived', 4));
     await act(async () => {
       await modal.onOk();
     });
