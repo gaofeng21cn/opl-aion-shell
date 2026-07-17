@@ -11,6 +11,35 @@ function firstCustomProperty(css: string, property: string): string {
   return match[1].trim();
 }
 
+function customPropertyInBlock(css: string, selector: string, property: string): string {
+  const selectorStart = css.indexOf(selector);
+  if (selectorStart < 0) throw new Error(`Missing ${selector}`);
+  const blockStart = css.indexOf('{', selectorStart);
+  const blockEnd = css.indexOf('}', blockStart);
+  const match = css.slice(blockStart + 1, blockEnd).match(new RegExp(`${property}:\\s*([^;]+);`));
+  if (!match?.[1]) throw new Error(`Missing ${property} in ${selector}`);
+  return match[1].trim();
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = /^#([0-9a-f]{6})$/i.exec(hex)?.[1]?.match(/.{2}/g);
+  if (!channels) throw new Error(`Expected a six-digit hex color, received ${hex}`);
+  const [red, green, blue] = channels.map((channel) => {
+    const value = Number.parseInt(channel, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const foregroundLuminance = relativeLuminance(foreground);
+  const backgroundLuminance = relativeLuminance(background);
+  return (
+    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+  );
+}
+
 function unsafeOneSidedBorderClasses(source: string): string[] {
   return [...source.matchAll(/className=['"]([^'"]*)['"]/g)]
     .map((match) => match[1] ?? '')
@@ -49,7 +78,7 @@ describe('Codex visual parity overlay', () => {
     expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('#f0f0f0');
     expect(firstCustomProperty(baseline, '--text-primary')).toBe('#202124');
     expect(firstCustomProperty(baseline, '--text-secondary')).toBe('#5f6368');
-    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('#80868b');
+    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('#70757a');
     expect(baseline).toMatch(
       /\[data-color-scheme='default'\]\[data-theme='dark'\]\s*{[\s\S]*?--bg-2:\s*#202224;[\s\S]*?--text-primary:\s*#f4f5f6;[\s\S]*?--text-secondary:\s*#aeb4bc;[\s\S]*?--dialog-fill-0:\s*#202224;/
     );
@@ -94,6 +123,42 @@ describe('Codex visual parity overlay', () => {
     expect(codexPreset).toMatch(
       /\.guid-input-card-shell > div:first-child:focus-within,[\s\S]*?\.guid-input-card-inner:focus-within\s*{[^}]*box-shadow:\s*var\(--opl-composer-focus-shadow\)\s*!important;/
     );
+  });
+
+  it('keeps muted text and focus indicators above the governed WCAG contrast floors', () => {
+    const baseline = read('packages/desktop/src/renderer/styles/themes/opl-product-baseline.css');
+    const codexPreset = read('packages/desktop/src/renderer/pages/settings/AppearanceSettings/presets/opl-codex.css');
+    const baselineDarkSelector = "[data-color-scheme='default'][data-theme='dark']";
+    const codexDarkSelector = "[data-theme='dark']";
+
+    const lightMuted = firstCustomProperty(baseline, '--color-text-3');
+    const lightFocus = firstCustomProperty(baseline, '--opl-focus-ring');
+    const darkMuted = customPropertyInBlock(baseline, baselineDarkSelector, '--color-text-3');
+    const darkFocus = customPropertyInBlock(baseline, baselineDarkSelector, '--opl-focus-ring');
+
+    expect(lightMuted).toBe('#70757a');
+    expect(lightFocus).toBe('#2563eb');
+    expect(darkMuted).toBe('#9298a1');
+    expect(darkFocus).toBe('#60a5fa');
+    expect(firstCustomProperty(codexPreset, '--color-text-3')).toBe(lightMuted);
+    expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-muted-text')).toBe(lightMuted);
+    expect(firstCustomProperty(codexPreset, '--opl-codex-focus-ring')).toBe(lightFocus);
+    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--color-text-3')).toBe(darkMuted);
+    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--opl-codex-sidebar-muted-text')).toBe(darkMuted);
+    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--opl-codex-focus-ring')).toBe(darkFocus);
+    expect(firstCustomProperty(baseline, '--opl-composer-focus-shadow')).toContain('var(--opl-focus-ring)');
+    expect(customPropertyInBlock(baseline, baselineDarkSelector, '--opl-composer-focus-shadow')).toContain(
+      'var(--opl-focus-ring)'
+    );
+
+    for (const background of ['#ffffff', '#fcfcfc']) {
+      expect(contrastRatio(lightMuted, background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(lightFocus, background)).toBeGreaterThanOrEqual(3);
+    }
+    for (const background of ['#171819', '#202224', '#1b1c1e']) {
+      expect(contrastRatio(darkMuted, background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(darkFocus, background)).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('keeps Settings navigation and grouped surfaces neutral', () => {
