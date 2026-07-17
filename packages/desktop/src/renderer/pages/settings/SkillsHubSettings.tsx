@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import { getOplDefaultPackagedCodexSkills, getOplPackagedCodexSkills } from '@/common/config/oplProductProfile';
-import { Button, Message, Modal, Typography } from '@arco-design/web-react';
+import { Button, Input, Message, Modal, Typography } from '@arco-design/web-react';
 import { Delete, FolderOpen, Lightning, Puzzle, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -327,32 +327,35 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                       : t('settings.capabilitiesPage.groups.manualAndThirdParty.title')}
                   </span>
                   <span className='text-12px text-t-tertiary'>{mySkills.length}</span>
-                  <button
+                  <Button
+                    htmlType='button'
+                    type='text'
                     data-testid='btn-refresh-my-skills'
-                    className='ml-2px flex size-28px cursor-pointer items-center justify-center border-none bg-transparent text-t-tertiary outline-none transition-colors hover:bg-fill-2 hover:text-t-primary'
+                    className='ml-2px !flex !size-32px !min-w-32px !cursor-pointer !items-center !justify-center !border-0 !bg-transparent !p-0 !text-t-tertiary !rd-6px transition-colors hover:!bg-fill-2 hover:!text-t-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:!cursor-not-allowed disabled:!opacity-50'
+                    icon={
+                      <Refresh aria-hidden='true' theme='outline' size='16' className={loading ? 'animate-spin' : ''} />
+                    }
                     onClick={async () => {
                       await fetchData();
                       Message.success(t('common.refreshSuccess', { defaultValue: 'Refreshed' }));
                     }}
+                    disabled={loading}
                     title={t('common.refresh', { defaultValue: 'Refresh' })}
                     aria-label={t('common.refresh', { defaultValue: 'Refresh' })}
-                  >
-                    <Refresh theme='outline' size='16' className={loading ? 'animate-spin' : ''} />
-                  </button>
+                    aria-busy={loading}
+                  />
                 </div>
 
                 <div className='flex flex-col sm:flex-row items-stretch sm:items-center gap-12px w-full lg:w-auto shrink-0'>
-                  <div className='relative group shrink-0 w-full sm:w-[200px] lg:w-[240px]'>
-                    <div className='absolute left-12px top-1/2 -translate-y-1/2 text-t-tertiary group-focus-within:text-primary-6 flex pointer-events-none transition-colors'>
-                      <Search size={15} />
-                    </div>
-                    <input
+                  <div className='shrink-0 w-full sm:w-[200px] lg:w-[240px]'>
+                    <Input
                       data-testid='input-search-my-skills'
-                      type='text'
-                      className='m-0 box-border w-full border border-border-1 bg-fill-1 py-6px pl-36px pr-12px text-13px text-t-primary outline-none rd-7px transition-all placeholder:text-t-tertiary hover:bg-fill-2 focus:border-primary-5 focus:bg-base'
+                      className='!h-32px w-full !bg-fill-1 !text-13px hover:!bg-fill-2 focus-within:!bg-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                      prefix={<Search aria-hidden='true' size={15} />}
                       placeholder={t('settings.skillsHub.searchPlaceholder', { defaultValue: 'Search skills...' })}
+                      aria-label={t('settings.skillsHub.searchLabel', { defaultValue: 'Search skills' })}
                       value={search_query}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                     />
                   </div>
 
@@ -422,9 +425,12 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
                       <div className='shrink-0 sm:self-center flex items-center justify-end gap-6px mt-12px sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pl-4px'>
                         {skill.source === 'custom' && !flowManagedIdSet.has(skill.name) && (
-                          <button
+                          <Button
+                            htmlType='button'
+                            type='text'
                             data-testid={`btn-delete-${normalizeTestId(skill.name)}`}
-                            className='flex cursor-pointer items-center justify-center border border-transparent bg-transparent p-8px text-t-tertiary outline-none rd-6px transition-colors hover:bg-danger-1 hover:text-danger-6'
+                            className='!flex !size-32px !min-w-32px !cursor-pointer !items-center !justify-center !border !border-transparent !bg-transparent !p-0 !text-t-tertiary !rd-6px transition-colors hover:!bg-danger-1 hover:!text-danger-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                            icon={<Delete aria-hidden='true' theme='outline' size='16' fill='currentColor' />}
                             onClick={() => {
                               Modal.confirm({
                                 title: t('settings.skillsHub.deleteConfirmTitle', { defaultValue: 'Delete Skill' }),
@@ -440,9 +446,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                             }}
                             title={t('common.delete', { defaultValue: 'Delete' })}
                             aria-label={t('common.delete', { defaultValue: 'Delete' })}
-                          >
-                            <Delete theme='outline' size='16' fill='currentColor' />
-                          </button>
+                          />
                         )}
                       </div>
                     </div>

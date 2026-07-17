@@ -570,12 +570,15 @@ const ToolsModalContent: React.FC = () => {
                   <div className='text-t-secondary flex items-center gap-4px'>
                     <span>{t('settings.noAvailable')}</span>
                     {navigateToSettingsTab ? (
-                      <a
-                        className='text-[rgb(var(--primary-6))] hover:text-[rgb(var(--primary-5))] underline underline-offset-2 cursor-pointer'
+                      <Button
+                        htmlType='button'
+                        type='text'
+                        size='mini'
+                        className='!h-auto !bg-transparent !p-0 !text-[rgb(var(--primary-6))] !underline !underline-offset-2 hover:!bg-transparent hover:!text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
                         onClick={() => navigateToSettingsTab('model')}
                       >
                         {t('settings.goToModelSettings')}
-                      </a>
+                      </Button>
                     ) : (
                       <span>{t('settings.goToModelSettings')}</span>
                     )}
@@ -599,10 +602,12 @@ const ToolsModalContent: React.FC = () => {
                         href='https://github.com/iOfficeAI/AionUi/wiki/AionUi-Image-Generation-Tool-Model-Configuration-Guide'
                         target='_blank'
                         rel='noopener noreferrer'
-                        className='ml-8px text-[rgb(var(--primary-6))] hover:text-[rgb(var(--primary-5))] cursor-pointer'
+                        className='ml-4px inline-flex size-32px items-center justify-center text-[rgb(var(--primary-6))] rd-6px hover:bg-fill-2 hover:text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                        aria-label={t('settings.imageGenerationHelpLabel')}
+                        title={t('settings.imageGenerationHelpLabel')}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Help theme='outline' size='14' />
+                        <Help aria-hidden='true' theme='outline' size='16' />
                       </a>
                     </Tooltip>
                   </div>

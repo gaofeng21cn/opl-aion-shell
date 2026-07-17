@@ -99,6 +99,15 @@ describe('SkillsHubSettings', () => {
     const manualImport = screen.getByTestId('btn-manual-import');
     expect(manualImport).toHaveClass('arco-btn');
     expect(manualImport.querySelector('svg')).not.toBeNull();
+
+    const search = screen.getByRole('textbox', { name: 'Search skills' });
+    expect(search).toHaveAttribute('placeholder', 'Search skills...');
+    expect(search.closest('.arco-input-inner-wrapper')).not.toBeNull();
+
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+    expect(refresh).toHaveClass('arco-btn');
+    expect(refresh.className).toContain('32px');
+    expect(refresh.className).toContain('focus-visible:outline');
   });
 
   it('uses the typed Flow catalog instead of the App-local skill directory for managed status', async () => {
