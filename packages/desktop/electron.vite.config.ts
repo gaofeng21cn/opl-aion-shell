@@ -34,6 +34,37 @@ function buildMcpServersPlugin() {
   };
 }
 
+type IconParkImportSpecifier = {
+  imported: string;
+  local: string;
+};
+
+function parseIconParkImportSpecifiers(source: string): IconParkImportSpecifier[] | null {
+  const specifiers = source
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const parsed = specifiers.map((specifier) => {
+    const match = /^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/.exec(specifier);
+    if (!match?.[1]) return null;
+    return { imported: match[1], local: match[2] ?? match[1] };
+  });
+  return parsed.every((entry): entry is IconParkImportSpecifier => entry !== null) ? parsed : null;
+}
+
+export function transformIconParkImports(source: string): string {
+  return source.replace(
+    /import\s+\{\s*([^}]+?)\s*\}\s+from\s+['"]@icon-park\/react['"]\s*;?/g,
+    (statement, importList: string) => {
+      const specifiers = parseIconParkImportSpecifiers(importList);
+      if (!specifiers?.length) return statement;
+      const iconImports = specifiers.map(({ imported, local }) => `${imported} as _${local}`).join(', ');
+      const wrappedIcons = specifiers.map(({ local }) => `const ${local} = IconParkHOC(_${local});`).join('\n');
+      return `import { ${iconImports} } from '@icon-park/react';\nimport IconParkHOC from '@renderer/components/IconParkHOC';\n${wrappedIcons}`;
+    }
+  );
+}
+
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
   return {
@@ -42,20 +73,7 @@ function iconParkPlugin() {
     transform(source: string, id: string) {
       if (!id.endsWith('.tsx') || id.includes('node_modules')) return null;
       if (!source.includes('@icon-park/react')) return null;
-      const transformedSource = source.replace(
-        /import\s+\{\s+([a-zA-Z, ]*)\s+\}\s+from\s+['"]@icon-park\/react['"](;?)/g,
-        function (str, match) {
-          if (!match) return str;
-          const components = match.split(',');
-          const importComponent = str.replace(
-            match,
-            components.map((key: string) => `${key} as _${key.trim()}`).join(', ')
-          );
-          const hoc = `import IconParkHOC from '@renderer/components/IconParkHOC';
-          ${components.map((key: string) => `const ${key.trim()} = IconParkHOC(_${key.trim()})`).join(';\n')}`;
-          return importComponent + ';' + hoc;
-        }
-      );
+      const transformedSource = transformIconParkImports(source);
       if (transformedSource !== source) return { code: transformedSource, map: null } as { code: string; map: null };
       return null;
     },

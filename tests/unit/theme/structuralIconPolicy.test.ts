@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { transformIconParkImports } from '../../../packages/desktop/electron.vite.config';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const rendererRoot = path.join(repoRoot, 'packages/desktop/src/renderer');
@@ -37,6 +38,17 @@ const collectTypeScriptFiles = (directory: string): string[] => {
 };
 
 describe('structural icon policy', () => {
+  it('transforms aliased IconPark imports without emitting invalid identifiers', () => {
+    const transformed = transformIconParkImports(
+      "import { Error as ErrorIcon, FilePdf, Open } from '@icon-park/react';\nconst view = ErrorIcon;"
+    );
+
+    expect(transformed).toContain('import { Error as _ErrorIcon, FilePdf as _FilePdf, Open as _Open }');
+    expect(transformed).toContain('const ErrorIcon = IconParkHOC(_ErrorIcon);');
+    expect(transformed).toContain('const FilePdf = IconParkHOC(_FilePdf);');
+    expect(transformed).not.toContain('Error as ErrorIcon as');
+  });
+
   it('keeps legacy icon packages out of active renderer files outside the owned refresh migration lane', () => {
     const legacyFiles = collectTypeScriptFiles(rendererRoot)
       .filter((absolutePath) => !absolutePath.endsWith('/components/opl/OplRefreshIconButton.tsx'))
