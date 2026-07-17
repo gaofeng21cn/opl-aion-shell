@@ -85,6 +85,17 @@ describe('OPL generated product profile', () => {
   });
 
   it('exposes the App-owned account avatar and titlebar help icon policies', () => {
+    expect(OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy).toMatchObject({
+      library: 'icon_park_react_for_opl_owned_utility_icons',
+      opl_owned_settings_navigation_and_overview: 'icon_park_react_outline_16px_monochrome',
+      settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar',
+      icon_text_action_geometry: {
+        icon_size_px: 16,
+        icon_slot_px: 20,
+        icon_background: 'transparent_none',
+        alignment: 'icon_slot_and_label_share_one_vertical_centerline',
+      },
+    });
     expect(OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy.account_identity_avatar).toEqual({
       shape: 'circle',
       background: 'semantic_success_green',

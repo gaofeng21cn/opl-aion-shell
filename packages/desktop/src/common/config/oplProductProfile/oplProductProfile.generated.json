@@ -117,7 +117,9 @@
         "first_screen_policy": "chat_first_single_reading_lane_no_dashboard_landing_or_agent_portal",
         "composer_position": "floating_bottom_with_safe_inset",
         "composer_primary": true,
-        "workspace_selector_visible": true,
+        "workspace_selector_visible": false,
+        "workspace_selector_entry": "ordinary_conversation.unified_context_menu",
+        "projectless_context_placeholder_visible": false,
         "purpose_entries_visible": ["research", "grant", "ppt", "book"],
         "purpose_entry_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
@@ -135,6 +137,7 @@
         "desktop_context_bar_horizontal_inset_px": 0,
         "starter_truncation_allowed": false,
         "selected_starter_visual_policy": "quiet_fill_and_check_indicator_not_color_alone",
+        "selected_working_directory_visual_policy": "compact_removable_chip_only_when_selected_for_a_new_session",
         "workspace_selector_policy": {
           "primary_scope": "active_workspace_only",
           "inactive_recent_directories_visible": false,
@@ -171,8 +174,19 @@
         ]
       },
       "utility_icon_policy": {
-        "library": "font_awesome_free_for_opl_owned_utility_icons",
-        "opl_owned_settings_navigation_and_overview": "font_awesome_free",
+        "library": "icon_park_react_for_opl_owned_utility_icons",
+        "opl_owned_settings_navigation_and_overview": "icon_park_react_outline_16px_monochrome",
+        "settings_icon_geometry": "stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar",
+        "icon_text_action_geometry": {
+          "icon_size_px": 16,
+          "icon_slot_px": 20,
+          "icon_color": "currentColor",
+          "icon_background": "transparent_none",
+          "icon_label_gap_px": 8,
+          "alignment": "icon_slot_and_label_share_one_vertical_centerline",
+          "contrast_policy": "button_foreground_color_applies_to_icon_and_label_together",
+          "disabled_policy": "apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon"
+        },
         "upstream_fork_body_bulk_icon_rewrite": "forbidden",
         "refresh_actions": "icon_only_with_tooltip_and_accessible_name",
         "model_reasoning_control": "text_and_disclosure_without_brain_icon",
@@ -458,13 +472,64 @@
         "attachments",
         "workspace_context_refs"
       ],
-      "composer_bottom_action_row": ["attach", "permission_access_mode", "model_reasoning", "send_stop"],
+      "composer_bottom_action_row": ["unified_context_menu", "permission_access_mode", "model_reasoning", "send_stop"],
       "composer_optional_actions": ["voice"],
       "mobile_action_sheet": {
         "trigger": "+",
-        "allowed_actions": ["attach", "permission_access_mode", "model_reasoning", "active_capability"],
+        "allowed_actions": ["unified_context_menu", "permission_access_mode", "model_reasoning", "active_capability"],
         "send_stop_location": "composer_primary_action_outside_sheet",
         "forbidden_actions": ["backend", "provider", "team", "raw_mcp", "arbitrary_skills"]
+      },
+      "unified_context_menu": {
+        "trigger": "+",
+        "placement": "composer_leading_action",
+        "shared_desktop_mobile_content": true,
+        "groups": [
+          {
+            "id": "local_inputs",
+            "actions": ["attach_file", "attach_folder"],
+            "scope": "current_send_only",
+            "source": "user_selected_local_paths"
+          },
+          {
+            "id": "working_directory",
+            "actions": ["select_initial_working_directory", "clear_initial_working_directory"],
+            "scope": "new_session_initial_cwd_only",
+            "source": "registered_directories_and_system_directory_picker",
+            "existing_session_rebinding_allowed": false
+          },
+          {
+            "id": "skills",
+            "actions": ["select_session_skill"],
+            "scope": "current_session_configuration",
+            "source_ref": "ordinary_capability_selector_policy",
+            "availability_policy": "show_only_app_allowlisted_skills_for_the_selected_professional_agent"
+          },
+          {
+            "id": "apps_and_connections",
+            "actions": ["select_session_app_or_connection"],
+            "scope": "current_session_configuration",
+            "source_ref": "ordinary_capability_selector_policy.visible_mcp_server_ids",
+            "availability_policy": "hide_group_when_no_app_allowlisted_session_connection_is_available",
+            "label_policy": "localized_product_name_never_raw_mcp_or_provider_id"
+          }
+        ],
+        "selected_context_presentation": {
+          "projectless_placeholder": "hidden",
+          "working_directory": "compact_removable_chip_only_when_selected_before_thread_start",
+          "attachments": "existing_send_scoped_attachment_chips",
+          "skills_and_connections": "compact_session_context_chips_only_when_selected"
+        },
+        "authority_policy": "render_only_real_picker_actions_and_App_allowlisted_session_capabilities_supported_by_the_active_adapter",
+        "forbidden_entries": [
+          "project_object",
+          "backend",
+          "provider",
+          "team",
+          "raw_mcp",
+          "arbitrary_skills",
+          "unavailable_or_synthetic_plugins"
+        ]
       },
       "projectless_conversation_supported": true,
       "session_workspace_model": {
@@ -724,6 +789,46 @@
       "external_first_party_trust_claims_allowed": false,
       "collision_failure_code": "agent_package_registry_first_party_identity_collision",
       "first_party_manifest_fixture_dir": "contracts/fixtures/agent-package-manifests",
+      "catalog_presentation_policy": {
+        "section_order": ["professional_agents", "workflow_profiles", "shared_dependencies", "other_packages"],
+        "professional_agent_order_source": "gui.professional_agent_packages[].package_id",
+        "professional_agent_order_policy": "match_projected_directory_entries_then_append_unlisted_standard_agents_by_localized_display_name",
+        "workflow_profile_policy": "render_in_a_separate_workflow_section_not_mixed_with_runnable_agents",
+        "package_role_labels_i18n": {
+          "standard_agent": {
+            "zh-CN": "专业智能体",
+            "en-US": "Professional agent"
+          },
+          "framework_capability_package": {
+            "zh-CN": "配套能力包",
+            "en-US": "Companion capability package"
+          },
+          "workflow_profile": {
+            "zh-CN": "工作流配置",
+            "en-US": "Workflow profile"
+          }
+        },
+        "raw_package_role_visible": false,
+        "dependency_hierarchy": {
+          "source": "app_state.agent_packages.status_index.packages[].dependent_guard.required_by_package_ids",
+          "direction": "a_package_with_one_visible_required_by_package_id_is_nested_under_that_parent_package",
+          "single_parent_policy": "render_once_as_a_compact_child_row_under_the_visible_parent",
+          "multiple_parent_policy": "render_once_in_shared_dependencies_with_localized_parent_labels",
+          "missing_or_invisible_parent_policy": "render_once_in_shared_dependencies",
+          "hardcoded_package_relationships_allowed": false,
+          "duplicate_rows_allowed": false,
+          "status_and_actions_source": "unchanged_Framework_directory_and_status_index_projection"
+        },
+        "developer_controls_disclosure": {
+          "default_state": "collapsed",
+          "contains": [
+            "global_runtime_source",
+            "authorized_repository_maintenance",
+            "workspace_and_repository_protection_summary"
+          ],
+          "ordinary_catalog_remains_visible_when_collapsed": true
+        }
+      },
       "first_party_release_set_metadata": [
         {
           "package_id": "mas",

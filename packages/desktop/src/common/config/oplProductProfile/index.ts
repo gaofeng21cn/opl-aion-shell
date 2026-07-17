@@ -522,7 +522,20 @@ type AppProductProfile = {
         selection_persists_into_conversation: true;
       };
       utility_icon_policy: {
-        library: 'font_awesome_free_for_opl_owned_utility_icons';
+        library: 'icon_park_react_for_opl_owned_utility_icons';
+        opl_owned_settings_navigation_and_overview: 'icon_park_react_outline_16px_monochrome';
+        settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar';
+        icon_text_action_geometry: {
+          icon_size_px: 16;
+          icon_slot_px: 20;
+          icon_color: 'currentColor';
+          icon_background: 'transparent_none';
+          icon_label_gap_px: 8;
+          alignment: 'icon_slot_and_label_share_one_vertical_centerline';
+          contrast_policy: 'button_foreground_color_applies_to_icon_and_label_together';
+          disabled_policy: 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon';
+        };
+        upstream_fork_body_bulk_icon_rewrite: 'forbidden';
         refresh_actions: 'icon_only_with_tooltip_and_accessible_name';
         model_reasoning_control: 'text_and_disclosure_without_brain_icon';
         account_identity_avatar: OplAccountIdentityAvatarPolicy;
@@ -1975,13 +1988,27 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const utilityIconPolicy = guiHome.utility_icon_policy;
   const accountIdentityAvatar = isRecord(utilityIconPolicy) ? utilityIconPolicy.account_identity_avatar : null;
+  const iconTextActionGeometry = isRecord(utilityIconPolicy) ? utilityIconPolicy.icon_text_action_geometry : null;
   const globalFeedbackAction = isRecord(utilityIconPolicy) ? utilityIconPolicy.global_feedback_action : null;
   const globalFeedbackPrefillFields = isRecord(globalFeedbackAction)
     ? readStringArray(globalFeedbackAction, 'prefill_fields', 'gui.home.utility_icon_policy.global_feedback_action')
     : [];
   if (
     !isRecord(utilityIconPolicy) ||
-    utilityIconPolicy.library !== 'font_awesome_free_for_opl_owned_utility_icons' ||
+    utilityIconPolicy.library !== 'icon_park_react_for_opl_owned_utility_icons' ||
+    utilityIconPolicy.opl_owned_settings_navigation_and_overview !== 'icon_park_react_outline_16px_monochrome' ||
+    utilityIconPolicy.settings_icon_geometry !==
+      'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar' ||
+    !isRecord(iconTextActionGeometry) ||
+    iconTextActionGeometry.icon_size_px !== 16 ||
+    iconTextActionGeometry.icon_slot_px !== 20 ||
+    iconTextActionGeometry.icon_color !== 'currentColor' ||
+    iconTextActionGeometry.icon_background !== 'transparent_none' ||
+    iconTextActionGeometry.icon_label_gap_px !== 8 ||
+    iconTextActionGeometry.alignment !== 'icon_slot_and_label_share_one_vertical_centerline' ||
+    iconTextActionGeometry.contrast_policy !== 'button_foreground_color_applies_to_icon_and_label_together' ||
+    iconTextActionGeometry.disabled_policy !== 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon' ||
+    utilityIconPolicy.upstream_fork_body_bulk_icon_rewrite !== 'forbidden' ||
     utilityIconPolicy.refresh_actions !== 'icon_only_with_tooltip_and_accessible_name' ||
     utilityIconPolicy.model_reasoning_control !== 'text_and_disclosure_without_brain_icon' ||
     utilityIconPolicy.scope !== 'opl_owned_overlay_surfaces_not_upstream_fork_body' ||
@@ -2233,7 +2260,20 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           selection_persists_into_conversation: true,
         },
         utility_icon_policy: {
-          library: 'font_awesome_free_for_opl_owned_utility_icons',
+          library: 'icon_park_react_for_opl_owned_utility_icons',
+          opl_owned_settings_navigation_and_overview: 'icon_park_react_outline_16px_monochrome',
+          settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar',
+          icon_text_action_geometry: {
+            icon_size_px: 16,
+            icon_slot_px: 20,
+            icon_color: 'currentColor',
+            icon_background: 'transparent_none',
+            icon_label_gap_px: 8,
+            alignment: 'icon_slot_and_label_share_one_vertical_centerline',
+            contrast_policy: 'button_foreground_color_applies_to_icon_and_label_together',
+            disabled_policy: 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon',
+          },
+          upstream_fork_body_bulk_icon_rewrite: 'forbidden',
           refresh_actions: 'icon_only_with_tooltip_and_accessible_name',
           model_reasoning_control: 'text_and_disclosure_without_brain_icon',
           account_identity_avatar: {
