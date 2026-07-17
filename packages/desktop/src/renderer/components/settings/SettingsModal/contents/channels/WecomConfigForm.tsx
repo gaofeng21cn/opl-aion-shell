@@ -13,44 +13,9 @@ import type { GoogleModelSelection } from '@/renderer/pages/conversation/platfor
 import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
 import { Button, Dropdown, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
-import { ChannelEmptyState } from './ChannelItem';
+import { ChannelEmptyState, ChannelPreferenceRow, ChannelSectionHeader, ChannelStatusBadge } from './ChannelItem';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-/**
- * Preference row component
- */
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  extra?: React.ReactNode;
-  required?: boolean;
-  children: React.ReactNode;
-}> = ({ label, description, extra, required, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>
-          {label}
-          {required && <span className='text-red-500 ml-2px'>*</span>}
-        </span>
-        {extra}
-      </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
-
-/**
- * Section header component
- */
-const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
-  <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
-    {action}
-  </div>
-);
 
 interface WecomConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -254,8 +219,8 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
   const agentOptions = availableAgents;
 
   return (
-    <div className='flex flex-col gap-24px'>
-      <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--orange-6),0.08)] border border-[rgba(var(--orange-6),0.3)] text-t-secondary'>
+    <div className='flex max-w-full min-w-0 flex-col gap-24px'>
+      <div className='border border-warning-3 bg-warning-1 p-10px text-12px leading-relaxed text-t-secondary rd-8px'>
         <div className='font-500 text-t-primary mb-6px'>
           {t('settings.wecom.wsTitle', 'WeCom WebSocket connection')}
         </div>
@@ -279,7 +244,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
         </div>
       </div>
 
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.wecom.botId', 'Bot ID')}
         description={t('settings.wecom.botIdDesc', 'Bot ID from WeCom Intelligent Bot (Long Connection mode)')}
         required
@@ -291,7 +256,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
               'Please close the Channel and delete all authorized users before modifying'
             )}
           >
-            <span>
+            <span className='block w-full min-w-0 max-w-full sm:w-260px'>
               <Input
                 value={botId}
                 onChange={(value) => {
@@ -300,7 +265,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, botId: true }))}
                 placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : ''}
-                style={{ width: 260 }}
+                className='w-full min-w-0 max-w-full'
                 status={touched.botId && !botId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 disabled={hasExistingUsers}
               />
@@ -315,14 +280,14 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, botId: true }))}
             placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : ''}
-            style={{ width: 260 }}
+            className='w-full min-w-0 max-w-full sm:w-260px'
             status={touched.botId && !botId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             disabled={hasExistingUsers}
           />
         )}
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.wecom.secret', 'Secret')}
         description={t('settings.wecom.secretDesc', 'Secret from WeCom Intelligent Bot (Long Connection mode)')}
         required
@@ -334,7 +299,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
               'Please close the Channel and delete all authorized users before modifying'
             )}
           >
-            <span>
+            <span className='block w-full min-w-0 max-w-full sm:w-260px'>
               <Input.Password
                 value={secret}
                 onChange={(value) => {
@@ -343,7 +308,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, secret: true }))}
                 placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : ''}
-                style={{ width: 260 }}
+                className='w-full min-w-0 max-w-full'
                 status={touched.secret && !secret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
                 disabled={hasExistingUsers}
@@ -359,18 +324,18 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, secret: true }))}
             placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : ''}
-            style={{ width: 260 }}
+            className='w-full min-w-0 max-w-full sm:w-260px'
             status={touched.secret && !secret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle
             disabled={hasExistingUsers}
           />
         )}
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {!hasExistingUsers && (
-        <div className='flex justify-end'>
+        <div className='flex flex-wrap items-center justify-end gap-8px'>
           {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? (
-            <span className='text-12px text-t-tertiary mr-12px self-center'>
+            <span className='min-w-0 break-words text-12px text-t-tertiary'>
               {t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}
             </span>
           ) : null}
@@ -387,7 +352,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
 
       {/* Agent Selection */}
       <div className='flex flex-col gap-8px'>
-        <PreferenceRow
+        <ChannelPreferenceRow
           label={t('settings.wecom.agent', 'Agent')}
           description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}
         >
@@ -428,16 +393,19 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
               </Menu>
             }
           >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+            <Button
+              type='secondary'
+              className='flex w-full min-w-0 max-w-full items-center justify-between gap-8px sm:w-auto sm:min-w-160px'
+            >
               <span className='truncate'>{selectedAgent?.name || t('settings.wecom.agent', 'Agent')}</span>
               <Down theme='outline' size={14} />
             </Button>
           </Dropdown>
-        </PreferenceRow>
+        </ChannelPreferenceRow>
       </div>
 
       {/* Default Model Selection */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.assistant.defaultModel', 'Model')}
         description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}
       >
@@ -449,28 +417,26 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
           }
           variant='settings'
         />
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Connection Status */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.wecom.connectionStatus', 'Connection Status')}
             action={
-              <span
-                className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
+              <ChannelStatusBadge
+                tone={pluginStatus?.connected ? 'success' : pluginStatus?.error ? 'danger' : 'warning'}
               >
                 {pluginStatus?.connected
                   ? t('settings.wecom.statusConnected', 'Connected')
                   : pluginStatus?.error
                     ? t('settings.wecom.statusError', 'Error')
                     : t('settings.wecom.statusConnecting', 'Connecting...')}
-              </span>
+              </ChannelStatusBadge>
             }
           />
-          {pluginStatus?.error && (
-            <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>
-          )}
+          {pluginStatus?.error && <div className='mb-12px break-words text-14px text-danger'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-t-secondary space-y-8px'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
@@ -507,7 +473,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
               <Button
@@ -537,8 +503,8 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                   key={pairing.code}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex min-w-0 flex-wrap items-center gap-8px'>
                       <span className='text-14px font-500 text-t-primary'>
                         {pairing.display_name || 'Unknown User'}
                       </span>
@@ -551,14 +517,14 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.pairingCode', 'Code')}:{' '}
-                      <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
+                      <code className='break-all bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex flex-wrap items-center gap-8px'>
                     <Button
                       type='primary'
                       size='small'
@@ -587,7 +553,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
               <Button
@@ -617,9 +583,9 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
                   key={user.id}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
+                  <div className='min-w-0 flex-1'>
                     <div className='text-14px font-500 text-t-primary'>{user.display_name || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}

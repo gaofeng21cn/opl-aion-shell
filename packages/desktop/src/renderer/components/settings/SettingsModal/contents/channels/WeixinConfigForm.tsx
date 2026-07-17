@@ -13,36 +13,12 @@ import type { GoogleModelSelection } from '@/renderer/pages/conversation/platfor
 import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
 import { Button, Dropdown, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
-import { ChannelEmptyState } from './ChannelItem';
+import { ChannelEmptyState, ChannelPreferenceRow, ChannelSectionHeader } from './ChannelItem';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
 type LoginState = 'idle' | 'loading_qr' | 'showing_qr' | 'scanned' | 'connected';
-
-/**
- * Preference row component (local, mirrors other config forms)
- */
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  children: React.ReactNode;
-}> = ({ label, description, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <span className='text-14px text-t-primary'>{label}</span>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
-
-const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
-  <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
-    {action}
-  </div>
-);
 
 interface WeixinConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -286,8 +262,8 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
   const renderLoginArea = () => {
     if (loginState === 'connected' || (pluginStatus?.hasToken && pluginStatus?.enabled)) {
       return (
-        <div className='flex items-center gap-8px'>
-          <CheckOne theme='filled' size={16} className='text-green-500' />
+        <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+          <CheckOne theme='filled' size={16} className='text-success-6' />
           <span className='text-14px text-t-primary'>{t('settings.weixin.connected', 'Connected')}</span>
           {pluginStatus?.botUsername && <span className='text-12px text-t-tertiary'>({pluginStatus.botUsername})</span>}
           <Button
@@ -337,9 +313,9 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
   };
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex max-w-full min-w-0 flex-col gap-24px'>
       {/* Login / connection status */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.weixin.accountId', 'Account ID')}
         description={
           loginState === 'idle' || loginState === 'loading_qr'
@@ -348,10 +324,10 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
         }
       >
         {renderLoginArea()}
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Agent Selection */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.weixin.agent', 'Agent')}
         description={t('settings.weixin.agentDesc', 'Used for WeChat conversations')}
       >
@@ -390,15 +366,18 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
             </Menu>
           }
         >
-          <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+          <Button
+            type='secondary'
+            className='flex w-full min-w-0 max-w-full items-center justify-between gap-8px sm:w-auto sm:min-w-160px'
+          >
             <span className='truncate'>{selectedAgent?.name || t('settings.weixin.agent', 'Agent')}</span>
             <Down theme='outline' size={14} />
           </Button>
         </Dropdown>
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Default Model Selection */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.assistant.defaultModel', 'Default Model')}
         description={t('settings.weixin.defaultModelDesc', 'Model used for WeChat conversations')}
       >
@@ -412,12 +391,12 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
           }
           variant='settings'
         />
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Next Steps Guide - shown when connected but no authorized users yet */}
       {pluginStatus?.connected && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
+          <ChannelSectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
           <div className='text-14px text-t-secondary space-y-8px'>
             <p className='m-0'>
               <strong>1.</strong> {t('settings.weixin.step1', 'Find and send a message to your bot in WeChat')}
@@ -443,7 +422,7 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
       {/* Pending Pairing Requests */}
       {pluginStatus?.connected && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
               <Button
@@ -472,8 +451,8 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
                   key={pairing.code}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex min-w-0 flex-wrap items-center gap-8px'>
                       <span className='text-14px font-500 text-t-primary'>
                         {pairing.display_name || 'Unknown User'}
                       </span>
@@ -486,14 +465,14 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
                         />
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.pairingCode', 'Code')}:{' '}
-                      <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
+                      <code className='break-all bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex flex-wrap items-center gap-8px'>
                     <Button
                       type='primary'
                       size='small'
@@ -522,7 +501,7 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
               <Button
@@ -547,9 +526,9 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
                   key={user.id}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
+                  <div className='min-w-0 flex-1'>
                     <div className='text-14px font-500 text-t-primary'>{user.display_name || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}
                     </div>
                   </div>

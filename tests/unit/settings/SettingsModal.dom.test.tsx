@@ -4,7 +4,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
-import { ChannelEmptyState } from '@/renderer/components/settings/SettingsModal/contents/channels/ChannelItem';
+import {
+  ChannelEmptyState,
+  ChannelPreferenceRow,
+  ChannelStatusBadge,
+} from '@/renderer/components/settings/SettingsModal/contents/channels/ChannelItem';
 import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
@@ -220,6 +224,25 @@ describe('SettingsModal OPL App navigation', () => {
     expect(emptyState).toHaveClass('text-12px', 'leading-18px');
     expect(container.querySelector('svg')).toBeNull();
     expect(container.querySelector('.arco-empty')).toBeNull();
+  });
+
+  it('keeps channel controls single-column and semantic at narrow widths', () => {
+    const { rerender } = render(
+      <ChannelPreferenceRow label='App ID' description='Channel credential' required>
+        <span>Credential control</span>
+        <span>Test action</span>
+      </ChannelPreferenceRow>
+    );
+
+    const row = document.querySelector('[data-channel-preference-row]');
+    const actions = document.querySelector('[data-channel-row-actions]');
+    expect(row).toHaveClass('flex-col', 'min-w-0', 'sm:flex-row');
+    expect(actions).toHaveClass('w-full', 'max-w-full', 'flex-wrap', 'sm:w-auto');
+    expect(screen.getByText('*')).toHaveClass('text-danger');
+
+    rerender(<ChannelStatusBadge tone='warning'>Connecting</ChannelStatusBadge>);
+    expect(screen.getByText('Connecting')).toHaveClass('bg-warning-1', 'text-warning-6');
+    expect(screen.getByText('Connecting')).toHaveAttribute('data-channel-status-tone', 'warning');
   });
 
   it('renders Account & Access and Models as separate owner pages', () => {

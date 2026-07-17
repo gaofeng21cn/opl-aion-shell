@@ -12,40 +12,9 @@ import type { GoogleModelSelection } from '@/renderer/pages/conversation/platfor
 import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
 import { Button, Dropdown, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
-import { ChannelEmptyState } from './ChannelItem';
+import { ChannelEmptyState, ChannelPreferenceRow, ChannelSectionHeader } from './ChannelItem';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-/**
- * Preference row component
- */
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  extra?: React.ReactNode;
-  children: React.ReactNode;
-}> = ({ label, description, extra, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>{label}</span>
-        {extra}
-      </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
-
-/**
- * Section header component
- */
-const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
-  <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
-    {action}
-  </div>
-);
 
 interface TelegramConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -273,15 +242,15 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
   const agentOptions = availableAgents;
 
   return (
-    <div className='flex flex-col gap-24px'>
-      <PreferenceRow
+    <div className='flex max-w-full min-w-0 flex-col gap-24px'>
+      <ChannelPreferenceRow
         label={t('settings.assistant.botToken', 'Bot Token')}
         description={t(
           'settings.assistant.botTokenDesc',
           'Open Telegram, find @BotFather and send /newbot to get your Bot Token.'
         )}
       >
-        <div className='flex items-center gap-8px'>
+        <div className='flex w-full min-w-0 max-w-full flex-wrap items-center gap-8px sm:w-auto sm:flex-nowrap'>
           {authorizedUsers.length > 0 ? (
             <Tooltip
               content={t(
@@ -289,14 +258,14 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
                 'Please close the Channel and delete all authorized users before modifying the configuration'
               )}
             >
-              <span>
+              <span className='block w-full min-w-0 max-w-full sm:w-240px'>
                 <Input.Password
                   value={telegramToken}
                   onChange={handleTokenChange}
                   placeholder={
                     authorizedUsers.length > 0 || pluginStatus?.hasToken ? '••••••••••••••••' : '123456:ABC-DEF...'
                   }
-                  style={{ width: 240 }}
+                  className='w-full min-w-0 max-w-full'
                   visibilityToggle
                   disabled={authorizedUsers.length > 0}
                 />
@@ -309,7 +278,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
               placeholder={
                 authorizedUsers.length > 0 || pluginStatus?.hasToken ? '••••••••••••••••' : '123456:ABC-DEF...'
               }
-              style={{ width: 240 }}
+              className='w-full min-w-0 max-w-full sm:w-240px'
               visibilityToggle
               disabled={authorizedUsers.length > 0}
             />
@@ -343,11 +312,11 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
             </Button>
           )}
         </div>
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Agent Selection */}
       <div className='flex flex-col gap-8px'>
-        <PreferenceRow
+        <ChannelPreferenceRow
           label={t('settings.agent', 'Agent')}
           description={t('settings.assistant.agentDescTelegram', 'Used for Telegram conversations')}
         >
@@ -386,16 +355,19 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
               </Menu>
             }
           >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+            <Button
+              type='secondary'
+              className='flex w-full min-w-0 max-w-full items-center justify-between gap-8px sm:w-auto sm:min-w-160px'
+            >
               <span className='truncate'>{selectedAgent?.name || t('settings.agent', 'Agent')}</span>
               <Down theme='outline' size={14} />
             </Button>
           </Dropdown>
-        </PreferenceRow>
+        </ChannelPreferenceRow>
       </div>
 
       {/* Default Model Selection */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.assistant.defaultModel', 'Default Model')}
         description={t('settings.assistant.defaultModelDesc', 'Model used for Telegram conversations')}
       >
@@ -409,12 +381,12 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
           }
           variant='settings'
         />
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && pluginStatus?.connected && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
+          <ChannelSectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
           <div className='text-14px text-t-secondary space-y-8px'>
             <p className='m-0'>
               <strong>1.</strong> {t('settings.assistant.step1', 'Open Telegram and search for your bot')}
@@ -446,7 +418,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
       {/* Pending Pairings - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
               <Button
@@ -476,8 +448,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
                   key={pairing.code}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex min-w-0 flex-wrap items-center gap-8px'>
                       <span className='text-14px font-500 text-t-primary'>
                         {pairing.display_name || 'Unknown User'}
                       </span>
@@ -490,14 +462,14 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.pairingCode', 'Code')}:{' '}
-                      <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
+                      <code className='break-all bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex flex-wrap items-center gap-8px'>
                     <Button
                       type='primary'
                       size='small'
@@ -526,7 +498,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
       {/* Authorized Users - show when there are authorized users */}
       {authorizedUsers.length > 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
               <Button
@@ -556,9 +528,9 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
                   key={user.id}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
+                  <div className='min-w-0 flex-1'>
                     <div className='text-14px font-500 text-t-primary'>{user.display_name || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}

@@ -13,44 +13,9 @@ import type { GoogleModelSelection } from '@/renderer/pages/conversation/platfor
 import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
 import { Button, Dropdown, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
-import { ChannelEmptyState } from './ChannelItem';
+import { ChannelEmptyState, ChannelPreferenceRow, ChannelSectionHeader, ChannelStatusBadge } from './ChannelItem';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-/**
- * Preference row component
- */
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  extra?: React.ReactNode;
-  required?: boolean;
-  children: React.ReactNode;
-}> = ({ label, description, extra, required, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>
-          {label}
-          {required && <span className='text-red-500 ml-2px'>*</span>}
-        </span>
-        {extra}
-      </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
-
-/**
- * Section header component
- */
-const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
-  <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
-    {action}
-  </div>
-);
 
 interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -291,9 +256,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   const agentOptions = availableAgents;
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex max-w-full min-w-0 flex-col gap-24px'>
       {/* App ID */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.lark.appId', 'App ID')}
         description={
           <span>
@@ -319,7 +284,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               'Please close the Channel and delete all authorized users before modifying the configuration'
             )}
           >
-            <span>
+            <span className='block w-full min-w-0 max-w-full sm:w-240px'>
               <Input
                 value={appId}
                 onChange={(value) => {
@@ -328,7 +293,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
                 placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
-                style={{ width: 240 }}
+                className='w-full min-w-0 max-w-full'
                 status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 disabled={hasExistingUsers}
               />
@@ -343,15 +308,15 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
             placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
-            style={{ width: 240 }}
+            className='w-full min-w-0 max-w-full sm:w-240px'
             status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             disabled={hasExistingUsers}
           />
         )}
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* App Secret */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.lark.appSecret', 'App Secret')}
         description={
           <span>
@@ -377,7 +342,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               'Please close the Channel and delete all authorized users before modifying the configuration'
             )}
           >
-            <span>
+            <span className='block w-full min-w-0 max-w-full sm:w-240px'>
               <Input.Password
                 value={appSecret}
                 onChange={(value) => {
@@ -386,7 +351,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
                 placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
-                style={{ width: 240 }}
+                className='w-full min-w-0 max-w-full'
                 status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
                 disabled={hasExistingUsers}
@@ -402,35 +367,40 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
             placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
-            style={{ width: 240 }}
+            className='w-full min-w-0 max-w-full sm:w-240px'
             status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle
             disabled={hasExistingUsers}
           />
         )}
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Optional fields toggle */}
-      <div
-        className='flex items-center gap-4px text-12px text-t-tertiary cursor-pointer select-none'
+      <Button
+        type='text'
+        size='mini'
+        className='!h-auto !justify-start !px-0 text-t-tertiary'
+        aria-expanded={showOptional}
+        aria-controls='lark-optional-fields'
+        data-testid='lark-optional-fields-toggle'
+        icon={
+          <Down
+            theme='outline'
+            size={12}
+            style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+          />
+        }
         onClick={() => setShowOptional((prev) => !prev)}
       >
-        <Down
-          theme='outline'
-          size={12}
-          style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
-        />
-        <span>
-          {showOptional
-            ? t('settings.lark.hideOptionalFields', 'Hide optional settings')
-            : t('settings.lark.showOptionalFields', 'Show optional settings')}
-        </span>
-      </div>
+        {showOptional
+          ? t('settings.lark.hideOptionalFields', 'Hide optional settings')
+          : t('settings.lark.showOptionalFields', 'Show optional settings')}
+      </Button>
 
       {showOptional && (
-        <>
+        <div id='lark-optional-fields' className='flex flex-col gap-24px'>
           {/* Encrypt Key (Optional) */}
-          <PreferenceRow
+          <ChannelPreferenceRow
             label={t('settings.lark.encryptKey', 'Encrypt Key')}
             description={t(
               'settings.lark.encryptKeyDesc',
@@ -444,7 +414,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   'Please close the Channel and delete all authorized users before modifying the configuration'
                 )}
               >
-                <span>
+                <span className='block w-full min-w-0 max-w-full sm:w-240px'>
                   <Input.Password
                     value={encryptKey}
                     onChange={(value) => {
@@ -452,7 +422,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                       handleCredentialsChange();
                     }}
                     placeholder={t('settings.lark.optional', 'Optional')}
-                    style={{ width: 240 }}
+                    className='w-full min-w-0 max-w-full'
                     visibilityToggle
                     disabled={hasExistingUsers}
                   />
@@ -466,15 +436,15 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 placeholder={t('settings.lark.optional', 'Optional')}
-                style={{ width: 240 }}
+                className='w-full min-w-0 max-w-full sm:w-240px'
                 visibilityToggle
                 disabled={hasExistingUsers}
               />
             )}
-          </PreferenceRow>
+          </ChannelPreferenceRow>
 
           {/* Verification Token (Optional) */}
-          <PreferenceRow
+          <ChannelPreferenceRow
             label={t('settings.lark.verificationToken', 'Verification Token')}
             description={t(
               'settings.lark.verificationTokenDesc',
@@ -488,7 +458,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   'Please close the Channel and delete all authorized users before modifying the configuration'
                 )}
               >
-                <span>
+                <span className='block w-full min-w-0 max-w-full sm:w-240px'>
                   <Input.Password
                     value={verificationToken}
                     onChange={(value) => {
@@ -496,7 +466,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                       handleCredentialsChange();
                     }}
                     placeholder={t('settings.lark.optional', 'Optional')}
-                    style={{ width: 240 }}
+                    className='w-full min-w-0 max-w-full'
                     visibilityToggle
                     disabled={hasExistingUsers}
                   />
@@ -510,21 +480,21 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 placeholder={t('settings.lark.optional', 'Optional')}
-                style={{ width: 240 }}
+                className='w-full min-w-0 max-w-full sm:w-240px'
                 visibilityToggle
                 disabled={hasExistingUsers}
               />
             )}
-          </PreferenceRow>
-        </>
+          </ChannelPreferenceRow>
+        </div>
       )}
 
       {/* Test Connection Button - only show when not connected or no existing users */}
       {!hasExistingUsers && !pluginStatus?.connected && (
-        <div className='flex justify-end'>
+        <div className='flex flex-wrap items-center justify-end gap-8px'>
           {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? (
             // Credentials already saved but not entered in UI - show info message
-            <span className='text-12px text-t-tertiary mr-12px self-center'>
+            <span className='min-w-0 break-words text-12px text-t-tertiary'>
               {t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}
             </span>
           ) : null}
@@ -541,7 +511,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Agent Selection */}
       <div className='flex flex-col gap-8px'>
-        <PreferenceRow
+        <ChannelPreferenceRow
           label={t('settings.lark.agent', 'Agent')}
           description={t('settings.lark.agentDesc', 'Used for Lark conversations')}
         >
@@ -582,16 +552,19 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               </Menu>
             }
           >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+            <Button
+              type='secondary'
+              className='flex w-full min-w-0 max-w-full items-center justify-between gap-8px sm:w-auto sm:min-w-160px'
+            >
               <span className='truncate'>{selectedAgent?.name || t('settings.lark.agent', 'Agent')}</span>
               <Down theme='outline' size={14} />
             </Button>
           </Dropdown>
-        </PreferenceRow>
+        </ChannelPreferenceRow>
       </div>
 
       {/* Default Model Selection */}
-      <PreferenceRow
+      <ChannelPreferenceRow
         label={t('settings.assistant.defaultModel', 'Default Model')}
         description={t('settings.lark.defaultModelDesc', 'Model used for Lark conversations')}
       >
@@ -605,28 +578,26 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           }
           variant='settings'
         />
-      </PreferenceRow>
+      </ChannelPreferenceRow>
 
       {/* Connection Status - show when bot is enabled */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.lark.connectionStatus', 'Connection Status')}
             action={
-              <span
-                className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
+              <ChannelStatusBadge
+                tone={pluginStatus?.connected ? 'success' : pluginStatus?.error ? 'danger' : 'warning'}
               >
                 {pluginStatus?.connected
                   ? t('settings.lark.statusConnected', 'Connected')
                   : pluginStatus?.error
                     ? t('settings.lark.statusError', 'Error')
                     : t('settings.lark.statusConnecting', 'Connecting...')}
-              </span>
+              </ChannelStatusBadge>
             }
           />
-          {pluginStatus?.error && (
-            <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>
-          )}
+          {pluginStatus?.error && <div className='mb-12px break-words text-14px text-danger'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-t-secondary space-y-8px'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
@@ -660,7 +631,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
               <Button
@@ -690,8 +661,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   key={pairing.code}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex min-w-0 flex-wrap items-center gap-8px'>
                       <span className='text-14px font-500 text-t-primary'>
                         {pairing.display_name || 'Unknown User'}
                       </span>
@@ -704,14 +675,14 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.pairingCode', 'Code')}:{' '}
-                      <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
+                      <code className='break-all bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex flex-wrap items-center gap-8px'>
                     <Button
                       type='primary'
                       size='small'
@@ -740,7 +711,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
         <div className='border-0 border-t border-solid border-line pt-16px'>
-          <SectionHeader
+          <ChannelSectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
               <Button
@@ -770,9 +741,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   key={user.id}
                   className='flex flex-wrap items-center justify-between gap-12px border-0 border-t border-solid border-line py-12px'
                 >
-                  <div className='flex-1'>
+                  <div className='min-w-0 flex-1'>
                     <div className='text-14px font-500 text-t-primary'>{user.display_name || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='mt-4px break-words text-12px text-t-tertiary'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}

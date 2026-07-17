@@ -19,6 +19,43 @@ test.describe('Channels', () => {
     await expect(page.locator(channelItemById('telegram'))).toBeVisible({ timeout: 8_000 });
   });
 
+  test('expanded channel forms fit a 400px viewport and keep disclosures keyboard accessible', async ({ page }) => {
+    const originalViewport = page.viewportSize() || { width: 1280, height: 800 };
+
+    try {
+      await page.setViewportSize({ width: 400, height: 600 });
+      await goToChannelsTab(page);
+
+      const lark = page.locator(channelItemById('lark')).first();
+      await expect(lark).toBeVisible({ timeout: 8_000 });
+      await lark.locator('.arco-collapse-item-header').click();
+
+      const firstRow = lark.locator('[data-channel-preference-row]').first();
+      await expect(firstRow).toBeVisible({ timeout: 8_000 });
+
+      const overflow = await page.evaluate(() => ({
+        body: document.body.scrollWidth - document.body.clientWidth,
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      expect(overflow).toEqual({ body: 0, document: 0 });
+
+      const overflowingRows = await lark
+        .locator('[data-channel-preference-row]')
+        .evaluateAll((rows) => rows.filter((row) => row.scrollWidth > row.clientWidth + 1).length);
+      expect(overflowingRows).toBe(0);
+
+      const optionalToggle = lark.getByTestId('lark-optional-fields-toggle');
+      await optionalToggle.scrollIntoViewIfNeeded();
+      await expect(optionalToggle).toHaveAttribute('aria-expanded', 'false');
+      await optionalToggle.focus();
+      await page.keyboard.press('Enter');
+      await expect(optionalToggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(lark.locator('#lark-optional-fields')).toBeVisible();
+    } finally {
+      await page.setViewportSize(originalViewport);
+    }
+  });
+
   test('known channels are listed', async ({ page }) => {
     await goToChannelsTab(page);
 

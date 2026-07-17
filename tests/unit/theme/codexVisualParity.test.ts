@@ -106,6 +106,9 @@ describe('Codex visual parity overlay', () => {
     ].map((fileName) =>
       read(`packages/desktop/src/renderer/components/settings/SettingsModal/contents/channels/${fileName}`)
     );
+    const larkForm = read(
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/channels/LarkConfigForm.tsx'
+    );
     const assistantDrawer = read(
       'packages/desktop/src/renderer/pages/settings/AssistantSettings/AssistantEditDrawer.tsx'
     );
@@ -142,15 +145,27 @@ describe('Codex visual parity overlay', () => {
     expect(agentHub).toContain("from '@icon-park/react'");
     expect(agentHub).not.toContain('@arco-design/web-react/icon');
     expect(channelItem).toContain('export const ChannelEmptyState');
+    expect(channelItem).toContain('export const ChannelPreferenceRow');
+    expect(channelItem).toContain('export const ChannelStatusBadge');
+    expect(channelItem).toContain("success: 'bg-success-1 text-success-6'");
+    expect(channelItem).toContain("warning: 'bg-warning-1 text-warning-6'");
+    expect(channelItem).toContain("danger: 'bg-danger-1 text-danger-6'");
     expect(channelItem).not.toContain('.arco-empty');
     for (const form of channelForms) {
-      expect(form).toContain("import { ChannelEmptyState } from './ChannelItem';");
+      expect(form).toContain('ChannelEmptyState');
+      expect(form).toContain('ChannelPreferenceRow');
+      expect(form).toContain("from './ChannelItem';");
       expect(form).not.toMatch(/\bEmpty\b[\s\S]*from '@arco-design\/web-react'/);
       expect(form).not.toContain('<Empty');
+      expect(form).not.toMatch(/style=\{\{ width: (240|260) \}\}/);
+      expect(form).not.toMatch(/(?:bg|text|border)-(?:red|green|yellow)-\d+/);
       expect(form).not.toContain('rd-12px');
       expect(form).not.toMatch(/bg-fill-[12]\s+rd-8px/);
       expect(form.match(/border-0 border-t border-solid border-line/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
     }
+    expect(larkForm).toContain("data-testid='lark-optional-fields-toggle'");
+    expect(larkForm).toContain('aria-expanded={showOptional}');
+    expect(larkForm).toContain("aria-controls='lark-optional-fields'");
     expect(assistantDrawer).toContain("data-testid='assistant-edit-flat-content'");
     expect(assistantDrawer).toContain(
       "className='flex flex-col flex-1 gap-20px bg-transparent overflow-y-auto pr-4px'"
