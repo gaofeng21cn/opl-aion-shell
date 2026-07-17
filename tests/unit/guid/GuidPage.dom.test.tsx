@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
           'guid.home.question': '今天要推进什么？',
           'guid.home.capabilityQuestion': `要让 ${String(options?.capability ?? '')} 推进什么？`,
           'guid.home.startersLabel': '选择一个能力开始',
+          'guid.context.addContext': 'Add context',
+          'guid.context.attachDirectory': 'Attach folder',
+          'guid.context.workingDirectory': 'Working directory',
+          'guid.context.skills': 'Skills',
+          'guid.context.connections': 'Apps & connections',
         }[key] ||
           key)
     ),
@@ -82,6 +87,7 @@ const mocks = vi.hoisted(() => ({
   })),
   isPresetAgent: { value: true },
   isMobileLayout: { value: false },
+  isElectronDesktop: { value: false },
 }));
 
 const selectedAssistant: Assistant = {
@@ -226,7 +232,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 vi.mock('@/renderer/utils/platform', () => ({
   openExternalUrl: vi.fn().mockResolvedValue(undefined),
   resolveExtensionAssetUrl: (value?: string) => value,
-  isElectronDesktop: () => false,
+  isElectronDesktop: () => mocks.isElectronDesktop.value,
 }));
 
 vi.mock('@/renderer/utils/model/agentLogo', () => ({
@@ -381,21 +387,15 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
     placeholder,
     actionRow,
-    fileAccessDisabled,
-    workspaceAccessDisabled,
     fileAccessEnabled,
     onPaste,
     dragHandlers,
-    onClearWorkspace,
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
-    fileAccessDisabled?: boolean;
-    workspaceAccessDisabled?: boolean;
     fileAccessEnabled?: boolean;
     onPaste: React.ClipboardEventHandler;
     dragHandlers: React.HTMLAttributes<HTMLDivElement>;
-    onClearWorkspace: () => void;
   }) => (
     <div
       data-testid='guid-input-card'
@@ -404,10 +404,7 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     >
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {actionRow}
-      {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
-      {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
       {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
-      <button data-testid='guid-clear-workspace' onClick={onClearWorkspace} />
     </div>
   ),
 }));
@@ -422,6 +419,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.locationState.value = { selectedCapabilityId: 'mas' };
     mocks.isPresetAgent.value = false;
     mocks.isMobileLayout.value = false;
+    mocks.isElectronDesktop.value = false;
     mocks.navigate.mockClear();
     mocks.setInput.mockClear();
     mocks.setFiles.mockClear();
@@ -575,15 +573,17 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.isMobileLayout.value = true;
 
     render(<GuidPage />);
-    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
 
     expect(screen.getByTestId('mobile-action-sheet-attach-host-files')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-attach-host-directory')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-action-sheet-skills')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-action-sheet-mcp')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-skills')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-connections')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
@@ -612,7 +612,7 @@ describe('GuidPage selected purpose assistant surface', () => {
       mocks.locationState.value = { selectedCapabilityId: packageId };
       mocks.isMobileLayout.value = true;
       render(<GuidPage />);
-      await userEvent.click(screen.getByRole('button', { name: 'More' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
 
       expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
       expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
@@ -802,7 +802,11 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.slashCommands.value).toContainEqual(expect.objectContaining({ name: 'open' }));
 
     await act(async () => mocks.slashExecuteBuiltin.value?.('open'));
-    await waitFor(() => expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledWith({
+        properties: ['openFile', 'multiSelections'],
+      })
+    );
 
     fireEvent.paste(screen.getByTestId('guid-input-card'));
     fireEvent.drop(screen.getByTestId('guid-input-card'));
@@ -819,7 +823,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     render(<GuidPage />);
     const setFilesCallCount = mocks.setFiles.mock.calls.length;
 
-    await userEvent.click(screen.getByTestId('guid-clear-workspace'));
+    await userEvent.click(screen.getByTestId('guid-workspace-clear'));
 
     expect(mocks.setDir).toHaveBeenCalledWith('');
     expect(mocks.setFiles).toHaveBeenCalledTimes(setFilesCallCount);
@@ -830,6 +834,7 @@ describe('GuidPage selected purpose assistant surface', () => {
 
   it('opens the local file picker when workspace setup is incomplete', async () => {
     mocks.isPresetAgent.value = false;
+    mocks.isElectronDesktop.value = true;
     mocks.guidInput.input = '/';
     mocks.appState.value = {
       ...mocks.appState.value,
@@ -850,7 +855,11 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     act(() => mocks.slashExecuteBuiltin.value?.('open'));
 
-    await waitFor(() => expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(ipcBridge.dialog.showOpen.invoke).toHaveBeenCalledWith({
+        properties: ['openFile', 'openDirectory', 'multiSelections'],
+      })
+    );
     expect(mocks.setInput).toHaveBeenCalledTimes(setInputCallCount + 1);
     expect(mocks.setInput).toHaveBeenLastCalledWith('');
     expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();

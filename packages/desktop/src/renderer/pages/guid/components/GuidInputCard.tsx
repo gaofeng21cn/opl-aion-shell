@@ -11,7 +11,6 @@ import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
 import { Input } from '@arco-design/web-react';
 import React from 'react';
 import styles from '../index.module.css';
-import GuidWorkspaceFootnote from './GuidWorkspaceFootnote';
 
 const MOBILE_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 8 };
 const DESKTOP_TEXTAREA_AUTO_SIZE = { minRows: 1, maxRows: 12 };
@@ -45,13 +44,6 @@ type GuidInputCardProps = {
   // Action row
   actionRow: React.ReactNode;
   slashCommandMenu?: React.ReactNode;
-
-  // Workspace
-  workspaceDir: string;
-  onSelectWorkspace: (dir: string) => void;
-  onClearWorkspace: () => void;
-  workspaceAccessDisabled?: boolean;
-  workspaceAccessDisabledReason?: string;
   fileAccessEnabled?: boolean;
 };
 
@@ -75,11 +67,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   onRemoveFile,
   actionRow,
   slashCommandMenu,
-  workspaceDir,
-  onSelectWorkspace,
-  onClearWorkspace,
-  workspaceAccessDisabled = false,
-  workspaceAccessDisabledReason,
   fileAccessEnabled = true,
 }) => {
   const layout = useLayoutContext();
@@ -155,13 +142,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           </div>
         )}
         <UploadProgressBar source='sendbox' />
-        <GuidWorkspaceFootnote
-          workspaceDir={workspaceDir}
-          onSelectWorkspace={onSelectWorkspace}
-          onClearWorkspace={onClearWorkspace}
-          accessDisabled={workspaceAccessDisabled}
-          accessDisabledReason={workspaceAccessDisabledReason}
-        />
         {actionRow}
         {slashCommandMenu && (
           <div className='absolute left-0 right-0 top-[calc(100%+4px)] z-70'>{slashCommandMenu}</div>

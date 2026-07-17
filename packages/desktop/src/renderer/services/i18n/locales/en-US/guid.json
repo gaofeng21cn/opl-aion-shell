@@ -41,6 +41,19 @@
   "postInstallSelfCheck": {
     "prompt": "Post-install intelligent self-check\n\nProgrammatic initialization has completed. Please inspect the current environment and verify that One Person Lab App has entered a usable post-install working mode. If you find problems, provide an actionable repair path.\n\nTarget state:\n1. Codex CLI is callable from the App.\n2. App-created Codex sessions include OPL Flow session context and follow the current UI language.\n3. OPL Flow can coexist with the user's existing workspace rules: Do not overwrite the user's AGENTS.md, do not modify user files; if rule conflicts are found, report the conflict and impact.\n4. MAS/MAG/RCA/OMA/OBF agent entries or capabilities, plus Codex skills/plugins, are visible and usable after installation.\n5. After module auto-update or background maintenance, Codex plugins and skills remain registered and callable.\n\nGive the conclusion first, then evidence, issues, and recommended actions. If a file change or repair command is needed, explain the reason, impact, and exact command first, then wait for my confirmation."
   },
+  "context": {
+    "addContext": "Add context",
+    "attachFile": "Attach file",
+    "attachDirectory": "Attach folder",
+    "workingDirectory": "Working directory",
+    "chooseWorkingDirectory": "Choose working directory",
+    "clearWorkingDirectory": "Clear working directory",
+    "clearWorkingDirectoryNamed": "Clear working directory {{name}}",
+    "skills": "Skills",
+    "noSelectableSkills": "No optional skills available",
+    "connections": "Apps & connections",
+    "noConnections": "No apps or connections available"
+  },
   "workspace": {
     "workInProject": "Work in a project",
     "optional": "Optional",

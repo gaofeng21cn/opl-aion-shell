@@ -42,24 +42,12 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
   default: () => <div data-testid='upload-progress' />,
 }));
 
-vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
-  default: ({ workspaceDir, accessDisabled }: { workspaceDir: string; accessDisabled?: boolean }) => (
-    <div
-      data-testid='workspace-footnote'
-      data-workspace-dir={workspaceDir}
-      data-access-disabled={accessDisabled ? 'true' : 'false'}
-    />
-  ),
-}));
-
 function createCard(
   options: {
     slashCommandMenu?: React.ReactNode;
     fileAccessEnabled?: boolean;
     onPaste?: React.ClipboardEventHandler;
     dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
-    workspaceDir?: string;
-    workspaceAccessDisabled?: boolean;
   } = {}
 ) {
   return (
@@ -83,10 +71,6 @@ function createCard(
       onRemoveFile={vi.fn()}
       actionRow={<div data-testid='action-row' />}
       slashCommandMenu={options.slashCommandMenu}
-      workspaceDir={options.workspaceDir ?? ''}
-      onSelectWorkspace={vi.fn()}
-      onClearWorkspace={vi.fn()}
-      workspaceAccessDisabled={options.workspaceAccessDisabled}
       fileAccessEnabled={options.fileAccessEnabled}
     />
   );
@@ -117,12 +101,11 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.queryByTestId('mention-badge')).not.toBeInTheDocument();
     expect(screen.getByTestId('upload-progress')).toBeInTheDocument();
     expect(screen.getByTestId('action-row')).toBeInTheDocument();
-    const contextBar = screen.getByTestId('workspace-footnote');
     const input = screen.getByTestId('guid-input');
     const actionRow = screen.getByTestId('action-row');
-    expect(input.compareDocumentPosition(contextBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(contextBar.compareDocumentPosition(actionRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(input.parentElement).toContainElement(contextBar);
+    expect(input.compareDocumentPosition(actionRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId('guid-new-task-context-bar')).not.toBeInTheDocument();
+    expect(screen.queryByText('No Project')).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
   });
@@ -154,9 +137,6 @@ describe('GuidInputCard compact home composer', () => {
         files={[]}
         onRemoveFile={vi.fn()}
         actionRow={<div data-testid='action-row' />}
-        workspaceDir=''
-        onSelectWorkspace={vi.fn()}
-        onClearWorkspace={vi.fn()}
       />
     );
 
@@ -169,16 +149,6 @@ describe('GuidInputCard compact home composer', () => {
     renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
 
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
-  });
-
-  it('forwards only the new-session workspace selection state to the workspace footnote', () => {
-    renderCard({
-      workspaceDir: '/workspace/research',
-      workspaceAccessDisabled: true,
-    });
-
-    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-workspace-dir', '/workspace/research');
-    expect(screen.getByTestId('workspace-footnote')).toHaveAttribute('data-access-disabled', 'true');
   });
 
   it('accepts file paste and drop without a selected workspace', () => {

@@ -41,6 +41,19 @@
   "postInstallSelfCheck": {
     "prompt": "安装后智能自检\n\n程序化初始化已经完成。请检查当前环境，确认 One Person Lab App 是否已经进入可用的安装后工作模式；如发现问题，请给出可执行的修复路径。\n\n目标态：\n1. Codex CLI 可以被 App 正常调用。\n2. App 创建的 Codex 会话已接入 OPL Flow 会话上下文，并跟随当前界面语言。\n3. OPL Flow 与用户已有工作区规则可以共存：不要覆盖用户已有的 AGENTS.md，不改写用户文件；如发现规则冲突，只报告冲突和影响。\n4. MAS/MAG/RCA/OMA/OBF 智能体入口或能力，以及 Codex skill/plugin 在安装后可见可用。\n5. 模块自动更新或后台维护后，Codex 插件和 skill 仍然注册并可调用。\n\n请先给结论，再列证据、发现的问题和建议动作。如果需要修改文件或执行修复命令，请先说明原因、影响范围和具体命令，等我确认后再执行。"
   },
+  "context": {
+    "addContext": "添加上下文",
+    "attachFile": "附加文件",
+    "attachDirectory": "附加文件夹",
+    "workingDirectory": "工作目录",
+    "chooseWorkingDirectory": "选择工作目录",
+    "clearWorkingDirectory": "清除工作目录",
+    "clearWorkingDirectoryNamed": "清除工作目录 {{name}}",
+    "skills": "技能",
+    "noSelectableSkills": "当前没有可选技能",
+    "connections": "应用与连接",
+    "noConnections": "当前没有可用的应用或连接"
+  },
   "workspace": {
     "workInProject": "在项目中工作",
     "optional": "可选",

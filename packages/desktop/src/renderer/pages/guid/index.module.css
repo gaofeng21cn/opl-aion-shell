@@ -673,6 +673,43 @@
   margin-right: 0;
 }
 
+.workspaceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 190px;
+  height: 28px;
+  padding: 0 3px 0 8px;
+  border-radius: 6px;
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.workspaceChipLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceChipClear {
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: var(--color-text-3) !important;
+}
+
+.workspaceChipClear:hover,
+.workspaceChipClear:focus-visible {
+  background: var(--color-fill-3) !important;
+  color: var(--color-text-1) !important;
+}
+
 /* 方案E：模型 + 权限各自独立 tb-btn，中间有竖线分隔 */
 .actionConfigGroup {
   display: inline-flex;
@@ -734,220 +771,9 @@
   min-width: 0;
 }
 
-.workspaceFootnote {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  width: 100%;
-  min-height: 28px;
-  margin: 4px 0;
-  padding: 0 2px;
-  box-sizing: border-box;
-  background: transparent;
-}
-
-.taskContextPrimary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-  min-height: 28px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.taskContextPrimary::-webkit-scrollbar {
-  display: none;
-}
-
-.workspaceEmptyBtn,
-.workspacePillMain {
-  height: 32px !important;
-  min-height: 32px !important;
-  padding: 0 4px !important;
-  border: 0 !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--color-text-1) !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  line-height: 18px !important;
-}
-
-.workspaceEmptyBtn:hover,
-.workspacePillMain:hover {
-  background: var(--color-fill-3) !important;
-  color: var(--color-text-1) !important;
-}
-
-.workspaceEmptyBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    color 0.15s,
-    background 0.15s;
-}
-
-.workspaceEmptyBtn svg,
-.workspacePillMain svg {
-  width: 16px;
-  height: 16px;
-}
-
-.workspaceEmptyBtn:disabled,
-.workspacePillMain:disabled {
-  color: var(--color-text-4);
-  background: transparent;
-  cursor: not-allowed;
-  opacity: 0.72;
-}
-
-.workspaceEmptyBtn:disabled:hover,
-.workspacePillMain:disabled:hover {
-  color: var(--color-text-4);
-  background: transparent;
-}
-
-/* 选中态：和空状态同色系，不做颜色跳变 */
-.workspacePill {
-  display: inline-flex;
-  align-items: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  max-width: 280px;
-}
-
-.workspacePillMain {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    background 0.12s,
-    color 0.12s;
-  max-width: 220px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.workspacePillName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* workspace dropdown popup — portal-rendered, position set via JS */
-.wsDropdown {
-  background: var(--bg-base, #fff);
-  border: 1px solid var(--color-border-2);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow:
-    0 10px 32px rgba(0, 0, 0, 0.1),
-    0 2px 6px rgba(0, 0, 0, 0.06);
-  min-width: 230px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.wsDropdownSearch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  margin-bottom: 4px;
-  background: var(--color-fill-2);
-  border-radius: 8px;
-}
-
-.wsDropdownSearchInput {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 12px;
-  color: var(--color-text-1);
-  width: 100%;
-  font-family: inherit;
-}
-
-.wsDropdownSearchInput::placeholder {
-  color: var(--color-text-4);
-}
-
-.wsDropdownItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--color-text-1);
-  transition: background 0.1s;
-}
-
-.wsDropdownItem:hover {
-  background: var(--color-fill-2);
-}
-
-.wsDropdownItemButton {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font-family: inherit;
-  text-align: left;
-}
-
-.wsDropdownItemActive {
-  color: var(--aou-7);
-  font-weight: 600;
-}
-
-.wsDropdownItemAccent {
-  color: var(--aou-7);
-}
-
-.wsDropdownItemMuted {
-  color: var(--color-text-2);
-  font-style: italic;
-}
-
-.wsDropdownItemMuted:hover {
-  color: var(--color-text-1);
-}
-
-.wsDropdownItemMutedDisabled {
-  color: var(--color-text-3);
-  font-style: italic;
-}
-
-.wsDropdownSep {
-  height: 1px;
-  background: var(--color-border-2);
-  margin: 4px 0;
-}
-
 @media (max-width: 520px) {
-  .taskContextPrimary {
-    gap: 10px;
-  }
-
-  .workspaceEmptyBtn,
-  .workspacePillMain {
-    font-size: 12px !important;
-  }
-
-  .workspacePillMain {
-    max-width: 150px;
+  .workspaceChip {
+    max-width: 140px;
   }
 }
 

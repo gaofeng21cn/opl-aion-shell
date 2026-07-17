@@ -9,13 +9,17 @@ import { FileService, type FileMetadata } from '@/renderer/services/FileService'
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
 import { FolderOpen, FolderUpload, Paperclip } from '@icon-park/react';
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MobileActionSheetEntry } from './types';
 
 interface UseAttachEntryOptions {
   /** Open the host-side file picker (paths from disk via IPC). */
   openFileSelector: () => void;
+  /** Optional host-side directory picker, shown beside the file action. */
+  openDirectorySelector?: () => void;
+  /** User-facing label for the optional directory picker. */
+  directoryLabel?: ReactNode;
   /** Receives FileMetadata[] for files uploaded through the browser <input>. WebUI only. */
   onLocalFilesAdded?: (files: FileMetadata[]) => void;
   /** Whether to render the first entry above a divider — passed through. */
@@ -23,8 +27,8 @@ interface UseAttachEntryOptions {
 }
 
 interface UseAttachEntryResult {
-  /** One entry on desktop (single "Attach" row); two on WebUI (host picker + device upload),
-   * flattened so all top-level rows in the action sheet share a uniform height. */
+  /** File entry plus an optional directory entry; WebUI also includes device upload.
+   * Entries stay flat so all top-level rows share a uniform height. */
   entries: MobileActionSheetEntry[];
   /** Mount this near the sendbox so the hidden file input can be triggered. */
   hiddenFileInput: React.ReactElement;
@@ -32,13 +36,13 @@ interface UseAttachEntryResult {
 
 /**
  * Builds the "Attach" entries for the mobile action sheet, branching on platform:
- * - Desktop: single row → opens host file picker.
- * - WebUI: two flat rows — "Add files or photos" (host picker over IPC) and
- *   "Upload from device" (browser <input type="file">). Flattened (rather than
- *   submenu) so all top-level rows in the sheet share a consistent height.
+ * - Desktop: host file picker plus the optional host directory picker.
+ * - WebUI: host file/directory pickers plus browser device upload.
  */
 export const useAttachEntry = ({
   openFileSelector,
+  openDirectorySelector,
+  directoryLabel,
   onLocalFilesAdded,
   dividerBefore,
 }: UseAttachEntryOptions): UseAttachEntryResult => {
@@ -68,19 +72,29 @@ export const useAttachEntry = ({
 
   const entries = useMemo<MobileActionSheetEntry[]>(() => {
     if (isDesktop) {
-      return [
+      const desktopEntries: MobileActionSheetEntry[] = [
         {
           key: 'attach',
-          icon: <FolderUpload theme='outline' size='16' />,
+          icon: <Paperclip theme='outline' size='16' />,
           label: t('common.fileAttach.addFiles', { defaultValue: 'Add files' }),
           variant: 'muted',
           dividerBefore,
           onClick: () => openFileSelector(),
         },
       ];
+      if (openDirectorySelector) {
+        desktopEntries.push({
+          key: 'attach-directory',
+          icon: <FolderOpen theme='outline' size='16' />,
+          label: directoryLabel,
+          variant: 'muted',
+          onClick: () => openDirectorySelector(),
+        });
+      }
+      return desktopEntries;
     }
 
-    return [
+    const webEntries: MobileActionSheetEntry[] = [
       {
         key: 'attach-host-files',
         icon: <Paperclip theme='outline' size='16' />,
@@ -89,15 +103,25 @@ export const useAttachEntry = ({
         dividerBefore,
         onClick: () => openFileSelector(),
       },
-      {
-        key: 'attach-my-device',
-        icon: <FolderOpen theme='outline' size='16' />,
-        label: t('common.fileAttach.myDevice', { defaultValue: 'Upload from device' }),
-        variant: 'muted',
-        onClick: () => triggerLocalUpload(),
-      },
     ];
-  }, [dividerBefore, isDesktop, openFileSelector, t, triggerLocalUpload]);
+    if (openDirectorySelector) {
+      webEntries.push({
+        key: 'attach-host-directory',
+        icon: <FolderOpen theme='outline' size='16' />,
+        label: directoryLabel,
+        variant: 'muted',
+        onClick: () => openDirectorySelector(),
+      });
+    }
+    webEntries.push({
+      key: 'attach-my-device',
+      icon: <FolderUpload theme='outline' size='16' />,
+      label: t('common.fileAttach.myDevice', { defaultValue: 'Upload from device' }),
+      variant: 'muted',
+      onClick: () => triggerLocalUpload(),
+    });
+    return webEntries;
+  }, [directoryLabel, dividerBefore, isDesktop, openDirectorySelector, openFileSelector, t, triggerLocalUpload]);
 
   const hiddenFileInput = (
     <input

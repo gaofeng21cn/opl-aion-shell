@@ -731,6 +731,11 @@ const GuidPage: React.FC = () => {
       mcpServers={availableMcpServers}
       selectedMcpServerIds={guidSelectedMcpServerIds ?? []}
       onToggleMcpServer={handleToggleMcpServer}
+      workspaceDir={guidInput.dir}
+      onSelectWorkspace={handleWorkspaceSelect}
+      onClearWorkspace={handleWorkspaceClear}
+      workspaceAccessDisabled={workspaceAccessBlocked}
+      workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
       hidePresetTag
       speechInputNode={
         <SpeechInputButton
@@ -825,11 +830,6 @@ const GuidPage: React.FC = () => {
               onRemoveFile={guidInput.handleRemoveFile}
               actionRow={actionRowNode}
               slashCommandMenu={slashCommandMenuNode}
-              workspaceDir={guidInput.dir}
-              onSelectWorkspace={handleWorkspaceSelect}
-              onClearWorkspace={handleWorkspaceClear}
-              workspaceAccessDisabled={workspaceAccessBlocked}
-              workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
               fileAccessEnabled={true}
             />
 
