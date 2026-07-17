@@ -11,6 +11,13 @@ function firstCustomProperty(css: string, property: string): string {
   return match[1].trim();
 }
 
+function unsafeOneSidedBorderClasses(source: string): string[] {
+  return [...source.matchAll(/className=['"]([^'"]*)['"]/g)]
+    .map((match) => match[1] ?? '')
+    .filter((className) => /\bborder-(?:t|b|l|r)\b/.test(className) && /\bborder-solid\b/.test(className))
+    .filter((className) => !/\bborder-0\b/.test(className));
+}
+
 describe('Codex visual parity overlay', () => {
   it('keeps conversation search in the history header as an icon action', () => {
     const sider = read('packages/desktop/src/renderer/components/layout/Sider/index.tsx');
@@ -185,6 +192,26 @@ describe('Codex visual parity overlay', () => {
     expect(refreshButton).toContain("from '@icon-park/react'");
     expect(refreshButton).toContain("<Refresh aria-hidden='true' theme='outline' size={14} fill='currentColor' />");
     expect(refreshButton).not.toContain('@fortawesome');
+  });
+
+  it('resets unused border sides before drawing Settings separators', () => {
+    const separatorSources = [
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx',
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/AppearanceModalContent.tsx',
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/SystemModalContent/index.tsx',
+      'packages/desktop/src/renderer/components/settings/SettingsModal/contents/ToolsModalContent.tsx',
+      'packages/desktop/src/renderer/pages/settings/AppearanceSettings/CssThemeSettings.tsx',
+      'packages/desktop/src/renderer/pages/settings/SkillsHubSettings.tsx',
+      'packages/desktop/src/renderer/pages/settings/StorageSettings/index.tsx',
+      'packages/desktop/src/renderer/pages/settings/ToolsSettings/McpServerToolsList.tsx',
+      'packages/desktop/src/renderer/pages/settings/sections/OverviewSettings.tsx',
+      'packages/desktop/src/renderer/pages/settings/sections/ResourcesSettings.tsx',
+      'packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx',
+    ];
+
+    for (const relativePath of separatorSources) {
+      expect(unsafeOneSidedBorderClasses(read(relativePath)), relativePath).toEqual([]);
+    }
   });
 
   it('keeps active Home controls flat, compact, and outline-only', () => {

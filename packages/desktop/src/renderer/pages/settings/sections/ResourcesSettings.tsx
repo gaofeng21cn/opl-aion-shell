@@ -627,12 +627,12 @@ export const ResourcesSettingsContent: React.FC = () => {
             {t('settings.accessPage.remote.recoveryStatus', { status: dockerWebui.recoveryStatus })}
           </Typography.Text>
           {dockerWebui.actions.map((action) => (
-            <div key={action.actionId} className='border-t border-solid border-[var(--border-base)] pt-8px'>
+            <div key={action.actionId} className='border-0 border-t border-solid border-[var(--border-base)] pt-8px'>
               <DockerActionTechnicalDetails action={action} expanded />
             </div>
           ))}
           {actionEvidence && (
-            <div className='border-t border-solid border-[var(--border-base)] pt-8px'>
+            <div className='border-0 border-t border-solid border-[var(--border-base)] pt-8px'>
               <Typography.Text className='block break-words'>
                 {t('settings.resourcesPage.docker.technicalActionId')}: {actionEvidence.actionId}
               </Typography.Text>
@@ -826,7 +826,7 @@ const ResourceSources: React.FC<{
     );
   }
   return (
-    <div className='opl-settings-list border-t border-solid border-border-1' data-testid={testId}>
+    <div className='opl-settings-list border-0 border-t border-solid border-border-1' data-testid={testId}>
       {sources.map((source) => (
         <ResourceSourceRow key={source.key} source={source} />
       ))}

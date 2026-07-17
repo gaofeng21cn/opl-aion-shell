@@ -384,7 +384,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               )}
 
               {mySkills.length > 0 ? (
-                <div className='relative z-10 flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
+                <div className='relative z-10 flex w-full flex-col divide-y divide-border-1 border-0 border-t border-solid border-border-1'>
                   {filteredSkills.map((skill) => (
                     <div
                       key={skill.name}
@@ -453,7 +453,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className='relative z-10 border-t border-solid border-border-1 py-18px text-left text-13px text-t-secondary'>
+                <div className='relative z-10 border-0 border-t border-solid border-border-1 py-18px text-left text-13px text-t-secondary'>
                   {loading
                     ? t('common.loading', { defaultValue: 'Please wait...' })
                     : t('settings.skillsHub.noSkills', {
@@ -473,7 +473,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   </span>
                   <span className='text-12px text-t-tertiary'>{extensionSkills.length}</span>
                 </div>
-                <div className='flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
+                <div className='flex w-full flex-col divide-y divide-border-1 border-0 border-t border-solid border-border-1'>
                   {extensionSkills.map((skill) => (
                     <div
                       key={skill.name}
@@ -514,7 +514,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <span className='text-14px text-t-primary font-600'>{t('settings.autoInjectedSkills')}</span>
                   <span className='text-12px text-t-tertiary'>{builtinAutoSkills.length}</span>
                 </div>
-                <div className='flex w-full flex-col divide-y divide-border-1 border-t border-solid border-border-1'>
+                <div className='flex w-full flex-col divide-y divide-border-1 border-0 border-t border-solid border-border-1'>
                   {builtinAutoSkills.map((skill) => (
                     <div
                       key={skill.name}

@@ -381,11 +381,11 @@ const CssThemeSettings: React.FC = () => {
                   {!theme.cover && (
                     <>
                       <span
-                        className='absolute inset-x-0 top-0 h-16px border-b border-solid'
+                        className='absolute inset-x-0 top-0 h-16px border-0 border-b border-solid'
                         style={{ background: previewPalette.headerBg, borderColor: previewPalette.border }}
                       />
                       <span
-                        className='absolute bottom-0 left-0 top-16px w-42px border-r border-solid'
+                        className='absolute bottom-0 left-0 top-16px w-42px border-0 border-r border-solid'
                         style={{ background: previewPalette.sideBg, borderColor: previewPalette.border }}
                       />
                       <span

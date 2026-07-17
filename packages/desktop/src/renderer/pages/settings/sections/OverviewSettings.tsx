@@ -665,7 +665,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       )}
 
       <div
-        className='opl-settings-list border-t border-solid border-border-1'
+        className='opl-settings-list border-0 border-t border-solid border-border-1'
         id='common-actions'
         data-testid='settings-overview-summary-grid'
       >

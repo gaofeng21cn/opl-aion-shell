@@ -137,7 +137,7 @@ const AppearanceModalContent: React.FC = () => {
                 title={t('settings.appearancePreferencesTitle')}
                 description={t('settings.appearancePreferencesDesc')}
               />
-              <div className='border-t border-solid border-[var(--border-base)] px-16px py-14px'>
+              <div className='border-0 border-t border-solid border-[var(--border-base)] px-16px py-14px'>
                 <span id='themes' aria-hidden='true' />
                 <div className='mb-10px text-14px font-medium text-t-primary'>{t('settings.appearanceMode')}</div>
                 <div
@@ -186,7 +186,7 @@ const AppearanceModalContent: React.FC = () => {
                   })}
                 </div>
               </div>
-              <div className='opl-settings-list border-t border-solid border-[var(--border-base)]'>
+              <div className='opl-settings-list border-0 border-t border-solid border-[var(--border-base)]'>
                 <PreferenceRow label={t('settings.language')}>
                   <LanguageSwitcher />
                 </PreferenceRow>

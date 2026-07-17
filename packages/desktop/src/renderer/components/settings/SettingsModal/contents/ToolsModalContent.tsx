@@ -191,7 +191,7 @@ const ModalMcpManagementSection: React.FC<{
 
       <div className='flex-1 min-h-0'>
         {visibleMcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='border-t border-solid border-border-1 py-16px text-left text-13px text-t-secondary'>
+          <div className='border-0 border-t border-solid border-border-1 py-16px text-left text-13px text-t-secondary'>
             {t('settings.mcpNoServersFound')}
           </div>
         ) : (
@@ -199,7 +199,7 @@ const ModalMcpManagementSection: React.FC<{
             className={classNames('max-h-360px', isPageMode && 'max-h-none')}
             disableOverflow={isPageMode}
           >
-            <div className='divide-y divide-border-1 border-t border-solid border-border-1'>
+            <div className='divide-y divide-border-1 border-0 border-t border-solid border-border-1'>
               {visibleMcpServers.map((server) => (
                 <McpServerItem
                   key={server.id}
@@ -505,7 +505,7 @@ const ToolsModalContent: React.FC = () => {
           </section>
           {/* 图像生成 */}
           <section
-            className='border-t border-solid border-border-1 py-16px'
+            className='border-0 border-t border-solid border-border-1 py-16px'
             data-testid='settings-capabilities-image-generation'
           >
             <div className='flex items-center justify-between mb-16px'>

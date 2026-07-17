@@ -98,7 +98,7 @@ const SystemModalContent: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className='opl-settings-list border-t border-solid border-[var(--border-base)]'>
+            <div className='opl-settings-list border-0 border-t border-solid border-[var(--border-base)]'>
               <ReadOnlyPathRow
                 label={t('settings.workDir')}
                 path={workspacePath}

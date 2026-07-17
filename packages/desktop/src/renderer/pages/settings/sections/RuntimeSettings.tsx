@@ -981,7 +981,7 @@ function ManagedUpdatesPanel({
           />
         )}
 
-        <div className='opl-settings-list border-t border-solid border-border-1'>
+        <div className='opl-settings-list border-0 border-t border-solid border-border-1'>
           {plane.components.map((component) => (
             <div
               key={component.id}

@@ -16,7 +16,7 @@ const McpServerToolsList: React.FC<McpServerToolsListProps> = ({ server }) => {
 
   return (
     <div
-      className='ml-32px divide-y divide-border-1 border-t border-solid border-border-1'
+      className='ml-32px divide-y divide-border-1 border-0 border-t border-solid border-border-1'
       data-testid='mcp-server-tools-list'
     >
       {server.tools.map((tool, index) => (

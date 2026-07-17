@@ -811,7 +811,7 @@ export const StorageSettingsContent: React.FC = () => {
         >
           <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
             {viewModel.sections.map((item) => (
-              <div key={item.id} className='border-b border-solid border-[var(--border-base)] pb-10px'>
+              <div key={item.id} className='border-0 border-b border-solid border-[var(--border-base)] pb-10px'>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t(SECTION_META[item.id].titleKey)}
                 </Typography.Text>

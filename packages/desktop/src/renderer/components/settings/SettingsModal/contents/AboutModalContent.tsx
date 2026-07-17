@@ -226,7 +226,7 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className='min-w-0 border-t border-solid border-[var(--border-base)]'>
+              <div className='min-w-0 border-0 border-t border-solid border-[var(--border-base)]'>
                 <div className='grid min-w-0 sm:grid-cols-2'>
                   <div className='min-w-0 p-16px'>
                     <div className='text-12px text-t-tertiary'>{t('settings.aboutAppVersion')}</div>
@@ -235,7 +235,7 @@ const AboutModalContent: React.FC = () => {
                     </div>
                   </div>
                   <div
-                    className='min-w-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
+                    className='min-w-0 border-0 border-t border-solid border-[var(--border-base)] p-16px sm:border-l sm:border-t-0'
                     id='channel'
                   >
                     <div className='text-12px text-t-tertiary'>{t('settings.aboutReleaseChannel')}</div>
@@ -245,7 +245,7 @@ const AboutModalContent: React.FC = () => {
                   </div>
                 </div>
                 <div
-                  className='flex min-w-0 flex-col gap-12px border-t border-solid border-[var(--border-base)] p-16px sm:flex-row sm:items-center sm:justify-between'
+                  className='flex min-w-0 flex-col gap-12px border-0 border-t border-solid border-[var(--border-base)] p-16px sm:flex-row sm:items-center sm:justify-between'
                   id='updates'
                   data-testid='about-update-section'
                 >
