@@ -113,6 +113,7 @@ describe('Codex visual parity overlay', () => {
       'packages/desktop/src/renderer/pages/settings/AssistantSettings/AssistantEditDrawer.tsx'
     );
     const oneClickImport = read('packages/desktop/src/renderer/pages/settings/components/OneClickImportModal.tsx');
+    const refreshButton = read('packages/desktop/src/renderer/components/opl/OplRefreshIconButton.tsx');
 
     expect(settingsStyles).toContain('max-width: 760px;');
     expect(settingsWrapper).toContain("'settings-page-content mx-auto w-full'");
@@ -181,6 +182,9 @@ describe('Codex visual parity overlay', () => {
     expect(oneClickImport).toContain('fill={iconColors.brand}');
     expect(oneClickImport).not.toContain('borderRadius: 16');
     expect(oneClickImport).not.toContain("fill='#165dff'");
+    expect(refreshButton).toContain("from '@icon-park/react'");
+    expect(refreshButton).toContain("<Refresh aria-hidden='true' theme='outline' size={14} fill='currentColor' />");
+    expect(refreshButton).not.toContain('@fortawesome');
   });
 
   it('keeps active Home controls flat, compact, and outline-only', () => {

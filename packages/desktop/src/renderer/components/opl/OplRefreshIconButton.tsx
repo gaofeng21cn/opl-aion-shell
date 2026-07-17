@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { faRotateRight } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Button, Tooltip } from '@arco-design/web-react';
+import { Refresh } from '@icon-park/react';
 import React from 'react';
 
 type OplRefreshIconButtonProps = Omit<React.ComponentProps<typeof Button>, 'children' | 'icon'> & {
@@ -15,7 +14,11 @@ type OplRefreshIconButtonProps = Omit<React.ComponentProps<typeof Button>, 'chil
 
 const OplRefreshIconButton: React.FC<OplRefreshIconButtonProps> = ({ label, ...buttonProps }) => (
   <Tooltip content={label}>
-    <Button {...buttonProps} aria-label={label} icon={<FontAwesomeIcon icon={faRotateRight} className='text-14px' />} />
+    <Button
+      {...buttonProps}
+      aria-label={label}
+      icon={<Refresh aria-hidden='true' theme='outline' size={14} fill='currentColor' />}
+    />
   </Tooltip>
 );
 
