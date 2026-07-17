@@ -487,15 +487,15 @@ describe('OPL generated product profile', () => {
     ).toBe(true);
     expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.shortcut_id)).toEqual([
       'research',
-      'grant',
       'ppt',
+      'grant',
       'book',
       'oma',
     ]);
     expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.package_id)).toEqual([
       'mas',
-      'mag',
       'rca',
+      'mag',
       'obf',
       'oma',
     ]);
@@ -577,7 +577,7 @@ describe('OPL generated product profile', () => {
 
   it('exposes the built-in assistant route receipt policy', () => {
     const packagePolicy = getOplAgentPackageInvocationReceiptPolicy();
-    expect(packagePolicy.required_for_package_shortcuts).toEqual(['research', 'grant', 'ppt', 'book', 'oma']);
+    expect(packagePolicy.required_for_package_shortcuts).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
     expect(packagePolicy.route_kind).toBe('agent_package_shortcut');
     expect(packagePolicy.executor).toBe('codex_cli');
     expect(packagePolicy.source).toBe('opl_app_home');

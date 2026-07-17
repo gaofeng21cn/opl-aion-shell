@@ -63,7 +63,7 @@ describe('useCustomAgentsLoader', () => {
     const { result } = renderHook(() => useCustomAgentsLoader());
 
     expect(result.current.catalogAssistants).toBe(assistantCatalog);
-    expect(result.current.assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(result.current.assistants.map((assistant) => assistant.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
     expect(result.current.assistants[0]).toMatchObject({
       id: 'mas',
       agent_id: 'codex-managed',

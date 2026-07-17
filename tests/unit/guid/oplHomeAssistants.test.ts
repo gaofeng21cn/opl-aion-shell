@@ -12,6 +12,7 @@ import {
   resolveOplPackageLaunchGate,
   resolveOplPackageSelectionVersion,
 } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import { getOplHomeShortcutPreferencesFromAppState } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
@@ -55,12 +56,12 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
-      'Med Auto Grant',
       'RedCube AI',
+      'Med Auto Grant',
       'OPL Meta Agent',
     ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
@@ -78,21 +79,38 @@ describe('OPL home assistants', () => {
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
-      'Med Auto Grant',
       'RedCube AI',
+      'Med Auto Grant',
       'OPL Meta Agent',
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
     expect(resolved.map((item) => item.enabled_skills)).toEqual([
       ['med-autoscience'],
-      ['med-autogrant'],
       ['redcube-ai'],
+      ['med-autogrant'],
       ['opl-meta-agent'],
     ]);
+  });
+
+  it('uses only explicit user preferences to override the App-owned default order', () => {
+    expect(
+      getOplHomeShortcutPreferencesFromAppState({
+        opl_agent_packages: {
+          home_shortcut_preferences: [
+            { shortcut_id: 'grant', visible: true, sort_order: 0, source: 'default' },
+            { shortcut_id: 'ppt', visible: true, sort_order: 1, source: 'user_preference' },
+          ],
+        },
+      })
+    ).toEqual({
+      hiddenShortcutIds: [],
+      visibleShortcutIds: ['grant', 'ppt'],
+      orderedShortcutIds: ['ppt'],
+    });
   });
 
   it('keeps caller-added assistant skills while forcing the required profile skill', () => {

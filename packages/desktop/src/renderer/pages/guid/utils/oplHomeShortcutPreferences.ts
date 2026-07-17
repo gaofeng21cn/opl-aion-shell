@@ -81,7 +81,10 @@ function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): Opl
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));
 
   const orderedShortcutIds = records
-    .filter((entry) => typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order))
+    .filter(
+      (entry) =>
+        entry.source === 'user_preference' && typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order)
+    )
     .sort((a, b) => (a.sort_order as number) - (b.sort_order as number))
     .map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id : null))
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));

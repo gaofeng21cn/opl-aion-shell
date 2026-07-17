@@ -2428,11 +2428,41 @@ describe('Agents and capabilities settings', () => {
           app_state: {
             opl_agent_packages: {
               home_shortcut_preferences: [
-                { package_id: 'opl-bookforge', shortcut_id: 'book', visible: true, sort_order: 0 },
-                { package_id: 'med-autoscience', shortcut_id: 'research', visible: true, sort_order: 1 },
-                { package_id: 'med-autogrant', shortcut_id: 'grant', visible: false, sort_order: 2 },
-                { package_id: 'redcube-ai', shortcut_id: 'ppt', visible: true, sort_order: 3 },
-                { package_id: 'opl-meta-agent', shortcut_id: 'oma', visible: true, sort_order: 4 },
+                {
+                  package_id: 'opl-bookforge',
+                  shortcut_id: 'book',
+                  visible: true,
+                  sort_order: 0,
+                  source: 'user_preference',
+                },
+                {
+                  package_id: 'med-autoscience',
+                  shortcut_id: 'research',
+                  visible: true,
+                  sort_order: 1,
+                  source: 'user_preference',
+                },
+                {
+                  package_id: 'med-autogrant',
+                  shortcut_id: 'grant',
+                  visible: false,
+                  sort_order: 2,
+                  source: 'user_preference',
+                },
+                {
+                  package_id: 'redcube-ai',
+                  shortcut_id: 'ppt',
+                  visible: true,
+                  sort_order: 3,
+                  source: 'user_preference',
+                },
+                {
+                  package_id: 'opl-meta-agent',
+                  shortcut_id: 'oma',
+                  visible: true,
+                  sort_order: 4,
+                  source: 'user_preference',
+                },
               ],
             },
           },

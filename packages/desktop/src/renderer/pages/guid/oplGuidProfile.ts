@@ -48,13 +48,17 @@ export function resolveOplDefaultAgentKey(agents: AvailableAgent[] | undefined):
 
 export function getOplFoundryAssistantProfiles(): Assistant[] {
   const homePurposeAssistantIds = getOplHomePurposeAssistantIds();
+  const professionalAgentPackages = new Map(
+    getOplProfessionalAgentPackages().map((agentPackage) => [agentPackage.package_id, agentPackage])
+  );
   const appAssistants = new Map(
     getOplDefaultHomeAssistants()
       .filter((assistant) => homePurposeAssistantIds.includes(assistant.id))
       .map((assistant) => [assistant.id, assistant])
   );
-  return getOplProfessionalAgentPackages()
-    .filter((agentPackage) => homePurposeAssistantIds.includes(agentPackage.package_id))
+  return homePurposeAssistantIds
+    .map((packageId) => professionalAgentPackages.get(packageId))
+    .filter((agentPackage) => agentPackage !== undefined)
     .map((agentPackage) => {
       const appAssistant = appAssistants.get(agentPackage.package_id);
       const presentation = resolveOplHomePurposePresentation(
@@ -137,7 +141,9 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
     };
   });
   const existingIds = new Set(existing.map((assistant) => normalizeAssistantId(assistant.id)));
-  return [...existing, ...defaults.filter((assistant) => !existingIds.has(assistant.id))];
+  return [...existing, ...defaults.filter((assistant) => !existingIds.has(assistant.id))].sort(
+    (a, b) => a.sort_order - b.sort_order
+  );
 }
 
 export function filterOplFoundryAssistants(assistants: Assistant[] | undefined): Assistant[] {

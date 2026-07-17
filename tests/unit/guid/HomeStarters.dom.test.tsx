@@ -8,7 +8,7 @@ import PresetAgentTag from '@/renderer/pages/guid/components/PresetAgentTag';
 
 const mocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
-  packageIds: ['mas', 'mag', 'rca', 'obf', 'oma'],
+  packageIds: ['mas', 'rca', 'mag', 'obf', 'oma'],
 }));
 
 const readyAppState = () => ({
@@ -73,15 +73,16 @@ describe('HomeStarters', () => {
   });
   it('shows every user-visible App-owned starter and selects one capability', async () => {
     const onSelect = vi.fn();
-    render(
-      <HomeStarters
-        assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
-        localeKey='en-US'
-        onSelect={onSelect}
-      />
-    );
+    render(<HomeStarters assistants={mocks.packageIds.map(assistant)} localeKey='en-US' onSelect={onSelect} />);
 
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
+    expect(screen.getAllByTestId(/^home-starter-/).map((item) => item.dataset.testid)).toEqual([
+      'home-starter-mas',
+      'home-starter-rca',
+      'home-starter-mag',
+      'home-starter-obf',
+      'home-starter-oma',
+    ]);
     expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
     expect(screen.getByTestId('starter-icon-mas').querySelector('svg')).not.toBeNull();
     expect(screen.queryByTestId('starter-next-mag')).not.toBeInTheDocument();
