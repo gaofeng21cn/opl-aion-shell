@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import { buildPdfSrc } from '../../previewUrls';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
+import { Error as ErrorIcon, FilePdf, Open } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -99,7 +100,10 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ file_path, content, hideToolbar
     toolbarExtrasContext.setExtras({
       left: (
         <div className='flex items-center gap-8px'>
-          <span className='text-13px text-t-secondary'>📄 {t('preview.pdf.title')}</span>
+          <span className='inline-flex items-center gap-6px text-13px text-t-secondary'>
+            <FilePdf theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+            {t('preview.pdf.title')}
+          </span>
           <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
@@ -117,7 +121,10 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ file_path, content, hideToolbar
       <div className='flex items-center justify-center h-full'>
         {messageContextHolder}
         <div className='text-center'>
-          <div className='text-16px text-t-error mb-8px'>❌ {error}</div>
+          <div className='inline-flex items-center justify-center gap-6px text-16px text-t-error mb-8px'>
+            <ErrorIcon theme='outline' size='18' fill='currentColor' aria-hidden='true' />
+            <span>{error}</span>
+          </div>
           <div className='text-12px text-t-secondary'>{t('preview.pdf.unableDisplay')}</div>
         </div>
       </div>
@@ -139,16 +146,15 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ file_path, content, hideToolbar
       {!usePortalToolbar && !hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
           <div className='flex items-center gap-8px'>
-            <span className='text-13px text-t-secondary'>📄 {t('preview.pdf.title')}</span>
+            <span className='inline-flex items-center gap-6px text-13px text-t-secondary'>
+              <FilePdf theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              {t('preview.pdf.title')}
+            </span>
             <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
           </div>
           {file_path && (
             <Button size='mini' type='text' onClick={handleOpenInSystem} title={t('preview.openInSystemApp')}>
-              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
-                <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
-                <polyline points='15 3 21 3 21 9' />
-                <line x1='10' y1='14' x2='21' y2='3' />
-              </svg>
+              <Open theme='outline' size='14' fill='currentColor' aria-hidden='true' />
               <span>{t('preview.openInSystemApp')}</span>
             </Button>
           )}

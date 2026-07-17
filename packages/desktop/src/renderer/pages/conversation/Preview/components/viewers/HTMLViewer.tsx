@@ -5,6 +5,7 @@
  */
 
 import { Message } from '@arco-design/web-react';
+import { Copy, Download, Edit, Info, Save, Search } from '@icon-park/react';
 import MonacoEditor from '@monaco-editor/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -324,19 +325,30 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, file_path, hideToolb
           <div className='flex items-center gap-8px'>
             {/* 编辑按钮 */}
             <button
+              type='button'
               onClick={handleToggleEdit}
-              className={`px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'bg-bg-3 text-t-primary hover:bg-bg-4'}`}
+              className={`inline-flex items-center gap-4px px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'bg-bg-3 text-t-primary hover:bg-bg-4'}`}
+              aria-label={editMode ? t('common.save') : t('common.edit')}
+              title={editMode ? t('common.save') : t('common.edit')}
             >
-              {editMode ? `💾 ${t('common.save')}` : `✏️ ${t('common.edit')}`}
+              {editMode ? (
+                <Save theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              ) : (
+                <Edit theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              )}
+              <span>{editMode ? t('common.save') : t('common.edit')}</span>
             </button>
 
             {/* 元素选择器按钮 */}
             <button
+              type='button'
               onClick={handleToggleInspector}
-              className={`px-12px py-4px rd-4px text-12px transition-colors ${inspectorMode ? 'bg-primary text-white' : 'bg-bg-3 text-t-primary hover:bg-bg-4'}`}
+              className={`inline-flex items-center gap-4px px-12px py-4px rd-4px text-12px transition-colors ${inspectorMode ? 'bg-primary text-white' : 'bg-bg-3 text-t-primary hover:bg-bg-4'}`}
+              aria-label={inspectorMode ? t('preview.html.inspecting') : t('preview.html.inspectorButton')}
               title={t('preview.html.inspectorTooltip')}
             >
-              🔍 {inspectorMode ? t('preview.html.inspecting') : t('preview.html.inspectorButton')}
+              <Search theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              <span>{inspectorMode ? t('preview.html.inspecting') : t('preview.html.inspectorButton')}</span>
             </button>
 
             {/* 选中的元素路径 */}
@@ -350,23 +362,13 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, file_path, hideToolb
           <div className='flex items-center gap-8px'>
             {/* 下载按钮 */}
             <button
+              type='button'
               onClick={handleDownload}
               className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors'
+              aria-label={t('preview.html.downloadHtml')}
               title={t('preview.html.downloadHtml')}
             >
-              <svg
-                width='14'
-                height='14'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                className='text-t-secondary'
-              >
-                <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-                <polyline points='7 10 12 15 17 10' />
-                <line x1='12' y1='15' x2='12' y2='3' />
-              </svg>
+              <Download theme='outline' size='14' fill='currentColor' className='text-t-secondary' aria-hidden='true' />
               <span className='text-12px text-t-secondary'>{t('common.download')}</span>
             </button>
           </div>
@@ -420,20 +422,22 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, file_path, hideToolb
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className='px-12px py-6px text-13px text-t-primary hover:bg-bg-2 cursor-pointer transition-colors'
+            className='flex items-center gap-6px px-12px py-6px text-13px text-t-primary hover:bg-bg-2 cursor-pointer transition-colors'
             onClick={() => handleCopyHTML(contextMenu.element.html)}
           >
-            📋 {t('preview.html.copyElementHtml')}
+            <Copy theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+            <span>{t('preview.html.copyElementHtml')}</span>
           </div>
           <div
-            className='px-12px py-6px text-13px text-t-primary hover:bg-bg-2 cursor-pointer transition-colors'
+            className='flex items-center gap-6px px-12px py-6px text-13px text-t-primary hover:bg-bg-2 cursor-pointer transition-colors'
             onClick={() => {
               console.log('[HTMLPreview] Element info:', contextMenu.element);
               messageApi.info(t('preview.html.printedToConsole'));
               setContextMenu(null);
             }}
           >
-            🔍 {t('preview.html.viewElementInfo')}
+            <Info theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+            <span>{t('preview.html.viewElementInfo')}</span>
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ import { useCronJobsMap } from '@/renderer/pages/cron';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Button, Input, Modal, Tooltip } from '@arco-design/web-react';
-import { Export, FolderOpen, MessageOne, Plus, Right } from '@icon-park/react';
+import { Export, FolderOpen, MessageOne, Plus, Right, Tips } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -374,7 +374,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           </div>
 
           <div className='flex items-center gap-8px mb-20px text-14px text-t-secondary'>
-            <span>💡</span>
+            <Tips theme='outline' size='16' fill='currentColor' aria-hidden='true' />
             <span>{t('conversation.history.exportDialogHint')}</span>
           </div>
 

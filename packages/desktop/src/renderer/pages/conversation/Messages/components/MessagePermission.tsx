@@ -7,6 +7,7 @@
 import type { IMessagePermission } from '@/common/chat/chatLib';
 import { ipcBridge } from '@/common';
 import { Button, Card, Radio, Typography } from '@arco-design/web-react';
+import { BookOpen, CheckOne, Connection, Edit, Lightning, Lock } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -16,11 +17,26 @@ interface MessagePermissionProps {
   message: IMessagePermission;
 }
 
-const actionIcons: Record<string, string> = {
-  exec: '⚡',
-  edit: '✏️',
-  info: '📖',
-  mcp: '🔌',
+const renderActionIcon = (action?: string): React.ReactNode => {
+  const iconProps = {
+    theme: 'outline' as const,
+    size: 20,
+    fill: 'currentColor',
+    'aria-hidden': true,
+  };
+
+  switch (action) {
+    case 'exec':
+      return <Lightning {...iconProps} />;
+    case 'edit':
+      return <Edit {...iconProps} />;
+    case 'info':
+      return <BookOpen {...iconProps} />;
+    case 'mcp':
+      return <Connection {...iconProps} />;
+    default:
+      return <Lock {...iconProps} />;
+  }
 };
 
 const MessagePermission: React.FC<MessagePermissionProps> = React.memo(({ message }) => {
@@ -31,7 +47,7 @@ const MessagePermission: React.FC<MessagePermissionProps> = React.memo(({ messag
   const [isResponding, setIsResponding] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
 
-  const icon = actionIcons[action || ''] || '🔐';
+  const icon = renderActionIcon(action);
   const displayTitle = title || description || t('messages.permissionRequest');
 
   const handleConfirm = async () => {
@@ -59,7 +75,7 @@ const MessagePermission: React.FC<MessagePermissionProps> = React.memo(({ messag
     <Card className='mb-4' bordered={false} style={{ background: 'var(--bg-1)' }} data-testid='message-permission-card'>
       <div className='space-y-4'>
         <div className='flex items-center space-x-2'>
-          <span className='text-2xl'>{icon}</span>
+          <span className='inline-flex shrink-0 text-t-secondary'>{icon}</span>
           <Text className='block'>{displayTitle}</Text>
         </div>
         {command_type && (
@@ -110,8 +126,9 @@ const MessagePermission: React.FC<MessagePermissionProps> = React.memo(({ messag
             className='mt-10px p-2 rounded-md border'
             style={{ backgroundColor: 'var(--color-success-light-1)', borderColor: 'rgb(var(--success-3))' }}
           >
-            <Text className='text-sm' style={{ color: 'rgb(var(--success-6))' }}>
-              ✓ {t('messages.responseSentSuccessfully')}
+            <Text className='inline-flex items-center gap-4px text-sm' style={{ color: 'rgb(var(--success-6))' }}>
+              <CheckOne theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              <span>{t('messages.responseSentSuccessfully')}</span>
             </Text>
           </div>
         )}

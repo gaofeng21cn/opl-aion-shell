@@ -1,4 +1,4 @@
-import { CloseSmall, Edit } from '@icon-park/react';
+import { Attention, CloseSmall, Edit } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { TeammateStatus } from '@/common/types/team/teamTypes';
 import AgentStatusBadge from './AgentStatusBadge';
@@ -130,10 +130,10 @@ const TeamTabView: React.FC<TeamTabViewProps> = ({
         <div className='min-w-0 flex-1 flex items-center gap-4px'>
           {pendingCount > 0 && (
             <span
-              className='shrink-0 text-14px leading-none animate-wiggle'
+              className='inline-flex shrink-0 items-center text-warning-6 animate-wiggle'
               title={`${pendingCount} pending permission request(s)`}
             >
-              ‼️
+              <Attention theme='outline' size='14' fill='currentColor' aria-hidden='true' />
             </span>
           )}
           <TeamAgentIdentity

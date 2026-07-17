@@ -4,7 +4,7 @@ import { Form, Input, Message, Select, Tag } from '@arco-design/web-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionModal from '@/renderer/components/base/AionModal';
-import { LinkCloud } from '@icon-park/react';
+import { LinkCloud, Tips } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import useModeModeList from '@renderer/hooks/agent/useModeModeList';
 import { getProviderLogo } from '@/renderer/utils/model/modelPlatforms';
@@ -236,7 +236,12 @@ const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): vo
               required={!isBedrock}
               rules={[{ required: !isBedrock }]}
               field={'api_key'}
-              extra={<div className='text-11px text-t-secondary mt-2'>💡 {t('settings.multiApiKeyEditTip')}</div>}
+              extra={
+                <div className='inline-flex items-center gap-4px text-11px text-t-secondary mt-2'>
+                  <Tips theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+                  <span>{t('settings.multiApiKeyEditTip')}</span>
+                </div>
+              }
             >
               <Input.TextArea rows={4} placeholder={t('settings.apiKeyPlaceholder')} />
             </Form.Item>

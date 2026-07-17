@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IconLeft, IconRight } from '@arco-design/web-react/icon';
+import { Left, Right } from '@icon-park/react';
 import React, { useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface HorizontalFileListProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ interface HorizontalFileListProps {
  * 用于文件预览列表的横向展示
  */
 const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => {
+  const { t } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -136,14 +138,17 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
           }}
         >
           <button
+            type='button'
             onClick={handleScrollLeft}
             className='ml-0px w-28px h-28px rd-50% bg-1 flex items-center justify-center hover:bg-2 transition-colors border-1 border-solid b-color-border-2'
+            aria-label={t('common.historyBack')}
+            title={t('common.historyBack')}
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <IconLeft style={{ fontSize: '14px', color: 'var(--text-t-primary)' }} />
+            <Left theme='outline' size='14' fill='currentColor' className='text-t-primary' aria-hidden='true' />
           </button>
         </div>
       )}
@@ -158,14 +163,17 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
           }}
         >
           <button
+            type='button'
             onClick={handleScrollRight}
             className='ml-auto mr-0px w-28px h-28px rd-50% bg-1 flex items-center justify-center hover:bg-2 transition-colors border-1 border-solid b-color-border-2'
+            aria-label={t('common.forward')}
+            title={t('common.forward')}
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <IconRight style={{ fontSize: '14px', color: 'var(--text-t-primary)' }} />
+            <Right theme='outline' size='14' fill='currentColor' className='text-t-primary' aria-hidden='true' />
           </button>
         </div>
       )}

@@ -80,7 +80,7 @@ describe('Titlebar OPL App feedback', () => {
     mocks.openExternalUrl.mockResolvedValue(undefined);
   });
 
-  it('uses the Font Awesome Free Regular circle-question icon', () => {
+  it('uses the IconPark outline help icon', () => {
     render(
       <MemoryRouter initialEntries={['/guid']}>
         <Titlebar workspaceAvailable={false} />
@@ -88,8 +88,10 @@ describe('Titlebar OPL App feedback', () => {
     );
 
     const icon = screen.getByTestId('app-titlebar-help-icon');
-    expect(icon).toHaveAttribute('data-prefix', 'far');
-    expect(icon).toHaveAttribute('data-icon', 'circle-question');
+    expect(icon).toHaveClass('i-icon-help');
+    expect(icon.querySelector('svg')).not.toBeNull();
+    expect(icon).not.toHaveAttribute('data-prefix');
+    expect(icon).not.toHaveAttribute('data-icon');
   });
 
   it('opens a prefilled OPL App GitHub issue with the current route and release version', async () => {

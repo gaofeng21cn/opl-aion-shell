@@ -7,6 +7,7 @@
 import type { IMessageAcpPermission } from '@/common/chat/chatLib';
 import { conversation } from '@/common/adapter/ipcBridge';
 import { Button, Card, Radio, Typography } from '@arco-design/web-react';
+import { BookOpen, CheckOne, Earth, Edit, Lightning, Lock } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -15,6 +16,28 @@ const { Text } = Typography;
 interface MessageAcpPermissionProps {
   message: IMessageAcpPermission;
 }
+
+const renderPermissionIcon = (kind?: string): React.ReactNode => {
+  const iconProps = {
+    theme: 'outline' as const,
+    size: 20,
+    fill: 'currentColor',
+    'aria-hidden': true,
+  };
+
+  switch (kind) {
+    case 'edit':
+      return <Edit {...iconProps} />;
+    case 'read':
+      return <BookOpen {...iconProps} />;
+    case 'fetch':
+      return <Earth {...iconProps} />;
+    case 'execute':
+      return <Lightning {...iconProps} />;
+    default:
+      return <Lock {...iconProps} />;
+  }
+};
 
 const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ message }) => {
   const { options = [], tool_call } = message.content || {};
@@ -26,23 +49,15 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
       return {
         title: t('messages.permissionRequest'),
         description: t('messages.agentRequestingPermission'),
-        icon: '🔐',
+        icon: renderPermissionIcon(),
       };
     }
 
     const displayTitle = tool_call.title || tool_call.raw_input?.description || t('messages.permissionRequest');
 
-    // 简单的图标映射
-    const kindIcons: Record<string, string> = {
-      edit: '✏️',
-      read: '📖',
-      fetch: '🌐',
-      execute: '⚡',
-    };
-
     return {
       title: displayTitle,
-      icon: kindIcons[tool_call.kind || 'execute'] || '⚡',
+      icon: renderPermissionIcon(tool_call.kind || 'execute'),
     };
   };
   const { title, icon } = getToolInfo();
@@ -86,7 +101,7 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
       <div className='space-y-4'>
         {/* Header with icon and title */}
         <div className='flex items-center space-x-2'>
-          <span className='text-2xl'>{icon}</span>
+          <span className='inline-flex shrink-0 text-t-secondary'>{icon}</span>
           <Text className='block'>{title}</Text>
         </div>
         {(tool_call.raw_input?.command || tool_call.title) && (
@@ -134,8 +149,9 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
             className='mt-10px p-2 rounded-md border'
             style={{ backgroundColor: 'var(--color-success-light-1)', borderColor: 'rgb(var(--success-3))' }}
           >
-            <Text className='text-sm' style={{ color: 'rgb(var(--success-6))' }}>
-              ✓ {t('messages.responseSentSuccessfully')}
+            <Text className='inline-flex items-center gap-4px text-sm' style={{ color: 'rgb(var(--success-6))' }}>
+              <CheckOne theme='outline' size='14' fill='currentColor' aria-hidden='true' />
+              <span>{t('messages.responseSentSuccessfully')}</span>
             </Text>
           </div>
         )}

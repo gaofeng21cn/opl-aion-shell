@@ -5,8 +5,7 @@
  */
 
 import { iconColors } from '@/renderer/styles/colors';
-import { Close } from '@icon-park/react';
-import { IconShrink } from '@arco-design/web-react/icon';
+import { Close, OffScreen } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TabFadeState } from '../../hooks/useTabOverflow';
@@ -139,6 +138,8 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({
                   size='14'
                   fill={iconColors.secondary}
                   className='hover:fill-primary'
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                   onClick={(e) => {
                     e.stopPropagation();
                     onCloseTab(tab.id);
@@ -159,7 +160,12 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({
               onClick={onClosePanel}
               title={t('preview.collapsePanel')}
             >
-              <IconShrink style={{ fontSize: 14, color: iconColors.secondary }} />
+              <OffScreen
+                theme='outline'
+                size='14'
+                fill={iconColors.secondary}
+                aria-label={t('preview.collapsePanel')}
+              />
             </div>
           </div>
         )}

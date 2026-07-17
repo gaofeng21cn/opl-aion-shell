@@ -11,7 +11,7 @@ import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/file/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/file/diffUtils';
 import { Badge } from '@arco-design/web-react';
-import { IconDown, IconRight } from '@arco-design/web-react/icon';
+import { Down, Right } from '@icon-park/react';
 import { createTwoFilesPatch } from 'diff';
 import React, { useMemo, useState } from 'react';
 import type { BadgeProps } from '@arco-design/web-react';
@@ -71,7 +71,7 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
 
   return (
     <div className='flex flex-col'>
-      <div className='flex flex-row color-#86909C gap-12px items-center'>
+      <div className='flex flex-row text-t-secondary gap-12px items-center'>
         <Badge
           status={statusToBadge(normalized.status)}
           className={normalized.status === 'running' ? 'badge-breathing' : ''}
@@ -80,7 +80,7 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
           className={
             'flex-1 min-w-0' +
             (expanded ? ' break-all' : ' truncate') +
-            (hasDetail ? ' cursor-pointer hover:color-#4E5969' : '')
+            (hasDetail ? ' cursor-pointer hover:text-t-primary' : '')
           }
           onClick={hasDetail ? () => setExpanded(!expanded) : undefined}
         >
@@ -89,10 +89,14 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
         </span>
         {hasDetail && (
           <span
-            className='flex-shrink-0 cursor-pointer hover:color-#4E5969 transition-colors'
+            className='flex-shrink-0 cursor-pointer hover:text-t-primary transition-colors'
             onClick={() => setExpanded(!expanded)}
           >
-            {expanded ? <IconDown style={{ fontSize: 12 }} /> : <IconRight style={{ fontSize: 12 }} />}
+            {expanded ? (
+              <Down theme='outline' size='12' fill='currentColor' aria-hidden='true' />
+            ) : (
+              <Right theme='outline' size='12' fill='currentColor' aria-hidden='true' />
+            )}
           </span>
         )}
       </div>

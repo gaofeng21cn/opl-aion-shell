@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { IProvider } from '@/common/config/storage';
 import { Button, Divider, Message, Popconfirm, Collapse, Tag, Switch, Tooltip } from '@arco-design/web-react';
-import { DeleteFour, Info, Minus, Plus, Write, Heartbeat } from '@icon-park/react';
+import { CheckOne, DeleteFour, Error as ErrorIcon, Heartbeat, Info, Minus, Plus, Write } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddModelModal from '@/renderer/pages/settings/components/AddModelModal';
@@ -485,7 +485,23 @@ const ModelModalContent: React.FC = () => {
                                   content={
                                     <div>
                                       <div className='flex items-center gap-4px'>
-                                        <span>{healthStatus === 'healthy' ? '✅' : '❌'}</span>
+                                        {healthStatus === 'healthy' ? (
+                                          <CheckOne
+                                            theme='outline'
+                                            size='14'
+                                            fill='currentColor'
+                                            className='text-success-6'
+                                            aria-hidden='true'
+                                          />
+                                        ) : (
+                                          <ErrorIcon
+                                            theme='outline'
+                                            size='14'
+                                            fill='currentColor'
+                                            className='text-danger-6'
+                                            aria-hidden='true'
+                                          />
+                                        )}
                                         <span>
                                           {healthStatus === 'healthy' ? t('common.success') : t('common.failed')}
                                         </span>
@@ -507,7 +523,7 @@ const ModelModalContent: React.FC = () => {
                                   }
                                 >
                                   <div
-                                    className={`w-8px h-8px rounded-full ${healthStatus === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}
+                                    className={`w-8px h-8px rounded-full ${healthStatus === 'healthy' ? 'bg-success-6' : 'bg-danger-6'}`}
                                   />
                                 </Tooltip>
                               )}

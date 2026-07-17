@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { Brain, Microphone, Theater } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import type { TChatConversation } from '@/common/config/storage';
@@ -18,9 +19,9 @@ type Props = {
 };
 
 const SUGGESTIONS = [
-  { key: 'debate', icon: '🎭' },
-  { key: 'interview', icon: '🎙️' },
-  { key: 'expert_review', icon: '🧠' },
+  { key: 'debate', icon: Theater },
+  { key: 'interview', icon: Microphone },
+  { key: 'expert_review', icon: Brain },
 ];
 
 const SUGGESTION_DEFAULTS: Record<string, string> = {
@@ -144,6 +145,7 @@ const TeamChatEmptyState: React.FC<Props> = ({ conversation_id, icon, isLeader =
         <div className='flex flex-col gap-6px w-full'>
           {SUGGESTIONS.map((s) => {
             const label = t(`team.emptyState.suggestions.${s.key}`, { defaultValue: SUGGESTION_DEFAULTS[s.key] });
+            const SuggestionIcon = s.icon;
             return (
               <div
                 key={s.key}
@@ -151,7 +153,13 @@ const TeamChatEmptyState: React.FC<Props> = ({ conversation_id, icon, isLeader =
                 onClick={() => fillDraft(label)}
                 className='flex items-center gap-10px px-14px py-10px rd-10px bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-left border border-transparent hover:border-[var(--color-border-2)]'
               >
-                <span className='text-15px shrink-0'>{s.icon}</span>
+                <SuggestionIcon
+                  theme='outline'
+                  size='16'
+                  fill='currentColor'
+                  className='shrink-0 text-t-secondary'
+                  aria-hidden='true'
+                />
                 <span className='text-13px text-t-secondary'>{label}</span>
               </div>
             );
