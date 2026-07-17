@@ -214,7 +214,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   icon={<Refresh theme='outline' size='16' />}
                   loading={flowSyncing}
                   onClick={onSyncFlow}
-                  data-testid='opl-flow-sync-capabilities'
+                  data-testid='settings-capabilities-primary-action'
                 >
                   {t('settings.capabilitiesPage.groups.oplFlowManaged.sync')}
                 </Button>
