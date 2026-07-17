@@ -109,9 +109,11 @@
 .homeStarterLabel {
   min-width: 0;
   flex: 0 0 auto;
+  overflow: visible !important;
   color: inherit;
   line-height: 18px;
   text-align: left;
+  text-overflow: clip !important;
   white-space: nowrap;
 }
 
