@@ -45,10 +45,12 @@ import {
   resolveInitialBounds,
 } from './process/utils/windowBounds';
 import {
-  clearPendingDeepLinkUrl,
-  getPendingDeepLinkUrl,
+  extractDeepLinkPayloadFromArgv,
+  extractSecondInstanceDeepLinkPayload,
+  handleDeepLinkPayload,
   handleDeepLinkUrl,
   PROTOCOL_SCHEME,
+  registerDeepLinkBridge,
 } from './process/utils/deepLink';
 import {
   bindMainWindowReferences,
@@ -83,20 +85,19 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 // to the first instance via second-instance event, then quits.
 const isE2ETestMode = process.env.AIONUI_E2E_TEST === '1';
 const skipSingleInstanceLock = isE2ETestMode || process.env.AIONUI_MULTI_INSTANCE === '1';
-const deepLinkFromArgv = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
-const gotTheLock = skipSingleInstanceLock ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
+registerDeepLinkBridge();
+const deepLinkFromArgv = extractDeepLinkPayloadFromArgv(process.argv);
+const gotTheLock = skipSingleInstanceLock
+  ? true
+  : app.requestSingleInstanceLock(deepLinkFromArgv ? { deepLinkPayload: deepLinkFromArgv } : {});
 if (!gotTheLock) {
   console.warn('[AionUi] Another instance is already running; current process will exit.');
   app.quit();
 } else {
+  if (deepLinkFromArgv) handleDeepLinkPayload(deepLinkFromArgv);
   app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
-    // Prefer additionalData (reliable on all platforms), fallback to argv scan
-    const deepLinkUrl =
-      (additionalData as { deepLinkUrl?: string })?.deepLinkUrl ||
-      argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
-    if (deepLinkUrl) {
-      handleDeepLinkUrl(deepLinkUrl);
-    }
+    const deepLinkPayload = extractSecondInstanceDeepLinkPayload(argv, additionalData);
+    if (deepLinkPayload) handleDeepLinkPayload(deepLinkPayload);
     // Focus existing window or recreate one if needed.
     if (isWebUIMode || isResetPasswordMode) {
       return;
@@ -851,15 +852,6 @@ const handleAppReady = async (): Promise<void> => {
         console.error('[WebUI] Failed to auto-restore:', error);
       });
     }
-
-    // Flush pending deep-link URL (received before window was ready)
-    const pendingUrl = getPendingDeepLinkUrl();
-    if (pendingUrl) {
-      clearPendingDeepLinkUrl();
-      mainWindow.webContents.once('did-finish-load', () => {
-        handleDeepLinkUrl(pendingUrl);
-      });
-    }
   }
 
   // Verify CDP is ready and log status
@@ -878,7 +870,7 @@ const handleAppReady = async (): Promise<void> => {
 };
 
 // ============ Protocol Registration ============
-// Register aionui:// as the default protocol client
+// Register opl:// as the default protocol client
 if (process.defaultApp) {
   // Dev mode: need to pass execPath explicitly
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
@@ -886,10 +878,11 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
 }
 
-// macOS: handle aionui:// URLs via the open-url event
+// macOS: handle opl:// URLs via the open-url event
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  handleDeepLinkUrl(url);
+  const result = handleDeepLinkUrl(url);
+  if (!result.valid) return;
   if (isWebUIMode || isResetPasswordMode || !app.isReady()) {
     return;
   }

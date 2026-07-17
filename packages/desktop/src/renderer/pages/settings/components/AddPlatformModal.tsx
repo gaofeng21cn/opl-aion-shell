@@ -22,7 +22,6 @@ import {
   isNewApiPlatform,
   type PlatformConfig,
 } from '@/renderer/utils/model/modelPlatforms';
-import type { DeepLinkAddProviderDetail } from '@/renderer/hooks/system/useDeepLink';
 
 /**
  * Protocol icon configurations
@@ -207,8 +206,7 @@ const renderPlatformOption = (platform: PlatformConfig, t?: (key: string) => str
 
 const AddPlatformModal = ModalHOC<{
   onSubmit: (platform: IProvider) => void;
-  deepLinkData?: DeepLinkAddProviderDetail;
-}>(({ modalProps, onSubmit, modalCtrl, deepLinkData }) => {
+}>(({ modalProps, onSubmit, modalCtrl }) => {
   const [message, messageContext] = Message.useMessage();
   const { t } = useTranslation();
   const [form] = Form.useForm();
@@ -311,17 +309,9 @@ const AddPlatformModal = ModalHOC<{
       setModelProtocol('openai'); // 重置协议选择 / Reset protocol selection
       setIsFullUrl(false);
 
-      // Pre-fill from deep link data (aionui:// protocol)
-      if (deepLinkData?.base_url || deepLinkData?.api_key) {
-        // Default to new-api platform for deep links (typical one-api/new-api usage)
-        form.setFieldValue('platform', deepLinkData.platform || 'new-api');
-        if (deepLinkData.base_url) form.setFieldValue('base_url', deepLinkData.base_url);
-        if (deepLinkData.api_key) form.setFieldValue('api_key', deepLinkData.api_key);
-      } else {
-        form.setFieldValue('platform', 'gemini');
-      }
+      form.setFieldValue('platform', 'gemini');
     }
-  }, [modalProps.visible, deepLinkData]);
+  }, [modalProps.visible]);
 
   useEffect(() => {
     if (platform?.includes('gemini')) {

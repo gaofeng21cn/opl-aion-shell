@@ -3176,6 +3176,22 @@ export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane {
   };
 }
 
+/** Return the exact App-owned routes exposed through the branded deep-link protocol. */
+export function getOplAppDeepLinkRoutes(): string[] {
+  const controlPlane = OPL_PRODUCT_PROFILE.settings.control_plane;
+  return [
+    '/guid',
+    '/archived',
+    '/scheduled',
+    ...controlPlane.ordinary_routes.map((route) => route.path),
+    ...controlPlane.secondary_pages.map((page) => page.path),
+  ];
+}
+
+export function isOplAppDeepLinkRoute(route: string): boolean {
+  return getOplAppDeepLinkRoutes().includes(route);
+}
+
 export function getOplGuiSettingsVisibleTabs(): string[] {
   return [...OPL_PRODUCT_PROFILE.settings.control_plane.ordinary_visible_tabs];
 }

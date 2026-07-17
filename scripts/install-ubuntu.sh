@@ -348,7 +348,7 @@ Icon=AionUi
 Terminal=false
 Type=Application
 Categories=Office;Utility;Development;
-MimeType=x-scheme-handler/aionui;
+MimeType=x-scheme-handler/opl;
 StartupWMClass=AionUi
 DESKTOP_EOF
 

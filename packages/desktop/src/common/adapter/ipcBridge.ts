@@ -1660,10 +1660,15 @@ export const excelPreview = {
 // ---------------------------------------------------------------------------
 
 export const deepLink = {
-  received: bridge.buildEmitter<{
-    action: string;
-    params: Record<string, string>;
-  }>('deep-link.received'),
+  received: bridge.buildEmitter<DeepLinkNavigatePayload>('deep-link.received'),
+  takePending: bridge.buildProvider<DeepLinkNavigatePayload[], void>('deep-link.take-pending'),
+};
+
+export type DeepLinkNavigatePayload = {
+  action: 'navigate';
+  params: {
+    route: string;
+  };
 };
 
 // ---------------------------------------------------------------------------

@@ -4,68 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
+import type { DeepLinkNavigatePayload } from '@/common/adapter/ipcBridge';
+import { isOplAppDeepLinkRoute } from '@/common/config/oplProductProfile';
 
 /**
- * Deep link event payload from main process
- */
-export type DeepLinkPayload = {
-  action: string;
-  params: Record<string, string>;
-};
-
-export type DeepLinkAddProviderDetail = {
-  base_url?: string;
-  api_key?: string;
-  name?: string;
-  platform?: string;
-};
-
-/**
- * Allowed route patterns for the navigate deep link action.
- * Only routes matching these patterns are permitted.
- */
-const ALLOWED_NAVIGATE_PATTERNS = [/^\/conversation\/[^/]+$/];
-
-/**
- * Hook to listen for aionui:// deep link events from main process.
- * Routes 'add-provider' action to the App-owned environment settings page.
- * Routes 'navigate' action to the specified route (whitelist-validated).
+ * Listen for validated opl:// navigation events from the main process.
  */
 export const useDeepLink = () => {
   const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
-  const handler = useCallback(
-    (payload: DeepLinkPayload) => {
-      // Support both formats: "add-provider" and "provider/add" (one-api style)
-      if (payload.action === 'add-provider' || payload.action === 'provider/add') {
-        void navigate(resolveLegacySettingsRoute('model'));
-        return;
-      }
-
-      if (payload.action === 'navigate') {
-        const route = payload.params.route;
-        if (!route) {
-          console.warn('[DeepLink] navigate action missing route param');
-          return;
-        }
-
-        const isAllowed = ALLOWED_NAVIGATE_PATTERNS.some((pattern) => pattern.test(route));
-        if (!isAllowed) {
-          console.warn(`[DeepLink] navigate blocked: route "${route}" not in whitelist`);
-          return;
-        }
-
-        void navigate(route);
-      }
-    },
-    [navigate]
-  );
+  const handler = useCallback((payload: DeepLinkNavigatePayload) => {
+    if (!isOplAppDeepLinkRoute(payload.params.route)) {
+      console.warn('[DeepLink] rejected: route_not_allowed');
+      return;
+    }
+    void navigateRef.current(payload.params.route);
+  }, []);
 
   useEffect(() => {
-    return ipcBridge.deepLink.received.on(handler);
+    const off = ipcBridge.deepLink.received.on(handler);
+    void ipcBridge.deepLink.takePending
+      .invoke()
+      .then((pendingPayloads) => pendingPayloads.forEach(handler))
+      .catch(() => {});
+    return off;
   }, [handler]);
 };
