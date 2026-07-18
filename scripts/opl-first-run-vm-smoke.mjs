@@ -4665,13 +4665,18 @@ function runtimeStatusReadinessExpression() {
     const titleOk = /OPL Runtime Status|OPL 运行状态|Project Runtime Progress|项目运行进度|Project Runtime Overview|项目运行总览/.test(text);
     const summaryOk = /App\\/operator Drilldown|运行状态摘要|Task Overview|任务概览|In progress|进行中|Needs system handling|需要系统处理|Status Load|状态加载/.test(text);
     const loadedOk = /Loaded at|已加载于|Loaded|已加载/.test(text);
-    const loadingOnly = /加载中|Loading/.test(text) && !summaryOk;
-    return hashOk && titleOk && summaryOk && !loadingOnly
+    const pageReady = Boolean(
+      document.querySelector('[data-testid="runtime-v2-page"]') &&
+      document.querySelector('[data-testid="runtime-status-region"]') &&
+      document.querySelector('[data-testid="runtime-refresh-button"]')
+    );
+    return hashOk && titleOk && pageReady
       ? {
           hash: window.location.hash,
           titleReady: titleOk,
           summaryReady: summaryOk,
           loadedReady: loadedOk,
+          pageReady,
         }
       : false;
   })()`;
