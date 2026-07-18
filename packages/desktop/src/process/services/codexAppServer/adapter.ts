@@ -147,7 +147,7 @@ function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
 function parseThread(value: unknown): RawThread {
   const raw = requiredRecord(value, 'thread') as RawThread;
   raw.id = requiredString(raw.id, 'thread id');
-  raw.cwd = requiredString(raw.cwd, 'thread cwd');
+  raw.cwd = optionalString(raw.cwd) ?? '';
   raw.status = requiredRecord(raw.status, 'thread status');
   raw.turns = Array.isArray(raw.turns) ? raw.turns.filter(isRecord) : [];
   return raw;
@@ -167,8 +167,7 @@ function activeTurnId(turns: JsonRecord[]): string | null {
 }
 
 function projectId(raw: JsonRecord): string {
-  const gitInfo = isRecord(raw.gitInfo) ? raw.gitInfo : null;
-  return optionalString(gitInfo?.originUrl) ?? requiredString(raw.cwd, 'thread cwd');
+  return optionalString(raw.cwd) ?? '';
 }
 
 function ancestorsFor(thread: RawThread, byId: Map<string, RawThread>): string[] {
@@ -198,7 +197,7 @@ function mapThread(
     summary: optionalString(raw.preview) ?? '',
     status: statusFromRaw(raw.status, archived),
     projectId: projectId(raw),
-    workspace: raw.cwd,
+    workspace: optionalString(raw.cwd) ?? '',
     host,
     owner: optionalString(raw.agentRole) ?? optionalString(raw.agentNickname),
     goal,
@@ -457,6 +456,13 @@ export class CodexAppServerAdapter {
 
   async renameThread(threadId: string, name: string): Promise<void> {
     await this.rpc.request('thread/name/set', { threadId, name: requiredString(name, 'thread name') });
+  }
+
+  async updateThreadSettings(threadId: string, cwd: string): Promise<void> {
+    await this.rpc.request('thread/settings/update', {
+      threadId,
+      cwd: requiredString(cwd, 'thread cwd'),
+    });
   }
 
   async archiveThread(threadId: string): Promise<void> {

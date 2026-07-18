@@ -26,6 +26,7 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
+import { isProjectlessCanonicalConversation } from './hooks/canonicalThreadLifecycle';
 import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
@@ -42,6 +43,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   const navigate = useNavigate();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
+  const [activeProjectAdoptionConversation, setActiveProjectAdoptionConversation] = useState<TChatConversation | null>(
+    null
+  );
+  const [activeProjectAdoptionWorkspace, setActiveProjectAdoptionWorkspace] = useState<string | null>(null);
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
 
   // Persist section collapsed state across reloads.
@@ -131,6 +136,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     renameModalName,
     setRenameModalName,
     renameLoading,
+    projectAdoptionConversation,
     dropdownVisibleId,
     handleConversationClick,
     handleDeleteClick,
@@ -142,6 +148,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     handleArchive,
     handleRestore,
     handleReset,
+    handleMoveToProject,
+    handleProjectAdoption,
+    handleProjectAdoptionConfirm,
+    handleProjectAdoptionCancel,
     handleMenuVisibleChange,
     handleOpenMenu,
   } = useConversationActions({
@@ -185,30 +195,37 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     });
 
   const getConversationRowProps = useCallback(
-    (conversation: TChatConversation): ConversationRowProps => ({
-      conversation,
-      isGenerating: isConversationGenerating(conversation.id),
-      hasCompletionUnread: hasCompletionUnread(conversation.id),
-      collapsed,
-      tooltipEnabled,
-      batchMode,
-      checked: selectedConversationIds.has(conversation.id),
-      selected: id === conversation.id,
-      menuVisible: dropdownVisibleId !== null && dropdownVisibleId === conversation.id,
-      onToggleChecked: toggleSelectedConversation,
-      onConversationClick: handleConversationClick,
-      onOpenMenu: handleOpenMenu,
-      onMenuVisibleChange: handleMenuVisibleChange,
-      onEditStart: handleEditStart,
-      onDelete: handleDeleteClick,
-      onExport: handleExportConversation,
-      onTogglePin: handleTogglePin,
-      onArchive: handleArchive,
-      onRestore: handleRestore,
-      onReset: handleReset,
-      archivedView: archived,
-      getJobStatus,
-    }),
+    (conversation: TChatConversation): ConversationRowProps => {
+      const isGenerating = isConversationGenerating(conversation.id);
+      return {
+        conversation,
+        isGenerating,
+        hasCompletionUnread: hasCompletionUnread(conversation.id),
+        collapsed,
+        tooltipEnabled,
+        batchMode,
+        checked: selectedConversationIds.has(conversation.id),
+        selected: id === conversation.id,
+        menuVisible: dropdownVisibleId !== null && dropdownVisibleId === conversation.id,
+        onToggleChecked: toggleSelectedConversation,
+        onConversationClick: handleConversationClick,
+        onOpenMenu: handleOpenMenu,
+        onMenuVisibleChange: handleMenuVisibleChange,
+        onEditStart: handleEditStart,
+        onDelete: handleDeleteClick,
+        onExport: handleExportConversation,
+        onTogglePin: handleTogglePin,
+        onArchive: handleArchive,
+        onRestore: handleRestore,
+        onReset: handleReset,
+        onMoveToProject:
+          !archived && !isGenerating && isProjectlessCanonicalConversation(conversation)
+            ? handleMoveToProject
+            : undefined,
+        archivedView: archived,
+        getJobStatus,
+      };
+    },
     [
       collapsed,
       tooltipEnabled,
@@ -229,6 +246,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       handleArchive,
       handleRestore,
       handleReset,
+      handleMoveToProject,
       archived,
       getJobStatus,
     ]
@@ -269,6 +287,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     [navigate]
   );
 
+  const resetProjectAdoptionDrag = useCallback(() => {
+    setActiveProjectAdoptionConversation(null);
+    setActiveProjectAdoptionWorkspace(null);
+  }, []);
+
+  const handleProjectAdoptionDrop = useCallback(
+    (workspace: string) => {
+      const conversation = activeProjectAdoptionConversation;
+      resetProjectAdoptionDrag();
+      if (conversation) void handleProjectAdoption(conversation, workspace);
+    },
+    [activeProjectAdoptionConversation, handleProjectAdoption, resetProjectAdoptionDrag]
+  );
+
   // Conversations section: keep timeline grouping (today/yesterday/...) but only show non-workspace conversations.
   const conversationOnlySections = useMemo(
     () =>
@@ -280,6 +312,34 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         .filter((section) => section.items.length > 0),
     [timelineSections]
   );
+
+  const projectAdoptionDragEnabled = !archived && !batchMode && !collapsed && !isMobile && workspaceGroups.length > 0;
+
+  const renderProjectlessConversation = (conversation: TChatConversation) => {
+    const eligible = isProjectlessCanonicalConversation(conversation) && !isConversationGenerating(conversation.id);
+    const draggable = projectAdoptionDragEnabled && eligible;
+    return (
+      <div
+        key={conversation.id}
+        draggable={draggable}
+        onDragStart={(event) => {
+          if (!draggable) {
+            event.preventDefault();
+            return;
+          }
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', conversation.id);
+          setActiveProjectAdoptionConversation(conversation);
+        }}
+        onDragEnd={resetProjectAdoptionDrag}
+        className={classNames('min-w-0', {
+          'opacity-55': activeProjectAdoptionConversation?.id === conversation.id,
+        })}
+      >
+        {renderConversation(conversation)}
+      </div>
+    );
+  };
 
   if (timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (
@@ -431,6 +491,14 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         onCancel={() => setShowExportDirectorySelector(false)}
       />
 
+      <DirectorySelectionModal
+        visible={projectAdoptionConversation !== null}
+        onConfirm={(paths) => {
+          void handleProjectAdoptionConfirm(paths);
+        }}
+        onCancel={handleProjectAdoptionCancel}
+      />
+
       {batchMode && !collapsed && (
         <div className='px-12px pb-8px'>
           <div className='rd-8px bg-fill-1 p-10px flex flex-col gap-8px border border-solid border-[rgba(var(--primary-6),0.08)]'>
@@ -512,7 +580,32 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
             {!collapsedSections.has('projects') &&
               workspaceGroups.map((group) => {
                 return (
-                  <div key={group.workspace} className='min-w-0'>
+                  <div
+                    key={group.workspace}
+                    className={classNames('min-w-0 rd-8px transition-colors', {
+                      'bg-fill-2': activeProjectAdoptionWorkspace === group.workspace,
+                    })}
+                    onDragEnter={(event) => {
+                      if (!activeProjectAdoptionConversation) return;
+                      event.preventDefault();
+                      setActiveProjectAdoptionWorkspace(group.workspace);
+                    }}
+                    onDragOver={(event) => {
+                      if (!activeProjectAdoptionConversation) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDragLeave={(event) => {
+                      const nextTarget = event.relatedTarget;
+                      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+                      setActiveProjectAdoptionWorkspace(null);
+                    }}
+                    onDrop={(event) => {
+                      if (!activeProjectAdoptionConversation) return;
+                      event.preventDefault();
+                      handleProjectAdoptionDrop(group.workspace);
+                    }}
+                  >
                     <WorkspaceCollapse
                       expanded={expandedWorkspaces.includes(group.workspace)}
                       onToggle={() => handleToggleWorkspace(group.workspace)}
@@ -578,7 +671,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                     </div>
                   )}
                   {section.items.map((item) =>
-                    item.type === 'conversation' && item.conversation ? renderConversation(item.conversation) : null
+                    item.type === 'conversation' && item.conversation
+                      ? renderProjectlessConversation(item.conversation)
+                      : null
                   )}
                 </div>
               ))}

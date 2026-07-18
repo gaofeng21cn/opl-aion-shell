@@ -62,6 +62,7 @@ export type ConversationRowProps = {
   onArchive?: (conversation: TChatConversation) => void;
   onRestore?: (conversation: TChatConversation) => void;
   onReset?: (conversation_id: string) => void;
+  onMoveToProject?: (conversation: TChatConversation) => void;
   archivedView?: boolean;
   getJobStatus: (conversation_id: string) => 'none' | 'active' | 'paused' | 'error' | 'unread';
   /** When true, the agent icon is dimmed by default and only shows full color on hover. Used inside project folders to reduce visual weight. */

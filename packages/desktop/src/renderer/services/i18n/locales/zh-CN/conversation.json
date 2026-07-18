@@ -73,7 +73,7 @@
     "exportFileNameRequired": "请输入 ZIP 文件名",
     "exportTargetFolder": "导出到文件夹",
     "exportSelectFolder": "请选择导出文件夹",
-    "exportDialogHint": "目录选择与\"更换项目\"一致；确认后开始导出。",
+    "exportDialogHint": "请选择导出包的保存目录。",
     "exporting": "导出中...",
     "exportSuccess": "导出成功",
     "exportCanceled": "已取消导出",
@@ -91,7 +91,10 @@
     "earlier": "更早",
     "projectsSection": "项目",
     "conversationsSection": "对话",
-    "newConversationWithWorkspace": "使用此工作目录新建对话"
+    "newConversationWithWorkspace": "使用此工作目录新建对话",
+    "moveToProject": "移入项目",
+    "moveToProjectSuccess": "对话已移入项目",
+    "moveToProjectFailed": "未能移入项目，对话仍保留在原位置。"
   },
   "historySearch": {
     "tooltip": "检索会话",

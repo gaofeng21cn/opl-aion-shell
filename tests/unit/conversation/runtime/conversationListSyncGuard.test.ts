@@ -83,8 +83,64 @@ describe('mergeCanonicalThreadDirectory', () => {
         acp_session_id: 'thread-1',
         canonical_thread_stub: true,
         workspace: '/tmp/project',
+        custom_workspace: true,
       },
     });
+  });
+
+  it('preserves an explicitly projectless marker until the canonical cwd is adopted', () => {
+    const cached = {
+      id: 'local-projectless',
+      name: 'Projectless task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: '/tmp/stale-runtime-default',
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread({ workspace: '', projectId: '' })]));
+
+    expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
+  });
+
+  it('hydrates a legacy missing affinity marker from the canonical recorded cwd', () => {
+    const cached = {
+      id: 'local-legacy',
+      name: 'Legacy task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+      },
+    } as TChatConversation;
+
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+  });
+
+  it('keeps an existing bound affinity stable across shell cache refreshes', () => {
+    const cached = {
+      id: 'local-bound',
+      name: 'Bound task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: '/tmp/project',
+        custom_workspace: true,
+      },
+    } as TChatConversation;
+
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
   });
 
   it('keeps shell UI metadata while App Server owns task title and lifecycle', () => {

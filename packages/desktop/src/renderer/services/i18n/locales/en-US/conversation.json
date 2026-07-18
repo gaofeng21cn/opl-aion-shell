@@ -73,7 +73,7 @@
     "exportFileNameRequired": "Please enter a ZIP file name",
     "exportTargetFolder": "Export To Folder",
     "exportSelectFolder": "Please select an export folder",
-    "exportDialogHint": "Folder selection follows the same interaction as changing the project.",
+    "exportDialogHint": "Choose the folder where the export package will be saved.",
     "exporting": "Exporting...",
     "exportSuccess": "Export succeeded",
     "exportCanceled": "Export canceled",
@@ -91,7 +91,10 @@
     "earlier": "Earlier",
     "projectsSection": "Projects",
     "conversationsSection": "Conversations",
-    "newConversationWithWorkspace": "Use this working directory to start a new conversation"
+    "newConversationWithWorkspace": "Use this working directory to start a new conversation",
+    "moveToProject": "Move to project",
+    "moveToProjectSuccess": "Conversation moved to project",
+    "moveToProjectFailed": "Could not move the conversation. It remains outside the project."
   },
   "historySearch": {
     "tooltip": "Search messages",

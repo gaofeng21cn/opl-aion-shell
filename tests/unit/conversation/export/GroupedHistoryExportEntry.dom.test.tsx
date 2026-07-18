@@ -6,6 +6,8 @@ import type { TChatConversation } from '@/common/config/storage';
 const mocks = vi.hoisted(() => ({
   handleExportConversation: vi.fn(),
   handleBatchExport: vi.fn(),
+  handleMoveToProject: vi.fn(),
+  handleProjectAdoption: vi.fn(),
   navigate: vi.fn(),
   emptyHistory: false,
 }));
@@ -19,15 +21,40 @@ const conversation = {
   extra: {},
 } as unknown as TChatConversation;
 
+const projectlessConversation = {
+  id: 'conv-projectless',
+  name: 'Projectless topic',
+  type: 'acp',
+  created_at: 1,
+  modified_at: 1,
+  extra: {
+    backend: 'codex',
+    canonical_thread_id: 'thread-projectless',
+    custom_workspace: false,
+  },
+} as TChatConversation;
+
 vi.mock('@/renderer/pages/conversation/GroupedHistory/ConversationRow', () => ({
-  default: ({ batchMode, conversation: row, onExport }: Record<string, unknown>) =>
+  default: ({ batchMode, conversation: row, onExport, onMoveToProject }: Record<string, unknown>) =>
     batchMode ? null : (
-      <button
-        type='button'
-        onClick={() => (onExport as (value: TChatConversation) => void)?.(row as TChatConversation)}
-      >
-        row export
-      </button>
+      <>
+        {(row as TChatConversation).id === 'conv-1' && (
+          <button
+            type='button'
+            onClick={() => (onExport as (value: TChatConversation) => void)?.(row as TChatConversation)}
+          >
+            row export
+          </button>
+        )}
+        {onMoveToProject && (
+          <button
+            type='button'
+            onClick={() => (onMoveToProject as (value: TChatConversation) => void)(row as TChatConversation)}
+          >
+            move projectless row
+          </button>
+        )}
+      </>
     ),
 }));
 
@@ -51,7 +78,7 @@ vi.mock('@/renderer/components/settings/DirectorySelectionModal', () => ({ defau
 
 vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversations', () => ({
   useConversations: () => ({
-    conversations: mocks.emptyHistory ? [] : [conversation],
+    conversations: mocks.emptyHistory ? [] : [conversation, projectlessConversation],
     isConversationGenerating: () => false,
     hasCompletionUnread: () => false,
     expandedWorkspaces: ['/workspace/review'],
@@ -70,6 +97,10 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversations', (
                   display_name: 'review',
                   conversations: [conversation],
                 },
+              },
+              {
+                type: 'conversation',
+                conversation: projectlessConversation,
               },
             ],
           },
@@ -95,6 +126,7 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversationActio
     renameModalName: '',
     setRenameModalName: vi.fn(),
     renameLoading: false,
+    projectAdoptionConversation: null,
     dropdownVisibleId: null,
     handleConversationClick: vi.fn(),
     handleDeleteClick: vi.fn(),
@@ -106,6 +138,10 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversationActio
     handleArchive: vi.fn(),
     handleRestore: vi.fn(),
     handleReset: vi.fn(),
+    handleMoveToProject: mocks.handleMoveToProject,
+    handleProjectAdoption: mocks.handleProjectAdoption,
+    handleProjectAdoptionConfirm: vi.fn(),
+    handleProjectAdoptionCancel: vi.fn(),
     handleMenuVisibleChange: vi.fn(),
     handleOpenMenu: vi.fn(),
   }),
@@ -176,6 +212,8 @@ describe('GroupedHistory export entries', () => {
   beforeEach(() => {
     mocks.handleExportConversation.mockReset();
     mocks.handleBatchExport.mockReset();
+    mocks.handleMoveToProject.mockReset();
+    mocks.handleProjectAdoption.mockReset();
     mocks.navigate.mockReset();
     mocks.emptyHistory = false;
   });
@@ -200,6 +238,35 @@ describe('GroupedHistory export entries', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { state: { workspace: '/workspace/review' } });
     expect(screen.queryByText('conversation.history.removeProject')).not.toBeInTheDocument();
     expect(screen.queryByText('conversation.history.projectContext.add')).not.toBeInTheDocument();
+  });
+
+  it('exposes one-time project adoption only for the projectless canonical row', () => {
+    render(<GroupedHistory />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'move projectless row' }));
+    expect(mocks.handleMoveToProject).toHaveBeenCalledWith(projectlessConversation);
+    expect(screen.getAllByRole('button', { name: 'move projectless row' })).toHaveLength(1);
+  });
+
+  it('moves an eligible projectless row through native drag and drop', () => {
+    render(<GroupedHistory />);
+
+    const source = screen.getByRole('button', { name: 'move projectless row' }).closest('[draggable="true"]');
+    const target = screen.getByTestId('workspace-group').parentElement;
+    expect(source).not.toBeNull();
+    expect(target).not.toBeNull();
+
+    const dataTransfer = {
+      dropEffect: 'none',
+      effectAllowed: 'none',
+      setData: vi.fn(),
+    };
+    fireEvent.dragStart(source!, { dataTransfer });
+    fireEvent.dragEnter(target!, { dataTransfer });
+    fireEvent.drop(target!, { dataTransfer });
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', projectlessConversation.id);
+    expect(mocks.handleProjectAdoption).toHaveBeenCalledWith(projectlessConversation, '/workspace/review');
   });
 
   it('renders a compact monochrome conversation empty state without the carrier illustration', () => {

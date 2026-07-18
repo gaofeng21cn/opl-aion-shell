@@ -17,6 +17,14 @@ export function canonicalCodexThreadId(conversation: TChatConversation | null | 
   return conversation.extra.canonical_thread_id?.trim() || conversation.extra.acp_session_id?.trim() || null;
 }
 
+export function isProjectlessCanonicalConversation(
+  conversation: TChatConversation | null | undefined
+): conversation is Extract<TChatConversation, { type: 'acp' }> {
+  const explicitlyProjectless = conversation?.extra.custom_workspace === false;
+  const missingRecordedCwd = !conversation?.extra.workspace?.trim();
+  return canonicalCodexThreadId(conversation) !== null && (explicitlyProjectless || missingRecordedCwd);
+}
+
 export function projectCanonicalCodexThread(
   thread: CodexThreadDescriptor,
   cached?: Extract<TChatConversation, { type: 'acp' }>,
@@ -39,8 +47,11 @@ export function projectCanonicalCodexThread(
     extra: {
       ...cached?.extra,
       backend: 'codex',
-      workspace: thread.workspace,
-      custom_workspace: Boolean(thread.workspace),
+      workspace:
+        cached?.extra.custom_workspace === true && cached.extra.workspace?.trim()
+          ? cached.extra.workspace
+          : thread.workspace,
+      custom_workspace: cached?.extra.custom_workspace ?? Boolean(thread.workspace),
       acp_session_id: thread.id,
       canonical_thread_id: thread.id,
       canonical_thread_stub: cached ? false : options.materialized !== true,
@@ -49,6 +60,65 @@ export function projectCanonicalCodexThread(
       archived_at: thread.archived ? (cached?.extra.archived_at ?? modifiedAt) : undefined,
     },
   };
+}
+
+export async function adoptProjectlessCanonicalConversation(
+  conversation: TChatConversation | null | undefined,
+  workspace: string
+): Promise<boolean> {
+  if (!isProjectlessCanonicalConversation(conversation)) return false;
+  const threadId = canonicalCodexThreadId(conversation);
+  const selectedWorkspace = workspace.trim();
+  if (!threadId || !selectedWorkspace) return false;
+
+  try {
+    const canonicalBefore = await ipcBridge.codexThreads.read.invoke({ threadId });
+    if (canonicalBefore.thread.workspace.trim()) return false;
+
+    await ipcBridge.codexThreads.updateSettings.invoke({ threadId, cwd: selectedWorkspace });
+    const canonicalReadback = await ipcBridge.codexThreads.read.invoke({ threadId });
+    if (canonicalReadback.thread.workspace !== selectedWorkspace) {
+      throw new Error('Canonical thread cwd readback did not match the selected project.');
+    }
+
+    const nextConversation = {
+      ...conversation,
+      extra: {
+        ...conversation.extra,
+        workspace: selectedWorkspace,
+        custom_workspace: true,
+        canonical_thread_stub: false,
+      },
+    };
+    if (conversation.extra.canonical_thread_stub) {
+      await ipcBridge.conversation.createWithConversation.invoke({ conversation: nextConversation });
+    } else {
+      const updated = await ipcBridge.conversation.update.invoke({
+        id: conversation.id,
+        updates: {
+          extra: {
+            workspace: selectedWorkspace,
+            custom_workspace: true,
+          },
+        } as Partial<TChatConversation>,
+        merge_extra: true,
+      });
+      if (!updated) return false;
+    }
+
+    const localReadback = await ipcBridge.conversation.get.invoke({ id: conversation.id });
+    if (
+      canonicalCodexThreadId(localReadback) !== threadId ||
+      localReadback.extra.workspace !== selectedWorkspace ||
+      localReadback.extra.custom_workspace !== true
+    ) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Canonical project affinity adoption failed:', error);
+    return false;
+  }
 }
 
 export async function executeCanonicalThreadLifecycle(

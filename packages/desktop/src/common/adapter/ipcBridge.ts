@@ -76,6 +76,7 @@ import type {
   CodexThreadDirectoryRequest,
   CodexThreadIdRequest,
   CodexThreadRenameRequest,
+  CodexThreadSettingsUpdateRequest,
   CodexThreadStartRequest,
 } from '../types/codex/appServerThreads';
 import type {
@@ -774,6 +775,7 @@ export const codexThreads = {
   resume: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.resume'),
   fork: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.fork'),
   rename: bridge.buildProvider<void, CodexThreadRenameRequest>('codex-threads.rename'),
+  updateSettings: bridge.buildProvider<void, CodexThreadSettingsUpdateRequest>('codex-threads.update-settings'),
   archive: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.archive'),
   unarchive: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.unarchive'),
   delete: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.delete'),

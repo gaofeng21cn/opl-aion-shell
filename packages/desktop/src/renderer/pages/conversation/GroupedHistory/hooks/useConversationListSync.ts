@@ -163,6 +163,25 @@ export const mergeCanonicalThreadDirectory = (
     return conversation.type !== 'acp' || conversation.extra.backend !== 'codex';
   });
 
+  directory.threads.forEach((thread) => {
+    const cached = cachedByThreadId.get(thread.id);
+    if (!cached) return;
+    const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
+    const customWorkspace = cached?.extra.custom_workspace === false ? false : hasCanonicalRecordedCwd;
+    const projectAffinityWorkspace =
+      cached?.extra.custom_workspace === true && cached.extra.workspace?.trim()
+        ? cached.extra.workspace
+        : thread.workspace;
+    cachedByThreadId.set(thread.id, {
+      ...cached,
+      extra: {
+        ...cached.extra,
+        workspace: projectAffinityWorkspace,
+        custom_workspace: customWorkspace,
+      },
+    });
+  });
+
   return [
     ...unmatchedLocal,
     ...directory.threads.map((thread) => projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id))),

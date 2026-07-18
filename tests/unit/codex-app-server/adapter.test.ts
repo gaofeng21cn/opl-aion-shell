@@ -133,6 +133,34 @@ describe('CodexAppServerAdapter', () => {
     expect(request).toHaveBeenNthCalledWith(3, 'thread/list', expect.objectContaining({ archived: true }));
   });
 
+  it('keeps directories distinct even when threads share one Git origin', async () => {
+    request.mockResolvedValueOnce({
+      data: [
+        rawThread('bound', {
+          cwd: '/workspace/bound',
+          gitInfo: { originUrl: 'https://example.com/shared.git' },
+        }),
+        rawThread('other-bound', {
+          cwd: '/workspace/other',
+          gitInfo: { originUrl: 'https://example.com/shared.git' },
+        }),
+        rawThread('projectless', {
+          cwd: undefined,
+          gitInfo: { originUrl: 'https://example.com/shared.git' },
+        }),
+      ],
+      nextCursor: null,
+    });
+
+    const result = await adapter.listThreads({ includeArchived: false });
+
+    expect(result.threads).toMatchObject([
+      { id: 'bound', projectId: '/workspace/bound', workspace: '/workspace/bound' },
+      { id: 'other-bound', projectId: '/workspace/other', workspace: '/workspace/other' },
+      { id: 'projectless', projectId: '', workspace: '' },
+    ]);
+  });
+
   it('falls back to a turn-free read for an unmaterialized thread', async () => {
     request.mockImplementation(async (method: string, params: Record<string, unknown>) => {
       if (method === 'thread/read' && params.includeTurns === true) {
@@ -163,6 +191,7 @@ describe('CodexAppServerAdapter', () => {
       .mockResolvedValueOnce({ thread: rawThread('forked', { parentThreadId: 'resumed' }) })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ thread: rawThread('resumed') })
       .mockResolvedValueOnce(undefined);
 
@@ -170,6 +199,7 @@ describe('CodexAppServerAdapter', () => {
     await adapter.resumeThread('resumed');
     await adapter.forkThread('resumed');
     await adapter.renameThread('resumed', 'Renamed task');
+    await adapter.updateThreadSettings('resumed', '/workspace/next');
     await adapter.archiveThread('resumed');
     await adapter.unarchiveThread('resumed');
     await adapter.deleteThread('resumed');
@@ -179,6 +209,7 @@ describe('CodexAppServerAdapter', () => {
       ['thread/resume', { threadId: 'resumed', excludeTurns: false }],
       ['thread/fork', { threadId: 'resumed', excludeTurns: true }],
       ['thread/name/set', { threadId: 'resumed', name: 'Renamed task' }],
+      ['thread/settings/update', { threadId: 'resumed', cwd: '/workspace/next' }],
       ['thread/archive', { threadId: 'resumed' }],
       ['thread/unarchive', { threadId: 'resumed' }],
       ['thread/delete', { threadId: 'resumed' }],

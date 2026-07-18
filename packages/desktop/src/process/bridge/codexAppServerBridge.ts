@@ -28,6 +28,7 @@ export function initCodexAppServerBridge(
   ipcBridge.codexThreads.resume.provider(({ threadId }) => adapter.resumeThread(threadId));
   ipcBridge.codexThreads.fork.provider(({ threadId }) => adapter.forkThread(threadId));
   ipcBridge.codexThreads.rename.provider(({ threadId, name }) => adapter.renameThread(threadId, name));
+  ipcBridge.codexThreads.updateSettings.provider(({ threadId, cwd }) => adapter.updateThreadSettings(threadId, cwd));
   ipcBridge.codexThreads.archive.provider(({ threadId }) => adapter.archiveThread(threadId));
   ipcBridge.codexThreads.unarchive.provider(({ threadId }) => adapter.unarchiveThread(threadId));
   ipcBridge.codexThreads.delete.provider(({ threadId }) => adapter.deleteThread(threadId));

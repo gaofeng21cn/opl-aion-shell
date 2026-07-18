@@ -16,8 +16,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { isConversationPinned } from '../utils/groupingHelpers';
 import {
+  adoptProjectlessCanonicalConversation,
   executeCanonicalThreadLifecycle,
   finishCanonicalLifecycleWithLocalProjection,
+  isProjectlessCanonicalConversation,
 } from './canonicalThreadLifecycle';
 
 type UseConversationActionsParams = {
@@ -45,11 +47,13 @@ export const useConversationActions = ({
   const [renameModalName, setRenameModalName] = useState<string>('');
   const [renameModalId, setRenameModalId] = useState<string | null>(null);
   const [renameLoading, setRenameLoading] = useState(false);
+  const [projectAdoptionConversation, setProjectAdoptionConversation] = useState<TChatConversation | null>(null);
   const [dropdownVisibleId, setDropdownVisibleId] = useState<string | null>(null);
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const materializingThreadIdsRef = useRef(new Set<string>());
+  const adoptingThreadIdsRef = useRef(new Set<string>());
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -355,6 +359,50 @@ export const useConversationActions = ({
     [t]
   );
 
+  const handleProjectAdoption = useCallback(
+    async (conversation: TChatConversation, workspace: string): Promise<boolean> => {
+      if (!isProjectlessCanonicalConversation(conversation)) return false;
+      const threadId = conversation.extra.canonical_thread_id ?? conversation.extra.acp_session_id;
+      if (!threadId || adoptingThreadIdsRef.current.has(threadId)) return false;
+
+      adoptingThreadIdsRef.current.add(threadId);
+      try {
+        const success = await adoptProjectlessCanonicalConversation(conversation, workspace);
+        if (!success) {
+          Message.error(t('conversation.history.moveToProjectFailed'));
+          return false;
+        }
+        emitter.emit('chat.history.refresh');
+        Message.success(t('conversation.history.moveToProjectSuccess'));
+        return true;
+      } finally {
+        adoptingThreadIdsRef.current.delete(threadId);
+      }
+    },
+    [t]
+  );
+
+  const handleMoveToProject = useCallback((conversation: TChatConversation) => {
+    if (!isProjectlessCanonicalConversation(conversation)) return;
+    setDropdownVisibleId(null);
+    setProjectAdoptionConversation(conversation);
+  }, []);
+
+  const handleProjectAdoptionConfirm = useCallback(
+    async (paths: string[] | undefined) => {
+      const workspace = paths?.[0]?.trim();
+      if (!workspace || !projectAdoptionConversation) return;
+      if (await handleProjectAdoption(projectAdoptionConversation, workspace)) {
+        setProjectAdoptionConversation(null);
+      }
+    },
+    [handleProjectAdoption, projectAdoptionConversation]
+  );
+
+  const handleProjectAdoptionCancel = useCallback(() => {
+    setProjectAdoptionConversation(null);
+  }, []);
+
   const handleMenuVisibleChange = useCallback((conversation_id: string, visible: boolean) => {
     setDropdownVisibleId(visible ? conversation_id : null);
   }, []);
@@ -368,6 +416,7 @@ export const useConversationActions = ({
     renameModalName,
     setRenameModalName,
     renameLoading,
+    projectAdoptionConversation,
     dropdownVisibleId,
     handleConversationClick,
     handleDeleteClick,
@@ -379,6 +428,10 @@ export const useConversationActions = ({
     handleArchive,
     handleRestore,
     handleReset,
+    handleMoveToProject,
+    handleProjectAdoption,
+    handleProjectAdoptionConfirm,
+    handleProjectAdoptionCancel,
     handleMenuVisibleChange,
     handleOpenMenu,
   };

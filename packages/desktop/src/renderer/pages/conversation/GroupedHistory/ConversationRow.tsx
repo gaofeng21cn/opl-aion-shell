@@ -11,7 +11,18 @@ import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Checkbox, Dropdown, Menu, Spin, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, Inbox, MessageOne, MoreOne, Pushpin, Refresh, Undo } from '@icon-park/react';
+import {
+  DeleteOne,
+  EditOne,
+  Export,
+  FolderOpen,
+  Inbox,
+  MessageOne,
+  MoreOne,
+  Pushpin,
+  Refresh,
+  Undo,
+} from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -47,6 +58,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     onArchive,
     onRestore,
     onReset,
+    onMoveToProject,
     archivedView = false,
     getJobStatus,
   } = props;
@@ -228,6 +240,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       onExport?.(conversation);
                       return;
                     }
+                    if (key === 'move-to-project') {
+                      onMoveToProject?.(conversation);
+                      return;
+                    }
                     if (key === 'delete') {
                       onDelete(conversation.id);
                       return;
@@ -259,6 +275,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       <span>{t('conversation.history.rename')}</span>
                     </div>
                   </Menu.Item>
+                  {onMoveToProject && (
+                    <Menu.Item key='move-to-project'>
+                      <div className='flex items-center gap-8px'>
+                        <FolderOpen theme='outline' size='14' />
+                        <span>{t('conversation.history.moveToProject')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
                   {onExport && (
                     <Menu.Item key='export'>
                       <div className='flex items-center gap-8px'>

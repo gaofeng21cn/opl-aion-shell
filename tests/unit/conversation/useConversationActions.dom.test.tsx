@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
   modalConfirm: vi.fn(),
   messageError: vi.fn(),
+  messageSuccess: vi.fn(),
+  threadRead: vi.fn(),
+  threadUpdateSettings: vi.fn(),
   threadRename: vi.fn(),
   threadArchive: vi.fn(),
   threadUnarchive: vi.fn(),
@@ -30,6 +33,8 @@ vi.mock('@/common', () => ({
       reset: { invoke: mocks.reset },
     },
     codexThreads: {
+      read: { invoke: mocks.threadRead },
+      updateSettings: { invoke: mocks.threadUpdateSettings },
       rename: { invoke: mocks.threadRename },
       archive: { invoke: mocks.threadArchive },
       unarchive: { invoke: mocks.threadUnarchive },
@@ -47,7 +52,7 @@ vi.mock('@/renderer/utils/emitter', () => ({
 }));
 
 vi.mock('@arco-design/web-react', () => ({
-  Message: { success: vi.fn(), error: mocks.messageError, warning: vi.fn() },
+  Message: { success: mocks.messageSuccess, error: mocks.messageError, warning: vi.fn() },
   Modal: { confirm: mocks.modalConfirm },
 }));
 
@@ -92,6 +97,9 @@ describe('conversation archive actions', () => {
     mocks.emit.mockClear();
     mocks.modalConfirm.mockClear();
     mocks.messageError.mockClear();
+    mocks.messageSuccess.mockClear();
+    mocks.threadRead.mockReset();
+    mocks.threadUpdateSettings.mockReset();
     mocks.threadRename.mockReset();
     mocks.threadArchive.mockReset();
     mocks.threadUnarchive.mockReset();
@@ -233,6 +241,183 @@ describe('conversation archive actions', () => {
     const confirmation = mocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
     await act(() => confirmation.onOk());
     expect(mocks.threadDelete).toHaveBeenCalledWith({ threadId: 'thread-1' });
+  });
+
+  it('adopts an explicitly projectless canonical conversation without a cached workspace', async () => {
+    const projectless = {
+      id: 'conv-projectless',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-projectless',
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(true);
+    mocks.get.mockResolvedValue({
+      ...projectless,
+      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    act(() => result.current.handleMoveToProject(projectless));
+    await act(() => result.current.handleProjectAdoptionConfirm(['/workspace/project']));
+
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-projectless',
+      cwd: '/workspace/project',
+    });
+    expect(mocks.update).toHaveBeenCalledWith({
+      id: 'conv-projectless',
+      updates: { extra: { workspace: '/workspace/project', custom_workspace: true } },
+      merge_extra: true,
+    });
+    expect(mocks.get).toHaveBeenCalledWith({ id: 'conv-projectless' });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.history.moveToProjectSuccess');
+    expect(result.current.projectAdoptionConversation).toBeNull();
+  });
+
+  it('updates the App Server cwd before committing the local affinity projection', async () => {
+    const projectless = {
+      id: 'conv-order',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: { backend: 'codex', canonical_thread_id: 'thread-order', custom_workspace: false },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(true);
+    mocks.get.mockResolvedValue({
+      ...projectless,
+      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    await act(() => result.current.handleProjectAdoption(projectless, '/workspace/project'));
+
+    expect(mocks.threadUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.update.mock.invocationCallOrder[0]
+    );
+    expect(mocks.threadRead).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the conversation projectless when canonical cwd readback does not match', async () => {
+    const projectless = {
+      id: 'conv-mismatch',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: { backend: 'codex', canonical_thread_id: 'thread-mismatch', custom_workspace: false },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/other' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(false);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.createWithConversation).not.toHaveBeenCalled();
+    expect(mocks.messageError).toHaveBeenCalledWith('conversation.history.moveToProjectFailed');
+  });
+
+  it('blocks reassignment after a canonical cwd is recorded', async () => {
+    const staleProjectless = {
+      id: 'conv-stale',
+      name: 'Stale projectless projection',
+      type: 'acp',
+      created_at: 1,
+      extra: { backend: 'codex', canonical_thread_id: 'thread-bound', custom_workspace: false },
+    } as TChatConversation;
+    mocks.threadRead.mockResolvedValueOnce({ thread: { workspace: '/workspace/project-a' } });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [staleProjectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(staleProjectless, '/workspace/project-b')).toBe(false);
+    expect(mocks.threadUpdateSettings).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('does not change turn pwd or sandbox writable roots during adoption', async () => {
+    const projectless = {
+      id: 'conv-boundary',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: { backend: 'codex', canonical_thread_id: 'thread-boundary', custom_workspace: false },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(true);
+    mocks.get.mockResolvedValue({
+      ...projectless,
+      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    await result.current.handleProjectAdoption(projectless, '/workspace/project');
+
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-boundary',
+      cwd: '/workspace/project',
+    });
+    expect(JSON.stringify(mocks.threadUpdateSettings.mock.calls)).not.toMatch(/pwd|writable|sandbox/i);
   });
 
   it('routes the open canonical task title rename through thread/name/set', async () => {
