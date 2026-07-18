@@ -60,8 +60,28 @@ export type ResearchWorkspaceLifecycleViewModel = {
   forbiddenGenericCleanupBoundary: ResearchWorkspaceLifecycleRef;
 };
 
+export type OwnerStorageSectionId = 'agent_package_store' | 'webui_data_volume';
+
+export type OwnerStorageProjectedAction = {
+  kind: 'navigate' | 'host_action_required';
+  actionId: null;
+  executionOwner: 'carrier_host' | null;
+};
+
+export type OwnerStorageInventoryViewModel = {
+  id: OwnerStorageSectionId;
+  status: string;
+  observedAt: string | null;
+  stale: boolean;
+  bytes: number | null;
+  reclaimableBytes: number | null;
+  ownerRoute: '/settings/agents' | '/settings/storage#webui-data';
+  projectedAction: OwnerStorageProjectedAction;
+};
+
 export type StorageSettingsViewModel = {
   sections: StorageInventorySectionViewModel[];
+  ownerSections: OwnerStorageInventoryViewModel[];
   runtimePlan: StoragePlanViewModel;
   logsPlan: StoragePlanViewModel;
   updaterPlan: StoragePlanViewModel;
@@ -77,6 +97,78 @@ export const STORAGE_SECTION_ORDER: LocalDataLifecycleSectionId[] = [
   'runtime_substrate',
   'logs',
 ];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const nullableStorageBytes = (value: unknown): number | null | undefined => {
+  if (value === null) return null;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+};
+
+const nullableObservedAt = (value: unknown): string | null | undefined => {
+  if (value === null) return null;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+};
+
+function ownerStorageProjection(id: OwnerStorageSectionId, value: unknown): OwnerStorageInventoryViewModel | null {
+  if (!isRecord(value) || !isRecord(value.projected_action)) return null;
+  const expectedOwnerRoute = id === 'agent_package_store' ? '/settings/agents' : '/settings/storage#webui-data';
+  const expectedActionKind = id === 'agent_package_store' ? 'navigate' : 'host_action_required';
+  const expectedExecutionOwner = id === 'webui_data_volume' ? 'carrier_host' : null;
+  const status = typeof value.status === 'string' && value.status.trim() ? value.status.trim() : null;
+  const observedAt = nullableObservedAt(value.observed_at);
+  const bytes = nullableStorageBytes(value.bytes);
+  const reclaimableBytes = nullableStorageBytes(value.reclaimable_bytes);
+  const action = value.projected_action;
+
+  if (
+    !status ||
+    observedAt === undefined ||
+    bytes === undefined ||
+    reclaimableBytes === undefined ||
+    typeof value.stale !== 'boolean' ||
+    value.owner_route !== expectedOwnerRoute ||
+    action.kind !== expectedActionKind ||
+    action.action_id !== null ||
+    (id === 'webui_data_volume' && action.execution_owner !== expectedExecutionOwner)
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    status,
+    observedAt,
+    stale: value.stale,
+    bytes,
+    reclaimableBytes,
+    ownerRoute: expectedOwnerRoute,
+    projectedAction: {
+      kind: expectedActionKind,
+      actionId: null,
+      executionOwner: expectedExecutionOwner,
+    },
+  };
+}
+
+export function ownerStorageInventoryViewModels(appState: unknown): OwnerStorageInventoryViewModel[] {
+  if (!isRecord(appState)) return [];
+  const agentPackages = isRecord(appState.agent_packages) ? appState.agent_packages : {};
+  const settingsControlCenter = isRecord(appState.settings_control_center) ? appState.settings_control_center : {};
+  const appSettingsReadModel = isRecord(settingsControlCenter.app_settings_read_model)
+    ? settingsControlCenter.app_settings_read_model
+    : {};
+  const storageLifecycle = isRecord(appSettingsReadModel.storage_lifecycle)
+    ? appSettingsReadModel.storage_lifecycle
+    : {};
+  const topLevelAgentPackageStore = ownerStorageProjection('agent_package_store', agentPackages.storage_inventory);
+  const fallbackAgentPackageStore = ownerStorageProjection('agent_package_store', storageLifecycle.agent_package_store);
+  const webuiDataVolume = ownerStorageProjection('webui_data_volume', storageLifecycle.webui_data_volume);
+  return [topLevelAgentPackageStore ?? fallbackAgentPackageStore, webuiDataVolume].filter(
+    (section): section is OwnerStorageInventoryViewModel => section !== null
+  );
+}
 
 function sectionById(
   inventory: LocalDataLifecycleInventory | null,
@@ -180,6 +272,7 @@ function storagePlanViewModel(kind: StoragePlanKind, plan: StoragePlan | null): 
 }
 
 export function buildStorageSettingsViewModel(input: {
+  appState?: unknown;
   inventory: LocalDataLifecycleInventory | null;
   conversationProofReceipt: LocalDataLifecycleReceipt | null;
   lastReceipt: LocalDataLifecycleReceipt | null;
@@ -200,6 +293,7 @@ export function buildStorageSettingsViewModel(input: {
         silentDeleteAllowed: section?.silent_delete_allowed ?? false,
       };
     }),
+    ownerSections: ownerStorageInventoryViewModels(input.appState),
     runtimePlan: storagePlanViewModel('runtime', input.runtimePlan),
     logsPlan: storagePlanViewModel('logs', input.logsPlan),
     updaterPlan: storagePlanViewModel('updater', input.updaterPlan),

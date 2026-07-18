@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StorageSettingsContent } from '@/renderer/pages/settings/StorageSettings';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -22,6 +22,10 @@ const bridgeMocks = vi.hoisted(() => ({
   executeLogRotation: vi.fn(),
   planUpdaterCacheCleanup: vi.fn(),
   executeUpdaterCacheCleanup: vi.fn(),
+  executeAction: vi.fn(),
+  loadAppState: vi.fn(),
+  navigate: vi.fn(),
+  appState: {} as Record<string, unknown>,
 }));
 
 const deferred = <Value,>() => {
@@ -60,8 +64,28 @@ vi.mock('@/common', () => ({
     shell: {
       openFolderWith: { invoke: bridgeMocks.openFolder },
     },
+    oplRuntime: {
+      executeAction: { invoke: bridgeMocks.executeAction },
+    },
   },
 }));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  useOplAppState: () => ({
+    appState: bridgeMocks.appState,
+    payload: null,
+    loadedAt: null,
+    loading: false,
+    refreshing: false,
+    error: null,
+    load: bridgeMocks.loadAppState,
+  }),
+}));
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => bridgeMocks.navigate };
+});
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@arco-design/web-react')>();
@@ -326,6 +350,147 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeLogRotation.mockResolvedValue(receipt);
     bridgeMocks.planUpdaterCacheCleanup.mockResolvedValue(updaterPlan);
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
+    bridgeMocks.executeAction.mockResolvedValue({ ok: true, parsed: {} });
+    bridgeMocks.loadAppState.mockResolvedValue({ app_state: {} });
+    bridgeMocks.appState = {};
+  });
+
+  it('merges valid owner projections without inventing unknown bytes or a WebUI cleanup action', async () => {
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 2048,
+          reclaimable_bytes: 1024,
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            agent_package_store: {
+              status: 'available',
+              observed_at: '2026-07-18T08:00:00.000Z',
+              stale: false,
+              bytes: 1024,
+              reclaimable_bytes: 512,
+              owner_route: '/settings/agents',
+              projected_action: { kind: 'navigate', action_id: null },
+            },
+            webui_data_volume: {
+              status: 'unavailable',
+              observed_at: null,
+              stale: true,
+              bytes: null,
+              reclaimable_bytes: null,
+              owner_route: '/settings/storage#webui-data',
+              projected_action: {
+                kind: 'host_action_required',
+                action_id: null,
+                execution_owner: 'carrier_host',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    const agentStore = screen.getByTestId('storage-owner-agent_package_store');
+    const webuiData = screen.getByTestId('storage-owner-webui_data_volume');
+    expect(agentStore).toHaveTextContent('2.0 KB');
+    expect(agentStore).not.toHaveTextContent('1 KB');
+    expect(webuiData).toHaveTextContent('Size unavailable');
+    expect(webuiData).not.toHaveTextContent('0 B');
+    expect(webuiData).toHaveTextContent('settings.resourcesPage.resourceSources.management.selfManaged');
+    expect(within(webuiData).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+
+    fireEvent.click(within(agentStore).getByRole('button', { name: 'settings.agentsPage.title' }));
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/agents');
+  });
+
+  it('refreshes both owner inventories independently and keeps local storage available when one owner fails', async () => {
+    bridgeMocks.executeAction
+      .mockRejectedValueOnce(new Error('package inventory unavailable'))
+      .mockResolvedValueOnce({ ok: true, parsed: {} });
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('storage-refresh'));
+
+    await waitFor(() => expect(bridgeMocks.executeAction).toHaveBeenCalledTimes(2));
+    expect(bridgeMocks.executeAction).toHaveBeenNthCalledWith(1, {
+      actionId: 'settings_inventory_agent_package_store',
+      dryRun: false,
+    });
+    expect(bridgeMocks.executeAction).toHaveBeenNthCalledWith(2, {
+      actionId: 'settings_inventory_docker_webui_storage',
+      dryRun: false,
+    });
+    expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
+      forceFresh: true,
+      showRefreshing: false,
+    });
+    expect(screen.queryByTestId('settings-storage-exception')).not.toBeInTheDocument();
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('10 B');
+  });
+
+  it('falls back to the nested Agent projection and omits an unauthorized WebUI action', async () => {
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 4096,
+          reclaimable_bytes: 1024,
+          owner_route: '/unsafe',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            agent_package_store: {
+              status: 'available',
+              observed_at: '2026-07-18T08:00:00.000Z',
+              stale: false,
+              bytes: 512,
+              reclaimable_bytes: null,
+              owner_route: '/settings/agents',
+              projected_action: { kind: 'navigate', action_id: null },
+            },
+            webui_data_volume: {
+              status: 'available',
+              observed_at: '2026-07-18T08:00:00.000Z',
+              stale: false,
+              bytes: 1024,
+              reclaimable_bytes: 1024,
+              owner_route: '/settings/storage#webui-data',
+              projected_action: {
+                kind: 'host_action_required',
+                action_id: 'docker_system_prune',
+                execution_owner: 'carrier_host',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('storage-owner-agent_package_store')).toHaveTextContent('512 B');
+    expect(screen.queryByTestId('storage-owner-webui_data_volume')).not.toBeInTheDocument();
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('10 B');
   });
 
   it('renders one flat storage category list and keeps technical storage paths in details', async () => {

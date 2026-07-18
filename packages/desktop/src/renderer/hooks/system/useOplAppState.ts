@@ -275,6 +275,17 @@ const LOCAL_ENVIRONMENT_CACHE_FIELDS = [
   'temporal_provider',
 ] as const;
 
+const OWNER_STORAGE_CACHE_FIELDS = [
+  'status',
+  'observed_at',
+  'stale',
+  'bytes',
+  'reclaimable_bytes',
+  'owner_route',
+] as const;
+
+const OWNER_STORAGE_ACTION_CACHE_FIELDS = ['kind', 'action_id', 'execution_owner'] as const;
+
 function pickCacheFields(value: unknown, fields: readonly string[]): OplAppStateRecord | null {
   if (value === null) return null;
   if (!isOplRecord(value)) return null;
@@ -363,6 +374,26 @@ function sanitizeWorkspaceServicesForCache(value: unknown): OplAppStateRecord | 
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
+function sanitizeOwnerStorageProjectionForCache(value: unknown): OplAppStateRecord | null {
+  const projection = pickScalarCacheFields(value, OWNER_STORAGE_CACHE_FIELDS);
+  if (!projection || !oplString(projection.status) || !oplString(projection.owner_route)) return null;
+  const projectedAction = pickScalarCacheFields(oplRecord(value).projected_action, OWNER_STORAGE_ACTION_CACHE_FIELDS);
+  if (!projectedAction || !oplString(projectedAction.kind) || !('action_id' in projectedAction)) return null;
+  projection.projected_action = projectedAction;
+  return projection;
+}
+
+function sanitizeStorageLifecycleForCache(value: unknown): OplAppStateRecord | null {
+  const storageLifecycle = oplRecord(value);
+  const agentPackageStore = sanitizeOwnerStorageProjectionForCache(storageLifecycle.agent_package_store);
+  const webuiDataVolume = sanitizeOwnerStorageProjectionForCache(storageLifecycle.webui_data_volume);
+  const entries = [
+    ['agent_package_store', agentPackageStore],
+    ['webui_data_volume', webuiDataVolume],
+  ].filter((entry): entry is [string, OplAppStateRecord] => Boolean(entry[1]));
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
 function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecord {
   const sanitized: OplAppStateRecord = {};
   const topLevel = pickScalarCacheFields(appState, ['schema_version', 'surface_kind', 'update_channel']);
@@ -383,6 +414,11 @@ function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecor
   const release = pickScalarCacheFields(appState.release, RELEASE_CACHE_FIELDS);
   if (release) sanitized.release = release;
 
+  const agentPackageStorage = sanitizeOwnerStorageProjectionForCache(
+    oplRecord(appState.agent_packages).storage_inventory
+  );
+  if (agentPackageStorage) sanitized.agent_packages = { storage_inventory: agentPackageStorage };
+
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   const gatewayAccount = sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account);
@@ -395,6 +431,7 @@ function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecor
     appSettingsReadModel.local_environment,
     LOCAL_ENVIRONMENT_CACHE_FIELDS
   );
+  const storageLifecycle = sanitizeStorageLifecycleForCache(appSettingsReadModel.storage_lifecycle);
   const statusSummary = pickScalarCacheFields(settingsControlCenter.status_summary, STATUS_SUMMARY_CACHE_FIELDS);
   const issueQueue = oplRecordList(settingsControlCenter.issue_queue)
     .slice(0, 50)
@@ -404,6 +441,7 @@ function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecor
     codex_model_policy: codexModelPolicy,
     workspace_services: workspaceServices,
     local_environment: localEnvironment,
+    storage_lifecycle: storageLifecycle,
   };
   const sanitizedReadModel = Object.fromEntries(
     Object.entries(readModelCandidates).filter((entry): entry is [string, OplAppStateRecord] => Boolean(entry[1]))

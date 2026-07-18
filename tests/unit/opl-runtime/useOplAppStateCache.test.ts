@@ -31,7 +31,20 @@ describe('OPL App state cache privacy boundary', () => {
           repo: 'gaofeng21cn/one-person-lab-app',
           stable_release_api: 'https://private.example/api',
         },
-        agent_packages: { private_manifest: 'private' },
+        agent_packages: {
+          storage_inventory: {
+            status: 'available',
+            observed_at: '2026-07-13T12:00:00.000Z',
+            stale: false,
+            bytes: 2048,
+            reclaimable_bytes: 1024,
+            owner_route: '/settings/agents',
+            projected_action: { kind: 'navigate', action_id: null, private_detail: 'private' },
+            packages: [{ package_id: 'private.package' }],
+            raw_path: '/private/package-store',
+          },
+          private_manifest: 'private',
+        },
         settings_control_center: {
           app_settings_read_model: {
             opl_gateway_account: {
@@ -120,6 +133,35 @@ describe('OPL App state cache privacy boundary', () => {
               private_key: 'private',
             },
             docker_webui: { status: 'ready' },
+            storage_lifecycle: {
+              snapshot_updated_at: '2026-07-13T12:00:00.000Z',
+              agent_package_store: {
+                status: 'available',
+                observed_at: '2026-07-13T12:00:00.000Z',
+                stale: false,
+                bytes: 2048,
+                reclaimable_bytes: 1024,
+                owner_route: '/settings/agents',
+                projected_action: { kind: 'navigate', action_id: null },
+                packages: [{ package_id: 'private.package' }],
+              },
+              webui_data_volume: {
+                status: 'unavailable',
+                observed_at: null,
+                stale: true,
+                bytes: null,
+                reclaimable_bytes: null,
+                owner_route: '/settings/storage#webui-data',
+                projected_action: {
+                  kind: 'host_action_required',
+                  action_id: null,
+                  execution_owner: 'carrier_host',
+                  command: 'docker system prune',
+                },
+                raw_path: '/private/webui-data',
+                diagnostic_body: 'private',
+              },
+            },
           },
           status_summary: {
             model_access: 'ready',
@@ -153,6 +195,9 @@ describe('OPL App state cache privacy boundary', () => {
     const managedKey = gatewayAccount.managed_key as Record<string, unknown>;
     const group = (gatewayAccount.available_groups as Array<Record<string, unknown>>)[0];
     const actions = gatewayAccount.actions as Record<string, unknown>;
+    const agentPackages = appState.agent_packages as Record<string, unknown>;
+    const agentPackageStorage = agentPackages.storage_inventory as Record<string, unknown>;
+    const storageLifecycle = readModel.storage_lifecycle as Record<string, Record<string, unknown>>;
 
     expect(gatewayAccount.surface_kind).toBe('opl_gateway_account_read_model.v1');
     expect(account.email).toBe('feng@example.com');
@@ -164,6 +209,31 @@ describe('OPL App state cache privacy boundary', () => {
     expect(gatewayAccount.password).toBeUndefined();
     expect(account.access_token).toBeUndefined();
     expect(readModel.docker_webui).toBeUndefined();
+    expect(agentPackageStorage).toEqual({
+      status: 'available',
+      observed_at: '2026-07-13T12:00:00.000Z',
+      stale: false,
+      bytes: 2048,
+      reclaimable_bytes: 1024,
+      owner_route: '/settings/agents',
+      projected_action: { kind: 'navigate', action_id: null },
+    });
+    expect(storageLifecycle.webui_data_volume).toEqual({
+      status: 'unavailable',
+      observed_at: null,
+      stale: true,
+      bytes: null,
+      reclaimable_bytes: null,
+      owner_route: '/settings/storage#webui-data',
+      projected_action: {
+        kind: 'host_action_required',
+        action_id: null,
+        execution_owner: 'carrier_host',
+      },
+    });
+    expect(JSON.stringify(sanitized)).not.toMatch(
+      /private\.package|private\/package-store|private\/webui-data|docker system prune/
+    );
     expect(readModel.codex_model_policy).toEqual({
       source_ref: 'app_state.core.codex',
       model: 'gpt-5.6-sol',
@@ -217,7 +287,7 @@ describe('OPL App state cache privacy boundary', () => {
       channel: 'stable',
       repo: 'gaofeng21cn/one-person-lab-app',
     });
-    expect(appState.agent_packages).toBeUndefined();
+    expect(agentPackages.private_manifest).toBeUndefined();
   });
 
   it('keeps the persistent projection below the 256 KiB budget when live state is large', () => {

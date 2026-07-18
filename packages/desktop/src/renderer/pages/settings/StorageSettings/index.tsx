@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Modal, Space, Tag, Typography } from '@arco-design/web-react';
-import { Delete, FolderSearch, Info, Repair, Undo, UpdateRotation } from '@icon-park/react';
+import { Delete, FolderSearch, Info, Repair, Right, Undo, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -19,6 +19,8 @@ import type {
 } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { useNavigate } from 'react-router-dom';
 import {
   buildStorageSettingsViewModel,
   formatStorageBytes,
@@ -26,6 +28,7 @@ import {
   type StoragePlan,
   type StoragePlanKind,
   type ResearchWorkspaceLifecycleRef,
+  type OwnerStorageInventoryViewModel,
 } from '../storageProjection';
 
 type AsyncAction =
@@ -170,8 +173,74 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
   );
 };
 
+const ownerStorageStatusLabelKey = (status: string): string => {
+  if (status === 'available') return 'settings.resourcesPage.statusLabels.available';
+  if (status === 'attention_required') return 'settings.resourcesPage.statusLabels.attention_required';
+  if (status === 'not_configured') return 'settings.resourcesPage.statusLabels.not_configured';
+  if (status === 'unavailable') return 'settings.unavailable';
+  return 'settings.accessPage.statusLabels.unknown';
+};
+
+const ownerStorageStatusColor = (status: string): string => {
+  if (status === 'available') return 'green';
+  if (status === 'attention_required') return 'orange';
+  return 'gray';
+};
+
+type OwnerStorageInventoryRowProps = {
+  item: OwnerStorageInventoryViewModel;
+  onOpenAgents: () => void;
+};
+
+const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({ item, onOpenAgents }) => {
+  const { t } = useTranslation();
+  const isAgentPackageStore = item.id === 'agent_package_store';
+  return (
+    <div
+      className='opl-settings-row'
+      id={isAgentPackageStore ? 'agent-package-store' : 'webui-data'}
+      data-testid={`storage-owner-${item.id}`}
+    >
+      <div className='opl-settings-row__main'>
+        <Typography.Text className='font-600 text-t-primary'>
+          {t(isAgentPackageStore ? 'settings.agentsPage.title' : 'settings.accessPage.remote.docker')}
+        </Typography.Text>
+        <Typography.Text className='text-12px text-t-secondary break-words'>
+          {t(isAgentPackageStore ? 'settings.agentsPage.description' : 'settings.workspacePage.logs.webuiDescription')}
+        </Typography.Text>
+        <div className='flex flex-wrap items-center gap-6px text-12px text-t-secondary'>
+          <Tag size='small' color={ownerStorageStatusColor(item.status)}>
+            {t(ownerStorageStatusLabelKey(item.status))}
+          </Tag>
+          {item.stale && <Tag size='small'>{t('settings.storagePage.inventory.stale')}</Tag>}
+          {!isAgentPackageStore && item.projectedAction.kind === 'host_action_required' && (
+            <span>{t('settings.resourcesPage.resourceSources.management.selfManaged')}</span>
+          )}
+        </div>
+      </div>
+      <div className='opl-settings-row__meta'>
+        <Typography.Text className='text-13px font-600 text-t-primary whitespace-nowrap'>
+          {item.bytes === null ? t('settings.storagePage.inventory.unknownSize') : formatStorageBytes(item.bytes)}
+        </Typography.Text>
+        {isAgentPackageStore && (
+          <Button
+            htmlType='button'
+            icon={<Right {...STORAGE_ACTION_ICON_PROPS} />}
+            onClick={onOpenAgents}
+            data-testid='storage-owner-agent-package-store-open'
+          >
+            {t('settings.agentsPage.title')}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const appStateQuery = useOplAppState('fast');
   const [inventory, setInventory] = React.useState<LocalDataLifecycleInventory | null>(null);
   const [inventorySnapshot, setInventorySnapshot] = React.useState<LocalDataLifecycleInventorySnapshot | null>(null);
   const [lastReceipt, setLastReceipt] = React.useState<LocalDataLifecycleReceipt | null>(null);
@@ -190,6 +259,7 @@ export const StorageSettingsContent: React.FC = () => {
   const viewModel = React.useMemo(
     () =>
       buildStorageSettingsViewModel({
+        appState: appStateQuery.appState,
         inventory,
         conversationProofReceipt,
         lastReceipt,
@@ -197,9 +267,12 @@ export const StorageSettingsContent: React.FC = () => {
         logsPlan,
         updaterPlan,
       }),
-    [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
+    [appStateQuery.appState, conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
-  const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
+  const totalBytes =
+    viewModel.sections.reduce((sum, section) => sum + section.bytes, 0) +
+    viewModel.ownerSections.reduce((sum, section) => sum + (section.bytes ?? 0), 0);
+  const totalBytesKnown = Boolean(inventory) && viewModel.ownerSections.every((section) => section.bytes !== null);
   const cleanupCandidatesAvailable =
     Boolean(inventory) &&
     viewModel.sections.some((section) => section.id !== 'user_data_artifacts' && section.bytes > 0);
@@ -260,10 +333,24 @@ export const StorageSettingsContent: React.FC = () => {
   const loadInventory = React.useCallback(() => {
     void runAction(
       'inventory',
-      () => refreshInventory(),
+      async () => {
+        const [localInventoryResult] = await Promise.allSettled([
+          refreshInventory(),
+          ipcBridge.oplRuntime.executeAction.invoke({
+            actionId: 'settings_inventory_agent_package_store',
+            dryRun: false,
+          }),
+          ipcBridge.oplRuntime.executeAction.invoke({
+            actionId: 'settings_inventory_docker_webui_storage',
+            dryRun: false,
+          }),
+        ]);
+        await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
+        if (localInventoryResult.status === 'rejected') throw localInventoryResult.reason;
+      },
       () => {}
     );
-  }, [refreshInventory, runAction]);
+  }, [appStateQuery, refreshInventory, runAction]);
 
   React.useEffect(() => {
     let active = true;
@@ -696,7 +783,7 @@ export const StorageSettingsContent: React.FC = () => {
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
           <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
             {t('settings.storagePage.overview.total')}:{' '}
-            {inventory ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
+            {totalBytesKnown ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
           </Typography.Text>
           <Typography.Text className='mt-2px block text-12px text-t-tertiary' data-testid='storage-inventory-freshness'>
             {inventorySnapshot?.observed_at
@@ -790,6 +877,9 @@ export const StorageSettingsContent: React.FC = () => {
         <div className='opl-settings-list' data-testid='storage-category-list'>
           {viewModel.sections.map((item) => (
             <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+          ))}
+          {viewModel.ownerSections.map((item) => (
+            <OwnerStorageInventoryRow key={item.id} item={item} onOpenAgents={() => navigate('/settings/agents')} />
           ))}
         </div>
       </div>
