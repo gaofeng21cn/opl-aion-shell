@@ -1125,15 +1125,21 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
-  it('checks Standard Home assistants as visible blocked launch gates without creating route receipts', () => {
+  it('checks Standard Home assistants as selectable send-time launch gates without creating route receipts', () => {
     const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
-    const expression = __test.homeAssistantBlockedReadinessExpression(masTarget);
+    const expression = __test.homeAssistantStandardLaunchGateExpression(masTarget);
 
     expect(expression).toContain('home-starter-mas');
     expect(expression).toContain('home-starter-research');
     expect(expression).toContain("getAttribute('disabled')");
+    expect(expression).toContain("reason: 'starter_disabled_before_selection'");
+    expect(expression).toContain("getAttribute('data-opl-launch-ready') !== 'false'");
+    expect(expression).toContain("getAttribute('aria-pressed') !== 'true'");
+    expect(expression).toContain('sendButton.click()');
+    expect(expression).toContain("querySelectorAll('.arco-message')");
     expect(expression).toContain("getAttribute('title')");
-    expect(expression).toContain("includes('repair')");
+    expect(expression).toContain('selectable_before_selection: true');
+    expect(expression).toContain('send_blocked: true');
     expect(expression).toContain('launch_allowed: false');
     expect(expression).not.toContain('/api/conversations');
   });
@@ -1192,7 +1198,12 @@ describe('packaged first-run VM smoke helpers', () => {
     const assistantRouteSmoke = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => ({
       id: target.id,
       verification_mode: 'launch_gate',
-      launch_gate: { disabled: true, launch_allowed: false },
+      launch_gate: {
+        selectable_before_selection: true,
+        launch_allowed: false,
+        send_blocked: true,
+        repair_hint_visible: true,
+      },
     }));
     const receipt = __test.buildCodexFunctionalCheckReceipt({
       runtimeProfile: 'standard',
@@ -1768,8 +1779,9 @@ describe('packaged first-run VM smoke helpers', () => {
         purpose_entries: ['home-starter-mas', 'home-starter-mag', 'home-starter-rca'],
         standard_launch_gate: {
           visible: true,
-          disabled: true,
+          selectable_before_selection: true,
           launch_allowed: false,
+          send_blocked: true,
           readiness_hint: 'repair',
         },
         decision_controls_visible: null,

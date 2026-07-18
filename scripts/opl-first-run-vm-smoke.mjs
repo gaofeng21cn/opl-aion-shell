@@ -1484,8 +1484,10 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
     input.assistantRouteSmoke.every(
       (assistant) =>
         assistant?.verification_mode === 'launch_gate' &&
-        assistant?.launch_gate?.disabled === true &&
-        assistant?.launch_gate?.launch_allowed === false
+        assistant?.launch_gate?.selectable_before_selection === true &&
+        assistant?.launch_gate?.launch_allowed === false &&
+        assistant?.launch_gate?.send_blocked === true &&
+        assistant?.launch_gate?.repair_hint_visible === true
     );
   const assistantRoutesPassed = runtimeProfile === 'full' && assistantTargetsPresent;
   const deterministicFieldsPassed = runtimeProfile === 'standard' ? standardLaunchGatesPassed : assistantRoutesPassed;
@@ -3526,7 +3528,7 @@ function visibleHomeAssistantControlSelector(target) {
     .join(', ');
 }
 
-function homeAssistantBlockedReadinessExpression(target) {
+function homeAssistantStandardLaunchGateExpression(target) {
   return `(() => {
     const visible = (node) => {
       if (!node) return false;
@@ -3535,22 +3537,69 @@ function homeAssistantBlockedReadinessExpression(target) {
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
-    if (!card) return false;
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"] input');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
+    if (!card || !visible(input) || !visible(sendButton) || !composer) return false;
     const control = card.closest('button') || card;
     const disabled = control.disabled === true
       || control.getAttribute('disabled') !== null
       || control.getAttribute('aria-disabled') === 'true'
       || String(control.className || '').includes('disabled');
     const readinessHint = control.getAttribute('title') || control.getAttribute('aria-description') || '';
-    if (!disabled || !readinessHint.trim() || !readinessHint.toLowerCase().includes('repair')) return false;
+    if (disabled) {
+      return {
+        status: 'failed',
+        reason: 'starter_disabled_before_selection',
+        assistant_id: ${cdpString(target.id)},
+      };
+    }
+    if (!readinessHint.trim() || card.getAttribute('data-opl-launch-ready') !== 'false') return false;
+    if (
+      card.getAttribute('aria-pressed') !== 'true' ||
+      composer.getAttribute('data-opl-active-shortcut') !== ${cdpString(target.shortcutId)}
+    ) {
+      control.click();
+      return false;
+    }
+    const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
+    const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
+    if (!attempt.input_filled) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (!nativeSetter) {
+        return { status: 'failed', reason: 'input_setter_missing', assistant_id: ${cdpString(target.id)} };
+      }
+      nativeSetter.call(input, ${cdpString(`Verify ${target.shortName} launch gate.`)});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      attempt.input_filled = true;
+      return false;
+    }
+    const visibleMessages = () => [...document.querySelectorAll('.arco-message')].filter(visible);
+    if (!attempt.send_clicked) {
+      if (visibleMessages().length > 0 || sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
+        return false;
+      }
+      sendButton.click();
+      attempt.send_clicked = true;
+      return false;
+    }
+    const message = visibleMessages()[0];
+    if (!message || !window.location.hash.startsWith('#/guid')) return false;
     return {
+      status: 'passed',
       assistant_id: ${cdpString(target.id)},
       control_testid: card.getAttribute('data-testid'),
       visible: true,
-      disabled: true,
+      selectable_before_selection: true,
+      selected: true,
       launch_allowed: false,
+      send_blocked: true,
       readiness_hint: readinessHint,
       repair_hint_visible: true,
+      message_visible: true,
+      route_hash: window.location.hash,
     };
   })()`;
 }
@@ -4886,8 +4935,9 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
         verificationMode === 'launch_gate'
           ? {
               visible: true,
-              disabled: true,
+              selectable_before_selection: true,
               launch_allowed: false,
+              send_blocked: true,
               readiness_hint: 'repair',
             }
           : null,
@@ -5018,10 +5068,15 @@ async function runAssistantRouteSmoke(options, secret) {
         if (options.runtimeProfile !== 'full') {
           const launchGate = await waitForCdpPredicate(
             client,
-            homeAssistantBlockedReadinessExpression(assistantTarget),
+            homeAssistantStandardLaunchGateExpression(assistantTarget),
             30_000,
-            `Standard Home assistant did not expose a blocked readiness gate: ${assistantTarget.id}`
+            `Standard Home assistant did not expose a selectable send-time launch gate: ${assistantTarget.id}`
           );
+          if (launchGate?.status === 'failed') {
+            const error = new Error(`Standard Home assistant launch gate failed: ${JSON.stringify(launchGate)}`);
+            error.lastState = launchGate;
+            throw error;
+          }
           await captureCdpScreenshot(
             client,
             path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
@@ -6506,7 +6561,7 @@ export const __test =
         isGuideScreenshotEntryReady,
         guideScreenshotSources,
         visibleHomeAssistantControlSelector,
-        homeAssistantBlockedReadinessExpression,
+        homeAssistantStandardLaunchGateExpression,
         homeAssistantWorkspacePreparationExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
