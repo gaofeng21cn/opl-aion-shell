@@ -397,14 +397,21 @@
   background: var(--color-fill-2);
 }
 
+.stagePopoverPopup {
+  min-width: 0;
+}
+
 .stagePopover {
+  box-sizing: border-box;
   display: flex;
-  width: min(360px, calc(100vw - 64px));
+  width: 100%;
+  max-width: 100%;
   max-height: min(520px, calc(100vh - 48px));
   min-width: 0;
   flex-direction: column;
   gap: 12px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 2px;
 }
 
@@ -414,7 +421,7 @@
   font-weight: 600;
 }
 
-.stageAttempt {
+.stageRunStatus {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -424,17 +431,18 @@
   background: var(--color-fill-1);
 }
 
-.stageAttemptLabel,
-.stageAttemptMissing {
+.stageRunStatusLabel {
   color: var(--color-text-3);
   font-size: 12px;
 }
 
-.stageAttemptId {
+.stageRunStatusValue {
   max-width: 100%;
   overflow-wrap: break-word;
   color: var(--color-text-1);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  word-break: normal;
 }
 
 .stagePopoverList {
@@ -450,8 +458,8 @@
 .stagePopoverItem {
   position: relative;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: start;
   gap: 8px;
   min-width: 0;
   padding: 8px 0;
@@ -465,6 +473,7 @@
 .stagePopoverMarker {
   width: 10px;
   height: 10px;
+  margin-top: 5px;
   border: 2px solid var(--color-border-3);
   border-radius: 50%;
   background: var(--color-bg-1);
@@ -491,7 +500,18 @@
   background: var(--color-danger-light-1);
 }
 
+.stagePopoverItemBody {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
 .stagePopoverName {
+  flex: 1 1 150px;
+  max-width: 100%;
   min-width: 0;
   color: var(--color-text-1);
   font-size: 13px;
@@ -500,8 +520,20 @@
 }
 
 .stagePopoverItem :global(.arco-tag) {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
   height: auto;
   white-space: normal;
+}
+
+.stagePopoverItem :global(.arco-tag-content) {
+  max-width: 100%;
+  overflow: visible;
+  overflow-wrap: break-word;
+  white-space: normal;
+  text-overflow: clip;
+  word-break: normal;
 }
 
 .stagePopoverEmpty {

@@ -49,6 +49,8 @@ const LOCALES = [
     forbiddenAction: 'Provide submission details or request a revision',
     currentStage: '分析结果复核',
     nextStage: '医学写作',
+    runStatus: '运行状态',
+    running: '正在运行',
   },
   {
     id: 'en-US',
@@ -63,6 +65,8 @@ const LOCALES = [
     forbiddenAction: '补齐投稿信息或发起修订',
     currentStage: 'Analysis review',
     nextStage: 'Medical writing',
+    runStatus: 'Runtime Status',
+    running: 'Running',
   },
 ] as const;
 
@@ -271,6 +275,40 @@ async function waitForStagePopoverToSettle(stagePopover: Locator): Promise<void>
     .toEqual({ opacity: '1', pointerEvents: 'auto', transform: 'none' });
 }
 
+async function assertStagePopoverContainsItsRows(stagePopover: Locator): Promise<void> {
+  const layout = await stagePopover.evaluate((element) => {
+    const container = element.getBoundingClientRect();
+    const popup = element.closest<HTMLElement>('.arco-trigger')?.getBoundingClientRect() ?? container;
+    const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight };
+    const horizontalOffenders = Array.from(
+      element.querySelectorAll<HTMLElement>('[data-stage-state], [data-stage-name], .arco-tag, .arco-tag-content')
+    )
+      .filter((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        return rect.left < container.left - 1 || rect.right > container.right + 1;
+      })
+      .map((candidate) => candidate.textContent?.trim() ?? candidate.className);
+
+    return {
+      containerFitsViewport:
+        container.left >= -1 &&
+        container.right <= viewport.width + 1 &&
+        container.top >= -1 &&
+        container.bottom <= viewport.height + 1,
+      popupFitsViewport: popup.left >= -1 && popup.right <= viewport.width + 1,
+      contentFitsContainer: element.scrollWidth <= element.clientWidth + 1,
+      horizontalOffenders,
+    };
+  });
+
+  expect(layout).toEqual({
+    containerFitsViewport: true,
+    popupFitsViewport: true,
+    contentFitsContainer: true,
+    horizontalOffenders: [],
+  });
+}
+
 async function selectRuntimeOption(page: Page, selectorTestId: string, label: string): Promise<void> {
   await page.locator(`[data-testid="${selectorTestId}"]`).click();
   await assertOptionIsTopmost(page, label);
@@ -439,7 +477,11 @@ test('localizes lifecycle decisions while keeping project names stable at every 
       await expect(stagePopover.locator('[data-stage-state]')).toHaveCount(5);
       await expect(stagePopover.locator('[data-stage-state="current"]')).toContainText(locale.currentStage);
       await expect(stagePopover.locator('[data-stage-state="next"]')).toContainText(locale.nextStage);
+      await expect(stagePopover.locator('[data-testid="runtime-stage-run-status"]')).toContainText(locale.runStatus);
+      await expect(stagePopover.locator('[data-testid="runtime-stage-run-status"]')).toContainText(locale.running);
+      await expect(stagePopover).not.toContainText('attempt:dm001');
       await waitForStagePopoverToSettle(stagePopover);
+      await assertStagePopoverContainsItsRows(stagePopover);
       await assertElementsWithinViewport(page, ['[data-testid="runtime-stage-popover"]']);
       await assertNoHorizontalOverflow(page);
       await page.screenshot({
@@ -636,10 +678,13 @@ test('keeps task details minimal without evidence or diagnostic surfaces', async
   const stagePopover = page.locator('[data-testid="runtime-stage-popover"]');
   await expect(stagePopover).toBeVisible();
   await expect(stagePopover.locator('[data-stage-state]')).toHaveCount(5);
-  await expect(stagePopover).toContainText('attempt:dm001');
+  await expect(stagePopover.locator('[data-testid="runtime-stage-run-status"]')).toContainText('运行状态');
+  await expect(stagePopover.locator('[data-testid="runtime-stage-run-status"]')).toContainText('正在运行');
+  await expect(stagePopover).not.toContainText('attempt:dm001');
   await expect(stagePopover.locator('[data-stage-state="current"]')).toContainText('分析结果复核');
   await expect(stagePopover.locator('[data-stage-state="next"]')).toContainText('医学写作');
   await waitForStagePopoverToSettle(stagePopover);
+  await assertStagePopoverContainsItsRows(stagePopover);
   await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1440-stage-popover.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await expect(stagePopover).toBeHidden();

@@ -92,6 +92,7 @@ vi.mock('react-i18next', () => ({
       'common.runtime.executionStates.succeeded': '本次运行已完成',
       'common.runtime.executionStates.failed': '本次运行未完成',
       'common.runtime.executionStates.unknown': '运行状态暂不可用',
+      'common.tray.runtimeStatus': '运行状态',
       'common.runtime.telemetryMissing': '用量未记录',
       'common.runtime.timeNotRecorded': '时间未记录',
       'common.runtime.taskDetails.stageMap': '阶段图',
@@ -367,7 +368,7 @@ describe('Runtime V2 page', () => {
     expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
   });
 
-  it('opens a stage popup with the complete stage list and current attempt', async () => {
+  it('opens a stage popup with the complete stage list and a user-facing run status', async () => {
     render(<RuntimePage />);
 
     const row = (await screen.findAllByTestId('runtime-task-row')).find((candidate) =>
@@ -377,8 +378,10 @@ describe('Runtime V2 page', () => {
 
     const popover = await screen.findByTestId('runtime-stage-popover');
     expect(popover).toHaveTextContent('阶段图');
-    expect(popover).toHaveTextContent('当前尝试');
-    expect(popover).toHaveTextContent('attempt:dm001');
+    expect(popover).toHaveTextContent('运行状态');
+    expect(popover).toHaveTextContent('正在运行');
+    expect(popover).not.toHaveTextContent('当前尝试');
+    expect(popover).not.toHaveTextContent('attempt:dm001');
     expect(within(popover).getAllByRole('listitem')).toHaveLength(5);
     expect(popover).toHaveTextContent('分析结果复核');
     expect(popover).toHaveTextContent('医学写作');
@@ -386,6 +389,20 @@ describe('Runtime V2 page', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(popover).not.toBeVisible());
+  });
+
+  it('describes an idle stage popup without internal attempt terminology', async () => {
+    render(<RuntimePage />);
+
+    const row = (await screen.findAllByTestId('runtime-task-row')).find((candidate) =>
+      candidate.textContent?.includes('003 DPCC Primary Care Phenotype Treatment Gap')
+    )!;
+    fireEvent.click(within(row).getByTestId('runtime-stage-trigger'));
+
+    const popover = await screen.findByTestId('runtime-stage-popover');
+    expect(within(popover).getByTestId('runtime-stage-run-status')).toHaveTextContent('运行状态当前没有自动任务');
+    expect(popover).not.toHaveTextContent('当前尝试');
+    expect(popover).not.toHaveTextContent('当前没有运行');
   });
 
   it('keeps archived tasks in an independent library that ignores the active status saved view', async () => {
