@@ -379,6 +379,7 @@ describe('OPL first-run VM smoke scripts', () => {
   it('targets current OPL Settings pages through stable structural anchors instead of localized copy', () => {
     const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
     const environmentTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'environment');
+    const diagnosticsTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'diagnostics');
     const appearanceTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'appearance');
 
     expect(generalTarget?.hash).toBe('#/settings/general');
@@ -388,10 +389,13 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(JSON.stringify(generalTarget)).not.toContain('打开运行状态');
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.contentSelector).toBe('[data-testid="settings-page-maintenance"]');
+    expect(diagnosticsTarget).toMatchObject({
+      hash: '#/settings/environment?section=diagnostics',
+      contentSelector: '[data-testid="settings-page-maintenance"]',
+      navigationId: 'environment',
+    });
     expect(appearanceTarget?.contentSelector).toBe('[data-testid="settings-page-preferences"]');
-    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.contentSelector).toBe(
-      '[data-testid="settings-page-advanced"]'
-    );
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')).toBeUndefined();
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.every((target) => !('requiredTextAny' in target))).toBe(true);
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about')?.navigation).toBe('secondary');
   });

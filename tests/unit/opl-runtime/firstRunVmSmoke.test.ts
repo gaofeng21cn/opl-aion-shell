@@ -971,7 +971,7 @@ describe('packaged first-run VM smoke helpers', () => {
       '#/settings/capabilities',
       '#/settings/access',
       '#/settings/appearance',
-      '#/settings/advanced',
+      '#/settings/environment?section=diagnostics',
       '#/settings/about',
     ]);
     expect(targetHashes).not.toContain('#/settings/overview');
@@ -980,21 +980,43 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/agent');
     expect(targetHashes).not.toContain('#/settings/display');
     expect(targetHashes).not.toContain('#/settings/webui');
+    expect(targetHashes).not.toContain('#/settings/advanced');
   });
 
-  it('treats Advanced settings as a secondary smoke target', () => {
-    const advancedTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced');
+  it('uses the Environment navigation entry for diagnostics and keeps About secondary', () => {
+    const aboutTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about');
+    const diagnosticsTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'diagnostics');
     const generalTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
 
-    expect(advancedTarget).toBeTruthy();
+    expect(aboutTarget).toBeTruthy();
+    expect(diagnosticsTarget).toBeTruthy();
     expect(generalTarget).toBeTruthy();
-    if (!advancedTarget || !generalTarget) throw new Error('Expected Settings smoke targets are missing.');
+    if (!aboutTarget || !diagnosticsTarget || !generalTarget) {
+      throw new Error('Expected Settings smoke targets are missing.');
+    }
 
-    expect(advancedTarget).toMatchObject({ navigation: 'secondary' });
-    expect(__test.pageReadinessExpression(advancedTarget)).toContain('const navPresent = true;');
+    expect(aboutTarget).toMatchObject({ navigation: 'secondary' });
+    expect(diagnosticsTarget).toMatchObject({ navigationId: 'environment' });
+    expect(__test.pageReadinessExpression(aboutTarget)).toContain('const navPresent = true;');
+    expect(__test.pageReadinessExpression(diagnosticsTarget)).toContain(
+      '.settings-sider__item[data-settings-id="environment"]'
+    );
+    expect(__test.pageReadinessExpression(diagnosticsTarget)).toContain(
+      'window.location.hash === "#/settings/environment?section=diagnostics"'
+    );
     expect(__test.pageReadinessExpression(generalTarget)).toContain(
       '.settings-sider__item[data-settings-id="general"]'
     );
+  });
+
+  it('opens the current Maintenance diagnostics surface through stable controls', () => {
+    const expression = __test.maintenanceDiagnosticsStatusExpression();
+
+    expect(expression).toContain('[data-testid="settings-maintenance-diagnostics-action"]');
+    expect(expression).toContain('[data-testid="settings-maintenance-technical-details"]');
+    expect(expression).toContain('trigger.click()');
+    expect(expression).not.toContain('Advanced paths');
+    expect(expression).not.toContain('高级路径');
   });
 
   it('parses packaged assistant route smoke and exposes MAS/MAG/RCA targets', () => {
@@ -1635,8 +1657,8 @@ describe('packaged first-run VM smoke helpers', () => {
         waitForCdpPageTarget: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/page/test' }),
         openCdpClient: async () => client,
         captureSettingsPage: async (_client: unknown, pageTarget: { id: string }) => ({ id: pageTarget.id }),
+        assertMaintenanceDiagnosticsStatus: async () => ({ diagnosticsVisible: true }),
         exerciseRuntimeRefresh: async (_client: unknown, targetHash: string) => ({ targetHash }),
-        assertAdvancedPathsStatus: async () => ({ status: 'ready' }),
         captureRuntimeActionEvidence: async () => {
           throw new Error('No safe action routes are currently exposed.');
         },
@@ -1746,18 +1768,6 @@ describe('packaged first-run VM smoke helpers', () => {
         route_receipt: null,
       },
     });
-  });
-
-  it('checks the read-only Advanced path status without restoring deferred developer controls', () => {
-    const expression = __test.advancedPathsStatusExpression();
-
-    expect(expression).toContain('[data-testid="settings-advanced-primary"]');
-    expect(expression).toContain('高级路径');
-    expect(expression).toContain('工作目录');
-    expect(expression).toContain('日志目录');
-    expect(expression).toContain('developerProfileHidden');
-    expect(expression).not.toContain('opl-developer-mode-switch');
-    expect(expression).not.toContain('.click()');
   });
 
   it('summarizes live system initialize readiness as the first-run proof source', () => {

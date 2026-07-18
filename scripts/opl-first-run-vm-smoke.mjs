@@ -4594,10 +4594,10 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     contentSelector: '[data-testid="settings-page-preferences"]',
   },
   {
-    id: 'advanced',
-    hash: '#/settings/advanced',
-    contentSelector: '[data-testid="settings-page-advanced"]',
-    navigation: 'secondary',
+    id: 'diagnostics',
+    hash: '#/settings/environment?section=diagnostics',
+    contentSelector: '[data-testid="settings-page-maintenance"]',
+    navigationId: 'environment',
   },
   {
     id: 'about',
@@ -4613,7 +4613,7 @@ function cdpString(value) {
 
 function settingsNavItemExpression(target) {
   if (target.navigation === 'secondary') return 'true';
-  return `Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]'))`;
+  return `Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.navigationId ?? target.id)}]'))`;
 }
 
 function pageReadinessExpression(target) {
@@ -4623,7 +4623,7 @@ function pageReadinessExpression(target) {
     const contentPresent = Boolean(document.querySelector(${cdpString(target.contentSelector)}));
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     const firstRunWindowVisible = Boolean(document.querySelector('[data-testid="opl-first-run-window"]'));
-    const hashOk = window.location.hash.startsWith(${cdpString(target.hash)});
+    const hashOk = window.location.hash === ${cdpString(target.hash)};
     return hashOk && navPresent && contentPresent && text.length > 80 && !appLoaderVisible && !firstRunWindowVisible
       ? {
           id: ${cdpString(target.id)},
@@ -4840,21 +4840,23 @@ async function captureRuntimeActionEvidence(client, options, secret) {
   return actionEvidence;
 }
 
-function advancedPathsStatusExpression() {
+function maintenanceDiagnosticsStatusExpression() {
   return `(() => {
-      const section = document.querySelector('[data-testid="settings-advanced-primary"]');
-      const text = document.body?.innerText || '';
-      if (!section || !/Advanced paths|高级路径/.test(text)) return false;
-      if (!/Work directory|工作目录/.test(text) || !/Logs directory|日志目录/.test(text)) return false;
+    const details = document.querySelector('[data-testid="settings-maintenance-technical-details"]');
+    if (details) {
       return {
-        advancedPathsVisible: true,
-        workingDirectoriesAnchorVisible: Boolean(document.querySelector('#working-directories')),
-        resolvedPathsAnchorVisible: Boolean(document.querySelector('#resolved-paths')),
-        developerProfileHidden: !document.querySelector(
-          '[data-testid="opl-developer-profile-row"], [data-testid="opl-developer-profile-status"]'
-        ),
+        diagnosticsVisible: true,
+        triggerPresent: Boolean(document.querySelector('[data-testid="settings-maintenance-diagnostics-action"]')),
       };
-    })()`;
+    }
+    const trigger = document.querySelector('[data-testid="settings-maintenance-diagnostics-action"]');
+    if (!trigger) return false;
+    if (trigger.dataset.oplVmSmokeOpened !== 'true') {
+      trigger.dataset.oplVmSmokeOpened = 'true';
+      trigger.click();
+    }
+    return false;
+  })()`;
 }
 
 function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
@@ -4899,12 +4901,12 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
   };
 }
 
-async function assertAdvancedPathsStatus(client) {
+async function assertMaintenanceDiagnosticsStatus(client) {
   return await waitForCdpPredicate(
     client,
-    advancedPathsStatusExpression(),
+    maintenanceDiagnosticsStatusExpression(),
     30_000,
-    'Advanced Settings did not expose working and log directory status'
+    'Maintenance diagnostics did not become ready'
   );
 }
 
@@ -4927,8 +4929,10 @@ async function runSettingsSmoke(options, secret) {
           '#/settings/runtime'
         );
       }
-      if (pageTarget.id === 'advanced') {
-        interactions.advancedPaths = await (hooks.assertAdvancedPathsStatus ?? assertAdvancedPathsStatus)(client);
+      if (pageTarget.id === 'diagnostics') {
+        interactions.maintenanceDiagnostics = await (
+          hooks.assertMaintenanceDiagnosticsStatus ?? assertMaintenanceDiagnosticsStatus
+        )(client);
       }
       results.push({ ...pageState, interactions });
     }
@@ -6468,7 +6472,7 @@ export const __test =
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         FULL_ASSISTANT_READINESS_TIMEOUT_MS,
         pageReadinessExpression,
-        advancedPathsStatusExpression,
+        maintenanceDiagnosticsStatusExpression,
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
