@@ -733,6 +733,32 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toThrow(/assistant route smoke/);
   });
 
+  it('copies and binds the App compiled expectation manifest into the guest smoke', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--compiled-expectations',
+      '/tmp/app-first-run-compiled-expectations.json',
+      '--dry-run',
+    ]);
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+
+    expect(options.compiledExpectations).toBe('/tmp/app-first-run-compiled-expectations.json');
+    expect(command).toContain(
+      "export OPL_FIRST_RUN_COMPILED_EXPECTATIONS='/tmp/opl-first-run-smoke/app-first-run-compiled-expectations.json'"
+    );
+  });
+
   it('forwards the release workflow guide screenshot toggle into the guest smoke', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

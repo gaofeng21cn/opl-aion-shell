@@ -24,7 +24,7 @@ import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspace/workspaceHistory';
 import { canonicalWorkspacePath } from '@/renderer/utils/workspace/workspacePath';
 import { Message } from '@arco-design/web-react';
-import { useCallback, useRef } from 'react';
+import { createElement, useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
@@ -43,6 +43,22 @@ import {
   type OplActiveShortcut,
   type OplAssistantRouteReceipt,
 } from '../utils/activeShortcut';
+
+function showOplAgentPackageLaunchBlocked(message: string, packageId: string, reason: string, actions: string[]) {
+  Message.error({
+    className: 'opl-agent-package-launch-blocked',
+    content: createElement(
+      'span',
+      {
+        'data-testid': 'opl-agent-package-launch-blocked',
+        'data-opl-package-id': packageId,
+        'data-opl-block-reason': reason,
+        'data-opl-repair-actions': actions.join(','),
+      },
+      message
+    ),
+  });
+}
 import {
   OplAgentPackageLaunchError,
   parseOplAgentPackageLaunchResult,
@@ -261,10 +277,14 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
       actions: selectedPackageLaunchGate.allowedWhenBlocked.join(', '),
     });
-
   const handleSend = useCallback(async () => {
     if (packageLaunchHardBlocked) {
-      Message.error(launchBlockedMessage());
+      showOplAgentPackageLaunchBlocked(
+        launchBlockedMessage(),
+        selectedPackageId ?? '',
+        selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
+        selectedPackageLaunchGate.allowedWhenBlocked
+      );
       return;
     }
     if (selectedPackageId && packageWorkspaceRequired && !dir) {
@@ -633,7 +653,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const sendMessageHandler = useCallback(() => {
     if (loading || sendingRef.current) return;
     if (packageLaunchHardBlocked) {
-      Message.error(launchBlockedMessage());
+      showOplAgentPackageLaunchBlocked(
+        launchBlockedMessage(),
+        selectedPackageId ?? '',
+        selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
+        selectedPackageLaunchGate.allowedWhenBlocked
+      );
       return;
     }
     if (selectedPackageId && packageWorkspaceRequired && !dir) {

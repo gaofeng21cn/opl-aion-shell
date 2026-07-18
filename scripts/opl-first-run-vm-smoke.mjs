@@ -76,9 +76,10 @@ const FULL_RUNTIME_MODULES = [
   ],
   ['oplbookforge', 'opl-bookforge', path.join('modules', 'bookforge'), ['contracts']],
 ];
-const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
+const FALLBACK_OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   {
     id: 'mas',
+    packageId: 'mas',
     badge: '@科研',
     shortName: 'MAS',
     shortcutId: 'research',
@@ -87,6 +88,7 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   },
   {
     id: 'mag',
+    packageId: 'mag',
     badge: '@基金',
     shortName: 'MAG',
     shortcutId: 'grant',
@@ -95,6 +97,7 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   },
   {
     id: 'rca',
+    packageId: 'rca',
     badge: '@演示',
     shortName: 'RCA',
     shortcutId: 'ppt',
@@ -102,6 +105,75 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
     requiredSkillIds: ['redcube-ai'],
   },
 ];
+function loadCompiledAssistantRouteExpectations(
+  manifestPath = process.env.OPL_FIRST_RUN_COMPILED_EXPECTATIONS,
+  runtimeProfile = 'standard',
+  allowFallback = process.env.NODE_ENV === 'test'
+) {
+  if (!manifestPath) {
+    if (!allowFallback)
+      throw new Error('Release-bound assistant route smoke requires the App compiled first-run expectation manifest.');
+    return { targets: FALLBACK_OPL_ASSISTANT_ROUTE_SMOKE_TARGETS, consumption: null };
+  }
+  const resolved = path.resolve(manifestPath);
+  const bytes = fs.readFileSync(resolved);
+  const manifest = JSON.parse(bytes.toString('utf8'));
+  if (manifest?.schema !== 'opl_app_first_run_compiled_expectations.v1') {
+    throw new Error(`Compiled first-run expectations at ${manifestPath} have an invalid schema.`);
+  }
+  const profile = manifest?.profiles?.[runtimeProfile];
+  const targets = profile?.semantics?.assistant_targets;
+  if (!Array.isArray(targets) || targets.length === 0) {
+    throw new Error(`Compiled first-run expectations at ${manifestPath} have no ${runtimeProfile} assistant targets.`);
+  }
+  if (
+    profile.semantics.artifact_kind !== runtimeProfile ||
+    !/^[0-9a-f]{64}$/.test(profile.semantic_digest) ||
+    !/^[0-9a-f]{64}$/.test(profile.probe_digest)
+  ) {
+    throw new Error(
+      `Compiled first-run expectations at ${manifestPath} do not bind the ${runtimeProfile} profile and digests.`
+    );
+  }
+  const mapped = targets.map((target) => ({
+    id: target.assistant_id,
+    packageId: target.package_id,
+    badge: target.badge,
+    shortName: String(target.assistant_id).toUpperCase(),
+    shortcutId: target.shortcut_id,
+    codexVisibleEntry: target.codex_visible_entry,
+    requiredSkillIds: target.required_skill_ids,
+  }));
+  for (const target of mapped) {
+    if (
+      ![target.id, target.packageId, target.shortcutId, target.codexVisibleEntry, target.badge].every(
+        (value) => typeof value === 'string' && value.length > 0
+      ) ||
+      !Array.isArray(target.requiredSkillIds) ||
+      target.requiredSkillIds.length === 0 ||
+      target.requiredSkillIds.some((value) => typeof value !== 'string' || !value)
+    ) {
+      throw new Error(
+        `Compiled first-run expectations at ${manifestPath} contain a malformed assistant identity axis.`
+      );
+    }
+  }
+  return {
+    targets: mapped,
+    consumption: {
+      schema: manifest.schema,
+      file_sha256: createHash('sha256').update(bytes).digest('hex'),
+      profile: runtimeProfile,
+      semantic_digest: profile.semantic_digest,
+      probe_digest: profile.probe_digest,
+    },
+  };
+}
+function loadAssistantRouteSmokeTargets(manifestPath, runtimeProfile = 'standard', allowFallback) {
+  return loadCompiledAssistantRouteExpectations(manifestPath, runtimeProfile, allowFallback).targets;
+}
+let OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = FALLBACK_OPL_ASSISTANT_ROUTE_SMOKE_TARGETS;
+let COMPILED_EXPECTATION_CONSUMPTION = null;
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
   'HOME',
@@ -3537,7 +3609,7 @@ function homeAssistantStandardLaunchGateExpression(target) {
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
-    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"] input');
+    const input = document.querySelector('textarea[data-testid="guid-input"], input[data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');
     if (!card || !visible(input) || !visible(sendButton) || !composer) return false;
@@ -3562,6 +3634,7 @@ function homeAssistantStandardLaunchGateExpression(target) {
       control.click();
       return false;
     }
+    const expectedDraft = ${cdpString(`Verify ${target.shortName} launch gate.`)};
     const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
     const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
     if (!attempt.input_filled) {
@@ -3570,13 +3643,13 @@ function homeAssistantStandardLaunchGateExpression(target) {
       if (!nativeSetter) {
         return { status: 'failed', reason: 'input_setter_missing', assistant_id: ${cdpString(target.id)} };
       }
-      nativeSetter.call(input, ${cdpString(`Verify ${target.shortName} launch gate.`)});
+      nativeSetter.call(input, expectedDraft);
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
       attempt.input_filled = true;
       return false;
     }
-    const visibleMessages = () => [...document.querySelectorAll('.arco-message')].filter(visible);
+    const visibleMessages = () => [...document.querySelectorAll('[data-testid="opl-agent-package-launch-blocked"]')].filter(visible);
     if (!attempt.send_clicked) {
       if (visibleMessages().length > 0 || sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
         return false;
@@ -3585,8 +3658,13 @@ function homeAssistantStandardLaunchGateExpression(target) {
       attempt.send_clicked = true;
       return false;
     }
-    const message = visibleMessages()[0];
+    const message = visibleMessages().find((node) =>
+      node.getAttribute('data-opl-package-id') === ${cdpString(target.packageId)}
+    );
     if (!message || !window.location.hash.startsWith('#/guid')) return false;
+    const typedReason = message.getAttribute('data-opl-block-reason') || '';
+    const repairActions = (message.getAttribute('data-opl-repair-actions') || '').split(',').filter(Boolean);
+    if (!typedReason || repairActions.length === 0 || !message.textContent?.trim() || input.value !== expectedDraft) return false;
     return {
       status: 'passed',
       assistant_id: ${cdpString(target.id)},
@@ -3596,6 +3674,10 @@ function homeAssistantStandardLaunchGateExpression(target) {
       selected: true,
       launch_allowed: false,
       send_blocked: true,
+      package_id: ${cdpString(target.packageId)},
+      typed_reason: typedReason,
+      repair_actions: repairActions,
+      draft_preserved: true,
       readiness_hint: readinessHint,
       repair_hint_visible: true,
       message_visible: true,
@@ -3801,7 +3883,7 @@ function conversationRouteReceiptExpression(
       const invocation = conversation?.extra?.opl_agent_package_invocation;
       const legacyRoute = conversation?.extra?.opl_assistant_route;
       const assistantMatches =
-        invocation?.package_id === ${cdpString(target.id)} ||
+        invocation?.package_id === ${cdpString(target.packageId)} ||
         legacyRoute?.assistant_id === ${cdpString(target.id)};
       const conversationMatches = expectedConversationId ? conversation?.id === expectedConversationId : true;
       return assistantMatches && conversationMatches;
@@ -3815,7 +3897,7 @@ function conversationRouteReceiptExpression(
     if (!invocation) invalid.push('opl_agent_package_invocation');
     if (invocation?.route_kind !== 'agent_package_shortcut') invalid.push('route_kind');
     if (invocation?.executor !== 'codex_cli') invalid.push('executor');
-    if (invocation?.package_id !== ${cdpString(target.id)}) invalid.push('package_id');
+    if (invocation?.package_id !== ${cdpString(target.packageId)}) invalid.push('package_id');
     if (invocation?.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('shortcut_id');
     if (invocation?.codex_visible_entry !== ${cdpString(target.codexVisibleEntry)}) invalid.push('codex_visible_entry');
     const requiredSkillIds = ${JSON.stringify(target.requiredSkillIds)};
@@ -3828,7 +3910,7 @@ function conversationRouteReceiptExpression(
     if (matched.type !== 'acp') invalid.push('conversation_type');
     if (matched.extra?.backend !== 'codex') invalid.push('backend');
     if (activation?.action_id !== 'agent_package_activate') invalid.push('activation_action_id');
-    if (activation?.package_id !== ${cdpString(target.id)}) invalid.push('activation_package_id');
+    if (activation?.package_id !== ${cdpString(target.packageId)}) invalid.push('activation_package_id');
     if (activation?.scope !== 'workspace') invalid.push('activation_scope');
     if (activation?.launch_allowed !== true) invalid.push('activation_launch_allowed');
     if (!activation?.use_boundary_id) invalid.push('activation_use_boundary_id');
@@ -3837,7 +3919,7 @@ function conversationRouteReceiptExpression(
     if (useBinding?.use_boundary_id !== activation?.use_boundary_id) invalid.push('use_binding_boundary_id');
     if (useBinding?.use_receipt_ref !== activation?.use_receipt_ref) invalid.push('use_binding_receipt_ref');
     if (useBinding?.scope !== 'workspace') invalid.push('use_binding_scope');
-    if (useBinding?.root_package?.package_id !== ${cdpString(target.id)}) invalid.push('use_binding_package_id');
+    if (useBinding?.root_package?.package_id !== ${cdpString(target.packageId)}) invalid.push('use_binding_package_id');
     ${
       expectedWorkspace
         ? `if (matched.extra?.workspace !== ${cdpString(expectedWorkspace)}) invalid.push('conversation_workspace');
@@ -4924,6 +5006,7 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
     verification_mode: verificationMode,
     failed_assistant: assistantTarget.id,
     assistants: results,
+    compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
     error: error instanceof Error ? error.message : String(error),
     last_state: lastState,
     last_error: error instanceof Error ? (error.lastError ?? null) : null,
@@ -5083,6 +5166,11 @@ async function runAssistantRouteSmoke(options, secret) {
           );
           results.push({
             id: assistantTarget.id,
+            assistant_id: assistantTarget.id,
+            shortcut_id: assistantTarget.shortcutId,
+            package_id: assistantTarget.packageId,
+            codex_visible_entry: assistantTarget.codexVisibleEntry,
+            required_skill_ids: assistantTarget.requiredSkillIds,
             badge: assistantTarget.badge,
             verification_mode: 'launch_gate',
             launch_gate: launchGate,
@@ -5136,6 +5224,11 @@ async function runAssistantRouteSmoke(options, secret) {
         );
         results.push({
           id: assistantTarget.id,
+          assistant_id: assistantTarget.id,
+          shortcut_id: assistantTarget.shortcutId,
+          package_id: assistantTarget.packageId,
+          codex_visible_entry: assistantTarget.codexVisibleEntry,
+          required_skill_ids: assistantTarget.requiredSkillIds,
           badge: assistantTarget.badge,
           verification_mode: 'route_receipt',
           interaction_path: 'workspace_guid_ui_send_then_conversation_get',
@@ -5162,6 +5255,7 @@ async function runAssistantRouteSmoke(options, secret) {
     interaction_path:
       options.runtimeProfile === 'full' ? 'workspace_guid_ui_send_then_conversation_get' : 'launch_gate_only',
     assistants: results,
+    compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
   };
   writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
   return results;
@@ -5880,6 +5974,15 @@ function collectFailureArtifactsForSmokeError(primaryError, options, codexApiKey
 async function main() {
   assertMacOS();
   const options = parseArgs(process.argv.slice(2));
+  if (options.assistantRouteSmoke) {
+    const compiled = loadCompiledAssistantRouteExpectations(
+      process.env.OPL_FIRST_RUN_COMPILED_EXPECTATIONS,
+      options.runtimeProfile,
+      false
+    );
+    OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = compiled.targets;
+    COMPILED_EXPECTATION_CONSUMPTION = compiled.consumption;
+  }
   const codexApiKey = readCodexApiKey(options);
   const writeSmokeEvent = createSmokeEventWriter(options.artifacts, codexApiKey);
   let codexInstallPreseed = codexInstallPreseedDiagnostics(options);
@@ -5887,6 +5990,7 @@ async function main() {
     fs.mkdirSync(options.artifacts, { recursive: true });
     writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'started', {
       runtime_profile: options.runtimeProfile,
+      compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
       settings_smoke: options.settingsSmoke,
       assistant_route_smoke: options.assistantRouteSmoke,
       cdp_port: options.cdpPort,
@@ -6363,6 +6467,7 @@ async function main() {
       app_path: appPath,
       artifacts: options.artifacts,
       runtime_profile: options.runtimeProfile,
+      compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
       core_first_launch: coreFirstLaunch
         ? summarizeCoreFirstLaunch(coreFirstLaunch.systemInitializeRaw)
         : {
@@ -6529,6 +6634,8 @@ export const __test =
         verifyGatekeeperLaunchPolicy,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
+        loadAssistantRouteSmokeTargets,
+        loadCompiledAssistantRouteExpectations,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         FULL_ASSISTANT_READINESS_TIMEOUT_MS,
         pageReadinessExpression,

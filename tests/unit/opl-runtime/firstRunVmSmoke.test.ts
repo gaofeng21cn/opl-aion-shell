@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { JSDOM } from 'jsdom';
 
 process.env.NODE_ENV = 'test';
 const { __test } = await import('../../../scripts/opl-first-run-vm-smoke.mjs');
@@ -1032,6 +1033,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
       {
         id: 'mas',
+        packageId: 'mas',
         badge: '@科研',
         shortName: 'MAS',
         shortcutId: 'research',
@@ -1040,6 +1042,7 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       {
         id: 'mag',
+        packageId: 'mag',
         badge: '@基金',
         shortName: 'MAG',
         shortcutId: 'grant',
@@ -1048,6 +1051,7 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       {
         id: 'rca',
+        packageId: 'rca',
         badge: '@演示',
         shortName: 'RCA',
         shortcutId: 'ppt',
@@ -1055,6 +1059,60 @@ describe('packaged first-run VM smoke helpers', () => {
         requiredSkillIds: ['redcube-ai'],
       },
     ]);
+    const smokeSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    expect(smokeSource.match(/required_skill_ids: assistantTarget\.requiredSkillIds/g)).toHaveLength(2);
+  });
+
+  it('loads assistant, shortcut, package, Codex entry, and badge axes from the App compiled manifest', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-compiled-expectations-'));
+    const manifestPath = path.join(root, 'compiled.json');
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        schema: 'opl_app_first_run_compiled_expectations.v1',
+        profiles: {
+          standard: {
+            semantics: {
+              assistant_targets: [
+                {
+                  assistant_id: 'assistant-mas',
+                  shortcut_id: 'research',
+                  package_id: 'mas',
+                  codex_visible_entry: 'med-autoscience',
+                  required_skill_ids: ['med-autoscience'],
+                  badge: '@科研',
+                },
+              ],
+              artifact_kind: 'standard',
+            },
+            semantic_digest: '1'.repeat(64),
+            probe_digest: '2'.repeat(64),
+          },
+        },
+      })
+    );
+    try {
+      expect(__test.loadAssistantRouteSmokeTargets(manifestPath)).toEqual([
+        {
+          id: 'assistant-mas',
+          packageId: 'mas',
+          badge: '@科研',
+          shortName: 'ASSISTANT-MAS',
+          shortcutId: 'research',
+          codexVisibleEntry: 'med-autoscience',
+          requiredSkillIds: ['med-autoscience'],
+        },
+      ]);
+      const compiled = __test.loadCompiledAssistantRouteExpectations(manifestPath, 'standard', false);
+      expect(compiled.consumption).toMatchObject({
+        profile: 'standard',
+        semantic_digest: '1'.repeat(64),
+        probe_digest: '2'.repeat(64),
+      });
+      expect(compiled.consumption.file_sha256).toMatch(/^[0-9a-f]{64}$/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('checks packaged assistant routes through workspace-scoped Guid sends and GET readback', () => {
@@ -1131,17 +1189,98 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(expression).toContain('home-starter-mas');
     expect(expression).toContain('home-starter-research');
+    expect(expression).toContain('textarea[data-testid="guid-input"], input[data-testid="guid-input"]');
+    expect(expression).not.toContain('[data-testid="guid-input"] textarea');
     expect(expression).toContain("getAttribute('disabled')");
     expect(expression).toContain("reason: 'starter_disabled_before_selection'");
     expect(expression).toContain("getAttribute('data-opl-launch-ready') !== 'false'");
     expect(expression).toContain("getAttribute('aria-pressed') !== 'true'");
     expect(expression).toContain('sendButton.click()');
-    expect(expression).toContain("querySelectorAll('.arco-message')");
+    expect(expression).toContain('querySelectorAll(\'[data-testid="opl-agent-package-launch-blocked"]\')');
+    expect(expression).toContain("getAttribute('data-opl-package-id')");
+    expect(expression).toContain("getAttribute('data-opl-block-reason')");
+    expect(expression).toContain("getAttribute('data-opl-repair-actions')");
+    expect(expression).toContain('input.value !== expectedDraft');
+    expect(expression).not.toContain("querySelectorAll('.arco-message')");
     expect(expression).toContain("getAttribute('title')");
     expect(expression).toContain('selectable_before_selection: true');
     expect(expression).toContain('send_blocked: true');
     expect(expression).toContain('launch_allowed: false');
     expect(expression).not.toContain('/api/conversations');
+  });
+
+  it('executes the complete Standard launch-gate polling lifecycle against the renderer textarea DOM', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
+        <button id="starter-control" title="package_not_installed: repair">
+          <span data-testid="home-starter-mas" data-opl-launch-ready="false" aria-pressed="false">Research</span>
+        </button>
+        <textarea data-testid="guid-input"></textarea>
+        <button data-testid="guid-send-btn">Send</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    for (const node of window.document.querySelectorAll('*')) {
+      Object.defineProperty(node, 'getBoundingClientRect', {
+        value: () => ({ width: 120, height: 32, top: 0, left: 0, right: 120, bottom: 32 }),
+      });
+    }
+    const starterControl = window.document.querySelector<HTMLButtonElement>('#starter-control')!;
+    const starter = window.document.querySelector<HTMLElement>('[data-testid="home-starter-mas"]')!;
+    const composer = window.document.querySelector<HTMLElement>('[data-testid="opl-guid-entry"]')!;
+    const input = window.document.querySelector<HTMLTextAreaElement>('textarea[data-testid="guid-input"]')!;
+    const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    const starterClick = vi.fn();
+    const sendClick = vi.fn();
+    starterControl.addEventListener('click', starterClick);
+    sendButton.addEventListener('click', sendClick);
+
+    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    expect(window.eval(expression)).toBe(false);
+    expect(starterClick).toHaveBeenCalledOnce();
+
+    starter.setAttribute('aria-pressed', 'true');
+    composer.setAttribute('data-opl-active-shortcut', 'research');
+    expect(window.eval(expression)).toBe(false);
+    expect(input.value).toBe('Verify MAS launch gate.');
+
+    expect(window.eval(expression)).toBe(false);
+    expect(sendClick).toHaveBeenCalledOnce();
+
+    const repairMessage = window.document.createElement('div');
+    repairMessage.setAttribute('data-testid', 'opl-agent-package-launch-blocked');
+    repairMessage.setAttribute('data-opl-package-id', 'mas');
+    repairMessage.setAttribute('data-opl-block-reason', 'package_not_installed');
+    repairMessage.setAttribute('data-opl-repair-actions', 'install,open_modules');
+    repairMessage.textContent = 'package_not_installed: install or open modules';
+    Object.defineProperty(repairMessage, 'getBoundingClientRect', {
+      value: () => ({ width: 240, height: 40, top: 0, left: 0, right: 240, bottom: 40 }),
+    });
+    window.document.body.append(repairMessage);
+    expect(window.eval(expression)).toMatchObject({
+      status: 'passed',
+      assistant_id: 'mas',
+      selectable_before_selection: true,
+      selected: true,
+      launch_allowed: false,
+      send_blocked: true,
+      repair_hint_visible: true,
+      message_visible: true,
+      route_hash: '#/guid',
+    });
+    dom.window.close();
+  });
+
+  it('proves the retired descendant-only input selector cannot match the frozen renderer DOM', () => {
+    const dom = new JSDOM('<textarea data-testid="guid-input"></textarea>');
+
+    expect(dom.window.document.querySelector('textarea[data-testid="guid-input"]')).not.toBeNull();
+    expect(dom.window.document.querySelector('[data-testid="guid-input"] textarea')).toBeNull();
+    expect(dom.window.document.querySelector('[data-testid="guid-input"] input')).toBeNull();
+    dom.window.close();
   });
 
   it('builds a deterministic Codex functional check receipt without requiring LLM credentials', () => {
@@ -1753,6 +1892,7 @@ describe('packaged first-run VM smoke helpers', () => {
       verification_mode: 'launch_gate',
       failed_assistant: 'mas',
       assistants: [],
+      compiled_expectations: null,
       error: 'Assistant route controls did not become ready for mas',
       last_state: {
         status: 'failed',

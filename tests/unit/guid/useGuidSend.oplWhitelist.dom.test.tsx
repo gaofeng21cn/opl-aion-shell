@@ -394,7 +394,13 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.createConversation).not.toHaveBeenCalled();
     expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
-    expect(mocks.messageError).toHaveBeenCalledWith(expect.stringContaining('package_not_installed'));
+    const blockedMessage = mocks.messageError.mock.calls[0][0];
+    expect(blockedMessage).toMatchObject({ className: 'opl-agent-package-launch-blocked' });
+    expect(blockedMessage.content.props['data-testid']).toBe('opl-agent-package-launch-blocked');
+    expect(blockedMessage.content.props['data-opl-package-id']).toBe('mas');
+    expect(blockedMessage.content.props['data-opl-block-reason']).toBe('package_not_installed');
+    expect(blockedMessage.content.props['data-opl-repair-actions']).toBe('status,doctor,repair');
+    expect(blockedMessage.content.props.children).toContain('package_not_installed');
   });
 
   it('continues package launch while its Framework status entry is still loading', async () => {

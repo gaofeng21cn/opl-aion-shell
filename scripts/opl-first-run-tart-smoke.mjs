@@ -121,6 +121,9 @@ Options:
   --codex-npm-cache-dir <path>
                            Optional host npm cache directory copied into the
                            guest and exposed through NPM_CONFIG_CACHE.
+  --compiled-expectations <path>
+                           App-owned compiled first-run expectation manifest copied
+                           into the guest and consumed by the route smoke.
   --bootstrap-launch-diagnostics
                            Only run packaged bootstrap and initial renderer/CDP
                            launch diagnostics inside the guest.
@@ -191,6 +194,7 @@ function parseArgs(argv) {
     codexPackageTarball: '',
     codexPlatformPackageTarball: '',
     codexNpmCacheDir: '',
+    compiledExpectations: process.env.OPL_FIRST_RUN_COMPILED_EXPECTATIONS || '',
     bootstrapLaunchDiagnostics: false,
     display: '1920x1080px',
     smokeProfile: 'full-gate',
@@ -333,6 +337,9 @@ function parseArgs(argv) {
     } else if (arg === '--codex-npm-cache-dir') {
       options.codexNpmCacheDir = path.resolve(value);
       explicit.add('codexNpmCacheDir');
+    } else if (arg === '--compiled-expectations') {
+      options.compiledExpectations = path.resolve(value);
+      explicit.add('compiledExpectations');
     } else if (arg === '--display') {
       options.display = value;
       explicit.add('display');
@@ -411,6 +418,9 @@ function parseArgs(argv) {
     throw new Error('--codex-readiness-phase-timeout-ms must be positive.');
   }
   validateCodexInstallPreseedOptions(options);
+  if (options.compiledExpectations && !options.dryRun && !fs.existsSync(options.compiledExpectations)) {
+    throw new Error(`Compiled first-run expectations do not exist: ${options.compiledExpectations}`);
+  }
   if (!/^\d+x\d+(?:pt|px)?$/.test(options.display)) {
     throw new Error('--display must be a Tart display resolution like 1920x1080px.');
   }
@@ -1328,6 +1338,9 @@ function guestSmokeCommand(
         installScriptUrl ? `launchctl setenv OPL_INSTALL_SCRIPT_URL ${shellQuote(installScriptUrl)}` : '',
       ].filter(Boolean)
     : [];
+  const compiledExpectationsPath = options.compiledExpectations
+    ? `${options.guestWorkdir}/app-first-run-compiled-expectations.json`
+    : null;
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     options.installMode === 'homebrew-cask'
@@ -1362,7 +1375,16 @@ function guestSmokeCommand(
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
     options.guideScreenshots ? '--guide-screenshots' : '',
   ].join(' ');
-  return ['set -euo pipefail', ...sourceArchiveEnv, smokeArgs].join('\n');
+  return [
+    'set -euo pipefail',
+    ...sourceArchiveEnv,
+    compiledExpectationsPath
+      ? `export OPL_FIRST_RUN_COMPILED_EXPECTATIONS=${shellQuote(compiledExpectationsPath)}`
+      : '',
+    smokeArgs,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function guestCleanStateProbeCommand() {
@@ -1688,6 +1710,7 @@ async function main() {
     const guestFrameworkArchivePath = guestFrameworkSourceArchivePath(options);
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
     const guestInputs = [resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
+    if (options.compiledExpectations) guestInputs.push(options.compiledExpectations);
     if (options.dmg) guestInputs.unshift(options.dmg);
     if (options.codexPackageTarball) guestInputs.push(options.codexPackageTarball);
     if (options.codexPlatformPackageTarball) guestInputs.push(options.codexPlatformPackageTarball);
