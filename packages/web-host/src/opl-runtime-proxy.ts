@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 export type OplRuntimeSurface =
   | 'app_state_fast'
   | 'app_state_full'
+  | 'domain_detail_view'
   | 'runtime_summary'
   | 'runtime_full'
   | 'app_action'
@@ -44,6 +45,7 @@ type RuntimeCommandSpec = {
   stdin?: string;
   redactedCommand?: string;
   timeoutMs?: number;
+  maxStdoutBytes?: number;
 };
 
 type SpawnCommandSpec = RuntimeCommandSpec & {
@@ -63,6 +65,7 @@ export type OplRuntimeProxyOptions = {
 type JsonRecord = Record<string, unknown>;
 
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
+const DOMAIN_DETAIL_VIEW_MAX_STDOUT_BYTES = 9 * 1024 * 1024;
 const BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 30_000;
 const BOOTSTRAP_TIMEOUT_MS = 900_000;
@@ -128,6 +131,31 @@ function assertSafeIdentifier(value: unknown, label: string): string {
   return value.trim();
 }
 
+function assertDomainDetailItemId(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Invalid OPL domain detail item id');
+  const normalized = value.trim();
+  if (normalized.length > 512 || normalized.includes('..') || !/^[A-Za-z0-9._:@%-]+$/.test(normalized)) {
+    throw new Error('Invalid OPL domain detail item id');
+  }
+  return normalized;
+}
+
+function assertDomainDetailViewId(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Invalid OPL domain detail view id');
+  const normalized = value.trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(normalized)) {
+    throw new Error('Invalid OPL domain detail view id');
+  }
+  return normalized;
+}
+
+function assertDomainDetailRevision(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error('Invalid OPL domain detail revision');
+  }
+  return value;
+}
+
 function assertManagedUpdateLifecycleId(value: unknown): 'opl_base' | 'opl_app' | 'opl_packages' {
   const lifecycleId = assertSafeIdentifier(value, 'managed update lifecycle id');
   if (lifecycleId !== 'opl_base' && lifecycleId !== 'opl_app' && lifecycleId !== 'opl_packages') {
@@ -152,6 +180,22 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
         surface: profile === 'full' ? 'app_state_full' : 'app_state_fast',
         args: ['app', 'state', '--profile', profile, '--json'],
       };
+    }
+    case 'domain-detail-view': {
+      const args = [
+        'app',
+        'view',
+        'read',
+        '--item-id',
+        assertDomainDetailItemId(body.itemId),
+        '--view-id',
+        assertDomainDetailViewId(body.viewId),
+      ];
+      if (body.ifRevision !== undefined) {
+        args.push('--if-revision', String(assertDomainDetailRevision(body.ifRevision)));
+      }
+      args.push('--json');
+      return { surface: 'domain_detail_view', args, maxStdoutBytes: DOMAIN_DETAIL_VIEW_MAX_STDOUT_BYTES };
     }
     case 'initialize':
       return {

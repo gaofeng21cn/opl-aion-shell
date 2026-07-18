@@ -529,6 +529,12 @@ export const application = {
 export type IOplRuntimeDetailLevel = 'summary' | 'full';
 export type IOplAppStateProfile = 'fast' | 'full';
 
+export type IOplDomainDetailViewRequest = {
+  itemId: string;
+  viewId: string;
+  ifRevision?: number;
+};
+
 export type IOplRuntimeActionRequest = {
   actionId: string;
   dryRun: boolean;
@@ -586,6 +592,7 @@ export type IOplRuntimeCommandResult = {
   surface:
     | 'app_state_fast'
     | 'app_state_full'
+    | 'domain_detail_view'
     | 'runtime_summary'
     | 'runtime_full'
     | 'app_action'
@@ -681,6 +688,10 @@ export const oplRuntime = {
   getAppState: runtimeProvider<IOplRuntimeCommandResult, { profile: IOplAppStateProfile }>(
     'opl-runtime.get-app-state',
     '/api/opl-runtime/app-state'
+  ),
+  readDomainDetailView: runtimeProvider<IOplRuntimeCommandResult, IOplDomainDetailViewRequest>(
+    'opl-runtime.read-domain-detail-view',
+    '/api/opl-runtime/domain-detail-view'
   ),
   getInitialize: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.get-initialize',

@@ -14,6 +14,12 @@ const bridgeMocks = vi.hoisted(() => ({
   messageError: vi.fn(),
 }));
 const localeMocks = vi.hoisted(() => ({ language: 'zh-CN' as 'zh-CN' | 'en-US' }));
+const routeMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => routeMocks.navigate };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -170,6 +176,13 @@ vi.mock('react-i18next', () => ({
       'common.runtime.executionRecords.archivedTitle': '已归档执行记录',
       'common.runtime.executionRecords.restore': '恢复执行记录',
       'common.runtime.executionRecords.restoreSuccess': '执行记录已恢复',
+      'common.runtime.researchTrajectory.title': '科研路线',
+      'common.runtime.researchTrajectory.open': '查看科研路线',
+      'common.runtime.researchTrajectory.currentHypothesis': '当前主要假设',
+      'common.runtime.researchTrajectory.latestFinding': '最新研究发现',
+      'common.runtime.researchTrajectory.currentJudgment': '当前判断',
+      'common.runtime.researchTrajectory.nextResearchStep': '下一研究步骤',
+      'common.runtime.researchTrajectory.updated': '更新时间',
       'common.runtime.owner.you': '你',
       'common.runtime.owner.system': '系统',
       'common.runtime.semanticAction.lifecycle.active.title': '继续推进',
@@ -287,6 +300,7 @@ describe('Runtime V2 page', () => {
     bridgeMocks.modalConfirm.mockReset();
     bridgeMocks.messageSuccess.mockReset();
     bridgeMocks.messageError.mockReset();
+    routeMocks.navigate.mockReset();
     localeMocks.language = 'zh-CN';
     resetOplAppStateLoadsForTest();
     localStorage.clear();
@@ -699,7 +713,6 @@ describe('Runtime V2 page', () => {
       '持续时间',
       '产物',
       '时间线',
-      '证据',
       '诊断',
       '来源引用',
       'InventoryResolved',
@@ -710,6 +723,24 @@ describe('Runtime V2 page', () => {
     }
     expect(within(drawer).queryByTestId('runtime-detail-disclosure')).not.toBeInTheDocument();
     expect(drawer.querySelectorAll('.arco-collapse-item')).toHaveLength(0);
+  });
+
+  it('shows only the refs-only scientific entry and opens the typed detail route', async () => {
+    render(<RuntimePage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+    const drawer = await screen.findByTestId('runtime-task-detail');
+    const summary = within(drawer).getByTestId('runtime-research-summary');
+    expect(summary).toHaveTextContent('科研路线');
+    expect(summary).toHaveTextContent('查看科研路线');
+    expect(summary).not.toHaveTextContent('较高的基线炎症负荷与远期心血管死亡风险相关。');
+    expect(summary).not.toHaveTextContent('分层分析显示关联方向一致，但效应量存在人群差异。');
+    expect(summary).not.toHaveTextContent('当前证据支持继续验证，尚不足以形成因果结论。');
+    expect(summary).not.toHaveTextContent('sha256:');
+    expect(summary).not.toHaveTextContent('revision');
+
+    fireEvent.click(within(summary).getByTestId('runtime-open-research-map'));
+    expect(routeMocks.navigate).toHaveBeenCalledWith('/runtime/item/diabetes%3A001/insights/scientific-reasoning');
   });
 
   it('shows every system responsibility field only for a complete envelope', async () => {

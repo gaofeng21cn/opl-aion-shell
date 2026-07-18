@@ -78,6 +78,7 @@ describe('OPL runtime bridge command whitelist', () => {
       primarySurfaces: [
         'opl app state --profile fast --json',
         'opl app state --profile full --json',
+        'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
       ],
       diagnosticExceptionSurfaces: [
@@ -87,6 +88,7 @@ describe('OPL runtime bridge command whitelist', () => {
       allowedSurfaces: [
         'opl app state --profile fast --json',
         'opl app state --profile full --json',
+        'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
         'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
@@ -130,6 +132,52 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'app_state_full',
       args: ['app', 'state', '--profile', 'full', '--json'],
     });
+  });
+
+  it('builds an item-scoped domain detail read without accepting paths or unsafe ids', () => {
+    expect(
+      __oplRuntimeBridgeTest.buildDomainDetailViewCommand({
+        itemId: 'diabetes:001',
+        viewId: 'scientific-reasoning',
+        ifRevision: 7,
+      })
+    ).toEqual({
+      surface: 'domain_detail_view',
+      args: [
+        'app',
+        'view',
+        'read',
+        '--item-id',
+        'diabetes:001',
+        '--view-id',
+        'scientific-reasoning',
+        '--if-revision',
+        '7',
+        '--json',
+      ],
+      maxStdoutBytes: 9437184,
+    });
+    expect(() =>
+      __oplRuntimeBridgeTest.buildDomainDetailViewCommand({
+        itemId: '../../private/study',
+        viewId: 'scientific-reasoning',
+      })
+    ).toThrow(/Invalid OPL domain detail item id/);
+    expect(() =>
+      __oplRuntimeBridgeTest.buildDomainDetailViewCommand({
+        itemId: 'diabetes:001',
+        viewId: 'scientific-reasoning;rm',
+      })
+    ).toThrow(/Invalid OPL domain detail view id/);
+    for (const ifRevision of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        __oplRuntimeBridgeTest.buildDomainDetailViewCommand({
+          itemId: 'diabetes:001',
+          viewId: 'scientific-reasoning',
+          ifRevision,
+        })
+      ).toThrow(/Invalid OPL domain detail revision/);
+    }
   });
 
   it('builds the declared summary and full drilldown projection commands', () => {

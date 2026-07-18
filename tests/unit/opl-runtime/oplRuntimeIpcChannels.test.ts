@@ -51,6 +51,19 @@ describe('OPL runtime IPC channel contract', () => {
     expect(channels).not.toEqual(expect.arrayContaining(['opl-runtime.update-status', 'opl-runtime.update-apply']));
   });
 
+  it('exposes one item-scoped lazy detail-view channel', async () => {
+    vi.resetModules();
+    platformMocks.buildProvider.mockClear();
+
+    await import('@/common/adapter/ipcBridge');
+
+    const channels = platformMocks.buildProvider.mock.calls.map(([channel]) => channel);
+    expect(channels).toContain('opl-runtime.read-domain-detail-view');
+    expect(channels).not.toEqual(
+      expect.arrayContaining(['opl-runtime.read-domain-artifact', 'opl-runtime.read-domain-path'])
+    );
+  });
+
   it('exposes one desktop-only Gateway secret channel without parallel mutation channels', async () => {
     vi.resetModules();
     platformMocks.buildProvider.mockClear();

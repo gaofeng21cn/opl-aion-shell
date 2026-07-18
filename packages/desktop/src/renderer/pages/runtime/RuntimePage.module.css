@@ -811,6 +811,401 @@
   white-space: normal;
 }
 
+.reasoningPage {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  color: var(--color-text-1);
+  background: var(--color-bg-1);
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.reasoningPage :global(.arco-typography) {
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
+
+.reasoningHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  min-width: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.reasoningHeaderTitle,
+.reasoningHeaderActions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.reasoningHeaderTitle {
+  flex: 1 1 320px;
+  gap: 10px;
+}
+
+.reasoningHeaderTitle > div {
+  min-width: 0;
+}
+
+.reasoningHeaderTitle :global(.arco-typography) {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+}
+
+.reasoningHeaderTitle :global(.arco-typography-secondary) {
+  margin-top: 3px;
+}
+
+.reasoningHeaderActions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.reasoningUpdated {
+  display: block;
+  min-width: 0;
+  padding: 7px 20px;
+  border-bottom: 1px solid var(--color-border-2);
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.reasoningContent {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.reasoningContent > :global(.arco-alert) {
+  flex: 0 0 auto;
+  border-radius: 0;
+}
+
+.reasoningState {
+  display: flex;
+  min-width: 0;
+  min-height: 420px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.reasoningState :global(.arco-alert) {
+  width: min(560px, 100%);
+}
+
+.reasoningWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  min-width: 0;
+  min-height: 520px;
+  flex: 1 0 520px;
+  overflow: hidden;
+}
+
+.reasoningCanvas,
+.reasoningCanvasLoading {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-fill-1);
+}
+
+.reasoningCanvasLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.reasoningCanvas :global(.react-flow__node-scientificReasoning) {
+  width: 276px;
+  height: 152px;
+}
+
+.reasoningCanvas[data-compact='true'] :global(.react-flow__node-scientificReasoning) {
+  width: 184px;
+  height: 172px;
+}
+
+.reasoningCanvas :global(.react-flow__node-scientificReasoning:focus-visible) {
+  outline: 2px solid var(--color-primary-6);
+  outline-offset: 3px;
+}
+
+.reasoningCanvas :global(.react-flow__edge-path) {
+  stroke: var(--color-border-4);
+  stroke-width: 1.5;
+}
+
+.reasoningCanvas :global(.react-flow__edge-text) {
+  fill: var(--color-text-2);
+  font-size: 11px;
+}
+
+.reasoningCanvas :global(.react-flow__edge-textbg) {
+  fill: var(--color-bg-1);
+}
+
+.reasoningCanvas[data-layout='vertical'] :global(.react-flow__edge-text),
+.reasoningCanvas[data-layout='vertical'] :global(.react-flow__edge-textbg),
+.reasoningCanvas[data-layout='compact'] :global(.react-flow__edge-text),
+.reasoningCanvas[data-layout='compact'] :global(.react-flow__edge-textbg),
+.reasoningCanvas[data-semantic-zoom='overview'] :global(.react-flow__edge-text),
+.reasoningCanvas[data-semantic-zoom='overview'] :global(.react-flow__edge-textbg),
+.reasoningCanvas[data-semantic-zoom='topology'] :global(.react-flow__edge-text),
+.reasoningCanvas[data-semantic-zoom='topology'] :global(.react-flow__edge-textbg) {
+  display: none;
+}
+
+.reasoningEdgeActive :global(.react-flow__edge-path) {
+  stroke: var(--color-primary-6);
+  stroke-width: 2.25;
+}
+
+.reasoningEdgeHistorical :global(.react-flow__edge-path) {
+  stroke-dasharray: 8 6;
+  opacity: 0.72;
+}
+
+.reasoningEdgeBlocked :global(.react-flow__edge-path) {
+  stroke: var(--color-danger-6);
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+}
+
+.reasoningEdgeBlocked :global(.react-flow__edge-text) {
+  fill: var(--color-danger-6);
+}
+
+.reasoningNode {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-3);
+  border-radius: 6px;
+  background: var(--color-bg-1);
+  box-shadow: 0 4px 14px var(--color-fill-3);
+}
+
+.reasoningNodeMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reasoningNodeKind,
+.reasoningNodeCurrent {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.reasoningNodeKind {
+  max-width: 100%;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-2);
+  border-radius: 4px;
+  color: var(--color-text-2);
+  background: var(--color-fill-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasoningNodeCurrent {
+  flex: 0 0 auto;
+  color: var(--color-primary-6);
+}
+
+.reasoningHandle {
+  width: 1px;
+  min-width: 1px;
+  height: 1px;
+  min-height: 1px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reasoningNode[data-current='true'] {
+  border-left: 4px solid rgb(var(--primary-6));
+}
+
+.reasoningNode[data-selected='true'] {
+  border-color: rgb(var(--primary-6));
+  box-shadow: 0 0 0 3px var(--color-primary-light-1);
+}
+
+.reasoningNodeLabel {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reasoningNodeSummary {
+  display: -webkit-box;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reasoningCanvas[data-semantic-zoom='overview'] .reasoningNode,
+.reasoningCanvas[data-semantic-zoom='topology'] .reasoningNode {
+  justify-content: center;
+}
+
+.reasoningCanvas[data-semantic-zoom='overview'] .reasoningNodeMeta,
+.reasoningCanvas[data-semantic-zoom='overview'] .reasoningNodeSummary,
+.reasoningCanvas[data-semantic-zoom='topology'] .reasoningNodeMeta,
+.reasoningCanvas[data-semantic-zoom='topology'] .reasoningNodeSummary,
+.reasoningCanvas[data-semantic-zoom='topology'] .reasoningNodeLabel {
+  display: none;
+}
+
+.reasoningCanvasTools {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+}
+
+.reasoningInspector {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border-2);
+  background: var(--color-bg-1);
+}
+
+.reasoningInspector > :global(.arco-typography:first-child),
+.reasoningInspectorHeading :global(.arco-typography) {
+  margin-top: 0;
+}
+
+.reasoningInspectorHeading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.reasoningInspectorHeading :global(.arco-typography:last-child) {
+  margin-bottom: 0;
+  color: var(--color-text-2);
+}
+
+.reasoningInspectorHeading :global(.arco-typography) {
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.reasoningInspectorFields {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.reasoningInspectorField {
+  min-width: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.reasoningInspectorLabel {
+  display: block;
+  color: var(--color-text-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reasoningInspectorValue {
+  margin: 5px 0 0;
+  color: var(--color-text-1);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.reasoningNarrativeList {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--color-text-1);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.reasoningNarrativeList li + li {
+  margin-top: 5px;
+}
+
+.reasoningSources {
+  margin-top: 8px;
+}
+
+.reasoningSources :global(.arco-collapse-item-header) {
+  padding-right: 0;
+  padding-left: 0;
+  background: transparent;
+}
+
+.reasoningSources :global(.arco-collapse-item-content-box) {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reasoningCanvas :global(.react-flow__edge.animated path) {
+    animation: none;
+  }
+}
+
 @container (max-width: 720px) {
   .workItemHeader {
     display: none;
@@ -850,6 +1245,36 @@
     flex: 0 1 auto;
     width: 100%;
   }
+
+  .reasoningPage {
+    display: block;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .reasoningContent {
+    min-height: 0;
+  }
+
+  .reasoningWorkspace {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .reasoningCanvas,
+  .reasoningCanvasLoading {
+    height: min(62vh, 560px);
+    min-height: 440px;
+  }
+
+  .reasoningInspector {
+    max-height: none;
+    overflow: visible;
+    border-top: 1px solid var(--color-border-2);
+    border-left: 0;
+  }
 }
 
 @media (max-width: 820px) {
@@ -866,6 +1291,12 @@
 
   .refreshArea {
     justify-content: space-between;
+  }
+
+  .reasoningCanvas,
+  .reasoningCanvasLoading {
+    height: min(68vh, 620px);
+    min-height: 520px;
   }
 }
 
@@ -888,6 +1319,39 @@
   .detailFacts,
   .systemAttentionGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reasoningHeader {
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .reasoningHeaderTitle,
+  .reasoningHeaderActions {
+    width: 100%;
+  }
+
+  .reasoningHeaderActions {
+    justify-content: space-between;
+  }
+
+  .reasoningHeaderActions :global(.arco-radio-group) {
+    max-width: calc(100% - 42px);
+  }
+
+  .reasoningUpdated {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .reasoningCanvas,
+  .reasoningCanvasLoading {
+    height: 72vh;
+    min-height: 520px;
+  }
+
+  .reasoningInspector {
+    padding: 16px;
   }
 
   .taskToolbarActions,

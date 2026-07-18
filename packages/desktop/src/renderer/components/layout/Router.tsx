@@ -32,6 +32,7 @@ const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sec
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
 const ExtensionSettingsPage = React.lazy(() => import('@renderer/pages/settings/ExtensionSettingsPage'));
 const RuntimePage = React.lazy(() => import('@renderer/pages/runtime'));
+const DomainDetailViewPage = React.lazy(() => import('@renderer/pages/runtime/DomainDetailViewPage'));
 const LoginPage = React.lazy(() => import('@renderer/pages/login'));
 const ComponentsShowcase = React.lazy(() => import('@renderer/pages/TestShowcase'));
 const ScheduledTasksPage = React.lazy(() => import('@renderer/pages/cron/ScheduledTasksPage'));
@@ -141,6 +142,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings' element={<Navigate to={SETTINGS_DEFAULT_ROUTE} replace />} />
           <Route path='/runtime' element={withRouteFallback(RuntimePage)} />
           <Route path='/runtime/item' element={withRouteFallback(RuntimePage)} />
+          <Route path='/runtime/item/:itemId/insights/:viewId' element={withRouteFallback(DomainDetailViewPage)} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
           <Route path='/scheduled' element={withRouteFallback(ScheduledTasksPage)} />
           <Route path='/scheduled/:job_id' element={withRouteFallback(TaskDetailPage)} />

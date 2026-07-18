@@ -24,6 +24,50 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
     );
   });
 
+  it('keeps the Web proxy command identical to the Desktop item-scoped detail read', () => {
+    expect(
+      __oplRuntimeProxyTest.buildCommandFromRequest('domain-detail-view', {
+        itemId: 'diabetes:001',
+        viewId: 'scientific-reasoning',
+        ifRevision: 7,
+      })
+    ).toEqual({
+      surface: 'domain_detail_view',
+      args: [
+        'app',
+        'view',
+        'read',
+        '--item-id',
+        'diabetes:001',
+        '--view-id',
+        'scientific-reasoning',
+        '--if-revision',
+        '7',
+        '--json',
+      ],
+      maxStdoutBytes: 9437184,
+    });
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('domain-detail-view', {
+        itemId: '../private',
+        viewId: 'scientific-reasoning',
+      })
+    ).toThrow(/Invalid OPL domain detail item id/);
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('domain-detail-view', {
+        itemId: 'diabetes:001',
+        viewId: 'scientific-reasoning;rm',
+      })
+    ).toThrow(/Invalid OPL domain detail view id/);
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('domain-detail-view', {
+        itemId: 'diabetes:001',
+        viewId: 'scientific-reasoning',
+        ifRevision: Number.MAX_SAFE_INTEGER + 1,
+      })
+    ).toThrow(/Invalid OPL domain detail revision/);
+  });
+
   it('routes only the three public update lifecycle ids to their owning CLI surfaces', () => {
     expect(__oplRuntimeProxyTest.buildCommandFromRequest('update-plan-apply', {})).toMatchObject({
       surface: 'update_apply',

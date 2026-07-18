@@ -6,6 +6,8 @@ import {
   type RuntimeAgent,
   type RuntimeBusinessState,
   type RuntimeCondition,
+  type DomainDetailViewDescriptor,
+  type DomainDetailViewAvailability,
   type RuntimeExecutionState,
   type RuntimePrimaryStatus,
   type RuntimeProject,
@@ -21,6 +23,7 @@ import {
   type RuntimeWorkItem,
   type RuntimeWorkItemProjectionV2,
   type RuntimeWorkItemVisibility,
+  type ScientificReasoningViewDescriptor,
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -74,6 +77,27 @@ const STAGE_STATES = new Set<RuntimeStageState>([
 ]);
 const SOURCE_REF_KINDS = new Set<RuntimeSourceRef['kind']>(['file', 'sqlite', 'projection']);
 const DIAGNOSTIC_DETAIL_POLICIES = new Set<RuntimeProjectionDiagnosticDetailPolicy>(['summary_only', 'included']);
+const DOMAIN_DETAIL_AVAILABILITY = new Set<DomainDetailViewAvailability>([
+  'unread',
+  'available',
+  'missing',
+  'stale',
+  'invalid',
+  'read_error',
+]);
+const SHA256_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS = [
+  'item_id',
+  'view_id',
+  'view_kind',
+  'schema_version',
+  'availability',
+] as const;
+const DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS = ['revision', 'digest'] as const;
+const DOMAIN_DETAIL_DESCRIPTOR_FIELDS = new Set<string>([
+  ...DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS,
+  ...DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS,
+]);
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -96,7 +120,7 @@ function optionalString(value: unknown): string | null {
 }
 
 function nonNegativeInteger(value: unknown): number | null {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function enumValue<T extends string>(value: unknown, values: Set<T>): T | null {
@@ -240,6 +264,83 @@ function parseVisibility(value: unknown): RuntimeWorkItemVisibility | null {
   return { state, source: projectionSource, updatedAt, controlRef, generation };
 }
 
+function parseScientificReasoningDescriptor(
+  base: DomainDetailViewDescriptor,
+  _entry: JsonRecord
+): ScientificReasoningViewDescriptor | null {
+  if (
+    base.viewId !== 'scientific-reasoning' ||
+    base.viewKind !== 'scientific_reasoning_map' ||
+    (base.schemaVersion !== 'scientific-reasoning-map.v1' && base.schemaVersion !== 'scientific-reasoning-map.v2')
+  ) {
+    return null;
+  }
+  return {
+    ...base,
+    viewId: 'scientific-reasoning',
+    viewKind: 'scientific_reasoning_map',
+    schemaVersion: base.schemaVersion,
+  };
+}
+
+function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string): DomainDetailViewDescriptor[] | null {
+  if (value === null || value === undefined) return [];
+  const source = records(value);
+  if (!source) return null;
+  const descriptors: DomainDetailViewDescriptor[] = [];
+  for (const entry of source) {
+    if (
+      DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS.some((field) => !Object.hasOwn(entry, field)) ||
+      Object.keys(entry).some((field) => !DOMAIN_DETAIL_DESCRIPTOR_FIELDS.has(field))
+    ) {
+      return null;
+    }
+    const itemId = requiredString(entry.item_id);
+    const viewId = requiredString(entry.view_id);
+    const viewKind = requiredString(entry.view_kind);
+    const schemaVersion = requiredString(entry.schema_version);
+    const availability = enumValue(entry.availability, DOMAIN_DETAIL_AVAILABILITY);
+    const revision = entry.revision === undefined ? null : nonNegativeInteger(entry.revision);
+    const digest = entry.digest === undefined ? null : requiredString(entry.digest);
+    if (
+      itemId !== expectedItemId ||
+      !viewId ||
+      !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(viewId) ||
+      !viewKind ||
+      !schemaVersion ||
+      !availability
+    ) {
+      return null;
+    }
+    if (entry.revision !== undefined && revision === null) return null;
+    if (entry.digest !== undefined && (!digest || !SHA256_DIGEST_PATTERN.test(digest))) {
+      return null;
+    }
+
+    const base: DomainDetailViewDescriptor = {
+      itemId,
+      viewId,
+      viewKind,
+      schemaVersion,
+      availability,
+      revision,
+      digest,
+    };
+    if (
+      viewKind === 'scientific_reasoning_map' &&
+      (schemaVersion === 'scientific-reasoning-map.v1' || schemaVersion === 'scientific-reasoning-map.v2')
+    ) {
+      const scientificReasoning = parseScientificReasoningDescriptor(base, entry);
+      if (!scientificReasoning) return null;
+      descriptors.push(scientificReasoning);
+    } else {
+      descriptors.push(base);
+    }
+  }
+  if (new Set(descriptors.map((descriptor) => descriptor.viewId)).size !== descriptors.length) return null;
+  return descriptors;
+}
+
 function parseStageMap(value: unknown): RuntimeStage[] | null {
   if (value === null || value === undefined) return [];
   const source = records(value);
@@ -311,6 +412,9 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const projectedAction = parseAction(value.action);
   const conditions = parseConditions(value.conditions);
   const sourceRefs = parseSourceRefs(value.source_refs);
+  const domainDetailViews = itemEnvelopeId
+    ? parseDomainDetailViewDescriptors(value.domain_detail_views, itemEnvelopeId)
+    : null;
   const inventoryObservedAt = requiredString(freshness.inventory_observed_at);
   if (
     !itemEnvelopeId ||
@@ -328,6 +432,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     projectedAction === false ||
     !conditions ||
     !sourceRefs ||
+    !domainDetailViews ||
     !inventoryObservedAt
   ) {
     return null;
@@ -403,6 +508,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     conditions,
     timeline: parseTimeline({ inventoryObservedAt, executionUpdatedAt: updatedAt, controlUpdatedAt }),
     sourceRefs,
+    domainDetailViews,
   };
 }
 

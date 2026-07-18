@@ -9,7 +9,7 @@ import {
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
 import enUSCommon from '@/renderer/services/i18n/locales/en-US/common.json';
 import zhCNCommon from '@/renderer/services/i18n/locales/zh-CN/common.json';
-import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
+import { createRuntimeV2AppState, createRuntimeV2Projection, createScientificReasoningDescriptor } from './fixture';
 
 const COMMON_MESSAGES = { 'en-US': enUSCommon, 'zh-CN': zhCNCommon };
 
@@ -295,6 +295,123 @@ describe('Runtime V2 projection boundary', () => {
       observedAt: '2026-07-13T08:00:00Z',
     });
     expect(JSON.stringify(item)).not.toContain('runtime_token_telemetry_verification');
+  });
+
+  it('parses the registered scientific descriptor as a refs-only locator', () => {
+    const projection = createRuntimeV2Projection();
+    projection.items[0]!.domain_detail_views = [createScientificReasoningDescriptor()];
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items[0]?.domainDetailViews[0]).toMatchObject({
+      viewId: 'scientific-reasoning',
+      viewKind: 'scientific_reasoning_map',
+      schemaVersion: 'scientific-reasoning-map.v2',
+      availability: 'unread',
+      revision: 7,
+      digest: `sha256:${'b'.repeat(64)}`,
+    });
+    expect(result.projection?.items[0]?.domainDetailViews[0]).not.toHaveProperty('currentFocus');
+    expect(result.projection?.items[0]?.domainDetailViews[0]).not.toHaveProperty('latestOutcome');
+    expect(result.projection?.items[0]?.domainDetailViews[0]).not.toHaveProperty('activeBranch');
+  });
+
+  it('rejects descriptor medical prose and other fields outside the refs-only locator contract', () => {
+    const projection = createRuntimeV2Projection();
+    projection.items[0]!.domain_detail_views = [
+      {
+        ...createScientificReasoningDescriptor(),
+        current_focus: { node_id: 'finding-1', primary_hypothesis: '不得进入 fast descriptor' },
+      },
+    ];
+
+    expect(
+      readRuntimeWorkItemProjectionV2({
+        operator: { workbench: { work_item_projection_v2: projection } },
+      })
+    ).toEqual({ state: 'invalid', projection: null });
+  });
+
+  it('retains v1 scientific descriptor compatibility', () => {
+    const projection = createRuntimeV2Projection();
+    projection.items[0]!.domain_detail_views = [
+      createScientificReasoningDescriptor({ schemaVersion: 'scientific-reasoning-map.v1' }),
+    ];
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items[0]?.domainDetailViews[0]).toMatchObject({
+      viewKind: 'scientific_reasoning_map',
+      schemaVersion: 'scientific-reasoning-map.v1',
+      availability: 'unread',
+    });
+  });
+
+  it('keeps unknown view kinds bounded without invalidating the runtime projection', () => {
+    const projection = createRuntimeV2Projection();
+    projection.items[0]!.domain_detail_views = [
+      {
+        item_id: 'diabetes:001',
+        view_id: 'future-insight',
+        view_kind: 'future_domain_map',
+        schema_version: 'future-domain-map.v1',
+        availability: 'unread',
+      },
+      {
+        item_id: 'diabetes:001',
+        view_id: 'scientific-reasoning',
+        view_kind: 'scientific_reasoning_map',
+        schema_version: 'scientific-reasoning-map.v3',
+        availability: 'invalid',
+        revision: 1,
+      },
+    ];
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items[0]?.domainDetailViews).toEqual([
+      expect.objectContaining({
+        viewId: 'future-insight',
+        viewKind: 'future_domain_map',
+        schemaVersion: 'future-domain-map.v1',
+      }),
+      expect.objectContaining({
+        viewId: 'scientific-reasoning',
+        viewKind: 'scientific_reasoning_map',
+        schemaVersion: 'scientific-reasoning-map.v3',
+        availability: 'invalid',
+      }),
+    ]);
+    expect(result.projection?.items[0]?.domainDetailViews[0]).not.toHaveProperty('currentFocus');
+    expect(result.projection?.items[0]?.domainDetailViews[1]).not.toHaveProperty('latestOutcome');
+  });
+
+  it('fails closed for duplicate view ids, unsafe ids, and malformed digests', () => {
+    for (const domainDetailViews of [
+      [createScientificReasoningDescriptor(), createScientificReasoningDescriptor()],
+      [{ ...createScientificReasoningDescriptor(), view_id: '../scientific-reasoning' }],
+      [{ ...createScientificReasoningDescriptor(), digest: `sha256:${'A'.repeat(64)}` }],
+      [{ ...createScientificReasoningDescriptor(), revision: Number.MAX_SAFE_INTEGER + 1 }],
+      [{ ...createScientificReasoningDescriptor(), item_id: 'other:001' }],
+    ]) {
+      const projection = createRuntimeV2Projection();
+      projection.items[0]!.domain_detail_views = domainDetailViews;
+
+      expect(
+        readRuntimeWorkItemProjectionV2({
+          operator: { workbench: { work_item_projection_v2: projection } },
+        })
+      ).toEqual({ state: 'invalid', projection: null });
+    }
   });
 });
 

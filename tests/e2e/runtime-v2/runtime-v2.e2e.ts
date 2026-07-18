@@ -1,6 +1,8 @@
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
+import fs from 'node:fs';
 import path from 'node:path';
+import sharp from 'sharp';
 import { createRuntimeV2Projection } from '../../unit/opl-runtime/runtime-v2/fixture';
 import {
   closeRuntimeE2EFixture,
@@ -8,6 +10,7 @@ import {
   launchRuntimeE2EFixture,
   readRuntimeE2EActionLog,
   readRuntimeE2EAppState,
+  writeRuntimeE2EDomainView,
   type RuntimeE2EAppState,
   type RuntimeE2EFixture,
   type RuntimeE2ELocale,
@@ -21,6 +24,26 @@ const VIEWPORTS = [
 ] as const;
 
 const WRAP_REGRESSION_VIEWPORT = { width: 1370, height: 900, columns: 4 } as const;
+const RESEARCH_MAP_EVIDENCE_KIND = process.env.OPL_RUNTIME_E2E_EXECUTABLE_PATH?.trim() ? 'installed' : 'source';
+const RESEARCH_MAP_OUTPUT_DIR = path.resolve('output/playwright', RESEARCH_MAP_EVIDENCE_KIND);
+const RESEARCH_MACHINE_SENTINELS = [
+  '/private/',
+  'mas-study:',
+  'mas-source:',
+  'sha256:',
+  'receipt://',
+  'projection://',
+  'checkpoint-private-',
+  'attempt-private-',
+  'stage-run-private-',
+  'event-private-',
+  'provider-private-',
+  'payload-private-',
+  'machine_only_reason',
+  'machine_only_envelope_reason',
+  'press delete to remove',
+  'move the node around',
+] as const;
 const PROJECT_NAMES = ['DM-CVD-Mortality-Risk', 'NF-PitNET', 'Obesity'] as const;
 const ORAL_PROJECT_NAMES = ['糖尿病', '无功能垂体瘤', '肥胖'] as const;
 
@@ -106,6 +129,34 @@ async function setViewport(
   await page.locator('[data-testid="runtime-scope-bar"]').scrollIntoViewIfNeeded();
 }
 
+async function setResearchMapViewport(
+  page: Page,
+  app: ElectronApplication,
+  viewport: { width: number; height: number }
+): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, size) => {
+    const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
+    if (!window) throw new Error('Research map E2E could not resolve the main BrowserWindow.');
+    window.setMinimumSize(0, 0);
+    window.setContentSize(size.width, size.height);
+  }, viewport);
+  await page.setViewportSize(viewport);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('resize'));
+    window.scrollTo(0, 0);
+    const researchPage = document.querySelector<HTMLElement>('[data-testid="runtime-research-map-page"]');
+    researchPage?.scrollTo(0, 0);
+    researchPage?.parentElement?.scrollTo(0, 0);
+    researchPage?.querySelectorAll<HTMLElement>('*').forEach((element) => {
+      if (element.scrollHeight > element.clientHeight) element.scrollTop = 0;
+    });
+  });
+  await expect
+    .poll(() => page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })))
+    .toEqual({ width: viewport.width, height: viewport.height });
+  await expect(page.locator('[data-testid="runtime-research-map-page"]')).toBeVisible();
+}
+
 async function launchLocalizedFixture(locale: RuntimeE2ELocale): Promise<RuntimeE2EFixture> {
   const nextFixture = await launchRuntimeE2EFixture({ locale });
   const { page } = nextFixture;
@@ -185,6 +236,189 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.documentScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.documentClientWidth + 1);
   expect(dimensions.bodyScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.bodyClientWidth + 1);
   expect(dimensions.runtimeScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.runtimeClientWidth + 1);
+}
+
+async function assertResearchMapNoHorizontalOverflow(page: Page): Promise<void> {
+  const dimensions = await page.locator('[data-testid="runtime-research-map-page"]').evaluate((researchPage) => ({
+    documentClientWidth: document.documentElement.clientWidth,
+    documentScrollWidth: document.documentElement.scrollWidth,
+    bodyClientWidth: document.body.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    pageClientWidth: researchPage.clientWidth,
+    pageScrollWidth: researchPage.scrollWidth,
+  }));
+  const diagnostics = JSON.stringify(dimensions);
+  expect(dimensions.documentScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.documentClientWidth + 1);
+  expect(dimensions.bodyScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.bodyClientWidth + 1);
+  expect(dimensions.pageScrollWidth, diagnostics).toBeLessThanOrEqual(dimensions.pageClientWidth + 1);
+}
+
+async function assertResearchSectionsDoNotOverlap(page: Page): Promise<void> {
+  const geometry = await page.locator('[data-testid="runtime-research-map-page"]').evaluate((researchPage) => {
+    const workspace = researchPage.querySelector<HTMLElement>('[data-testid="runtime-research-map-workspace"]');
+    const canvas = researchPage.querySelector<HTMLElement>('[data-testid="runtime-research-map-canvas"]');
+    const inspector = researchPage.querySelector<HTMLElement>('[data-testid="runtime-research-map-inspector"]');
+    if (!workspace || !canvas || !inspector) return null;
+    const workspaceRect = workspace.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const inspectorRect = inspector.getBoundingClientRect();
+    return {
+      workspace: { top: workspaceRect.top, bottom: workspaceRect.bottom },
+      canvas: { top: canvasRect.top, right: canvasRect.right, bottom: canvasRect.bottom },
+      inspector: { top: inspectorRect.top, left: inspectorRect.left, bottom: inspectorRect.bottom },
+    };
+  });
+  expect(geometry).not.toBeNull();
+  if (!geometry) throw new Error('Research map sections are incomplete.');
+  const diagnostics = JSON.stringify(geometry);
+  expect(geometry.workspace.bottom, diagnostics).toBeGreaterThanOrEqual(geometry.inspector.bottom - 1);
+  const stacked = geometry.inspector.left < geometry.canvas.right - 1;
+  if (stacked) {
+    expect(geometry.inspector.top, diagnostics).toBeGreaterThanOrEqual(geometry.canvas.bottom - 1);
+  }
+}
+
+async function assertResearchGraphGeometry(
+  page: Page,
+  expectedNodes: number,
+  expectedEdges: number,
+  minimumNodeSize: { width: number; height: number } = { width: 100, height: 50 }
+): Promise<void> {
+  const canvasBox = await page.locator('[data-testid="runtime-research-map-canvas"]').boundingBox();
+  expect(canvasBox).not.toBeNull();
+  if (!canvasBox) throw new Error('Research map canvas has no geometry.');
+  const nodeLocator = page.locator('[data-testid="runtime-research-map-canvas"] .react-flow__node');
+  const edgeLocator = page.locator('[data-testid="runtime-research-map-canvas"] .react-flow__edge-path');
+  await expect(nodeLocator).toHaveCount(expectedNodes);
+  await expect(edgeLocator).toHaveCount(expectedEdges);
+
+  const nodeBoxes = await nodeLocator.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    })
+  );
+  expect(
+    nodeBoxes.every((box) => box.width > minimumNodeSize.width && box.height > minimumNodeSize.height),
+    JSON.stringify(nodeBoxes)
+  ).toBe(true);
+  expect(
+    nodeBoxes.every(
+      (box) =>
+        box.x >= canvasBox.x - 1 &&
+        box.y >= canvasBox.y - 1 &&
+        box.x + box.width <= canvasBox.x + canvasBox.width + 1 &&
+        box.y + box.height <= canvasBox.y + canvasBox.height + 1
+    ),
+    JSON.stringify({ canvasBox, nodeBoxes })
+  ).toBe(true);
+  for (let left = 0; left < nodeBoxes.length; left += 1) {
+    for (let right = left + 1; right < nodeBoxes.length; right += 1) {
+      const a = nodeBoxes[left]!;
+      const b = nodeBoxes[right]!;
+      const overlapWidth = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+      const overlapHeight = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+      expect(overlapWidth * overlapHeight, `Overlapping research nodes: ${JSON.stringify({ a, b })}`).toBeLessThan(1);
+    }
+  }
+
+  const edgeGeometry = await edgeLocator.evaluateAll((elements) =>
+    elements.map((element) => {
+      const edgePath = element as SVGGeometryElement;
+      const rect = edgePath.getBoundingClientRect();
+      return { width: rect.width, height: rect.height, length: edgePath.getTotalLength() };
+    })
+  );
+  expect(
+    edgeGeometry.every((edge) => (edge.width > 1 || edge.height > 1) && edge.length > 1),
+    JSON.stringify(edgeGeometry)
+  ).toBe(true);
+}
+
+async function waitForResearchMapLayout(canvas: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      canvas.evaluate((element) => {
+        const expected =
+          element.clientWidth <= 560 ? 'compact' : element.clientWidth <= 760 ? 'vertical' : 'horizontal';
+        return (
+          element.dataset.layout === expected &&
+          element.querySelector('[data-testid="runtime-research-map-layout-loading"]') === null
+        );
+      })
+    )
+    .toBe(true);
+  const layout = await canvas.evaluate((element) => ({
+    actual: element.dataset.layout,
+    expected: element.clientWidth <= 560 ? 'compact' : element.clientWidth <= 760 ? 'vertical' : 'horizontal',
+  }));
+  expect(layout.actual).toBe(layout.expected);
+}
+
+async function assertResearchNodeTextReadable(page: Page, scale: number): Promise<void> {
+  const typography = await page
+    .locator('[data-testid="runtime-research-map-canvas"] .react-flow__node')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const label = node.querySelector<HTMLElement>('[class*="reasoningNodeLabel"]');
+        const summary = node.querySelector<HTMLElement>('[class*="reasoningNodeSummary"]');
+        if (!label || !summary) return null;
+        return {
+          labelFontSize: Number.parseFloat(getComputedStyle(label).fontSize),
+          summaryFontSize: Number.parseFloat(getComputedStyle(summary).fontSize),
+        };
+      })
+    );
+  expect(typography.every((entry) => entry !== null)).toBe(true);
+  for (const entry of typography) {
+    if (!entry) throw new Error('Research map node typography is unavailable.');
+    expect(entry.labelFontSize * scale).toBeGreaterThanOrEqual(10.4);
+    expect(entry.summaryFontSize * scale).toBeGreaterThanOrEqual(9.1);
+  }
+}
+
+async function assertRasterHasVisibleContent(filePath: string): Promise<void> {
+  const { data, info } = await sharp(filePath).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const buckets = new Set<string>();
+  const first = Array.from(data.subarray(0, info.channels));
+  let differentSamples = 0;
+  const pixelCount = info.width * info.height;
+  const stride = Math.max(1, Math.floor(pixelCount / 20_000));
+  for (let pixel = 0; pixel < pixelCount; pixel += stride) {
+    const offset = pixel * info.channels;
+    const channels = Array.from(data.subarray(offset, offset + info.channels));
+    buckets.add(channels.map((channel) => Math.floor(channel / 32)).join(':'));
+    if (channels.some((channel, index) => Math.abs(channel - (first[index] ?? channel)) > 12)) differentSamples += 1;
+  }
+  expect(info.width).toBeGreaterThan(200);
+  expect(info.height).toBeGreaterThan(200);
+  expect(buckets.size, `Raster color buckets for ${filePath}`).toBeGreaterThan(4);
+  expect(differentSamples, `Raster differing samples for ${filePath}`).toBeGreaterThan(20);
+}
+
+async function readResearchFlowTransform(page: Page): Promise<{ scale: number; x: number; y: number }> {
+  return page.locator('[data-testid="runtime-research-map-canvas"] .react-flow__viewport').evaluate((element) => {
+    const transform = getComputedStyle(element).transform;
+    const matrix = transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(transform);
+    return { scale: matrix.a, x: matrix.e, y: matrix.f };
+  });
+}
+
+async function waitForResearchFlowTransformToSettle(page: Page): Promise<{ scale: number; x: number; y: number }> {
+  let previous = await readResearchFlowTransform(page);
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    await page.waitForTimeout(100);
+    const current = await readResearchFlowTransform(page);
+    if (
+      Math.abs(current.scale - previous.scale) < 0.0005 &&
+      Math.abs(current.x - previous.x) < 0.2 &&
+      Math.abs(current.y - previous.y) < 0.2
+    ) {
+      return current;
+    }
+    previous = current;
+  }
+  throw new Error(`Research map viewport did not settle: ${JSON.stringify(previous)}`);
 }
 
 async function assertStatusLabelsAreNotClipped(page: Page): Promise<void> {
@@ -335,11 +569,13 @@ test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
 let fixture: RuntimeE2EFixture | null = null;
 
-test.beforeAll(async () => {
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(180_000);
   fixture = await launchLocalizedFixture('zh-CN');
 });
 
-test.afterAll(async () => {
+test.afterAll(async ({}, testInfo) => {
+  testInfo.setTimeout(180_000);
   await closeRuntimeE2EFixture(fixture);
   fixture = null;
 });
@@ -731,6 +967,187 @@ test('keeps task details minimal without evidence or diagnostic surfaces', async
   await page.screenshot({ path: path.join(screenshotDir, 'runtime-v2-1440-minimal-detail.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
+});
+
+test('opens the current scientific trajectory snapshot through lazy readback', async () => {
+  if (!fixture) throw new Error('Runtime V2 E2E fixture was not launched.');
+  const { app, page } = fixture;
+  fs.mkdirSync(RESEARCH_MAP_OUTPUT_DIR, { recursive: true });
+
+  await setViewport(page, app, VIEWPORTS[0]);
+  const taskRow = page.locator('[data-testid="runtime-task-row"]').filter({ hasText: '001 DM CVD Mortality Risk' });
+  await taskRow.click();
+  const drawer = page.locator('[data-testid="runtime-task-detail"]');
+  const summary = drawer.locator('[data-testid="runtime-research-summary"]');
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText('查看科研路线');
+  await expect(summary).not.toContainText('较高的基线炎症负荷与远期心血管死亡风险相关。');
+  await expect(drawer).not.toContainText('形成阶段性证据判断');
+
+  await summary.locator('[data-testid="runtime-open-research-map"]').click();
+  await expect(page).toHaveURL(/#\/runtime\/item\/diabetes(?::|%3A)001\/insights\/scientific-reasoning$/);
+  const researchPage = page.locator('[data-testid="runtime-research-map-page"]');
+  const canvas = researchPage.locator('[data-testid="runtime-research-map-canvas"]');
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  await waitForResearchMapLayout(canvas);
+  await assertResearchGraphGeometry(page, 4, 3);
+
+  await expect(canvas).toContainText('提出主要研究假设');
+  await expect(canvas).toContainText('形成阶段性证据判断');
+  await expect(canvas).not.toContainText('React Flow');
+  await expect(researchPage).not.toContainText('阶段性研究记录');
+
+  const hypothesisNode = canvas.locator('.react-flow__node').filter({ hasText: '提出主要研究假设' });
+  await hypothesisNode.click();
+  await expect(researchPage.locator('[data-testid="runtime-research-map-inspector"]')).toContainText(
+    '炎症负荷能否识别心血管死亡高风险人群？'
+  );
+  await page.keyboard.press('Backspace');
+  await assertResearchGraphGeometry(page, 4, 3);
+  await page.keyboard.press('Escape');
+  await expect(researchPage.locator('[data-testid="runtime-research-map-inspector"]')).toContainText(
+    '请选择一个研究对象查看详情。'
+  );
+
+  const modeControl = researchPage.locator('[data-testid="runtime-research-map-mode"]');
+  await modeControl.getByText('当前路线', { exact: true }).click();
+  await assertResearchGraphGeometry(page, 3, 2);
+  await expect(canvas).toContainText('提出主要研究假设');
+  await expect(canvas).not.toContainText('评估替代分析路线');
+  await modeControl.getByText('全部研究路线', { exact: true }).click();
+  await assertResearchGraphGeometry(page, 4, 3);
+  await expect(canvas).toContainText('评估替代分析路线');
+
+  const fitButton = researchPage.getByRole('button', { name: '显示全部研究路线' });
+  const zoomInButton = researchPage.getByRole('button', { name: '放大', exact: true });
+  const zoomOutButton = researchPage.getByRole('button', { name: '缩小', exact: true });
+  await fitButton.click();
+  const fittedTransform = await waitForResearchFlowTransformToSettle(page);
+  await zoomInButton.click();
+  await expect
+    .poll(async () => (await readResearchFlowTransform(page)).scale)
+    .toBeGreaterThan(fittedTransform.scale + 0.01);
+  const zoomedTransform = await waitForResearchFlowTransformToSettle(page);
+  await canvas.locator('.react-flow__node').filter({ hasText: '执行预设验证' }).click();
+  const selectedTransform = await waitForResearchFlowTransformToSettle(page);
+  expect(Math.abs(selectedTransform.scale - zoomedTransform.scale)).toBeLessThan(0.001);
+  expect(Math.abs(selectedTransform.x - zoomedTransform.x)).toBeLessThan(0.001);
+  expect(Math.abs(selectedTransform.y - zoomedTransform.y)).toBeLessThan(0.001);
+  await zoomOutButton.click();
+  await expect
+    .poll(async () => (await readResearchFlowTransform(page)).scale)
+    .toBeLessThan(zoomedTransform.scale - 0.01);
+
+  await fitButton.click();
+  const beforePan = await waitForResearchFlowTransformToSettle(page);
+  const panOrigin = await canvas.evaluate((element) => {
+    const pane = element.querySelector('.react-flow__pane');
+    if (!pane) return null;
+    const rect = pane.getBoundingClientRect();
+    const right = Math.min(rect.right - 16, window.innerWidth - 16);
+    const bottom = Math.min(rect.bottom - 16, window.innerHeight - 16);
+    for (let y = Math.max(rect.top + 16, 16); y <= bottom; y += 32) {
+      for (let x = Math.max(rect.left + 16, 16); x <= right; x += 32) {
+        if (document.elementFromPoint(x, y) === pane) return { x, y };
+      }
+    }
+    return null;
+  });
+  expect(panOrigin).not.toBeNull();
+  if (!panOrigin) throw new Error('Research map has no visible pane point available for panning.');
+  await page.mouse.move(panOrigin.x, panOrigin.y);
+  await page.mouse.down();
+  await page.mouse.move(panOrigin.x + 80, panOrigin.y + 40, { steps: 6 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => {
+      const afterPan = await readResearchFlowTransform(page);
+      return Math.abs(afterPan.x - beforePan.x) + Math.abs(afterPan.y - beforePan.y);
+    })
+    .toBeGreaterThan(20);
+  await fitButton.click();
+  await page.waitForTimeout(260);
+
+  const visibleText = await researchPage.innerText();
+  const ariaSnapshot = await researchPage.ariaSnapshot();
+  const accessibleAttributes = await researchPage.locator('[aria-label], [title]').evaluateAll((elements) =>
+    elements
+      .flatMap((element) => [element.getAttribute('aria-label'), element.getAttribute('title')])
+      .filter((value): value is string => value !== null)
+      .join('\n')
+  );
+  const userFacingSurface = `${visibleText}\n${ariaSnapshot}\n${accessibleAttributes}`.toLowerCase();
+  for (const sentinel of RESEARCH_MACHINE_SENTINELS) {
+    expect(userFacingSurface).not.toContain(sentinel.toLowerCase());
+  }
+
+  for (const viewport of VIEWPORTS) {
+    await setResearchMapViewport(page, app, viewport);
+    await waitForResearchMapLayout(canvas);
+    await fitButton.click();
+    await page.waitForTimeout(260);
+    await page.mouse.move(Math.floor(viewport.width / 2), 80);
+    await expect(page.locator('.arco-tooltip-content:visible')).toHaveCount(0);
+    await assertResearchMapNoHorizontalOverflow(page);
+    await assertResearchSectionsDoNotOverlap(page);
+    await assertResearchGraphGeometry(page, 4, 3);
+    const fittedViewport = await readResearchFlowTransform(page);
+    expect(fittedViewport.scale).toBeGreaterThanOrEqual(0.05);
+    const semanticZoom = await canvas.getAttribute('data-semantic-zoom');
+    expect(['detail', 'overview', 'topology']).toContain(semanticZoom);
+    if (semanticZoom === 'detail') {
+      await assertResearchNodeTextReadable(page, fittedViewport.scale);
+    } else {
+      await expect(canvas.locator('[class*="reasoningNodeSummary"]:visible')).toHaveCount(0);
+    }
+    const layout = await canvas.getAttribute('data-layout');
+    if (layout !== 'horizontal' || semanticZoom !== 'detail') {
+      await expect(canvas.locator('.react-flow__edge-text:visible')).toHaveCount(0);
+    }
+
+    const pageScreenshot = path.join(RESEARCH_MAP_OUTPUT_DIR, `scientific-reasoning-map-${viewport.width}.png`);
+    const canvasScreenshot = path.join(
+      RESEARCH_MAP_OUTPUT_DIR,
+      `scientific-reasoning-map-canvas-${viewport.width}.png`
+    );
+    await page.evaluate(() => {
+      const pageElement = document.querySelector<HTMLElement>('[data-testid="runtime-research-map-page"]');
+      pageElement?.scrollTo(0, 0);
+      pageElement?.parentElement?.scrollTo(0, 0);
+      pageElement?.querySelectorAll<HTMLElement>('*').forEach((element) => {
+        if (element.scrollHeight > element.clientHeight) element.scrollTop = 0;
+      });
+    });
+    await expect(canvas).toBeInViewport();
+    await page.screenshot({ path: pageScreenshot });
+    await canvas.screenshot({ path: canvasScreenshot });
+    await assertRasterHasVisibleContent(canvasScreenshot);
+  }
+
+  writeRuntimeE2EDomainView(fixture, { revision: 8, extraHistoricalNodes: 8 });
+  await researchPage.getByRole('button', { name: '刷新科研路线' }).click();
+  await expect(canvas.locator('.react-flow__node')).toHaveCount(12);
+  await waitForResearchMapLayout(canvas);
+  await fitButton.click();
+  await expect(canvas).toHaveAttribute('data-semantic-zoom', 'topology');
+  await assertResearchGraphGeometry(page, 12, 11, { width: 4, height: 4 });
+  await expect(canvas.locator('[class*="reasoningNodeSummary"]:visible')).toHaveCount(0);
+  await expect(canvas.locator('.react-flow__edge-text:visible')).toHaveCount(0);
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if ((await canvas.getAttribute('data-semantic-zoom')) === 'detail') break;
+    await zoomInButton.click();
+    await page.waitForTimeout(180);
+  }
+  await expect(canvas).toHaveAttribute('data-semantic-zoom', 'detail');
+  await expect(canvas.locator('[class*="reasoningNodeSummary"]').first()).toBeVisible();
+  await assertResearchNodeTextReadable(page, (await readResearchFlowTransform(page)).scale);
+  await fitButton.click();
+  await expect(canvas).toHaveAttribute('data-semantic-zoom', 'topology');
+  await assertResearchGraphGeometry(page, 12, 11, { width: 4, height: 4 });
+
+  await researchPage.getByRole('button', { name: '返回运行总览' }).click();
+  await expect(page.locator('[data-testid="runtime-v2-page"]')).toBeVisible();
 });
 
 test('keeps ordinary words intact while wrapping unbroken identifiers as a fallback', async () => {

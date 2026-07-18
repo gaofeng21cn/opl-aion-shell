@@ -7,6 +7,7 @@
 import { Alert, Message, Modal, Spin, Typography } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { RuntimeArchiveHeader } from './components/RuntimeArchiveHeader';
@@ -56,6 +57,7 @@ function findReadbackWorkItem(payload: unknown, selectedItem: RuntimeWorkItem): 
 
 const RuntimePage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const translate = t as RuntimeTranslate;
   const [message, messageContextHolder] = Message.useMessage();
   const appStateQuery = useOplAppState('fast');
@@ -171,6 +173,13 @@ const RuntimePage: React.FC = () => {
     setSelectedAgentId(agentId);
     setSelectedProjectId(ALL_RUNTIME_SCOPES);
   };
+
+  const openDomainDetailView = useCallback(
+    (item: RuntimeWorkItem, viewId: string) => {
+      void navigate(`/runtime/item/${encodeURIComponent(item.id)}/insights/${encodeURIComponent(viewId)}`);
+    },
+    [navigate]
+  );
 
   const requestSelectedItemVisibility = useCallback(
     (visibilityState: 'visible' | 'archived') => {
@@ -352,6 +361,7 @@ const RuntimePage: React.FC = () => {
         locale={i18n.resolvedLanguage ?? i18n.language}
         t={translate}
         visibilityChanging={Boolean(selectedItem && runningActionId?.startsWith(`visibility:${selectedItem.id}:`))}
+        onOpenDomainDetailView={openDomainDetailView}
         onVisibilityChange={requestSelectedItemVisibility}
         onClose={closeItem}
       />

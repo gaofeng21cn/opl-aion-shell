@@ -12,6 +12,7 @@ import path from 'node:path';
 import { ipcBridge } from '@/common';
 import type {
   IOplConfigureCodexRequest,
+  IOplDomainDetailViewRequest,
   IOplGatewayAccountErrorCode,
   IOplGatewayAccountLoginRequest,
   IOplGatewayAccountMutationResult,
@@ -31,6 +32,7 @@ type RuntimeCommandSpec = {
   stdin?: string;
   redactedCommand?: string;
   timeoutMs?: number;
+  maxStdoutBytes?: number;
 };
 
 type DesktopStartupMaintenanceDependencies = {
@@ -60,6 +62,7 @@ type OplCliEntrypoints = {
 };
 
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
+const DOMAIN_DETAIL_VIEW_MAX_STDOUT_BYTES = 9 * 1024 * 1024;
 const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
 const OPL_INITIALIZE_TIMEOUT_MS = 120_000;
@@ -120,6 +123,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   primarySurfaces: [
     'opl app state --profile fast --json',
     'opl app state --profile full --json',
+    'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
   ],
   diagnosticExceptionSurfaces: [
@@ -129,6 +133,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   allowedSurfaces: [
     'opl app state --profile fast --json',
     'opl app state --profile full --json',
+    'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
@@ -213,6 +218,29 @@ function assertActionId(actionId: string): string {
   return normalized;
 }
 
+function assertDomainDetailItemId(itemId: string): string {
+  const normalized = itemId.trim();
+  if (normalized.length > 512 || normalized.includes('..') || !/^[A-Za-z0-9._:@%-]+$/.test(normalized)) {
+    throw new Error('Invalid OPL domain detail item id');
+  }
+  return normalized;
+}
+
+function assertDomainDetailViewId(viewId: string): string {
+  const normalized = viewId.trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(normalized)) {
+    throw new Error('Invalid OPL domain detail view id');
+  }
+  return normalized;
+}
+
+function assertDomainDetailRevision(revision: number): number {
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new Error('Invalid OPL domain detail revision');
+  }
+  return revision;
+}
+
 function assertUpdateComponentId(componentId: string): string {
   const normalized = componentId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
@@ -253,6 +281,23 @@ function buildAppStateCommand(profile: IOplAppStateProfile): RuntimeCommandSpec 
     surface: profile === 'full' ? 'app_state_full' : 'app_state_fast',
     args: ['app', 'state', '--profile', profile, '--json'],
   };
+}
+
+function buildDomainDetailViewCommand(request: IOplDomainDetailViewRequest): RuntimeCommandSpec {
+  const args = [
+    'app',
+    'view',
+    'read',
+    '--item-id',
+    assertDomainDetailItemId(request.itemId),
+    '--view-id',
+    assertDomainDetailViewId(request.viewId),
+  ];
+  if (request.ifRevision !== undefined) {
+    args.push('--if-revision', String(assertDomainDetailRevision(request.ifRevision)));
+  }
+  args.push('--json');
+  return { surface: 'domain_detail_view', args, maxStdoutBytes: DOMAIN_DETAIL_VIEW_MAX_STDOUT_BYTES };
 }
 
 function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSpec {
@@ -1471,6 +1516,7 @@ function buildOplSpawnCommand(
   env: NodeJS.ProcessEnv;
   stdin?: string;
   timeoutMs?: number;
+  maxStdoutBytes?: number;
 } {
   const resolved = resolveOplCli(spec, env);
   if (resolved) {
@@ -1480,6 +1526,7 @@ function buildOplSpawnCommand(
       args: [...resolved.argsPrefix, ...spec.args],
       stdin: spec.stdin,
       timeoutMs: spec.timeoutMs,
+      maxStdoutBytes: spec.maxStdoutBytes,
       env: resolved.env,
       redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
     };
@@ -1490,6 +1537,7 @@ function buildOplSpawnCommand(
     args: spec.args,
     stdin: spec.stdin,
     timeoutMs: spec.timeoutMs,
+    maxStdoutBytes: spec.maxStdoutBytes,
     env,
     redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
   };
@@ -1722,6 +1770,7 @@ function resetDesktopStartupMaintenanceForTest(): void {
 
 export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
+  ipcBridge.oplRuntime.readDomainDetailView.provider((request) => runOplCommand(buildDomainDetailViewCommand(request)));
   ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
   ipcBridge.oplRuntime.runInstallPrep.provider(() => runOplCommand(buildInstallPrepCommand()));
   ipcBridge.oplRuntime.configureCodex.provider((request) => runOplCommand(buildConfigureCodexCommand(request)));
@@ -1746,11 +1795,15 @@ export function initOplRuntimeBridge(): void {
 export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
+  assertDomainDetailItemId,
+  assertDomainDetailViewId,
+  assertDomainDetailRevision,
   assertUpdateComponentId,
   assertApplyUpdateComponentId,
   assertUpdateReceiptId,
   buildActionCommand,
   buildAppStateCommand,
+  buildDomainDetailViewCommand,
   buildConfigureCodexCommand,
   buildGatewayAccountLoginCommand,
   buildDrilldownCommand,

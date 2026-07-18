@@ -26,4 +26,33 @@ describe('Runtime V2 text wrapping styles', () => {
       /\.detailActions :global\(\.arco-btn\)\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*normal;/s
     );
   });
+
+  it('keeps the research map stable across desktop and narrow viewports', () => {
+    expect(runtimeStyles).toMatch(
+      /\.reasoningPage\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*overflow:\s*hidden;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /\.reasoningWorkspace\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(300px, 360px\);[^}]*min-height:\s*520px;[^}]*overflow:\s*hidden;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /\.reasoningCanvas :global\(\.react-flow__node-scientificReasoning\)\s*\{[^}]*width:\s*276px;[^}]*height:\s*152px;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /\.reasoningCanvas\[data-compact='true'\] :global\(\.react-flow__node-scientificReasoning\)\s*\{[^}]*width:\s*184px;[^}]*height:\s*172px;/s
+    );
+    expect(runtimeStyles).toMatch(/\.reasoningEdgeHistorical :global\([^)]*\)\s*\{[^}]*stroke-dasharray:\s*8 6;/s);
+    expect(runtimeStyles).toMatch(
+      /\.reasoningEdgeBlocked :global\([^)]*\)\s*\{[^}]*stroke:\s*var\(--color-danger-6\);[^}]*stroke-dasharray:\s*2 5;/s
+    );
+    expect(runtimeStyles).toMatch(/@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none;/s);
+    expect(runtimeStyles).toMatch(
+      /\.reasoningCanvasTools\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*5;[^}]*top:\s*12px;[^}]*right:\s*12px;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /@media \(max-width:\s*1180px\)[\s\S]*\.reasoningWorkspace\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s
+    );
+    expect(runtimeStyles).toMatch(
+      /@media \(max-width:\s*560px\)[\s\S]*\.reasoningHeaderActions\s*\{[^}]*justify-content:\s*space-between;/s
+    );
+  });
 });

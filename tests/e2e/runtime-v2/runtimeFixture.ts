@@ -4,10 +4,14 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRuntimeV2AppState } from '../../unit/opl-runtime/runtime-v2/fixture';
+import {
+  createRuntimeV2AppState,
+  createScientificReasoningViewResponse,
+} from '../../unit/opl-runtime/runtime-v2/fixture';
 
 const APP_STATE_FILE = 'runtime-v2-app-state.json';
 const ACTION_LOG_FILE = 'runtime-v2-action-log.jsonl';
+const DOMAIN_VIEW_FILE = 'runtime-v2-domain-view.json';
 
 export type RuntimeE2EAppState = ReturnType<typeof createRuntimeV2AppState>;
 
@@ -30,6 +34,25 @@ export type RuntimeE2EFixture = {
 };
 
 export type RuntimeE2ELocale = 'zh-CN' | 'en-US';
+
+export type RuntimeE2ELaunchTarget = {
+  args: string[];
+  cwd: string;
+  executablePath?: string;
+};
+
+/** Builds a source or packaged Electron target without mixing their entry arguments. */
+export function buildRuntimeE2ELaunchTarget(input: {
+  projectRoot: string;
+  locale: RuntimeE2ELocale;
+  userDataDir: string;
+}): RuntimeE2ELaunchTarget {
+  const commonArgs = [`--lang=${input.locale}`, `--user-data-dir=${input.userDataDir}`];
+  const executablePath = process.env.OPL_RUNTIME_E2E_EXECUTABLE_PATH?.trim();
+  return executablePath
+    ? { args: commonArgs, cwd: input.projectRoot, executablePath }
+    : { args: ['.', ...commonArgs], cwd: input.projectRoot };
+}
 
 function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -60,12 +83,14 @@ const path = require('node:path');
 
 const APP_STATE_FILE = ${JSON.stringify(APP_STATE_FILE)};
 const ACTION_LOG_FILE = ${JSON.stringify(ACTION_LOG_FILE)};
+const DOMAIN_VIEW_FILE = ${JSON.stringify(DOMAIN_VIEW_FILE)};
 const CONFLICT_REASON = 'work_item_control_generation_conflict';
 const CONFLICT_MESSAGE = 'Work item control changed after it was read; refresh before retrying.';
 const stateDir = process.env.OPL_STATE_DIR;
 if (!stateDir) throw new Error('OPL_STATE_DIR is required by the Runtime E2E carrier.');
 const statePath = path.join(stateDir, APP_STATE_FILE);
 const actionLogPath = path.join(stateDir, ACTION_LOG_FILE);
+const domainViewPath = path.join(stateDir, DOMAIN_VIEW_FILE);
 const args = process.argv.slice(2);
 
 function emit(value) {
@@ -114,6 +139,18 @@ function refreshSummary(projection) {
 
 if (args[0] === 'app' && args[1] === 'state') {
   emit(readState());
+} else if (args[0] === 'app' && args[1] === 'view' && args[2] === 'read') {
+  const itemId = option('--item-id');
+  const viewId = option('--view-id');
+  const ifRevision = option('--if-revision');
+  const view = JSON.parse(fs.readFileSync(domainViewPath, 'utf8'));
+  if (itemId !== view.item_id || viewId !== view.view_id) {
+    emit({ ...view, item_id: itemId || '', view_id: viewId || '', availability: 'missing', payload: null });
+  } else if (ifRevision !== undefined && Number(ifRevision) === view.revision) {
+    emit({ ...view, not_modified: true, payload: null });
+  } else {
+    emit(view);
+  }
 } else if (args[0] === 'runtime' && args[1] === 'app-operator-drilldown') {
   emit({ app_operator_drilldown: { runtime_workbench: {} } });
 } else if (args[0] === 'app' && args[1] === 'action' && args[2] === 'execute') {
@@ -252,6 +289,7 @@ function createFrameworkCarrier(root: string): { formulaBin: string; stateDir: s
   fs.writeFileSync(path.join(formulaBin, 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
   fs.writeFileSync(cliPath, fakeOplCarrierSource(), 'utf8');
   writeJson(path.join(stateDir, APP_STATE_FILE), createRuntimeE2EAppState());
+  writeJson(path.join(stateDir, DOMAIN_VIEW_FILE), createScientificReasoningViewResponse());
   fs.writeFileSync(path.join(stateDir, ACTION_LOG_FILE), '', 'utf8');
   writeJson(path.join(packageRoot, 'package.json'), { name: 'opl-framework', version: '26.7.14-runtime-v2-e2e' });
   writeJson(path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'), {
@@ -309,8 +347,16 @@ export function readRuntimeE2EActionLog(fixture: RuntimeE2EFixture): RuntimeE2EA
     .map((line) => JSON.parse(line) as RuntimeE2EActionLogEntry);
 }
 
+/** Replaces the fake Framework detail view while preserving the carrier boundary. */
+export function writeRuntimeE2EDomainView(
+  fixture: RuntimeE2EFixture,
+  options: Parameters<typeof createScientificReasoningViewResponse>[0]
+): void {
+  writeJson(path.join(fixture.stateDir, DOMAIN_VIEW_FILE), createScientificReasoningViewResponse(options));
+}
+
 async function resolveMainWindow(app: ElectronApplication): Promise<Page> {
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     const page = app.windows().find((candidate) => {
       const url = candidate.url();
@@ -322,7 +368,8 @@ async function resolveMainWindow(app: ElectronApplication): Promise<Page> {
     }
     await app.waitForEvent('window', { timeout: 250 }).catch(() => null);
   }
-  throw new Error('Runtime V2 E2E could not resolve the Electron renderer window.');
+  const windowUrls = app.windows().map((candidate) => candidate.url());
+  throw new Error(`Runtime V2 E2E could not resolve the Electron renderer window. URLs: ${JSON.stringify(windowUrls)}`);
 }
 
 export async function launchRuntimeE2EFixture(options: { locale?: RuntimeE2ELocale } = {}): Promise<RuntimeE2EFixture> {
@@ -330,17 +377,21 @@ export async function launchRuntimeE2EFixture(options: { locale?: RuntimeE2ELoca
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-v2-e2e-'));
   const locale = options.locale ?? 'zh-CN';
   const extensionRoot = path.join(root, 'extensions');
+  const userDataDir = path.join(root, 'user-data');
+  const devUserDataDir = path.join(root, 'OnePersonLab-Dev');
   const screenshotDir = path.join(projectRoot, 'tests', 'e2e', 'screenshots', 'runtime-v2');
   const { formulaBin, stateDir, cliPath } = createFrameworkCarrier(root);
   fs.mkdirSync(extensionRoot, { recursive: true });
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.mkdirSync(devUserDataDir, { recursive: true });
   fs.mkdirSync(screenshotDir, { recursive: true });
 
+  const launchTarget = buildRuntimeE2ELaunchTarget({ projectRoot, locale, userDataDir });
   const app = await electron.launch({
-    args: ['.', `--lang=${locale}`, `--user-data-dir=${path.join(root, 'user-data')}`],
-    cwd: projectRoot,
+    ...launchTarget,
     env: {
       ...process.env,
-      NODE_ENV: 'development',
+      NODE_ENV: launchTarget.executablePath ? 'production' : 'development',
       AIONUI_CDP_PORT: '0',
       AIONUI_DISABLE_AUTO_UPDATE: '1',
       AIONUI_DISABLE_DEVTOOLS: '1',
@@ -355,8 +406,30 @@ export async function launchRuntimeE2EFixture(options: { locale?: RuntimeE2ELoca
     },
     timeout: 60_000,
   });
-
-  return { app, page: await resolveMainWindow(app), root, screenshotDir, cliPath, stateDir };
+  const output: string[] = [];
+  const captureOutput = (chunk: Buffer | string) => output.push(String(chunk));
+  app.process().stdout?.on('data', captureOutput);
+  app.process().stderr?.on('data', captureOutput);
+  try {
+    if (launchTarget.executablePath) {
+      const actualExecutablePath = await app.evaluate(({ app: electronApp }) => electronApp.getPath('exe'));
+      if (path.resolve(actualExecutablePath) !== path.resolve(launchTarget.executablePath)) {
+        throw new Error(
+          `Runtime V2 E2E launched unexpected executable: ${actualExecutablePath} (expected ${launchTarget.executablePath})`
+        );
+      }
+    }
+    const page = await resolveMainWindow(app);
+    return { app, page, root, screenshotDir, cliPath, stateDir };
+  } catch (error) {
+    await app.close().catch(() => {});
+    fs.rmSync(root, { recursive: true, force: true });
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message}\nElectron output:\n${output.join('').slice(-20_000)}`);
+  } finally {
+    app.process().stdout?.off('data', captureOutput);
+    app.process().stderr?.off('data', captureOutput);
+  }
 }
 
 export async function closeRuntimeE2EFixture(fixture: RuntimeE2EFixture | null): Promise<void> {

@@ -13,12 +13,15 @@ import {
 } from '../formatters';
 import type { RuntimeWorkItem } from '../types';
 import styles from '../RuntimePage.module.css';
+import { isScientificReasoningViewDescriptor } from '../scientificReasoning';
+import { ScientificReasoningSummary } from './ScientificReasoningSummary';
 
 type RuntimeDetailDrawerProps = {
   item: RuntimeWorkItem | null;
   locale: string;
   t: RuntimeTranslate;
   visibilityChanging: boolean;
+  onOpenDomainDetailView: (item: RuntimeWorkItem, viewId: string) => void;
   onVisibilityChange: (state: 'visible' | 'archived') => void;
   onClose: () => void;
 };
@@ -58,11 +61,13 @@ export function RuntimeDetailDrawer({
   locale,
   t,
   visibilityChanging,
+  onOpenDomainDetailView,
   onVisibilityChange,
   onClose,
 }: RuntimeDetailDrawerProps) {
   const resolvedAction = item?.action ? resolveRuntimeAction(item.action, t) : null;
   const archived = item?.visibility.state === 'archived';
+  const reasoningDescriptor = item?.domainDetailViews.find(isScientificReasoningViewDescriptor);
   return (
     <Drawer
       visible={Boolean(item)}
@@ -152,6 +157,14 @@ export function RuntimeDetailDrawer({
               <Typography.Text className={styles.actionSummary}>{t('common.runtime.noNextAction')}</Typography.Text>
             )}
           </section>
+
+          {reasoningDescriptor && (
+            <ScientificReasoningSummary
+              descriptor={reasoningDescriptor}
+              t={t}
+              onOpen={() => onOpenDomainDetailView(item, reasoningDescriptor.viewId)}
+            />
+          )}
 
           {item.primaryStatus === 'system_attention' && item.systemAttention && (
             <section className={styles.systemAttention} data-testid='runtime-system-attention'>
