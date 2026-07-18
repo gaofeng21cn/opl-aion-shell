@@ -25,6 +25,24 @@ function withFakeOpl(payloadBytes: number, run: (root: string) => void): void {
   }
 }
 
+function withFakePackagedInstaller(payloadBytes: number, run: (appPath: string) => void): void {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bootstrap-buffer-'));
+  const appPath = path.join(root, 'One Person Lab.app');
+  const resourcesPath = path.join(appPath, 'Contents', 'Resources');
+  const installerPath = path.join(resourcesPath, 'opl-install.sh');
+  fs.mkdirSync(resourcesPath, { recursive: true });
+  fs.writeFileSync(
+    installerPath,
+    `#!/bin/bash\n${JSON.stringify(process.execPath)} -e "process.stdout.write('x'.repeat(${payloadBytes}))"\n`,
+    { mode: 0o755 }
+  );
+  try {
+    run(appPath);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function temporalServiceActionLifecycle(pid: number) {
   return {
     service_status: 'running',
@@ -39,6 +57,40 @@ function temporalServiceActionLifecycle(pid: number) {
 }
 
 describe('packaged first-run VM smoke helpers', () => {
+  it('allows packaged bootstrap output above the Node spawnSync default buffer', () => {
+    withFakePackagedInstaller(2 * 1024 * 1024, (appPath) => {
+      const result = __test.runPackagedStandardBootstrapForSmoke(appPath);
+
+      expect(result).toMatchObject({
+        status: 'passed',
+        error_code: null,
+        buffer_exhausted: false,
+        stdout_bytes: 2 * 1024 * 1024,
+        stderr_bytes: 0,
+      });
+      expect(result.max_buffer_bytes).toBeGreaterThan(1024 * 1024);
+    });
+  });
+
+  it('records deterministic buffer diagnostics when packaged bootstrap output exceeds its limit', () => {
+    withFakePackagedInstaller(256 * 1024, (appPath) => {
+      const result = __test.runPackagedStandardBootstrapForSmoke(appPath, {
+        bootstrapMaxBufferBytes: 1024,
+      });
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        error_code: 'ENOBUFS',
+        buffer_exhausted: true,
+        max_buffer_bytes: 1024,
+        timed_out: false,
+      });
+      expect(result.stdout_bytes).toBeGreaterThan(0);
+      expect(result.stderr_bytes).toBe(0);
+      expect(result.error).toContain('ENOBUFS');
+    });
+  });
+
   it('accepts OPL JSON output above the Node spawnSync default buffer', () => {
     withFakeOpl(2 * 1024 * 1024, (root) => {
       const raw = __test.runOplJson(['app', 'state', '--profile', 'fast', '--json'], {

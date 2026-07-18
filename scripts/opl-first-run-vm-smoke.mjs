@@ -34,6 +34,7 @@ const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runt
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
 const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
 const OPL_JSON_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+const OPL_BOOTSTRAP_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const OPL_JSON_DIAGNOSTIC_INLINE_BYTES = 64 * 1024;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const FULL_ASSISTANT_READINESS_TIMEOUT_MS = 180_000;
@@ -1850,6 +1851,11 @@ function buildStandardBootstrapCommand(installerPath) {
   };
 }
 
+function resolveOplBootstrapMaxBufferBytes(value) {
+  const candidate = Number(value);
+  return Number.isSafeInteger(candidate) && candidate > 0 ? candidate : OPL_BOOTSTRAP_MAX_BUFFER_BYTES;
+}
+
 function runPackagedStandardBootstrapForSmoke(appPath, options = {}) {
   const installerPath = resolvePackagedStandardInstaller(appPath);
   if (!installerPath) {
@@ -1861,6 +1867,7 @@ function runPackagedStandardBootstrapForSmoke(appPath, options = {}) {
   }
 
   const bootstrap = buildStandardBootstrapCommand(installerPath);
+  const maxBufferBytes = resolveOplBootstrapMaxBufferBytes(options.bootstrapMaxBufferBytes);
   const result = spawnSync(bootstrap.command, bootstrap.args, {
     encoding: 'utf8',
     env: {
@@ -1869,16 +1876,26 @@ function runPackagedStandardBootstrapForSmoke(appPath, options = {}) {
       PATH: buildStandardBootstrapPathPrefix(),
     },
     timeout: Math.max(OPL_BOOTSTRAP_TIMEOUT_MS, Number(options.timeoutMs) || 0),
+    maxBuffer: maxBufferBytes,
   });
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? '';
+  const errorCode = result.error?.code ?? null;
   return {
     status: result.status === 0 ? 'passed' : 'failed',
     command: bootstrap.redactedCommand,
     installer_path: installerPath,
     exit_status: result.status,
     signal: result.signal ?? null,
-    timed_out: result.error?.code === 'ETIMEDOUT',
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? result.error?.message ?? '',
+    timed_out: errorCode === 'ETIMEDOUT',
+    max_buffer_bytes: maxBufferBytes,
+    buffer_exhausted: errorCode === 'ENOBUFS',
+    error_code: errorCode,
+    error: result.error?.message ?? null,
+    stdout,
+    stdout_bytes: Buffer.byteLength(stdout),
+    stderr,
+    stderr_bytes: Buffer.byteLength(stderr),
   };
 }
 
