@@ -415,6 +415,77 @@ describe('StorageSettingsContent', () => {
     expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/agents');
   });
 
+  it('keeps the WebUI Storage core route fail-open without invoking desktop local lifecycle', async () => {
+    const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 2048,
+          reclaimable_bytes: 1024,
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            webui_data_volume: {
+              status: 'unavailable',
+              observed_at: null,
+              stale: true,
+              bytes: null,
+              reclaimable_bytes: null,
+              owner_route: '/settings/storage#webui-data',
+              projected_action: {
+                kind: 'host_action_required',
+                action_id: null,
+                execution_owner: 'carrier_host',
+              },
+            },
+          },
+        },
+      },
+    };
+    bridgeMocks.executeAction.mockRejectedValue(new Error('owner inventory unavailable'));
+
+    try {
+      render(<StorageSettingsContent />);
+
+      expect(await screen.findByTestId('settings-page-storage')).toBeInTheDocument();
+      expect(screen.getByTestId('storage-owner-agent_package_store')).toHaveTextContent('2.0 KB');
+      expect(screen.getByTestId('storage-owner-webui_data_volume')).toHaveTextContent('Size unavailable');
+      expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+      expect(screen.queryByTestId('storage-inventory-updater_cache')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('storage-inventory-user_data_artifacts')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('storage-inventory-runtime_substrate')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('storage-inventory-logs')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('settings-storage-diagnostics-action')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('storage-inventory-freshness')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('storage-research-lifecycle')).not.toBeInTheDocument();
+      expect(document.getElementById('archives')).not.toBeNull();
+      expect(document.getElementById('cleanup-history')).not.toBeNull();
+      expect(bridgeMocks.getInventorySnapshot).not.toHaveBeenCalled();
+      expect(bridgeMocks.inventoryUpdatedOn).not.toHaveBeenCalled();
+      expect(bridgeMocks.restoreConversationProof).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('storage-refresh'));
+      await waitFor(() => expect(bridgeMocks.executeAction).toHaveBeenCalledTimes(2));
+      expect(bridgeMocks.refreshInventory).not.toHaveBeenCalled();
+      expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
+        forceFresh: true,
+        showRefreshing: false,
+      });
+      expect(screen.queryByTestId('settings-storage-exception')).not.toBeInTheDocument();
+    } finally {
+      if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
+    }
+  });
+
   it('refreshes both owner inventories independently and keeps local storage available when one owner fails', async () => {
     bridgeMocks.executeAction
       .mockRejectedValueOnce(new Error('package inventory unavailable'))

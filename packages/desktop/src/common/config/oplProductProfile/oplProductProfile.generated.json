@@ -2684,8 +2684,8 @@
           "icon_token": "storage",
           "ia_group": "storage",
           "slot_id": "settings_storage",
-          "state_source": "active shell local data lifecycle service + contracts/app-release-channel.json#local_data_lifecycle",
-          "refresh_source": "cached local data inventory followed by background refresh and local-data-lifecycle inventory-updated events",
+          "state_source": "active shell local data lifecycle service + Framework and carrier-host owner projections from opl app state --profile fast --json + contracts/app-release-channel.json#local_data_lifecycle",
+          "refresh_source": "cached shell and owner snapshots followed by non-blocking TTL/manual refresh; missing owner projections fail open",
           "scope": "machine",
           "intent": "data_safety",
           "risk": "confirmation_required",
@@ -3076,7 +3076,7 @@
             "route_id": "storage",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/storageProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/StorageSettings/index.tsx",
-            "state_source": "active shell local data lifecycle service + contracts/app-release-channel.json#local_data_lifecycle",
+            "state_source": "active shell local data lifecycle service + Framework and carrier-host owner projections from opl app state --profile fast --json + contracts/app-release-channel.json#local_data_lifecycle",
             "forbidden_sources": ["silent user artifact deletion", "cleanup without receipt policy"],
             "inventory_cache_policy": {
               "startup": "read last persisted snapshot immediately then refresh in the background after startup",
@@ -3092,21 +3092,51 @@
               "mode": "read_only",
               "owner_route": "workspace#logs"
             },
-            "docker_storage_projection": {
-              "owner": "desktop_App_carrier_and_Docker_Engine",
-              "required_fields": [
-                "engine_status",
-                "image_bytes",
-                "container_bytes",
-                "volume_bytes",
-                "build_cache_bytes",
+            "owner_storage_projections": {
+              "projection_source": "opl app state --profile fast --json",
+              "sections": ["agent_package_store", "webui_data_volume"],
+              "common_required_fields": [
+                "status",
+                "observed_at",
+                "stale",
+                "bytes",
                 "reclaimable_bytes",
-                "data_volume_source",
-                "data_volume_destination"
+                "owner_route",
+                "projected_action"
               ],
-              "data_volume_mapping": "OnePersonLab/data -> /data",
-              "preview_before_prune": true,
-              "generic_prune_allowed": false
+              "missing_projection_policy": "fail_open_keep_shell_owned_categories_available",
+              "unknown_bytes_policy": "unavailable_never_zero",
+              "agent_package_store": {
+                "owner_route": "/settings/agents",
+                "ordinary_action": "navigate_to_owner_route",
+                "direct_storage_mutation_allowed": false
+              },
+              "webui_data_volume": {
+                "data_volume_mapping": "OnePersonLab/data -> /data",
+                "action_policy": "owner_projected_dry_run_then_exact_confirmation_then_fresh_terminal_readback",
+                "generic_docker_prune_allowed": false,
+                "shell_direct_path_delete_allowed": false
+              }
+            },
+            "storage_carrier_behavior": {
+              "desktop": {
+                "core_route": "/settings/storage",
+                "local_lifecycle_transport": "electron_ipc",
+                "local_sections": ["updater_cache", "user_data_artifacts", "runtime_substrate", "logs"],
+                "owner_projection_policy": "merge_valid_sections_non_blocking"
+              },
+              "webui": {
+                "core_route": "/settings/storage",
+                "local_lifecycle_transport": "not_available_and_must_not_be_invoked",
+                "local_sections": [],
+                "visible_section_source": "valid_owner_projections_only",
+                "missing_projection_policy": "fail_open_keep_route_available_and_omit_missing_sections",
+                "manual_refresh": "owner_inventory_actions_all_settled_then_force_fresh_fast_app_state",
+                "unknown_bytes_policy": "unavailable_never_zero",
+                "host_action_required_policy": "status_only_without_destructive_cta",
+                "shell_or_docker_action_inference_allowed": false,
+                "raw_host_paths_visible": false
+              }
             }
           },
           "capabilities": {
@@ -3688,24 +3718,26 @@
           {
             "id": "data_storage_safety",
             "track": "user_task_ux",
-            "goal": "Storage owns cached local and Docker usage plus previewed cleanup, while path configuration remains on Workspace.",
+            "goal": "Storage merges Shell-owned local usage with canonical owner projections, while path configuration remains on Workspace.",
             "evidence_required": [
               "storage-categories is the primary list",
               "cached inventory renders before background refresh without synthetic zero bytes",
               "log directory is read-only and links to Workspace",
-              "Docker usage includes images/containers/volumes/build cache/reclaimable bytes",
+              "Agent Package and WebUI data usage comes only from canonical owner projections",
+              "missing owner projections fail open without synthetic zero bytes",
               "cleanup-preview precedes destructive action and generic prune is forbidden"
             ]
           },
           {
-            "id": "docker_storage_projection",
+            "id": "owner_storage_projection",
             "track": "user_task_ux",
-            "goal": "Storage projects Docker disk usage without unsafe generic prune behavior.",
+            "goal": "Storage projects Agent Package store and WebUI data volume status without taking lifecycle authority.",
             "evidence_required": [
-              "typed fields cover image/container/volume/build-cache/reclaimable bytes",
-              "data volume mapping is visible",
-              "cleanup always starts with preview",
-              "generic prune is forbidden"
+              "common fields cover status/freshness/bytes/reclaimable bytes/owner route/projected action",
+              "Agent Package cleanup navigates to Agents and reuses owner uninstall",
+              "WebUI cleanup submits only the owner-projected dry-run plan and exact confirmation payload",
+              "missing projections keep existing Storage categories usable",
+              "generic prune and Shell-direct path deletion are forbidden"
             ]
           },
           {
@@ -5171,7 +5203,7 @@
             "primary_information": [
               "storage usage by conversations, runtime data, logs, updater data, and user artifacts",
               "last persisted inventory snapshot rendered immediately and refreshed in the background",
-              "typed Docker Engine usage for images, containers, volumes, and build cache",
+              "Agent Package store and WebUI data volume usage from canonical owner projections",
               "the Workspace-owned log directory may be referenced read-only without a duplicate setting",
               "archives and restore availability",
               "cleanup preview before any destructive action",
@@ -5217,19 +5249,42 @@
               "inventory_freshness_fields": ["observed_at", "scan_duration_ms", "stale"],
               "inventory_event": "local-data-lifecycle.inventory-updated",
               "log_directory_reference": "read_only_link_to_workspace#logs",
-              "docker_storage_owner": "desktop_App_carrier_and_Docker_Engine",
-              "docker_required_fields": [
-                "engine_status",
-                "image_bytes",
-                "container_bytes",
-                "volume_bytes",
-                "build_cache_bytes",
+              "owner_storage_projection_source": "opl_app_state_fast_owner_projections",
+              "owner_storage_sections": ["agent_package_store", "webui_data_volume"],
+              "owner_storage_required_fields": [
+                "status",
+                "observed_at",
+                "stale",
+                "bytes",
                 "reclaimable_bytes",
-                "data_volume_source",
-                "data_volume_destination"
+                "owner_route",
+                "projected_action"
               ],
-              "docker_data_volume_mapping": "OnePersonLab/data -> /data",
-              "docker_cleanup_policy": "preview_before_prune_no_generic_prune"
+              "owner_storage_missing_policy": "fail_open_keep_shell_owned_categories_available",
+              "agent_package_storage_action_policy": "navigate_to_agents_reuse_owner_uninstall_no_duplicate_storage_lifecycle",
+              "webui_data_volume_mapping": "OnePersonLab/data -> /data",
+              "webui_cleanup_policy": "owner_projected_dry_run_exact_confirmation_fresh_terminal_readback_and_recovery",
+              "generic_docker_prune_allowed": false,
+              "storage_carrier_behavior": {
+                "desktop": {
+                  "core_route": "/settings/storage",
+                  "local_lifecycle_transport": "electron_ipc",
+                  "local_sections": ["updater_cache", "user_data_artifacts", "runtime_substrate", "logs"],
+                  "owner_projection_policy": "merge_valid_sections_non_blocking"
+                },
+                "webui": {
+                  "core_route": "/settings/storage",
+                  "local_lifecycle_transport": "not_available_and_must_not_be_invoked",
+                  "local_sections": [],
+                  "visible_section_source": "valid_owner_projections_only",
+                  "missing_projection_policy": "fail_open_keep_route_available_and_omit_missing_sections",
+                  "manual_refresh": "owner_inventory_actions_all_settled_then_force_fresh_fast_app_state",
+                  "unknown_bytes_policy": "unavailable_never_zero",
+                  "host_action_required_policy": "status_only_without_destructive_cta",
+                  "shell_or_docker_action_inference_allowed": false,
+                  "raw_host_paths_visible": false
+                }
+              }
             },
             "primary_action": {
               "id": "preview_cleanup",
@@ -5241,7 +5296,7 @@
             "exception_state": "highlight unsafe or unprotected cleanup candidates and disable execution",
             "technical_details_boundary": "dry-run, receipt refs, lifecycle ids, SQLite details, and raw paths stay collapsed",
             "required_dom": {
-              "always": ["settings-page-storage", "settings-storage-primary", "settings-storage-diagnostics-action"],
+              "always": ["settings-page-storage", "settings-storage-primary"],
               "conditional": [
                 {
                   "testid": "settings-storage-exception",
@@ -5250,6 +5305,10 @@
                 {
                   "testid": "settings-storage-primary-action",
                   "when": "reclaimable_items_available"
+                },
+                {
+                  "testid": "settings-storage-diagnostics-action",
+                  "when": "desktop_carrier"
                 },
                 {
                   "testid": "settings-storage-technical-details",

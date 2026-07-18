@@ -69,11 +69,11 @@ describe('static-server', () => {
     expect(text).toContain('<title>root</title>');
   });
 
-  it('SPA fallback: /chat/123 returns index.html', async () => {
+  it.each(['/chat/123', '/settings/storage'])('SPA fallback: %s returns index.html', async (route) => {
     const backend = await startMockBackend((_req, res) => res.end('nope'));
     stopBackend = backend.close;
     handle = await startStaticServer({ staticDir, backendPort: backend.port, port: 0 });
-    const r = await fetch(`${handle.localUrl}/chat/123`);
+    const r = await fetch(`${handle.localUrl}${route}`);
     expect(r.status).toBe(200);
     expect(await r.text()).toContain('<title>root</title>');
   });

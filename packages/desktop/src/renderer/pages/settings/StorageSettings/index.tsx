@@ -20,6 +20,7 @@ import type {
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import { useNavigate } from 'react-router-dom';
 import {
   buildStorageSettingsViewModel,
@@ -240,6 +241,7 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({ ite
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const desktopCarrier = isElectronDesktop();
   const appStateQuery = useOplAppState('fast');
   const [inventory, setInventory] = React.useState<LocalDataLifecycleInventory | null>(null);
   const [inventorySnapshot, setInventorySnapshot] = React.useState<LocalDataLifecycleInventorySnapshot | null>(null);
@@ -270,10 +272,13 @@ export const StorageSettingsContent: React.FC = () => {
     [appStateQuery.appState, conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
   const totalBytes =
-    viewModel.sections.reduce((sum, section) => sum + section.bytes, 0) +
+    (desktopCarrier ? viewModel.sections : []).reduce((sum, section) => sum + section.bytes, 0) +
     viewModel.ownerSections.reduce((sum, section) => sum + (section.bytes ?? 0), 0);
-  const totalBytesKnown = Boolean(inventory) && viewModel.ownerSections.every((section) => section.bytes !== null);
+  const totalBytesKnown = desktopCarrier
+    ? Boolean(inventory) && viewModel.ownerSections.every((section) => section.bytes !== null)
+    : viewModel.ownerSections.length === 2 && viewModel.ownerSections.every((section) => section.bytes !== null);
   const cleanupCandidatesAvailable =
+    desktopCarrier &&
     Boolean(inventory) &&
     viewModel.sections.some((section) => section.id !== 'user_data_artifacts' && section.bytes > 0);
   const conversationSection = viewModel.sections.find((section) => section.id === 'user_data_artifacts');
@@ -334,8 +339,7 @@ export const StorageSettingsContent: React.FC = () => {
     void runAction(
       'inventory',
       async () => {
-        const [localInventoryResult] = await Promise.allSettled([
-          refreshInventory(),
+        const ownerInventoryRefresh = Promise.allSettled([
           ipcBridge.oplRuntime.executeAction.invoke({
             actionId: 'settings_inventory_agent_package_store',
             dryRun: false,
@@ -345,14 +349,22 @@ export const StorageSettingsContent: React.FC = () => {
             dryRun: false,
           }),
         ]);
+        if (!desktopCarrier) {
+          await ownerInventoryRefresh;
+          await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
+          return;
+        }
+        const [localInventoryResult] = await Promise.allSettled([refreshInventory()]);
+        await ownerInventoryRefresh;
         await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
         if (localInventoryResult.status === 'rejected') throw localInventoryResult.reason;
       },
       () => {}
     );
-  }, [appStateQuery, refreshInventory, runAction]);
+  }, [appStateQuery, desktopCarrier, refreshInventory, runAction]);
 
   React.useEffect(() => {
+    if (!desktopCarrier) return;
     let active = true;
     const unsubscribe = ipcBridge.localDataLifecycle.inventoryUpdated.on((snapshot) => {
       if (active) applyInventorySnapshot(snapshot);
@@ -370,7 +382,7 @@ export const StorageSettingsContent: React.FC = () => {
       active = false;
       unsubscribe();
     };
-  }, [applyInventorySnapshot, restoreRememberedConversationProof]);
+  }, [applyInventorySnapshot, desktopCarrier, restoreRememberedConversationProof]);
 
   React.useEffect(() => {
     if (!pendingDangerAction) return;
@@ -785,19 +797,24 @@ export const StorageSettingsContent: React.FC = () => {
             {t('settings.storagePage.overview.total')}:{' '}
             {totalBytesKnown ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
           </Typography.Text>
-          <Typography.Text className='mt-2px block text-12px text-t-tertiary' data-testid='storage-inventory-freshness'>
-            {inventorySnapshot?.observed_at
-              ? t('settings.storagePage.inventory.freshness', {
-                  observedAt: new Date(inventorySnapshot.observed_at).toLocaleString(),
-                  duration: inventorySnapshot.scan_duration_ms ?? 0,
-                  state: t(
-                    inventorySnapshot.stale
-                      ? 'settings.storagePage.inventory.stale'
-                      : 'settings.storagePage.inventory.current'
-                  ),
-                })
-              : t('settings.storagePage.inventory.awaitingSnapshot')}
-          </Typography.Text>
+          {desktopCarrier && (
+            <Typography.Text
+              className='mt-2px block text-12px text-t-tertiary'
+              data-testid='storage-inventory-freshness'
+            >
+              {inventorySnapshot?.observed_at
+                ? t('settings.storagePage.inventory.freshness', {
+                    observedAt: new Date(inventorySnapshot.observed_at).toLocaleString(),
+                    duration: inventorySnapshot.scan_duration_ms ?? 0,
+                    state: t(
+                      inventorySnapshot.stale
+                        ? 'settings.storagePage.inventory.stale'
+                        : 'settings.storagePage.inventory.current'
+                    ),
+                  })
+                : t('settings.storagePage.inventory.awaitingSnapshot')}
+            </Typography.Text>
+          )}
         </div>
       </div>
 
@@ -857,14 +874,16 @@ export const StorageSettingsContent: React.FC = () => {
               {t('settings.storagePage.actions.previewAll')}
             </Button>
           )}
-          <Button
-            type='secondary'
-            icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
-            data-testid='settings-storage-diagnostics-action'
-            onClick={() => setDiagnosticsVisible(true)}
-          >
-            {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-          </Button>
+          {desktopCarrier && (
+            <Button
+              type='secondary'
+              icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
+              data-testid='settings-storage-diagnostics-action'
+              onClick={() => setDiagnosticsVisible(true)}
+            >
+              {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+            </Button>
+          )}
           <OplRefreshIconButton
             htmlType='button'
             label={t('settings.storagePage.actions.refresh')}
@@ -874,10 +893,12 @@ export const StorageSettingsContent: React.FC = () => {
             data-testid='storage-refresh'
           />
         </div>
+        {!desktopCarrier && <span id='archives' aria-hidden='true' />}
         <div className='opl-settings-list' data-testid='storage-category-list'>
-          {viewModel.sections.map((item) => (
-            <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
-          ))}
+          {desktopCarrier &&
+            viewModel.sections.map((item) => (
+              <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+            ))}
           {viewModel.ownerSections.map((item) => (
             <OwnerStorageInventoryRow key={item.id} item={item} onOpenAgents={() => navigate('/settings/agents')} />
           ))}
@@ -886,78 +907,82 @@ export const StorageSettingsContent: React.FC = () => {
 
       <span id='cleanup-history' aria-hidden='true' />
 
-      <span data-testid='storage-research-lifecycle' aria-hidden='true' />
-      <Modal
-        visible={diagnosticsVisible}
-        title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-        footer={null}
-        onCancel={() => setDiagnosticsVisible(false)}
-        unmountOnExit
-        style={{ width: 'min(860px, calc(100vw - 48px))' }}
-      >
-        <div
-          className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
-          data-testid='settings-storage-technical-details'
+      {desktopCarrier && <span data-testid='storage-research-lifecycle' aria-hidden='true' />}
+      {desktopCarrier && (
+        <Modal
+          visible={diagnosticsVisible}
+          title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+          footer={null}
+          onCancel={() => setDiagnosticsVisible(false)}
+          unmountOnExit
+          style={{ width: 'min(860px, calc(100vw - 48px))' }}
         >
-          <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
-            {viewModel.sections.map((item) => (
-              <div key={item.id} className='border-0 border-b border-solid border-[var(--border-base)] pb-10px'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t(SECTION_META[item.id].titleKey)}
+          <div
+            className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
+            data-testid='settings-storage-technical-details'
+          >
+            <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
+              {viewModel.sections.map((item) => (
+                <div key={item.id} className='border-0 border-b border-solid border-[var(--border-base)] pb-10px'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t(SECTION_META[item.id].titleKey)}
+                  </Typography.Text>
+                  <div className='mt-6px flex flex-col gap-6px'>
+                    {item.section?.roots.map((root) => (
+                      <div key={root.path} className='flex flex-col gap-2px break-words text-12px'>
+                        <span>{root.path}</span>
+                        <span className='text-t-secondary'>
+                          {t('settings.storagePage.inventory.rootDetail', {
+                            exists: root.exists
+                              ? t('settings.storagePage.inventory.exists')
+                              : t('settings.storagePage.inventory.missing'),
+                            bytes: formatStorageBytes(root.bytes),
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                    {categoryPresentation[item.id].technicalDetails}
+                  </div>
+                </div>
+              ))}
+              <div>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.storagePage.researchLifecycle.title')}
                 </Typography.Text>
-                <div className='mt-6px flex flex-col gap-6px'>
-                  {item.section?.roots.map((root) => (
-                    <div key={root.path} className='flex flex-col gap-2px break-words text-12px'>
-                      <span>{root.path}</span>
-                      <span className='text-t-secondary'>
-                        {t('settings.storagePage.inventory.rootDetail', {
-                          exists: root.exists
-                            ? t('settings.storagePage.inventory.exists')
-                            : t('settings.storagePage.inventory.missing'),
-                          bytes: formatStorageBytes(root.bytes),
-                        })}
-                      </span>
-                    </div>
-                  ))}
-                  {categoryPresentation[item.id].technicalDetails}
+                <div className='text-12px text-t-secondary mt-4px'>
+                  {t('settings.storagePage.researchLifecycle.detail')}
                 </div>
               </div>
-            ))}
-            <div>
-              <Typography.Text className='font-600 text-t-primary'>
-                {t('settings.storagePage.researchLifecycle.title')}
-              </Typography.Text>
-              <div className='text-12px text-t-secondary mt-4px'>
-                {t('settings.storagePage.researchLifecycle.detail')}
+              <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+                {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+                {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+                {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+                {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+                {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
               </div>
             </div>
-            <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-              {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-              {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-              {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-              {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-              {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-              {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+          </div>
+        </Modal>
+      )}
+
+      {desktopCarrier && (
+        <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
+          <div className='opl-settings-row'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('settings.storagePage.history.title')}
+              </Typography.Text>
+              <Typography.Text className='break-all text-12px text-t-secondary'>
+                {lastReceipt
+                  ? t('settings.storagePage.history.latest', { time: lastReceipt.created_at })
+                  : t('settings.storagePage.history.empty')}
+              </Typography.Text>
             </div>
           </div>
-        </div>
-      </Modal>
-
-      <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
-        <div className='opl-settings-row'>
-          <div className='opl-settings-row__main'>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.history.title')}
-            </Typography.Text>
-            <Typography.Text className='break-all text-12px text-t-secondary'>
-              {lastReceipt
-                ? t('settings.storagePage.history.latest', { time: lastReceipt.created_at })
-                : t('settings.storagePage.history.empty')}
-            </Typography.Text>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };
