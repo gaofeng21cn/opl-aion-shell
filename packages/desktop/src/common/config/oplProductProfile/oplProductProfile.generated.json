@@ -544,9 +544,20 @@
       "session_workspace_model": {
         "primary_unit": "session_backed_by_codex_thread_id",
         "identity_authority": "codex_core_app_server_thread_id",
-        "workspace_binding_role": "new_session_initial_cwd_and_sidebar_grouping_metadata_only",
-        "runtime_pwd_role": "command_or_turn_execution_context_not_persisted_as_session_workspace_binding",
-        "existing_session_workspace_rebinding": "not_exposed",
+        "project_affinity_states": ["unbound", "bound"],
+        "project_affinity_cardinality": "zero_or_one",
+        "projectless_session_semantics": "no_user_selected_project_affinity_not_no_runtime_cwd",
+        "projectless_detection": "custom_workspace_equals_false_or_canonical_recorded_cwd_absent_never_turn_or_command_pwd",
+        "project_affinity_role": "canonical_recorded_thread_cwd_for_ui_grouping_and_default_turn_cwd_hint",
+        "workspace_binding_role": "new_session_initial_cwd_or_projectless_one_time_canonical_cwd_adoption_and_sidebar_grouping_metadata_only",
+        "runtime_pwd_role": "turn_cwd_or_command_pwd_execution_context_not_persisted_as_project_affinity",
+        "turn_cwd_override_allowed": true,
+        "writable_roots_role": "sandbox_permission_surface_independent_of_project_affinity",
+        "core_workspace_application": "thread_settings_update_cwd_with_exact_thread_read_before_local_projection_commit",
+        "runtime_pwd_changes_project_affinity": false,
+        "project_affinity_changes_writable_roots": false,
+        "project_adoption_transition": "projectless_to_bound_once_via_thread_settings_update_cwd",
+        "bound_project_reassignment": "not_exposed",
         "workspace_owns_session": false,
         "workspace_owns_context": false,
         "workspace_owns_artifacts": false,
@@ -1766,9 +1777,9 @@
           "id": "resources",
           "label_zh": "资源与连接",
           "label_en": "Resources & Connections",
-          "role": "resources_connections_and_advanced_deployment",
+          "role": "local_access_webui_and_optional_owner_projected_connections",
           "ordinary_entries": ["settings_resources"],
-          "primary_tasks": ["resources_connections", "docker_webui", "opl_workspace", "ssh_hpc", "fabric_console_refs"]
+          "primary_tasks": ["resources_connections", "docker_webui", "optional_owner_projected_resource_refs"]
         },
         {
           "id": "maintenance",
@@ -1860,8 +1871,8 @@
         "resources": {
           "label_zh": "资源与连接",
           "label_en": "Resources & Connections",
-          "role": "resources_connections_and_advanced_deployment",
-          "primary_question": "Which local, remote, hosted, or managed resources can my tasks use?",
+          "role": "local_access_webui_and_optional_owner_projected_connections",
+          "primary_question": "Which local access paths and currently projected external connections can my tasks use?",
           "ia_group": "resources",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
@@ -2635,7 +2646,7 @@
           "icon_token": "resources",
           "ia_group": "resources",
           "slot_id": "settings_resources",
-          "state_source": "opl app state --profile fast --json#settings_control_center.app_settings_read_model.resource_sources + docker_webui",
+          "state_source": "opl app state --profile fast --json#settings_control_center.connection_registry + settings_control_center.app_settings_read_model.resource_sources + docker_webui",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "resource",
           "intent": "configure",
@@ -2948,11 +2959,16 @@
                 "CLI dry-run commands"
               ],
               "resources_route": "resources",
-              "resources_route_policy": "local browser access, Docker WebUI, OPL Workspace, SSH/HPC, cloud, Fabric, and Console-managed refs live on Resources & Connections"
+              "resources_route_policy": "local browser access, Docker WebUI, and owner-projected optional resource refs live on Resources & Connections; absent optional projections create no groups or placeholders"
             },
-            "cloud_remote_boundary": {
-              "required_boundary_terms": ["App", "Workspace", "Gateway", "Fabric", "Console"],
+            "resource_route_boundary": {
+              "required_boundary_terms": [
+                "Account & Access",
+                "Resources & Connections",
+                "owner-projected optional resource refs"
+              ],
               "display_policy": "model selection stays on Models; Gateway credentials route to Account & Access; browser, resource, and deployment refs route to Settings Resources",
+              "optional_resource_policy": "render only canonical owner-projected records with at least one resource or route ref; omit empty categories and placeholders",
               "refs_only": true,
               "forbidden_claims": [
                 "runtime_truth",
@@ -3656,12 +3672,14 @@
           {
             "id": "resources_readiness_boundary",
             "track": "user_task_ux",
-            "goal": "Resources owns local browser access, WebUI, OPL Workspace, SSH or HPC, cloud, and external connections while distinguishing readiness from executability.",
+            "goal": "Resources owns local browser access, WebUI, and conditional owner-projected external connections while distinguishing readiness from executability.",
             "evidence_required": [
               "local browser access is a visible Resources entry",
               "resource and action readiness use separate anchors",
               "selected workspace controls stay on Workspace",
               "built-in OPL Gateway and its count stay off Resources",
+              "optional resource groups render only when their own canonical owner projection is non-empty",
+              "absent optional resources create no placeholder group or hosted platform promise",
               "Open navigates to browser_url and Diagnose renders an executed diagnostic result",
               "mutating actions require precheck and explicit confirmation before execution",
               "dry-run success is precheck evidence only and never an opened or deployed completion claim"
@@ -3986,7 +4004,7 @@
                 "scope": "resource",
                 "owner": "one-person-lab-app",
                 "risk": "confirmation_required",
-                "normal_summary": "Resources owns local browser access, WebUI, OPL Workspace, and external connections while separating readiness from action executability.",
+                "normal_summary": "Resources owns local browser access, WebUI, and owner-projected optional connections while separating readiness from action executability.",
                 "next_action": "open an available resource action only when the projected action is executable",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_resources",
                 "editable_reason": "resource deployment actions require dry-run or input confirmation",
@@ -4886,13 +4904,20 @@
             "label_en": "Resources & Connections",
             "primary_information": [
               "local browser access to this computer",
-              "Docker WebUI and OPL Workspace deployment entries",
+              "Docker WebUI deployment and access entry",
               "resource readiness",
               "whether the related operation is executable",
-              "SSH, HPC, cloud, and external resources with owner or management mode without duplicating the selected Workspace page",
+              "optional external resource refs only when a canonical owner or backend projection is present",
               "only external connections; the built-in OPL Gateway is owned by Account & Access"
             ],
-            "first_viewport_groups": ["local_browser_access", "deployed_web_access", "external_resources"],
+            "first_viewport_groups": ["local_browser_access", "deployed_web_access"],
+            "conditional_groups": [
+              {
+                "id": "conditional_external_resource_refs",
+                "when": "at_least_one_canonical_owner_projected_resource_record_has_a_resource_or_route_ref",
+                "empty_policy": "omit_group_anchor_and_placeholder"
+              }
+            ],
             "surface_inventory": {
               "configuration": [
                 {
@@ -4927,7 +4952,29 @@
               "action_policy": "open_existing_local_browser_access_settings",
               "implementation_provenance_visibility": "technical_details_only"
             },
-            "connection_filter_policy": "exclude the built-in OPL Gateway connection and count; show only user-managed external connections",
+            "connection_filter_policy": "exclude the built-in OPL Gateway connection and count; show only canonical owner-projected external connections with at least one resource or route ref",
+            "external_resource_projection_policy": {
+              "source": "settings_control_center.app_settings_read_model.resource_sources",
+              "record_eligibility": "canonical_record_exists_and_contains_at_least_one_resource_source_owner_or_route_ref",
+              "group_visibility": "render_each_resource_category_only_when_that_category_has_at_least_one_eligible_record",
+              "empty_projection_policy": "render_no_external_resource_group_anchor_or_placeholder",
+              "excluded_builtin_ids": ["opl_gateway", "gateway"],
+              "ordinary_display_fields": [
+                "status",
+                "management_mode",
+                "resource_source_refs",
+                "owner_ref",
+                "route_ref",
+                "projected_action_refs"
+              ],
+              "forbidden_app_authority": [
+                "resource_scheduling",
+                "resource_billing",
+                "credential_ownership",
+                "storage_execution",
+                "provider_truth"
+              ]
+            },
             "primary_action": {
               "id": "open_selected_resource_action",
               "availability": "executable_action_available",
@@ -4971,9 +5018,14 @@
                 "settings-page-resources",
                 "settings-resources-primary",
                 "settings-resources-browser-access",
-                "settings-resources-diagnostics-action"
+                "settings-resources-diagnostics-action",
+                "opl-connections-section"
               ],
               "conditional": [
+                {
+                  "testid": "settings-resources-external",
+                  "when": "eligible_external_resource_projection_present"
+                },
                 {
                   "testid": "settings-resources-exception",
                   "when": "attention_required"
@@ -5505,10 +5557,10 @@
               "id": "resources.web_access",
               "page_id": "resources",
               "anchor": "web-access",
-              "label_zh": "WebUI 与 OPL Workspace",
-              "label_en": "WebUI and OPL Workspace",
-              "keywords_zh": ["WebUI", "OPL Workspace", "部署"],
-              "keywords_en": ["webui", "opl workspace", "deployment"]
+              "label_zh": "WebUI 访问",
+              "label_en": "WebUI access",
+              "keywords_zh": ["WebUI", "部署"],
+              "keywords_en": ["webui", "deployment"]
             },
             {
               "id": "resources.readiness",
@@ -5532,10 +5584,10 @@
               "id": "resources.external",
               "page_id": "resources",
               "anchor": "external-resources",
-              "label_zh": "外部资源",
-              "label_en": "External resources",
-              "keywords_zh": ["远程", "云", "SSH", "HPC"],
-              "keywords_en": ["remote", "cloud", "ssh", "hpc"]
+              "label_zh": "外部连接",
+              "label_en": "External connections",
+              "keywords_zh": ["连接", "端点", "凭据引用"],
+              "keywords_en": ["connection", "endpoint", "credential reference"]
             },
             {
               "id": "maintenance.health",
