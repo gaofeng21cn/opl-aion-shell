@@ -58,6 +58,8 @@
     "keepAwakeTooltip": "When enabled, One Person Lab App will prevent your computer from going to sleep",
     "createTask": "Create Scheduled Task",
     "editTask": "Edit Scheduled Task",
+    "codexUnavailable": "Codex is unavailable for scheduled-task composition. Existing tasks remain available.",
+    "codexAmbiguous": "Multiple runnable Codex assistants were found. Resolve the duplicate in Agents before creating or saving a Codex task.",
     "createSuccess": "Task created successfully",
     "updateSuccess": "Task updated successfully",
     "scheduleHint": "Scheduled tasks use a randomized delay of several minutes for server performance.",

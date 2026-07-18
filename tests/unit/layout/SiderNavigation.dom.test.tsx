@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
+import CronJobSiderSection from '@/renderer/components/layout/Sider/CronJobSiderSection';
 import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from '@/renderer/components/layout/Sider/SiderNav';
 
 vi.mock('@renderer/pages/conversation/GroupedHistory/ConversationSearchPopover', () => ({
@@ -32,6 +33,7 @@ vi.mock('react-i18next', () => ({
         'conversation.welcome.newTask': 'New task',
         'conversation.history.archivedTitle': 'Archived',
         'common.runtime.sidebarEntry': 'Runtime',
+        'cron.scheduledTasks': 'Scheduled Tasks',
         'common.primaryNavigation': 'Primary navigation',
         'common.account': 'Account',
         'common.help': 'Help',
@@ -60,8 +62,23 @@ describe('Sider navigation hierarchy', () => {
     expect(search).toHaveTextContent('');
   });
 
+  it('keeps the scheduled job section fail-open when local storage is unavailable', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+
+    expect(() => render(<CronJobSiderSection jobs={[]} pathname='/guid' onNavigate={vi.fn()} />)).not.toThrow();
+
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+
   it('orders primary actions before history utilities and keeps the footer compact', () => {
     const onRuntimeClick = vi.fn();
+    const onScheduledClick = vi.fn();
     const onSettingsClick = vi.fn();
     render(
       <div>
@@ -72,6 +89,7 @@ describe('Sider navigation hierarchy', () => {
           pathname='/guid'
           siderTooltipProps={tooltipProps}
           onRuntimeClick={onRuntimeClick}
+          onScheduledClick={onScheduledClick}
           onArchivedClick={vi.fn()}
         />
         <div>Conversation history</div>
@@ -88,10 +106,12 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Runtime', 'Archived', 'Settings']);
+    expect(labels).toEqual(['New task', 'Runtime', 'Scheduled Tasks', 'Archived', 'Settings']);
     expect(screen.queryByText('Thread coordination')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
     expect(onRuntimeClick).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Scheduled Tasks' }));
+    expect(onScheduledClick).toHaveBeenCalledOnce();
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();

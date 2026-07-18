@@ -59,6 +59,8 @@
     "keepAwakeTooltip": "开启后，One Person Lab App 将阻止电脑进入休眠状态",
     "createTask": "创建定时任务",
     "editTask": "编辑定时任务",
+    "codexUnavailable": "Codex 当前不可用于定时任务配置，现有任务仍可管理。",
+    "codexAmbiguous": "检测到多个可运行的 Codex 助手，请先在 Agents 中处理重复项，再新建或保存 Codex 定时任务。",
     "createSuccess": "任务创建成功",
     "updateSuccess": "任务更新成功",
     "scheduleHint": "定时任务会有几分钟的随机延迟以优化服务器性能。",

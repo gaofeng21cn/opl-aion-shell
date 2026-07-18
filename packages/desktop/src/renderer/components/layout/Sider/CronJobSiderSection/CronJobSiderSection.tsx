@@ -21,11 +21,25 @@ interface CronJobSiderSectionProps {
   onNavigate: (path: string) => void;
 }
 
+const expandedStorageKey = 'cron-section-expanded';
+
+function readInitialExpandedState(): boolean {
+  try {
+    return localStorage.getItem(expandedStorageKey) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 const CronJobSiderSection: React.FC<CronJobSiderSectionProps> = ({ jobs, pathname, onNavigate }) => {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState<boolean>(() => localStorage.getItem('cron-section-expanded') === 'true');
+  const [expanded, setExpanded] = useState<boolean>(readInitialExpandedState);
   useEffect(() => {
-    localStorage.setItem('cron-section-expanded', String(expanded));
+    try {
+      localStorage.setItem(expandedStorageKey, String(expanded));
+    } catch {
+      // Storage availability must not hide scheduled jobs or break the Sider.
+    }
   }, [expanded]);
 
   // Batch-fetch conversations for all "existing" mode jobs to avoid N+1 IPC calls

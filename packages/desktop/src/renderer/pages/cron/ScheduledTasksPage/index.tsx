@@ -18,6 +18,7 @@ import { useConversationAgents } from '@renderer/pages/conversation/hooks/useCon
 import CronStatusTag from './CronStatusTag';
 import CreateTaskDialog from './CreateTaskDialog';
 import { getJobAgentMeta } from './jobAgentMeta';
+import { resolveOplScheduledCodexAssistant } from './resolveCronAgentConfig';
 
 const ScheduledTasksPage: React.FC = () => {
   const layout = useLayoutContext();
@@ -25,7 +26,11 @@ const ScheduledTasksPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { jobs, loading, pauseJob, resumeJob } = useAllCronJobs();
-  const { cliAgents } = useConversationAgents();
+  const { cliAgents, isLoading: agentsLoading } = useConversationAgents();
+  const codexResolution = React.useMemo(() => resolveOplScheduledCodexAssistant(cliAgents), [cliAgents]);
+  const createDisabled = agentsLoading || codexResolution.status !== 'ready';
+  const codexUnavailableMessageKey =
+    codexResolution.status === 'ambiguous' ? 'cron.page.codexAmbiguous' : 'cron.page.codexUnavailable';
   const [createDialogVisible, setCreateDialogVisible] = useState(false);
   const [keepAwake, setKeepAwake] = useState(false);
 
@@ -92,7 +97,14 @@ const ScheduledTasksPage: React.FC = () => {
             >
               {t('cron.scheduledTasks')}
             </h1>
-            <Button type='primary' shape='round' className='shrink-0' onClick={() => setCreateDialogVisible(true)}>
+            <Button
+              type='primary'
+              shape='round'
+              className='shrink-0'
+              disabled={createDisabled}
+              onClick={() => setCreateDialogVisible(true)}
+              data-testid='scheduled-create-task'
+            >
               {t('cron.page.newTask')}
             </Button>
           </div>
@@ -104,6 +116,15 @@ const ScheduledTasksPage: React.FC = () => {
           >
             {t('cron.page.description')}
           </p>
+          {!agentsLoading && codexResolution.status !== 'ready' && (
+            <p
+              className='m-0 text-12px leading-18px text-warning'
+              data-testid='scheduled-codex-unavailable'
+              role='status'
+            >
+              {t(codexUnavailableMessageKey)}
+            </p>
+          )}
         </div>
 
         <div className='grid w-full box-border grid-cols-[minmax(0,1fr)_auto] items-center gap-x-12px gap-y-10px rounded-12px border border-solid border-[var(--color-border-2)] bg-fill-2 px-14px py-12px sm:rounded-14px sm:px-16px max-[520px]:grid-cols-1'>

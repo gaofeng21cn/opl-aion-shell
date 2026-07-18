@@ -1320,6 +1320,8 @@ export type I18nKey =
   | 'cron.notification.taskDone'
   | 'cron.page.awakeBanner'
   | 'cron.page.cancel'
+  | 'cron.page.codexAmbiguous'
+  | 'cron.page.codexUnavailable'
   | 'cron.page.createSuccess'
   | 'cron.page.createTask'
   | 'cron.page.customCronWarning'

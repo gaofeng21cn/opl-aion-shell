@@ -464,6 +464,19 @@ export type OplAgentPackageRegistry = {
   shell_consumption_policy: string;
 };
 
+export type OplNativeAutomationPolicy = {
+  owner: 'app_automation_surface';
+  cron_skill_packaged: false;
+  exposure: 'automation_page_and_task_routing';
+  product_policy_ref: 'contracts/app-gui-product-contract.json#scheduled_tasks_policy';
+  route: '/scheduled';
+  scheduler_authority: 'active_carrier_native_scheduler_and_store';
+  single_scheduler_store_required: true;
+  ordinary_sider_entry_visible: true;
+  executor: 'codex_cli';
+  executor_selector_visible: false;
+};
+
 type AppProductProfile = {
   schema_version: 2;
   owner: 'one-person-lab-app';
@@ -573,6 +586,7 @@ type AppProductProfile = {
     official_codex_runtime_capabilities: {
       preferred_capability_ids: string[];
     };
+    native_automation: OplNativeAutomationPolicy;
   };
   first_run: {
     readiness_layers: string[];
@@ -1791,6 +1805,34 @@ function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppS
   };
 }
 
+function readOplNativeAutomationPolicy(companionPayloads: Record<string, unknown>): OplNativeAutomationPolicy {
+  const policy = companionPayloads.native_automation;
+  if (!isRecord(policy)) {
+    throw new Error('Invalid OPL product profile: companion_payloads.native_automation must be an object');
+  }
+
+  const expected: OplNativeAutomationPolicy = {
+    owner: 'app_automation_surface',
+    cron_skill_packaged: false,
+    exposure: 'automation_page_and_task_routing',
+    product_policy_ref: 'contracts/app-gui-product-contract.json#scheduled_tasks_policy',
+    route: '/scheduled',
+    scheduler_authority: 'active_carrier_native_scheduler_and_store',
+    single_scheduler_store_required: true,
+    ordinary_sider_entry_visible: true,
+    executor: 'codex_cli',
+    executor_selector_visible: false,
+  };
+
+  for (const [key, value] of Object.entries(expected)) {
+    if (policy[key] !== value) {
+      throw new Error(`Invalid OPL product profile: companion_payloads.native_automation.${key} is invalid`);
+    }
+  }
+
+  return expected;
+}
+
 function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: root must be an object');
@@ -1832,6 +1874,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
+  const nativeAutomation = readOplNativeAutomationPolicy(companionPayloads);
   const expectedTabs = [
     'general',
     'gateway',
@@ -2327,6 +2370,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       official_codex_runtime_capabilities: {
         preferred_capability_ids: officialCodexRuntimeCapabilityIds,
       },
+      native_automation: nativeAutomation,
     },
     first_run: {
       readiness_layers: ['core'],
@@ -3088,6 +3132,10 @@ export function getOplPackagedCodexSkills(): string[] {
     ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
     ...OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids,
   ];
+}
+
+export function getOplScheduledTasksPolicy(): OplNativeAutomationPolicy {
+  return { ...OPL_PRODUCT_PROFILE.companion_payloads.native_automation };
 }
 
 export function getOplSkillPriority(): string[] {

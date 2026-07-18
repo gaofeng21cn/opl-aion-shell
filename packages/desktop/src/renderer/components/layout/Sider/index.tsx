@@ -14,7 +14,9 @@ import { gatewayAccountInitials, readGatewayAccountProjection } from '@/renderer
 import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUpdateStatus';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
+import { useAllCronJobs } from '@/renderer/pages/cron/useCronJobs';
 import { SiderPrimaryNav, SiderSearchEntry, SiderToolbar } from './SiderNav';
+import CronJobSiderSection from './CronJobSiderSection';
 import SiderFooter from './SiderFooter';
 import TeamSiderSection from './TeamSiderSection';
 import FirstRunSetupEntry from './FirstRunSetupEntry';
@@ -27,6 +29,16 @@ interface SiderProps {
   onSessionClick?: () => void;
   collapsed?: boolean;
 }
+
+interface CronJobSiderContentProps {
+  pathname: string;
+  onNavigate: (path: string) => void;
+}
+
+const CronJobSiderContent: React.FC<CronJobSiderContentProps> = ({ pathname, onNavigate }) => {
+  const { jobs } = useAllCronJobs();
+  return <CronJobSiderSection jobs={jobs} pathname={pathname} onNavigate={onNavigate} />;
+};
 
 const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
@@ -87,7 +99,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     closePreview();
   };
 
-  const handlePrimaryNavigate = (path: '/runtime' | '/archived') => {
+  const handlePrimaryNavigate = (path: string) => {
     cleanupSiderTooltips();
     blurActiveElement();
     closePreview();
@@ -169,6 +181,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               collapsed={collapsed}
               siderTooltipProps={siderTooltipProps}
               onRuntimeClick={() => handlePrimaryNavigate('/runtime')}
+              onScheduledClick={() => handlePrimaryNavigate('/scheduled')}
               onArchivedClick={() => handlePrimaryNavigate('/archived')}
             />
             <div
@@ -206,6 +219,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   {...workspaceHistoryProps}
                   afterPinnedContent={
                     <>
+                      {!collapsed && <CronJobSiderContent pathname={pathname} onNavigate={handlePrimaryNavigate} />}
                       {TEAM_MODE_ENABLED && (
                         <TeamSiderSection
                           collapsed={collapsed}

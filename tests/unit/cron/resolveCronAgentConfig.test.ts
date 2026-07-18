@@ -1,11 +1,53 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isOplCodexCronJob,
   resolveCronAgentConfig,
   resolveCronEditProviderId,
+  resolveOplScheduledCodexAssistant,
   shouldIncludeCronAgentConfig,
+  type OplScheduledCodexCandidate,
 } from '@/renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
+import type { ICronJob } from '@/common/adapter/ipcBridge';
+
+const codexCandidate = (id: string): OplScheduledCodexCandidate => ({
+  id,
+  source: 'generated',
+  enabled: true,
+  name: 'Codex',
+  name_i18n: {},
+  agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
+});
 
 describe('Cron assistant write config', () => {
+  it('resolves exactly one generated enabled Codex assistant', () => {
+    expect(resolveOplScheduledCodexAssistant([codexCandidate('assistant-codex')])).toEqual({
+      status: 'ready',
+      assistant: codexCandidate('assistant-codex'),
+    });
+    expect(
+      resolveOplScheduledCodexAssistant([
+        { ...codexCandidate('disabled-codex'), enabled: false },
+        { ...codexCandidate('user-codex'), source: 'user' },
+      ])
+    ).toEqual({ status: 'missing' });
+  });
+
+  it('keeps missing and ambiguous Codex identity local to composition', () => {
+    expect(resolveOplScheduledCodexAssistant([])).toEqual({ status: 'missing' });
+    expect(resolveOplScheduledCodexAssistant([codexCandidate('codex-a'), codexCandidate('codex-b')])).toEqual({
+      status: 'ambiguous',
+    });
+  });
+
+  it('distinguishes Codex jobs from legacy non-Codex jobs without rewriting either', () => {
+    const candidates = [codexCandidate('assistant-codex')];
+    expect(isOplCodexCronJob(cronJob('acp', { name: 'Codex', assistant_id: 'assistant-codex' }), candidates)).toBe(
+      true
+    );
+    expect(isOplCodexCronJob(cronJob('acp', { name: 'Codex', backend: 'codex' }), [])).toBe(true);
+    expect(isOplCodexCronJob(cronJob('acp', { name: 'Claude', backend: 'claude' }), candidates)).toBe(false);
+  });
+
   it('writes assistant identity without legacy runtime fields', () => {
     const config = resolveCronAgentConfig({
       assistantId: 'assistant-codex',
@@ -114,3 +156,12 @@ describe('Cron assistant write config', () => {
     ).toBe(true);
   });
 });
+
+function cronJob(agentType: string, agentConfig: ICronJob['metadata']['agent_config']): ICronJob {
+  return {
+    metadata: {
+      agent_type: agentType,
+      agent_config: agentConfig,
+    },
+  } as ICronJob;
+}

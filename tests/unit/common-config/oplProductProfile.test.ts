@@ -39,6 +39,7 @@ import {
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
+  getOplScheduledTasksPolicy,
   getOplSkillPriority,
   isOplCodexCliFixedExecutor,
   isOplForbiddenTeamMcpName,
@@ -82,6 +83,21 @@ describe('OPL generated product profile', () => {
     expect(
       OPL_PRODUCT_PROFILE.first_run.beginner_presentation.post_install_ai_self_check_entry.target_state_checks
     ).toContain('session_scoped_opl_app_context');
+  });
+
+  it('exposes one App-owned Scheduled Tasks policy without a second scheduler or executor selector', () => {
+    expect(getOplScheduledTasksPolicy()).toEqual({
+      owner: 'app_automation_surface',
+      cron_skill_packaged: false,
+      exposure: 'automation_page_and_task_routing',
+      product_policy_ref: 'contracts/app-gui-product-contract.json#scheduled_tasks_policy',
+      route: '/scheduled',
+      scheduler_authority: 'active_carrier_native_scheduler_and_store',
+      single_scheduler_store_required: true,
+      ordinary_sider_entry_visible: true,
+      executor: 'codex_cli',
+      executor_selector_visible: false,
+    });
   });
 
   it('exposes the App-owned account avatar and titlebar help icon policies', () => {

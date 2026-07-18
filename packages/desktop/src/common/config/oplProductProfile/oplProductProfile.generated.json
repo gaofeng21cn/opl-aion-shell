@@ -5905,7 +5905,14 @@
     "native_automation": {
       "owner": "app_automation_surface",
       "cron_skill_packaged": false,
-      "exposure": "automation_page_and_task_routing"
+      "exposure": "automation_page_and_task_routing",
+      "product_policy_ref": "contracts/app-gui-product-contract.json#scheduled_tasks_policy",
+      "route": "/scheduled",
+      "scheduler_authority": "active_carrier_native_scheduler_and_store",
+      "single_scheduler_store_required": true,
+      "ordinary_sider_entry_visible": true,
+      "executor": "codex_cli",
+      "executor_selector_visible": false
     },
     "default_packaged_codex_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "additional_package_skill_ids": ["opl-meta-agent"],
