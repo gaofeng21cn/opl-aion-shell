@@ -2071,16 +2071,16 @@
   },
   "resourcesPage": {
     "title": "Resources & Connections",
-    "description": "Manage the browser workbench, hosted workspaces, and external environment connections.",
+    "description": "Manage the browser workbench and owner-reported external environment connections.",
     "sections": {
       "serverWebui": {
         "title": "Browser workbench",
-        "description": "Use OPL in a browser on a server, remote device, or hosted environment."
+        "description": "Use OPL in a browser on a server or remote device."
       }
     },
     "docker": {
       "title": "WebUI and OPL Workspace",
-      "description": "The desktop App already includes the local workbench. This area shows browser WebUI, server or hosted workspace open, check, and maintenance entries.",
+      "description": "The desktop App already includes the local workbench. This area provides browser WebUI actions for local or server deployments.",
       "docker": "Server deployment",
       "workspace": "OPL Workspace",
       "primaryActionTitle": "Available action",
@@ -2116,7 +2116,7 @@
       "confirmAction": "Continue",
       "noActions": "WebUI actions are not available yet.",
       "actions": {
-        "settings_install_docker_webui": "Prepare server or hosted WebUI",
+        "settings_install_docker_webui": "Prepare server WebUI",
         "settings_configure_webui_api_key": "Configure WebUI model access",
         "settings_select_webui_seed": "Choose WebUI image or template",
         "settings_run_webui_startup_maintenance": "Repair WebUI startup materials",
@@ -2150,9 +2150,9 @@
     "connections": {
       "title": "External connections",
       "description": "Review cloud compute, remote hosts, and data environments available to tasks.",
-      "workspaceTitle": "Hosted workspaces",
-      "workspaceDescription": "Review workspace, runtime environment, and storage entry points available to tasks.",
-      "noWorkspaceSources": "No hosted workspace connection is currently available.",
+      "workspaceTitle": "Reported workspaces",
+      "workspaceDescription": "Review workspace, runtime environment, and storage refs reported for tasks.",
+      "noWorkspaceSources": "No workspace resource has been reported.",
       "noSources": "No external connection is currently available.",
       "empty": "No workspace or external connection is currently available.",
       "addConnection": "Add connection",

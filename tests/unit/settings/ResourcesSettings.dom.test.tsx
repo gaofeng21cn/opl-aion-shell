@@ -43,6 +43,7 @@ const createResourceSources = () => ({
   },
   opl_workspace: {
     status: 'ready',
+    resource_source_ref: 'opl://resource-source/workspace/default',
     environment_ref: 'opl://environment/default',
     storage_ref: 'opl://storage/default',
   },
@@ -312,12 +313,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.resourcesPage.title': '资源与连接',
-        'settings.resourcesPage.description': '管理浏览器 WebUI、OPL Workspace、云端/托管工作区和外部环境连接。',
+        'settings.resourcesPage.description': '管理浏览器工作台和已上报的外部环境连接。',
         'settings.resourcesPage.sections.serverWebui.title': '浏览器工作台',
         'settings.resourcesPage.sections.serverWebui.description': '在浏览器中使用 OPL。',
         'settings.resourcesPage.docker.title': 'WebUI 与 OPL Workspace',
         'settings.resourcesPage.docker.description':
-          '桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。',
+          '桌面 App 已内置本机工作台；这里提供本机或服务器 WebUI 的打开、检查和维护入口。',
         'settings.resourcesPage.docker.docker': 'WebUI',
         'settings.resourcesPage.docker.workspace': 'OPL Workspace',
         'settings.resourcesPage.docker.primaryActionTitle': '可用操作',
@@ -348,7 +349,7 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.docker.confirmDescription': `检查已完成。继续后会执行“${options?.action ?? ''}”。`,
         'settings.resourcesPage.docker.confirmBoundary': '不会修改工作区文件或对话数据。',
         'settings.resourcesPage.docker.confirmAction': '继续执行',
-        'settings.resourcesPage.docker.actions.settings_install_docker_webui': '准备服务器/托管 WebUI',
+        'settings.resourcesPage.docker.actions.settings_install_docker_webui': '准备服务器 WebUI',
         'settings.resourcesPage.docker.actions.settings_configure_webui_api_key': '配置 WebUI 模型访问',
         'settings.resourcesPage.docker.actions.settings_select_webui_seed': '选择 WebUI 镜像或模板',
         'settings.resourcesPage.docker.actions.settings_diagnose_docker_webui': '检查 WebUI 状态',
@@ -607,7 +608,7 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('检查状态')).toBeTruthy();
     expect(view.queryByText('可用')).toBeNull();
     expect(view.getByText('打开 WebUI')).toBeTruthy();
-    expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
+    expect(view.getByText('准备服务器 WebUI')).toBeTruthy();
     expect(view.getByText('配置 WebUI 模型访问')).toBeTruthy();
     expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
     expect(view.getByText('可用操作')).toBeTruthy();
@@ -776,9 +777,44 @@ describe('ResourcesSettingsContent', () => {
     expect(view.queryByTestId('opl-settings-resource-sources-empty')).toBeNull();
     expect(view.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
     expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
+    expect(document.getElementById('workspace-resources')).toBeNull();
+    expect(document.getElementById('reported-resources')).toBeNull();
     expect(view.queryByText('当前没有上报工作区或外部连接。')).toBeNull();
     expect(view.getByTestId('opl-settings-add-connection')).toBeTruthy();
     expect(view.queryAllByText('OPL Workspace')).toHaveLength(0);
+  });
+
+  it('mounts each optional resource group only when that group has a canonical projection', () => {
+    getMocks().resourceSources = {
+      opl_workspace: { status: 'available' },
+      cloud_remote_access: {
+        status: 'ready',
+        resource_source_ref: 'opl://resource-source/cloud-remote-access',
+      },
+    };
+
+    const externalOnly = renderResources();
+
+    expect(document.getElementById('workspace-resources')).toBeNull();
+    expect(document.getElementById('reported-resources')).toBeTruthy();
+    expect(externalOnly.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
+    expect(externalOnly.getByTestId('opl-settings-resource-sources')).toBeTruthy();
+
+    externalOnly.unmount();
+    getMocks().resourceSources = {
+      opl_workspace: {
+        status: 'ready',
+        resource_source_ref: 'opl://resource-source/workspace/default',
+      },
+      opl_fabric: { status: 'available' },
+    };
+
+    const workspaceOnly = renderResources();
+
+    expect(document.getElementById('workspace-resources')).toBeTruthy();
+    expect(document.getElementById('reported-resources')).toBeNull();
+    expect(workspaceOnly.getByTestId('opl-settings-workspace-resource-sources')).toBeTruthy();
+    expect(workspaceOnly.queryByTestId('opl-settings-resource-sources')).toBeNull();
   });
 
   it('passes WebUI seed paths through precheck before confirmation', async () => {

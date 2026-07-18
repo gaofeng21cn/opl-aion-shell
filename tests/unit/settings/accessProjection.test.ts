@@ -159,16 +159,6 @@ describe('buildAccessProjection', () => {
         managementRefs: [],
       },
       {
-        key: 'opl_gateway',
-        title: 'settings.accessPage.resourceSources.oplGateway',
-        status: 'available',
-        category: 'gateway',
-        management: null,
-        refs: ['opl://gateway/status', 'opl://gateway/key/gflabtoken', 'opl://gateway/policy/provider-routing'],
-        environmentRefs: [],
-        managementRefs: [],
-      },
-      {
         key: 'docker_webui',
         title: 'settings.accessPage.resourceSources.categories.dockerWebui',
         status: 'ready',
@@ -209,6 +199,69 @@ describe('buildAccessProjection', () => {
       },
     ]);
     expect(JSON.stringify(projection)).not.toContain('must not render');
+  });
+
+  it('requires canonical eligibility refs and excludes the built-in Gateway from Resources', () => {
+    const projection = buildAccessProjection(
+      {
+        settings_control_center: {
+          app_settings_read_model: {
+            resource_sources: {
+              opl_workspace: { status: 'available' },
+              opl_fabric: {
+                status: 'ready',
+                owner_ref: 'opl://owner/fabric',
+              },
+              opl_gateway: {
+                status: 'available',
+                resource_source_ref: 'opl://resource-source/gateway',
+                owner_ref: 'opl://owner/gateway',
+                gateway_status_ref: 'opl://gateway/status',
+              },
+              gateway: {
+                status: 'available',
+                resource_source_ref: 'opl://resource-source/gateway-alias',
+              },
+              user_hpc: {
+                status: 'available',
+                resource_source_ref: 'opl://resource-source/ssh-hpc/lab',
+              },
+              projected_action_only: {
+                status: 'available',
+                projected_action_refs: ['opl://action/resource/open'],
+              },
+              status_only: {
+                status: 'ready',
+                status_ref: 'opl://status/resource/status-only',
+              },
+              compute_only: {
+                status: 'ready',
+                compute_ref: 'opl://compute/unowned',
+              },
+              storage_only: {
+                status: 'ready',
+                storage_ref: 'opl://storage/unowned',
+              },
+              environment_only: {
+                status: 'ready',
+                environment_ref: 'opl://environment/unowned',
+              },
+              management_only: {
+                status: 'ready',
+                console_policy_ref: 'opl://console/policy/unowned',
+              },
+            },
+          },
+        },
+      },
+      t
+    );
+
+    expect(projection.resourceSources.map((source) => source.key)).toEqual([
+      'opl_fabric',
+      'user_hpc',
+      'projected_action_only',
+    ]);
   });
 
   it('reads Docker WebUI ordinary actions from the App settings control center read model', () => {

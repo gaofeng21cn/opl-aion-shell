@@ -572,37 +572,37 @@ export const ResourcesSettingsContent: React.FC = () => {
           onAction={executeConnectionAction}
         />
 
-        {resourceSources.length > 0 && (
-          <>
-            <section className='opl-settings-section' id='workspace-resources'>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.resourcesPage.connections.workspaceDescription')}
-              </Typography.Text>
-              <ResourceSources
-                sources={workspaceSources}
-                emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
-                testId='opl-settings-workspace-resource-sources'
-              />
-            </section>
+        {workspaceSources.length > 0 && (
+          <section className='opl-settings-section' id='workspace-resources'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.resourcesPage.connections.workspaceDescription')}
+            </Typography.Text>
+            <ResourceSources
+              sources={workspaceSources}
+              emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
+              testId='opl-settings-workspace-resource-sources'
+            />
+          </section>
+        )}
 
-            <section className='opl-settings-section' id='reported-resources'>
-              <div className='opl-settings-section__header'>
-                <div>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.resourcesPage.connections.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t('settings.resourcesPage.connections.description')}
-                  </Typography.Text>
-                </div>
+        {externalSources.length > 0 && (
+          <section className='opl-settings-section' id='reported-resources'>
+            <div className='opl-settings-section__header'>
+              <div>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.resourcesPage.connections.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.resourcesPage.connections.description')}
+                </Typography.Text>
               </div>
-              <ResourceSources
-                sources={externalSources}
-                emptyKey='settings.resourcesPage.connections.noSources'
-                testId='opl-settings-resource-sources'
-              />
-            </section>
-          </>
+            </div>
+            <ResourceSources
+              sources={externalSources}
+              emptyKey='settings.resourcesPage.connections.noSources'
+              testId='opl-settings-resource-sources'
+            />
+          </section>
         )}
       </div>
 

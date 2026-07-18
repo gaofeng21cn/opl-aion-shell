@@ -280,33 +280,11 @@ function buildResourceSourceProjection(
   appState: Record<string, unknown>,
   t: (key: string, options?: Record<string, string>) => string
 ): ResourceSourceProjection[] {
-  const core = oplRecord(appState.core);
-  const codex = oplRecord(core.codex);
-  const codexConfig = oplRecord(codex.config);
-  const provider = oplRecord(appState.provider);
-  const access = oplRecord(appState.access);
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   const sources = oplRecord(appSettingsReadModel.resource_sources ?? appState.resource_sources);
-  const gatewayFallbackRefs = readRefList(
-    access.gateway_status_ref,
-    access.model_access_ref,
-    access.key_status_ref,
-    access.provider_policy_ref,
-    access.provider_policy_refs,
-    provider.gateway_status_ref,
-    provider.provider_policy_ref,
-    provider.provider_policy_refs,
-    codex.gateway_status_ref,
-    codex.model_access_ref,
-    codex.api_key_status_ref,
-    codex.provider_policy_ref,
-    codexConfig.api_key_status_ref,
-    codexConfig.provider_policy_ref
-  );
   const knownSources: Array<[string, unknown]> = [
     ['cloud_remote_access', sources.cloud_remote_access ?? sources.cloud_remote ?? sources.remote_access],
-    ['opl_gateway', sources.opl_gateway ?? sources.gateway],
     ['opl_workspace', sources.opl_workspace ?? sources.workspace],
     ['opl_fabric', sources.opl_fabric ?? sources.fabric],
   ];
@@ -324,50 +302,68 @@ function buildResourceSourceProjection(
   const dynamicSources = Object.entries(sources).filter(([key]) => !knownKeys.has(key));
   const records = [...knownSources, ...dynamicSources]
     .map(([key, value]) => [key, oplRecord(value)] as const)
-    .filter(([key, record]) => key === 'opl_gateway' || Object.keys(record).length > 0);
+    .filter(([, record]) => Object.keys(record).length > 0);
 
-  return records
-    .map(([key, record]) => {
-      const refs = readRefList(
-        record.resource_source_ref,
-        record.resource_source_refs,
-        record.status_ref,
-        record.gateway_status_ref,
-        record.model_access_ref,
-        record.key_status_ref,
-        record.api_key_status_ref,
-        record.provider_policy_ref,
-        record.provider_policy_refs,
-        record.connector_ref,
-        record.connector_refs,
-        record.compute_ref,
-        record.compute_refs,
-        record.storage_ref,
-        key === 'opl_gateway' ? gatewayFallbackRefs : null
-      );
-      const environmentRefs = readRefList(
-        record.environment_ref,
-        record.environment_refs,
-        record.environment_template_ref,
-        record.environment_template_refs,
-        record.template_ref,
-        record.template_refs,
-        record.environment_version_ref,
-        record.environment_version_refs,
-        record.environment_source_ref,
-        record.environment_source_refs,
-        record.task_applicability_ref,
-        record.task_applicability_refs,
-        record.task_applicability
-      );
-      const managementRefs = readRefList(
-        record.console_policy_ref,
-        record.quota_ref,
-        record.billing_ref,
-        record.permission_ref
-      );
-      const category = sourceCategory(key, record, [...refs, ...environmentRefs, ...managementRefs]);
-      return {
+  return records.flatMap(([key, record]) => {
+    const eligibilityRefs = readRefList(
+      record.resource_source_ref,
+      record.resource_source_refs,
+      record.owner_ref,
+      record.owner_refs,
+      record.route_ref,
+      record.route_refs,
+      record.projected_action_ref,
+      record.projected_action_refs
+    );
+    if (eligibilityRefs.length === 0) return [];
+
+    const refs = readRefList(
+      record.resource_source_ref,
+      record.resource_source_refs,
+      record.status_ref,
+      record.gateway_status_ref,
+      record.model_access_ref,
+      record.key_status_ref,
+      record.api_key_status_ref,
+      record.provider_policy_ref,
+      record.provider_policy_refs,
+      record.connector_ref,
+      record.connector_refs,
+      record.compute_ref,
+      record.compute_refs,
+      record.storage_ref,
+      record.storage_refs,
+      record.owner_ref,
+      record.owner_refs,
+      record.route_ref,
+      record.route_refs,
+      record.projected_action_ref,
+      record.projected_action_refs
+    );
+    const environmentRefs = readRefList(
+      record.environment_ref,
+      record.environment_refs,
+      record.environment_template_ref,
+      record.environment_template_refs,
+      record.template_ref,
+      record.template_refs,
+      record.environment_version_ref,
+      record.environment_version_refs,
+      record.environment_source_ref,
+      record.environment_source_refs,
+      record.task_applicability_ref,
+      record.task_applicability_refs,
+      record.task_applicability
+    );
+    const managementRefs = readRefList(
+      record.console_policy_ref,
+      record.quota_ref,
+      record.billing_ref,
+      record.permission_ref
+    );
+    const category = sourceCategory(key, record, [...refs, ...environmentRefs, ...managementRefs]);
+    return [
+      {
         key,
         title: sourceTitle(key, record, category, t),
         status: oplString(record.status) ?? oplString(record.state) ?? 'unknown',
@@ -376,14 +372,9 @@ function buildResourceSourceProjection(
         refs,
         environmentRefs,
         managementRefs,
-        hasRecord: Object.keys(record).length > 0,
-      };
-    })
-    .filter(
-      (entry) =>
-        entry.hasRecord || entry.refs.length > 0 || entry.environmentRefs.length > 0 || entry.managementRefs.length > 0
-    )
-    .map(({ hasRecord: _hasRecord, ...entry }) => entry);
+      },
+    ];
+  });
 }
 
 export function buildDockerWebuiProjection(appState: Record<string, unknown>): DockerWebuiProjection {

@@ -2072,16 +2072,16 @@
   },
   "resourcesPage": {
     "title": "资源与连接",
-    "description": "管理浏览器工作台、托管工作区和外部环境连接。",
+    "description": "管理浏览器工作台和已上报的外部环境连接。",
     "sections": {
       "serverWebui": {
         "title": "浏览器工作台",
-        "description": "在浏览器中使用 OPL，适合服务器、远程设备或托管环境。"
+        "description": "在服务器或远程设备的浏览器中使用 OPL。"
       }
     },
     "docker": {
       "title": "WebUI 与 OPL Workspace",
-      "description": "桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。",
+      "description": "桌面 App 已内置本机工作台；这里提供本机或服务器 WebUI 的打开、检查和维护入口。",
       "docker": "服务器部署",
       "workspace": "OPL Workspace",
       "primaryActionTitle": "可用操作",
@@ -2117,7 +2117,7 @@
       "confirmAction": "继续执行",
       "noActions": "暂时没有可用的 WebUI 操作。",
       "actions": {
-        "settings_install_docker_webui": "准备服务器/托管 WebUI",
+        "settings_install_docker_webui": "准备服务器 WebUI",
         "settings_configure_webui_api_key": "配置 WebUI 模型访问",
         "settings_select_webui_seed": "选择 WebUI 镜像或模板",
         "settings_run_webui_startup_maintenance": "修复 WebUI 启动材料",
@@ -2151,9 +2151,9 @@
     "connections": {
       "title": "外部连接",
       "description": "查看云端计算、远程主机和数据环境是否可用。",
-      "workspaceTitle": "托管工作区",
-      "workspaceDescription": "查看可供任务使用的工作区、运行环境和存储入口。",
-      "noWorkspaceSources": "当前没有可用的托管工作区连接。",
+      "workspaceTitle": "已上报的工作区",
+      "workspaceDescription": "查看任务已上报的工作区、运行环境和存储引用。",
+      "noWorkspaceSources": "当前没有上报工作区资源。",
       "noSources": "当前没有可用的外部连接。",
       "empty": "当前没有工作区或外部连接。",
       "addConnection": "添加连接",
