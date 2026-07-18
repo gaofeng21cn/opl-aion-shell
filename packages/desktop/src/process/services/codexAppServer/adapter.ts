@@ -87,6 +87,12 @@ function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+function recordedCwd(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') throw new Error('Invalid Codex app-server thread cwd.');
+  return value.trim() ? value : '';
+}
+
 function isoFromSeconds(value: unknown): string {
   const seconds = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   return new Date(seconds * 1000).toISOString();
@@ -147,7 +153,7 @@ function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
 function parseThread(value: unknown): RawThread {
   const raw = requiredRecord(value, 'thread') as RawThread;
   raw.id = requiredString(raw.id, 'thread id');
-  raw.cwd = optionalString(raw.cwd) ?? '';
+  raw.cwd = recordedCwd(raw.cwd);
   raw.status = requiredRecord(raw.status, 'thread status');
   raw.turns = Array.isArray(raw.turns) ? raw.turns.filter(isRecord) : [];
   return raw;
@@ -167,7 +173,7 @@ function activeTurnId(turns: JsonRecord[]): string | null {
 }
 
 function projectId(raw: JsonRecord): string {
-  return optionalString(raw.cwd) ?? '';
+  return recordedCwd(raw.cwd);
 }
 
 function ancestorsFor(thread: RawThread, byId: Map<string, RawThread>): string[] {
@@ -197,7 +203,7 @@ function mapThread(
     summary: optionalString(raw.preview) ?? '',
     status: statusFromRaw(raw.status, archived),
     projectId: projectId(raw),
-    workspace: optionalString(raw.cwd) ?? '',
+    workspace: recordedCwd(raw.cwd),
     host,
     owner: optionalString(raw.agentRole) ?? optionalString(raw.agentNickname),
     goal,

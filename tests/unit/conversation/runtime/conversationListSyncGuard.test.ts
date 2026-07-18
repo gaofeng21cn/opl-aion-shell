@@ -107,6 +107,25 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
   });
 
+  it('rebuilds a stale projectless cache row from the canonical recorded cwd', () => {
+    const cached = {
+      id: 'local-stale-projectless',
+      name: 'Stale projectless task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: '',
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+  });
+
   it('hydrates a legacy missing affinity marker from the canonical recorded cwd', () => {
     const cached = {
       id: 'local-legacy',
@@ -134,6 +153,25 @@ describe('mergeCanonicalThreadDirectory', () => {
         backend: 'codex',
         canonical_thread_id: 'thread-1',
         workspace: '/tmp/project',
+        custom_workspace: true,
+      },
+    } as TChatConversation;
+
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+  });
+
+  it('replaces stale bound shell affinity with the canonical recorded cwd', () => {
+    const cached = {
+      id: 'local-stale-bound',
+      name: 'Stale bound task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: '/tmp/other-project',
         custom_workspace: true,
       },
     } as TChatConversation;

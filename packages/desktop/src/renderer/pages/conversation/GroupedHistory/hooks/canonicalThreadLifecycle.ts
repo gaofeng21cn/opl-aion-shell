@@ -32,6 +32,7 @@ export function projectCanonicalCodexThread(
 ): Extract<TChatConversation, { type: 'acp' }> {
   const parsedTimestamp = Date.parse(thread.updatedAt);
   const modifiedAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
+  const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
   return {
     ...(cached ?? {
       id: thread.id,
@@ -47,11 +48,8 @@ export function projectCanonicalCodexThread(
     extra: {
       ...cached?.extra,
       backend: 'codex',
-      workspace:
-        cached?.extra.custom_workspace === true && cached.extra.workspace?.trim()
-          ? cached.extra.workspace
-          : thread.workspace,
-      custom_workspace: cached?.extra.custom_workspace ?? Boolean(thread.workspace),
+      workspace: thread.workspace,
+      custom_workspace: hasCanonicalRecordedCwd,
       acp_session_id: thread.id,
       canonical_thread_id: thread.id,
       canonical_thread_stub: cached ? false : options.materialized !== true,
@@ -90,29 +88,33 @@ export async function adoptProjectlessCanonicalConversation(
         canonical_thread_stub: false,
       },
     };
-    if (conversation.extra.canonical_thread_stub) {
-      await ipcBridge.conversation.createWithConversation.invoke({ conversation: nextConversation });
-    } else {
-      const updated = await ipcBridge.conversation.update.invoke({
-        id: conversation.id,
-        updates: {
-          extra: {
-            workspace: selectedWorkspace,
-            custom_workspace: true,
-          },
-        } as Partial<TChatConversation>,
-        merge_extra: true,
-      });
-      if (!updated) return false;
-    }
+    try {
+      if (conversation.extra.canonical_thread_stub) {
+        await ipcBridge.conversation.createWithConversation.invoke({ conversation: nextConversation });
+      } else {
+        const updated = await ipcBridge.conversation.update.invoke({
+          id: conversation.id,
+          updates: {
+            extra: {
+              workspace: selectedWorkspace,
+              custom_workspace: true,
+            },
+          } as Partial<TChatConversation>,
+          merge_extra: true,
+        });
+        if (!updated) throw new Error('Local project affinity projection update was rejected.');
+      }
 
-    const localReadback = await ipcBridge.conversation.get.invoke({ id: conversation.id });
-    if (
-      canonicalCodexThreadId(localReadback) !== threadId ||
-      localReadback.extra.workspace !== selectedWorkspace ||
-      localReadback.extra.custom_workspace !== true
-    ) {
-      return false;
+      const localReadback = await ipcBridge.conversation.get.invoke({ id: conversation.id });
+      if (
+        canonicalCodexThreadId(localReadback) !== threadId ||
+        localReadback.extra.workspace !== selectedWorkspace ||
+        localReadback.extra.custom_workspace !== true
+      ) {
+        throw new Error('Local project affinity projection readback did not match the canonical cwd.');
+      }
+    } catch (error) {
+      console.warn('Canonical cwd changed, but its rebuildable shell affinity projection could not be updated:', error);
     }
     return true;
   } catch (error) {

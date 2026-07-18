@@ -161,6 +161,17 @@ describe('CodexAppServerAdapter', () => {
     ]);
   });
 
+  it('rejects malformed canonical cwd instead of treating it as projectless', async () => {
+    request.mockResolvedValueOnce({
+      data: [rawThread('malformed-cwd', { cwd: 42 })],
+      nextCursor: null,
+    });
+
+    await expect(adapter.listThreads({ includeArchived: false })).rejects.toThrow(
+      'Invalid Codex app-server thread cwd.'
+    );
+  });
+
   it('falls back to a turn-free read for an unmaterialized thread', async () => {
     request.mockImplementation(async (method: string, params: Record<string, unknown>) => {
       if (method === 'thread/read' && params.includeTurns === true) {
@@ -182,6 +193,12 @@ describe('CodexAppServerAdapter', () => {
       threadId: 'new-thread',
       includeTurns: false,
     });
+  });
+
+  it('rejects a malformed cwd returned by canonical thread read', async () => {
+    request.mockResolvedValueOnce({ thread: rawThread('malformed-read-cwd', { cwd: { path: '/workspace' } }) });
+
+    await expect(adapter.readThread('malformed-read-cwd')).rejects.toThrow('Invalid Codex app-server thread cwd.');
   });
 
   it('maps the narrow user-triggered thread lifecycle to app-server methods', async () => {

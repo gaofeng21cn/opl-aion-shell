@@ -327,6 +327,82 @@ describe('conversation archive actions', () => {
       mocks.update.mock.invocationCallOrder[0]
     );
     expect(mocks.threadRead).toHaveBeenCalledTimes(2);
+    expect(mocks.threadRead.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.threadUpdateSettings.mock.invocationCallOrder[0]
+    );
+    expect(mocks.threadUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.threadRead.mock.invocationCallOrder[1]
+    );
+    expect(mocks.threadRead.mock.invocationCallOrder[1]).toBeLessThan(mocks.update.mock.invocationCallOrder[0]);
+  });
+
+  it('keeps canonical adoption successful when the rebuildable local projection update fails', async () => {
+    const projectless = {
+      id: 'conv-local-projection-failure',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-local-projection-failure',
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(false);
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(true);
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.history.moveToProjectSuccess');
+    expect(mocks.messageError).not.toHaveBeenCalled();
+    expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh');
+  });
+
+  it('keeps canonical adoption successful when a stub projection cannot be materialized', async () => {
+    const projectlessStub = {
+      id: 'thread-stub-projection-failure',
+      name: 'Projectless stub task',
+      type: 'acp',
+      created_at: 1,
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-stub-projection-failure',
+        canonical_thread_stub: true,
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.createWithConversation.mockRejectedValue(new Error('local projection unavailable'));
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectlessStub],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectlessStub, '/workspace/project')).toBe(true);
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.history.moveToProjectSuccess');
+    expect(mocks.messageError).not.toHaveBeenCalled();
+    expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh');
   });
 
   it('keeps the conversation projectless when canonical cwd readback does not match', async () => {
@@ -356,6 +432,34 @@ describe('conversation archive actions', () => {
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.createWithConversation).not.toHaveBeenCalled();
     expect(mocks.messageError).toHaveBeenCalledWith('conversation.history.moveToProjectFailed');
+  });
+
+  it('requires an exact canonical cwd readback instead of path-normalized equivalence', async () => {
+    const projectless = {
+      id: 'conv-exact-mismatch',
+      name: 'Projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: { backend: 'codex', canonical_thread_id: 'thread-exact-mismatch', custom_workspace: false },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project/' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(false);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.createWithConversation).not.toHaveBeenCalled();
   });
 
   it('blocks reassignment after a canonical cwd is recorded', async () => {
