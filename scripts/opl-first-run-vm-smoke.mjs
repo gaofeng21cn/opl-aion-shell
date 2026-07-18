@@ -4586,7 +4586,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
   {
     id: 'access',
     hash: '#/settings/access',
-    contentSelector: '[data-testid="settings-page-access"]',
+    contentSelector: '[data-testid="settings-page-models"]',
   },
   {
     id: 'appearance',

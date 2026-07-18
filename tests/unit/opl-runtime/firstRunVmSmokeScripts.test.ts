@@ -379,6 +379,7 @@ describe('OPL first-run VM smoke scripts', () => {
   it('targets current OPL Settings pages through stable structural anchors instead of localized copy', () => {
     const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
     const environmentTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'environment');
+    const accessTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'access');
     const appearanceTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'appearance');
 
     expect(generalTarget?.hash).toBe('#/settings/general');
@@ -388,6 +389,8 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(JSON.stringify(generalTarget)).not.toContain('打开运行状态');
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.contentSelector).toBe('[data-testid="settings-page-maintenance"]');
+    expect(accessTarget?.hash).toBe('#/settings/access');
+    expect(accessTarget?.contentSelector).toBe('[data-testid="settings-page-models"]');
     expect(appearanceTarget?.contentSelector).toBe('[data-testid="settings-page-preferences"]');
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.contentSelector).toBe(
       '[data-testid="settings-page-advanced"]'
