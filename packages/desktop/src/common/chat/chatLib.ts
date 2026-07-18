@@ -274,17 +274,50 @@ export type IMessagePermission = IMessage<'permission', IConfirmation>;
 
 export type IMessageAcpToolCall = IMessage<'acp_tool_call', ToolCallUpdate>;
 
+const mergeOptionalRecords = (
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined => {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+  return { ...existing, ...incoming };
+};
+
+const mergeAcpToolCallMeta = (
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined => {
+  const merged = mergeOptionalRecords(existing, incoming);
+  if (!merged) return undefined;
+
+  const existingCodex =
+    existing?.codex && typeof existing.codex === 'object' ? (existing.codex as Record<string, unknown>) : undefined;
+  const incomingCodex =
+    incoming?.codex && typeof incoming.codex === 'object' ? (incoming.codex as Record<string, unknown>) : undefined;
+  const codex = mergeOptionalRecords(existingCodex, incomingCodex);
+  return codex ? { ...merged, codex } : merged;
+};
+
 export const mergeAcpToolCallContent = (
   existing: IMessageAcpToolCall['content'],
   incoming: IMessageAcpToolCall['content']
-): IMessageAcpToolCall['content'] => ({
-  ...existing,
-  ...incoming,
-  update: {
-    ...existing.update,
-    ...incoming.update,
-  },
-});
+): IMessageAcpToolCall['content'] => {
+  const rawInput = mergeOptionalRecords(existing.update.rawInput, incoming.update.rawInput);
+  const rawInputSnakeCase = mergeOptionalRecords(existing.update.raw_input, incoming.update.raw_input);
+  const meta = mergeAcpToolCallMeta(existing.update._meta, incoming.update._meta);
+
+  return {
+    ...existing,
+    ...incoming,
+    update: {
+      ...existing.update,
+      ...incoming.update,
+      ...(rawInput ? { rawInput } : {}),
+      ...(rawInputSnakeCase ? { raw_input: rawInputSnakeCase } : {}),
+      ...(meta ? { _meta: meta } : {}),
+    },
+  };
+};
 
 type ResponseTextData = {
   content: string;

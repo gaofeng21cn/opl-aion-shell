@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
+import type { CodexThreadDescriptor } from '@/common/types/codex/appServerThreads';
 
 type CanonicalLifecycleAction =
   | { action: 'rename'; name: string; reason: string }
@@ -14,6 +15,40 @@ type CanonicalLifecycleAction =
 export function canonicalCodexThreadId(conversation: TChatConversation | null | undefined): string | null {
   if (conversation?.type !== 'acp' || conversation.extra.backend !== 'codex') return null;
   return conversation.extra.canonical_thread_id?.trim() || conversation.extra.acp_session_id?.trim() || null;
+}
+
+export function projectCanonicalCodexThread(
+  thread: CodexThreadDescriptor,
+  cached?: Extract<TChatConversation, { type: 'acp' }>,
+  options: { materialized?: boolean } = {}
+): Extract<TChatConversation, { type: 'acp' }> {
+  const parsedTimestamp = Date.parse(thread.updatedAt);
+  const modifiedAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
+  return {
+    ...(cached ?? {
+      id: thread.id,
+      created_at: modifiedAt,
+      type: 'acp' as const,
+      source: 'codex-app-server',
+    }),
+    id: cached?.id ?? thread.id,
+    name: thread.title,
+    desc: thread.summary,
+    modified_at: modifiedAt,
+    status: thread.status === 'running' ? 'running' : 'finished',
+    extra: {
+      ...cached?.extra,
+      backend: 'codex',
+      workspace: thread.workspace,
+      custom_workspace: Boolean(thread.workspace),
+      acp_session_id: thread.id,
+      canonical_thread_id: thread.id,
+      canonical_thread_stub: cached ? false : options.materialized !== true,
+      canonical_thread_host: thread.host,
+      archived: thread.archived,
+      archived_at: thread.archived ? (cached?.extra.archived_at ?? modifiedAt) : undefined,
+    },
+  };
 }
 
 export async function executeCanonicalThreadLifecycle(

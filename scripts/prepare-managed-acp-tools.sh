@@ -18,7 +18,7 @@ Environment variables:
   MANAGED_ACP_WRITE_ROOT_MANIFEST
                                Optional. true/false. Default: false
   MANAGED_ACP_NPM_VERSION      Optional. Exact npm version expected in PATH.
-  CODEX_ACP_VERSION            Optional. Default: 0.14.0
+  CODEX_ACP_VERSION            Optional. Default: 1.1.4
   CLAUDE_ACP_VERSION           Optional. Default: 0.39.0
 EOF
 }
@@ -59,7 +59,7 @@ MANAGED_ACP_TARGETS="${MANAGED_ACP_TARGETS:-darwin-arm64,darwin-x64,linux-x64,li
 MANAGED_ACP_OVERWRITE="${MANAGED_ACP_OVERWRITE:-false}"
 MANAGED_ACP_WRITE_ROOT_MANIFEST="${MANAGED_ACP_WRITE_ROOT_MANIFEST:-false}"
 MANAGED_ACP_NPM_VERSION="${MANAGED_ACP_NPM_VERSION:-}"
-CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-0.14.0}"
+CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-1.1.4}"
 CLAUDE_ACP_VERSION="${CLAUDE_ACP_VERSION:-0.39.0}"
 
 sanitize_version() {
@@ -305,10 +305,30 @@ validate_platform_binary() {
   local expected_path=""
   case "${tool_slug}" in
     codex-acp)
-      expected_path="${project_dir}/node_modules/@zed-industries/codex-acp-${target}/bin/codex-acp"
-      if [[ "${target}" == win32-* ]]; then
-        expected_path="${expected_path}.exe"
-      fi
+      case "${target}" in
+        darwin-arm64)
+          expected_path="${project_dir}/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex"
+          ;;
+        darwin-x64)
+          expected_path="${project_dir}/node_modules/@openai/codex-darwin-x64/vendor/x86_64-apple-darwin/bin/codex"
+          ;;
+        linux-arm64)
+          expected_path="${project_dir}/node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex"
+          ;;
+        linux-x64)
+          expected_path="${project_dir}/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"
+          ;;
+        win32-arm64)
+          expected_path="${project_dir}/node_modules/@openai/codex-win32-arm64/vendor/aarch64-pc-windows-msvc/bin/codex.exe"
+          ;;
+        win32-x64)
+          expected_path="${project_dir}/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe"
+          ;;
+        *)
+          echo "Unsupported Codex ACP target: ${target}" >&2
+          exit 1
+          ;;
+      esac
       ;;
     claude-agent-acp)
       expected_path="${project_dir}/node_modules/@anthropic-ai/claude-agent-sdk-${target}/claude"
@@ -473,7 +493,7 @@ if [[ "${#targets[@]}" -eq 0 ]]; then
 fi
 
 declare -a tool_specs=(
-  "codex-acp|@zed-industries/codex-acp|${CODEX_ACP_VERSION}"
+  "codex-acp|@agentclientprotocol/codex-acp|${CODEX_ACP_VERSION}"
   "claude-agent-acp|@agentclientprotocol/claude-agent-acp|${CLAUDE_ACP_VERSION}"
 )
 

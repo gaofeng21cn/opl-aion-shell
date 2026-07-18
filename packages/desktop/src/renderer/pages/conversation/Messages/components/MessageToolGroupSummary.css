@@ -75,6 +75,120 @@
   margin-left: 20px;
 }
 
+.subagent-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
+.subagent-activity__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--aou-7);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.subagent-activity__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.subagent-activity__group-label {
+  color: var(--aou-5);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.subagent-activity__item {
+  min-width: 0;
+}
+
+.subagent-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 24px;
+  padding: 1px 0;
+  border: 0;
+  color: var(--aou-6);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagent-activity__row:hover,
+.subagent-activity__row:focus-visible {
+  color: var(--aou-7);
+}
+
+.subagent-activity__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-activity__state {
+  flex-shrink: 0;
+  color: var(--aou-5);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.subagent-activity__detail {
+  margin: 3px 0 6px 20px;
+  padding-left: 10px;
+  border-left: 2px solid var(--color-border-2);
+}
+
+.subagent-activity__detail-value {
+  overflow-wrap: anywhere;
+  color: var(--aou-7);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+}
+
+.subagent-activity__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 0;
+  border: 0;
+  color: var(--color-primary-6);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.subagent-activity__open:hover,
+.subagent-activity__open:focus-visible {
+  color: var(--color-primary-7);
+}
+
+.subagent-activity__open:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .tool-detail-panel {
   border-left: 2px solid var(--color-border-2, #e5e6eb);
   padding-left: 10px;

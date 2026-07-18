@@ -71,6 +71,23 @@
     "input": "输入",
     "output": "输出"
   },
+  "subagents": {
+    "title": "子智能体",
+    "active": "进行中 · {{count}}",
+    "done": "已完成 · {{count}}",
+    "activeState": "进行中",
+    "doneState": "已完成",
+    "prompt": "任务",
+    "message": "最新进展",
+    "result": "结果",
+    "model": "模型",
+    "reasoningEffort": "推理强度",
+    "path": "智能体",
+    "threadId": "任务 ID",
+    "openTask": "打开任务",
+    "openingTask": "正在打开任务...",
+    "openFailed": "无法打开子智能体任务"
+  },
   "responseSentSuccessfully": "响应已成功发送",
   "confirmation": {
     "applyChange": "应用此更改？",

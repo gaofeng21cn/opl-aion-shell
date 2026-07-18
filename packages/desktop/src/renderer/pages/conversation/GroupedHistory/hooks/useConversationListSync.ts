@@ -6,8 +6,11 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
-import { canonicalCodexThreadId } from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
+import type { CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
+import {
+  canonicalCodexThreadId,
+  projectCanonicalCodexThread,
+} from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -136,43 +139,6 @@ const subscribeConversationListSync = (listener: () => void) => {
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
-const threadTimestamp = (thread: CodexThreadDescriptor): number => {
-  const parsed = Date.parse(thread.updatedAt);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const projectCanonicalThread = (
-  thread: CodexThreadDescriptor,
-  cached: Extract<TChatConversation, { type: 'acp' }> | undefined
-): TChatConversation => {
-  const modifiedAt = threadTimestamp(thread);
-  return {
-    ...(cached ?? {
-      id: thread.id,
-      created_at: modifiedAt,
-      type: 'acp' as const,
-      source: 'codex-app-server',
-    }),
-    id: cached?.id ?? thread.id,
-    name: thread.title,
-    desc: thread.summary,
-    modified_at: modifiedAt,
-    status: thread.status === 'running' ? 'running' : 'finished',
-    extra: {
-      ...cached?.extra,
-      backend: 'codex',
-      workspace: thread.workspace,
-      custom_workspace: Boolean(thread.workspace),
-      acp_session_id: thread.id,
-      canonical_thread_id: thread.id,
-      canonical_thread_stub: !cached,
-      canonical_thread_host: thread.host,
-      archived: thread.archived,
-      archived_at: thread.archived ? (cached?.extra.archived_at ?? modifiedAt) : undefined,
-    },
-  };
-};
-
 /**
  * Codex app-server owns task identity and lifecycle. Shell rows only add local
  * UI preferences or provide a lazy, rebuildable projection for unseen tasks.
@@ -199,7 +165,7 @@ export const mergeCanonicalThreadDirectory = (
 
   return [
     ...unmatchedLocal,
-    ...directory.threads.map((thread) => projectCanonicalThread(thread, cachedByThreadId.get(thread.id))),
+    ...directory.threads.map((thread) => projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id))),
   ];
 };
 

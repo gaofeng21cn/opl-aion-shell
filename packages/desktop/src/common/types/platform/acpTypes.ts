@@ -133,16 +133,18 @@ export interface ToolCallLocationItem {
 /** Tool call session update */
 export interface ToolCallUpdate extends BaseSessionUpdate {
   update: {
-    sessionUpdate: 'tool_call';
+    sessionUpdate: 'tool_call' | 'tool_call_update';
     tool_call_id: string;
     status: 'pending' | 'in_progress' | 'completed' | 'failed';
     title: string;
-    kind: 'read' | 'edit' | 'execute';
+    kind: 'read' | 'edit' | 'delete' | 'move' | 'search' | 'execute' | 'think' | 'fetch' | 'switch_mode' | 'other';
     rawInput?: Record<string, unknown>;
+    raw_input?: Record<string, unknown>;
     raw_output?: ToolCallRawOutput;
     rawOutput?: ToolCallRawOutput;
     content?: ToolCallContentItem[];
     locations?: ToolCallLocationItem[];
+    _meta?: Record<string, unknown>;
   };
 }
 

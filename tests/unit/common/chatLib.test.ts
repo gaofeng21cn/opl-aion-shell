@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import {
   composeMessage,
+  mergeAcpToolCallContent,
   normalizeAgentStreamError,
   transformMessage,
   type IMessageTips,
@@ -98,6 +99,75 @@ describe('composeMessage', () => {
     expect(list.map((message) => message.type)).toEqual(['thinking', 'acp_tool_call']);
     expect((list[0] as IMessageThinking).content.status).toBe('done');
     expect((list[0] as IMessageThinking).content.duration).toBe(3200);
+  });
+});
+
+describe('mergeAcpToolCallContent', () => {
+  it('preserves collaboration and subagent metadata plus detail input across updates', () => {
+    const merged = mergeAcpToolCallContent(
+      {
+        session_id: 'session-1',
+        update: {
+          sessionUpdate: 'tool_call',
+          tool_call_id: 'call-spawn-weather',
+          status: 'in_progress',
+          title: 'spawnAgent',
+          kind: 'other',
+          rawInput: {
+            prompt: 'Find the weather',
+            agentsStates: { 'thread-paris': { status: 'running', message: 'Checking weather' } },
+          },
+          _meta: {
+            codex: {
+              collaboration: {
+                tool: 'spawnAgent',
+                receiverThreadIds: ['thread-paris'],
+              },
+            },
+          },
+        },
+      },
+      {
+        session_id: 'session-1',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          tool_call_id: 'call-spawn-weather',
+          status: 'completed',
+          title: 'Start subagent weather_research',
+          kind: 'other',
+          rawInput: {
+            agentThreadId: 'thread-paris',
+            agentPath: '/root/weather_research',
+          },
+          _meta: {
+            codex: {
+              subagent: {
+                threadId: 'thread-paris',
+                path: '/root/weather_research',
+              },
+            },
+          },
+        },
+      }
+    );
+
+    expect(merged.update.rawInput).toMatchObject({
+      prompt: 'Find the weather',
+      agentThreadId: 'thread-paris',
+      agentPath: '/root/weather_research',
+    });
+    expect(merged.update._meta).toEqual({
+      codex: {
+        collaboration: {
+          tool: 'spawnAgent',
+          receiverThreadIds: ['thread-paris'],
+        },
+        subagent: {
+          threadId: 'thread-paris',
+          path: '/root/weather_research',
+        },
+      },
+    });
   });
 });
 

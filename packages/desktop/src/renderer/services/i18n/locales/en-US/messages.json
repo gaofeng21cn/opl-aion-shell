@@ -71,6 +71,23 @@
     "input": "Input",
     "output": "Output"
   },
+  "subagents": {
+    "title": "Subagents",
+    "active": "Active · {{count}}",
+    "done": "Done · {{count}}",
+    "activeState": "Active",
+    "doneState": "Done",
+    "prompt": "Prompt",
+    "message": "Latest update",
+    "result": "Result",
+    "model": "Model",
+    "reasoningEffort": "Reasoning",
+    "path": "Agent",
+    "threadId": "Task ID",
+    "openTask": "Open task",
+    "openingTask": "Opening task...",
+    "openFailed": "Could not open the subagent task"
+  },
   "responseSentSuccessfully": "Response sent successfully",
   "confirmation": {
     "applyChange": "Apply this change?",

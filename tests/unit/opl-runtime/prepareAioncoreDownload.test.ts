@@ -19,6 +19,29 @@ afterEach(() => {
   }
 });
 
+describe('managed Codex ACP publisher policy', () => {
+  it('uses the maintained ACP package and validates every OpenAI platform binary', () => {
+    const script = fs.readFileSync(
+      path.resolve(import.meta.dirname, '../../../scripts/prepare-managed-acp-tools.sh'),
+      'utf8'
+    );
+
+    expect(script).toContain('CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-1.1.4}"');
+    expect(script).toContain('codex-acp|@agentclientprotocol/codex-acp|${CODEX_ACP_VERSION}');
+    expect(script).not.toContain('@zed-industries/codex-acp');
+    for (const binaryPath of [
+      '@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
+      '@openai/codex-darwin-x64/vendor/x86_64-apple-darwin/bin/codex',
+      '@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex',
+      '@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex',
+      '@openai/codex-win32-arm64/vendor/aarch64-pc-windows-msvc/bin/codex.exe',
+      '@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe',
+    ]) {
+      expect(script).toContain(binaryPath);
+    }
+  });
+});
+
 describe('prepare-aioncore compatibility gate', () => {
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];

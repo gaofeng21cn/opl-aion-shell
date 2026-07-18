@@ -1,12 +1,38 @@
 import type { BadgeProps } from '@arco-design/web-react';
-import { Badge, Spin } from '@arco-design/web-react';
-import { Checklist, Down, Right } from '@icon-park/react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Badge, Message, Spin } from '@arco-design/web-react';
+import { Checklist, Down, Open, Right, Robot } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import type { NormalizedToolCall, NormalizedToolStatus, ToolMessage } from '@/common/chat/normalizeToolCall';
-import { normalizeToolMessages, hasRunningToolMessages } from '@/common/chat/normalizeToolCall';
+import type {
+  NormalizedSubagentActivity,
+  NormalizedToolCall,
+  NormalizedToolStatus,
+  ToolMessage,
+} from '@/common/chat/normalizeToolCall';
+import {
+  hasRunningToolMessages,
+  normalizeSubagentActivities,
+  normalizeToolMessages,
+} from '@/common/chat/normalizeToolCall';
+import {
+  canonicalCodexThreadId,
+  projectCanonicalCodexThread,
+} from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
+import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
+import { emitter } from '@/renderer/utils/emitter';
 import './MessageToolGroupSummary.css';
+
+const SUBAGENT_DETAIL_FIELDS = [
+  ['prompt', 'messages.subagents.prompt'],
+  ['message', 'messages.subagents.message'],
+  ['result', 'messages.subagents.result'],
+  ['model', 'messages.subagents.model'],
+  ['reasoningEffort', 'messages.subagents.reasoningEffort'],
+  ['path', 'messages.subagents.path'],
+  ['threadId', 'messages.subagents.threadId'],
+] as const satisfies ReadonlyArray<readonly [keyof NormalizedSubagentActivity, `messages.subagents.${string}`]>;
 
 const statusToBadge = (status: NormalizedToolStatus): BadgeProps['status'] => {
   switch (status) {
@@ -21,6 +47,23 @@ const statusToBadge = (status: NormalizedToolStatus): BadgeProps['status'] => {
     case 'pending':
     default:
       return 'default';
+  }
+};
+
+const findCanonicalConversationProjection = async (threadId: string) => {
+  try {
+    const direct = await getConversationOrNull(threadId);
+    if (canonicalCodexThreadId(direct) === threadId) return direct;
+  } catch (error) {
+    console.warn('Could not read the direct Codex task projection; falling back to canonical lookup:', error);
+  }
+
+  try {
+    const cached = await ipcBridge.database.getUserConversations.invoke({ limit: 10000 });
+    return cached.items.find((conversation) => canonicalCodexThreadId(conversation) === threadId) ?? null;
+  } catch (error) {
+    console.warn('Could not search cached Codex task projections; falling back to App Server:', error);
+    return null;
   }
 };
 
@@ -102,16 +145,128 @@ const ToolItemDetail: React.FC<{ item: NormalizedToolCall }> = ({ item }) => {
   );
 };
 
+const SubagentActivityItem: React.FC<{
+  item: NormalizedSubagentActivity;
+  opening: boolean;
+  onOpen: (item: NormalizedSubagentActivity) => void;
+}> = ({ item, opening, onOpen }) => {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const stateLabel = t(item.status === 'active' ? 'messages.subagents.activeState' : 'messages.subagents.doneState');
+  const details = SUBAGENT_DETAIL_FIELDS.map(([key, label]) => ({ label, value: item[key] })).filter(
+    (entry): entry is { label: (typeof SUBAGENT_DETAIL_FIELDS)[number][1]; value: string } =>
+      typeof entry.value === 'string' && entry.value.length > 0
+  );
+
+  return (
+    <div className='subagent-activity__item'>
+      <button
+        type='button'
+        className='subagent-activity__row'
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-label={`${item.name} ${stateLabel}`}
+      >
+        <Badge
+          status={item.status === 'active' ? 'processing' : 'success'}
+          className={item.status === 'active' ? 'badge-breathing' : ''}
+        />
+        <span className='subagent-activity__name'>{item.name}</span>
+        <span className='subagent-activity__state'>{stateLabel}</span>
+        <span className={`tool-group-summary__arrow${expanded ? ' tool-group-summary__arrow--open' : ''}`}>
+          <Right theme='outline' size='12' />
+        </span>
+      </button>
+      {expanded && (
+        <div className='subagent-activity__detail'>
+          {details.map(({ label, value }) => (
+            <div className='tool-detail-section' key={label}>
+              <div className='tool-detail-label'>{t(label)}</div>
+              <div className='subagent-activity__detail-value'>{value}</div>
+            </div>
+          ))}
+          <button type='button' className='subagent-activity__open' onClick={() => onOpen(item)} disabled={opening}>
+            <Open theme='outline' size='13' />
+            <span>{t(opening ? 'messages.subagents.openingTask' : 'messages.subagents.openTask')}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SubagentActivityGroup: React.FC<{
+  status: 'active' | 'done';
+  items: NormalizedSubagentActivity[];
+  openingThreadId: string | null;
+  onOpen: (item: NormalizedSubagentActivity) => void;
+}> = ({ status, items, openingThreadId, onOpen }) => {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+
+  return (
+    <div className='subagent-activity__group'>
+      <div className='subagent-activity__group-label'>
+        {t(status === 'active' ? 'messages.subagents.active' : 'messages.subagents.done', { count: items.length })}
+      </div>
+      {items.map((item) => (
+        <SubagentActivityItem
+          key={item.threadId}
+          item={item}
+          opening={openingThreadId === item.threadId}
+          onOpen={onOpen}
+        />
+      ))}
+    </div>
+  );
+};
+
 const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messages }) => {
   const { t } = useTranslation();
-  const hasRunning = hasRunningToolMessages(messages);
+  const navigate = useNavigate();
+  const [openingThreadId, setOpeningThreadId] = useState<string | null>(null);
+  const subagents = useMemo(() => normalizeSubagentActivities(messages), [messages]);
+  const subagentSourceToolKeys = useMemo(() => new Set(subagents.flatMap((item) => item.sourceToolKeys)), [subagents]);
+  const tools = useMemo(
+    () => normalizeToolMessages(messages).filter((item) => !subagentSourceToolKeys.has(item.key)),
+    [messages, subagentSourceToolKeys]
+  );
+  const activeSubagents = useMemo(() => subagents.filter((item) => item.status === 'active'), [subagents]);
+  const doneSubagents = useMemo(() => subagents.filter((item) => item.status === 'done'), [subagents]);
+  const hasRunning = hasRunningToolMessages(messages) || activeSubagents.length > 0;
   const [showMore, setShowMore] = useState(hasRunning);
 
   useEffect(() => {
     if (hasRunning) setShowMore(true);
   }, [hasRunning]);
 
-  const tools = useMemo(() => normalizeToolMessages(messages), [messages]);
+  const openSubagentTask = useCallback(
+    (item: NormalizedSubagentActivity) => {
+      if (openingThreadId) return;
+      setOpeningThreadId(item.threadId);
+      void (async () => {
+        try {
+          const existing = await findCanonicalConversationProjection(item.threadId);
+          let conversation = existing && canonicalCodexThreadId(existing) === item.threadId ? existing : null;
+          if (!conversation) {
+            const detail = await ipcBridge.codexThreads.read.invoke({ threadId: item.threadId });
+            const projection = projectCanonicalCodexThread(detail.thread, undefined, { materialized: true });
+            conversation = await ipcBridge.conversation.createWithConversation.invoke({ conversation: projection });
+            emitter.emit('chat.history.refresh');
+          }
+          await navigate(`/conversation/${conversation.id}`);
+        } catch (error) {
+          console.error('Failed to open canonical Codex subagent task:', error);
+          Message.error(t('messages.subagents.openFailed'));
+        } finally {
+          setOpeningThreadId(null);
+        }
+      })();
+    },
+    [navigate, openingThreadId, t]
+  );
+
+  const activityCount = tools.length + subagents.length;
 
   return (
     <div className='tool-group-summary'>
@@ -125,7 +280,7 @@ const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messag
           {hasRunning ? <Spin size={12} /> : <Checklist theme='outline' size='14' />}
         </span>
         <span className='tool-group-summary__label'>
-          {t(hasRunning ? 'messages.toolSteps.running' : 'messages.toolSteps.completed', { count: tools.length })}
+          {t(hasRunning ? 'messages.toolSteps.running' : 'messages.toolSteps.completed', { count: activityCount })}
         </span>
         <span className={`tool-group-summary__arrow${showMore ? ' tool-group-summary__arrow--open' : ''}`}>
           <Right theme='outline' size='12' />
@@ -133,6 +288,26 @@ const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messag
       </button>
       {showMore && (
         <div className='tool-group-summary__body'>
+          {subagents.length > 0 && (
+            <div className='subagent-activity'>
+              <div className='subagent-activity__title'>
+                <Robot theme='outline' size='14' />
+                <span>{t('messages.subagents.title')}</span>
+              </div>
+              <SubagentActivityGroup
+                status='active'
+                items={activeSubagents}
+                openingThreadId={openingThreadId}
+                onOpen={openSubagentTask}
+              />
+              <SubagentActivityGroup
+                status='done'
+                items={doneSubagents}
+                openingThreadId={openingThreadId}
+                onOpen={openSubagentTask}
+              />
+            </div>
+          )}
           {tools.map((item) => (
             <ToolItemDetail key={item.key} item={item} />
           ))}

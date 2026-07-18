@@ -182,6 +182,7 @@ type AcpToolCallUpdateCompat = IMessageAcpToolCall['content']['update'] & {
   raw_input?: Record<string, unknown>;
   raw_output?: AcpRawOutputCompat;
   rawOutput?: AcpRawOutputCompat;
+  _meta?: Record<string, unknown>;
 };
 
 type AcpToolCallContentCompat = IMessageAcpToolCall['content'] & {
@@ -229,6 +230,157 @@ export function normalizeAcpToolCall(message: IMessageAcpToolCall): NormalizedTo
     messageId: message.id,
     conversationId: message.conversation_id,
   };
+}
+
+export type NormalizedSubagentActivityStatus = 'active' | 'done';
+
+export interface NormalizedSubagentActivity {
+  threadId: string;
+  name: string;
+  path?: string;
+  prompt?: string;
+  message?: string;
+  result?: string;
+  model?: string;
+  reasoningEffort?: string;
+  tool?: string;
+  status: NormalizedSubagentActivityStatus;
+  rawStatus: string;
+  sourceToolKey: string;
+  sourceToolKeys: string[];
+}
+
+const ACTIVE_SUBAGENT_STATES = new Set(['pendingInit', 'running']);
+const DONE_SUBAGENT_STATES = new Set(['interrupted', 'completed', 'errored', 'shutdown', 'notFound']);
+const ACTIVE_SUBAGENT_TOOL_STATUSES = new Set(['pending', 'in_progress']);
+const DONE_SUBAGENT_TOOL_STATUSES = new Set(['completed', 'failed']);
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+
+const nonEmptyString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const stringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? [...new Set(value.map(nonEmptyString).filter((item): item is string => item !== undefined))]
+    : [];
+
+const normalizeSubagentState = (status: unknown): NormalizedSubagentActivityStatus | undefined => {
+  if (typeof status !== 'string') return undefined;
+  if (ACTIVE_SUBAGENT_STATES.has(status)) return 'active';
+  if (DONE_SUBAGENT_STATES.has(status)) return 'done';
+  return undefined;
+};
+
+const normalizeSubagentToolStatus = (status: unknown): NormalizedSubagentActivityStatus | undefined => {
+  if (typeof status !== 'string') return undefined;
+  if (ACTIVE_SUBAGENT_TOOL_STATUSES.has(status)) return 'active';
+  if (DONE_SUBAGENT_TOOL_STATUSES.has(status)) return 'done';
+  return undefined;
+};
+
+const subagentName = (path: string | undefined, threadId: string): string =>
+  path?.split('/').findLast((part) => part.length > 0) ?? threadId;
+
+const mergeSubagentActivity = (
+  existing: NormalizedSubagentActivity | undefined,
+  incoming: NormalizedSubagentActivity
+): NormalizedSubagentActivity => {
+  if (!existing) return incoming;
+  return {
+    ...existing,
+    ...incoming,
+    path: incoming.path ?? existing.path,
+    prompt: incoming.prompt ?? existing.prompt,
+    message: incoming.message ?? existing.message,
+    result: incoming.result ?? existing.result,
+    model: incoming.model ?? existing.model,
+    reasoningEffort: incoming.reasoningEffort ?? existing.reasoningEffort,
+    tool: incoming.tool ?? existing.tool,
+    name: incoming.path ? incoming.name : existing.name,
+    sourceToolKeys: [...new Set([...existing.sourceToolKeys, ...incoming.sourceToolKeys])],
+  };
+};
+
+/**
+ * Projects Codex delegated execution metadata from existing ACP tool calls.
+ * Invalid or unknown metadata is deliberately ignored so the generic tool row remains usable.
+ */
+export function normalizeSubagentActivities(messages: ToolMessage[]): NormalizedSubagentActivity[] {
+  const byThreadId = new Map<string, NormalizedSubagentActivity>();
+
+  for (const message of messages) {
+    if (message.type !== 'acp_tool_call') continue;
+    const content = message.content as AcpToolCallContentCompat | undefined;
+    const update = content?.update;
+    const sourceToolKey = nonEmptyString(update?.tool_call_id);
+    if (!update || !sourceToolKey) continue;
+
+    const rawInput = update.rawInput ?? update.raw_input;
+    const meta = asRecord(update._meta);
+    const codex = asRecord(meta?.codex);
+    const collaboration = asRecord(codex?.collaboration);
+    const subagent = asRecord(codex?.subagent);
+    if (!collaboration && !subagent) continue;
+
+    const subagentThreadId = nonEmptyString(subagent?.threadId);
+    const path = nonEmptyString(subagent?.path);
+    const prompt = nonEmptyString(rawInput?.prompt);
+    const model = nonEmptyString(rawInput?.model);
+    const reasoningEffort = nonEmptyString(rawInput?.reasoningEffort ?? rawInput?.reasoning_effort);
+    const result = getRawOutputText(update.raw_output ?? update.rawOutput);
+    const tool = nonEmptyString(collaboration?.tool);
+    const agentStates = asRecord(rawInput?.agentsStates);
+
+    for (const threadId of stringArray(collaboration?.receiverThreadIds)) {
+      const agentState = asRecord(agentStates?.[threadId]);
+      const rawStatus = nonEmptyString(agentState?.status);
+      const status = normalizeSubagentState(rawStatus);
+      if (!status || !rawStatus) continue;
+      const candidatePath = subagentThreadId === threadId ? path : undefined;
+      const candidate: NormalizedSubagentActivity = {
+        threadId,
+        name: subagentName(candidatePath, threadId),
+        path: candidatePath,
+        prompt,
+        message: nonEmptyString(agentState?.message),
+        result,
+        model,
+        reasoningEffort,
+        tool,
+        status,
+        rawStatus,
+        sourceToolKey,
+        sourceToolKeys: [sourceToolKey],
+      };
+      byThreadId.set(threadId, mergeSubagentActivity(byThreadId.get(threadId), candidate));
+    }
+
+    if (subagentThreadId) {
+      const rawStatus = nonEmptyString(update.status);
+      const status = normalizeSubagentToolStatus(rawStatus);
+      if (status && rawStatus) {
+        const candidate: NormalizedSubagentActivity = {
+          threadId: subagentThreadId,
+          name: subagentName(path, subagentThreadId),
+          path,
+          prompt,
+          result,
+          model,
+          reasoningEffort,
+          tool,
+          status,
+          rawStatus,
+          sourceToolKey,
+          sourceToolKeys: [sourceToolKey],
+        };
+        byThreadId.set(subagentThreadId, mergeSubagentActivity(byThreadId.get(subagentThreadId), candidate));
+      }
+    }
+  }
+
+  return [...byThreadId.values()];
 }
 
 // ===== tool_call → NormalizedToolCall =====
