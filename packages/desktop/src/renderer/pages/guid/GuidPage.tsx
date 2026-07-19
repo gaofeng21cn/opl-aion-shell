@@ -51,6 +51,7 @@ import styles from './index.module.css';
 
 const EMPTY_GUID_SKILLS: string[] = [];
 const DEFAULT_AUTO_SKILL_EXCLUSIONS = getOplOrdinaryCapabilitySelectorPolicy().forbidden_skill_examples;
+const AGENT_REFERENCE_ADMISSION_POLICY = getOplOrdinaryCapabilitySelectorPolicy().agent_reference_admission_policy;
 
 type GuidNavigationState = {
   resetAssistant?: boolean;
@@ -325,6 +326,7 @@ const GuidPage: React.FC = () => {
   );
 
   const mention = useGuidMention({
+    selectionEnabled: AGENT_REFERENCE_ADMISSION_POLICY.at_mention_agent_selection_allowed,
     availableAgents: agentSelection.availableAgents,
     customAgentAvatarMap: agentSelection.customAgentAvatarMap,
     selectedAgentKey: agentSelection.selectedAgentKey,
@@ -422,8 +424,12 @@ const GuidPage: React.FC = () => {
   const handleInputChange = useCallback(
     (value: string) => {
       guidInput.setInput(value);
+      if (!AGENT_REFERENCE_ADMISSION_POLICY.at_mention_agent_selection_allowed) {
+        mention.setMentionQuery(null);
+        mention.setMentionOpen(false);
+        return;
+      }
       const match = value.match(mention.mentionMatchRegex);
-      // 首页不根据输入 @ 呼起 mention 列表，占位符里的 @agent 仅为提示，选 agent 用顶部栏或下拉手动选
       if (match) {
         mention.setMentionQuery(match[1]);
         mention.setMentionOpen(false);
@@ -779,6 +785,9 @@ const GuidPage: React.FC = () => {
         data-opl-model-reasoning-visible={String(composerSurface.model_reasoning_visible)}
         data-opl-permission-access-visible={String(composerSurface.permission_access_visible)}
         data-opl-executor-selector-visible={String(composerSurface.executor_selector_visible)}
+        data-opl-at-mention-agent-selection-enabled={String(
+          AGENT_REFERENCE_ADMISSION_POLICY.at_mention_agent_selection_allowed
+        )}
       >
         <div className={styles.guidLayout}>
           <div className={styles.guidHero}>

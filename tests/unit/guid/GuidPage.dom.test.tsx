@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   setSelectedAgentKey: vi.fn(),
   setCodexModelSelection: vi.fn(),
+  mentionSelectionEnabled: { value: null as boolean | null },
   setMentionSelectorVisible: vi.fn(),
   setInput: vi.fn(),
   setFiles: vi.fn(),
@@ -331,25 +332,28 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
-  useGuidMention: (options: { selectedAgentLabelOverride?: string }) => ({
-    mentionQuery: null,
-    setMentionQuery: vi.fn(),
-    mentionOpen: false,
-    setMentionOpen: vi.fn(),
-    mentionSelectorVisible: mocks.isPresetAgent.value,
-    setMentionSelectorVisible: mocks.setMentionSelectorVisible,
-    mentionSelectorOpen: false,
-    setMentionSelectorOpen: vi.fn(),
-    mentionActiveIndex: 0,
-    setMentionActiveIndex: vi.fn(),
-    mentionOptions: [],
-    filteredMentionOptions: [],
-    selectMentionAgent: vi.fn(),
-    mentionMenuRef: { current: null },
-    mentionMatchRegex: /(?:^|\s)@([^\s@]*)$/,
-    selectedAgentLabel: options.selectedAgentLabelOverride || (mocks.isPresetAgent.value ? 'MAS' : 'Codex'),
-    mentionMenuSelectedKey: mocks.isPresetAgent.value ? 'custom:mas' : 'codex',
-  }),
+  useGuidMention: (options: { selectionEnabled: boolean; selectedAgentLabelOverride?: string }) => {
+    mocks.mentionSelectionEnabled.value = options.selectionEnabled;
+    return {
+      mentionQuery: null,
+      setMentionQuery: vi.fn(),
+      mentionOpen: false,
+      setMentionOpen: vi.fn(),
+      mentionSelectorVisible: mocks.isPresetAgent.value,
+      setMentionSelectorVisible: mocks.setMentionSelectorVisible,
+      mentionSelectorOpen: false,
+      setMentionSelectorOpen: vi.fn(),
+      mentionActiveIndex: 0,
+      setMentionActiveIndex: vi.fn(),
+      mentionOptions: [],
+      filteredMentionOptions: [],
+      selectMentionAgent: vi.fn(),
+      mentionMenuRef: { current: null },
+      mentionMatchRegex: /(?:^|\s)@([^\s@]*)$/,
+      selectedAgentLabel: options.selectedAgentLabelOverride || (mocks.isPresetAgent.value ? 'MAS' : 'Codex'),
+      mentionMenuSelectedKey: mocks.isPresetAgent.value ? 'custom:mas' : 'codex',
+    };
+  },
 }));
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidSend', () => ({
@@ -386,12 +390,16 @@ vi.mock('@/renderer/hooks/mcp/catalog', () => ({
 
 vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
+    input,
+    onInputChange,
     placeholder,
     actionRow,
     fileAccessEnabled,
     onPaste,
     dragHandlers,
   }: {
+    input: string;
+    onInputChange: (value: string) => void;
     placeholder: string;
     actionRow: React.ReactNode;
     fileAccessEnabled?: boolean;
@@ -403,6 +411,11 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       onPaste={fileAccessEnabled ? onPaste : undefined}
       onDrop={fileAccessEnabled ? dragHandlers.onDrop : undefined}
     >
+      <textarea
+        data-testid='guid-input'
+        value={input}
+        onChange={(event) => onInputChange(event.target.value)}
+      />
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {actionRow}
       {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
@@ -464,6 +477,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.guidInput.dir = '';
     mocks.sendMessageHandler.mockClear();
     mocks.setCodexModelSelection.mockClear();
+    mocks.mentionSelectionEnabled.value = null;
     mocks.sendDisabled.value = true;
     mocks.slashExecuteBuiltin.value = undefined;
     mocks.slashCommands.value = [];
@@ -518,6 +532,21 @@ describe('GuidPage selected purpose assistant surface', () => {
         })
       );
     });
+  });
+
+  it('keeps Agent names and @ mentions as prompt content without selecting another Agent', () => {
+    render(<GuidPage />);
+    mocks.setSelectedAgentKey.mockClear();
+
+    const entry = screen.getByTestId('opl-guid-entry');
+    expect(entry).toHaveAttribute('data-opl-at-mention-agent-selection-enabled', 'false');
+    expect(mocks.mentionSelectionEnabled.value).toBe(false);
+
+    const prompt = '@OPL Meta Agent 帮我用 RCA 做一个 PPT';
+    fireEvent.change(screen.getByTestId('guid-input'), { target: { value: prompt } });
+
+    expect(mocks.setInput).toHaveBeenCalledWith(prompt);
+    expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
   });
 
   it('keeps ordinary Home skills and MCP servers inside the App-owned OPL allowlist', async () => {

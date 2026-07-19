@@ -31,6 +31,7 @@ export type GuidMentionResult = {
 };
 
 type UseGuidMentionOptions = {
+  selectionEnabled: boolean;
   availableAgents: AvailableAgent[] | undefined;
   customAgentAvatarMap: Map<string, string | undefined>;
   selectedAgentKey: string;
@@ -41,9 +42,10 @@ type UseGuidMentionOptions = {
 };
 
 /**
- * Hook that manages the @ mention system for agent selection.
+ * Hook that manages the optional legacy @ mention Agent selector.
  */
 export const useGuidMention = ({
+  selectionEnabled,
   availableAgents,
   customAgentAvatarMap,
   selectedAgentKey,
@@ -61,7 +63,7 @@ export const useGuidMention = ({
   const mentionMatchRegex = useMemo(() => /(?:^|\s)@([^\s@]*)$/, []);
 
   const mentionOptions = useMemo(() => {
-    const agents = availableAgents || [];
+    const agents = selectionEnabled ? availableAgents || [] : [];
     return agents.map((agent) => {
       const key = getAgentKey(agent);
       const label = agent.name || agent.backend || agent.agent_type;
@@ -100,7 +102,7 @@ export const useGuidMention = ({
         isExtension: agent.isExtension,
       };
     });
-  }, [availableAgents, customAgentAvatarMap]);
+  }, [availableAgents, customAgentAvatarMap, selectionEnabled]);
 
   const filteredMentionOptions = useMemo(() => {
     if (!mentionQuery) return mentionOptions;
@@ -118,6 +120,14 @@ export const useGuidMention = ({
 
   const selectMentionAgent = useCallback(
     (key: string) => {
+      if (!selectionEnabled) {
+        setMentionOpen(false);
+        setMentionSelectorOpen(false);
+        setMentionSelectorVisible(false);
+        setMentionQuery(null);
+        setMentionActiveIndex(0);
+        return;
+      }
       setSelectedAgentKey(key);
       setInput((prev) => stripMentionToken(prev));
       setMentionOpen(false);
@@ -126,7 +136,7 @@ export const useGuidMention = ({
       setMentionQuery(null);
       setMentionActiveIndex(0);
     },
-    [stripMentionToken, setSelectedAgentKey, setInput]
+    [selectionEnabled, stripMentionToken, setSelectedAgentKey, setInput]
   );
 
   const selectedAgentLabel = selectedAgentLabelOverride || selectedAgentInfo?.name || selectedAgentKey;

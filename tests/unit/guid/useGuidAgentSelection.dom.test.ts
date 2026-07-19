@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGuidAgentSelection } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
+import { useGuidMention } from '@/renderer/pages/guid/hooks/useGuidMention';
+import type { AvailableAgent } from '@/renderer/pages/guid/types';
 
 const { configGetMock, configSetMock, configStore, catalogAssistants, managedAgents } = vi.hoisted(() => ({
   configGetMock: vi.fn(),
@@ -248,5 +250,38 @@ describe('useGuidAgentSelection', () => {
     await waitFor(() => expect(result.current.selectedAgentKey).toBe('custom:mas'));
     expect(result.current.is_presetAgent).toBe(true);
     expect(configSetMock).toHaveBeenCalledWith('guid.lastSelectedAgent', 'custom:mas');
+  });
+});
+
+describe('useGuidMention Agent admission', () => {
+  it('does not expose or select Agent mentions when the App policy disables mention routing', () => {
+    const setSelectedAgentKey = vi.fn();
+    const setInput = vi.fn();
+    const availableAgents: AvailableAgent[] = [
+      {
+        id: 'oma',
+        custom_agent_id: 'oma',
+        agent_type: 'codex',
+        backend: 'codex',
+        name: 'OPL Meta Agent',
+        is_preset: true,
+      },
+    ];
+    const { result } = renderHook(() =>
+      useGuidMention({
+        selectionEnabled: false,
+        availableAgents,
+        customAgentAvatarMap: new Map(),
+        selectedAgentKey: 'codex',
+        setSelectedAgentKey,
+        setInput,
+        selectedAgentInfo: undefined,
+      })
+    );
+
+    expect(result.current.mentionOptions).toEqual([]);
+    act(() => result.current.selectMentionAgent('custom:oma'));
+    expect(setSelectedAgentKey).not.toHaveBeenCalled();
+    expect(setInput).not.toHaveBeenCalled();
   });
 });

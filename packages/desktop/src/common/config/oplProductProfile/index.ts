@@ -217,9 +217,23 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
   must_not_depend_on_visible_backend_selection: true;
 };
 
+export type OplAgentReferenceAdmissionPolicy = {
+  active_agent_package_cardinality: 'zero_or_one';
+  selection_authority: 'home_starter_new_session_capability_palette_or_explicit_capability_route_only';
+  at_mention_agent_selection_allowed: false;
+  plain_text_agent_reference_changes_active_package: false;
+  multiple_agent_reference_policy: 'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages';
+  cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request';
+  deterministic_cross_agent_routing_allowed: false;
+  oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required';
+  deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering';
+  existing_conversation_rebinding_allowed: false;
+};
+
 export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
   authority: 'app_owned_opl_allowlist';
+  agent_reference_admission_policy: OplAgentReferenceAdmissionPolicy;
   skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
   conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
@@ -1657,6 +1671,29 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: gui.ordinary_capability_selector_policy must be an object');
   }
+  const agentReferenceAdmissionPolicy = value.agent_reference_admission_policy;
+  if (
+    !isRecord(agentReferenceAdmissionPolicy) ||
+    agentReferenceAdmissionPolicy.active_agent_package_cardinality !== 'zero_or_one' ||
+    agentReferenceAdmissionPolicy.selection_authority !==
+      'home_starter_new_session_capability_palette_or_explicit_capability_route_only' ||
+    agentReferenceAdmissionPolicy.at_mention_agent_selection_allowed !== false ||
+    agentReferenceAdmissionPolicy.plain_text_agent_reference_changes_active_package !== false ||
+    agentReferenceAdmissionPolicy.multiple_agent_reference_policy !==
+      'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages' ||
+    agentReferenceAdmissionPolicy.cross_agent_semantic_admission_owner !==
+      'target_primary_skill_over_complete_current_user_request' ||
+    agentReferenceAdmissionPolicy.deterministic_cross_agent_routing_allowed !== false ||
+    agentReferenceAdmissionPolicy.oma_engineering_admission !==
+      'explicit_target_agent_and_explicit_agent_engineering_objective_required' ||
+    agentReferenceAdmissionPolicy.deliverable_failure_policy !==
+      'repair_current_deliverable_never_authorize_agent_engineering' ||
+    agentReferenceAdmissionPolicy.existing_conversation_rebinding_allowed !== false
+  ) {
+    throw new Error(
+      'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent reference admission is unsupported'
+    );
+  }
   const visibleMcpServerIds = Array.isArray(value.visible_mcp_server_ids)
     ? value.visible_mcp_server_ids.map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     : [];
@@ -1715,6 +1752,18 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   return {
     scope: 'home_composer_and_ordinary_conversation',
     authority: 'app_owned_opl_allowlist',
+    agent_reference_admission_policy: {
+      active_agent_package_cardinality: 'zero_or_one',
+      selection_authority: 'home_starter_new_session_capability_palette_or_explicit_capability_route_only',
+      at_mention_agent_selection_allowed: false,
+      plain_text_agent_reference_changes_active_package: false,
+      multiple_agent_reference_policy: 'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages',
+      cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request',
+      deterministic_cross_agent_routing_allowed: false,
+      oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required',
+      deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering',
+      existing_conversation_rebinding_allowed: false,
+    },
     skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids',
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
     conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
@@ -2989,6 +3038,7 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
   const policy = OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy;
   return {
     ...policy,
+    agent_reference_admission_policy: { ...policy.agent_reference_admission_policy },
     visible_mcp_server_ids: [...policy.visible_mcp_server_ids],
     forbidden_skill_examples: [...policy.forbidden_skill_examples],
     forbidden_mcp_examples: [...policy.forbidden_mcp_examples],
