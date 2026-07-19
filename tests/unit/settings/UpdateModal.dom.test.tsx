@@ -141,6 +141,47 @@ describe('UpdateModal checking layout', () => {
     expect(screen.queryByTestId('aion-modal')).not.toBeInTheDocument();
   });
 
+  it('does not let a stale manual-check snapshot overwrite a newer live downloaded event', async () => {
+    let statusListener: ((event: { status: string; version?: string }) => void) | undefined;
+    let resolveManualSnapshot: ((status: { status: 'available'; version: string }) => void) | undefined;
+    bridgeMocks.autoUpdateStatusOn.mockImplementation((listener) => {
+      statusListener = listener;
+      return () => undefined;
+    });
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveManualSnapshot = resolve;
+          })
+      );
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: { checked: true, updateInfo: { version: '26.7.19' } },
+    });
+    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: { currentVersion: '26.7.18', updateAvailable: false },
+    });
+
+    render(<UpdateModal />);
+    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
+    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      statusListener?.({ status: 'downloaded', version: '26.7.19' });
+    });
+    expect(screen.getByText('准备安装')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveManualSnapshot?.({ status: 'available', version: '26.7.19' });
+    });
+    expect(screen.getByText('准备安装')).toBeInTheDocument();
+    expect(screen.queryByText('update.downloadingTitle')).not.toBeInTheDocument();
+  });
+
   it('uses the app-state preview channel for both updater checks and ignores legacy local storage', async () => {
     localStorage.setItem('update.includeNightly', 'false');
     bridgeMocks.getAppStateInvoke.mockResolvedValue({

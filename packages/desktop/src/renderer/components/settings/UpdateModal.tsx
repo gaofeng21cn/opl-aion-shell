@@ -101,7 +101,7 @@ const UpdateModal: React.FC = () => {
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
   const appStateVersion = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
   const appStateVersionRef = useRef(appStateVersion);
-  const liveAutoUpdateStatusObservedRef = useRef(false);
+  const autoUpdateStatusSequenceRef = useRef(0);
 
   useEffect(() => {
     appStateVersionRef.current = appStateVersion;
@@ -225,10 +225,11 @@ const UpdateModal: React.FC = () => {
           setUpdateInfo(res.data.latest);
           setReleasePageUrl(res.data.latest.htmlUrl || '');
         }
+        const snapshotSequence = autoUpdateStatusSequenceRef.current;
         const snapshot = await ipcBridge.autoUpdate.getStatusSnapshot.invoke();
-        if (snapshot) {
+        if (snapshot && autoUpdateStatusSequenceRef.current === snapshotSequence) {
           applyAutoUpdateStatus(snapshot);
-        } else {
+        } else if (!snapshot) {
           setStatus('downloading');
         }
         return;
@@ -331,16 +332,16 @@ const UpdateModal: React.FC = () => {
   // Listen for auto-update status events (e.g. from startup check)
   useEffect(() => {
     let active = true;
-    liveAutoUpdateStatusObservedRef.current = false;
     const removeListener = ipcBridge.autoUpdate.status.on((evt: AutoUpdateStatus) => {
       if (!evt) return;
-      liveAutoUpdateStatusObservedRef.current = true;
+      autoUpdateStatusSequenceRef.current += 1;
       applyAutoUpdateStatus(evt);
     });
 
+    const snapshotSequence = autoUpdateStatusSequenceRef.current;
     void ipcBridge.autoUpdate.getStatusSnapshot.invoke().then(
       (snapshot) => {
-        if (!active || !snapshot || liveAutoUpdateStatusObservedRef.current) return;
+        if (!active || !snapshot || autoUpdateStatusSequenceRef.current !== snapshotSequence) return;
         applyAutoUpdateStatus(snapshot);
       },
       (error) => {
