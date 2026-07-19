@@ -1,7 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import UpdateModal from '@/renderer/components/settings/UpdateModal';
+import UpdateModal, { selectLocalizedReleaseNotes } from '@/renderer/components/settings/UpdateModal';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -10,6 +10,7 @@ const bridgeMocks = vi.hoisted(() => ({
   updateDownloadInvoke: vi.fn(),
   updateDownloadProgressOn: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
+  autoUpdateGetStatusSnapshotInvoke: vi.fn(),
   autoUpdateCheckInvoke: vi.fn(),
   autoUpdateDownloadInvoke: vi.fn(),
   autoUpdateQuitAndInstallInvoke: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@/common', () => ({
     },
     autoUpdate: {
       status: { on: bridgeMocks.autoUpdateStatusOn },
+      getStatusSnapshot: { invoke: bridgeMocks.autoUpdateGetStatusSnapshotInvoke },
       check: { invoke: bridgeMocks.autoUpdateCheckInvoke },
       download: { invoke: bridgeMocks.autoUpdateDownloadInvoke },
       quitAndInstall: { invoke: bridgeMocks.autoUpdateQuitAndInstallInvoke },
@@ -93,6 +95,7 @@ describe('UpdateModal checking layout', () => {
     bridgeMocks.updateOpenOn.mockReturnValue(() => undefined);
     bridgeMocks.updateDownloadProgressOn.mockReturnValue(() => undefined);
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue(null);
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       parsed: { app_state: { update_channel: 'stable' } },
     });
@@ -111,6 +114,31 @@ describe('UpdateModal checking layout', () => {
 
     await waitFor(() => expect(screen.getByText('正在检查更新')).toBeInTheDocument());
     expect(screen.getByText('正在检查更新').parentElement).toHaveClass('min-h-224px', 'h-full', 'box-border');
+  });
+
+  it('replays a downloaded startup snapshot and prompts for restart after a late mount', async () => {
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({
+      status: 'downloaded',
+      version: '26.7.19',
+    });
+
+    render(<UpdateModal />);
+
+    expect(await screen.findByText('准备安装')).toBeInTheDocument();
+    expect(screen.getByText('立即安装')).toBeInTheDocument();
+    expect(bridgeMocks.autoUpdateCheckInvoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps an available startup update in the background until download completes', async () => {
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({
+      status: 'available',
+      version: '26.7.19',
+    });
+
+    render(<UpdateModal />);
+
+    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId('aion-modal')).not.toBeInTheDocument();
   });
 
   it('uses the app-state preview channel for both updater checks and ignores legacy local storage', async () => {
@@ -173,38 +201,17 @@ describe('UpdateModal checking layout', () => {
   });
 
   it('falls back to en-US release notes when the current language block is missing', async () => {
-    localStorage.setItem('test.i18nLanguage', 'fr-FR');
-    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
-      success: true,
-      data: {
-        checked: true,
-        updateInfo: {
-          version: '1.1.0',
-          releaseNotes: [
-            'Public English intro',
-            '<!-- OPL_RELEASE_NOTES:en-US -->',
-            'English release notes',
-            '<!-- /OPL_RELEASE_NOTES:en-US -->',
-            '<!-- OPL_RELEASE_NOTES:zh-CN -->',
-            '中文更新说明',
-            '<!-- /OPL_RELEASE_NOTES:zh-CN -->',
-          ].join('\n'),
-        },
-      },
-    });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
-      success: true,
-      data: {
-        currentVersion: '1.0.0',
-        updateAvailable: true,
-      },
-    });
+    const releaseNotes = [
+      'Public English intro',
+      '<!-- OPL_RELEASE_NOTES:en-US -->',
+      'English release notes',
+      '<!-- /OPL_RELEASE_NOTES:en-US -->',
+      '<!-- OPL_RELEASE_NOTES:zh-CN -->',
+      '中文更新说明',
+      '<!-- /OPL_RELEASE_NOTES:zh-CN -->',
+    ].join('\n');
 
-    render(<UpdateModal />);
-    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
-
-    expect(await screen.findByText('English release notes')).toBeInTheDocument();
-    expect(screen.queryByText('中文更新说明')).not.toBeInTheDocument();
+    expect(selectLocalizedReleaseNotes(releaseNotes, 'fr-FR')).toBe('English release notes');
   });
 
   it('passes downloaded updater zip path to the App-managed installer', async () => {

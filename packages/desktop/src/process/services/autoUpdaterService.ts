@@ -108,8 +108,9 @@ class AutoUpdaterService extends EventEmitter {
     autoUpdater.logger = log;
     (autoUpdater.logger as typeof log).transports.file.level = 'info';
 
-    // Disable auto-download for manual control
-    autoUpdater.autoDownload = false;
+    // Standard-channel updates download in the background and prompt only
+    // after the package is ready to apply on restart.
+    autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
     // Set the correct update channel based on platform and architecture before

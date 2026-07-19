@@ -403,6 +403,15 @@ describe('updateBridge auto-update config handling', () => {
     expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'checking' });
   });
 
+  it('configures the standard updater to download in the background', async () => {
+    vi.resetModules();
+    const { autoUpdater } = await import('electron-updater');
+    await import('@process/services/autoUpdaterService');
+
+    expect(autoUpdater.autoDownload).toBe(true);
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
+  });
+
   it('returns a defensive copy of the latest updater status', async () => {
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
 

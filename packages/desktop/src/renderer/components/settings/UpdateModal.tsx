@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Progress, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
 import { ipcBridge } from '@/common';
@@ -26,6 +26,20 @@ const RELEASE_NOTES_MODAL_WIDTH = '600px';
 const CHECKING_MODAL_HEIGHT = '224px';
 const RELEASE_NOTES_MODAL_HEIGHT = '420px';
 const RELEASE_NOTES_LOCALES: ReleaseNotesLocale[] = ['zh-CN', 'en-US'];
+
+const formatSpeed = (bytesPerSecond: number): string => {
+  if (bytesPerSecond > 1024 * 1024) {
+    return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
+  }
+  return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+};
+
+const formatSize = (bytes: number): string => {
+  if (bytes > 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(bytes / 1024).toFixed(1)} KB`;
+};
 
 const resolveUpdaterChannel = (appState: Record<string, unknown>): UpdateChannel => {
   const release = oplRecord(appState.release);
@@ -87,6 +101,7 @@ const UpdateModal: React.FC = () => {
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
   const appStateVersion = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
   const appStateVersionRef = useRef(appStateVersion);
+  const liveAutoUpdateStatusObservedRef = useRef(false);
 
   useEffect(() => {
     appStateVersionRef.current = appStateVersion;
@@ -107,6 +122,54 @@ const UpdateModal: React.FC = () => {
   };
 
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
+
+  const applyAutoUpdateStatus = useCallback(
+    (evt: AutoUpdateStatus) => {
+      switch (evt.status) {
+        case 'checking':
+          return;
+        case 'available':
+          setAutoUpdateAvailable(true);
+          setAutoUpdateInfo({
+            version: evt.version || '',
+            releaseNotes: evt.releaseNotes,
+          });
+          setStatus('downloading');
+          return;
+        case 'not-available':
+          setStatus('upToDate');
+          return;
+        case 'downloading':
+          setStatus('downloading');
+          if (evt.progress) {
+            setProgress({
+              percent: Math.round(evt.progress.percent),
+              speed: formatSpeed(evt.progress.bytesPerSecond),
+              total: evt.progress.total,
+              transferred: evt.progress.transferred,
+            });
+          }
+          return;
+        case 'downloaded':
+          setAutoUpdateAvailable(true);
+          setAutoUpdateInfo((current) => ({
+            version: evt.version || current?.version || '',
+            releaseNotes: evt.releaseNotes ?? current?.releaseNotes,
+          }));
+          setStatus('downloaded');
+          setVisible(true);
+          return;
+        case 'cancelled':
+          setStatus('error');
+          setErrorMsg(t('update.downloadFailed'));
+          return;
+        case 'error':
+          setStatus('error');
+          setErrorMsg(evt.error || t('update.downloadFailed'));
+      }
+    },
+    [t]
+  );
 
   const openReleasePage = () => {
     if (!releasePageUrl) return;
@@ -156,12 +219,18 @@ const UpdateModal: React.FC = () => {
       setCurrentVersion(res.data?.currentVersion || fallbackCurrentVersion);
 
       if (autoUpdateOk) {
-        // Auto-update available — use manual check data for display only
+        // The standard updater downloads in the background. Manual release
+        // data remains display-only while the shared status drives progress.
         if (res.data?.latest) {
           setUpdateInfo(res.data.latest);
           setReleasePageUrl(res.data.latest.htmlUrl || '');
         }
-        setStatus('available');
+        const snapshot = await ipcBridge.autoUpdate.getStatusSnapshot.invoke();
+        if (snapshot) {
+          applyAutoUpdateStatus(snapshot);
+        } else {
+          setStatus('downloading');
+        }
         return;
       }
 
@@ -243,20 +312,6 @@ const UpdateModal: React.FC = () => {
     }
   };
 
-  const formatSpeed = (bytesPerSecond: number) => {
-    if (bytesPerSecond > 1024 * 1024) {
-      return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
-    }
-    return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes > 1024 * 1024) {
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    }
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  };
-
   const handleOpenUpdateModal = () => {
     setVisible(true);
     resetState();
@@ -275,48 +330,29 @@ const UpdateModal: React.FC = () => {
 
   // Listen for auto-update status events (e.g. from startup check)
   useEffect(() => {
+    let active = true;
+    liveAutoUpdateStatusObservedRef.current = false;
     const removeListener = ipcBridge.autoUpdate.status.on((evt: AutoUpdateStatus) => {
       if (!evt) return;
-
-      switch (evt.status) {
-        case 'checking':
-          break;
-        case 'available':
-          setAutoUpdateAvailable(true);
-          setAutoUpdateInfo({
-            version: evt.version || '',
-            releaseNotes: evt.releaseNotes,
-          });
-          setStatus('available');
-          setVisible(true);
-          break;
-        case 'not-available':
-          setStatus('upToDate');
-          break;
-        case 'downloading':
-          if (evt.progress) {
-            setProgress({
-              percent: Math.round(evt.progress.percent),
-              speed: formatSpeed(evt.progress.bytesPerSecond),
-              total: evt.progress.total,
-              transferred: evt.progress.transferred,
-            });
-          }
-          break;
-        case 'downloaded':
-          setStatus('downloaded');
-          break;
-        case 'error':
-          setStatus('error');
-          setErrorMsg(evt.error || t('update.downloadFailed'));
-          break;
-      }
+      liveAutoUpdateStatusObservedRef.current = true;
+      applyAutoUpdateStatus(evt);
     });
 
+    void ipcBridge.autoUpdate.getStatusSnapshot.invoke().then(
+      (snapshot) => {
+        if (!active || !snapshot || liveAutoUpdateStatusObservedRef.current) return;
+        applyAutoUpdateStatus(snapshot);
+      },
+      (error) => {
+        console.warn('Failed to read auto-update status snapshot:', error);
+      }
+    );
+
     return () => {
+      active = false;
       removeListener();
     };
-  }, [t]);
+  }, [applyAutoUpdateStatus]);
 
   useEffect(() => {
     const removeProgressListener = ipcBridge.update.downloadProgress.on((evt: UpdateDownloadProgressEvent) => {
