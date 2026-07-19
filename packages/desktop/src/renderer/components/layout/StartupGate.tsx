@@ -17,10 +17,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { OplAppStatePayload } from '@/common/types/opl/appState';
-import {
-  isCoreLaunchReadyFromAppState,
-  readInitializePayload,
-} from '@/renderer/pages/FirstRun/initializeModel';
+import { isCoreLaunchReadyFromAppState, readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
 import { cacheFastOplAppState, loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 

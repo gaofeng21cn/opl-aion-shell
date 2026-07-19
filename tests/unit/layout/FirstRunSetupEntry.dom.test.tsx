@@ -42,6 +42,7 @@ describe('FirstRunSetupEntry', () => {
         workspace_root: {
           selected_path: '/Users/example/OPL Workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
@@ -71,6 +72,7 @@ describe('FirstRunSetupEntry', () => {
         workspace_root: {
           selected_path: '/Users/example/OPL Workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },

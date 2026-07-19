@@ -3,6 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import UpdateModal, { selectLocalizedReleaseNotes } from '@/renderer/components/settings/UpdateModal';
 
+const translate = vi.hoisted(() => (key: string): string => {
+  const translations: Record<string, string> = {
+    'update.modalTitle': '检查更新',
+    'update.checking': '正在检查更新',
+    'update.availableTitle': '发现新版本',
+    'update.downloadButton': '下载',
+    'update.readyToInstall': '准备安装',
+    'update.installWarning': '安装期间请勿手动打开应用，应用将自动重启。',
+    'update.installNow': '立即安装',
+  };
+  return translations[key] ?? key;
+});
+
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
   updateOpenOn: vi.fn(),
@@ -50,18 +63,7 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: globalThis.localStorage?.getItem('test.i18nLanguage') ?? 'zh-CN',
     },
-    t: (key: string) => {
-      const translations: Record<string, string> = {
-        'update.modalTitle': '检查更新',
-        'update.checking': '正在检查更新',
-        'update.availableTitle': '发现新版本',
-        'update.downloadButton': '下载',
-        'update.readyToInstall': '准备安装',
-        'update.installWarning': '安装期间请勿手动打开应用，应用将自动重启。',
-        'update.installNow': '立即安装',
-      };
-      return translations[key] ?? key;
-    },
+    t: translate,
   }),
 }));
 
@@ -148,14 +150,12 @@ describe('UpdateModal checking layout', () => {
       statusListener = listener;
       return () => undefined;
     });
-    bridgeMocks.autoUpdateGetStatusSnapshotInvoke
-      .mockResolvedValueOnce(null)
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveManualSnapshot = resolve;
-          })
-      );
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValueOnce(null).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveManualSnapshot = resolve;
+        })
+    );
     bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
       success: true,
       data: { checked: true, updateInfo: { version: '26.7.19' } },
@@ -167,8 +167,10 @@ describe('UpdateModal checking layout', () => {
 
     render(<UpdateModal />);
     await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(1));
-    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
-    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(2));
+    act(() => {
+      window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
+    });
+    await waitFor(() => expect(resolveManualSnapshot).toBeTypeOf('function'));
 
     await act(async () => {
       statusListener?.({ status: 'downloaded', version: '26.7.19' });

@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
         workspace_root: {
           selected_path: '/Users/example/OPL Workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
@@ -442,6 +443,7 @@ describe('GuidPage selected purpose assistant surface', () => {
         workspace_root: {
           selected_path: '/Users/example/OPL Workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
