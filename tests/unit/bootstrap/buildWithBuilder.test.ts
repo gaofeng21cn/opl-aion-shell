@@ -166,13 +166,16 @@ childProcess.execSync = function mockedExecSync(command) {
       'utf8'
     );
 
+    const childEnv = { ...process.env };
+    delete childEnv.OPL_RELEASE_VERSION;
+
     try {
       const result = withOutBundleBackup(() => {
         return spawnSync(process.execPath, ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--force'], {
           cwd: repoRoot,
           encoding: 'utf8',
           env: {
-            ...process.env,
+            ...childEnv,
             AIONUI_COMMANDS_FILE: commandsPath,
             NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
           },
