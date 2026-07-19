@@ -8,7 +8,7 @@
  * when the modal becomes visible, and that cancel clears the form.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -31,6 +31,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'en' } }),
 }));
 
+vi.mock('@/renderer/hooks/context/ThemeContext', () => ({
+  useThemeContext: () => ({ fontScale: 1 }),
+}));
+
 const sentryMocks = vi.hoisted(() => {
   const setTag = vi.fn();
   const flush = vi.fn(async () => true);
@@ -50,6 +54,7 @@ vi.mock('@sentry/electron/renderer', () => sentryMocks);
 import FeedbackReportModal, {
   type PrefilledScreenshot,
 } from '@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal';
+import AionModal from '@/renderer/components/base/AionModal';
 
 const renderModal = (ui: React.ReactElement) => render(<ConfigProvider>{ui}</ConfigProvider>);
 
@@ -115,6 +120,34 @@ describe('FeedbackReportModal — prefill', () => {
   it('renders the form body when visible=true', () => {
     renderModal(<FeedbackReportModal visible={true} onCancel={vi.fn()} />);
     expect(screen.getByTestId('feedback-report-scroll-body')).toBeInTheDocument();
+  });
+
+  it('labels the feedback dialog, names close, and restores its opener', async () => {
+    const user = userEvent.setup();
+    const Harness = () => {
+      const [visible, setVisible] = useState(false);
+      return (
+        <>
+          <button type='button' onClick={() => setVisible(true)}>
+            Open feedback
+          </button>
+          <FeedbackReportModal visible={visible} onCancel={() => setVisible(false)} />
+        </>
+      );
+    };
+
+    renderModal(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open feedback' });
+    await user.click(opener);
+
+    expect(await screen.findByRole('dialog', { name: 'settings.bugReportTitle' })).toBeInTheDocument();
+    const closeButton = screen.getByRole('button', { name: 'common.close' });
+    await user.click(closeButton);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'settings.bugReportTitle' })).not.toBeInTheDocument()
+    );
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 
   it('applies defaultModule on open, showing it as the selected option', () => {
@@ -232,6 +265,48 @@ describe('FeedbackReportModal — prefill', () => {
       expect.objectContaining({ attachments: [] })
     );
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AionModal accessibility', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('labels the dialog, traps focus, and restores the opener after close', async () => {
+    const user = userEvent.setup();
+    const Harness = () => {
+      const [visible, setVisible] = useState(false);
+      return (
+        <>
+          <button type='button' onClick={() => setVisible(true)}>
+            Open accessible modal
+          </button>
+          <AionModal visible={visible} header='Accessible modal' footer={null} onCancel={() => setVisible(false)}>
+            <button type='button'>First modal action</button>
+            <button type='button'>Last modal action</button>
+          </AionModal>
+        </>
+      );
+    };
+
+    renderModal(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open accessible modal' });
+    await user.click(opener);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Accessible modal' });
+    const closeButton = screen.getByRole('button', { name: 'common.close' });
+    const lastAction = screen.getByRole('button', { name: 'Last modal action' });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+
+    lastAction.focus();
+    await user.tab();
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    expect(opener).not.toHaveFocus();
+
+    await user.click(closeButton);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Accessible modal' })).not.toBeInTheDocument());
+    expect(opener).toHaveFocus();
   });
 });
 

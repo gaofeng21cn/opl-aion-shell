@@ -157,6 +157,36 @@ const FOOTER_BASE_CLASS = 'flex-shrink-0 bg-transparent';
 const dimensionKeys = ['width', 'minWidth', 'maxWidth', 'height', 'minHeight', 'maxHeight'] as const;
 type DimensionKey = (typeof dimensionKeys)[number];
 
+const useRestoreFocusOnClose = (visible: boolean) => {
+  const wasVisibleRef = React.useRef(false);
+  const restoreFocusRef = React.useRef<HTMLElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (visible && !wasVisibleRef.current && !restoreFocusRef.current) {
+      restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    wasVisibleRef.current = visible;
+  }, [visible]);
+
+  React.useEffect(() => {
+    if (visible || !restoreFocusRef.current) return undefined;
+    const restoreFocus = restoreFocusRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (restoreFocus.isConnected) restoreFocus.focus({ preventScroll: true });
+      restoreFocusRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [visible]);
+
+  React.useEffect(
+    () => () => {
+      const restoreFocus = restoreFocusRef.current;
+      if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+    },
+    []
+  );
+};
+
 const formatDimensionValue = (value?: string | number) => {
   if (value === undefined || value === null) return undefined;
   return typeof value === 'number' ? `${value}px` : value;
@@ -178,6 +208,8 @@ const AionModal: React.FC<AionModalProps> = ({
 }) => {
   const { fontScale } = useThemeContext();
   const { t } = useTranslation();
+  const titleId = React.useId();
+  useRestoreFocusOnClose(Boolean(props.visible));
   // 处理 contentStyle 配置，转换为 CSS 变量
   const contentBg = contentStyle?.background || 'var(--dialog-fill-0)';
   const contentBorderRadius = contentStyle?.borderRadius || '16px';
@@ -322,7 +354,7 @@ const AionModal: React.FC<AionModalProps> = ({
     // 如果提供了自定义 render 函数
     if (headerConfig.render) {
       return (
-        <div className={headerConfig.className} style={headerConfig.style}>
+        <div id={titleId} className={headerConfig.className} style={headerConfig.style}>
           {headerConfig.render()}
         </div>
       );
@@ -343,10 +375,14 @@ const AionModal: React.FC<AionModalProps> = ({
 
     return (
       <div className={headerClassName} style={headerStyle}>
-        {headerConfig.title && <h3 className={TITLE_BASE_CLASS}>{headerConfig.title}</h3>}
+        {headerConfig.title && (
+          <h3 id={titleId} className={TITLE_BASE_CLASS}>
+            {headerConfig.title}
+          </h3>
+        )}
         {headerConfig.showClose && (
-          <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label='Close'>
-            {headerConfig.closeIcon || <Close size={20} fill='#86909c' />}
+          <button type='button' onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label={t('common.close')}>
+            <span aria-hidden='true'>{headerConfig.closeIcon || <Close size={20} fill='#86909c' />}</span>
           </button>
         )}
       </div>
@@ -378,6 +414,17 @@ const AionModal: React.FC<AionModalProps> = ({
       closable={false}
       footer={null}
       onCancel={onCancel}
+      focusLock={props.focusLock ?? true}
+      autoFocus={props.autoFocus ?? true}
+      modalRender={(modalNode) => {
+        const labelledNode =
+          (headerConfig.render || headerConfig.title) && React.isValidElement(modalNode)
+            ? React.cloneElement(modalNode as React.ReactElement<Record<string, unknown>>, {
+                'aria-labelledby': titleId,
+              })
+            : modalNode;
+        return props.modalRender ? props.modalRender(labelledNode) : labelledNode;
+      }}
       className={`aionui-modal ${className}`}
       style={finalStyle}
       getPopupContainer={() => document.body}
