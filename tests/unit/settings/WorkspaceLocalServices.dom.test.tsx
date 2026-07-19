@@ -13,8 +13,16 @@ const mocks = vi.hoisted(() => ({
   systemInfo: vi.fn(),
   updateSystemInfo: vi.fn(),
   setLogDirectory: vi.fn(),
+  modalConfirm: vi.fn((config: { onOk?: () => unknown }) => config.onOk?.()),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
   isDesktop: true,
   workspaceRootPath: '/Users/example/OPL Workspace',
+  freshWorkspaceRootPath: '/Users/example/New Workspace',
+  workspaceActionId: 'workspace_root_set' as string | null,
+  workspaceVerifyActionId: 'settings_verify_workspace' as string | null,
+  workspaceVerifyRef: 'app_state.actions#settings_verify_workspace' as string | null,
+  workspaceConfirmationRequired: false,
   workspaceExists: true as boolean | null,
   workspaceWritable: true as boolean | null,
   workspaceHealthStatus: 'ready' as string | null,
@@ -40,6 +48,27 @@ vi.mock('@/common', () => ({
   },
 }));
 
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      ...actual.Message,
+      useMessage: () => [
+        {
+          success: mocks.messageSuccess,
+          error: mocks.messageError,
+        },
+        null,
+      ],
+    },
+    Modal: {
+      ...actual.Modal,
+      confirm: mocks.modalConfirm,
+    },
+  };
+});
+
 vi.mock('@/renderer/utils/platform', () => ({
   isElectronDesktop: () => mocks.isDesktop,
 }));
@@ -57,6 +86,12 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  getAppState: (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const record = value as Record<string, unknown>;
+    const appState = record.app_state;
+    return appState && typeof appState === 'object' && !Array.isArray(appState) ? appState : record;
+  },
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
   oplRecordList: (value: unknown) =>
     Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [],
@@ -71,6 +106,21 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         temporal: {
           status: 'attention_needed',
           address: '127.0.0.1:7233',
+        },
+      },
+      settings_control_center: {
+        configuration_catalog: {
+          items: [
+            {
+              configuration_id: 'workspace_root',
+              current_value: mocks.workspaceRootPath,
+              action_id: mocks.workspaceActionId,
+              payload_fields: ['path'],
+              confirmation_required: mocks.workspaceConfirmationRequired,
+              verify_action_id: mocks.workspaceVerifyActionId,
+              verify_ref: mocks.workspaceVerifyRef,
+            },
+          ],
         },
       },
       paths: {
@@ -120,6 +170,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'common.open': 'Open',
         'common.refresh': 'Refresh',
+        'common.cancel': 'Cancel',
         'settings.workspacePage.title': 'Workspace',
         'settings.workspacePage.description': 'Review default local paths and Codex instructions.',
         'settings.workspacePage.status.ready': 'Available',
@@ -138,6 +189,10 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
         'settings.workspacePage.root.missing': 'No work root.',
         'settings.workspacePage.root.dockerMount': 'Docker /projects',
+        'settings.workspacePage.root.changeConfirmTitle': 'Change work directory?',
+        'settings.workspacePage.root.changeConfirmContent': `Use ${options?.path} after verification.`,
+        'settings.workspacePage.root.changeNotVerified': 'Work directory change not verified.',
+        'settings.oplEnvironmentPage.messages.workspaceRootSaved': 'Workspace root saved',
         'settings.workspacePage.cards.permission': 'App can access it',
         'settings.workspacePage.cards.lastCheck': 'Last check',
         'settings.workspacePage.technical.title': 'Technical paths',
@@ -217,6 +272,35 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     mocks.executorPermissionMode = 'full-access';
     mocks.isDesktop = true;
     mocks.workspaceRootPath = '/Users/example/OPL Workspace';
+    mocks.freshWorkspaceRootPath = '/Users/example/New Workspace';
+    mocks.workspaceActionId = 'workspace_root_set';
+    mocks.workspaceVerifyActionId = 'settings_verify_workspace';
+    mocks.workspaceVerifyRef = 'app_state.actions#settings_verify_workspace';
+    mocks.workspaceConfirmationRequired = false;
+    mocks.executeAction.mockReset();
+    mocks.executeAction.mockResolvedValue({ ok: true, parsed: { ok: true } });
+    mocks.load.mockReset();
+    mocks.load.mockImplementation(() =>
+      Promise.resolve({
+        app_state: {
+          settings_control_center: {
+            configuration_catalog: {
+              items: [
+                {
+                  configuration_id: 'workspace_root',
+                  current_value: mocks.freshWorkspaceRootPath,
+                  action_id: mocks.workspaceActionId,
+                  payload_fields: ['path'],
+                  confirmation_required: mocks.workspaceConfirmationRequired,
+                  verify_action_id: mocks.workspaceVerifyActionId,
+                  verify_ref: mocks.workspaceVerifyRef,
+                },
+              ],
+            },
+          },
+        },
+      })
+    );
     mocks.systemInfo.mockResolvedValue({
       cacheDir: '/Users/example/Library/Application Support/One Person Lab/config',
       workDir: '/Users/example/Library/Application Support/One Person Lab',
@@ -295,6 +379,63 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(window.location.hash).toBe('#/settings/environment?section=diagnostics');
     expect(mocks.executeAction).not.toHaveBeenCalled();
+  });
+
+  it('executes the projected workspace action and verifier before reporting an exact fresh readback', async () => {
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    fireEvent.click(screen.getByTestId('settings-workspace-primary-action'));
+
+    await waitFor(() =>
+      expect(mocks.executeAction).toHaveBeenNthCalledWith(1, {
+        actionId: 'workspace_root_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { path: '/Users/example/New Workspace' },
+      })
+    );
+    expect(mocks.executeAction).toHaveBeenNthCalledWith(2, {
+      actionId: 'settings_verify_workspace',
+      dryRun: false,
+      payloadRefsOnlyJson: { workspace_path: '/Users/example/New Workspace' },
+    });
+    expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
+    expect(mocks.modalConfirm).not.toHaveBeenCalled();
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('Workspace root saved');
+  });
+
+  it('honors projected workspace confirmation before executing the mutation', async () => {
+    mocks.workspaceConfirmationRequired = true;
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    fireEvent.click(screen.getByTestId('settings-workspace-primary-action'));
+
+    await waitFor(() => expect(mocks.modalConfirm).toHaveBeenCalledTimes(1));
+    expect(mocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Change work directory?',
+        content: 'Use /Users/example/New Workspace after verification.',
+      })
+    );
+    await waitFor(() => expect(mocks.executeAction).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not report a workspace change as saved when fresh readback remains stale', async () => {
+    mocks.freshWorkspaceRootPath = '/Users/example/OPL Workspace';
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    fireEvent.click(screen.getByTestId('settings-workspace-primary-action'));
+
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('Work directory change not verified.'));
+    expect(mocks.messageSuccess).not.toHaveBeenCalled();
+  });
+
+  it('disables workspace mutation when the Framework projection has no verification route', () => {
+    mocks.workspaceVerifyActionId = null;
+    mocks.workspaceVerifyRef = null;
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-workspace-primary-action')).toBeDisabled();
   });
 
   it('updates the desktop App log directory and Docker projection through one local typed action', async () => {

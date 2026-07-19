@@ -1571,7 +1571,10 @@
       "title": "工作目录",
       "current": "新建本机任务默认把产物存放在 {{path}}。",
       "missing": "开始本机任务前，请先选择工作目录。",
-      "dockerMount": "Docker /projects"
+      "dockerMount": "Docker /projects",
+      "changeConfirmTitle": "更改工作目录？",
+      "changeConfirmContent": "Framework 保存并验证设置后，新建本机任务将使用 {{path}}。",
+      "changeNotVerified": "Framework 已接受更改，但 fresh read 未确认所选工作目录；界面仍显示此前的值。"
     },
     "cards": {
       "permission": "App 可访问",
@@ -2288,6 +2291,10 @@
       "advancedTitle": "高级运行与维护",
       "advancedSummary": "{{mode}} · {{state}}",
       "description": "普通使用保留 OPL 托管版；自动或开发模式可优先使用所选工作区中的开发仓库。",
+      "changeConfirmTitle": "更改运行来源？",
+      "changeConfirmContent": "Framework 将更新来源策略，并在验证新的运行状态后才把更改报告为完成。",
+      "changeVerified": "运行来源已更新并验证。",
+      "changeNotVerified": "Framework 已接受更改，但 fresh read 未确认请求的运行来源。",
       "modeLabel": "全局运行来源",
       "modes": {
         "managed": "托管",
@@ -2584,6 +2591,11 @@
         "thirdPartyVerified": "已验证的第三方"
       },
       "installFromManifest": "安装 manifest",
+      "installPreviewInvalid": "Framework 的安装预检查没有返回包身份，因此没有执行安装。",
+      "installConfirmTitle": "安装 {{packageId}}？",
+      "installConfirmContent": "预检查已经完成。仅在信任此 manifest 及其声明来源时继续。",
+      "installVerified": "{{name}} 已安装并验证，当前状态：{{status}}。",
+      "installNotVerified": "Framework 已接受安装，但 fresh directory read 未确认该包已安装。",
       "addCapability": "添加能力",
       "advancedAddTitle": "高级添加方式",
       "advancedAddDescription": "只有已经拿到经过验证的能力 manifest URL 时才需要使用。",

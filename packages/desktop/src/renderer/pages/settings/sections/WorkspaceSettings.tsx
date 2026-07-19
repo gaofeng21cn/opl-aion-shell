@@ -5,13 +5,19 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-import { Button, Message, Tag, Typography } from '@arco-design/web-react';
+import { Button, Message, Modal, Tag, Typography } from '@arco-design/web-react';
 import { FileText, FolderOpen, SettingTwo } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import OplPersonalizationSettings from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent/OplPersonalizationSettings';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  getAppState,
+  oplRecord,
+  oplRecordList,
+  oplString,
+  useOplAppState,
+} from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { oplPathString } from './runtimeStateView';
@@ -35,6 +41,14 @@ function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefin
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
 }
 
+function configurationItem(appState: Record<string, unknown>, configurationId: string): Record<string, unknown> {
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const configurationCatalog = oplRecord(settingsControlCenter.configuration_catalog);
+  return (
+    oplRecordList(configurationCatalog.items).find((item) => oplString(item.configuration_id) === configurationId) ?? {}
+  );
+}
+
 const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, messageContextHolder] = Message.useMessage();
@@ -45,6 +59,20 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const isDesktop = isElectronDesktop();
   const appStateQuery = useOplAppState('fast');
   const settingsControlCenter = oplRecord(appStateQuery.appState.settings_control_center);
+  const workspaceRootConfiguration = configurationItem(appStateQuery.appState, 'workspace_root');
+  const workspaceRootActionId = oplString(workspaceRootConfiguration.action_id);
+  const workspaceRootVerifyActionId = oplString(workspaceRootConfiguration.verify_action_id);
+  const workspaceRootVerifyRef = oplString(workspaceRootConfiguration.verify_ref);
+  const workspaceRootPayloadFields = Array.isArray(workspaceRootConfiguration.payload_fields)
+    ? workspaceRootConfiguration.payload_fields.filter((field): field is string => typeof field === 'string')
+    : [];
+  const workspaceRootConfirmationRequired = workspaceRootConfiguration.confirmation_required === true;
+  const workspaceRootMutationAvailable = Boolean(
+    workspaceRootActionId &&
+    typeof workspaceRootConfiguration.confirmation_required === 'boolean' &&
+    workspaceRootPayloadFields.includes('path') &&
+    (workspaceRootVerifyActionId || workspaceRootVerifyRef)
+  );
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   const workspaceServices = oplRecord(appSettingsReadModel.workspace_services);
   const paths = oplRecord(appStateQuery.appState.paths);
@@ -54,6 +82,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const projectedFamilyWorkspaceRoot = oplRecord(workspaceServices.family_workspace_root);
   const familyWorkspaceRoot = oplPathString(projectedFamilyWorkspaceRoot) ?? oplPathString(paths.family_workspace_root);
   const workspaceRoot =
+    oplString(workspaceRootConfiguration.current_value) ??
     oplPathString(projectedWorkspaceRoot) ??
     oplString(paths.workspace_root_path) ??
     oplPathString(paths.workspace_root) ??
@@ -113,7 +142,53 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     };
   }, []);
 
+  const applyWorkspaceRoot = useCallback(
+    async (selectedPath: string) => {
+      if (!workspaceRootActionId) return;
+      setWorkspaceAction('choose');
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: workspaceRootActionId,
+          dryRun: false,
+          payloadRefsOnlyJson: { path: selectedPath },
+        });
+        if (!bridgeResultSucceeded(result)) {
+          message.error(result?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
+          return;
+        }
+
+        if (workspaceRootVerifyActionId) {
+          const verifyResult = await ipcBridge.oplRuntime.executeAction.invoke({
+            actionId: workspaceRootVerifyActionId,
+            dryRun: false,
+            payloadRefsOnlyJson: { workspace_path: selectedPath },
+          });
+          if (!bridgeResultSucceeded(verifyResult)) {
+            message.error(verifyResult?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
+            return;
+          }
+        }
+
+        const freshPayload = await appStateQuery.load('fast', { showRefreshing: true, forceFresh: true });
+        const freshWorkspaceRoot = oplString(
+          configurationItem(getAppState(freshPayload), 'workspace_root').current_value
+        );
+        if (freshWorkspaceRoot !== selectedPath) {
+          message.error(t('settings.workspacePage.root.changeNotVerified'));
+          return;
+        }
+        message.success(t('settings.oplEnvironmentPage.messages.workspaceRootSaved'));
+      } catch {
+        message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
+      } finally {
+        setWorkspaceAction(null);
+      }
+    },
+    [appStateQuery.load, message, t, workspaceRootActionId, workspaceRootVerifyActionId]
+  );
+
   const chooseWorkspaceRoot = useCallback(async () => {
+    if (!workspaceRootMutationAvailable) return;
     setWorkspaceAction('choose');
     try {
       const files = await ipcBridge.dialog.showOpen.invoke({
@@ -122,23 +197,32 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
       });
       const selectedPath = files?.[0];
       if (!selectedPath) return;
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: 'workspace_root_set',
-        dryRun: false,
-        payloadRefsOnlyJson: { path: selectedPath },
-      });
-      if (!bridgeResultSucceeded(result)) {
-        message.error(result?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
+      if (!workspaceRootConfirmationRequired) {
+        await applyWorkspaceRoot(selectedPath);
         return;
       }
-      await appStateQuery.load('fast', { showRefreshing: true });
-      message.success(t('settings.oplEnvironmentPage.messages.workspaceRootSaved'));
+
+      Modal.confirm({
+        title: t('settings.workspacePage.root.changeConfirmTitle'),
+        content: t('settings.workspacePage.root.changeConfirmContent', { path: selectedPath }),
+        okText: t('settings.workspacePage.actions.changeWorkspace'),
+        cancelText: t('common.cancel'),
+        onOk: () => applyWorkspaceRoot(selectedPath),
+      });
     } catch {
       message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
     } finally {
       setWorkspaceAction(null);
     }
-  }, [appStateQuery.load, familyWorkspaceRoot, message, t, workspaceRoot]);
+  }, [
+    applyWorkspaceRoot,
+    familyWorkspaceRoot,
+    message,
+    t,
+    workspaceRoot,
+    workspaceRootConfirmationRequired,
+    workspaceRootMutationAvailable,
+  ]);
 
   const chooseLogDirectory = useCallback(async () => {
     if (!isDesktop || !systemDirectories) return;
@@ -250,6 +334,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                     <Button
                       type='primary'
                       loading={workspaceAction === 'choose'}
+                      disabled={!workspaceRootMutationAvailable}
                       onClick={chooseWorkspaceRoot}
                       data-testid='settings-workspace-primary-action'
                     >

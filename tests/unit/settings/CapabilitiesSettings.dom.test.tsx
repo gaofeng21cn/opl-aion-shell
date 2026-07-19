@@ -16,12 +16,16 @@ const appStateOverrides = vi.hoisted(() => ({
   loading: false,
   refreshing: false,
   error: null as string | null,
+  developerConfirmationRequired: false,
 }));
 
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
   loadAppState: vi.fn(),
   modalConfirm: vi.fn((config: { onOk?: () => unknown }) => config.onOk?.()),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
+  currentAppState: {} as Record<string, unknown>,
 }));
 
 const actionFixture = (
@@ -70,8 +74,8 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
   return {
     ...actual,
     Message: {
-      success: vi.fn(),
-      error: vi.fn(),
+      success: bridgeMocks.messageSuccess,
+      error: bridgeMocks.messageError,
     },
     Modal: {
       ...actual.Modal,
@@ -190,8 +194,46 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
     oplRecordList: (value: unknown) =>
       Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
     oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
-    useOplAppState: () => ({
-      appState: appStateOverrides.appState ?? {
+    getAppState: (value: unknown) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+      const record = value as Record<string, unknown>;
+      const appState = record.app_state;
+      return appState && typeof appState === 'object' && !Array.isArray(appState) ? appState : record;
+    },
+    useOplAppState: () => {
+      const appState = appStateOverrides.appState ?? {
+        actions: [
+          {
+            action_id: 'install_from_manifest_url',
+            payload_fields: ['manifest_url', 'trust_tier'],
+            dry_run_supported: true,
+            confirmation_required: true,
+          },
+        ],
+        settings_control_center: {
+          configuration_catalog: {
+            items: [
+              {
+                configuration_id: 'developer_supervisor',
+                current_value: {
+                  status: 'ready',
+                  effective_state: 'active_direct',
+                  mode: 'developer_apply_safe',
+                },
+                action_id: 'developer_supervisor',
+                payload_fields: [
+                  'developerSupervisorEnabled',
+                  'developerSupervisorMode',
+                  'developerSupervisorModuleId',
+                  'developerSupervisorModuleSource',
+                ],
+                confirmation_required: appStateOverrides.developerConfirmationRequired,
+                verify_action_id: 'developer_supervisor_refresh',
+                verify_ref: 'app_state.actions#developer_supervisor_refresh',
+              },
+            ],
+          },
+        },
         paths: { workspace_root_path: '/Users/test/OPL Workspace' },
         developer_mode: appStateOverrides.developerMode ?? {
           enabled: 'auto',
@@ -517,12 +559,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
             },
           },
         },
-      },
-      loading: appStateOverrides.loading,
-      refreshing: appStateOverrides.refreshing,
-      error: appStateOverrides.error,
-      load: bridgeMocks.loadAppState,
-    }),
+      };
+      bridgeMocks.currentAppState = appState;
+      return {
+        appState,
+        loading: appStateOverrides.loading,
+        refreshing: appStateOverrides.refreshing,
+        error: appStateOverrides.error,
+        load: bridgeMocks.loadAppState,
+      };
+    },
   };
 });
 
@@ -665,6 +711,11 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.advancedTitle': 'Advanced runtime and maintenance',
         'settings.capabilitiesPage.developerSource.advancedSummary': `${options?.mode ?? ''} · ${options?.state ?? ''}`,
         'settings.capabilitiesPage.developerSource.description': 'Choose the source used at runtime.',
+        'settings.capabilitiesPage.developerSource.changeConfirmTitle': 'Change runtime source?',
+        'settings.capabilitiesPage.developerSource.changeConfirmContent':
+          'Verify the runtime source after changing it.',
+        'settings.capabilitiesPage.developerSource.changeVerified': 'Runtime source updated and verified.',
+        'settings.capabilitiesPage.developerSource.changeNotVerified': 'Runtime source change not verified.',
         'settings.capabilitiesPage.developerSource.modeLabel': 'Global runtime source',
         'settings.capabilitiesPage.developerSource.modes.managed': 'Managed',
         'settings.capabilitiesPage.developerSource.modes.auto': 'Automatic',
@@ -859,6 +910,11 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.trustTiers.thirdPartyUnverified': 'Unverified third party',
         'settings.capabilitiesPage.packageManager.trustTiers.thirdPartyVerified': 'Verified third party',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
+        'settings.capabilitiesPage.packageManager.installPreviewInvalid': 'Install preview did not return a package.',
+        'settings.capabilitiesPage.packageManager.installConfirmTitle': `Install ${options?.packageId ?? ''}?`,
+        'settings.capabilitiesPage.packageManager.installConfirmContent': 'Continue after reviewing the manifest.',
+        'settings.capabilitiesPage.packageManager.installVerified': `${options?.name ?? ''} installed and verified: ${options?.status ?? ''}.`,
+        'settings.capabilitiesPage.packageManager.installNotVerified': 'Package installation not verified.',
         'settings.capabilitiesPage.packageManager.addCapability': 'Add capability',
         'settings.capabilitiesPage.packageManager.advancedAddTitle': 'Advanced add method',
         'settings.capabilitiesPage.packageManager.advancedAddDescription': 'Use a validated capability manifest.',
@@ -901,6 +957,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.actions.run': 'Run',
         'settings.retry': 'Retry',
         'common.cancel': 'Cancel',
+        'common.confirm': 'Confirm',
         'settings.capabilitiesPage.purposes.automation.title': 'Meta agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -950,14 +1007,55 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.loading = false;
     appStateOverrides.refreshing = false;
     appStateOverrides.error = null;
+    appStateOverrides.developerConfirmationRequired = false;
     bridgeMocks.executeActionInvoke.mockReset();
     bridgeMocks.executeActionInvoke.mockResolvedValue({
       ok: true,
       command: 'opl app action execute --action test --json',
     });
     bridgeMocks.loadAppState.mockReset();
-    bridgeMocks.loadAppState.mockResolvedValue(null);
+    bridgeMocks.loadAppState.mockImplementation(async () => {
+      const snapshot = structuredClone(bridgeMocks.currentAppState);
+      const developerCall = bridgeMocks.executeActionInvoke.mock.calls
+        .toReversed()
+        .map(([input]) => input as { actionId?: string; payloadRefsOnlyJson?: Record<string, unknown> })
+        .find((input) => input.actionId === 'developer_supervisor');
+      const payload = developerCall?.payloadRefsOnlyJson;
+      if (payload) {
+        const developerMode = snapshot.developer_mode as Record<string, unknown> | undefined;
+        const settingsControlCenter = snapshot.settings_control_center as Record<string, unknown> | undefined;
+        const configurationCatalog = settingsControlCenter?.configuration_catalog as
+          | Record<string, unknown>
+          | undefined;
+        const configurationItems = configurationCatalog?.items as Record<string, unknown>[] | undefined;
+        const developerConfiguration = configurationItems?.find(
+          (item) => item.configuration_id === 'developer_supervisor'
+        );
+        const currentValue = developerConfiguration?.current_value as Record<string, unknown> | undefined;
+        if (developerMode && typeof payload.developerSupervisorEnabled === 'string') {
+          developerMode.enabled = payload.developerSupervisorEnabled;
+        }
+        if (developerMode && currentValue && typeof payload.developerSupervisorMode === 'string') {
+          developerMode.mode = payload.developerSupervisorMode;
+          currentValue.mode = payload.developerSupervisorMode;
+        }
+        if (
+          typeof payload.developerSupervisorModuleId === 'string' &&
+          typeof payload.developerSupervisorModuleSource === 'string'
+        ) {
+          const carriers = snapshot.runtime_source_carriers as Record<string, unknown> | undefined;
+          const items = carriers?.items as Record<string, unknown>[] | undefined;
+          const carrier = items?.find((item) => item.carrier_id === payload.developerSupervisorModuleId);
+          const sourcePolicy = carrier?.source_policy as Record<string, unknown> | undefined;
+          if (sourcePolicy) sourcePolicy.source_preference = payload.developerSupervisorModuleSource;
+        }
+      }
+      return { app_state: snapshot };
+    });
     bridgeMocks.modalConfirm.mockClear();
+    bridgeMocks.messageSuccess.mockReset();
+    bridgeMocks.messageError.mockReset();
+    bridgeMocks.currentAppState = {};
     localStorage.clear();
   });
 
@@ -1888,30 +1986,45 @@ describe('Agents and capabilities settings', () => {
 
     fireEvent.click(within(profile).getByText('Managed'));
     await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'developer_supervisor',
-        dryRun: false,
-        payloadRefsOnlyJson: {
-          developerSupervisorEnabled: 'off',
-          developerSupervisorMode: 'developer_apply_safe',
-        },
-      })
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Runtime source updated and verified.')
     );
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(1, {
+      actionId: 'developer_supervisor',
+      dryRun: false,
+      payloadRefsOnlyJson: {
+        developerSupervisorEnabled: 'off',
+        developerSupervisorMode: 'developer_apply_safe',
+      },
+    });
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(2, {
+      actionId: 'developer_supervisor_refresh',
+      dryRun: false,
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
 
     bridgeMocks.executeActionInvoke.mockClear();
+    bridgeMocks.loadAppState.mockClear();
+    bridgeMocks.messageSuccess.mockClear();
     fireEvent.click(within(maintenance).getByText('Off'));
     await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'developer_supervisor',
-        dryRun: false,
-        payloadRefsOnlyJson: {
-          developerSupervisorEnabled: 'off',
-          developerSupervisorMode: 'external_observe',
-        },
-      })
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Runtime source updated and verified.')
     );
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(1, {
+      actionId: 'developer_supervisor',
+      dryRun: false,
+      payloadRefsOnlyJson: {
+        developerSupervisorEnabled: 'off',
+        developerSupervisorMode: 'external_observe',
+      },
+    });
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(2, {
+      actionId: 'developer_supervisor_refresh',
+      dryRun: false,
+    });
 
     bridgeMocks.executeActionInvoke.mockClear();
+    bridgeMocks.loadAppState.mockClear();
+    bridgeMocks.messageSuccess.mockClear();
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     const details = screen.getByTestId('capability-details-mas');
     expect(details).toHaveTextContent('/Users/test/workspace/med-autoscience');
@@ -1919,14 +2032,50 @@ describe('Agents and capabilities settings', () => {
 
     fireEvent.click(within(details).getByText('Managed copy'));
     await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'developer_supervisor',
-        dryRun: false,
-        payloadRefsOnlyJson: {
-          developerSupervisorModuleId: 'medautoscience',
-          developerSupervisorModuleSource: 'managed',
-        },
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Runtime source updated and verified.')
+    );
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(1, {
+      actionId: 'developer_supervisor',
+      dryRun: false,
+      payloadRefsOnlyJson: {
+        developerSupervisorModuleId: 'medautoscience',
+        developerSupervisorModuleSource: 'managed',
+      },
+    });
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenNthCalledWith(2, {
+      actionId: 'developer_supervisor_refresh',
+      dryRun: false,
+    });
+  });
+
+  it('does not report a Developer source change as complete when fresh readback is stale', async () => {
+    bridgeMocks.loadAppState.mockResolvedValueOnce({ app_state: {} });
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('opl-developer-profile-disclosure'));
+    fireEvent.click(within(screen.getByTestId('opl-developer-profile-control')).getByText('Managed'));
+
+    await waitFor(() => expect(bridgeMocks.messageError).toHaveBeenCalledWith('Runtime source change not verified.'));
+    expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
+  });
+
+  it('honors projected confirmation before changing the Developer runtime source', async () => {
+    appStateOverrides.developerConfirmationRequired = true;
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('opl-developer-profile-disclosure'));
+    fireEvent.click(within(screen.getByTestId('opl-developer-profile-control')).getByText('Managed'));
+
+    await waitFor(() => expect(bridgeMocks.modalConfirm).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Change runtime source?',
+        content: 'Verify the runtime source after changing it.',
       })
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Runtime source updated and verified.')
     );
   });
 
@@ -2058,6 +2207,43 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      command: 'opl app action execute --action install_from_manifest_url --dry-run --json',
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_agent_package_install: {
+              package_lock: { package_id: 'example-agent' },
+            },
+          },
+        },
+      },
+    });
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      command: 'opl app action execute --action install_from_manifest_url --json',
+    });
+    bridgeMocks.loadAppState.mockResolvedValueOnce({
+      app_state: {
+        agent_packages: {
+          directory: {
+            status: 'available',
+            entries: [
+              {
+                package_id: 'example-agent',
+                display_name: 'Example Agent',
+                installed: true,
+                readiness: { status: 'ready' },
+              },
+            ],
+          },
+        },
+      },
+    });
+    bridgeMocks.modalConfirm.mockClear();
+    bridgeMocks.messageSuccess.mockClear();
+
     fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
@@ -2070,6 +2256,22 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'install_from_manifest_url',
+        dryRun: true,
+        payloadRefsOnlyJson: {
+          manifest_url: 'https://example.test/agent.json',
+          trust_tier: 'third_party_unverified',
+        },
+      })
+    );
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Install example-agent?',
+        content: 'Continue after reviewing the manifest.',
+      })
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'install_from_manifest_url',
         dryRun: false,
         payloadRefsOnlyJson: {
           manifest_url: 'https://example.test/agent.json',
@@ -2077,8 +2279,8 @@ describe('Agents and capabilities settings', () => {
         },
       })
     );
-
-    await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Example Agent installed and verified: READY.');
   });
 
   it('rolls Home visibility back when the App action fails', async () => {
@@ -2095,6 +2297,64 @@ describe('Agents and capabilities settings', () => {
 
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).not.toContain('research');
+  });
+
+  it('stops manifest installation when dry-run does not return a package identity', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      command: 'opl app action execute --action install_from_manifest_url --dry-run --json',
+      parsed: { app_action_execution: { result: {} } },
+    });
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
+    fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
+      target: { value: 'https://example.test/missing-package.json' },
+    });
+    await chooseSelectOption('agent-package-trust-tier', 'Verified third party');
+    fireEvent.click(screen.getByTestId('agent-package-install-manifest'));
+
+    await waitFor(() =>
+      expect(bridgeMocks.messageError).toHaveBeenCalledWith('Install preview did not return a package.')
+    );
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.modalConfirm).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).not.toHaveBeenCalled();
+  });
+
+  it('does not report manifest installation as complete when the fresh directory read is stale', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      command: 'opl app action execute --action install_from_manifest_url --dry-run --json',
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_agent_package_install: {
+              package_lock: { package_id: 'example-agent' },
+            },
+          },
+        },
+      },
+    });
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      ok: true,
+      command: 'opl app action execute --action install_from_manifest_url --json',
+    });
+    bridgeMocks.loadAppState.mockResolvedValueOnce({
+      app_state: { agent_packages: { directory: { status: 'available', entries: [] } } },
+    });
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('settings-agents-primary-action'));
+    fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
+      target: { value: 'https://example.test/stale-package.json' },
+    });
+    await chooseSelectOption('agent-package-trust-tier', 'Verified third party');
+    fireEvent.click(screen.getByTestId('agent-package-install-manifest'));
+
+    await waitFor(() => expect(bridgeMocks.messageError).toHaveBeenCalledWith('Package installation not verified.'));
+    expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
   });
 
   it('keeps other Home switches interactive while one shortcut preference is pending', async () => {

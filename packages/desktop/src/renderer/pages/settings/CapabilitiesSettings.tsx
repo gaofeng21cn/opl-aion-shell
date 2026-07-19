@@ -28,6 +28,7 @@ import VoiceInputSection from '@/renderer/components/settings/SettingsModal/cont
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
+import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import {
   canonicalizeOplProfessionalAgentId,
   getOplAgentPackageRegistryUrl,
@@ -39,7 +40,13 @@ import {
   oplProjectedRequirementAlternatives,
 } from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  getAppState,
+  oplRecord,
+  oplRecordList,
+  oplString,
+  useOplAppState,
+} from '@/renderer/hooks/system/useOplAppState';
 import {
   getOplHomeShortcutPreferences,
   getOplHomeShortcutPreferencesFromAppState,
@@ -146,6 +153,39 @@ type CapabilityDetailRow = {
 };
 
 const hasTextValue = (value: string | null | undefined): value is string => Boolean(value && value.trim());
+
+function configurationItem(appState: Record<string, unknown>, configurationId: string): Record<string, unknown> {
+  const settingsControlCenter = oplRecord(appState.settings_control_center);
+  const configurationCatalog = oplRecord(settingsControlCenter.configuration_catalog);
+  return (
+    oplRecordList(configurationCatalog.items).find((item) => oplString(item.configuration_id) === configurationId) ?? {}
+  );
+}
+
+function packageIdFromInstallResult(result: IOplRuntimeCommandResult | null | undefined): string | null {
+  const parsed = oplRecord(result?.parsed);
+  const execution = oplRecord(parsed.app_action_execution);
+  const actionResult = oplRecord(execution.result);
+  const install = oplRecord(actionResult.opl_agent_package_install);
+  return oplString(oplRecord(install.package_lock).package_id) ?? oplString(install.package_id);
+}
+
+function installedPackageReadback(
+  appState: Record<string, unknown>,
+  packageId: string
+): { displayName: string; status: string } | null {
+  const agentPackages = oplRecord(appState.agent_packages);
+  const directory = oplRecord(agentPackages.directory);
+  const entry = oplRecordList(directory.entries).find((candidate) => oplString(candidate.package_id) === packageId);
+  if (!entry || entry.installed !== true) return null;
+  const status =
+    oplString(oplRecord(entry.readiness).status) ?? oplString(entry.install_state) ?? oplString(entry.status);
+  if (!status) return null;
+  return {
+    displayName: oplString(entry.display_name) ?? packageId,
+    status,
+  };
+}
 
 function capabilityReasonLabel(reason: string, t: (key: string, options?: Record<string, string>) => string): string {
   return t(`settings.capabilitiesPage.reasonCodes.${reason}`, { defaultValue: reason });
@@ -881,6 +921,21 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     () => buildCapabilitiesViewModel(appStateQuery.appState, i18n.language),
     [appStateQuery.appState, i18n.language]
   );
+  const projectedAppActions = oplRecordList(appStateQuery.appState.actions);
+  const manifestInstallAction =
+    projectedAppActions.find((action) => oplString(action.action_id) === 'install_from_manifest_url') ?? {};
+  const manifestInstallActionId = oplString(manifestInstallAction.action_id);
+  const manifestInstallPayloadFields = Array.isArray(manifestInstallAction.payload_fields)
+    ? manifestInstallAction.payload_fields.filter((field): field is string => typeof field === 'string')
+    : [];
+  const manifestInstallActionAvailable = Boolean(
+    manifestInstallActionId &&
+    manifestInstallAction.dry_run_supported === true &&
+    typeof manifestInstallAction.confirmation_required === 'boolean' &&
+    manifestInstallPayloadFields.includes('manifest_url') &&
+    manifestInstallPayloadFields.includes('trust_tier')
+  );
+  const manifestInstallConfirmationRequired = manifestInstallAction.confirmation_required === true;
   const paths = oplRecord(appStateQuery.appState.paths);
   const workspaceRootPath = oplString(paths.workspace_root_path);
   const agentPackages = oplRecord(appStateQuery.appState.agent_packages);
@@ -1020,6 +1075,25 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const hasActiveCatalogFilters =
     Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
   const catalogFilterEmpty = purposeCapabilities.length > 0 && visibleCapabilities.length === 0;
+  const developerSupervisorConfiguration = configurationItem(appStateQuery.appState, 'developer_supervisor');
+  const developerSupervisorActionId = oplString(developerSupervisorConfiguration.action_id);
+  const developerSupervisorVerifyActionId = oplString(developerSupervisorConfiguration.verify_action_id);
+  const developerSupervisorVerifyRef = oplString(developerSupervisorConfiguration.verify_ref);
+  const developerSupervisorPayloadFields = Array.isArray(developerSupervisorConfiguration.payload_fields)
+    ? developerSupervisorConfiguration.payload_fields.filter((field): field is string => typeof field === 'string')
+    : [];
+  const developerSupervisorActionAvailable = Boolean(
+    developerSupervisorActionId &&
+    typeof developerSupervisorConfiguration.confirmation_required === 'boolean' &&
+    [
+      'developerSupervisorEnabled',
+      'developerSupervisorMode',
+      'developerSupervisorModuleId',
+      'developerSupervisorModuleSource',
+    ].every((field) => developerSupervisorPayloadFields.includes(field)) &&
+    (developerSupervisorVerifyActionId || developerSupervisorVerifyRef)
+  );
+  const developerSupervisorConfirmationRequired = developerSupervisorConfiguration.confirmation_required === true;
   const developerMode = oplRecord(appStateQuery.appState.developer_mode);
   const developerWorkspace = oplRecord(developerMode.developer_workspace);
   const developerIdentity = oplRecord(developerMode.github_identity);
@@ -1116,11 +1190,23 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     setAdvancedDetailsOpen(false);
   }, [selectedCapability?.key]);
 
-  const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
-    if (packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
+  const beginPackageAction = (actionId: string): symbol | null => {
+    if (packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return null;
     const actionToken = Symbol(actionId);
     packageActionTokenRef.current = actionToken;
     setBusyAction(actionId);
+    return actionToken;
+  };
+
+  const finishPackageAction = (actionToken: symbol) => {
+    if (packageActionTokenRef.current !== actionToken) return;
+    packageActionTokenRef.current = null;
+    setBusyAction(null);
+  };
+
+  const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
+    const actionToken = beginPackageAction(actionId);
+    if (!actionToken) return false;
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId,
@@ -1137,10 +1223,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       Message.error(error instanceof Error ? error.message : String(error));
       return false;
     } finally {
-      if (packageActionTokenRef.current === actionToken) {
-        packageActionTokenRef.current = null;
-        setBusyAction(null);
-      }
+      finishPackageAction(actionToken);
     }
   };
 
@@ -1205,23 +1288,176 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     });
   };
 
+  const developerSupervisorReadbackMatches = (
+    freshAppState: Record<string, unknown>,
+    payload: Record<string, unknown>
+  ): boolean => {
+    const freshConfiguration = configurationItem(freshAppState, 'developer_supervisor');
+    if (oplString(freshConfiguration.action_id) !== developerSupervisorActionId) return false;
+    const freshCurrentValue = oplRecord(freshConfiguration.current_value);
+    const freshDeveloperMode = oplRecord(freshAppState.developer_mode);
+    const expectedEnabled = oplString(payload.developerSupervisorEnabled);
+    const expectedMode = oplString(payload.developerSupervisorMode);
+    const expectedModuleId = oplString(payload.developerSupervisorModuleId);
+    const expectedModuleSource = oplString(payload.developerSupervisorModuleSource);
+    if (expectedEnabled && oplString(freshDeveloperMode.enabled) !== expectedEnabled) return false;
+    if (
+      expectedMode &&
+      (oplString(freshDeveloperMode.mode) !== expectedMode || oplString(freshCurrentValue.mode) !== expectedMode)
+    ) {
+      return false;
+    }
+    if (expectedModuleId && expectedModuleSource) {
+      const freshCapability = buildCapabilitiesViewModel(freshAppState, i18n.language).find(
+        (item) => item.moduleId === expectedModuleId
+      );
+      if (freshCapability?.sourcePreference !== expectedModuleSource) return false;
+    }
+    return Boolean(expectedEnabled || expectedMode || (expectedModuleId && expectedModuleSource));
+  };
+
+  const executeDeveloperSupervisorMutation = async (payloadRefsOnlyJson: Record<string, unknown>) => {
+    if (!developerSupervisorActionId) return false;
+    const actionToken = beginPackageAction(developerSupervisorActionId);
+    if (!actionToken) return false;
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: developerSupervisorActionId,
+        dryRun: false,
+        payloadRefsOnlyJson,
+      });
+      if (result.ok === false) throw new Error(result.error?.message || result.command);
+
+      if (developerSupervisorVerifyActionId) {
+        const verifyResult = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: developerSupervisorVerifyActionId,
+          dryRun: false,
+        });
+        if (verifyResult.ok === false) throw new Error(verifyResult.error?.message || verifyResult.command);
+      }
+
+      const freshPayload = await appStateQuery.load('fast', { showRefreshing: true, forceFresh: true });
+      if (!developerSupervisorReadbackMatches(getAppState(freshPayload), payloadRefsOnlyJson)) {
+        Message.error(t('settings.capabilitiesPage.developerSource.changeNotVerified'));
+        return false;
+      }
+      Message.success(t('settings.capabilitiesPage.developerSource.changeVerified'));
+      return true;
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+      return false;
+    } finally {
+      finishPackageAction(actionToken);
+    }
+  };
+
+  const requestDeveloperSupervisorMutation = (payloadRefsOnlyJson: Record<string, unknown>) => {
+    if (!developerSupervisorActionAvailable) return;
+    const execute = () => executeDeveloperSupervisorMutation(payloadRefsOnlyJson);
+    if (!developerSupervisorConfirmationRequired) {
+      void execute();
+      return;
+    }
+    Modal.confirm({
+      title: t('settings.capabilitiesPage.developerSource.changeConfirmTitle'),
+      content: t('settings.capabilitiesPage.developerSource.changeConfirmContent'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onOk: execute,
+    });
+  };
+
   const updateDeveloperMode = (enabled: 'auto' | 'on' | 'off') =>
-    executePackageAction('developer_supervisor', {
+    requestDeveloperSupervisorMutation({
       developerSupervisorEnabled: enabled,
       developerSupervisorMode: developerSafeMaintenance ? 'developer_apply_safe' : 'external_observe',
     });
 
   const updateDeveloperMaintenance = (enabled: 'auto' | 'off') =>
-    executePackageAction('developer_supervisor', {
+    requestDeveloperSupervisorMutation({
       developerSupervisorEnabled: enabled,
       developerSupervisorMode: enabled === 'auto' ? 'developer_apply_safe' : 'external_observe',
     });
 
   const updatePackageSource = (item: CapabilityPurposeViewModel, source: 'auto' | 'managed' | 'developer') => {
-    if (!item.moduleId) return Promise.resolve(false);
-    return executePackageAction('developer_supervisor', {
+    if (!item.moduleId) return;
+    requestDeveloperSupervisorMutation({
       developerSupervisorModuleId: item.moduleId,
       developerSupervisorModuleSource: source,
+    });
+  };
+
+  const executeManifestInstall = async (payloadRefsOnlyJson: Record<string, unknown>, packageId: string) => {
+    if (!manifestInstallActionId) return false;
+    const actionToken = beginPackageAction(manifestInstallActionId);
+    if (!actionToken) return false;
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: manifestInstallActionId,
+        dryRun: false,
+        payloadRefsOnlyJson,
+      });
+      if (result.ok === false) throw new Error(result.error?.message || result.command);
+
+      const freshPayload = await appStateQuery.load('fast', { showRefreshing: true, forceFresh: true });
+      const readback = installedPackageReadback(getAppState(freshPayload), packageId);
+      if (!readback) {
+        Message.error(t('settings.capabilitiesPage.packageManager.installNotVerified'));
+        return false;
+      }
+      Message.success(
+        t('settings.capabilitiesPage.packageManager.installVerified', {
+          name: readback.displayName,
+          status: capabilityCatalogStatusLabel(readback.status, t),
+        })
+      );
+      setManifestUrl('');
+      setManifestTrustTier('');
+      return true;
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+      return false;
+    } finally {
+      finishPackageAction(actionToken);
+    }
+  };
+
+  const previewManifestInstall = async () => {
+    if (!manifestInstallActionAvailable || !manifestInstallActionId || !manifestTrustTier) return;
+    const payloadRefsOnlyJson = {
+      manifest_url: manifestUrl.trim(),
+      trust_tier: manifestTrustTier,
+    };
+    const actionToken = beginPackageAction(manifestInstallActionId);
+    if (!actionToken) return;
+    let packageId: string | null = null;
+    try {
+      const previewResult = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: manifestInstallActionId,
+        dryRun: true,
+        payloadRefsOnlyJson,
+      });
+      if (previewResult.ok === false) throw new Error(previewResult.error?.message || previewResult.command);
+      packageId = packageIdFromInstallResult(previewResult);
+      if (!packageId) throw new Error(t('settings.capabilitiesPage.packageManager.installPreviewInvalid'));
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+      return;
+    } finally {
+      finishPackageAction(actionToken);
+    }
+
+    const execute = () => executeManifestInstall(payloadRefsOnlyJson, packageId as string);
+    if (!manifestInstallConfirmationRequired) {
+      void execute();
+      return;
+    }
+    Modal.confirm({
+      title: t('settings.capabilitiesPage.packageManager.installConfirmTitle', { packageId }),
+      content: t('settings.capabilitiesPage.packageManager.installConfirmContent'),
+      okText: t('settings.capabilitiesPage.packageManager.installFromManifest'),
+      cancelText: t('common.cancel'),
+      onOk: execute,
     });
   };
 
@@ -1564,7 +1800,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 <Radio.Group
                   type='button'
                   value={developerModeEnabled}
-                  disabled={packageMutationBusy}
+                  disabled={packageMutationBusy || !developerSupervisorActionAvailable}
                   onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
                   aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
                   data-testid='opl-developer-profile-mode'
@@ -1591,7 +1827,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                         type='button'
                         size='small'
                         value={developerMaintenanceChoice}
-                        disabled={packageMutationBusy}
+                        disabled={packageMutationBusy || !developerSupervisorActionAvailable}
                         onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
                         aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
                         data-testid='opl-developer-profile-maintenance'
@@ -2012,7 +2248,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     <Radio.Group
                       type='button'
                       value={selectedCapability.sourcePreference}
-                      disabled={packageMutationBusy}
+                      disabled={packageMutationBusy || !developerSupervisorActionAvailable}
                       onChange={(value) =>
                         void updatePackageSource(selectedCapability, value as 'auto' | 'managed' | 'developer')
                       }
@@ -2359,19 +2595,14 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   </Select>
                   <Button
                     size='small'
-                    loading={busyAction === 'install_from_manifest_url'}
-                    disabled={packageMutationBusy || !manifestUrl.trim() || !manifestTrustTier}
-                    onClick={() => {
-                      if (!manifestTrustTier) return;
-                      void executePackageAction('install_from_manifest_url', {
-                        manifest_url: manifestUrl.trim(),
-                        trust_tier: manifestTrustTier,
-                      }).then((succeeded) => {
-                        if (!succeeded) return;
-                        setManifestUrl('');
-                        setManifestTrustTier('');
-                      });
-                    }}
+                    loading={busyAction === manifestInstallActionId}
+                    disabled={
+                      packageMutationBusy ||
+                      !manifestInstallActionAvailable ||
+                      !manifestUrl.trim() ||
+                      !manifestTrustTier
+                    }
+                    onClick={() => void previewManifestInstall()}
                     data-testid='agent-package-install-manifest'
                   >
                     {t('settings.capabilitiesPage.packageManager.installFromManifest')}

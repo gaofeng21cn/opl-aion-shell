@@ -1570,7 +1570,10 @@
       "title": "Work directory",
       "current": "New local tasks store output under {{path}} by default.",
       "missing": "Choose a work directory before starting local tasks.",
-      "dockerMount": "Docker /projects"
+      "dockerMount": "Docker /projects",
+      "changeConfirmTitle": "Change work directory?",
+      "changeConfirmContent": "New local tasks will use {{path}} after Framework saves and verifies the setting.",
+      "changeNotVerified": "Framework accepted the change, but the selected work directory was not confirmed by a fresh read. The previous value remains shown."
     },
     "cards": {
       "permission": "App can access it",
@@ -2287,6 +2290,10 @@
       "advancedTitle": "Advanced runtime and maintenance",
       "advancedSummary": "{{mode}} · {{state}}",
       "description": "OPL keeps a managed copy for normal use; Automatic or Developer mode can prefer repositories in the selected workspace.",
+      "changeConfirmTitle": "Change runtime source?",
+      "changeConfirmContent": "Framework will update this source policy and verify the resulting runtime state before the change is reported as complete.",
+      "changeVerified": "Runtime source updated and verified.",
+      "changeNotVerified": "Framework accepted the change, but the requested runtime source was not confirmed by a fresh read.",
       "modeLabel": "Global runtime source",
       "modes": {
         "managed": "Managed",
@@ -2583,6 +2590,11 @@
         "thirdPartyVerified": "Verified third party"
       },
       "installFromManifest": "Install from manifest",
+      "installPreviewInvalid": "Framework did not return a package identity from the installation preview. Nothing was installed.",
+      "installConfirmTitle": "Install {{packageId}}?",
+      "installConfirmContent": "The preview is complete. Continue only if you trust this manifest and its declared source.",
+      "installVerified": "{{name}} was installed and verified with status: {{status}}.",
+      "installNotVerified": "Framework accepted the installation, but the package was not confirmed as installed by a fresh directory read.",
       "addCapability": "Add capability",
       "advancedAddTitle": "Advanced add method",
       "advancedAddDescription": "Use this only when you already have a validated capability manifest URL.",
