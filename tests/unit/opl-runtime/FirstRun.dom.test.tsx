@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -14,6 +16,7 @@ const bridgeMocks = vi.hoisted(() => ({
   runStartupMaintenanceInvoke: vi.fn(),
   runReconcileModulesInvoke: vi.fn(),
   showOpenInvoke: vi.fn(),
+  openFolderWithInvoke: vi.fn(),
 }));
 const messageMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const platformMocks = vi.hoisted(() => ({ isElectronDesktop: vi.fn(), isMacOS: vi.fn() }));
@@ -46,6 +49,9 @@ vi.mock('@/common', () => ({
     },
     dialog: {
       showOpen: { invoke: bridgeMocks.showOpenInvoke },
+    },
+    shell: {
+      openFolderWith: { invoke: bridgeMocks.openFolderWithInvoke },
     },
   },
 }));
@@ -330,6 +336,24 @@ const workspaceActionResult = {
   stdout: '{}',
   parsed: { status: 'completed' },
 };
+const workspaceFastStateResult = {
+  surface: 'app_state_fast',
+  command: 'opl app state --profile fast --json',
+  stdout: '{}',
+  parsed: {
+    app_state: {
+      paths: {
+        workspace_root_path: '/Users/example/current-workspace',
+        workspace_root: {
+          selected_path: '/Users/example/current-workspace',
+          exists: true,
+          writable: false,
+          health_status: 'blocking',
+        },
+      },
+    },
+  },
+};
 
 describe('FirstRun readiness page', () => {
   let initializeEventHandler: ((event: unknown) => void) | null = null;
@@ -354,8 +378,28 @@ describe('FirstRun readiness page', () => {
     bridgeMocks.configureCodexInvoke.mockResolvedValue(configureCodexResult);
     bridgeMocks.loginGatewayAccountInvoke.mockResolvedValue(gatewayLoginResult);
     bridgeMocks.showOpenInvoke.mockResolvedValue(['/Users/example/workspace']);
+    bridgeMocks.openFolderWithInvoke.mockResolvedValue(undefined);
     platformMocks.isElectronDesktop.mockReturnValue(true);
     platformMocks.isMacOS.mockReturnValue(false);
+  });
+
+  it('keeps compact setup controls single-column and the workspace surface flat', () => {
+    const stylesSource = fs.readFileSync(
+      path.join(process.cwd(), 'packages/desktop/src/renderer/pages/FirstRun/FirstRun.module.css'),
+      'utf8'
+    );
+    const compactStart = stylesSource.indexOf('@media (max-width: 600px) {');
+    const compactEnd = stylesSource.indexOf('@media (max-width: 600px) and (max-height: 700px)');
+    const compactStyles = stylesSource.slice(compactStart, compactEnd);
+    const workspaceRule = stylesSource.match(/\.firstRunWorkspace\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(compactStart).toBeGreaterThanOrEqual(0);
+    expect(compactEnd).toBeGreaterThan(compactStart);
+    expect(compactStyles).toMatch(
+      /\.firstRunAccessMethods,\s*\.firstRunAccessFields\s*\{\s*grid-template-columns:\s*1fr;/
+    );
+    expect(compactStyles).toMatch(/\.firstRunWorkspaceRecoveryActions\s*\{\s*grid-template-columns:\s*1fr;/);
+    expect(workspaceRule).not.toContain('box-shadow');
   });
 
   it('keeps the beginner first-run surface visible when first-run Core is ready', async () => {
@@ -760,27 +804,64 @@ describe('FirstRun readiness page', () => {
   });
 
   it('routes a workspace blocker to the native directory picker and App action boundary', async () => {
-    bridgeMocks.getInitializeInvoke
-      .mockResolvedValueOnce(workspaceBlockedInitializeResult)
-      .mockResolvedValue(initializeResult);
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(workspaceBlockedInitializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(workspaceFastStateResult);
 
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    expect(screen.getByTestId('opl-first-run-workspace-path')).toHaveTextContent('/Users/example/current-workspace');
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.openWorkspace' }));
+    await waitFor(() =>
+      expect(bridgeMocks.openFolderWithInvoke).toHaveBeenCalledWith({
+        folder_path: '/Users/example/current-workspace',
+        tool: 'explorer',
+      })
+    );
+
+    bridgeMocks.openFolderWithInvoke.mockRejectedValueOnce(new Error('open failed'));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.openWorkspace' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.workspace')
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.recheck' }));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+
     fireEvent.click(
       within(screen.getByTestId('opl-first-run-primary-action')).getByRole('button', {
         name: 'settings.firstRun.actions.chooseWorkspace',
       })
     );
 
-    await waitFor(() => expect(bridgeMocks.showOpenInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(bridgeMocks.showOpenInvoke).toHaveBeenCalledWith({
+        defaultPath: '/Users/example/current-workspace',
+        properties: ['openDirectory', 'createDirectory'],
+      })
+    );
     expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
       actionId: 'workspace_root_set',
       dryRun: false,
       payloadRefsOnlyJson: { path: '/Users/example/workspace' },
     });
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
-    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(3));
+    expect(screen.getByTestId('opl-first-run-workspace-path')).toHaveTextContent('/Users/example/workspace');
+  });
+
+  it('does not read Desktop fast state for a WebUI workspace blocker', async () => {
+    platformMocks.isElectronDesktop.mockReturnValue(false);
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(workspaceBlockedInitializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.getAppStateInvoke).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('opl-first-run-workspace-recovery')).not.toBeInTheDocument();
   });
 
   it('keeps the active rail step, task action, and focus aligned when Core readiness advances', async () => {

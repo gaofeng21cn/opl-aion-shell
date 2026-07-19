@@ -1280,7 +1280,7 @@
       "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
       "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
       "codexConfig": "Model access is not configured yet. Enter the access key from your administrator to continue.",
-      "workspace": "OPL could not save the workspace folder. Choose another writable folder or open technical details."
+      "workspace": "OPL could not access or save the workspace folder. Check access again or choose another writable folder; technical details have the diagnostic."
     }
   },
   "oplFirstLaunch": {

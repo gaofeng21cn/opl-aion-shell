@@ -1,5 +1,5 @@
 import { Button, Collapse, Empty, Input, Radio, Spin, Tag } from '@arco-design/web-react';
-import { CheckOne, Config, Help, Right, Shield, Tool, Workbench } from '@icon-park/react';
+import { CheckOne, Config, FolderOpen, Help, Refresh, Right, Shield, Tool, Workbench } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { getOplProductDisplayName } from '@/common/config/oplProductProfile';
 import type { OplAppStatePayload } from '@/common/types/opl/appState';
 import appLogo from '@/renderer/assets/logos/brand/app.png';
 import WindowControls from '@/renderer/components/layout/WindowControls';
-import { getAppState } from '@/renderer/hooks/system/useOplAppState';
+import { getAppState, oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
 import { readGatewayAccountProjection, resolveDefaultGatewayGroup } from '@/renderer/pages/settings/accessProjection';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import {
@@ -206,6 +206,12 @@ function resultPreview(result: FirstRunCommandResult): string {
   return JSON.stringify(result.parsed ?? {}, null, 2);
 }
 
+function readWorkspaceRootPath(payload: OplAppStatePayload | null | undefined): string | null {
+  const paths = oplRecord(getAppState(payload).paths);
+  const workspaceRoot = oplRecord(paths.workspace_root);
+  return oplString(workspaceRoot.selected_path) ?? oplString(paths.workspace_root_path);
+}
+
 function formatInitializeEvent(event: FirstRunInitializeEvent, t: Translate): string {
   if (!event) return t('settings.firstRun.initializePending.progress');
   const labelKey = INITIALIZE_PHASE_LABEL_KEYS[event.phase];
@@ -344,12 +350,19 @@ const FirstRun: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [gatewayEmail, setGatewayEmail] = useState('');
   const [gatewayPassword, setGatewayPassword] = useState('');
+  const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
   const [accessMethod, setAccessMethod] = useState<AccessMethod>(isDesktopRuntime ? 'gateway_account' : 'api_key');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
   const [actionLoading, setActionLoading] = useState<
-    MaintenanceAction | 'configure_codex' | 'gateway_account' | 'workspace_root' | null
+    | MaintenanceAction
+    | 'configure_codex'
+    | 'gateway_account'
+    | 'workspace_root'
+    | 'workspace_open'
+    | 'workspace_recheck'
+    | null
   >(null);
   const [error, setError] = useState<FirstRunError | null>(null);
   const pageRef = useRef<HTMLElement>(null);
@@ -357,6 +370,7 @@ const FirstRun: React.FC = () => {
   const previousActivePrimaryStepRef = useRef<FirstRunItemId | null>(null);
   const readyEntryRef = useRef<HTMLButtonElement>(null);
   const technicalDetailsRef = useRef<HTMLDivElement>(null);
+  const workspacePathSequenceRef = useRef(0);
   const isMacRuntime = isDesktopRuntime && isMacOS();
   const showWindowControls = isDesktopRuntime && !isMacRuntime && Boolean(ipcBridge.windowControls);
 
@@ -515,11 +529,20 @@ const FirstRun: React.FC = () => {
     setAccessMethod(value === 'api_key' ? 'api_key' : 'gateway_account');
   }, []);
 
+  const loadWorkspaceRootPath = useCallback(async (): Promise<string | null | undefined> => {
+    const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+    if (!stateResult || stateResult.ok === false) return undefined;
+    return readWorkspaceRootPath(stateResult.parsed as OplAppStatePayload);
+  }, []);
+
   const chooseWorkspaceRoot = useCallback(async () => {
     setActionLoading('workspace_root');
     setError(null);
     try {
-      const paths = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory', 'createDirectory'] });
+      const paths = await ipcBridge.dialog.showOpen.invoke({
+        defaultPath: workspaceRootPath ?? undefined,
+        properties: ['openDirectory', 'createDirectory'],
+      });
       const selectedPath = paths?.[0];
       if (!selectedPath) return;
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
@@ -529,6 +552,8 @@ const FirstRun: React.FC = () => {
       });
       assertBridgeResultOk(result);
       setActionResult(result);
+      workspacePathSequenceRef.current += 1;
+      setWorkspaceRootPath(selectedPath);
       await refreshInitialize();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -536,7 +561,37 @@ const FirstRun: React.FC = () => {
     } finally {
       setActionLoading(null);
     }
-  }, [refreshInitialize]);
+  }, [refreshInitialize, workspaceRootPath]);
+
+  const openWorkspaceRoot = useCallback(async () => {
+    if (!isDesktopRuntime || !workspaceRootPath) return;
+    setActionLoading('workspace_open');
+    setError(null);
+    try {
+      await ipcBridge.shell.openFolderWith.invoke({ folder_path: workspaceRootPath, tool: 'explorer' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError({ source: 'workspace', detail: message });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [isDesktopRuntime, workspaceRootPath]);
+
+  const recheckWorkspaceRoot = useCallback(async () => {
+    setActionLoading('workspace_recheck');
+    setError(null);
+    const requestSequence = workspacePathSequenceRef.current + 1;
+    workspacePathSequenceRef.current = requestSequence;
+    try {
+      const [path] = await Promise.all([loadWorkspaceRootPath(), refreshInitialize()]);
+      if (path !== undefined && workspacePathSequenceRef.current === requestSequence) setWorkspaceRootPath(path);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError({ source: 'workspace', detail: message });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [loadWorkspaceRootPath, refreshInitialize]);
 
   useEffect(() => {
     return ipcBridge.oplRuntime.initializeEvent.on((event) => {
@@ -601,6 +656,7 @@ const FirstRun: React.FC = () => {
   }));
   const activePrimaryStepId = primaryItems.find(({ item }) => !isItemReady(item))?.id ?? 'codex_config';
   const activePrimaryStepIndex = Math.max(1, primaryItems.findIndex(({ id }) => id === activePrimaryStepId) + 1);
+  const workspaceStepActive = Boolean(initialize && isDesktopRuntime && activePrimaryStepId === 'workspace_root');
   const showModelAccessTask = codexConfigBlocked && activePrimaryStepId === 'codex_config';
   const initializeUnresolved = initialize === null;
   const requestInFlight = initializeLoading || actionLoading !== null;
@@ -624,6 +680,24 @@ const FirstRun: React.FC = () => {
       : hasBlockingItems
         ? t('settings.firstRun.beginner.summaryNeedsAction')
         : t('settings.firstRun.beginner.summaryPreparing');
+
+  useEffect(() => {
+    if (!workspaceStepActive) return undefined;
+    let active = true;
+    const requestSequence = workspacePathSequenceRef.current + 1;
+    workspacePathSequenceRef.current = requestSequence;
+    void loadWorkspaceRootPath().then(
+      (path) => {
+        if (active && path !== undefined && workspacePathSequenceRef.current === requestSequence) {
+          setWorkspaceRootPath(path);
+        }
+      },
+      (): void => undefined
+    );
+    return () => {
+      active = false;
+    };
+  }, [loadWorkspaceRootPath, workspaceStepActive]);
 
   useEffect(() => {
     if (!initialize || readyToLaunch) return;
@@ -962,9 +1036,43 @@ const FirstRun: React.FC = () => {
                       <h2>{t('settings.firstRun.blockedPanel.title')}</h2>
                       <p data-testid='opl-first-run-beginner-summary'>{beginnerSummary}</p>
                       <p>{nextVisibleStep ?? t('settings.firstRun.nextSteps.generic')}</p>
+                      {workspaceStepActive && (
+                        <div
+                          className={styles.firstRunWorkspaceRecovery}
+                          data-testid='opl-first-run-workspace-recovery'
+                        >
+                          <div className={styles.firstRunWorkspacePath}>
+                            <span>{t('settings.workspacePage.root.title')}</span>
+                            <strong title={workspaceRootPath ?? undefined} data-testid='opl-first-run-workspace-path'>
+                              {workspaceRootPath ?? t('settings.workspacePage.root.missing')}
+                            </strong>
+                          </div>
+                          <div className={styles.firstRunWorkspaceRecoveryActions}>
+                            <Button
+                              type='text'
+                              icon={<FolderOpen aria-hidden='true' />}
+                              loading={actionLoading === 'workspace_open'}
+                              disabled={!workspaceRootPath || requestInFlight}
+                              onClick={() => void openWorkspaceRoot()}
+                            >
+                              {t('settings.workspacePage.actions.openWorkspace')}
+                            </Button>
+                            <Button
+                              type='text'
+                              icon={<Refresh aria-hidden='true' />}
+                              loading={actionLoading === 'workspace_recheck'}
+                              disabled={requestInFlight}
+                              onClick={() => void recheckWorkspaceRoot()}
+                            >
+                              {t('settings.workspacePage.actions.recheck')}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
                         {activePrimaryStepId === 'workspace_root' ? (
                           <Button
+                            icon={<FolderOpen aria-hidden='true' />}
                             type='primary'
                             size='large'
                             loading={actionLoading === 'workspace_root'}

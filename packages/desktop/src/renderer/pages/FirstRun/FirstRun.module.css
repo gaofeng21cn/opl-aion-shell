@@ -104,7 +104,6 @@
   border: 1px solid var(--border-base);
   border-radius: 8px;
   background: var(--bg-1);
-  box-shadow: 0 14px 38px color-mix(in srgb, var(--text-primary) 7%, transparent);
 }
 
 .firstRunWorkspaceBody,
@@ -470,6 +469,56 @@
   min-height: 44px;
   margin-top: 8px;
   padding-inline: 0;
+}
+
+.firstRunWorkspaceRecovery {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border-base);
+  border-bottom: 1px solid var(--border-base);
+  padding: 13px 0;
+}
+
+.firstRunWorkspacePath {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.firstRunWorkspacePath span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.firstRunWorkspacePath strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunWorkspaceRecoveryActions {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.firstRunWorkspaceRecoveryActions :global(.arco-btn) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding-inline: 8px;
+  white-space: normal;
 }
 
 .firstRunTaskActions {
@@ -897,7 +946,11 @@
 
   .firstRunAccessMethods,
   .firstRunAccessFields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .firstRunWorkspaceRecoveryActions {
+    grid-template-columns: 1fr;
   }
 
   .firstRunAccessMethods,
@@ -952,6 +1005,12 @@
   .firstRunAccessForm,
   .firstRunExistingAccess {
     margin-top: 16px;
+  }
+
+  .firstRunWorkspaceRecovery {
+    gap: 8px;
+    margin-top: 12px;
+    padding: 9px 0;
   }
 
   .firstRunExistingAccess p {
