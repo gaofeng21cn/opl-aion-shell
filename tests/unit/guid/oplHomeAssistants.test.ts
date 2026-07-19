@@ -50,7 +50,9 @@ describe('OPL home assistants', () => {
 
     const directory = resolveOplProfessionalAgentAssistants([]);
     expect(directory.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
-    expect(directory.find((item) => item.id === 'oma')?.description_i18n['zh-CN']).toContain('OPL Foundry Agent');
+    expect(directory.find((item) => item.id === 'oma')?.description_i18n['zh-CN']).toBe(
+      '用于创建、接管、检查和改进 OPL 专业智能体。'
+    );
     expect(directory.find((item) => item.id === 'obf')?.enabled_skills).toEqual(['opl-bookforge']);
   });
 

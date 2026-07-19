@@ -137,7 +137,8 @@
         "desktop_context_bar_overlap_px": 13,
         "desktop_context_bar_horizontal_inset_px": 12,
         "starter_truncation_allowed": false,
-        "selected_starter_visual_policy": "quiet_fill_and_check_indicator_not_color_alone",
+        "selected_starter_visual_policy": "quiet_fill_with_aria_pressed_without_trailing_selection_glyph",
+        "selected_starter_accessibility_state": "aria_pressed_reflects_active_shortcut",
         "selected_working_directory_visual_policy": "independent_new_session_context_bar_control_with_selected_directory_and_clear_action",
         "workspace_selector_policy": {
           "primary_scope": "active_workspace_only",
@@ -160,6 +161,25 @@
         "projectless_conversation_supported": true,
         "text_chat_without_workspace": "available",
         "workspace_session_rail_default_state": "visible_wide_drawer_narrow",
+        "active_aionui_primary_navigation": {
+          "scope": "active_aionui_current_product_only",
+          "ordered_entry_ids": ["new_task", "runtime", "scheduled_tasks", "archived"],
+          "runtime_entry": {
+            "route": "/runtime",
+            "label_i18n": {
+              "zh-CN": "运行状态",
+              "en-US": "Runtime status"
+            },
+            "placement": "after_new_task_before_scheduled_tasks",
+            "visibility": "always",
+            "expanded_behavior": "icon_and_label",
+            "collapsed_behavior": "icon_only_with_tooltip_and_accessible_name",
+            "narrow_drawer_behavior": "icon_and_label",
+            "keyboard_reachable": true,
+            "home_content_effect": "navigation_only_no_dashboard",
+            "route_gate_boundary": "native_phase_one_and_default_release_gate_remain_optional"
+          }
+        },
         "right_context_inspector_default_state": "collapsed",
         "must_not_show": [
           "dashboard-first home",
@@ -527,7 +547,15 @@
           {
             "id": "agent_packages",
             "scope": "new_session_configuration_only",
-            "source_ref": "professional_agent_packages + ordinary_capability_selector_policy",
+            "label_i18n": {
+              "zh-CN": "专业智能体",
+              "en-US": "Professional agents"
+            },
+            "source_ref": "professional_agent_packages",
+            "catalog_membership_source_ref": "professional_agent_packages[].package_id",
+            "required_package_ids": ["mas", "mag", "rca", "obf", "oma"],
+            "catalog_order_policy": "stable_professional_agent_packages_order",
+            "home_shortcut_independence_policy": "render_the_complete_professional_agent_catalog_regardless_of_home_shortcut_visibility_or_order",
             "availability_policy": "show_only_real_app_allowlisted_packages_supported_by_the_active_adapter",
             "existing_session_rebinding_allowed": false,
             "surface_actions": {
@@ -540,6 +568,7 @@
             "scope": "surface_specific_configuration_or_invocation",
             "source_ref": "ordinary_capability_selector_policy",
             "availability_policy": "show_global_app_allowlisted_skills_without_an_agent_then_scope_to_the_selected_professional_agent_profile",
+            "agent_owned_skill_deduplication_policy": "on_home_new_session_exclude_required_skill_ids_owned_by_rendered_professional_agents_from_the_standalone_skills_group",
             "existing_session_rebinding_allowed": false,
             "surface_actions": {
               "home_new_session": ["configure_new_session_scoped_skill"],
@@ -794,6 +823,14 @@
     "ordinary_capability_selector_policy": {
       "scope": "home_composer_and_ordinary_conversation",
       "authority": "app_owned_opl_allowlist",
+      "palette_agent_catalog_source_ref": "professional_agent_packages",
+      "palette_required_agent_package_ids": ["mas", "mag", "rca", "obf", "oma"],
+      "palette_home_shortcut_independence_policy": "complete_professional_agent_catalog_independent_of_home_shortcut_visibility_and_order",
+      "palette_agent_group_label_i18n": {
+        "zh-CN": "专业智能体",
+        "en-US": "Professional agents"
+      },
+      "agent_owned_skill_deduplication_policy": "exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills",
       "agent_reference_admission_policy": {
         "active_agent_package_cardinality": "zero_or_one",
         "selection_authority": "home_starter_new_session_capability_palette_or_explicit_capability_route_only",
@@ -950,10 +987,18 @@
           "package_id": "mas",
           "package_kind": "domain_agent_package",
           "display_name": "Med Auto Science",
+          "display_name_i18n": {
+            "zh-CN": "医学科研智能体",
+            "en-US": "Med Auto Science"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Medical research workflows for evidence, analysis, writing, figures, and submission.",
+          "description_i18n": {
+            "zh-CN": "用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。",
+            "en-US": "For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission."
+          },
           "tags": ["medical-research", "evidence", "manuscript"],
           "package_role": "standard_agent",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mas.json"
@@ -962,10 +1007,18 @@
           "package_id": "mag",
           "package_kind": "domain_agent_package",
           "display_name": "Med Auto Grant",
+          "display_name_i18n": {
+            "zh-CN": "医学基金智能体",
+            "en-US": "Med Auto Grant"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Grant planning, drafting, critique, revision, and submission workflows.",
+          "description_i18n": {
+            "zh-CN": "用于基金选题、标书与申请书撰写、预算说明和评审回复。",
+            "en-US": "For grant topics, proposals and applications, budget narratives, and reviewer responses."
+          },
           "tags": ["grant-writing", "proposal", "review"],
           "package_role": "standard_agent",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mag.json"
@@ -974,10 +1027,18 @@
           "package_id": "rca",
           "package_kind": "domain_agent_package",
           "display_name": "RedCube AI",
+          "display_name_i18n": {
+            "zh-CN": "演示与视觉智能体",
+            "en-US": "RedCube AI"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Visual deliverable, presentation, and figure production workflows.",
+          "description_i18n": {
+            "zh-CN": "用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。",
+            "en-US": "For presentations, reports, charts, and other professional visual deliverables."
+          },
           "tags": ["visual-deliverables", "presentations", "figures"],
           "package_role": "standard_agent",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/rca.json"
@@ -986,10 +1047,18 @@
           "package_id": "oma",
           "package_kind": "domain_agent_package",
           "display_name": "OPL Meta Agent",
+          "display_name_i18n": {
+            "zh-CN": "元智能体",
+            "en-US": "OPL Meta Agent"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Agent architecture, baseline, takeover, and OPL conformance workflows.",
+          "description_i18n": {
+            "zh-CN": "用于创建、接管、检查和改进 OPL 专业智能体。",
+            "en-US": "For creating, taking over, inspecting, and improving OPL professional agents."
+          },
           "tags": ["agent-design", "architecture", "conformance"],
           "package_role": "standard_agent",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/oma.json"
@@ -998,10 +1067,18 @@
           "package_id": "obf",
           "package_kind": "domain_agent_package",
           "display_name": "OPL Book Forge",
+          "display_name_i18n": {
+            "zh-CN": "写书智能体",
+            "en-US": "OPL Book Forge"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Long-form book architecture, drafting, review, and publication workflows.",
+          "description_i18n": {
+            "zh-CN": "用于书稿规划、章节写作、插图表格、排版、审校和导出。",
+            "en-US": "For book planning, chapter writing, figures and tables, layout, editing, and export."
+          },
           "tags": ["book-authoring", "long-form", "publishing"],
           "package_role": "standard_agent",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/obf.json"
@@ -1010,10 +1087,18 @@
           "package_id": "mas-scholar-skills",
           "package_kind": "framework_capability_package",
           "display_name": "MAS Scholar Skills",
+          "display_name_i18n": {
+            "zh-CN": "MAS 学术技能",
+            "en-US": "MAS Scholar Skills"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Reusable medical research capabilities consumed by Med Auto Science.",
+          "description_i18n": {
+            "zh-CN": "供医学科研智能体使用的可复用医学科研能力。",
+            "en-US": "Reusable medical research capabilities consumed by Med Auto Science."
+          },
           "tags": ["medical-research", "capabilities", "skills"],
           "package_role": "framework_capability_package",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mas-scholar-skills.json"
@@ -1022,10 +1107,18 @@
           "package_id": "opl-flow",
           "package_kind": "workflow_plugin_package",
           "display_name": "OPL Flow",
+          "display_name_i18n": {
+            "zh-CN": "OPL Flow",
+            "en-US": "OPL Flow"
+          },
           "publisher": "one-person-lab",
           "source": "first_party",
           "trust_tier": "first_party",
           "description": "Recommended OPL workflow profile and managed Codex policy.",
+          "description_i18n": {
+            "zh-CN": "OPL 推荐工作流配置与受管 Codex 策略。",
+            "en-US": "Recommended OPL workflow profile and managed Codex policy."
+          },
           "tags": ["workflow-profile", "codex", "policy"],
           "package_role": "workflow_profile",
           "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/opl-flow.json"
@@ -1038,6 +1131,14 @@
         "package_id": "mas",
         "agent_id": "mas",
         "display_name": "Med Auto Science",
+        "display_name_i18n": {
+          "zh-CN": "医学科研智能体",
+          "en-US": "Med Auto Science"
+        },
+        "description_i18n": {
+          "zh-CN": "用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。",
+          "en-US": "For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission."
+        },
         "short_name": "MAS",
         "role": "research_and_paper_agent",
         "package_kind": "starter_professional_agent_package",
@@ -1059,6 +1160,14 @@
         "package_id": "mag",
         "agent_id": "mag",
         "display_name": "Med Auto Grant",
+        "display_name_i18n": {
+          "zh-CN": "医学基金智能体",
+          "en-US": "Med Auto Grant"
+        },
+        "description_i18n": {
+          "zh-CN": "用于基金选题、标书与申请书撰写、预算说明和评审回复。",
+          "en-US": "For grant topics, proposals and applications, budget narratives, and reviewer responses."
+        },
         "short_name": "MAG",
         "role": "grant_authoring_agent",
         "package_kind": "starter_professional_agent_package",
@@ -1080,6 +1189,14 @@
         "package_id": "rca",
         "agent_id": "rca",
         "display_name": "RedCube AI",
+        "display_name_i18n": {
+          "zh-CN": "演示与视觉智能体",
+          "en-US": "RedCube AI"
+        },
+        "description_i18n": {
+          "zh-CN": "用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。",
+          "en-US": "For presentations, reports, charts, and other professional visual deliverables."
+        },
         "short_name": "RCA",
         "role": "presentation_and_visual_deliverable_agent",
         "package_kind": "starter_professional_agent_package",
@@ -1101,6 +1218,14 @@
         "package_id": "obf",
         "agent_id": "obf",
         "display_name": "OPL Book Forge",
+        "display_name_i18n": {
+          "zh-CN": "写书智能体",
+          "en-US": "OPL Book Forge"
+        },
+        "description_i18n": {
+          "zh-CN": "用于书稿规划、章节写作、插图表格、排版、审校和导出。",
+          "en-US": "For book planning, chapter writing, figures and tables, layout, editing, and export."
+        },
         "short_name": "OBF",
         "role": "book_authoring_agent",
         "package_kind": "starter_professional_agent_package",
@@ -1122,6 +1247,14 @@
         "package_id": "oma",
         "agent_id": "oma",
         "display_name": "OPL Meta Agent",
+        "display_name_i18n": {
+          "zh-CN": "元智能体",
+          "en-US": "OPL Meta Agent"
+        },
+        "description_i18n": {
+          "zh-CN": "用于创建、接管、检查和改进 OPL 专业智能体。",
+          "en-US": "For creating, taking over, inspecting, and improving OPL professional agents."
+        },
         "short_name": "OMA",
         "role": "opl_agent_design_and_testing_agent",
         "package_kind": "managed_professional_agent_package",
@@ -3111,7 +3244,7 @@
                 "detect_only_guidance": "show owner guidance without a fake update action"
               },
               "unknown_value_policy": "show not checked or unknown and never synthesize current, missing, or zero values",
-              "diagnostics_boundary": "binary paths, shadowed installations, raw actions, and raw catalog records stay in technical details",
+              "diagnostics_boundary": "the single advanced disclosure may show read-only binary paths, shadowed installations, localized component labels, and receipt evidence; raw internal status keys, actions, and catalog payloads are never user-facing",
               "external_installations_policy": {
                 "row_key": "dependency_id_plus_normalized_realpath_with_stable_index_suffix_only_for_duplicate_paths",
                 "required_fields": [
@@ -3264,8 +3397,9 @@
               "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path",
               "directory_collection_source": "app_state.agent_packages.directory.entries",
               "directory_collection_policy": "render every canonical entry including uninstalled, OMA, all first-party, framework capability, and workflow profile packages",
-              "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.professional_agent_packages",
+              "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.agent_package_registry.first_party_release_set_metadata",
               "static_metadata_overlay_policy": "package_id keyed optional UI enrichment only; never collection membership, seed, status, readiness, or action authority",
+              "static_metadata_overlay_fields": ["display_name_i18n", "description_i18n"],
               "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
               "source_semantics_policy": "directory entries own catalog membership, installed, activated, installability, coarse readiness, recommended_action_ref, and exact available_actions; status_index adds canonical package-id-keyed dependency_readiness, repair_action, activation_action, dependent_guard, capability_exposure, materialization, runtime-source, currentness, receipt, and status-read diagnostics but cannot override directory lifecycle, readiness, or exact actions; package_dependency_readiness remains lower-level diagnostic enrichment; runtime source carriers and modules may enrich source diagnostics only; the shell infers none of them",
               "diagnostic_enrichment_projection": "opl app state --profile fast --json#app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.modules.items[]",
@@ -3283,6 +3417,8 @@
               "workspace_missing_policy": "disable only an activation whose unresolved required_payload_fields includes target_workspace, with workspace_root_not_configured and route to /settings/workspace#workspace",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
+                "user_facing_projection_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.user_facing_status_projection",
+                "localized_metadata_source_ref": "contracts/app-product-profile.json#gui.agent_package_registry.first_party_release_set_metadata",
                 "axes": [
                   "install_state",
                   "activation_state",
@@ -5164,17 +5300,12 @@
               "health summary",
               "direct managed dependency summary for the active Codex CLI, OPL-managed Temporal Runtime, and optional system Temporal CLI",
               "updates and local services grouped by user impact",
-              "repair and rollback choices with impact explained before action",
-              "service status and receipts without duplicating capability package management",
+              "check, apply, repair, and rollback actions on the daily Maintenance page with impact explained before mutation",
+              "service status without duplicating capability package management",
               "one recommended maintenance action",
-              "Framework and raw working paths in diagnostics after Advanced is retired"
+              "one advanced read-only diagnostics disclosure for localized component, path, and receipt evidence after Advanced is retired"
             ],
-            "first_viewport_groups": [
-              "health_and_services",
-              "managed_dependencies",
-              "updates",
-              "repair_rollback_receipts"
-            ],
+            "first_viewport_groups": ["health_and_services", "managed_dependencies", "updates", "maintenance_actions"],
             "surface_inventory": {
               "configuration": [
                 {
@@ -5200,16 +5331,20 @@
               ],
               "diagnostic": [
                 {
-                  "id": "maintenance_receipts_paths_and_raw_details",
+                  "id": "maintenance_component_path_and_receipt_evidence",
                   "owner": "maintenance"
                 }
               ]
             },
             "surface_rules": {
               "configuration_location": "update_channel_is_an_inline_persistent_control_in_the_updates_section",
-              "management_surface": "component_apply_repair_rollback_and_capability_sync_live_in_an_explicit_management_modal",
-              "diagnostic_surface": "read_only_status_paths_receipts_and_raw_projection_only",
+              "daily_action_surface": "the_Maintenance_page_itself_owns_check_apply_repair_and_rollback_with_per_action_state_confirmation_and_fresh_readback",
+              "management_surface": "inline_page_rows_and_progressive_confirmation_never_a_second_large_management_modal",
+              "diagnostic_surface": "one_advanced_read_only_disclosure_for_localized_component_path_and_receipt_evidence",
+              "diagnostic_entry_count": 1,
+              "large_overlay_policy": "never_open_or_define_overlapping_management_and_diagnostics_modals",
               "diagnostic_mutation_controls_allowed": false,
+              "raw_internal_status_key_policy": "never_render_raw_internal_status_keys_action_ids_or_payload_fields_as_user_facing_copy",
               "unknown_state_copy": "distinguish_checking_not_checked_not_applicable_and_needs_attention",
               "managed_dependency_primary_visibility": "managed_dependency_summary_is_visible_without_opening_diagnostics",
               "working_path_owner": "Framework and raw paths live only in Maintenance diagnostics"
@@ -5224,13 +5359,13 @@
               "label_en": "Run recommended action"
             },
             "exception_state": "highlight only components that need action and explain impact before action",
-            "technical_details_boundary": "raw action ids, component ids, statuses, command mappings, paths, and receipts stay collapsed",
+            "technical_details_boundary": "one advanced disclosure shows localized component labels plus read-only paths and receipt evidence; raw internal status keys, action ids, command mappings, and payload fields are never user-facing",
             "required_dom": {
               "always": [
                 "settings-page-maintenance",
                 "settings-maintenance-primary",
                 "settings-maintenance-managed-dependencies",
-                "settings-maintenance-management-action",
+                "settings-maintenance-daily-actions",
                 "settings-maintenance-diagnostics-action"
               ],
               "conditional": [
@@ -5241,10 +5376,6 @@
                 {
                   "testid": "settings-maintenance-primary-action",
                   "when": "attention_only"
-                },
-                {
-                  "testid": "settings-maintenance-management-details",
-                  "when": "management_open"
                 },
                 {
                   "testid": "settings-maintenance-technical-details",
