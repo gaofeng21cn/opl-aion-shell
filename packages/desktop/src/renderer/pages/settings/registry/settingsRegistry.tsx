@@ -337,9 +337,7 @@ export function focusSettingsAnchor(root: ParentNode, anchor: string): boolean {
   const matchingElements = Array.from(root.querySelectorAll<HTMLElement>('[id]')).filter(
     (element) => element.id === anchor
   );
-  const anchorElement = matchingElements.find(
-    (element) => element.closest('[hidden], [aria-hidden="true"]') === null
-  );
+  const anchorElement = matchingElements.find((element) => element.closest('[hidden], [aria-hidden="true"]') === null);
   if (!anchorElement) return false;
   anchorElement.scrollIntoView({ block: 'start' });
   if (anchorElement.tabIndex < 0) anchorElement.tabIndex = -1;
