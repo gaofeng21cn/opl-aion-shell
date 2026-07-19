@@ -418,6 +418,8 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
     expect(screen.getByTestId('settings-overview-card-codex')).toHaveTextContent('Codex CLI');
     expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('OPL Gateway');
+    expect(document.getElementById('codex')).toBe(screen.getByTestId('settings-overview-card-codex'));
+    expect(document.getElementById('gateway')).toBe(screen.getByTestId('settings-overview-card-gateway'));
     expect(screen.getByTestId('settings-overview-gateway-account')).toHaveTextContent('Gao Feng');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('1.25M');
     expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('2.5 USD');

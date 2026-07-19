@@ -12,6 +12,10 @@ vi.mock('@/renderer/pages/settings/StorageSettings', () => ({
   default: () => <div data-testid='storage-route-page'>Storage route rendered</div>,
 }));
 
+vi.mock('@/renderer/pages/settings/sections/OverviewSettings', () => ({
+  default: () => <div data-testid='overview-route-page'>Overview route rendered</div>,
+}));
+
 vi.mock('@/renderer/pages/settings/sections/WorkspaceSettings', () => ({
   default: () => <div data-testid='workspace-route-page'>Workspace route rendered</div>,
 }));
@@ -62,6 +66,16 @@ describe('settings storage route', () => {
     expect(await screen.findByTestId('environment-route-page')).toBeInTheDocument();
     expect(screen.queryByTestId('local-services-route-page')).not.toBeInTheDocument();
     expect(window.location.hash).toContain('/settings/environment');
+  });
+
+  it('redirects an unknown Settings deep link to Settings Overview', async () => {
+    window.location.hash = '#/settings/not-a-real-page';
+
+    render(<Router layout={<Outlet />} />);
+
+    await screen.findByTestId('overview-route-page');
+    expect(window.location.hash).toContain('/settings/general');
+    expect(window.location.hash).not.toContain('/startup-gate');
   });
 
   it('renders focused first-run outside the ordinary product layout', async () => {

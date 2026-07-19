@@ -262,6 +262,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
     expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
+    for (const anchor of ['current-workspace', 'permissions', 'artifacts', 'logs', 'personalization']) {
+      expect(document.getElementById(anchor)).not.toBeNull();
+    }
     const logsPath = await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
     expect(logsPath).toHaveClass('opl-settings-path');
     expect(logsPath).not.toHaveClass('break-all');

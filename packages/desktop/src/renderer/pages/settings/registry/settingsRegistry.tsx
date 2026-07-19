@@ -334,7 +334,10 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
 }
 
 export function focusSettingsAnchor(anchor: string): boolean {
-  const anchorElement = document.getElementById(anchor);
+  const matchingElements = Array.from(document.querySelectorAll<HTMLElement>('[id]')).filter(
+    (element) => element.id === anchor
+  );
+  const anchorElement = matchingElements.find((element) => !element.hasAttribute('aria-hidden')) ?? matchingElements[0];
   if (!anchorElement) return false;
   const focusTarget = anchorElement.hasAttribute('aria-hidden')
     ? (anchorElement.closest<HTMLElement>('.opl-settings-section') ?? anchorElement)

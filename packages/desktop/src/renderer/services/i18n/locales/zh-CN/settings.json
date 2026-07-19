@@ -77,6 +77,7 @@
   "assistantSectionDisabled": "已禁用",
   "searchPlaceholder": "搜索设置",
   "searchEmpty": "未找到相关设置",
+  "searchAnchorUnavailable": "未能定位到该设置，已从当前页面顶部显示。",
   "searchAssistants": "按名称或描述搜索助手",
   "assistantNoMatch": "没有匹配当前筛选条件的助手。",
   "assistantCreated": "助手已创建",

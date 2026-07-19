@@ -985,6 +985,9 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 6');
     expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 6');
     const catalog = screen.getByTestId('agent-package-catalog');
+    for (const anchor of ['catalog', 'package-role', 'availability', 'source', 'home-visibility']) {
+      expect(document.getElementById(anchor)).not.toBeNull();
+    }
     expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(6);
     expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
     const refreshRegistryButton = screen.getByTestId('agent-package-refresh-registry');

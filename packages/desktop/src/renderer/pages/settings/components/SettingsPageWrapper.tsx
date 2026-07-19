@@ -38,7 +38,9 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const isDesktop = isElectronDesktop();
   const [searchQuery, setSearchQuery] = useState('');
+  const [anchorFocusFailed, setAnchorFocusFailed] = useState(false);
   const activeMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   const extensionTabs = useExtensionSettingsTabs();
 
@@ -76,11 +78,33 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   useEffect(() => {
     const anchor = new URLSearchParams(search).get('section') ?? '';
-    if (!anchor) return;
-    const frame = requestAnimationFrame(() => {
-      focusSettingsAnchor(anchor);
-    });
-    return () => cancelAnimationFrame(frame);
+    setAnchorFocusFailed(false);
+    if (!anchor) return undefined;
+
+    let cancelled = false;
+    let attempts = 0;
+    let retryTimer: number | undefined;
+    const tryFocus = () => {
+      if (cancelled || focusSettingsAnchor(anchor)) return;
+      attempts += 1;
+      if (attempts < 4) {
+        retryTimer = window.setTimeout(tryFocus, 80);
+        return;
+      }
+
+      const fallback = contentRef.current;
+      if (fallback) {
+        fallback.scrollIntoView({ block: 'start' });
+        fallback.focus({ preventScroll: true });
+      }
+      setAnchorFocusFailed(true);
+    };
+    const frame = requestAnimationFrame(tryFocus);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
   }, [pathname, search]);
 
   useEffect(() => {
@@ -101,8 +125,12 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     [navigate]
   );
 
-  const routeSearch = (
-    <div className='settings-mobile-top-search flex flex-col gap-8px mb-16px'>
+  const globalSearch = (
+    <div
+      className='settings-global-search flex flex-col gap-8px mb-16px'
+      data-testid='settings-global-search'
+      role='search'
+    >
       <Input
         value={searchQuery}
         onChange={setSearchQuery}
@@ -139,6 +167,18 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
           ))}
         </div>
       )}
+      {anchorFocusFailed && (
+        <div
+          className='px-10px py-9px rd-8px text-13px text-t-secondary bg-fill-1'
+          data-testid='settings-search-anchor-fallback'
+          role='status'
+          aria-live='polite'
+        >
+          {t('settings.searchAnchorUnavailable', {
+            defaultValue: 'That setting could not be located. Showing the page from the beginning.',
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -161,35 +201,35 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     <SettingsViewModeProvider value='page'>
       <SettingsTabNavigateProvider value={navigateToSettingsTab}>
         <div className={containerClass}>
+          {globalSearch}
           {isMobile && (
-            <>
-              {routeSearch}
-              <div className='settings-mobile-top-nav'>
-                {menuItems.map((item) => {
-                  const active = pathname.includes(`/settings/${item.path}`);
-                  return (
-                    <Button
-                      key={item.path}
-                      ref={active ? activeMobileNavItemRef : undefined}
-                      data-settings-path={item.path}
-                      htmlType='button'
-                      aria-current={active ? 'page' : undefined}
-                      className={classNames('settings-mobile-top-nav__item', {
-                        'settings-mobile-top-nav__item--active': active,
-                      })}
-                      onClick={() => {
-                        void navigate(`/settings/${item.path}`, { replace: true });
-                      }}
-                    >
-                      <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
-                      <span className='settings-mobile-top-nav__label'>{item.label}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-            </>
+            <div className='settings-mobile-top-nav'>
+              {menuItems.map((item) => {
+                const active = pathname.includes(`/settings/${item.path}`);
+                return (
+                  <Button
+                    key={item.path}
+                    ref={active ? activeMobileNavItemRef : undefined}
+                    data-settings-path={item.path}
+                    htmlType='button'
+                    aria-current={active ? 'page' : undefined}
+                    className={classNames('settings-mobile-top-nav__item', {
+                      'settings-mobile-top-nav__item--active': active,
+                    })}
+                    onClick={() => {
+                      void navigate(`/settings/${item.path}`, { replace: true });
+                    }}
+                  >
+                    <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
+                    <span className='settings-mobile-top-nav__label'>{item.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
           )}
-          <div className={contentClass}>{children}</div>
+          <div ref={contentRef} className={contentClass} tabIndex={-1} data-testid='settings-page-focus-fallback'>
+            {children}
+          </div>
         </div>
       </SettingsTabNavigateProvider>
     </SettingsViewModeProvider>

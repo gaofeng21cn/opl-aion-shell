@@ -140,6 +140,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
             .map(renderSettingsRedirect)}
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<Navigate to={SETTINGS_DEFAULT_ROUTE} replace />} />
+          <Route path='/settings/*' element={<Navigate to={SETTINGS_DEFAULT_ROUTE} replace />} />
           <Route path='/runtime' element={withRouteFallback(RuntimePage)} />
           <Route path='/runtime/item' element={withRouteFallback(RuntimePage)} />
           <Route path='/runtime/item/:itemId/insights/:viewId' element={withRouteFallback(DomainDetailViewPage)} />

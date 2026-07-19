@@ -181,6 +181,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           >
             <span id='work-directory' aria-hidden='true' />
             <span id='permissions' aria-hidden='true' />
+            <span id='artifacts' aria-hidden='true' />
             {!workspaceReady && <span data-testid='settings-workspace-exception' aria-hidden='true' />}
             <div className='opl-settings-section__header'>
               <div>

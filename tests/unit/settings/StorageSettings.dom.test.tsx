@@ -469,6 +469,7 @@ describe('StorageSettingsContent', () => {
       expect(screen.queryByTestId('storage-research-lifecycle')).not.toBeInTheDocument();
       expect(document.getElementById('archives')).not.toBeNull();
       expect(document.getElementById('cleanup-history')).not.toBeNull();
+      expect(document.querySelectorAll('#cleanup-history')).toHaveLength(1);
       expect(bridgeMocks.getInventorySnapshot).not.toHaveBeenCalled();
       expect(bridgeMocks.inventoryUpdatedOn).not.toHaveBeenCalled();
       expect(bridgeMocks.restoreConversationProof).not.toHaveBeenCalled();

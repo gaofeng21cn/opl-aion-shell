@@ -179,6 +179,7 @@ vi.mock('react-i18next', () => ({
         'settings.webui': 'WebUI',
         'settings.searchPlaceholder': 'Search settings',
         'settings.searchEmpty': 'No matching settings',
+        'settings.searchAnchorUnavailable': 'Setting unavailable; showing page start',
         'settings.lightMode': 'Light mode',
         'settings.darkMode': 'Dark mode',
         'common.back': 'Back to chat',
@@ -364,6 +365,49 @@ describe('SettingsModal OPL App navigation', () => {
     expect(activeEntry).toHaveFocus();
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ left: 0 }));
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('keeps exactly one global Settings search when the product sider is collapsed', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/general']}>
+        <SettingsSider collapsed />
+        <SettingsPageWrapper>
+          <div>Overview content</div>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    expect(screen.getAllByTestId('settings-search-input')).toHaveLength(1);
+    expect(screen.getByTestId('settings-global-search')).toBeInTheDocument();
+  });
+
+  it('focuses the visible canonical anchor when legacy markup contains a hidden duplicate', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/access?section=model']}>
+        <SettingsPageWrapper>
+          <span id='model' aria-hidden='true' />
+          <section id='model' data-testid='visible-model-anchor'>
+            Model preference
+          </section>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('visible-model-anchor')).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+  });
+
+  it('falls back to the page start and reports an unavailable search anchor', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/general?section=missing-anchor']}>
+        <SettingsPageWrapper>
+          <div>Overview content</div>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('settings-search-anchor-fallback')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-page-focus-fallback')).toHaveFocus();
   });
 
   it('keeps retired Advanced out and places secondary About after a divider', () => {

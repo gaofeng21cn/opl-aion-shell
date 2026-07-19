@@ -597,6 +597,15 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByTestId('settings-page-resources')).toHaveClass('opl-settings-page');
     expect(view.getByTestId('settings-resources-primary')).toBeTruthy();
     expect(view.getByTestId('settings-resources-browser-access')).toBeTruthy();
+    for (const anchor of [
+      'local-browser-access',
+      'web-access',
+      'resource-readiness',
+      'action-readiness',
+      'external-resources',
+    ]) {
+      expect(document.getElementById(anchor)).not.toBeNull();
+    }
     expect(view.getByText('浏览器访问这台电脑')).toBeTruthy();
     expect(view.getByText('端口：25808')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();

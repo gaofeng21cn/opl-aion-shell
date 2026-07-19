@@ -77,6 +77,7 @@
   "assistantSectionDisabled": "Disabled",
   "searchPlaceholder": "Search settings",
   "searchEmpty": "No matching settings",
+  "searchAnchorUnavailable": "That setting could not be located. Showing the page from the beginning.",
   "searchAssistants": "Search assistants by name or description",
   "assistantNoMatch": "No assistants match the current filters.",
   "assistantCreated": "Assistant created",

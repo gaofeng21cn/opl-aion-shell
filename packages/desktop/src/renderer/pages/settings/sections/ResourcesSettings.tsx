@@ -357,8 +357,12 @@ export const ResourcesSettingsContent: React.FC = () => {
       </header>
 
       <div className='opl-settings-flat-stack' data-testid='settings-resources-primary'>
-        <section className='opl-settings-section' id='browser-access' data-testid='settings-resources-browser-access'>
-          <span id='web-remote' aria-hidden='true' />
+        <section
+          className='opl-settings-section'
+          id='local-browser-access'
+          data-testid='settings-resources-browser-access'
+        >
+          <span id='web-access' aria-hidden='true' />
           <div className='opl-settings-row items-start'>
             <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>

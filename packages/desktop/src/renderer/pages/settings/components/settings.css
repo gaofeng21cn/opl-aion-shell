@@ -62,7 +62,7 @@
 
 .settings-sider .arco-input-wrapper,
 [data-testid='settings-host'] .arco-input-wrapper,
-.settings-mobile-top-search .arco-input-wrapper {
+.settings-global-search .arco-input-wrapper {
   height: 34px;
   border-color: transparent;
   border-radius: 7px;
@@ -72,7 +72,7 @@
 
 .settings-sider .arco-input-wrapper:focus-within,
 [data-testid='settings-host'] .arco-input-wrapper:focus-within,
-.settings-mobile-top-search .arco-input-wrapper:focus-within {
+.settings-global-search .arco-input-wrapper:focus-within {
   border-color: var(--border-base);
   background: var(--bg-1);
 }
@@ -732,14 +732,32 @@
 [id^='settings-'],
 [id='status'],
 [id='attention'],
+[id='next-action'],
+[id='codex'],
+[id='gateway'],
 [id='workspace'],
 [id='shortcuts'],
 [id='model-access'],
 [id='codex-cli'],
 [id='opl-gateway'],
-[id='browser-access'],
+[id='local-browser-access'],
+[id='web-access'],
+[id='resource-readiness'],
+[id='action-readiness'],
+[id='external-resources'],
 [id='work-directory'],
 [id='permissions'],
+[id='artifacts'],
+[id='personalization'],
+[id='system-agents'],
+[id='opl-app-context'],
+[id='catalog'],
+[id='package-role'],
+[id='availability'],
+[id='source'],
+[id='home-visibility'],
+[id='opl-flow-managed'],
+[id='third-party'],
 [id='technical-paths'],
 [id='capability-directory'],
 [id='home-shortcuts'],
@@ -760,6 +778,10 @@
 [id='conversation-archives'],
 [id='runtime-cache'],
 [id='logs'],
+[id='storage-categories'],
+[id='archives'],
+[id='cleanup-preview'],
+[id='cleanup-history'],
 [id='app-behavior'],
 [id='display'],
 [id='themes'],
@@ -859,7 +881,7 @@
     white-space: normal;
   }
 
-  .settings-mobile-top-search .arco-input-wrapper {
+  .settings-global-search .arco-input-wrapper {
     height: 44px;
   }
 

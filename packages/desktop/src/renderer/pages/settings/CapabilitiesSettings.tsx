@@ -1669,10 +1669,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
         <section
           className='opl-settings-section opl-settings-surface--configuration'
-          id='availability'
+          id='catalog'
           data-testid='agent-package-catalog'
         >
           {hasCapabilityIssue && <span data-testid='settings-agents-exception' aria-hidden='true' />}
+          <span id='package-role' aria-hidden='true' />
+          <span id='availability' aria-hidden='true' />
           <span id='home-visibility' aria-hidden='true' />
           <div className='opl-settings-section__header'>
             <div>

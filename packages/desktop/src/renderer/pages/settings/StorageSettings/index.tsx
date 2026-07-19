@@ -905,7 +905,7 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      <span id='cleanup-history' aria-hidden='true' />
+      {!desktopCarrier && <span id='cleanup-history' aria-hidden='true' />}
 
       {desktopCarrier && <span data-testid='storage-research-lifecycle' aria-hidden='true' />}
       {desktopCarrier && (

@@ -669,7 +669,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         id='common-actions'
         data-testid='settings-overview-summary-grid'
       >
-        <div className='opl-settings-row' data-testid='settings-overview-card-codex'>
+        <div className='opl-settings-row' id='codex' data-testid='settings-overview-card-codex'>
           <div className='opl-settings-row__main'>
             <div className='flex min-w-0 items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
@@ -695,7 +695,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           </div>
         </div>
 
-        <div className='opl-settings-row' id='gateway-usage' data-testid='settings-overview-card-gateway'>
+        <div className='opl-settings-row' id='gateway' data-testid='settings-overview-card-gateway'>
           <div className='opl-settings-row__main'>
             <div className='flex min-w-0 items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
