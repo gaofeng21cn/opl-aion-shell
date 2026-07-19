@@ -4,6 +4,7 @@ import {
   chooseMakeUsableAction,
   findRecommendedUpdateAction,
 } from '@/renderer/pages/settings/RuntimeSettings/environmentProjection';
+import { formatStatus, isUserUsableStatus } from '@/renderer/pages/settings/sections/runtimeStateView';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 
@@ -197,6 +198,70 @@ describe('buildRuntimeEnvironmentProjection', () => {
     expect(projection.healthSummaryItems.find((item) => item.key === 'lastCheck')).toMatchObject({
       value: '2026-06-30T01:00:00Z',
     });
+  });
+
+  it('keeps deferred first-use verification neutral while preserving real package attention', () => {
+    const packageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
+    const appState = {
+      core: { codex: { status: 'ready' } },
+      provider: {
+        temporal: {
+          status: 'ready',
+          details: {
+            scheduler: { status: 'ready', ready: true },
+            worker_readiness: { service_ready: true, worker_ready: true },
+          },
+        },
+      },
+      paths: { workspace_root_path: '/Users/example/workspace' },
+      agent_packages: {
+        directory: { installed_packages: packageIds.map((package_id) => ({ package_id })) },
+        status_index: {
+          status: 'available',
+          installed_package_count: packageIds.length,
+          packages: Object.fromEntries(
+            packageIds.map((packageId) => [
+              packageId,
+              {
+                package_id: packageId,
+                operational_ready: false,
+                status: 'verification_deferred',
+                reason: 'live_verification_deferred',
+              },
+            ])
+          ),
+        },
+      },
+      runtime_source_carriers: { items: [] },
+    };
+    const buildProjection = (state: typeof appState) =>
+      buildRuntimeEnvironmentProjection({
+        appState: state,
+        managedUpdatePlane: { components: [] },
+        managedUpdateMaintenance: maintenance,
+        t,
+      });
+
+    const deferredProjection = buildProjection(appState);
+    expect(deferredProjection.packagesOperationalReady).toBe(true);
+    expect(deferredProjection.attentionCount).toBe(0);
+    expect(deferredProjection.modules).toHaveLength(7);
+    expect(deferredProjection.modules.every((module) => module.status === 'verification_deferred')).toBe(true);
+    expect(formatStatus('verification_deferred', t)).toBe('verification_deferred');
+    expect(formatStatus('internal_status_not_for_ui', t)).toBe('unknown');
+    expect(isUserUsableStatus('verification_deferred')).toBe(true);
+
+    const attentionState = structuredClone(appState);
+    attentionState.agent_packages.status_index.packages.mas = {
+      package_id: 'mas',
+      operational_ready: false,
+      status: 'attention_needed',
+      reason: 'scope_materialization_missing',
+    };
+    const attentionProjection = buildProjection(attentionState);
+    expect(attentionProjection.packagesOperationalReady).toBe(false);
+    expect(attentionProjection.attentionCount).toBe(1);
+    expect(isUserUsableStatus('attention_required')).toBe(false);
   });
 
   it('chooses safe maintenance actions without applying restart-required runtime updates', () => {

@@ -324,7 +324,9 @@ describe('Codex visual parity overlay', () => {
     expect(skills).toContain("type='secondary'");
     expect(skills).toContain("data-testid='btn-manual-import'");
     expect(skills).toContain('group-focus-within:opacity-100');
-    expect(runtime).toContain('flex min-w-0 flex-wrap items-center justify-start gap-8px sm:justify-end');
+    expect(runtime).toContain("data-testid='settings-maintenance-management-details'");
+    expect(runtime).toContain("className='opl-settings-details opl-settings-surface--diagnostic'");
+    expect(runtime).not.toContain('visible={managementVisible}');
   });
 
   it('uses the observed Codex conversation typography and unframed process rows', () => {

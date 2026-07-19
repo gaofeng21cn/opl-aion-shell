@@ -10,6 +10,33 @@ export type RuntimeModuleItem = Record<string, unknown>;
 export type RuntimeStatusTone = 'green' | 'orange';
 export type Translate = (key: string, options?: Record<string, string | number>) => string;
 
+const DISPLAYABLE_STATUS_KEYS = new Set([
+  'attention_required',
+  'blocking',
+  'compatible',
+  'current',
+  'degraded',
+  'dirty',
+  'failed',
+  'failed_with_repair',
+  'host_executor_required',
+  'installed',
+  'manual_required',
+  'missing',
+  'needs_reload',
+  'needs_restart',
+  'notInstalled',
+  'ok',
+  'pending',
+  'ready',
+  'skipped_manual_required',
+  'staged',
+  'update_available',
+  'verification_deferred',
+  'warning',
+  'worker_source_stale',
+]);
+
 const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   'med-autoscience': 'Med Auto Science',
   'med-autogrant': 'Med Auto Grant',
@@ -39,12 +66,16 @@ const DEVELOPER_MODULE_SOURCES = new Set([
 export function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
+  if (status === 'available') return 'installed';
+  if (status === 'not_installed') return 'notInstalled';
   return status;
 }
 
 export function formatStatus(status: string | undefined | null, t: Translate): string {
   const normalized = normalizeStatus(status);
-  if (!normalized) return t('settings.oplEnvironmentPage.status.unknown');
+  if (!normalized || !DISPLAYABLE_STATUS_KEYS.has(normalized)) {
+    return t('settings.oplEnvironmentPage.status.unknown');
+  }
   return t(`settings.oplEnvironmentPage.status.${normalized}`, { status: normalized });
 }
 
@@ -142,6 +173,10 @@ export function isReadyStatus(status: string): boolean {
   return status === 'ready' || status === 'compatible' || status === 'ok' || status === 'installed';
 }
 
+export function isUserUsableStatus(status: string): boolean {
+  return isReadyStatus(status) || status === 'verification_deferred';
+}
+
 export function moduleInstalled(module: RuntimeModuleItem): boolean {
   if (module.installed === false) return false;
   if (module.installed === true) return true;
@@ -152,6 +187,7 @@ export function moduleInstalled(module: RuntimeModuleItem): boolean {
     'update_available',
     'manual_required',
     'skipped_manual_required',
+    'verification_deferred',
     'compatible',
     'ok',
     'installed',

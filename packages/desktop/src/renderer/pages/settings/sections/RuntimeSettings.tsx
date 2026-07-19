@@ -17,17 +17,7 @@ import {
   Tooltip,
   Typography,
 } from '@arco-design/web-react';
-import {
-  Application,
-  Command,
-  Copy,
-  FolderSearch,
-  Puzzle,
-  Server,
-  Terminal,
-  Toolkit,
-  UpdateRotation,
-} from '@icon-park/react';
+import { Application, Command, Copy, FolderSearch, Puzzle, Server, Terminal, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -59,19 +49,15 @@ import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   formatModuleAction,
   formatStatus,
-  isReadyStatus,
   isTruthyFlag,
+  isUserUsableStatus,
   moduleDisplayLabel,
   moduleId,
-  moduleInstalled,
-  moduleManualHandlingLabel,
-  moduleNeedsManualHandling,
   modulePath,
   modulePathSource,
   moduleSource,
   moduleStatus,
   moduleVersionDetail,
-  type RuntimeModuleItem,
   type Translate,
 } from './runtimeStateView';
 import {
@@ -83,7 +69,6 @@ import {
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
 import {
   RuntimeHealthSummary,
-  RuntimeReadinessGrid,
   TemporalMaintenancePanel,
   type TemporalMaintenanceAction,
   type TemporalMaintenanceActionId,
@@ -133,6 +118,11 @@ const TEMPORAL_POSTCONDITION_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
 ]);
 
 const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
+
+function maintenanceDiagnosticsRequested(): boolean {
+  const query = window.location.hash.split('?')[1] ?? '';
+  return new URLSearchParams(query).get('section') === 'diagnostics';
+}
 
 function runSettingsControlPlaneAction(actionId: SettingsAppActionId): Promise<IOplRuntimeCommandResult> {
   return ipcBridge.oplRuntime.executeAction.invoke({
@@ -832,99 +822,6 @@ function BaseDependencyCatalog({
   );
 }
 
-function AgentModuleMaintenancePanel({
-  modules,
-  manualModuleCount,
-  maintenance,
-  maintenanceOperationBusy,
-  onCheck,
-  t,
-}: {
-  modules: RuntimeModuleItem[];
-  manualModuleCount: number;
-  maintenance: ManagedUpdateMaintenanceSnapshot;
-  maintenanceOperationBusy: boolean;
-  onCheck: () => void;
-  t: Translate;
-}) {
-  const checking = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
-  const installedModules = modules.filter(moduleInstalled).length;
-
-  return (
-    <div className='opl-settings-technical-group' data-testid='opl-module-maintenance'>
-      <div className='flex flex-col gap-14px'>
-        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-          <div className='min-w-0'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.oplEnvironmentPage.moduleMaintenance.title')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('settings.oplEnvironmentPage.moduleMaintenance.description')}
-            </Typography.Text>
-            <Space wrap size='mini' className='mt-8px'>
-              <Tag color={installedModules === modules.length ? 'gray' : 'orange'}>
-                {t('settings.oplEnvironmentPage.modulesInstalledCount', {
-                  installed: installedModules,
-                  total: modules.length,
-                })}
-              </Tag>
-              {manualModuleCount > 0 && (
-                <Tag color='orange'>
-                  {t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceCount', {
-                    count: manualModuleCount,
-                  })}
-                </Tag>
-              )}
-            </Space>
-          </div>
-          <Button
-            data-testid='opl-module-maintenance-check'
-            icon={<UpdateRotation theme='outline' />}
-            loading={checking}
-            disabled={maintenanceOperationBusy}
-            onClick={onCheck}
-          >
-            {t('settings.oplEnvironmentPage.moduleMaintenance.actions.check')}
-          </Button>
-        </div>
-
-        <div className='opl-settings-technical-subgroup'>
-          <Typography.Text className='block font-600 text-t-primary'>
-            {t('settings.oplEnvironmentPage.moduleMaintenance.modulesTitle')}
-          </Typography.Text>
-          <div className='mt-10px flex flex-col divide-y divide-border-1'>
-            {modules.map((module, index) => {
-              const id = moduleId(module) || `module-${index + 1}`;
-              const status = moduleStatus(module);
-              const needsManualHandling = moduleNeedsManualHandling(module);
-              return (
-                <div key={`module-maintenance-${id}`} className='py-10px min-w-0'>
-                  <div className='flex items-center justify-between gap-10px'>
-                    <Typography.Text className='font-600 text-t-primary break-words'>
-                      {moduleDisplayLabel(module)}
-                    </Typography.Text>
-                    <Tag color={isReadyStatus(status) && !needsManualHandling ? 'gray' : 'orange'}>
-                      {formatStatus(status, t)}
-                    </Tag>
-                  </div>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {moduleVersionDetail(module, t)}
-                  </Typography.Text>
-                  {needsManualHandling && (
-                    <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {moduleManualHandlingLabel(module, t)}
-                    </Typography.Text>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function PostUpdateNotice({
   maintenance,
   plane,
@@ -981,9 +878,9 @@ function PostUpdateNotice({
             </span>
           ) : maintenance.restartRequired ? (
             <span className='break-words'>{t('settings.oplEnvironmentPage.updates.userSummaries.needsRestart')}</span>
-          ) : (
+          ) : action.status === 'completed' ? (
             <span className='break-words'>{t('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance')}</span>
-          )}
+          ) : null}
         </div>
       }
     />
@@ -1429,8 +1326,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   );
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
-  const [managementVisible, setManagementVisible] = React.useState(false);
-  const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(maintenanceDiagnosticsRequested);
   const [updateChannelSaving, setUpdateChannelSaving] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const [busyDependencyId, setBusyDependencyId] = React.useState<string | null>(null);
@@ -1441,6 +1337,14 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [temporalServerReachable, setTemporalServerReachable] = React.useState<boolean | null>(null);
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
+
+  React.useEffect(() => {
+    const openRequestedDiagnostics = () => {
+      if (maintenanceDiagnosticsRequested()) setDiagnosticsVisible(true);
+    };
+    window.addEventListener('hashchange', openRequestedDiagnostics);
+    return () => window.removeEventListener('hashchange', openRequestedDiagnostics);
+  }, []);
   const appStateQuery = useOplAppState('fast');
   const desktopAutoUpdateState = useDesktopAutoUpdateStatus();
   const desktopAutoUpdate = useMemo(
@@ -1899,9 +1803,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       modulesSourceMode,
       modulesRoot,
       modules,
-      moduleManualMaintenanceCount,
       healthSummaryItems,
-      runtimeCards,
       oplBaseComponent,
     },
     maintenanceHubItems,
@@ -2094,6 +1996,28 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           )}
         </div>
 
+        <section
+          className='opl-settings-section opl-settings-surface--configuration'
+          data-testid='settings-maintenance-management-details'
+        >
+          <ManagedUpdatesPanel
+            plane={managedUpdatePlane}
+            maintenance={managedUpdateMaintenance}
+            maintenanceOperationBusy={maintenanceOperationBusy}
+            activeReadOperation={activeReadOperation}
+            pendingAction={pendingUpdateAction}
+            onRefresh={() => void runManagedUpdateRead('status')}
+            onCheck={() => void runManagedUpdateRead('check')}
+            onPlan={() => void runManagedUpdateRead('plan')}
+            onRequestAction={requestManagedUpdateAction}
+            onCancelAction={cancelManagedUpdateAction}
+            onConfirmAction={confirmManagedUpdateAction}
+            busyDependencyId={busyDependencyId}
+            onRequestExternalUpdate={requestExternalDependencyUpdate}
+            t={t}
+          />
+        </section>
+
         {updateChannelActionId && updateChannelOptions.length > 0 && (
           <section
             className='opl-settings-section opl-settings-surface--configuration'
@@ -2129,79 +2053,31 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </section>
         )}
 
-        <div className='flex min-w-0 flex-wrap items-center justify-start gap-8px sm:justify-end'>
-          <Button data-testid='settings-maintenance-management-action' onClick={() => setManagementVisible(true)}>
-            {t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
-          </Button>
-          <Button
+        <details className='opl-settings-details opl-settings-surface--diagnostic' open={diagnosticsVisible}>
+          <summary
             id='diagnostics'
+            aria-expanded={diagnosticsVisible}
+            aria-controls='advanced-maintenance'
             data-testid='settings-maintenance-diagnostics-action'
-            onClick={() => setDiagnosticsVisible(true)}
+            onClick={(event) => {
+              event.preventDefault();
+              setDiagnosticsVisible((visible) => !visible);
+            }}
           >
-            {t('settings.oplEnvironmentPage.advancedDetails.title')}
-          </Button>
-          <Modal
-            visible={managementVisible}
-            title={t('settings.oplEnvironmentPage.management.title', { defaultValue: 'Manage maintenance' })}
-            footer={null}
-            onCancel={() => setManagementVisible(false)}
-            unmountOnExit
-            style={{ width: 'min(900px, calc(100vw - 48px))' }}
-          >
+            <span className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.advancedDetails.title')}
+            </span>
+            <span className='mt-2px block text-12px font-400 text-t-secondary'>
+              {t('settings.oplEnvironmentPage.advancedDetails.description')}
+            </span>
+          </summary>
+          {diagnosticsVisible && (
             <div
-              className='opl-settings-surface--configuration max-h-[70vh] overflow-auto'
-              data-testid='settings-maintenance-management-details'
-            >
-              <Typography.Text className='block text-12px text-t-secondary mt-6px'>
-                {t('settings.oplEnvironmentPage.management.description', {
-                  defaultValue: 'Check, apply, repair, or roll back OPL packages and managed updates.',
-                })}
-              </Typography.Text>
-              <div className='mt-14px flex flex-col gap-16px'>
-                <AgentModuleMaintenancePanel
-                  modules={modules}
-                  manualModuleCount={moduleManualMaintenanceCount}
-                  maintenance={managedUpdateMaintenance}
-                  maintenanceOperationBusy={maintenanceOperationBusy}
-                  onCheck={() => void runManagedUpdateRead('check')}
-                  t={t}
-                />
-                <ManagedUpdatesPanel
-                  plane={managedUpdatePlane}
-                  maintenance={managedUpdateMaintenance}
-                  maintenanceOperationBusy={maintenanceOperationBusy}
-                  activeReadOperation={activeReadOperation}
-                  pendingAction={pendingUpdateAction}
-                  onRefresh={() => void runManagedUpdateRead('status')}
-                  onCheck={() => void runManagedUpdateRead('check')}
-                  onPlan={() => void runManagedUpdateRead('plan')}
-                  onRequestAction={requestManagedUpdateAction}
-                  onCancelAction={cancelManagedUpdateAction}
-                  onConfirmAction={confirmManagedUpdateAction}
-                  busyDependencyId={busyDependencyId}
-                  onRequestExternalUpdate={requestExternalDependencyUpdate}
-                  t={t}
-                />
-              </div>
-            </div>
-          </Modal>
-          <Modal
-            visible={diagnosticsVisible}
-            title={t('settings.oplEnvironmentPage.advancedDetails.title')}
-            footer={null}
-            onCancel={() => setDiagnosticsVisible(false)}
-            unmountOnExit
-            style={{ width: 'min(900px, calc(100vw - 48px))' }}
-          >
-            <div
-              className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
+              className='mt-14px min-w-0'
               id='advanced-maintenance'
               data-testid='settings-maintenance-technical-details'
             >
-              <Typography.Text className='block text-12px text-t-secondary mt-6px'>
-                {t('settings.oplEnvironmentPage.advancedDetails.description')}
-              </Typography.Text>
-              <div className='mt-14px flex flex-col gap-16px'>
+              <div className='flex flex-col gap-16px'>
                 {(developerSourceActive || dirtyCheckoutActive) && (
                   <Alert
                     type='info'
@@ -2216,11 +2092,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                     }
                   />
                 )}
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.sections.required')}
-                </Typography.Text>
-                <RuntimeReadinessGrid cards={runtimeCards} t={t} />
-
                 <Collapse bordered={false}>
                   <Collapse.Item
                     header={t('settings.oplEnvironmentPage.diagnostics.title')}
@@ -2312,7 +2183,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                                       {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
                                     </Tag>
                                   )}
-                                  <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'gray' : 'orange'}>
+                                  <Tag key={`${id}-status`} color={isUserUsableStatus(status) ? 'gray' : 'orange'}>
                                     {formatStatus(status, t)}
                                   </Tag>
                                 </Space>
@@ -2326,8 +2197,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 </Collapse>
               </div>
             </div>
-          </Modal>
-        </div>
+          )}
+        </details>
       </div>
     </>
   );

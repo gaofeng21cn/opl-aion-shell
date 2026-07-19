@@ -1427,7 +1427,7 @@ describe('RuntimeSettings maintenance structure', () => {
     }
   });
 
-  it('renders quiet status rows and explicit action surfaces while gating diagnostics in a modal', () => {
+  it('keeps daily maintenance actions inline and gates one read-only diagnostics disclosure', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('opl-settings-list');
@@ -1457,15 +1457,19 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+    const diagnosticsAction = screen.getByTestId('settings-maintenance-diagnostics-action');
+    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(diagnosticsAction);
+    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'true');
     const diagnostics = screen.getByTestId('settings-maintenance-technical-details');
-    expect(diagnostics).toHaveClass('opl-settings-surface--diagnostic');
+    expect(diagnostics.closest('details')).toHaveClass('opl-settings-details', 'opl-settings-surface--diagnostic');
     expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
     expect(screen.getByTestId('settings-maintenance-management-details')).toHaveClass(
       'opl-settings-surface--configuration'
     );
+    expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-update-opl_base')).toBeVisible();
     expect(screen.getByTestId('opl-managed-update-opl_app')).toBeVisible();
     expect(screen.getByTestId('opl-managed-update-opl_packages')).toBeVisible();
@@ -1477,6 +1481,19 @@ describe('RuntimeSettings maintenance structure', () => {
     fireEvent.click(packageDiagnostics);
     expect(screen.getByTestId('opl-managed-update-substatus-projection_status')).toBeVisible();
     expect(screen.getByTestId('opl-managed-update-substatus-profile_migration_status')).toBeVisible();
+
+    fireEvent.click(diagnosticsAction);
+    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
+  });
+
+  it('opens the diagnostics disclosure when Settings links directly to it', () => {
+    window.location.hash = '#/settings/environment?section=diagnostics';
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getByTestId('settings-maintenance-diagnostics-action')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('settings-maintenance-technical-details')).toBeInTheDocument();
   });
 
   it('keeps one direct action on every maintenance object when attention is present', () => {
@@ -1504,11 +1521,25 @@ describe('RuntimeSettings maintenance structure', () => {
     maintenanceSnapshot.restartRequired = true;
 
     render(<RuntimeSettings />);
-    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
 
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );
+  });
+
+  it('does not append a reassuring no-reload message after a failed maintenance action', () => {
+    maintenanceSnapshot.lastAction = {
+      kind: 'repair',
+      componentId: 'opl_base',
+      status: 'failed',
+      at: '2026-07-13T00:00:00Z',
+    };
+
+    render(<RuntimeSettings />);
+
+    const notice = screen.getByTestId('opl-managed-update-post-action-notice');
+    expect(notice).toHaveTextContent('settings.oplEnvironmentPage.updates.postAction.failed');
+    expect(notice).not.toHaveTextContent('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance');
   });
 
   it('routes capability sync through the canonical App action instead of update check', async () => {
@@ -1599,7 +1630,6 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-opl_base'));
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')

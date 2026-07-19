@@ -12,6 +12,7 @@ import type { ManagedUpdateComponent, ManagedUpdatePlane } from '@/renderer/serv
 import {
   formatStatus,
   isReadyStatus,
+  isUserUsableStatus,
   moduleHasLocalChanges,
   moduleId,
   moduleInstalled,
@@ -148,7 +149,7 @@ export function updateComponentUserAction(component: ManagedUpdateComponent, t: 
     return t('settings.oplEnvironmentPage.updates.nextActions.hostRoute');
   }
   if (component.manualRequired || component.developerCheckout || component.dirtyCheckout) {
-    return componentUserSummary(component, t);
+    return t('settings.oplEnvironmentPage.updates.nextActions.review');
   }
   if (component.repairAllowed) return t('settings.oplEnvironmentPage.updates.nextActions.repair');
   if (component.safeToApply) return t('settings.oplEnvironmentPage.updates.nextActions.apply');
@@ -324,7 +325,7 @@ export function buildRuntimeEnvironmentProjection({
   const moduleManualMaintenanceCount =
     managedUpdatePlane.packageManualRequiredTargetCount ?? modules.filter(moduleHasLocalChanges).length;
   const packagesOperationalReady =
-    modules.every((module) => isReadyStatus(moduleStatus(module))) && moduleManualMaintenanceCount === 0;
+    modules.every((module) => isUserUsableStatus(moduleStatus(module))) && moduleManualMaintenanceCount === 0;
   const moduleValue =
     modules.length === 0
       ? t('settings.oplEnvironmentPage.noInstalledPackages')

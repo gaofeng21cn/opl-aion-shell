@@ -391,6 +391,7 @@ const managedUpdateStatusResult = {
 
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
+    window.location.hash = '';
     resetOplAppStateLoadsForTest();
     resetManagedUpdateMaintenanceForTest();
     vi.clearAllMocks();
@@ -533,7 +534,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
   });
 
-  it('renders the maintenance health summary and action domains without technical details', async () => {
+  it('renders maintenance health and daily actions without exposing technical details', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(screen.getByTestId('opl-runtime-health-summary')).toBeInTheDocument());
@@ -548,25 +549,21 @@ describe('RuntimeSettings app state bridge usage', () => {
       expect(screen.getByTestId(`opl-maintenance-action-${key}`)).toBeInTheDocument();
     });
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-managed-updates')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-base-dependency-catalog')).not.toBeInTheDocument();
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-maintenance-update-channel')).toBeInTheDocument();
   });
 
-  it('keeps maintenance mutations in management and diagnostics read-only', async () => {
+  it('keeps maintenance mutations inline and the diagnostics disclosure read-only', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('settings-maintenance-management-details')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('settings-maintenance-management-action'));
-
-    expect(await screen.findByTestId('settings-maintenance-management-details')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('Med Auto Science');
-    expect(screen.getByTestId('opl-module-maintenance')).toHaveTextContent('OPL Book Forge');
+    expect(screen.getByTestId('settings-maintenance-management-details')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
     expect(screen.getByTestId('opl-managed-update-refresh')).toHaveAccessibleName(
       'settings.oplEnvironmentPage.updates.actions.refreshStatus'
