@@ -51,7 +51,7 @@ class GatewayAccountFlowError extends Error {
 const POST_INSTALL_SELF_CHECK_STATE = { postInstallSelfCheck: true };
 const PRODUCT_DISPLAY_NAME = getOplProductDisplayName();
 const PRIMARY_FIRST_RUN_ITEM_IDS: FirstRunItemId[] = ['workspace_root', 'codex', 'codex_config'];
-const STATUS_READY = new Set(['ready', 'installed', 'detected', 'configured', 'disabled']);
+const STATUS_READY = new Set(['ready', 'installed', 'detected', 'configured']);
 const STATUS_NEEDS_ACTION = new Set(['missing', 'blocking', 'failed']);
 const STATUS_LABEL_KEYS: Record<string, string> = {
   ready: 'settings.firstRun.status.ready',

@@ -139,6 +139,7 @@ describe('Core launch prerequisite projection', () => {
       workspace_root: {
         selected_path: '/Users/example/OPL Workspace',
         exists: true,
+        writable: true,
         health_status: 'ready',
       },
     },
@@ -165,5 +166,21 @@ describe('Core launch prerequisite projection', () => {
       modelAccessReady: false,
       readyToLaunch: false,
     });
+  });
+
+  it('requires an explicitly writable workspace root', () => {
+    const nonWritable = structuredClone(appState);
+    nonWritable.paths.workspace_root.writable = false;
+
+    expect(readCoreLaunchPrerequisiteState(nonWritable).workspaceRootReady).toBe(false);
+    expect(readCoreLaunchPrerequisiteState(nonWritable).readyToLaunch).toBe(false);
+  });
+
+  it('does not treat a disabled required Codex Core item as ready', () => {
+    const disabledCodex = structuredClone(appState);
+    Object.assign(disabledCodex.core.codex, { status: 'disabled' });
+
+    expect(readCoreLaunchPrerequisiteState(disabledCodex).codexCliReady).toBe(false);
+    expect(readCoreLaunchPrerequisiteState(disabledCodex).readyToLaunch).toBe(false);
   });
 });

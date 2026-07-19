@@ -6,6 +6,7 @@ import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppS
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
+  getInitializeInvoke: vi.fn(),
   navigate: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
+      getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
     },
   },
 }));
@@ -47,6 +49,7 @@ const readyAppStateResult = {
         workspace_root: {
           selected_path: '/Users/example/workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
@@ -71,6 +74,7 @@ const blockedAppStateResult = {
         workspace_root: {
           selected_path: '/Users/example/workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
@@ -98,9 +102,45 @@ const existingCodexAccessResult = {
         workspace_root: {
           selected_path: '/Users/example/workspace',
           exists: true,
+          writable: true,
           health_status: 'ready',
         },
       },
+    },
+  },
+};
+
+const readyInitializeResult = {
+  surface: 'system_initialize',
+  command: 'opl system initialize --json',
+  stdout: '{}',
+  parsed: {
+    system_initialize: {
+      setup_flow: {
+        phase: 'ready_to_finalize',
+        ready_to_launch: true,
+        progress: {
+          ready_required_count: 3,
+          total_required_count: 3,
+          ready_full_readiness_count: 0,
+          total_full_readiness_count: 0,
+          ready_optional_count: 0,
+          total_optional_count: 0,
+        },
+        blocking_items: [],
+        maintenance_items: [],
+      },
+      checklist: ['workspace_root', 'codex', 'codex_config'].map((itemId) => ({
+        item_id: itemId,
+        label: itemId,
+        status: 'ready',
+        required: true,
+        blocking: false,
+        readiness_layer: 'core_launch',
+        severity: 'info',
+        next_visible_step: 'Continue.',
+        detail_summary: 'Ready.',
+      })),
     },
   },
 };
@@ -110,6 +150,7 @@ describe('StartupGate', () => {
     vi.clearAllMocks();
     resetOplAppStateLoadsForTest();
     localStorage.clear();
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(readyInitializeResult);
   });
 
   afterEach(() => {
@@ -127,18 +168,20 @@ describe('StartupGate', () => {
     expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' });
   });
 
-  it('continues to Home when the startup state read exceeds the soft deadline', async () => {
+  it('uses authoritative initialize readiness when the fast startup read exceeds the soft deadline', async () => {
     vi.useFakeTimers();
     bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
 
     render(<StartupGate />);
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
-    await act(async () => Promise.resolve());
     expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid');
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledOnce();
   });
 
   it('lets users skip the fast startup read and enter OPL without changing readiness', () => {
@@ -175,7 +218,7 @@ describe('StartupGate', () => {
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
   });
 
-  it('continues to Home when app state recovery is still unavailable', async () => {
+  it('uses authoritative initialize readiness when fast app state is unavailable', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       ...readyAppStateResult,
       ok: false,
@@ -185,9 +228,10 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledOnce();
   });
 
-  it('does not run deep initialize when fast app state exceeds the output limit', async () => {
+  it('uses authoritative initialize when fast app state exceeds the output limit', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       ...readyAppStateResult,
       ok: false,
@@ -196,5 +240,23 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledOnce();
+  });
+
+  it('routes to first-run when neither fast state nor authoritative initialize can confirm readiness', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      ...readyAppStateResult,
+      ok: false,
+      error: { message: 'app state failed' },
+    });
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
+      ...readyInitializeResult,
+      ok: false,
+      error: { message: 'initialize failed' },
+    });
+
+    render(<StartupGate />);
+
+    await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
   });
 });

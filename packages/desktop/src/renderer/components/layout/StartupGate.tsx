@@ -15,12 +15,16 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
 import type { OplAppStatePayload } from '@/common/types/opl/appState';
-import { isCoreLaunchReadyFromAppState } from '@/renderer/pages/FirstRun/initializeModel';
+import {
+  isCoreLaunchReadyFromAppState,
+  readInitializePayload,
+} from '@/renderer/pages/FirstRun/initializeModel';
 import { cacheFastOplAppState, loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 
-type StartupCheckPhase = 'startupState' | 'routeDecision';
+type StartupCheckPhase = 'startupState' | 'initializeFallback' | 'routeDecision';
 
 export const STARTUP_STATE_SOFT_TIMEOUT_MS = 1500;
 
@@ -54,6 +58,18 @@ function readStartupStateWithSoftTimeout(): Promise<StartupStateRead> {
   });
 }
 
+async function readAuthoritativeInitializeReadiness(): Promise<boolean | null> {
+  try {
+    const result = await ipcBridge.oplRuntime.getInitialize.invoke();
+    if (result.ok === false) return null;
+    const initialize = readInitializePayload(result.parsed);
+    return initialize ? initialize.setup_flow?.ready_to_launch === true : null;
+  } catch (error) {
+    console.error('[StartupGate] Authoritative initialize check threw:', error);
+    return null;
+  }
+}
+
 const StartupGate: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,29 +96,22 @@ const StartupGate: React.FC = () => {
         const startupRead = await readStartupStateWithSoftTimeout();
         if (cancelled) return;
 
-        if (startupRead.kind === 'timeout') {
+        if (startupRead.kind === 'result' && startupRead.value) {
           setPhase('routeDecision');
-          setNeedsFirstRun(false);
+          setNeedsFirstRun(!isCoreLaunchReadyFromAppState(startupRead.value));
           return;
         }
 
-        const appStatePayload = startupRead.value;
-        if (!appStatePayload) {
-          console.error('[StartupGate] App state check failed; continuing while background recovery runs.');
-          setPhase('routeDecision');
-          setNeedsFirstRun(false);
-          return;
-        }
-
+        setPhase('initializeFallback');
+        const initializeReady = await readAuthoritativeInitializeReadiness();
+        if (cancelled) return;
         setPhase('routeDecision');
-        const launchReady = isCoreLaunchReadyFromAppState(appStatePayload);
-
-        setNeedsFirstRun(!launchReady);
+        setNeedsFirstRun(initializeReady !== true);
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
         console.error('[StartupGate] Check error:', message);
-        setNeedsFirstRun(false);
+        setNeedsFirstRun(true);
       } finally {
         window.clearInterval(elapsedTimer);
         if (!cancelled) {
@@ -135,6 +144,15 @@ const StartupGate: React.FC = () => {
         state: phase === 'startupState' ? 'active' : 'complete',
         message: phase === 'startupState' ? startupStateMessage : undefined,
       },
+      ...(phase === 'initializeFallback'
+        ? [
+            {
+              label: t('common.startupPreflight.steps.initializeFallback'),
+              state: 'active' as const,
+              message: t('common.startupPreflight.messages.checkingAuthoritativeReadiness'),
+            },
+          ]
+        : []),
       {
         label: t('common.startupPreflight.steps.routeDecision'),
         state: phase === 'routeDecision' ? 'active' : 'pending',

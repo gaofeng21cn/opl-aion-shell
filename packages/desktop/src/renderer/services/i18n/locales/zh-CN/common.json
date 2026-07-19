@@ -101,6 +101,7 @@
       "firstRunStatus": "检查首次运行状态",
       "systemReady": "检查系统状态",
       "startupState": "读取启动状态",
+      "initializeFallback": "读取权威就绪状态",
       "routeDecision": "决定进入首页还是配置"
     },
     "messages": {
@@ -108,6 +109,7 @@
       "loadingConfig": "正在加载您的设置...",
       "checkingSystemReady": "正在检查系统就绪状态...",
       "checkingStartupState": "正在读取 One Person Lab 的启动状态...",
+      "checkingAuthoritativeReadiness": "快速状态暂不可用，正在读取权威首次设置状态...",
       "stillReadingStartupState": "仍在读取本机状态，已等待 {{seconds}} 秒...",
       "decidingNextScreen": "正在判断是否需要进入配置页..."
     },

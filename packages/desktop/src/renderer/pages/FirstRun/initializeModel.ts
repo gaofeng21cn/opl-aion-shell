@@ -159,20 +159,31 @@ export function readCoreLaunchPrerequisiteState(parsed: unknown): CoreLaunchPrer
   const workspaceRoot = readRecord(paths, 'workspace_root');
   const selectedWorkspace = readString(workspaceRoot, 'selected_path') ?? readString(paths, 'workspace_root_path');
   const workspaceExists = readBoolean(workspaceRoot, 'exists');
+  const workspaceWritable = readBoolean(workspaceRoot, 'writable');
   const workspaceHealth = readString(workspaceRoot, 'health_status');
   const codexInstalled = readBoolean(codex, 'installed');
+  const codexEnabled = readBoolean(codex, 'enabled');
+  const codexStatus = readString(codex, 'status');
   const codexConfigured = readBoolean(codex, 'model_access_ready') ?? readBoolean(codex, 'api_key_present');
   const codexVersionStatus = readString(codex, 'version_status');
   const codexHealth = readString(codex, 'health_status');
 
   const workspaceRootReady = Boolean(
-    selectedWorkspace && workspaceExists !== false && workspaceHealth !== 'missing' && workspaceHealth !== 'blocking'
+    selectedWorkspace &&
+    workspaceExists === true &&
+    workspaceWritable === true &&
+    workspaceHealth !== 'missing' &&
+    workspaceHealth !== 'blocking' &&
+    workspaceHealth !== 'disabled'
   );
   const codexCliReady = Boolean(
     codexInstalled === true &&
+    codexEnabled !== false &&
+    codexStatus !== 'disabled' &&
     codexVersionStatus !== 'incompatible' &&
     codexHealth !== 'missing' &&
-    codexHealth !== 'blocking'
+    codexHealth !== 'blocking' &&
+    codexHealth !== 'disabled'
   );
   const modelAccessReady = codexConfigured === true;
 

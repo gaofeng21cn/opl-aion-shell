@@ -101,6 +101,7 @@
       "firstRunStatus": "Check first-run status",
       "systemReady": "Check system status",
       "startupState": "Read startup state",
+      "initializeFallback": "Read authoritative readiness",
       "routeDecision": "Decide Home or setup"
     },
     "messages": {
@@ -108,6 +109,7 @@
       "loadingConfig": "Loading your settings...",
       "checkingSystemReady": "Checking system readiness...",
       "checkingStartupState": "Reading One Person Lab startup state...",
+      "checkingAuthoritativeReadiness": "The fast state was unavailable. Reading the authoritative setup state...",
       "stillReadingStartupState": "Still reading local state, waited {{seconds}} seconds...",
       "decidingNextScreen": "Deciding whether setup is needed..."
     },
