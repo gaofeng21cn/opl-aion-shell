@@ -117,9 +117,10 @@
         "first_screen_policy": "chat_first_single_reading_lane_no_dashboard_landing_or_agent_portal",
         "composer_position": "floating_bottom_with_safe_inset",
         "composer_primary": true,
-        "workspace_selector_visible": false,
-        "workspace_selector_entry": "ordinary_conversation.unified_context_menu",
-        "projectless_context_placeholder_visible": false,
+        "workspace_selector_visible": true,
+        "workspace_selector_entry": "home.new_session_context_bar",
+        "unselected_workspace_control_visible": true,
+        "unselected_workspace_control_policy": "localized_choose_project_directory_action_not_projectless_status_placeholder",
         "purpose_entries_visible": ["research", "grant", "ppt", "book"],
         "purpose_entry_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
@@ -132,12 +133,12 @@
         "desktop_composer_max_width_px": 736,
         "desktop_composer_min_height_px": 98,
         "desktop_composer_corner_radius_px": 22,
-        "desktop_context_bar_height_px": 0,
-        "desktop_context_bar_overlap_px": 0,
-        "desktop_context_bar_horizontal_inset_px": 0,
+        "desktop_context_bar_height_px": 52,
+        "desktop_context_bar_overlap_px": 13,
+        "desktop_context_bar_horizontal_inset_px": 12,
         "starter_truncation_allowed": false,
         "selected_starter_visual_policy": "quiet_fill_and_check_indicator_not_color_alone",
-        "selected_working_directory_visual_policy": "compact_removable_chip_only_when_selected_for_a_new_session",
+        "selected_working_directory_visual_policy": "independent_new_session_context_bar_control_with_selected_directory_and_clear_action",
         "workspace_selector_policy": {
           "primary_scope": "active_workspace_only",
           "inactive_recent_directories_visible": false,
@@ -165,7 +166,7 @@
           "explanatory landing page",
           "backend settings panel in composer",
           "full-width agent category navigation or chevron trail",
-          "separate framed context cap above the composer",
+          "working directory selector inside the composer capability palette",
           "launch-blocked professional-agent shortcut disabled before selection",
           "Sites entry without an OPL product capability",
           "Chat entry without an OPL product capability",
@@ -461,6 +462,7 @@
       "provider_selector_visible": false,
       "model_status_surface": "executor_policy.default_model_display_value",
       "technical_details_policy": "single_compact_model_reasoning_menu_without_backend_or_provider",
+      "composer_placeholder_policy": "opl_owned_localized_task_prompt_without_backend_name_interpolation",
       "composer_context_strip": ["active_capability"],
       "composer_send_scoped_inputs": ["attachments"],
       "composer_send_scoped_consumption_policy": "consumed_by_current_send_not_persisted_in_context_strip",
@@ -492,46 +494,96 @@
       "unified_context_menu": {
         "trigger": "+",
         "placement": "composer_leading_action",
+        "trigger_dispatch_policy": "always_open_palette_never_directly_invoke_file_picker",
+        "direct_file_picker_fallback_allowed": false,
         "shared_desktop_mobile_content": true,
+        "presentation": "searchable_grouped_scrollable_capability_palette",
+        "searchable": true,
+        "search_field_policy": "visible_top_field_filters_name_description_and_aliases",
+        "keyboard_navigation": true,
+        "keyboard_commands": ["ArrowDown", "ArrowUp", "Home", "End", "Enter", "Escape"],
+        "escape_focus_return": "plus_trigger",
+        "query_fields": ["localized_name", "localized_description", "aliases"],
+        "desktop_panel_width_policy": "match_composer_outer_width",
+        "desktop_panel_max_width_px": 736,
+        "desktop_panel_alignment": "above_composer_with_outer_edges_aligned",
+        "mobile_panel_policy": "viewport_bounded_sheet_with_safe_area",
+        "item_content_policy": "stable_icon_slot_localized_name_and_optional_localized_description",
+        "group_heading_policy": "localized_heading_for_each_rendered_group",
+        "viewport_policy": "bounded_height_with_internal_scroll_and_no_composer_overlap",
+        "scroll_region_policy": "single_internal_vertical_scroll_region_with_stable_scrollbar_gutter",
+        "empty_state_policy": "keep_real_local_input_actions_visible_and_never_fabricate_capabilities",
+        "capability_catalog_empty_policy": "open_palette_with_local_inputs_and_truthful_management_fallbacks",
         "groups": [
           {
             "id": "local_inputs",
-            "actions": ["attach_file", "attach_folder"],
             "scope": "current_send_only",
-            "source": "user_selected_local_paths"
+            "source": "user_selected_local_paths",
+            "surface_actions": {
+              "home_new_session": ["attach_file", "attach_folder"],
+              "existing_conversation": ["attach_file", "attach_folder"]
+            }
           },
           {
-            "id": "working_directory",
-            "actions": ["select_initial_working_directory", "clear_initial_working_directory"],
-            "scope": "new_session_initial_cwd_only",
-            "source": "registered_directories_and_system_directory_picker",
-            "existing_session_rebinding_allowed": false
+            "id": "agent_packages",
+            "scope": "new_session_configuration_only",
+            "source_ref": "professional_agent_packages + ordinary_capability_selector_policy",
+            "availability_policy": "show_only_real_app_allowlisted_packages_supported_by_the_active_adapter",
+            "existing_session_rebinding_allowed": false,
+            "surface_actions": {
+              "home_new_session": ["select_new_session_agent_package"],
+              "existing_conversation": []
+            }
           },
           {
             "id": "skills",
-            "actions": ["select_session_skill"],
-            "scope": "current_session_configuration",
+            "scope": "surface_specific_configuration_or_invocation",
             "source_ref": "ordinary_capability_selector_policy",
-            "availability_policy": "show_only_app_allowlisted_skills_for_the_selected_professional_agent"
+            "availability_policy": "show_global_app_allowlisted_skills_without_an_agent_then_scope_to_the_selected_professional_agent_profile",
+            "existing_session_rebinding_allowed": false,
+            "surface_actions": {
+              "home_new_session": ["configure_new_session_scoped_skill"],
+              "existing_conversation": ["invoke_loaded_allowlisted_skill"]
+            }
+          },
+          {
+            "id": "session_modes",
+            "scope": "active_session_mode_only",
+            "source_ref": "active_adapter.session_modes",
+            "availability_policy": "hide_group_when_no_adapter_reported_nonduplicate_mode_is_available",
+            "mode_deduplication_policy": "exclude_permission_access_equivalent_modes",
+            "surface_actions": {
+              "home_new_session": ["select_active_adapter_reported_mode"],
+              "existing_conversation": ["select_active_adapter_reported_mode"]
+            }
           },
           {
             "id": "apps_and_connections",
-            "actions": ["select_session_app_or_connection"],
-            "scope": "current_session_configuration",
+            "scope": "surface_specific_selection_or_status",
             "source_ref": "ordinary_capability_selector_policy.visible_mcp_server_ids",
             "availability_policy": "hide_group_when_no_app_allowlisted_session_connection_is_available",
-            "label_policy": "localized_product_name_never_raw_mcp_or_provider_id"
+            "label_policy": "localized_product_name_never_raw_mcp_or_provider_id",
+            "existing_session_rebinding_allowed": false,
+            "surface_actions": {
+              "home_new_session": ["select_new_session_app_or_connection"],
+              "existing_conversation": ["show_loaded_allowlisted_connection_status"]
+            }
           }
         ],
         "selected_context_presentation": {
-          "projectless_placeholder": "hidden",
-          "working_directory": "compact_removable_chip_only_when_selected_before_thread_start",
+          "workspace_or_initial_cwd": "not_rendered_palette_context_bar_owned",
           "attachments": "existing_send_scoped_attachment_chips",
-          "skills_and_connections": "compact_session_context_chips_only_when_selected"
+          "agent_packages_skills_modes_and_connections": "compact_session_context_chips_only_when_selected"
+        },
+        "surface_behavior": {
+          "home_new_session": "configure_only_real_new_session_capabilities_supported_by_the_active_adapter",
+          "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_and_change_only_adapter_reported_nonduplicate_modes_without_rebinding",
+          "settings_route_policy": "management_entries_are_explicit_fallbacks_not_fake_session_selection"
         },
         "authority_policy": "render_only_real_picker_actions_and_App_allowlisted_session_capabilities_supported_by_the_active_adapter",
         "forbidden_entries": [
           "project_object",
+          "workspace_or_initial_cwd",
           "backend",
           "provider",
           "team",
@@ -3114,6 +3166,8 @@
               "webui_data_volume": {
                 "data_volume_mapping": "OnePersonLab/data -> /data",
                 "action_policy": "owner_projected_dry_run_then_exact_confirmation_then_fresh_terminal_readback",
+                "host_action_capability_id": "carrier_host.storage.webui_data_volume.lifecycle",
+                "host_action_abi_ref": "contracts/app-release-channel.json#local_data_lifecycle.owner_storage_projections.webui_data_volume.host_action_abi",
                 "generic_docker_prune_allowed": false,
                 "shell_direct_path_delete_allowed": false
               }
@@ -3127,13 +3181,14 @@
               },
               "webui": {
                 "core_route": "/settings/storage",
-                "local_lifecycle_transport": "not_available_and_must_not_be_invoked",
+                "local_lifecycle_transport": "owner_projected_host_action_only_no_electron_ipc",
                 "local_sections": [],
                 "visible_section_source": "valid_owner_projections_only",
                 "missing_projection_policy": "fail_open_keep_route_available_and_omit_missing_sections",
                 "manual_refresh": "owner_inventory_actions_all_settled_then_force_fresh_fast_app_state",
                 "unknown_bytes_policy": "unavailable_never_zero",
-                "host_action_required_policy": "status_only_without_destructive_cta",
+                "host_action_abi_ref": "contracts/app-release-channel.json#local_data_lifecycle.owner_storage_projections.webui_data_volume.host_action_abi",
+                "host_action_policy": "complete_carrier_host_abi_enables_plan_execute_restore_else_status_only_fail_open",
                 "shell_or_docker_action_inference_allowed": false,
                 "raw_host_paths_visible": false
               }
@@ -3735,7 +3790,7 @@
             "evidence_required": [
               "common fields cover status/freshness/bytes/reclaimable bytes/owner route/projected action",
               "Agent Package cleanup navigates to Agents and reuses owner uninstall",
-              "WebUI cleanup submits only the owner-projected dry-run plan and exact confirmation payload",
+              "WebUI cleanup CTA appears only for a complete carrier-host ABI, submits only plan/hash/confirmation or receipt refs, and performs fresh terminal readback",
               "missing projections keep existing Storage categories usable",
               "generic prune and Shell-direct path deletion are forbidden"
             ]
@@ -5264,6 +5319,7 @@
               "agent_package_storage_action_policy": "navigate_to_agents_reuse_owner_uninstall_no_duplicate_storage_lifecycle",
               "webui_data_volume_mapping": "OnePersonLab/data -> /data",
               "webui_cleanup_policy": "owner_projected_dry_run_exact_confirmation_fresh_terminal_readback_and_recovery",
+              "webui_host_action_abi_ref": "contracts/app-release-channel.json#local_data_lifecycle.owner_storage_projections.webui_data_volume.host_action_abi",
               "generic_docker_prune_allowed": false,
               "storage_carrier_behavior": {
                 "desktop": {
@@ -5274,13 +5330,14 @@
                 },
                 "webui": {
                   "core_route": "/settings/storage",
-                  "local_lifecycle_transport": "not_available_and_must_not_be_invoked",
+                  "local_lifecycle_transport": "owner_projected_host_action_only_no_electron_ipc",
                   "local_sections": [],
                   "visible_section_source": "valid_owner_projections_only",
                   "missing_projection_policy": "fail_open_keep_route_available_and_omit_missing_sections",
                   "manual_refresh": "owner_inventory_actions_all_settled_then_force_fresh_fast_app_state",
                   "unknown_bytes_policy": "unavailable_never_zero",
-                  "host_action_required_policy": "status_only_without_destructive_cta",
+                  "host_action_abi_ref": "contracts/app-release-channel.json#local_data_lifecycle.owner_storage_projections.webui_data_volume.host_action_abi",
+                  "host_action_policy": "complete_carrier_host_abi_enables_plan_execute_restore_else_status_only_fail_open",
                   "shell_or_docker_action_inference_allowed": false,
                   "raw_host_paths_visible": false
                 }
