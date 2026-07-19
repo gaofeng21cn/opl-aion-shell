@@ -104,6 +104,7 @@ ENV AIONUI_DATA_DIR=/data
 ENV OPL_DATA_DIR=/data
 ENV OPL_PROJECTS_DIR=/projects
 ENV OPL_WORKSPACE_ROOT=/projects
+ENV OPL_WEBUI_RECOVERY_DIR=/recovery
 ENV OPL_WEBUI_IMAGE_PROFILE=${OPL_WEBUI_IMAGE_PROFILE}
 ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
 ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
@@ -111,7 +112,7 @@ ENV OPL_FLOW_REPO_ROOT=/opt/opl-flow
 ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli/bin:${PATH}
 
 RUN set -eu; \
-  mkdir -p /data /projects; \
+  mkdir -p /data /projects /recovery; \
   chmod 755 /opt/opl/entrypoint.sh; \
   broken_links="$(find /opt/opl/seed/payload -xtype l -print)"; \
   if [ -n "${broken_links}" ]; then \
@@ -165,7 +166,7 @@ RUN set -eu; \
     exit 1; \
   fi
 
-VOLUME ["/data", "/projects"]
+VOLUME ["/data", "/projects", "/recovery"]
 EXPOSE 3000
 
 ENTRYPOINT ["tini", "--", "/opt/opl/entrypoint.sh"]

@@ -22,4 +22,14 @@ describe('Docker WebUI image profile contract', () => {
     expect(dockerfile).toContain('python3 tini');
     expect(dockerfile).toContain('/opt/opl-flow/scripts/install_local_plugin.py');
   });
+
+  it('keeps lifecycle recovery on a volume separate from App data and projects', () => {
+    expect(dockerfile).toContain('ENV AIONUI_DATA_DIR=/data');
+    expect(dockerfile).toContain('ENV OPL_PROJECTS_DIR=/projects');
+    expect(dockerfile).toContain('ENV OPL_WEBUI_RECOVERY_DIR=/recovery');
+    expect(dockerfile).toContain('mkdir -p /data /projects /recovery');
+    expect(dockerfile).toContain('VOLUME ["/data", "/projects", "/recovery"]');
+    expect(dockerfile).not.toContain('/var/run/docker.sock');
+    expect(dockerfile).not.toContain('docker system prune');
+  });
 });

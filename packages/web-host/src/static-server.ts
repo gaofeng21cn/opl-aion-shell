@@ -16,7 +16,12 @@ import { networkInterfaces } from 'node:os';
 import net, { type Socket } from 'node:net';
 import serveHandler from 'serve-handler';
 import { handleOplRuntimeProxyRequest } from './opl-runtime-proxy.js';
-import type { WebAutoLoginBootstrap, WebOplRuntimeProxyConfig } from './types.js';
+import { WebuiDataVolumeLifecycleManager } from './storage/webuiDataLifecycle.js';
+import {
+  handleWebuiDataLifecycleRequest,
+  type WebuiDataLifecycleAuthentication,
+} from './storage/webuiDataLifecycleHttp.js';
+import type { WebAutoLoginBootstrap, WebOplRuntimeProxyConfig, WebuiDataLifecycleHostConfig } from './types.js';
 
 export type StaticServerOptions = {
   staticDir: string;
@@ -25,6 +30,7 @@ export type StaticServerOptions = {
   allowRemote?: boolean;
   webAutoLogin?: WebAutoLoginBootstrap;
   oplRuntimeProxy?: WebOplRuntimeProxyConfig;
+  webuiDataLifecycle?: WebuiDataLifecycleHostConfig;
 };
 
 export type StaticServerHandle = {
@@ -211,6 +217,27 @@ async function forwardAuthUserWithAutoLogin(
   writeBufferedResponse(res, retry, loginCookies);
 }
 
+async function authenticateWebuiDataLifecycleRequest(
+  req: IncomingMessage,
+  backendPort: number
+): Promise<WebuiDataLifecycleAuthentication> {
+  const headers: IncomingHttpHeaders = {};
+  if (req.headers.cookie) headers.cookie = req.headers.cookie;
+  if (req.headers.authorization) headers.authorization = req.headers.authorization;
+  try {
+    const response = await backendRequest(backendPort, {
+      path: '/api/auth/user',
+      method: 'GET',
+      headers,
+    });
+    if (response.statusCode >= 200 && response.statusCode < 300) return 'authenticated';
+    if (response.statusCode === 401 || response.statusCode === 403) return 'unauthenticated';
+    return 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
+
 // Max bytes we peek before forcing a routing decision. An HTTP request-line
 // on its own is typically < 100 bytes; a full header block is < 2 KB. If we
 // haven't seen a newline after 4 KB the client is sending something weird —
@@ -266,6 +293,15 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
   const port = opts.port ?? DEFAULT_PORT;
   const allowRemote = opts.allowRemote === true;
   const host = allowRemote ? '0.0.0.0' : '127.0.0.1';
+  let webuiDataLifecycleManager: WebuiDataVolumeLifecycleManager | null = null;
+  if (opts.webuiDataLifecycle) {
+    try {
+      webuiDataLifecycleManager = new WebuiDataVolumeLifecycleManager(opts.webuiDataLifecycle);
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? String(error.code) : 'CONFIGURATION_INVALID';
+      console.warn(`[web-host] WebUI data lifecycle capability unavailable: ${code}`);
+    }
+  }
 
   // The HTTP server listens only on loopback — user traffic hits the outer
   // net.Server first. We route to this server for everything except WS
@@ -290,6 +326,15 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
         await forwardAuthUserWithAutoLogin(req, res, opts);
         return;
       }
+      if (
+        webuiDataLifecycleManager &&
+        (await handleWebuiDataLifecycleRequest(req, res, {
+          manager: webuiDataLifecycleManager,
+          authenticate: (request) => authenticateWebuiDataLifecycleRequest(request, opts.backendPort),
+        }))
+      ) {
+        return;
+      }
       if (opts.oplRuntimeProxy && (await handleOplRuntimeProxyRequest(req, res, opts.oplRuntimeProxy))) {
         return;
       }
@@ -303,7 +348,7 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
         public: opts.staticDir,
         rewrites: [{ source: '**', destination: '/index.html' }],
       });
-    } catch (err) {
+    } catch {
       if (!res.headersSent) {
         res.writeHead(500, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: 'INTERNAL_ERROR' }));

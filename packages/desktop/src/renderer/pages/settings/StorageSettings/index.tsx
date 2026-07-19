@@ -31,6 +31,16 @@ import {
   type ResearchWorkspaceLifecycleRef,
   type OwnerStorageInventoryViewModel,
 } from '../storageProjection';
+import {
+  executeWebuiDataLifecycle,
+  planWebuiDataLifecycle,
+  readWebuiDataLifecycleCapability,
+  restoreWebuiDataLifecycle,
+  type WebuiDataLifecycleCapability,
+  type WebuiDataLifecyclePlan,
+  type WebuiDataLifecycleReceipt,
+  type WebuiDataLifecycleRestoreReceipt,
+} from './webuiDataLifecycleClient';
 
 type AsyncAction =
   | 'inventory'
@@ -43,7 +53,10 @@ type AsyncAction =
   | 'logs-plan'
   | 'logs-execute'
   | 'updater-plan'
-  | 'updater-execute';
+  | 'updater-execute'
+  | 'webui-plan'
+  | 'webui-execute'
+  | 'webui-restore';
 
 type PendingDangerAction =
   | 'restore-conversations'
@@ -51,6 +64,7 @@ type PendingDangerAction =
   | 'runtime-execute'
   | 'logs-execute'
   | 'updater-execute'
+  | 'webui-execute'
   | null;
 
 type StorageSettingsProps = {
@@ -191,9 +205,16 @@ const ownerStorageStatusColor = (status: string): string => {
 type OwnerStorageInventoryRowProps = {
   item: OwnerStorageInventoryViewModel;
   onOpenAgents: () => void;
+  actions?: React.ReactNode;
+  statusDetail?: React.ReactNode;
 };
 
-const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({ item, onOpenAgents }) => {
+const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({
+  item,
+  onOpenAgents,
+  actions,
+  statusDetail,
+}) => {
   const { t } = useTranslation();
   const isAgentPackageStore = item.id === 'agent_package_store';
   return (
@@ -214,10 +235,11 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({ ite
             {t(ownerStorageStatusLabelKey(item.status))}
           </Tag>
           {item.stale && <Tag size='small'>{t('settings.storagePage.inventory.stale')}</Tag>}
-          {!isAgentPackageStore && item.projectedAction.kind === 'host_action_required' && (
+          {!isAgentPackageStore && item.projectedAction.kind === 'host_action_required' && !actions && (
             <span>{t('settings.resourcesPage.resourceSources.management.selfManaged')}</span>
           )}
         </div>
+        {statusDetail && <div className='text-12px text-t-secondary break-words'>{statusDetail}</div>}
       </div>
       <div className='opl-settings-row__meta'>
         <Typography.Text className='text-13px font-600 text-t-primary whitespace-nowrap'>
@@ -232,6 +254,9 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({ ite
           >
             {t('settings.agentsPage.title')}
           </Button>
+        )}
+        {!isAgentPackageStore && actions && (
+          <div className='flex flex-wrap items-center justify-end gap-8px'>{actions}</div>
         )}
       </div>
     </div>
@@ -252,6 +277,11 @@ export const StorageSettingsContent: React.FC = () => {
   const [runtimePlan, setRuntimePlan] = React.useState<LocalDataLifecycleRuntimePrunePlan | null>(null);
   const [logsPlan, setLogsPlan] = React.useState<LocalDataLifecycleLogRetentionPlan | null>(null);
   const [updaterPlan, setUpdaterPlan] = React.useState<LocalDataLifecycleUpdaterCachePlan | null>(null);
+  const [webuiCapability, setWebuiCapability] = React.useState<WebuiDataLifecycleCapability | null>(null);
+  const [webuiPlan, setWebuiPlan] = React.useState<WebuiDataLifecyclePlan | null>(null);
+  const [webuiReceipt, setWebuiReceipt] = React.useState<WebuiDataLifecycleReceipt | null>(null);
+  const [webuiRecoveryReceiptRef, setWebuiRecoveryReceiptRef] = React.useState<string | null>(null);
+  const [webuiRestoreReceipt, setWebuiRestoreReceipt] = React.useState<WebuiDataLifecycleRestoreReceipt | null>(null);
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
@@ -311,6 +341,18 @@ export const StorageSettingsContent: React.FC = () => {
     applyInventorySnapshot(snapshot);
   }, [applyInventorySnapshot]);
 
+  const refreshWebuiCapability = React.useCallback(async () => {
+    if (desktopCarrier) return;
+    const capability = await readWebuiDataLifecycleCapability().catch((): null => null);
+    setWebuiCapability(capability);
+    if (!capability) {
+      setWebuiPlan(null);
+      setWebuiReceipt(null);
+      setWebuiRecoveryReceiptRef(null);
+      setWebuiRestoreReceipt(null);
+    }
+  }, [desktopCarrier]);
+
   const runAction = React.useCallback(
     async <Result,>(
       action: AsyncAction,
@@ -345,12 +387,13 @@ export const StorageSettingsContent: React.FC = () => {
             dryRun: false,
           }),
           ipcBridge.oplRuntime.executeAction.invoke({
-            actionId: 'settings_inventory_docker_webui_storage',
+            actionId: 'settings_inventory_webui_data_volume',
             dryRun: false,
           }),
         ]);
+        const capabilityRefresh = refreshWebuiCapability();
         if (!desktopCarrier) {
-          await ownerInventoryRefresh;
+          await Promise.allSettled([ownerInventoryRefresh, capabilityRefresh]);
           await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
           return;
         }
@@ -361,7 +404,11 @@ export const StorageSettingsContent: React.FC = () => {
       },
       () => {}
     );
-  }, [appStateQuery, desktopCarrier, refreshInventory, runAction]);
+  }, [appStateQuery, desktopCarrier, refreshInventory, refreshWebuiCapability, runAction]);
+
+  React.useEffect(() => {
+    void refreshWebuiCapability();
+  }, [refreshWebuiCapability]);
 
   React.useEffect(() => {
     if (!desktopCarrier) return;
@@ -523,6 +570,65 @@ export const StorageSettingsContent: React.FC = () => {
     );
   };
 
+  const planWebuiCleanup = () => {
+    void runAction('webui-plan', planWebuiDataLifecycle, (plan) => {
+      setWebuiPlan(plan);
+      setWebuiReceipt(null);
+      setWebuiRecoveryReceiptRef(null);
+      setWebuiRestoreReceipt(null);
+    });
+  };
+
+  const executeWebuiCleanup = () => {
+    if (!webuiPlan) return;
+    void runAction(
+      'webui-execute',
+      async () => {
+        try {
+          return await executeWebuiDataLifecycle(webuiPlan);
+        } catch (actionError) {
+          const receiptRef =
+            actionError && typeof actionError === 'object' && 'receiptRef' in actionError
+              ? actionError.receiptRef
+              : null;
+          if (typeof receiptRef === 'string' && receiptRef.length > 0) {
+            setWebuiReceipt(null);
+            setWebuiRecoveryReceiptRef(receiptRef);
+            setWebuiRestoreReceipt(null);
+            setWebuiPlan(null);
+          } else if (
+            actionError instanceof Error &&
+            ['PLAN_ALREADY_USED', 'PLAN_EXPIRED', 'PLAN_NOT_FOUND', 'PLAN_STALE'].includes(actionError.message)
+          ) {
+            setWebuiPlan(null);
+          }
+          throw actionError;
+        }
+      },
+      async (receipt) => {
+        setWebuiReceipt(receipt);
+        setWebuiRecoveryReceiptRef(receipt.receipt_ref);
+        setWebuiRestoreReceipt(null);
+        setWebuiPlan(null);
+        await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
+      }
+    );
+  };
+
+  const webuiRestoreSourceRef = webuiReceipt?.receipt_ref ?? webuiRecoveryReceiptRef;
+
+  const restoreWebuiCleanup = () => {
+    if (!webuiRestoreSourceRef) return;
+    void runAction(
+      'webui-restore',
+      () => restoreWebuiDataLifecycle(webuiRestoreSourceRef),
+      async (receipt) => {
+        setWebuiRestoreReceipt(receipt);
+        await appStateQuery.load('fast', { forceFresh: true, showRefreshing: false }).catch((): null => null);
+      }
+    );
+  };
+
   const requestDangerAction = (action: Exclude<PendingDangerAction, null>) => {
     if (activeActionRef.current || pendingDangerAction) return;
     setPendingDangerAction(action);
@@ -553,7 +659,9 @@ export const StorageSettingsContent: React.FC = () => {
     }
     if (action === 'updater-execute') {
       executeUpdaterCleanup();
+      return;
     }
+    if (action === 'webui-execute') executeWebuiCleanup();
   };
 
   const dangerActionSummary = () => {
@@ -585,6 +693,12 @@ export const StorageSettingsContent: React.FC = () => {
         bytes: formatStorageBytes(viewModel.updaterPlan.removeBytes),
       });
     }
+    if (pendingDangerAction === 'webui-execute' && webuiPlan) {
+      return t('settings.storagePage.plans.runtime.summary', {
+        count: webuiPlan.candidate_count,
+        bytes: formatStorageBytes(webuiPlan.estimated_reclaimable_bytes),
+      });
+    }
     return '';
   };
 
@@ -594,6 +708,7 @@ export const StorageSettingsContent: React.FC = () => {
     if (pendingDangerAction === 'runtime-execute') return t('settings.storagePage.actions.executeRuntime');
     if (pendingDangerAction === 'logs-execute') return t('settings.storagePage.actions.executeLogs');
     if (pendingDangerAction === 'updater-execute') return t('settings.storagePage.actions.executeUpdater');
+    if (pendingDangerAction === 'webui-execute') return t('settings.storagePage.actions.executeRuntime');
     return '';
   };
 
@@ -784,6 +899,52 @@ export const StorageSettingsContent: React.FC = () => {
     },
   };
 
+  const webuiLifecycleActions = webuiCapability ? (
+    <>
+      {webuiPlan && webuiPlan.candidate_count > 0 ? (
+        <Button
+          htmlType='button'
+          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
+          disabled={interactionLocked}
+          loading={loading === 'webui-execute'}
+          onClick={() => requestDangerAction('webui-execute')}
+          data-testid='storage-webui-execute'
+        >
+          {t('settings.storagePage.actions.executeRuntime')}
+        </Button>
+      ) : (
+        <Button
+          htmlType='button'
+          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
+          disabled={interactionLocked}
+          loading={loading === 'webui-plan'}
+          onClick={planWebuiCleanup}
+          data-testid='storage-webui-plan'
+        >
+          {t('settings.storagePage.actions.dryRunRuntime')}
+        </Button>
+      )}
+      {webuiRestoreSourceRef && !webuiRestoreReceipt && (
+        <Button
+          htmlType='button'
+          icon={<Undo {...STORAGE_ACTION_ICON_PROPS} />}
+          disabled={interactionLocked}
+          loading={loading === 'webui-restore'}
+          onClick={restoreWebuiCleanup}
+          data-testid='storage-webui-restore'
+        >
+          {t('common.runtime.archiveTask.restore')}
+        </Button>
+      )}
+    </>
+  ) : undefined;
+  const webuiLifecycleStatus = webuiPlan
+    ? t('settings.storagePage.plans.runtime.summary', {
+        count: webuiPlan.candidate_count,
+        bytes: formatStorageBytes(webuiPlan.estimated_reclaimable_bytes),
+      })
+    : undefined;
+
   return (
     <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-storage'>
       <span data-testid='storage-settings-page' aria-hidden='true' />
@@ -856,7 +1017,9 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       )}
 
-      {lastReceipt && <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />}
+      {(lastReceipt || webuiReceipt || webuiRestoreReceipt) && (
+        <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />
+      )}
 
       <div id='storage-categories' data-testid='settings-storage-primary'>
         <span id='cleanup-preview' aria-hidden='true' />
@@ -899,9 +1062,22 @@ export const StorageSettingsContent: React.FC = () => {
             viewModel.sections.map((item) => (
               <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
             ))}
-          {viewModel.ownerSections.map((item) => (
-            <OwnerStorageInventoryRow key={item.id} item={item} onOpenAgents={() => navigate('/settings/agents')} />
-          ))}
+          {viewModel.ownerSections.map((item) => {
+            const hostReadback = webuiRestoreReceipt?.readback ?? webuiReceipt?.readback;
+            const displayItem =
+              item.id === 'webui_data_volume' && hostReadback
+                ? { ...item, bytes: hostReadback.bytes, reclaimableBytes: hostReadback.reclaimable_bytes, stale: false }
+                : item;
+            return (
+              <OwnerStorageInventoryRow
+                key={item.id}
+                item={displayItem}
+                onOpenAgents={() => navigate('/settings/agents')}
+                actions={item.id === 'webui_data_volume' ? webuiLifecycleActions : undefined}
+                statusDetail={item.id === 'webui_data_volume' ? webuiLifecycleStatus : undefined}
+              />
+            );
+          })}
         </div>
       </div>
 

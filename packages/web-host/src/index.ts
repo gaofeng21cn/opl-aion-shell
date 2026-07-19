@@ -6,11 +6,34 @@ export type {
   WebAutoLoginBootstrap,
   WebAutoLoginCredentials,
   WebOplRuntimeProxyConfig,
+  WebuiDataLifecycleHostConfig,
+  WebuiDataLifecycleManagedRoot,
   WebHostOptions,
   WebHostHandle,
 } from './types.js';
 export { startStaticServer, stopStaticServer } from './static-server.js';
 export type { StaticServerOptions, StaticServerHandle } from './static-server.js';
+export {
+  WEBUI_DATA_LIFECYCLE_CAPABILITY_ID,
+  WEBUI_DATA_LIFECYCLE_EXECUTE_ACTION_ID,
+  WEBUI_DATA_LIFECYCLE_PLAN_ACTION_ID,
+  WEBUI_DATA_LIFECYCLE_RESTORE_ACTION_ID,
+  WebuiDataLifecycleError,
+  WebuiDataVolumeLifecycleManager,
+} from './storage/webuiDataLifecycle.js';
+export {
+  buildDefaultWebuiDataLifecycleConfig,
+  resolveWebuiDataLifecycleRecoveryRoot,
+} from './storage/webuiDataLifecycleConfig.js';
+export type {
+  WebuiDataLifecycleCapability,
+  WebuiDataLifecycleExecuteRequest,
+  WebuiDataLifecycleExecuteResponse,
+  WebuiDataLifecyclePlanResponse,
+  WebuiDataLifecycleReadback,
+  WebuiDataLifecycleRestoreRequest,
+  WebuiDataLifecycleRestoreResponse,
+} from './storage/webuiDataLifecycle.js';
 
 // Backend launcher exports (M4)
 export {
@@ -72,6 +95,7 @@ export async function startWebHost(opts: WebHostOptions): Promise<WebHostHandle>
       allowRemote: opts.allowRemote ?? false,
       webAutoLogin: opts.webAutoLogin,
       oplRuntimeProxy: opts.oplRuntimeProxy,
+      webuiDataLifecycle: opts.webuiDataLifecycle,
     });
   } catch (err) {
     // If static-server fails, clean up backend

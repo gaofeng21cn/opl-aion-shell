@@ -15,6 +15,11 @@ describe('startWebHost', () => {
   });
 
   test('Returns handle without initialPassword', async () => {
+    const webuiDataLifecycle = {
+      dataDir: '/tmp/test-data',
+      recoveryRoot: '/tmp/test-recovery',
+      managedRoots: [{ id: 'cache', kind: 'cache' as const, path: '/tmp/test-data/cache' }],
+    };
     // Mock backend-launcher
     vi.doMock('../src/backend-launcher.js', () => ({
       startBackend: vi.fn().mockResolvedValue({
@@ -24,13 +29,14 @@ describe('startWebHost', () => {
     }));
 
     // Mock static-server
+    const startStaticServer = vi.fn().mockResolvedValue({
+      port: 33000,
+      url: 'http://127.0.0.1:33000',
+      localUrl: 'http://127.0.0.1:33000',
+      stop: vi.fn().mockResolvedValue(undefined),
+    });
     vi.doMock('../src/static-server.js', () => ({
-      startStaticServer: vi.fn().mockResolvedValue({
-        port: 33000,
-        url: 'http://127.0.0.1:33000',
-        localUrl: 'http://127.0.0.1:33000',
-        stop: vi.fn().mockResolvedValue(undefined),
-      }),
+      startStaticServer,
     }));
 
     const { startWebHost } = await import('../src/index.js');
@@ -47,6 +53,7 @@ describe('startWebHost', () => {
         kind: 'ownBackend',
         resolveBackend: () => '/bin/backend',
       },
+      webuiDataLifecycle,
     });
 
     // No initialPassword field on the handle — admin credentials flow through
@@ -54,6 +61,7 @@ describe('startWebHost', () => {
     expect('initialPassword' in handle).toBe(false);
     expect(handle.port).toBe(33000);
     expect(handle.backendPort).toBe(55555);
+    expect(startStaticServer).toHaveBeenCalledWith(expect.objectContaining({ backendPort: 55555, webuiDataLifecycle }));
 
     await handle.stop();
 

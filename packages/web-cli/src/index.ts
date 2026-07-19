@@ -1,4 +1,9 @@
-import { startWebHost, startStaticServer } from '@aionui/web-host';
+import {
+  buildDefaultWebuiDataLifecycleConfig,
+  resolveWebuiDataLifecycleRecoveryRoot,
+  startWebHost,
+  startStaticServer,
+} from '@aionui/web-host';
 import type { WebHostHandle, StaticServerHandle } from '@aionui/web-host';
 import { setTimeout as delay } from 'node:timers/promises';
 import fs from 'node:fs';
@@ -163,6 +168,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   fs.mkdirSync(logDir, { recursive: true });
   const projectsDir = resolveProjectsDir(flags);
   fs.mkdirSync(projectsDir, { recursive: true });
+  const recoveryDir = resolveWebuiDataLifecycleRecoveryRoot(dataDir, process.env.OPL_WEBUI_RECOVERY_DIR);
   const imageManifestPath = resolveImageManifestPath();
   const imageSeedDir = resolveImageSeedDir();
   const port = resolvePort(flags);
@@ -185,6 +191,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   console.log(`[aionui-web] data dir   : ${dataDir}`);
   console.log(`[aionui-web] projects  : ${projectsDir}`);
   console.log(`[aionui-web] log dir    : ${logDir}`);
+  console.log(`[aionui-web] recovery dir: ${recoveryDir}`);
   console.log(`[aionui-web] static dir : ${staticDir}`);
   console.log(`[aionui-web] backend bin: ${backendBin}`);
   if (imageManifestPath) console.log(`[aionui-web] image manifest: ${imageManifestPath}`);
@@ -262,6 +269,12 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
         imageManifestPath,
         imageSeedDir,
       },
+      webuiDataLifecycle: buildDefaultWebuiDataLifecycleConfig({
+        dataDir,
+        projectsDir,
+        logDir,
+        recoveryRoot: recoveryDir,
+      }),
       backend: {
         kind: 'ownBackend',
         resolveBackend: () => backendBin,
@@ -477,7 +490,7 @@ Environment variables:
   AIONUI_PORT, AIONUI_ALLOW_REMOTE, AIONUI_DATA_DIR, AIONUI_LOG_DIR,
   AIONUI_BACKEND_BIN, AIONUI_OPEN_BROWSER,
   OPL_WEBUI_DEPLOYMENT_MODE, OPL_WEBUI_AUTH_MODE, OPL_WEBUI_USERNAME,
-  OPL_WEBUI_PASSWORD_FILE, OPL_GATEWAY_API_KEY_FILE
+  OPL_WEBUI_PASSWORD_FILE, OPL_GATEWAY_API_KEY_FILE, OPL_WEBUI_RECOVERY_DIR
 `);
     return;
   }

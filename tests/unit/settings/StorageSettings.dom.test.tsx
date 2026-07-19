@@ -28,6 +28,13 @@ const bridgeMocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
 }));
 
+const webuiLifecycleMocks = vi.hoisted(() => ({
+  readCapability: vi.fn(),
+  plan: vi.fn(),
+  execute: vi.fn(),
+  restore: vi.fn(),
+}));
+
 const deferred = <Value,>() => {
   let resolve!: (value: Value) => void;
   const promise = new Promise<Value>((next) => {
@@ -68,6 +75,13 @@ vi.mock('@/common', () => ({
       executeAction: { invoke: bridgeMocks.executeAction },
     },
   },
+}));
+
+vi.mock('@/renderer/pages/settings/StorageSettings/webuiDataLifecycleClient', () => ({
+  readWebuiDataLifecycleCapability: webuiLifecycleMocks.readCapability,
+  planWebuiDataLifecycle: webuiLifecycleMocks.plan,
+  executeWebuiDataLifecycle: webuiLifecycleMocks.execute,
+  restoreWebuiDataLifecycle: webuiLifecycleMocks.restore,
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -353,6 +367,10 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeAction.mockResolvedValue({ ok: true, parsed: {} });
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: {} });
     bridgeMocks.appState = {};
+    webuiLifecycleMocks.readCapability.mockResolvedValue(null);
+    webuiLifecycleMocks.plan.mockReset();
+    webuiLifecycleMocks.execute.mockReset();
+    webuiLifecycleMocks.restore.mockReset();
   });
 
   it('merges valid owner projections without inventing unknown bytes or a WebUI cleanup action', async () => {
@@ -487,6 +505,134 @@ describe('StorageSettingsContent', () => {
     }
   });
 
+  it('shows the WebUI lifecycle controls only for a complete host capability and preserves plan confirmation', async () => {
+    const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 2048,
+          reclaimable_bytes: 1024,
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            webui_data_volume: {
+              status: 'available',
+              observed_at: '2026-07-18T08:00:00.000Z',
+              stale: false,
+              bytes: 100,
+              reclaimable_bytes: 24,
+              owner_route: '/settings/storage#webui-data',
+              projected_action: {
+                kind: 'host_action_required',
+                action_id: null,
+                execution_owner: 'carrier_host',
+              },
+            },
+          },
+        },
+      },
+    };
+    const capability = {
+      capability_id: 'carrier_host.storage.webui_data_volume.lifecycle',
+      endpoint_status: 'available',
+      endpoint_availability: 'host_owner_injected',
+      plan_action_id: 'settings_plan_webui_data_volume_cleanup',
+      execute_action_id: 'settings_execute_webui_data_volume_cleanup',
+      restore_action_id: 'settings_restore_webui_data_volume_cleanup',
+    };
+    const plan = {
+      plan_id: 'plan-1',
+      plan_hash: 'hash-1',
+      exact_confirmation: 'confirm-1',
+      estimated_reclaimable_bytes: 24,
+      candidate_count: 2,
+      restore_supported: true,
+      observed_at: '2026-07-18T08:00:00.000Z',
+      expires_at: '2026-07-18T08:05:00.000Z',
+    };
+    const webuiReceipt = {
+      receipt_id: 'receipt-1',
+      action_id: 'settings_execute_webui_data_volume_cleanup',
+      status: 'completed',
+      plan_id: plan.plan_id,
+      plan_hash: plan.plan_hash,
+      receipt_ref: 'receipt:opaque',
+      restore_action_ref: 'settings_restore_webui_data_volume_cleanup',
+      archive_ref: 'archive:opaque',
+      archive_manifest_ref: 'manifest:opaque',
+      archive_sha256: 'sha256',
+      archived_bytes: 24,
+      deleted_bytes: 24,
+      readback: {
+        status: 'ready',
+        terminal: true,
+        observed_at: '2026-07-18T08:01:00.000Z',
+        bytes: 0,
+        reclaimable_bytes: 0,
+        receipt_ref: 'receipt:opaque',
+        restore_status: 'available',
+      },
+    };
+    webuiLifecycleMocks.readCapability.mockResolvedValue(capability);
+    webuiLifecycleMocks.plan.mockResolvedValue(plan);
+    webuiLifecycleMocks.execute.mockResolvedValue(webuiReceipt);
+    webuiLifecycleMocks.restore.mockResolvedValue({
+      action_id: 'settings_restore_webui_data_volume_cleanup',
+      status: 'completed',
+      receipt_ref: webuiReceipt.receipt_ref,
+      restore_receipt_ref: 'restore:opaque',
+      restored_bytes: 24,
+      readback: { ...webuiReceipt.readback, bytes: 24, reclaimable_bytes: 24, restore_status: 'restored' },
+    });
+
+    try {
+      render(<StorageSettingsContent />);
+      const review = await screen.findByTestId('storage-webui-plan');
+      expect(screen.getByTestId('storage-owner-webui_data_volume')).not.toHaveTextContent(
+        'settings.resourcesPage.resourceSources.management.selfManaged'
+      );
+      fireEvent.click(review);
+      const execute = await screen.findByTestId('storage-webui-execute');
+      expect(screen.getByTestId('storage-owner-webui_data_volume')).toHaveTextContent('2 24 B');
+      fireEvent.click(execute);
+      fireEvent.click(await screen.findByTestId('storage-action-confirm'));
+
+      await waitFor(() => expect(webuiLifecycleMocks.execute).toHaveBeenCalledWith(plan));
+      expect(await screen.findByTestId('storage-owner-webui_data_volume')).toHaveTextContent('0 B');
+      fireEvent.click(await screen.findByTestId('storage-webui-restore'));
+      await waitFor(() => expect(webuiLifecycleMocks.restore).toHaveBeenCalledWith(webuiReceipt.receipt_ref));
+      expect(screen.getByTestId('storage-owner-webui_data_volume')).toHaveTextContent('24 B');
+
+      webuiLifecycleMocks.execute.mockRejectedValueOnce(
+        Object.assign(new Error('EXECUTION_RECOVERY_REQUIRED'), { receiptRef: 'receipt:recovery' })
+      );
+      webuiLifecycleMocks.restore.mockResolvedValueOnce({
+        action_id: 'settings_restore_webui_data_volume_cleanup',
+        status: 'completed',
+        receipt_ref: 'receipt:recovery',
+        restore_receipt_ref: 'restore:recovery',
+        restored_bytes: 24,
+        readback: { ...webuiReceipt.readback, bytes: 24, reclaimable_bytes: 24, restore_status: 'restored' },
+      });
+      fireEvent.click(await screen.findByTestId('storage-webui-plan'));
+      fireEvent.click(await screen.findByTestId('storage-webui-execute'));
+      fireEvent.click(await screen.findByTestId('storage-action-confirm'));
+      expect(await screen.findByTestId('settings-storage-exception')).toHaveTextContent('EXECUTION_RECOVERY_REQUIRED');
+      fireEvent.click(await screen.findByTestId('storage-webui-restore'));
+      await waitFor(() => expect(webuiLifecycleMocks.restore).toHaveBeenCalledWith('receipt:recovery'));
+    } finally {
+      if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
+    }
+  });
+
   it('refreshes both owner inventories independently and keeps local storage available when one owner fails', async () => {
     bridgeMocks.executeAction
       .mockRejectedValueOnce(new Error('package inventory unavailable'))
@@ -502,7 +648,7 @@ describe('StorageSettingsContent', () => {
       dryRun: false,
     });
     expect(bridgeMocks.executeAction).toHaveBeenNthCalledWith(2, {
-      actionId: 'settings_inventory_docker_webui_storage',
+      actionId: 'settings_inventory_webui_data_volume',
       dryRun: false,
     });
     expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1);

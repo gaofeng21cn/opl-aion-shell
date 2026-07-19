@@ -24,7 +24,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { startWebHost, type WebAutoLoginCredentials } from '@aionui/web-host';
+import {
+  buildDefaultWebuiDataLifecycleConfig,
+  resolveWebuiDataLifecycleRecoveryRoot,
+  startWebHost,
+  type WebAutoLoginCredentials,
+} from '@aionui/web-host';
 import { openBrowserUrl, shouldAutoOpenBrowser } from '../packages/web-cli/src/browser.js';
 import { ensureAdminPassword, provisionConfiguredAdmin } from '../packages/web-cli/src/ensureAdminPassword.js';
 import { configureGatewayApiKey, resolveDeploymentAuth } from '../packages/web-cli/src/deploymentAuth.js';
@@ -231,6 +236,7 @@ async function main(): Promise<void> {
   const logDir = process.env.AIONUI_LOG_DIR ?? path.join(workDir, 'logs');
   const oplRuntimeDataDir = process.env.OPL_RUNTIME_DATA_DIR?.trim() || os.homedir();
   const projectsDir = resolveProjectsDir(workDir);
+  const recoveryDir = resolveWebuiDataLifecycleRecoveryRoot(workDir, process.env.OPL_WEBUI_RECOVERY_DIR);
   const imageManifestPath = resolveImageManifestPath();
   const imageSeedDir = resolveImageSeedDir();
   const deploymentAuth = resolveDeploymentAuth();
@@ -238,6 +244,7 @@ async function main(): Promise<void> {
   console.log('[webui] work dir   :', workDir);
   console.log('[webui] OPL home   :', oplRuntimeDataDir);
   console.log('[webui] projects   :', projectsDir);
+  console.log('[webui] recovery   :', recoveryDir);
   console.log('[webui] static dir :', staticDir);
   console.log('[webui] backend bin:', backendBin);
   console.log('[webui] auth mode  :', deploymentAuth.mode);
@@ -277,6 +284,12 @@ async function main(): Promise<void> {
       imageSeedDir,
       inheritUserOplEnvironment: true,
     },
+    webuiDataLifecycle: buildDefaultWebuiDataLifecycleConfig({
+      dataDir: workDir,
+      projectsDir,
+      logDir,
+      recoveryRoot: recoveryDir,
+    }),
     backend: {
       kind: 'ownBackend',
       resolveBackend: () => backendBin,

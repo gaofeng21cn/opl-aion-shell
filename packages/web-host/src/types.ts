@@ -45,6 +45,24 @@ export type WebOplRuntimeProxyConfig = {
   inheritUserOplEnvironment?: boolean;
 };
 
+export type WebuiDataLifecycleManagedRoot = {
+  id: string;
+  kind: 'cache' | 'temporary' | 'rotated_log';
+  path: string;
+};
+
+export type WebuiDataLifecycleHostConfig = {
+  dataDir: string;
+  projectsDir?: string;
+  recoveryRoot: string;
+  managedRoots: WebuiDataLifecycleManagedRoot[];
+  planTtlMs?: number;
+  maxEntries?: number;
+  maxScannedBytes?: number;
+  scanDeadlineMs?: number;
+  now?: () => Date;
+};
+
 /**
  * Options for starting WebHost
  */
@@ -58,6 +76,7 @@ export type WebHostOptions = {
   dirs?: BackendSystemDirs;
   webAutoLogin?: WebAutoLoginBootstrap;
   oplRuntimeProxy?: WebOplRuntimeProxyConfig;
+  webuiDataLifecycle?: WebuiDataLifecycleHostConfig;
   backend: { kind: 'ownBackend'; resolveBackend: BackendBinaryResolver } | { kind: 'useExistingBackend'; port: number };
 };
 

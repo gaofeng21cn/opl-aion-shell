@@ -212,6 +212,146 @@ describe('static-server', () => {
     expect(r.headers.get('set-cookie')).toBeNull();
   });
 
+  it('serves the authenticated same-origin WebUI data lifecycle ABI without exposing host paths', async () => {
+    const authenticationContentLengths: Array<string | undefined> = [];
+    const backend = await startMockBackend((req, res) => {
+      if (req.url === '/api/auth/user' && req.headers.cookie === 'aionui-session=valid') {
+        authenticationContentLengths.push(req.headers['content-length']);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ success: true, user: { id: 'admin' } }));
+        return;
+      }
+      res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ success: false }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const recoveryRoot = path.join(staticDir, 'recovery');
+    const cacheRoot = path.join(dataDir, 'cache');
+    const managedFile = path.join(cacheRoot, 'response.tmp');
+    await fs.mkdir(cacheRoot, { recursive: true });
+    await fs.mkdir(projectsDir, { recursive: true });
+    await fs.writeFile(managedFile, 'managed');
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      webuiDataLifecycle: {
+        dataDir,
+        projectsDir,
+        recoveryRoot,
+        managedRoots: [{ id: 'cache', kind: 'cache', path: cacheRoot }],
+      },
+    });
+    const headers = {
+      'content-type': 'application/json',
+      cookie: 'aionui-session=valid',
+      origin: handle.localUrl,
+    };
+    const post = (route: string, body: object) =>
+      fetch(`${handle!.localUrl}/api/opl-storage/webui-data-volume/${route}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+    const capability = await post('capability', {});
+    expect(capability.status).toBe(200);
+    expect(await capability.json()).toMatchObject({
+      capability_id: 'carrier_host.storage.webui_data_volume.lifecycle',
+      endpoint_status: 'available',
+      plan_action_id: 'settings_plan_webui_data_volume_cleanup',
+      execute_action_id: 'settings_execute_webui_data_volume_cleanup',
+      restore_action_id: 'settings_restore_webui_data_volume_cleanup',
+      raw_path_transport_allowed: false,
+    });
+
+    const planResponse = await post('plan', {});
+    expect(planResponse.status).toBe(200);
+    const plan = (await planResponse.json()) as {
+      plan_id: string;
+      plan_hash: string;
+      exact_confirmation: string;
+    };
+    const executeResponse = await post('execute', {
+      plan_id: plan.plan_id,
+      plan_hash: plan.plan_hash,
+      exact_confirmation: plan.exact_confirmation,
+    });
+    const executeText = await executeResponse.text();
+    expect(executeResponse.status, executeText).toBe(200);
+    expect(executeText).not.toContain(staticDir);
+    const receipt = JSON.parse(executeText) as { receipt_ref: string; readback: { bytes: number } };
+    expect(receipt.readback.bytes).toBe(0);
+    expect(await fs.stat(managedFile).catch((): null => null)).toBeNull();
+
+    const restoreResponse = await post('restore', { receipt_ref: receipt.receipt_ref });
+    expect(restoreResponse.status).toBe(200);
+    expect(await restoreResponse.json()).toMatchObject({
+      status: 'completed',
+      readback: { bytes: 7, restore_status: 'restored' },
+    });
+    expect(await fs.readFile(managedFile, 'utf8')).toBe('managed');
+    expect(authenticationContentLengths).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('rejects unauthenticated, cross-origin, non-JSON, wrong-method, and oversized lifecycle requests', async () => {
+    const backend = await startMockBackend((req, res) => {
+      res.writeHead(req.headers.cookie === 'aionui-session=valid' ? 200 : 401).end();
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const recoveryRoot = path.join(staticDir, 'recovery');
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      webuiDataLifecycle: {
+        dataDir,
+        recoveryRoot,
+        managedRoots: [{ id: 'cache', kind: 'cache', path: path.join(dataDir, 'cache') }],
+      },
+    });
+    const endpoint = `${handle.localUrl}/api/opl-storage/webui-data-volume/capability`;
+    const validHeaders = {
+      'content-type': 'application/json',
+      cookie: 'aionui-session=valid',
+      origin: handle.localUrl,
+    };
+
+    expect(
+      (await fetch(endpoint, { method: 'POST', headers: { ...validHeaders, cookie: '' }, body: '{}' })).status
+    ).toBe(401);
+    expect(
+      (
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { ...validHeaders, origin: 'https://example.invalid' },
+          body: '{}',
+        })
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { ...validHeaders, 'content-type': 'text/plain' },
+          body: '{}',
+        })
+      ).status
+    ).toBe(415);
+    expect((await fetch(endpoint, { method: 'GET', headers: validHeaders })).status).toBe(405);
+    expect(
+      (
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: validHeaders,
+          body: JSON.stringify({ padding: 'x'.repeat(65 * 1024) }),
+        })
+      ).status
+    ).toBe(413);
+  });
+
   it('/logout reverse-proxies to backend (no local handler)', async () => {
     const backend = await startMockBackend((req, res) => {
       if (req.url === '/logout' && req.method === 'POST') {
