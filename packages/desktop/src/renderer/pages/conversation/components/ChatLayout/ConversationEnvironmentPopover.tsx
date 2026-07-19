@@ -13,7 +13,7 @@ import {
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { Button, Input, Popover } from '@arco-design/web-react';
 import { Down, FolderOpen, Info, Link } from '@icon-park/react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import WorkspaceOpenButton from './WorkspaceOpenButton';
 
@@ -56,8 +56,13 @@ const ConversationEnvironmentPopover: React.FC<{
 }> = ({ conversation, currentTask }) => {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
+  const panelId = useId();
   const extra = useMemo(() => (conversation?.extra ?? {}) as Record<string, unknown>, [conversation?.extra]);
   const persistedWorkspace = text(extra.workspace);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const previousPopoverOpen = useRef(false);
+  const restoreFocusOnClose = useRef(true);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [gitInspection, setGitInspection] = useState<GitWorkspaceInspection>();
   const [gitUnavailable, setGitUnavailable] = useState(false);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
@@ -119,6 +124,27 @@ const ConversationEnvironmentPopover: React.FC<{
     };
   }, [summary.isRemote, summary.workspace]);
 
+  useEffect(() => {
+    const wasOpen = previousPopoverOpen.current;
+    previousPopoverOpen.current = popoverOpen;
+    if (wasOpen && !popoverOpen && restoreFocusOnClose.current) {
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+    if (!popoverOpen) restoreFocusOnClose.current = true;
+  }, [popoverOpen]);
+
+  useEffect(() => {
+    if (!popoverOpen) return undefined;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPopoverOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape, true);
+    return () => document.removeEventListener('keydown', handleEscape, true);
+  }, [popoverOpen]);
+
   const renderReferenceGroup = (label: string, refs: string[]) => (
     <ReferenceGroup
       label={label}
@@ -158,11 +184,19 @@ const ConversationEnvironmentPopover: React.FC<{
     const url = normalizeBrowserUrl(browserUrl);
     setBrowserUrlInvalid(!url);
     if (!url) return;
+    restoreFocusOnClose.current = false;
+    setPopoverOpen(false);
     openPreview(url, 'url', { title: url }, { replace: true });
   };
 
   const content = (
-    <div className='conversation-environment-popover' data-testid='conversation-environment-popover'>
+    <div
+      id={panelId}
+      className='conversation-environment-popover'
+      role='dialog'
+      aria-label={t('conversation.environment.title')}
+      data-testid='conversation-environment-popover'
+    >
       <div className='conversation-environment-popover__section'>
         <div className='conversation-environment-popover__row'>
           <span>{t('conversation.environment.workspace')}</span>
@@ -280,13 +314,31 @@ const ConversationEnvironmentPopover: React.FC<{
   );
 
   return (
-    <Popover trigger='click' position='br' content={content}>
+    <Popover
+      trigger='click'
+      position='br'
+      content={content}
+      className='conversation-environment-overlay'
+      popupVisible={popoverOpen}
+      escToClose
+      unmountOnExit
+      style={{ maxWidth: 'none' }}
+      triggerProps={{
+        autoFitPosition: true,
+        autoFixPosition: true,
+        boundaryDistance: { right: 8, bottom: 8 },
+      }}
+      onVisibleChange={(visible) => setPopoverOpen(visible)}
+    >
       <Button
+        ref={triggerRef}
         type='text'
         size='small'
         className='conversation-environment-trigger'
         icon={<Info size={14} />}
         aria-label={t('conversation.environment.title')}
+        aria-controls={panelId}
+        aria-expanded={popoverOpen}
       >
         <span>{summary.locality}</span>
         <Down size={12} />

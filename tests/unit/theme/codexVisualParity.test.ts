@@ -331,6 +331,10 @@ describe('Codex visual parity overlay', () => {
     const markdown = read('packages/desktop/src/renderer/components/Markdown/ShadowView.tsx');
     const messages = read('packages/desktop/src/renderer/pages/conversation/Messages/components/MessageText.tsx');
     const messageStyles = read('packages/desktop/src/renderer/pages/conversation/Messages/messages.css');
+    const chatLayoutStyles = read(
+      'packages/desktop/src/renderer/pages/conversation/components/ChatLayout/chat-layout.css'
+    );
+    const titlebarStyles = read('packages/desktop/src/renderer/components/layout/Titlebar/titlebar.css');
     const toolStyles = read(
       'packages/desktop/src/renderer/pages/conversation/Messages/components/MessageToolGroupSummary.css'
     );
@@ -353,6 +357,21 @@ describe('Codex visual parity overlay', () => {
     expect(messageStyles).not.toMatch(/font-size:\s*14px\s*!important|line-height:\s*1\.4\s*!important/);
     expect(messages).toContain("className={classNames('h-20px flex items-center mt-2px gap-6px'");
     expect(messages).not.toContain("className={classNames('h-32px");
+    expect(messages).toContain("'message-text-bubble--user p-6px md:p-8px': isUserMessage");
+    expect(messages).not.toContain('bg-aou-2');
+    expect(messages).not.toContain("borderRadius: '8px 0 8px 8px'");
+    expect(chatLayoutStyles).toMatch(
+      /\.message-text-bubble--user\s*\{[^}]*background:\s*var\(--color-fill-2, var\(--message-user-bg\)\);/
+    );
+    expect(chatLayoutStyles).toMatch(/\.message-text-bubble\s*\{[^}]*border-radius:\s*8px;/);
+    expect(chatLayoutStyles).toMatch(
+      /@media \(max-width:\s*1319px\)[\s\S]*\.conversation-environment-popover\s*\{[^}]*height:\s*min\(340px,\s*42dvh\);/
+    );
+    expect(chatLayoutStyles).not.toMatch(/conversation-timeline-surface[^}]*padding-(?:right|top)/);
+    expect(titlebarStyles).toMatch(
+      /\.app-titlebar--mobile-conversation\s*\{[^}]*background:\s*var\(--opl-main-bg, var\(--bg-1\)\)\s*!important;/
+    );
+    expect(titlebarStyles).not.toMatch(/\.app-titlebar--mobile-conversation\s*\{[^}]*linear-gradient/);
     expect(toolStyles).toMatch(/\.tool-group-summary__body\s*{[^}]*padding:\s*6px 0 0;/);
     expect(toolStyles).not.toMatch(/\.tool-group-summary__body\s*{[^}]*background:/);
     expect(messageList).toContain("data-testid='message-list-skeleton-lines'");

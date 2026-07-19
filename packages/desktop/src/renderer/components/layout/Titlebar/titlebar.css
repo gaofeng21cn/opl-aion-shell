@@ -24,7 +24,7 @@
 }
 
 .app-titlebar--mobile-conversation {
-  background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%) !important;
+  background: var(--opl-main-bg, var(--bg-1)) !important;
   border-bottom: none !important;
 }
 

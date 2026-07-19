@@ -12,11 +12,18 @@ describe('arco tooltip and popover overlay styles', () => {
   it('defines shared light and dark overlay tokens for tooltip-like surfaces', () => {
     const css = fs.readFileSync(arcoOverridePath, 'utf8');
 
-    expect(css).toContain('--aion-overlay-bg: #ffffff;');
-    expect(css).toContain('--aion-overlay-text: #1d2129;');
+    expect(css).toContain('--aion-overlay-bg: var(--dialog-fill-0, var(--bg-1));');
+    expect(css).toContain('--aion-overlay-text: var(--text-primary, var(--color-text-1));');
+    expect(css).toContain('--aion-overlay-border: var(--border-base, var(--color-border-2));');
+    expect(css).toMatch(
+      /--aion-overlay-shadow:\s*var\(\s*--opl-composer-shadow,\s*0 8px 24px color-mix\(in srgb, var\(--color-neutral-10, #0f172a\) 12%, transparent\)\s*\);/
+    );
     expect(css).toContain("body[arco-theme='dark'] {");
-    expect(css).toContain('--aion-overlay-bg: #0e0e0e;');
-    expect(css).toContain('--aion-overlay-text: #f2f3f5;');
+    expect(css).toContain('--aion-overlay-bg: var(--dialog-fill-0, var(--bg-2));');
+    expect(css).toMatch(
+      /--aion-overlay-shadow:\s*var\(\s*--opl-composer-shadow,\s*0 12px 32px color-mix\(in srgb, var\(--color-neutral-10, #000000\) 45%, transparent\)\s*\);/
+    );
+    expect(css).not.toContain('--aion-overlay-bg: #0e0e0e;');
   });
 
   it('applies the shared overlay tokens to tooltip, popover, and popconfirm surfaces', () => {

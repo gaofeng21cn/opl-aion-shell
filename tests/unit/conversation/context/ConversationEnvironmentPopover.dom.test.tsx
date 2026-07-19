@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const gitWorkspaceApi = vi.hoisted(() => ({ inspect: vi.fn() }));
 const workspaceEvents = vi.hoisted(() => ({ toggle: vi.fn() }));
-const previewContext = vi.hoisted(() => ({ openPreview: vi.fn() }));
+const previewContext = vi.hoisted(() => ({ closePreview: vi.fn(), isOpen: false, openPreview: vi.fn() }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -103,6 +103,8 @@ describe('ConversationEnvironmentPopover', () => {
   beforeEach(() => {
     gitWorkspaceApi.inspect.mockReset().mockResolvedValue(liveInspection);
     workspaceEvents.toggle.mockReset();
+    previewContext.closePreview.mockReset();
+    previewContext.isOpen = false;
     previewContext.openPreview.mockReset();
   });
 
@@ -124,7 +126,10 @@ describe('ConversationEnvironmentPopover', () => {
     );
 
     expect(screen.queryByTestId('conversation-environment-popover')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Environment' })).toHaveAttribute('aria-expanded', 'false');
     const popover = await openEnvironment();
+    expect(screen.getByRole('button', { name: 'Environment' })).toHaveAttribute('aria-expanded', 'true');
+    expect(popover).toHaveAttribute('role', 'dialog');
 
     await waitFor(() => expect(within(popover).getByText('feature/advanced-surfaces')).toBeInTheDocument());
     expect(gitWorkspaceApi.inspect).toHaveBeenCalledWith({ cwd: '/projects/demo' });
@@ -222,6 +227,7 @@ describe('ConversationEnvironmentPopover', () => {
 
   it('opens an http browser preview from Environment without restoring the legacy Browser tab', async () => {
     render(<ConversationEnvironmentPopover conversation={conversation} />);
+    const trigger = screen.getByRole('button', { name: 'Environment' });
     const popover = await openEnvironment();
     fireEvent.change(within(popover).getByRole('textbox', { name: 'Web address' }), {
       target: { value: 'example.com' },
@@ -234,6 +240,25 @@ describe('ConversationEnvironmentPopover', () => {
       { title: 'https://example.com/' },
       { replace: true }
     );
+    await waitFor(() => expect(screen.queryByTestId('conversation-environment-popover')).not.toBeInTheDocument());
+    expect(trigger).not.toHaveFocus();
+  });
+
+  it('keeps Preview open while Environment is visible and restores trigger focus after Escape', async () => {
+    previewContext.isOpen = true;
+    render(<ConversationEnvironmentPopover conversation={conversation} />);
+    const trigger = screen.getByRole('button', { name: 'Environment' });
+
+    fireEvent.click(trigger);
+    const popover = await screen.findByTestId('conversation-environment-popover');
+    expect(previewContext.closePreview).not.toHaveBeenCalled();
+    fireEvent.focus(within(popover).getByRole('textbox', { name: 'Web address' }));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByTestId('conversation-environment-popover')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('keeps invalid browser input local and does not open a preview', async () => {

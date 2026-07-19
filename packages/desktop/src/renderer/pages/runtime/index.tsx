@@ -271,7 +271,9 @@ const RuntimePage: React.FC = () => {
       {messageContextHolder}
       <header className={styles.pageHeader}>
         <div className={styles.titleGroup}>
-          <Typography.Title heading={3}>{t('common.runtime.title')}</Typography.Title>
+          <Typography.Title heading={3} className={styles.pageTitle}>
+            {t('common.runtime.title')}
+          </Typography.Title>
           <Typography.Text className={styles.description}>{t('common.runtime.descriptionV2')}</Typography.Text>
         </div>
         {projection && (

@@ -76,9 +76,10 @@ describe('Sider navigation hierarchy', () => {
     setItem.mockRestore();
   });
 
-  it('orders primary actions before history utilities and keeps the footer compact', () => {
+  it('keeps Runtime fail-closed while Scheduled and Archived remain reachable', () => {
     const onRuntimeClick = vi.fn();
     const onScheduledClick = vi.fn();
+    const onArchivedClick = vi.fn();
     const onSettingsClick = vi.fn();
     render(
       <div>
@@ -90,7 +91,7 @@ describe('Sider navigation hierarchy', () => {
           siderTooltipProps={tooltipProps}
           onRuntimeClick={onRuntimeClick}
           onScheduledClick={onScheduledClick}
-          onArchivedClick={vi.fn()}
+          onArchivedClick={onArchivedClick}
         />
         <div>Conversation history</div>
         <SiderFooter
@@ -106,12 +107,14 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Runtime', 'Scheduled Tasks', 'Archived', 'Settings']);
+    expect(labels).toEqual(['New task', 'Scheduled Tasks', 'Archived', 'Settings']);
     expect(screen.queryByText('Thread coordination')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
-    expect(onRuntimeClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Runtime' })).not.toBeInTheDocument();
+    expect(onRuntimeClick).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Scheduled Tasks' }));
     expect(onScheduledClick).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
+    expect(onArchivedClick).toHaveBeenCalledOnce();
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
     expect(screen.queryByText('Help')).not.toBeInTheDocument();

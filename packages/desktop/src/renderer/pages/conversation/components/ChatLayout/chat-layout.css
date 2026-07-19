@@ -68,12 +68,38 @@
   white-space: nowrap;
 }
 
+.message-text-bubble {
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.message-text-bubble--user {
+  background: var(--color-fill-2, var(--message-user-bg));
+}
+
+.message-text-bubble--cron,
+.message-text-bubble--teammate {
+  background: var(--color-fill-1, var(--message-tips-bg));
+}
+
+.conversation-environment-overlay {
+  width: min(380px, calc(100vw - 16px));
+  max-width: none !important;
+}
+
+.conversation-environment-overlay .arco-popover-content {
+  border-radius: 12px;
+}
+
 .conversation-environment-popover {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: min(360px, calc(100vw - 32px));
-  max-height: min(560px, calc(100vh - 80px));
+  width: 100%;
+  max-height: min(520px, calc(100dvh - 80px));
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .conversation-environment-popover__section {
@@ -160,6 +186,12 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   padding: 8px 0;
+}
+
+@media (max-width: 1319px) {
+  .conversation-environment-popover {
+    height: min(340px, 42dvh);
+  }
 }
 
 .conversation-side-panel {

@@ -90,6 +90,8 @@ describe('MessageText attachment paths', () => {
     );
 
     expect(screen.getByTestId('file-preview')).toHaveTextContent('/workspace/demo/uploads/photo.png');
+    expect(screen.getByTestId('message-text-bubble')).toHaveClass('message-text-bubble--user');
+    expect(screen.getByTestId('message-text-bubble')).not.toHaveAttribute('style');
   });
 
   it('keeps absolute attachment paths unchanged before previewing', () => {

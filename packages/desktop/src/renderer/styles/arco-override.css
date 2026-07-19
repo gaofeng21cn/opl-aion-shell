@@ -9,18 +9,24 @@
     ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'Cascadia Code', 'Roboto Mono', Consolas, 'Liberation Mono',
     monospace;
   --code-font-size: 13px;
-  --aion-overlay-bg: #ffffff;
-  --aion-overlay-text: #1d2129;
-  --aion-overlay-border: #e5e6eb;
-  --aion-overlay-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --aion-overlay-bg: var(--dialog-fill-0, var(--bg-1));
+  --aion-overlay-text: var(--text-primary, var(--color-text-1));
+  --aion-overlay-border: var(--border-base, var(--color-border-2));
+  --aion-overlay-shadow: var(
+    --opl-composer-shadow,
+    0 8px 24px color-mix(in srgb, var(--color-neutral-10, #0f172a) 12%, transparent)
+  );
 }
 
 html[data-theme='dark'],
 body[arco-theme='dark'] {
-  --aion-overlay-bg: #0e0e0e;
-  --aion-overlay-text: #f2f3f5;
-  --aion-overlay-border: #333333;
-  --aion-overlay-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --aion-overlay-bg: var(--dialog-fill-0, var(--bg-2));
+  --aion-overlay-text: var(--text-primary, var(--color-text-1));
+  --aion-overlay-border: var(--border-base, var(--color-border-2));
+  --aion-overlay-shadow: var(
+    --opl-composer-shadow,
+    0 12px 32px color-mix(in srgb, var(--color-neutral-10, #000000) 45%, transparent)
+  );
 }
 
 /* Arco's arco.css puts 'Inter' first in font-family, which causes very thin

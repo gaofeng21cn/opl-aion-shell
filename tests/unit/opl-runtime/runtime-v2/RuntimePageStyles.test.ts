@@ -5,8 +5,22 @@ const runtimeStyles = fs.readFileSync(
   new URL('../../../../packages/desktop/src/renderer/pages/runtime/RuntimePage.module.css', import.meta.url),
   'utf8'
 );
+const runtimePage = fs.readFileSync(
+  new URL('../../../../packages/desktop/src/renderer/pages/runtime/index.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('Runtime V2 text wrapping styles', () => {
+  it('uses the quiet workbench title scale and compact page rhythm', () => {
+    expect(runtimePage).toContain('heading={3} className={styles.pageTitle}');
+    expect(runtimeStyles).toMatch(
+      /\.titleGroup\s+\.pageTitle\s*\{[^}]*font-size:\s*20px;[^}]*font-weight:\s*600;[^}]*letter-spacing:\s*0;[^}]*line-height:\s*28px;/s
+    );
+    expect(runtimeStyles).toMatch(/\.page\s*\{[^}]*padding:\s*20px 24px 24px;/s);
+    expect(runtimeStyles).toMatch(/\.pageHeader\s*\{[^}]*gap:\s*16px;[^}]*margin-bottom:\s*16px;/s);
+    expect(runtimeStyles).toMatch(/\.workItemRow\s*\{[^}]*padding:\s*12px 14px;/s);
+  });
+
   it('inherits one word-boundary-first policy without anywhere wrapping', () => {
     expect(runtimeStyles).toMatch(
       /\.page,\s*\.detailDrawer\s*\{[^}]*overflow-wrap:\s*break-word;[^}]*word-break:\s*normal;/s

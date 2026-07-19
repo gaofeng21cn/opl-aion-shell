@@ -194,18 +194,16 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           </div>
         )}
         <div
-          className={classNames('min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px md:max-w-780px', {
-            'bg-aou-2 p-6px md:p-8px': isUserMessage || cronMeta,
-            'bg-3 p-6px md:p-8px': isTeammateMessage,
-            'w-full': !(isUserMessage || cronMeta || isTeammateMessage),
-          })}
-          style={{
-            ...(isUserMessage || cronMeta
-              ? { borderRadius: '8px 0 8px 8px', color: 'var(--text-primary)' }
-              : isTeammateMessage
-                ? { borderRadius: '0 8px 8px 8px' }
-                : undefined),
-          }}
+          className={classNames(
+            'message-text-bubble min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px md:max-w-780px',
+            {
+              'message-text-bubble--user p-6px md:p-8px': isUserMessage,
+              'message-text-bubble--cron p-6px md:p-8px': !isUserMessage && cronMeta,
+              'message-text-bubble--teammate p-6px md:p-8px': isTeammateMessage,
+              'w-full': !(isUserMessage || cronMeta || isTeammateMessage),
+            }
+          )}
+          data-testid='message-text-bubble'
         >
           {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
           {shouldRenderPlainText ? (
