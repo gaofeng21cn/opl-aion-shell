@@ -188,7 +188,9 @@ function installedPackageReadback(
 }
 
 function capabilityReasonLabel(reason: string, t: (key: string, options?: Record<string, string>) => string): string {
-  return t(`settings.capabilitiesPage.reasonCodes.${reason}`, { defaultValue: reason });
+  return t(`settings.capabilitiesPage.reasonCodes.${reason}`, {
+    defaultValue: t('settings.capabilitiesPage.reasonCodes.other'),
+  });
 }
 
 function capabilitySourceLabel(
@@ -1755,155 +1757,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
       <div className='flex flex-col gap-14px' data-testid='settings-agents-primary'>
         <section
-          className='opl-settings-section opl-settings-agent-advanced'
-          id='source'
-          data-testid='opl-developer-profile-control'
-        >
-          <button
-            type='button'
-            className='opl-settings-agent-disclosure'
-            aria-expanded={developerAdvancedOpen}
-            aria-controls='opl-developer-profile-details'
-            onClick={() => setDeveloperAdvancedOpen((open) => !open)}
-            data-testid='opl-developer-profile-disclosure'
-          >
-            <span className='min-w-0 text-left'>
-              <span className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.developerSource.advancedTitle')}
-              </span>
-              <span className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.developerSource.advancedSummary', {
-                  mode: developerModeLabel,
-                  state: developerEffectiveStateLabel,
-                })}
-              </span>
-            </span>
-            <Down
-              theme='outline'
-              size='14'
-              fill='currentColor'
-              className='opl-settings-agent-disclosure__icon'
-              aria-hidden='true'
-            />
-          </button>
-          {developerAdvancedOpen && (
-            <div className='opl-settings-agent-advanced__content' id='opl-developer-profile-details'>
-              <div className='opl-settings-section__header'>
-                <div>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.capabilitiesPage.developerSource.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t('settings.capabilitiesPage.developerSource.description')}
-                  </Typography.Text>
-                </div>
-                <Radio.Group
-                  type='button'
-                  value={developerModeEnabled}
-                  disabled={packageMutationBusy || !developerSupervisorActionAvailable}
-                  onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
-                  aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
-                  data-testid='opl-developer-profile-mode'
-                >
-                  <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
-                  <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
-                  <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
-                </Radio.Group>
-              </div>
-              <div className='opl-settings-list'>
-                <div className='opl-settings-row'>
-                  <div className='opl-settings-row__main'>
-                    <Typography.Text className='block font-500 text-t-primary'>
-                      {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
-                    </Typography.Text>
-                  </div>
-                  <div className='opl-settings-row__meta'>
-                    <div className='flex flex-col items-end gap-6px'>
-                      <Tag data-testid='opl-developer-profile-effective-state'>{developerEffectiveStateLabel}</Tag>
-                      <Radio.Group
-                        type='button'
-                        size='small'
-                        value={developerMaintenanceChoice}
-                        disabled={packageMutationBusy || !developerSupervisorActionAvailable}
-                        onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
-                        aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
-                        data-testid='opl-developer-profile-maintenance'
-                      >
-                        <Radio value='auto'>
-                          {t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}
-                        </Radio>
-                        <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
-                      </Radio.Group>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div
-                className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
-                data-testid='settings-agents-developer-summary'
-              >
-                <span className='min-w-0'>
-                  {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
-                  {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                </span>
-                <span className='min-w-0'>
-                  {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
-                  {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
-                    defaultValue: developerConfigSource,
-                  })}
-                </span>
-                {developerInspectionPending && (
-                  <span data-testid='opl-developer-profile-inspection-pending'>
-                    {t('settings.capabilitiesPage.developerSource.inspectionPending')}
-                  </span>
-                )}
-                {!developerInspectionPending && showDeveloperIdentity && (
-                  <span>
-                    {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
-                  </span>
-                )}
-                {!developerInspectionPending && showDeveloperAuthority && (
-                  <span>
-                    {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
-                    {t('settings.capabilitiesPage.developerSource.authoritySummary', {
-                      direct: String(directWriteRepoCount),
-                      pullRequest: String(prRouteRepoCount),
-                      total: String(requiredRepoCount),
-                    })}
-                  </span>
-                )}
-                {developerMaintenanceProtection.status === 'ready' && (
-                  <span data-testid='opl-developer-profile-protection'>
-                    {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
-                    {t('settings.capabilitiesPage.developerSource.protectionSummary', {
-                      dirty:
-                        developerDirtyProtection.requires_isolated_worktree === true
-                          ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
-                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                      branch:
-                        developerBranchProtection.direct_push_to_protected_branch === false
-                          ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
-                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                    })}
-                  </span>
-                )}
-                {!developerInspectionPending && developerInactiveReason && (
-                  <span data-testid='opl-developer-profile-inactive-reason'>
-                    {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
-                    {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
-                      defaultValue: developerInactiveReason,
-                    })}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section
           className='opl-settings-section opl-settings-surface--configuration'
           id='catalog'
           data-testid='agent-package-catalog'
@@ -2619,6 +2472,155 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               )}
             </div>
           </details>
+        </section>
+
+        <section
+          className='opl-settings-section opl-settings-agent-advanced'
+          id='source'
+          data-testid='opl-developer-profile-control'
+        >
+          <button
+            type='button'
+            className='opl-settings-agent-disclosure'
+            aria-expanded={developerAdvancedOpen}
+            aria-controls='opl-developer-profile-details'
+            onClick={() => setDeveloperAdvancedOpen((open) => !open)}
+            data-testid='opl-developer-profile-disclosure'
+          >
+            <span className='min-w-0 text-left'>
+              <span className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.developerSource.advancedTitle')}
+              </span>
+              <span className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.developerSource.advancedSummary', {
+                  mode: developerModeLabel,
+                  state: developerEffectiveStateLabel,
+                })}
+              </span>
+            </span>
+            <Down
+              theme='outline'
+              size='14'
+              fill='currentColor'
+              className='opl-settings-agent-disclosure__icon'
+              aria-hidden='true'
+            />
+          </button>
+          {developerAdvancedOpen && (
+            <div className='opl-settings-agent-advanced__content' id='opl-developer-profile-details'>
+              <div className='opl-settings-section__header'>
+                <div>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.capabilitiesPage.developerSource.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.developerSource.description')}
+                  </Typography.Text>
+                </div>
+                <Radio.Group
+                  type='button'
+                  value={developerModeEnabled}
+                  disabled={packageMutationBusy || !developerSupervisorActionAvailable}
+                  onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
+                  aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
+                  data-testid='opl-developer-profile-mode'
+                >
+                  <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
+                  <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
+                  <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
+                </Radio.Group>
+              </div>
+              <div className='opl-settings-list'>
+                <div className='opl-settings-row'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='block font-500 text-t-primary'>
+                      {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <div className='flex flex-col items-end gap-6px'>
+                      <Tag data-testid='opl-developer-profile-effective-state'>{developerEffectiveStateLabel}</Tag>
+                      <Radio.Group
+                        type='button'
+                        size='small'
+                        value={developerMaintenanceChoice}
+                        disabled={packageMutationBusy || !developerSupervisorActionAvailable}
+                        onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
+                        aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
+                        data-testid='opl-developer-profile-maintenance'
+                      >
+                        <Radio value='auto'>
+                          {t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}
+                        </Radio>
+                        <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
+                      </Radio.Group>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
+                data-testid='settings-agents-developer-summary'
+              >
+                <span className='min-w-0'>
+                  {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
+                  {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                </span>
+                <span className='min-w-0'>
+                  {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
+                  {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
+                    defaultValue: t('settings.capabilitiesPage.developerSource.configurationSources.other'),
+                  })}
+                </span>
+                {developerInspectionPending && (
+                  <span data-testid='opl-developer-profile-inspection-pending'>
+                    {t('settings.capabilitiesPage.developerSource.inspectionPending')}
+                  </span>
+                )}
+                {!developerInspectionPending && showDeveloperIdentity && (
+                  <span>
+                    {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
+                  </span>
+                )}
+                {!developerInspectionPending && showDeveloperAuthority && (
+                  <span>
+                    {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
+                    {t('settings.capabilitiesPage.developerSource.authoritySummary', {
+                      direct: String(directWriteRepoCount),
+                      pullRequest: String(prRouteRepoCount),
+                      total: String(requiredRepoCount),
+                    })}
+                  </span>
+                )}
+                {developerMaintenanceProtection.status === 'ready' && (
+                  <span data-testid='opl-developer-profile-protection'>
+                    {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
+                    {t('settings.capabilitiesPage.developerSource.protectionSummary', {
+                      dirty:
+                        developerDirtyProtection.requires_isolated_worktree === true
+                          ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
+                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                      branch:
+                        developerBranchProtection.direct_push_to_protected_branch === false
+                          ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
+                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                    })}
+                  </span>
+                )}
+                {!developerInspectionPending && developerInactiveReason && (
+                  <span data-testid='opl-developer-profile-inactive-reason'>
+                    {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
+                    {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
+                      defaultValue: t('settings.capabilitiesPage.developerSource.inactiveReasons.other'),
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </div>

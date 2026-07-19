@@ -2320,7 +2320,8 @@
       "configurationSource": "Configuration source",
       "configurationSources": {
         "default": "Automatic default",
-        "user_config": "User configuration"
+        "user_config": "User configuration",
+        "other": "Framework-managed configuration"
       },
       "inspectionPending": "Checking GitHub identity and repository authority. No mismatch has been inferred.",
       "protection": "Repository protection",
@@ -2336,7 +2337,8 @@
         "authority_inspection_pending": "Repository authority inspection is still running.",
         "github_identity_unavailable": "A GitHub login could not be confirmed.",
         "auto_identity_mismatch": "The current GitHub login does not match the configured developer identity.",
-        "repo_authority_blocked": "No authorized maintenance route is currently available."
+        "repo_authority_blocked": "No authorized maintenance route is currently available.",
+        "other": "The runtime source is currently inactive. Refresh the page or open Maintenance for details."
       },
       "packageTitle": "Runtime source for this capability",
       "packageDescription": "Follow the global mode or pin this capability to the managed copy or local developer repository.",
@@ -2496,7 +2498,8 @@
       "package_activation_required": "Activate this package for the current Workspace",
       "scope_materialization_missing": "Activate this package for the current Workspace",
       "live_verification_deferred": "Live verification will complete in the background",
-      "status_read_error": "Framework could not read the package status"
+      "status_read_error": "Framework could not read the package status",
+      "other": "Framework reported an issue that this App version does not yet recognize."
     },
     "sourceLabels": {
       "developer": "Local developer source",

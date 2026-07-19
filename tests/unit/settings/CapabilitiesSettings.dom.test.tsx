@@ -736,6 +736,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.configurationSource': 'Configuration source',
         'settings.capabilitiesPage.developerSource.configurationSources.default': 'Automatic default',
         'settings.capabilitiesPage.developerSource.configurationSources.user_config': 'User configuration',
+        'settings.capabilitiesPage.developerSource.configurationSources.other': 'Framework-managed configuration',
         'settings.capabilitiesPage.developerSource.inspectionPending':
           'Checking GitHub identity and repository authority. No mismatch has been inferred.',
         'settings.capabilitiesPage.developerSource.protection': 'Repository protection',
@@ -748,6 +749,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.inactiveReason': 'Why it is inactive',
         'settings.capabilitiesPage.developerSource.inactiveReasons.authority_inspection_pending':
           'Repository authority inspection is still running.',
+        'settings.capabilitiesPage.developerSource.inactiveReasons.other':
+          'The runtime source is currently inactive. Refresh the page or open Maintenance for details.',
         'settings.capabilitiesPage.developerSource.packageTitle': 'Runtime source for this capability',
         'settings.capabilitiesPage.developerSource.packageDescription': 'Follow global or select a source.',
         'settings.capabilitiesPage.developerSource.packageModes.auto': 'Follow global',
@@ -838,6 +841,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.dependencyReadiness.blocked': 'Blocked',
         'settings.capabilitiesPage.reasonCodes.required_export_missing': 'A required capability export is missing',
         'settings.capabilitiesPage.reasonCodes.required_by_installed_package': 'Required by another installed package',
+        'settings.capabilitiesPage.reasonCodes.other':
+          'Framework reported an issue that this App version does not yet recognize.',
         'settings.capabilitiesPage.detailValues.readinessCount': `${options?.ready ?? ''} of ${options?.required ?? ''}`,
         'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness',
         'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflows',
@@ -1083,6 +1088,8 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 6');
     expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 6');
     const catalog = screen.getByTestId('agent-package-catalog');
+    const developerProfile = screen.getByTestId('opl-developer-profile-control');
+    expect(catalog.compareDocumentPosition(developerProfile) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     for (const anchor of ['catalog', 'package-role', 'availability', 'source', 'home-visibility']) {
       expect(document.getElementById(anchor)).not.toBeNull();
     }
@@ -2108,6 +2115,62 @@ describe('Agents and capabilities settings', () => {
     expect(pending).toHaveTextContent('Checking GitHub identity and repository authority');
     expect(screen.queryByText(/identity mismatch/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-developer-profile-inactive-reason')).not.toBeInTheDocument();
+  });
+
+  it('uses stable user-facing fallbacks for unknown Developer projection values', () => {
+    appStateOverrides.developerMode = {
+      enabled: 'auto',
+      mode: 'developer_apply_safe',
+      effective_state: 'inactive_future_policy',
+      inactive_reason: 'future_inactive_reason',
+      config_source: 'future_configuration_source',
+      developer_workspace: { selected_path: '/Users/test/workspace' },
+      github_identity: { status: 'skipped', login: null },
+      repo_authority: { status: 'not_checked', required_repo_count: 0 },
+      repository_maintenance_protection: { status: 'not_reported' },
+    };
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('opl-developer-profile-disclosure'));
+    const profile = screen.getByTestId('opl-developer-profile-control');
+    expect(profile).toHaveTextContent('Framework-managed configuration');
+    expect(profile).toHaveTextContent(
+      'The runtime source is currently inactive. Refresh the page or open Maintenance for details.'
+    );
+    expect(profile).not.toHaveTextContent('future_configuration_source');
+    expect(profile).not.toHaveTextContent('future_inactive_reason');
+  });
+
+  it('does not expose unknown Framework reason enums in capability details', () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'example-agent',
+          package_role: 'framework_capability_package',
+          installed: true,
+          status: 'blocked',
+          readiness: { status: 'blocked' },
+        },
+      ],
+      {
+        statusEntries: [
+          {
+            package_id: 'example-agent',
+            status: 'blocked',
+            operational_ready: false,
+            launch_allowed: false,
+            launch_blocked_reason: 'future_framework_reason',
+            capability_exposure: { status: 'visible' },
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    const readiness = screen.getByTestId('capability-readiness-example');
+    expect(readiness).toHaveTextContent('Framework reported an issue that this App version does not yet recognize.');
+    expect(readiness).not.toHaveTextContent('future_framework_reason');
   });
 
   it('keeps raw package identifiers out of the directory and restores focus after closing the desktop panel', async () => {

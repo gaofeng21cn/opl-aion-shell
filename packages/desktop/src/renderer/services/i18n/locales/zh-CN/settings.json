@@ -2321,7 +2321,8 @@
       "configurationSource": "配置来源",
       "configurationSources": {
         "default": "自动默认值",
-        "user_config": "用户配置"
+        "user_config": "用户配置",
+        "other": "由 Framework 管理的配置"
       },
       "inspectionPending": "正在检查 GitHub 身份和仓库权限，尚未判定为身份不匹配。",
       "protection": "仓库保护",
@@ -2337,7 +2338,8 @@
         "authority_inspection_pending": "仍在检查仓库权限。",
         "github_identity_unavailable": "尚未确认 GitHub 登录身份。",
         "auto_identity_mismatch": "当前 GitHub 登录身份与配置的开发者身份不匹配。",
-        "repo_authority_blocked": "当前没有可用的授权维护路径。"
+        "repo_authority_blocked": "当前没有可用的授权维护路径。",
+        "other": "运行来源当前未生效，请刷新页面或打开维护页查看详情。"
       },
       "packageTitle": "此能力的运行来源",
       "packageDescription": "自动跟随全局模式，也可以固定使用托管版或本地开发仓库。",
@@ -2497,7 +2499,8 @@
       "package_activation_required": "请为当前工作区激活该包",
       "scope_materialization_missing": "请为当前工作区激活该包",
       "live_verification_deferred": "后台将继续完成实时验证",
-      "status_read_error": "Framework 无法读取包状态"
+      "status_read_error": "Framework 无法读取包状态",
+      "other": "Framework 报告了当前 App 版本尚未识别的问题。"
     },
     "sourceLabels": {
       "developer": "本地开发源",
