@@ -8,6 +8,7 @@ import {
 } from '@/renderer/pages/guid/utils/assistantSkillMenu';
 import {
   resolveOplHomeAssistants,
+  resolveOplProfessionalAgentAssistants,
   resolveOplPackageActivationAction,
   resolveOplPackageLaunchGate,
   resolveOplPackageSelectionVersion,
@@ -44,6 +45,15 @@ const activationAction = (
 });
 
 describe('OPL home assistants', () => {
+  it('keeps Home shortcuts separate from the complete professional-agent directory', () => {
+    expect(resolveOplHomeAssistants([]).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
+
+    const directory = resolveOplProfessionalAgentAssistants([]);
+    expect(directory.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
+    expect(directory.find((item) => item.id === 'oma')?.description_i18n['zh-CN']).toContain('OPL Foundry Agent');
+    expect(directory.find((item) => item.id === 'obf')?.enabled_skills).toEqual(['opl-bookforge']);
+  });
+
   it('filters historical AionUI assistants and exposes the configured home entries', () => {
     const resolved = resolveOplHomeAssistants([
       assistant({ id: 'cowork', name: 'Cowork' }),

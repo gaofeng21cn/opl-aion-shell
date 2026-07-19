@@ -666,6 +666,65 @@ vi.mock('@/common/config/oplProductProfile', () => {
       optional_skill_ids: [],
     },
   ];
+  const firstPartyPackagePresentations = [
+    {
+      package_id: 'mas',
+      display_name_i18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
+      description_i18n: {
+        'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+        'en-US':
+          'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+      },
+    },
+    {
+      package_id: 'mag',
+      display_name_i18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
+      description_i18n: {
+        'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
+        'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
+      },
+    },
+    {
+      package_id: 'rca',
+      display_name_i18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
+      description_i18n: {
+        'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
+        'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
+      },
+    },
+    {
+      package_id: 'oma',
+      display_name_i18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
+      description_i18n: {
+        'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
+        'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
+      },
+    },
+    {
+      package_id: 'obf',
+      display_name_i18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
+      description_i18n: {
+        'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
+        'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
+      },
+    },
+    {
+      package_id: 'mas-scholar-skills',
+      display_name_i18n: { 'zh-CN': 'MAS 学术技能', 'en-US': 'MAS Scholar Skills' },
+      description_i18n: {
+        'zh-CN': '供医学科研智能体使用的可复用医学科研能力。',
+        'en-US': 'Reusable medical research capabilities consumed by Med Auto Science.',
+      },
+    },
+    {
+      package_id: 'opl-flow',
+      display_name_i18n: { 'zh-CN': 'OPL Flow', 'en-US': 'OPL Flow' },
+      description_i18n: {
+        'zh-CN': 'OPL 推荐工作流配置与受管 Codex 策略。',
+        'en-US': 'Recommended OPL workflow profile and managed Codex policy.',
+      },
+    },
+  ];
   return {
     canonicalizeOplProfessionalAgentId: (id: string) => {
       const normalized = id.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -688,6 +747,7 @@ vi.mock('@/common/config/oplProductProfile', () => {
     getOplDefaultHomeAssistants: () => [],
     getOplAgentPackageRegistryUrl: () =>
       'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
+    getOplFirstPartyPackagePresentations: () => firstPartyPackagePresentations,
     getOplHomeAgentShortcuts: () => homeAgentShortcuts,
     getOplProfessionalAgentPackage: (id: string) =>
       professionalAgentPackages.find((agentPackage) => agentPackage.package_id === id),
@@ -761,13 +821,13 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.managedPath': 'Managed path',
         'settings.capabilitiesPage.developerSource.developerPath': 'Developer path',
         'settings.capabilitiesPage.developerSource.fallback': 'Using the managed fallback.',
-        'settings.capabilitiesPage.status.ready': 'Ready',
+        'settings.capabilitiesPage.status.ready': 'Ready to use',
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.sync': 'Needs sync',
         'settings.capabilitiesPage.status.source': 'Developer source',
-        'settings.capabilitiesPage.status.verification': 'Verification pending',
+        'settings.capabilitiesPage.status.verification': 'Local check not complete',
         'settings.capabilitiesPage.status.inactive': 'Not enabled',
-        'settings.capabilitiesPage.status.attention': 'Needs attention',
+        'settings.capabilitiesPage.status.attention': 'Setup required',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
         'settings.advancedSettings': 'Advanced Settings',
@@ -781,13 +841,15 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.codexVisibility.needsSync': 'Needs sync before Codex sees the latest version',
         'settings.capabilitiesPage.codexVisibility.notVisible': 'Not visible to Codex yet',
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
-        'settings.capabilitiesPage.visibility.conversation': 'Available in conversations',
+        'settings.capabilitiesPage.visibility.conversation': 'Current availability',
         'settings.capabilitiesPage.visibility.home': 'Show on Home',
-        'settings.capabilitiesPage.visibility.conversationAvailable': 'Available',
+        'settings.capabilitiesPage.visibility.conversationAvailable': 'Ready to start a conversation',
         'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync needed',
-        'settings.capabilitiesPage.visibility.conversationUnavailable': 'Not available',
-        'settings.capabilitiesPage.visibility.conversationUnverified': 'Not verified',
-        'settings.capabilitiesPage.visibility.conversationVerificationPending': 'Verification pending',
+        'settings.capabilitiesPage.visibility.conversationUnavailable': 'Complete setup or repair first',
+        'settings.capabilitiesPage.visibility.conversationUnverified': 'No local check result reported yet',
+        'settings.capabilitiesPage.visibility.conversationVerificationPending':
+          'You can start a conversation; the local check runs on first use',
+        'settings.capabilitiesPage.actions.reviewLocalCheck': 'Review local check',
         'settings.capabilitiesPage.packageManager.roleLabels.standardAgent': 'Runnable agent',
         'settings.capabilitiesPage.packageManager.roleLabels.workflowProfile': 'Workflow profile',
         'settings.capabilitiesPage.packageManager.roleLabels.supportingCapability': 'Supporting capability',
@@ -1093,7 +1155,7 @@ describe('Agents and capabilities settings', () => {
     for (const anchor of ['catalog', 'package-role', 'availability', 'source', 'home-visibility']) {
       expect(document.getElementById(anchor)).not.toBeNull();
     }
-    expect(within(catalog).getAllByText('Available in conversations')).toHaveLength(6);
+    expect(within(catalog).getAllByText('Current availability')).toHaveLength(6);
     expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
     const refreshRegistryButton = screen.getByTestId('agent-package-refresh-registry');
     expect(refreshRegistryButton).toHaveAccessibleName('Refresh registry');
@@ -1113,21 +1175,25 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getAllByText('Local developer source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Needs repair').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ready to start a conversation').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sync needed').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
-    expect(within(research).getByText('Research')).toBeInTheDocument();
-    expect(within(research).getByText('Ready')).toBeInTheDocument();
+    expect(within(research).getByTestId('capability-description-mas')).toHaveTextContent(
+      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+    );
+    expect(within(research).getByText('Ready to use')).toBeInTheDocument();
     expect(within(research).getByText('Local developer source')).toBeInTheDocument();
     const bookforge = screen.getByTestId('capability-purpose-obf');
-    expect(within(bookforge).getByText('Ready')).toBeInTheDocument();
+    expect(within(bookforge).getByText('Ready to use')).toBeInTheDocument();
     expect(within(bookforge).getByText('Local developer source')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-obf'));
     expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
-    expect(within(oma).getByText('Meta agent')).toBeInTheDocument();
-    expect(within(oma).getByText('Ready')).toBeInTheDocument();
+    expect(within(oma).getByTestId('capability-description-oma')).toHaveTextContent(
+      'For creating, taking over, inspecting, and improving OPL professional agents.'
+    );
+    expect(within(oma).getByText('Ready to use')).toBeInTheDocument();
     expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
@@ -1408,7 +1474,7 @@ describe('Agents and capabilities settings', () => {
     const managedRow = screen.getByTestId('capability-purpose-mas');
     expect(within(managedRow).getByTestId('capability-source-mas')).toHaveTextContent(/Source\s*OPL managed package/);
     expect(within(managedRow).getByTestId('capability-conversation-mas')).toHaveTextContent(
-      /Available in conversations\s*Not available/
+      /Current availability\s*Complete setup or repair first/
     );
     expect(within(managedRow).getByTestId('capability-controls-mas')).toBeInTheDocument();
     expect(managedRow).not.toHaveTextContent('first_party');
@@ -1504,7 +1570,35 @@ describe('Agents and capabilities settings', () => {
 
     expect(within(screen.getByTestId('capability-purpose-example')).getByText('Not enabled')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-exception')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready');
+    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready to use');
+  });
+
+  it('presents deferred local verification as usable on first use instead of unavailable', () => {
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'med-autoscience',
+        package_role: 'standard_agent',
+        installed: true,
+        readiness: {
+          status: 'verification_deferred',
+          operational_ready: false,
+          launch_allowed: false,
+          verification_deferred: true,
+          reason: 'live_verification_deferred',
+        },
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const row = screen.getByTestId('capability-purpose-mas');
+    expect(within(row).getByText('Local check not complete')).toBeInTheDocument();
+    expect(within(row).getByTestId('capability-conversation-mas')).toHaveTextContent(
+      'You can start a conversation; the local check runs on first use'
+    );
+    expect(within(row).queryByText('Complete setup or repair first')).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Review local check' })).toBeInTheDocument();
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('1 / 1');
+    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready to use');
   });
 
   it('keeps a row status read error local to that package and exposes its failure detail', () => {

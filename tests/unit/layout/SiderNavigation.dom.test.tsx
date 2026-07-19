@@ -76,7 +76,7 @@ describe('Sider navigation hierarchy', () => {
     setItem.mockRestore();
   });
 
-  it('keeps Runtime fail-closed while Scheduled and Archived remain reachable', () => {
+  it('keeps Runtime, Scheduled, and Archived visible in the primary navigation order', () => {
     const onRuntimeClick = vi.fn();
     const onScheduledClick = vi.fn();
     const onArchivedClick = vi.fn();
@@ -107,10 +107,10 @@ describe('Sider navigation hierarchy', () => {
       .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
-    expect(labels).toEqual(['New task', 'Scheduled Tasks', 'Archived', 'Settings']);
+    expect(labels).toEqual(['New task', 'Runtime', 'Scheduled Tasks', 'Archived', 'Settings']);
     expect(screen.queryByText('Thread coordination')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Runtime' })).not.toBeInTheDocument();
-    expect(onRuntimeClick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Runtime' }));
+    expect(onRuntimeClick).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Scheduled Tasks' }));
     expect(onScheduledClick).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
@@ -122,6 +122,34 @@ describe('Sider navigation hierarchy', () => {
     fireEvent.click(screen.getByTestId('sider-footer-settings'));
     expect(onSettingsClick).toHaveBeenCalledWith('general');
   });
+
+  it.each([
+    { collapsed: true, isMobile: false },
+    { collapsed: false, isMobile: true },
+  ])(
+    'keeps primary navigation named and keyboard reachable in $collapsed/$isMobile layout',
+    ({ collapsed, isMobile }) => {
+      const onRuntimeClick = vi.fn();
+      render(
+        <SiderPrimaryNav
+          collapsed={collapsed}
+          isMobile={isMobile}
+          pathname='/runtime/task-7'
+          siderTooltipProps={tooltipProps}
+          onRuntimeClick={onRuntimeClick}
+          onScheduledClick={vi.fn()}
+          onArchivedClick={vi.fn()}
+        />
+      );
+
+      const runtime = screen.getByRole('button', { name: 'Runtime' });
+      expect(runtime).toHaveClass('!bg-fill-3');
+      runtime.focus();
+      fireEvent.keyDown(runtime, { key: 'Enter', code: 'Enter' });
+      fireEvent.click(runtime);
+      expect(onRuntimeClick).toHaveBeenCalledOnce();
+    }
+  );
 
   it('renders a connected account as a green circular initials avatar', () => {
     render(

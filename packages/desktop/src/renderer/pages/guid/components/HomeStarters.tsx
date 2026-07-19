@@ -7,7 +7,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { BookOpen, ChartHistogram, CheckOne, Flask, Microscope, WritingFluently } from '@icon-park/react';
+import { BookOpen, ChartHistogram, Flask, Microscope, WritingFluently } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useMemo } from 'react';
@@ -92,11 +92,6 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 {starterIcon(assistant.id)}
               </span>
               <span className={styles.homeStarterLabel}>{label}</span>
-              {active ? (
-                <span className={styles.homeStarterCheck} data-testid='starter-active-check' aria-hidden='true'>
-                  <CheckOne theme='outline' size={14} fill='currentColor' />
-                </span>
-              ) : null}
             </Button>
           );
         })}

@@ -2368,13 +2368,13 @@
       }
     },
     "status": {
-      "ready": "已就绪",
+      "ready": "可直接使用",
       "update": "可更新",
       "sync": "需同步",
       "source": "开发源",
-      "verification": "待验证",
+      "verification": "尚未完成本机检查",
       "inactive": "未启用",
-      "attention": "需关注",
+      "attention": "需要完成设置",
       "repair": "需修复",
       "missing": "缺失"
     },
@@ -2420,13 +2420,13 @@
       "unknown": "未报告可见性"
     },
     "visibility": {
-      "conversation": "对话中可用",
+      "conversation": "当前可用性",
       "home": "首页显示",
-      "conversationAvailable": "可使用",
+      "conversationAvailable": "可直接发起对话",
       "conversationNeedsSync": "需同步",
-      "conversationUnavailable": "不可使用",
-      "conversationVerificationPending": "待验证",
-      "conversationUnverified": "未验证"
+      "conversationUnavailable": "请先完成设置或修复",
+      "conversationVerificationPending": "可发起对话，首次使用时自动检查",
+      "conversationUnverified": "尚未收到本机检查结果"
     },
     "detailLabels": {
       "purpose": "用途",
@@ -2507,7 +2507,7 @@
       "package_not_installed": "请先安装该包",
       "package_activation_required": "请为当前工作区激活该包",
       "scope_materialization_missing": "请为当前工作区激活该包",
-      "live_verification_deferred": "后台将继续完成实时验证",
+      "live_verification_deferred": "可发起对话；首次使用时自动完成本机检查，也可立即查看检查状态",
       "status_read_error": "Framework 无法读取包状态",
       "other": "Framework 报告了当前 App 版本尚未识别的问题。"
     },
@@ -2554,6 +2554,7 @@
     },
     "actions": {
       "openDetails": "查看能力",
+      "reviewLocalCheck": "查看检查状态",
       "installOrSync": "设置能力",
       "updateOrSync": "打开维护页",
       "repair": "打开维护页"
@@ -2659,7 +2660,7 @@
         "installable": "可安装",
         "installed": "已安装",
         "activation_required": "待激活",
-        "verification_deferred": "待验证",
+        "verification_deferred": "首次使用时检查",
         "ready": "已就绪"
       }
     },
@@ -2738,7 +2739,8 @@
         "confirmAction": "运行建议修复"
       },
       "status": {
-        "available": "可用"
+        "available": "可用",
+        "verification_deferred": "首次使用时检查"
       },
       "items": {
         "appUpdates": {
@@ -2778,7 +2780,7 @@
     },
     "advancedDetails": {
       "title": "高级维护详情",
-      "description": "组件状态、模块路径和维护回执只在排查或手动处理时查看。"
+      "description": "运行目录、日志位置和模块来源只在排查或手动处理时查看。"
     },
     "summary": {
       "nextAction": "下一步：{{action}}",

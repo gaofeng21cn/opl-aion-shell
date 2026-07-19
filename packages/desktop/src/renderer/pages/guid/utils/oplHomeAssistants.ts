@@ -7,6 +7,7 @@ import {
   getOplDefaultHomeAssistants,
   getOplHomeAgentShortcuts,
   getOplProfessionalAgentPackage,
+  getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
 import { parseOplProjectedPackageAction, type OplProjectedPackageAction } from '@/common/types/opl/appState';
 import { getOplVisibleHomeAgentShortcuts } from './oplHomeShortcutPreferences';
@@ -227,6 +228,22 @@ function getOplHomePackageProfiles(): OplHomePackageProfile[] {
     .filter((profile): profile is OplHomePackageProfile => Boolean(profile));
 }
 
+function getOplProfessionalAgentPackageProfiles(): OplHomePackageProfile[] {
+  const legacyAssistants = new Map(getOplDefaultHomeAssistants().map((assistant) => [assistant.id, assistant]));
+  return getOplProfessionalAgentPackages().map((agentPackage) => {
+    const legacyAssistant = legacyAssistants.get(agentPackage.package_id);
+    return {
+      id: agentPackage.package_id,
+      display_name: agentPackage.display_name,
+      short_name: agentPackage.short_name,
+      avatar: legacyAssistant?.avatar ?? agentPackage.short_name,
+      description_i18n:
+        agentPackage.description_i18n ?? legacyAssistant?.description_i18n ?? agentPackage.session_routing_summary_i18n,
+      prompts_i18n: legacyAssistant?.prompts_i18n ?? {},
+    };
+  });
+}
+
 const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
 
 const buildAssistantFromProfile = (
@@ -295,7 +312,10 @@ const mergeAssistantWithProfile = (
   return merged;
 };
 
-export function resolveOplHomeAssistants(backendAssistants: Assistant[]): Assistant[] {
+function resolveOplAssistantsFromProfiles(
+  backendAssistants: Assistant[],
+  profiles: OplHomePackageProfile[]
+): Assistant[] {
   const backendById = new Map<string, Assistant>();
   for (const assistant of backendAssistants) {
     backendById.set(normalizeAssistantId(assistant.id), assistant);
@@ -315,7 +335,7 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[]): Assist
   );
   const defaultRuntimeAgentId = defaultRuntimeAgentIds.length === 1 ? defaultRuntimeAgentIds[0] : undefined;
 
-  return getOplHomePackageProfiles().map((profile, index) => {
+  return profiles.map((profile, index) => {
     const existing = backendById.get(profile.id);
     if (!existing) {
       return buildAssistantFromProfile(profile, index + 1, defaultRuntimeAgentId);
@@ -323,4 +343,14 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[]): Assist
 
     return mergeAssistantWithProfile(existing, profile, index + 1, defaultRuntimeAgentId);
   });
+}
+
+/** Resolve the user-configured shortcut subset rendered on Home. */
+export function resolveOplHomeAssistants(backendAssistants: Assistant[]): Assistant[] {
+  return resolveOplAssistantsFromProfiles(backendAssistants, getOplHomePackageProfiles());
+}
+
+/** Resolve the complete App-owned professional-agent directory for selection surfaces. */
+export function resolveOplProfessionalAgentAssistants(backendAssistants: Assistant[]): Assistant[] {
+  return resolveOplAssistantsFromProfiles(backendAssistants, getOplProfessionalAgentPackageProfiles());
 }

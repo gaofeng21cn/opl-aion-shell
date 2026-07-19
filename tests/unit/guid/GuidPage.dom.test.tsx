@@ -411,11 +411,7 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       onPaste={fileAccessEnabled ? onPaste : undefined}
       onDrop={fileAccessEnabled ? dragHandlers.onDrop : undefined}
     >
-      <textarea
-        data-testid='guid-input'
-        value={input}
-        onChange={(event) => onInputChange(event.target.value)}
-      />
+      <textarea data-testid='guid-input' value={input} onChange={(event) => onInputChange(event.target.value)} />
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {actionRow}
       {fileAccessEnabled === false ? <div data-testid='opl-guid-file-inputs-disabled' /> : null}
@@ -515,10 +511,10 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('home-starter-mas')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
-    expect(screen.getByText('要让 Med Auto Science 推进什么？')).toBeInTheDocument();
+    expect(screen.getByText('要让 科研 推进什么？')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-home-model-status')).not.toBeInTheDocument();
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Med Auto Science')).toHaveLength(1);
+    expect(screen.getByTestId('home-starter-mas')).toHaveTextContent('Med Auto Science');
     expect(screen.queryByText('推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
@@ -674,6 +670,26 @@ describe('GuidPage selected purpose assistant surface', () => {
       )
     );
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
+  });
+
+  it('keeps the non-shortcut book agent fully bound when selected from the complete add menu', async () => {
+    mocks.locationState.value = null;
+    render(<GuidPage />);
+
+    expect(screen.queryByTestId('home-starter-obf')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    fireEvent.click(screen.getByText('写书').closest('button')!);
+
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          activeShortcut: expect.objectContaining({ package_id: 'obf', shortcut_id: 'book' }),
+          guidEnabledSkills: ['opl-bookforge'],
+        })
+      )
+    );
+    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('OBF');
+    expect(screen.getByText('要让 写书 推进什么？')).toBeInTheDocument();
   });
 
   it('clears the active capability without clearing the draft, attachments, or workspace', async () => {

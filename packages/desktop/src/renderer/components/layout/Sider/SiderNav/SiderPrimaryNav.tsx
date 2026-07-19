@@ -5,7 +5,7 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { AlarmClock, Inbox } from '@icon-park/react';
+import { ActivitySource, AlarmClock, Inbox } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,11 +26,19 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
   isMobile,
   pathname,
   siderTooltipProps,
+  onRuntimeClick,
   onScheduledClick,
   onArchivedClick,
 }) => {
   const { t } = useTranslation();
   const entries = [
+    {
+      key: 'runtime',
+      label: t('common.runtime.sidebarEntry'),
+      active: pathname.startsWith('/runtime'),
+      icon: <ActivitySource theme='outline' size='16' fill='currentColor' />,
+      onClick: onRuntimeClick,
+    },
     {
       key: 'scheduled',
       label: t('cron.scheduledTasks'),
@@ -59,6 +67,7 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
               collapsed && '!justify-center !px-0',
               entry.active ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3 active:!bg-fill-4'
             )}
+            aria-label={entry.label}
             onClick={entry.onClick}
             data-testid={`sider-nav-${entry.key}`}
           >

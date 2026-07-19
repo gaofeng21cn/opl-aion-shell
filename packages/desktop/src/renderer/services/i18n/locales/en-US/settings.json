@@ -1248,7 +1248,7 @@
     "status": {
       "pending": "Waiting for initialize state",
       "unknown": "Unknown",
-      "ready": "Ready",
+      "ready": "Ready to use",
       "installed": "Installed",
       "detected": "Detected",
       "configured": "Configured",
@@ -2371,9 +2371,9 @@
       "update": "Update available",
       "sync": "Needs sync",
       "source": "Developer source",
-      "verification": "Verification pending",
+      "verification": "Local check not complete",
       "inactive": "Not enabled",
-      "attention": "Needs attention",
+      "attention": "Setup required",
       "repair": "Needs repair",
       "missing": "Missing"
     },
@@ -2419,13 +2419,13 @@
       "unknown": "Visibility not reported"
     },
     "visibility": {
-      "conversation": "Available in conversations",
+      "conversation": "Current availability",
       "home": "Show on Home",
-      "conversationAvailable": "Available",
+      "conversationAvailable": "Ready to start a conversation",
       "conversationNeedsSync": "Sync needed",
-      "conversationUnavailable": "Not available",
-      "conversationVerificationPending": "Verification pending",
-      "conversationUnverified": "Not verified"
+      "conversationUnavailable": "Complete setup or repair first",
+      "conversationVerificationPending": "You can start a conversation; the local check runs on first use",
+      "conversationUnverified": "No local check result reported yet"
     },
     "detailLabels": {
       "purpose": "Purpose",
@@ -2506,7 +2506,7 @@
       "package_not_installed": "Install this package to continue",
       "package_activation_required": "Activate this package for the current Workspace",
       "scope_materialization_missing": "Activate this package for the current Workspace",
-      "live_verification_deferred": "Live verification will complete in the background",
+      "live_verification_deferred": "You can start a conversation; the local check runs on first use, or review it now",
       "status_read_error": "Framework could not read the package status",
       "other": "Framework reported an issue that this App version does not yet recognize."
     },
@@ -2553,6 +2553,7 @@
     },
     "actions": {
       "openDetails": "Review capability",
+      "reviewLocalCheck": "Review local check",
       "installOrSync": "Set up capability",
       "updateOrSync": "Open Maintenance",
       "repair": "Open Maintenance"
@@ -2658,7 +2659,7 @@
         "installable": "Installable",
         "installed": "Installed",
         "activation_required": "Activation required",
-        "verification_deferred": "Verification pending",
+        "verification_deferred": "Check on first use",
         "ready": "Ready"
       }
     },
@@ -2737,7 +2738,8 @@
         "confirmAction": "Run recommended repair"
       },
       "status": {
-        "available": "Available"
+        "available": "Available",
+        "verification_deferred": "Checked on first use"
       },
       "items": {
         "appUpdates": {
@@ -2777,7 +2779,7 @@
     },
     "advancedDetails": {
       "title": "Advanced maintenance details",
-      "description": "Component state, module paths, and maintenance receipts are for troubleshooting or manual handling."
+      "description": "Runtime folders, log locations, and module sources are only needed for troubleshooting or manual handling."
     },
     "summary": {
       "nextAction": "Next step: {{action}}",

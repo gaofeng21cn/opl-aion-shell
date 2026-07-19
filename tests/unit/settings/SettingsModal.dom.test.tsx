@@ -1,7 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
 import ChannelItem, {
@@ -12,6 +12,13 @@ import ChannelItem, {
 import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
+
+let isMobileLayout = true;
+
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid='location-probe'>{`${location.pathname}${location.search}${location.hash}`}</output>;
+};
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
   default: ({
@@ -144,7 +151,7 @@ vi.mock('@/renderer/hooks/system/useExtI18n', () => ({
 }));
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
-  useLayoutContext: () => ({ isMobile: true }),
+  useLayoutContext: () => ({ isMobile: isMobileLayout }),
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -180,6 +187,7 @@ vi.mock('react-i18next', () => ({
         'settings.searchPlaceholder': 'Search settings',
         'settings.searchEmpty': 'No matching settings',
         'settings.searchAnchorUnavailable': 'Setting unavailable; showing page start',
+        'settings.backToApp': 'Back to app',
         'settings.mobileNavigation.label': 'Settings section',
         'settings.mobileNavigation.groups.settingsAndAccess': 'Settings & Access',
         'settings.mobileNavigation.groups.workCapabilities': 'Work capabilities',
@@ -201,8 +209,18 @@ describe('SettingsModal OPL App navigation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    isMobileLayout = true;
+    sessionStorage.clear();
     Object.defineProperty(window, 'innerWidth', {
       value: 1024,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'matchMedia', {
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
       configurable: true,
     });
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
@@ -504,6 +522,51 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByRole('button', { name: 'Advanced' })).not.toBeInTheDocument();
     expect(preferences.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(divider.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it('puts a visible Back to app row first on desktop and restores the complete return path', async () => {
+    isMobileLayout = false;
+    sessionStorage.setItem('aion:last-non-settings-path', '/conversation/thread-7?mode=review#diff');
+    render(
+      <MemoryRouter initialEntries={['/settings/general']}>
+        <SettingsSider />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    const back = screen.getByTestId('settings-back-to-app');
+    expect(back).toHaveAccessibleName('Back to app');
+    expect(back).toHaveTextContent('Back to app');
+    expect(
+      back.compareDocumentPosition(screen.getByRole('button', { name: 'Overview' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
+
+    fireEvent.click(back);
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/conversation/thread-7?mode=review#diff')
+    );
+  });
+
+  it('keeps the desktop return row accessible when collapsed and omits it from the mobile sider', () => {
+    isMobileLayout = false;
+    const view = render(
+      <MemoryRouter initialEntries={['/settings/general']}>
+        <SettingsSider collapsed tooltipEnabled />
+      </MemoryRouter>
+    );
+
+    const collapsedBack = screen.getByTestId('settings-back-to-app');
+    expect(collapsedBack).toHaveAccessibleName('Back to app');
+    expect(collapsedBack).toHaveTextContent('');
+
+    view.unmount();
+    isMobileLayout = true;
+    render(
+      <MemoryRouter initialEntries={['/settings/general']}>
+        <SettingsSider />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId('settings-back-to-app')).not.toBeInTheDocument();
   });
 
   it('keeps the connected account as the single Settings footer entry', () => {

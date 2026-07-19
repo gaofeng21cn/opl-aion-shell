@@ -114,7 +114,7 @@ describe('HomeStarters', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('makes the active capability unmistakable without relying on color alone', () => {
+  it('uses the quiet active state without adding a trailing check icon', () => {
     render(
       <HomeStarters
         assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
@@ -128,9 +128,8 @@ describe('HomeStarters', () => {
     expect(activeStarter).toHaveAttribute('data-opl-active', 'true');
     expect(activeStarter.className).toContain('homeStarterActive');
     expect(activeStarter).not.toHaveClass('!border-primary-5', '!bg-primary-1', '!text-primary-6');
-    expect(screen.getByTestId('starter-active-check')).toBeInTheDocument();
     expect(screen.getByTestId('starter-icon-oma').className).toContain('homeStarterIcon');
-    expect(screen.getByTestId('starter-active-check').className).toContain('homeStarterCheck');
+    expect(screen.queryByTestId('starter-active-check')).not.toBeInTheDocument();
     expect(screen.queryByTestId('starter-next-oma')).not.toBeInTheDocument();
   });
 

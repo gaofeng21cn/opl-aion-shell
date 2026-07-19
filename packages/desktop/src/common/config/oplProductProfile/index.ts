@@ -179,6 +179,7 @@ export type OplAssistantSkillProfile = {
 export type OplProfessionalAgentPackage = {
   package_id: string;
   display_name: string;
+  display_name_i18n: Record<'zh-CN' | 'en-US', string>;
   short_name: string;
   role: string;
   package_kind: string;
@@ -188,10 +189,19 @@ export type OplProfessionalAgentPackage = {
   home_shortcut_ids: string[];
   required_skill_ids: string[];
   optional_skill_ids: string[];
+  description_i18n: Record<'zh-CN' | 'en-US', string>;
   session_routing_summary_i18n: Record<'zh-CN' | 'en-US', string>;
   required_skill_policy: 'checked_locked';
   optional_skill_policy: 'unchecked_user_selectable';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
+};
+
+export type OplFirstPartyPackagePresentation = {
+  package_id: string;
+  display_name: string;
+  description: string;
+  display_name_i18n: Record<'zh-CN' | 'en-US', string>;
+  description_i18n: Record<'zh-CN' | 'en-US', string>;
 };
 
 export type OplAgentPackageInvocationReceiptPolicy = {
@@ -476,6 +486,7 @@ export type OplAgentPackageRegistry = {
   default_registry_url: string;
   source_ref: string;
   shell_consumption_policy: string;
+  first_party_release_set_metadata: OplFirstPartyPackagePresentation[];
 };
 
 export type OplNativeAutomationPolicy = {
@@ -1330,10 +1341,46 @@ function readAgentPackageRegistry(gui: Record<string, unknown>): OplAgentPackage
   } catch {
     throw new Error('Invalid OPL product profile: gui.agent_package_registry.default_registry_url must be HTTPS');
   }
+  const metadata = value.first_party_release_set_metadata;
+  if (!Array.isArray(metadata)) {
+    throw new Error(
+      'Invalid OPL product profile: gui.agent_package_registry.first_party_release_set_metadata must be an array'
+    );
+  }
   return {
     default_registry_url: defaultRegistryUrl,
     source_ref: readString(value, 'source_ref', 'gui.agent_package_registry'),
     shell_consumption_policy: readString(value, 'shell_consumption_policy', 'gui.agent_package_registry'),
+    first_party_release_set_metadata: metadata.map((entry, index) => {
+      if (!isRecord(entry)) {
+        throw new Error(
+          `Invalid OPL product profile: gui.agent_package_registry.first_party_release_set_metadata[${index}] must be an object`
+        );
+      }
+      const context = `gui.agent_package_registry.first_party_release_set_metadata[${index}]`;
+      const packageId = readString(entry, 'package_id', context);
+      const displayName = readString(entry, 'display_name', context);
+      const description = readString(entry, 'description', context);
+      const displayNameI18n = isRecord(entry.display_name_i18n)
+        ? readStringRecord(entry.display_name_i18n, `${context}.display_name_i18n`)
+        : { 'zh-CN': displayName, 'en-US': displayName };
+      const descriptionI18n = isRecord(entry.description_i18n)
+        ? readStringRecord(entry.description_i18n, `${context}.description_i18n`)
+        : { 'zh-CN': description, 'en-US': description };
+      return {
+        package_id: packageId,
+        display_name: displayName,
+        description,
+        display_name_i18n: {
+          'zh-CN': displayNameI18n['zh-CN'],
+          'en-US': displayNameI18n['en-US'],
+        },
+        description_i18n: {
+          'zh-CN': descriptionI18n['zh-CN'],
+          'en-US': descriptionI18n['en-US'],
+        },
+      };
+    }),
   };
 }
 
@@ -1357,6 +1404,12 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
       entry.session_routing_summary_i18n,
       `gui.professional_agent_packages.${packageId}.session_routing_summary_i18n`
     );
+    const displayNameI18n = isRecord(entry.display_name_i18n)
+      ? readStringRecord(entry.display_name_i18n, `gui.professional_agent_packages.${packageId}.display_name_i18n`)
+      : { 'zh-CN': displayName, 'en-US': displayName };
+    const descriptionI18n = isRecord(entry.description_i18n)
+      ? readStringRecord(entry.description_i18n, `gui.professional_agent_packages.${packageId}.description_i18n`)
+      : sessionRoutingSummaryI18n;
     if (!packageId || !displayName || !shortName || !role || !packageKind || !codexVisibleEntry) {
       throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] has blank fields`);
     }
@@ -1371,6 +1424,10 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
     return {
       package_id: packageId,
       display_name: displayName,
+      display_name_i18n: {
+        'zh-CN': displayNameI18n['zh-CN'],
+        'en-US': displayNameI18n['en-US'],
+      },
       short_name: shortName,
       role,
       package_kind: packageKind,
@@ -1384,6 +1441,10 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
       optional_skill_ids: readStringArray(entry, 'optional_skill_ids', `gui.professional_agent_packages.${packageId}`, {
         allowEmpty: true,
       }),
+      description_i18n: {
+        'zh-CN': descriptionI18n['zh-CN'],
+        'en-US': descriptionI18n['en-US'],
+      },
       session_routing_summary_i18n: {
         'zh-CN': sessionRoutingSummaryI18n['zh-CN'],
         'en-US': sessionRoutingSummaryI18n['en-US'],
@@ -2963,12 +3024,22 @@ export function getOplAgentPackageRegistryUrl(): string {
   return OPL_PRODUCT_PROFILE.gui.agent_package_registry.default_registry_url;
 }
 
+export function getOplFirstPartyPackagePresentations(): OplFirstPartyPackagePresentation[] {
+  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.first_party_release_set_metadata.map((entry) => ({
+    ...entry,
+    display_name_i18n: { ...entry.display_name_i18n },
+    description_i18n: { ...entry.description_i18n },
+  }));
+}
+
 export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[] {
   return OPL_PRODUCT_PROFILE.gui.professional_agent_packages.map((agentPackage) => ({
     ...agentPackage,
+    display_name_i18n: { ...agentPackage.display_name_i18n },
     home_shortcut_ids: [...agentPackage.home_shortcut_ids],
     required_skill_ids: [...agentPackage.required_skill_ids],
     optional_skill_ids: [...agentPackage.optional_skill_ids],
+    description_i18n: { ...agentPackage.description_i18n },
     session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
   }));
 }
@@ -2981,9 +3052,11 @@ export function getOplProfessionalAgentPackage(packageId: string): OplProfession
   if (!agentPackage) return undefined;
   return {
     ...agentPackage,
+    display_name_i18n: { ...agentPackage.display_name_i18n },
     home_shortcut_ids: [...agentPackage.home_shortcut_ids],
     required_skill_ids: [...agentPackage.required_skill_ids],
     optional_skill_ids: [...agentPackage.optional_skill_ids],
+    description_i18n: { ...agentPackage.description_i18n },
     session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
   };
 }

@@ -8,6 +8,7 @@ import {
   canonicalizeOplProfessionalAgentId,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
+  getOplProfessionalAgentPackages,
   isOplCodexCliFixedExecutor,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
@@ -29,6 +30,7 @@ import {
 } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -41,7 +43,7 @@ import {
 import type { AcpModelInfo, AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
-import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
+import { resolveOplPackageLaunchGate, resolveOplProfessionalAgentAssistants } from '../utils/oplHomeAssistants';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Message, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, CheckSmall, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Shield } from '@icon-park/react';
@@ -153,6 +155,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const availableAgentModes = useAgentModesForBackend(modeBackend);
+  const { appState } = useOplAppState('fast');
   const sessionModes = useMemo(() => filterNonPermissionAccessModes(availableAgentModes), [availableAgentModes]);
   const showModeSwitch = showModeSelector && supportsModeSwitch(modeBackend);
   const showMobileModeSwitch = showModeSelector && availableAgentModes.length > 0;
@@ -236,13 +239,10 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     }
 
     const agentPackageItems: ComposerCapabilityPaletteItem[] = [];
-    const allowedAgentIds = new Set(getOplHomePurposeAssistantIds());
-    assistants
-      .filter(
-        (assistant) =>
-          Boolean(onSelectCapability) && allowedAgentIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
-      )
+    resolveOplProfessionalAgentAssistants(assistants)
+      .filter(() => Boolean(onSelectCapability))
       .forEach((assistant) => {
+        const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
         agentPackageItems.push({
           id: `agent-${assistant.id}`,
           label: assistant.name_i18n?.[localeKey] || assistant.name,
@@ -252,6 +252,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             Boolean(activeCapabilityId) &&
             canonicalizeOplProfessionalAgentId(activeCapabilityId as string) ===
               canonicalizeOplProfessionalAgentId(assistant.id),
+          disabled: launchGate.state === 'package_unavailable',
           onSelect: () => onSelectCapability?.(assistant.id),
         });
       });
@@ -266,21 +267,28 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       });
     }
 
+    const professionalAgentSkillIds = new Set(
+      getOplProfessionalAgentPackages()
+        .flatMap((agentPackage) => agentPackage.required_skill_ids)
+        .map((skillId) => skillId.split(':').at(-1) ?? skillId)
+    );
     const skillItems: ComposerCapabilityPaletteItem[] = [];
     if (allSkills.length > 0) {
-      allSkills.forEach((skill) => {
-        skillItems.push({
-          id: `skill-${skill.name}`,
-          label: skill.name,
-          description: skill.description || undefined,
-          keywords: ['skill'],
-          icon: <Lightning theme='outline' size='16' />,
-          active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
-          disabled: skill.locked,
-          closeOnSelect: false,
-          onSelect: () => onToggleSkill(skill.name, skill.isAuto),
+      allSkills
+        .filter((skill) => !professionalAgentSkillIds.has(skill.name.split(':').at(-1) ?? skill.name))
+        .forEach((skill) => {
+          skillItems.push({
+            id: `skill-${skill.name}`,
+            label: skill.name,
+            description: skill.description || undefined,
+            keywords: ['skill'],
+            icon: <Lightning theme='outline' size='16' />,
+            active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
+            disabled: skill.locked,
+            closeOnSelect: false,
+            onSelect: () => onToggleSkill(skill.name, skill.isAuto),
+          });
         });
-      });
     } else {
       skillItems.push({
         id: 'manage-skills',
@@ -347,6 +355,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   }, [
     activeCapabilityId,
     allSkills,
+    appState,
     assistants,
     disabledBuiltinSkills,
     enabledSkills,

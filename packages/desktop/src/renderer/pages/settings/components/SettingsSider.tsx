@@ -2,11 +2,14 @@ import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
+import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
+import { ArrowLeft } from '@icon-park/react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { buildSettingsNavItems, getBuiltinSettingsNavItems, getSettingsTabIcon } from '../sections/settingsNav';
 import {
@@ -24,6 +27,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { t, i18n } = useTranslation();
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const { pathname } = useLocation();
+  const layout = useLayoutContext();
   const isDesktop = isElectronDesktop();
 
   const extensionTabs = useExtensionSettingsTabs();
@@ -65,6 +69,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   );
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
+  const backTooltipProps = getSiderTooltipProps(collapsed || tooltipEnabled);
   const menuGroups = secondaryMenus.length > 0 ? [menus, secondaryMenus] : [menus];
   return (
     <div
@@ -72,6 +77,30 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         'settings-sider--collapsed': collapsed,
       })}
     >
+      {!layout?.isMobile && (
+        <>
+          <Tooltip {...backTooltipProps} content={t('settings.backToApp')} position='right'>
+            <button
+              type='button'
+              aria-label={t('settings.backToApp')}
+              data-testid='settings-back-to-app'
+              className={classNames(
+                'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex h-34px shrink-0 cursor-pointer items-center gap-8px overflow-hidden transition-colors hover:bg-fill-3',
+                collapsed ? 'justify-center px-0' : 'justify-start px-10px'
+              )}
+              onClick={() => void navigate(resolveSettingsReturnPath())}
+            >
+              <span className='size-22px flex shrink-0 items-center justify-center line-height-0'>
+                <ArrowLeft theme='outline' size='16' strokeWidth={2} className='block leading-none text-t-secondary' />
+              </span>
+              {!collapsed && (
+                <span className='min-w-0 truncate text-13px font-[500] text-t-primary'>{t('settings.backToApp')}</span>
+              )}
+            </button>
+          </Tooltip>
+          <div className='settings-sider__secondary-divider' role='separator' />
+        </>
+      )}
       {menuGroups.map((group, groupIndex) => (
         <React.Fragment key={groupIndex === 0 ? 'primary' : 'secondary'}>
           {groupIndex > 0 && (

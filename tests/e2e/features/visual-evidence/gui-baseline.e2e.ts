@@ -412,15 +412,13 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
     const inactive = document.querySelector<HTMLElement>('[data-testid^="home-starter-"][aria-pressed="false"]');
     const content = active?.querySelector<HTMLElement>('.arco-btn-content') ?? active;
     const icon = active?.querySelector<HTMLElement>('[data-testid^="starter-icon-"]');
-    const check = active?.querySelector<HTMLElement>('[data-testid="starter-active-check"]');
-    const label = content ? Array.from(content.children).find((child) => child !== icon && child !== check) : null;
-    if (!active || !inactive || !content || !icon || !check || !(label instanceof HTMLElement)) return null;
+    const label = content ? Array.from(content.children).find((child) => child !== icon) : null;
+    if (!active || !inactive || !content || !icon || !(label instanceof HTMLElement)) return null;
 
     const activeRect = active.getBoundingClientRect();
     const inactiveRect = inactive.getBoundingClientRect();
     const iconRect = icon.getBoundingClientRect();
     const labelRect = label.getBoundingClientRect();
-    const checkRect = check.getBoundingClientRect();
     const style = window.getComputedStyle(active);
     const contentStyle = window.getComputedStyle(content);
     return {
@@ -428,7 +426,6 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
       inactiveHeight: inactiveRect.height,
       rowTopDelta: Math.abs(activeRect.top - inactiveRect.top),
       iconLabelCenterDelta: Math.abs(iconRect.top + iconRect.height / 2 - (labelRect.top + labelRect.height / 2)),
-      checkLabelCenterDelta: Math.abs(checkRect.top + checkRect.height / 2 - (labelRect.top + labelRect.height / 2)),
       fontSize: style.fontSize,
       lineHeight: style.lineHeight,
       fontWeight: style.fontWeight,
@@ -446,7 +443,6 @@ async function homeStarterGeometryCheck(page: Page): Promise<GuiBaselineLayoutCh
     Math.abs(geometry.activeHeight - geometry.inactiveHeight) <= 1 &&
     geometry.rowTopDelta <= 1 &&
     geometry.iconLabelCenterDelta <= 1 &&
-    geometry.checkLabelCenterDelta <= 1 &&
     geometry.fontSize === '13px' &&
     geometry.lineHeight === '18px' &&
     geometry.fontWeight === '500' &&
@@ -904,7 +900,6 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_starters', '[data-testid="opl-home-starters"]'),
         anchor('home_starter_active', '[data-testid="home-starter-mas"][aria-pressed="true"][data-opl-active="true"]'),
-        anchor('home_starter_active_check', '[data-testid="home-starter-mas"] [data-testid="starter-active-check"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
@@ -917,7 +912,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         await starter.click();
         await expect(starter).toHaveAttribute('aria-pressed', 'true');
         await expect(starter).toHaveAttribute('data-opl-active', 'true');
-        await expect(starter.locator('[data-testid="starter-active-check"]')).toBeVisible();
+        await expect(starter.locator('[data-testid="starter-active-check"]')).toHaveCount(0);
         await expect(page.locator('[data-testid="guid-input-card-shell"]')).toBeVisible();
         await waitForStablePaint(page);
         return { route_kind: 'home', rail: 'expanded', starter: 'mas', starter_state: 'active' };

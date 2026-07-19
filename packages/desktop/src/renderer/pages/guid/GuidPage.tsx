@@ -35,6 +35,7 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
 import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/activeShortcut';
+import { resolveOplProfessionalAgentAssistants } from './utils/oplHomeAssistants';
 import { resolveOplHomeComposerSurface } from './utils/composerSurface';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
@@ -239,12 +240,16 @@ const GuidPage: React.FC = () => {
     onFilesSelected: appendSlashSelectedFiles,
   });
 
+  const professionalAssistants = useMemo(
+    () => resolveOplProfessionalAgentAssistants(agentSelection.assistants),
+    [agentSelection.assistants]
+  );
   const selectedAssistantRecord = useMemo(() => {
     if (!activeShortcut) return undefined;
-    return agentSelection.assistants.find(
+    return professionalAssistants.find(
       (item) => resolveOplActiveShortcut(item.id)?.package_id === activeShortcut.package_id
     );
-  }, [activeShortcut, agentSelection.assistants]);
+  }, [activeShortcut, professionalAssistants]);
 
   useLayoutEffect(() => {
     if (!preselectAgentKey || !agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id)
@@ -727,7 +732,7 @@ const GuidPage: React.FC = () => {
       onModeSelect={agentSelection.setSelectedMode}
       is_presetAgent={agentSelection.is_presetAgent}
       selectedAgentInfo={agentSelection.selectedAgentInfo}
-      assistants={agentSelection.assistants}
+      assistants={professionalAssistants}
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey)}
       agentLogo={effectiveAgentLogo}

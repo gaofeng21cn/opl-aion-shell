@@ -6,6 +6,7 @@
 
 import {
   canonicalizeOplProfessionalAgentId,
+  getOplFirstPartyPackagePresentations,
   getOplHomeAgentShortcuts,
   getOplProfessionalAgentPackages,
   type OplProfessionalAgentPackage,
@@ -806,7 +807,11 @@ function mapCapabilityStatus(
   ) {
     return 'missing';
   }
-  if (readiness.verification_deferred === true || exactReadinessStatus === 'verificationdeferred') {
+  if (
+    readiness.verification_deferred === true ||
+    exactReadinessStatus === 'verificationdeferred' ||
+    readinessReason === 'liveverificationdeferred'
+  ) {
     return 'verification';
   }
   if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error))
@@ -1540,7 +1545,7 @@ function agentPackageTags(agentPackage: OplProfessionalAgentPackage): string[] {
 
 export function buildCapabilitiesViewModel(
   appState: OplAppStateRecord,
-  _localeKey: string,
+  localeKey: string,
   extraPurposes: ExtraCapabilityPurposeInput[] = []
 ): CapabilityPurposeViewModel[] {
   const canonicalAgentPackages = oplRecord(appState.agent_packages);
@@ -1564,6 +1569,10 @@ export function buildCapabilitiesViewModel(
   }
 
   const professionalPackages = getOplProfessionalAgentPackages();
+  const normalizedLocaleKey: 'zh-CN' | 'en-US' = localeKey.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
+  const firstPartyPresentationById = new Map(
+    getOplFirstPartyPackagePresentations().map((entry) => [canonicalCapabilityPackageId(entry.package_id), entry])
+  );
   const metadataById = new Map<string, OplProfessionalAgentPackage>();
   for (const agentPackage of professionalPackages) {
     for (const alias of agentPackageModuleIds(agentPackage)) metadataById.set(alias, agentPackage);
@@ -1580,6 +1589,7 @@ export function buildCapabilitiesViewModel(
     const packageId = packageStateId(directoryEntry);
     if (!packageId) return [];
     const agentPackage = metadataForId(packageId);
+    const firstPartyPresentation = firstPartyPresentationById.get(canonicalCapabilityPackageId(packageId));
     const moduleIds = agentPackage
       ? agentPackageModuleIds(agentPackage)
       : [packageId, firstString(directoryEntry.module_id), firstString(directoryEntry.codex_visible_entry)]
@@ -1602,6 +1612,8 @@ export function buildCapabilitiesViewModel(
       shortcutsByPackageId.get(canonicalPackageId) ??
       (agentPackage ? shortcutsByPackageId.get(agentPackage.package_id) : undefined);
     const title =
+      agentPackage?.display_name_i18n?.[normalizedLocaleKey] ??
+      firstPartyPresentation?.display_name_i18n[normalizedLocaleKey] ??
       firstString(directoryEntry.display_name, directoryEntry.title, directoryEntry.name) ??
       agentPackage?.display_name ??
       canonicalPackageId;
@@ -1619,6 +1631,8 @@ export function buildCapabilitiesViewModel(
           key: agentPackage ? capabilityPurposeKey(agentPackage) : canonicalPackageId,
           title,
           description:
+            agentPackage?.description_i18n?.[normalizedLocaleKey] ??
+            firstPartyPresentation?.description_i18n[normalizedLocaleKey] ??
             firstString(directoryEntry.description, directoryEntry.summary, directoryEntry.purpose) ??
             shortcut?.primary_label ??
             agentPackage?.short_name ??

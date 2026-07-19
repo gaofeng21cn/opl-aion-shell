@@ -135,6 +135,9 @@ function capabilityActionLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
+  if (item.availabilityStatus === 'verification') {
+    return t('settings.capabilitiesPage.actions.reviewLocalCheck');
+  }
   if (item.primaryAction === 'maintenance') {
     return t('settings.localServicesPage.actions.openMaintenance', { defaultValue: 'Open Maintenance' });
   }
@@ -1543,7 +1546,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     purposeCapabilities.some((item) =>
       ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
     );
-  const conversationReadyCount = purposeCapabilities.filter((item) => item.codexVisibility === 'visible').length;
+  const conversationReadyCount = purposeCapabilities.filter((item) =>
+    ['visible', 'verificationPending'].includes(item.codexVisibility)
+  ).length;
   const catalogAgentCount = purposeCapabilities.filter((item) => capabilityCatalogGroupKey(item) === 'agents').length;
   const catalogWorkflowCount = purposeCapabilities.filter(
     (item) => capabilityCatalogGroupKey(item) === 'workflows'
@@ -1735,7 +1740,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
               data-testid={`capability-open-details-${item.key}`}
             >
-              {t('settings.capabilitiesPage.packageManager.management')}
+              {item.availabilityStatus === 'verification'
+                ? t('settings.capabilitiesPage.actions.reviewLocalCheck')
+                : t('settings.capabilitiesPage.packageManager.management')}
             </Button>
           </div>
         </div>

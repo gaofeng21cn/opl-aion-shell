@@ -309,7 +309,8 @@ describe('Codex visual parity overlay', () => {
     const skills = read('packages/desktop/src/renderer/pages/settings/SkillsHubSettings.tsx');
     const runtime = read('packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx');
 
-    expect(starters).toContain("<CheckOne theme='outline' size={14} fill='currentColor' />");
+    expect(starters).not.toContain('CheckOne');
+    expect(starters).toContain('aria-pressed={active}');
     expect(presetAgent).toContain("<CheckOne theme='outline'");
     expect(presetAgent).toContain("<CloseSmall theme='outline'");
     expect(presetAgent).not.toContain('<span>✓</span>');

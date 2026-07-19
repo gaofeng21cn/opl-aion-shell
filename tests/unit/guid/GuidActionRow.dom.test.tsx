@@ -13,6 +13,7 @@ let isMobileLayout = false;
 const mocks = vi.hoisted(() => ({
   showOpenInvoke: vi.fn(),
   recentWorkspaces: [] as string[],
+  appState: {} as Record<string, unknown>,
 }));
 
 vi.mock('@/common', () => ({
@@ -31,6 +32,10 @@ vi.mock('@/renderer/components/workspace', () => ({
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: isMobileLayout }),
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -123,7 +128,7 @@ vi.mock('react-i18next', () => ({
         'guid.context.attachFile': 'Attach file',
         'guid.context.attachDirectory': 'Attach folder',
         'guid.context.localInputsGroup': 'Local inputs',
-        'guid.context.agentPackagesGroup': 'Agent Packages',
+        'guid.context.agentPackagesGroup': 'Professional agents',
         'guid.context.skillsGroup': 'Skills',
         'guid.context.sessionModesGroup': 'Session modes',
         'guid.context.appsAndConnectionsGroup': 'Apps & connections',
@@ -182,6 +187,7 @@ describe('GuidActionRow composer controls', () => {
     mocks.showOpenInvoke.mockReset();
     mocks.showOpenInvoke.mockResolvedValue([]);
     mocks.recentWorkspaces = [];
+    mocks.appState = {};
   });
 
   it('keeps model and user-language permission controls inline on desktop without a purpose selector', () => {
@@ -204,6 +210,7 @@ describe('GuidActionRow composer controls', () => {
     expect(screen.getByText('Attach folder')).toBeInTheDocument();
     expect(screen.queryByText(/Working directory/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Skills' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Professional agents' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Apps & connections' })).toBeInTheDocument();
     expect(screen.queryByText(/\bMCP\b|provider|team/i)).not.toBeInTheDocument();
 
@@ -217,6 +224,58 @@ describe('GuidActionRow composer controls', () => {
     await waitFor(() =>
       expect(mocks.showOpenInvoke).toHaveBeenLastCalledWith({ properties: ['openDirectory', 'multiSelections'] })
     );
+  });
+
+  it('shows every professional agent independently from Home shortcuts and removes owned skills', async () => {
+    const onSelectCapability = vi.fn();
+    render(
+      <GuidActionRow
+        {...buildProps()}
+        onSelectCapability={onSelectCapability}
+        allSkills={[
+          { name: 'med-autoscience', description: 'Owned by MAS', isAuto: false },
+          { name: 'plugin:opl-bookforge', description: 'Owned by OBF', isAuto: false },
+          { name: 'arbitrary-skill', description: 'Optional skill', isAuto: false },
+        ]}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    for (const name of ['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Book Forge', 'OPL Meta Agent']) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
+    expect(screen.queryByText('plugin:opl-bookforge')).not.toBeInTheDocument();
+    expect(screen.getByText('arbitrary-skill')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('OPL Book Forge').closest('button')!);
+    expect(onSelectCapability).toHaveBeenCalledWith('obf');
+  });
+
+  it('keeps verification-deferred agents selectable and disables only package-unavailable agents', async () => {
+    mocks.appState = {
+      agent_packages: {
+        status_index: {
+          packages: {
+            mas: {
+              package_id: 'mas',
+              launch_allowed: false,
+              launch_blocked_reason: 'live_verification_deferred',
+            },
+            mag: {
+              package_id: 'mag',
+              launch_allowed: false,
+              launch_blocked_reason: 'package_not_installed',
+            },
+          },
+        },
+      },
+    };
+    render(<GuidActionRow {...buildProps()} onSelectCapability={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    expect(screen.getByText('Med Auto Science').closest('button')).toBeEnabled();
+    expect(screen.getByText('Med Auto Grant').closest('button')).toBeDisabled();
   });
 
   it('keeps working-directory selection out of the action row and capability palette', async () => {

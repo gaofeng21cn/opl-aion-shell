@@ -39,6 +39,65 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       default_visible: true,
     },
   ],
+  getOplFirstPartyPackagePresentations: () => [
+    {
+      package_id: 'mas',
+      display_name_i18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
+      description_i18n: {
+        'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+        'en-US':
+          'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+      },
+    },
+    {
+      package_id: 'mag',
+      display_name_i18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
+      description_i18n: {
+        'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
+        'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
+      },
+    },
+    {
+      package_id: 'rca',
+      display_name_i18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
+      description_i18n: {
+        'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
+        'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
+      },
+    },
+    {
+      package_id: 'oma',
+      display_name_i18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
+      description_i18n: {
+        'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
+        'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
+      },
+    },
+    {
+      package_id: 'obf',
+      display_name_i18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
+      description_i18n: {
+        'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
+        'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
+      },
+    },
+    {
+      package_id: 'mas-scholar-skills',
+      display_name_i18n: { 'zh-CN': 'MAS 学术技能', 'en-US': 'MAS Scholar Skills' },
+      description_i18n: {
+        'zh-CN': '供医学科研智能体使用的可复用医学科研能力。',
+        'en-US': 'Reusable medical research capabilities consumed by Med Auto Science.',
+      },
+    },
+    {
+      package_id: 'opl-flow',
+      display_name_i18n: { 'zh-CN': 'OPL Flow', 'en-US': 'OPL Flow' },
+      description_i18n: {
+        'zh-CN': 'OPL 推荐工作流配置与受管 Codex 策略。',
+        'en-US': 'Recommended OPL workflow profile and managed Codex policy.',
+      },
+    },
+  ],
   getOplProfessionalAgentPackages: () => [
     {
       package_id: 'med-autoscience',
@@ -85,6 +144,34 @@ function appStateWithPackageDirectory(
 }
 
 describe('buildCapabilitiesViewModel', () => {
+  it('uses App-owned localized metadata for every first-party package', () => {
+    const capabilities = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'].map((packageId) => ({
+          package_id: packageId,
+          display_name: `Runtime ${packageId}`,
+          description: `Runtime description for ${packageId}`,
+          installed: true,
+        }))
+      ),
+      'zh-CN'
+    );
+    const localizedByPackageId = new Map(
+      capabilities.map((capability) => [capability.packageId, [capability.title, capability.description]])
+    );
+
+    expect(localizedByPackageId.get('med-autoscience')).toEqual([
+      '医学科研智能体',
+      '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+    ]);
+    expect(localizedByPackageId.get('mas-scholar-skills')).toEqual([
+      'MAS 学术技能',
+      '供医学科研智能体使用的可复用医学科研能力。',
+    ]);
+    expect(localizedByPackageId.get('opl-flow')).toEqual(['OPL Flow', 'OPL 推荐工作流配置与受管 Codex 策略。']);
+    expect([...localizedByPackageId.values()].every(([title, description]) => title && description)).toBe(true);
+  });
+
   it('treats dirty developer checkouts as source instead of repair', () => {
     const [research] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([{ package_id: 'med-autoscience', installed: true }], [], {
@@ -114,7 +201,9 @@ describe('buildCapabilitiesViewModel', () => {
     expect(research.primaryAction).toBe('maintenance');
     expect(research.version).toBe('4d4dead');
     expect(research.title).toBe('Med Auto Science');
-    expect(research.description).toBe('Research');
+    expect(research.description).toBe(
+      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+    );
   });
 
   it('treats managed-root git update hints as source maintenance, not package updates', () => {
