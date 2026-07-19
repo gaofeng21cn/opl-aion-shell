@@ -145,7 +145,7 @@ describe('Titlebar OPL App feedback', () => {
     );
   });
 
-  it('uses the existing top titlebar history control on desktop Settings', () => {
+  it('does not duplicate the sider Back to app action in the desktop Settings titlebar', () => {
     const back = vi.fn();
     mocks.navigationHistory = {
       back,
@@ -159,8 +159,8 @@ describe('Titlebar OPL App feedback', () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByTestId('settings-titlebar-history-back'));
-    expect(back).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId('settings-titlebar-history-back')).not.toBeInTheDocument();
+    expect(back).not.toHaveBeenCalled();
   });
 
   it('falls back to Home for invalid or Settings-internal stored return paths', () => {

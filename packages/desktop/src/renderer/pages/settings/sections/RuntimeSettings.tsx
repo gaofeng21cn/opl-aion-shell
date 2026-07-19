@@ -1890,115 +1890,117 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           t={t}
         />
 
-        <div className='flex flex-col gap-14px' data-testid='settings-maintenance-primary'>
-          <div className='flex flex-col gap-12px' data-testid='opl-maintenance-hub'>
-            {maintenanceNeedsAction && <span data-testid='settings-maintenance-exception' aria-hidden='true' />}
-            <div className='flex flex-wrap items-start justify-between gap-12px'>
-              <div>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.description')}
-                </Typography.Text>
+        <div data-testid='settings-maintenance-daily-actions'>
+          <div className='flex flex-col gap-14px' data-testid='settings-maintenance-primary'>
+            <div className='flex flex-col gap-12px' data-testid='opl-maintenance-hub'>
+              {maintenanceNeedsAction && <span data-testid='settings-maintenance-exception' aria-hidden='true' />}
+              <div className='flex flex-wrap items-start justify-between gap-12px'>
+                <div>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.oplEnvironmentPage.maintenanceHub.description')}
+                  </Typography.Text>
+                </div>
+                {managedUpdateMaintenance.lastRunAt && (
+                  <Typography.Text className='text-12px text-t-tertiary'>
+                    {t('settings.oplEnvironmentPage.maintenanceHub.lastChecked', {
+                      value: managedUpdateMaintenance.lastRunAt,
+                    })}
+                  </Typography.Text>
+                )}
               </div>
-              {managedUpdateMaintenance.lastRunAt && (
-                <Typography.Text className='text-12px text-t-tertiary'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.lastChecked', {
-                    value: managedUpdateMaintenance.lastRunAt,
-                  })}
-                </Typography.Text>
-              )}
-            </div>
-            <div className='opl-settings-list' data-testid='maintenance-domain-grid'>
-              {maintenanceHubItems.map((item) => {
-                const anchors: Record<string, string> = {
-                  appUpdates: 'updates',
-                  runtimeEnvironment: 'runtime-environment',
-                  capabilitySurfaceSync: 'packages',
-                  localServicesRepair: 'services',
-                };
-                return (
-                  <div
-                    key={`maintenance-hub-${item.key}`}
-                    className='opl-settings-row opl-settings-surface--action'
-                    id={anchors[item.key]}
-                    data-testid={`opl-maintenance-hub-${item.key}`}
-                  >
-                    <div className='opl-settings-row__main'>
-                      <div className='flex min-w-0 items-start gap-10px'>
-                        <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                          {item.icon}
-                        </span>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block font-600 text-t-primary'>{item.title}</Typography.Text>
-                          <Typography.Text className='mt-4px block text-12px text-t-secondary'>
-                            {item.detail}
-                          </Typography.Text>
+              <div className='opl-settings-list' data-testid='maintenance-domain-grid'>
+                {maintenanceHubItems.map((item) => {
+                  const anchors: Record<string, string> = {
+                    appUpdates: 'updates',
+                    runtimeEnvironment: 'runtime-environment',
+                    capabilitySurfaceSync: 'packages',
+                    localServicesRepair: 'services',
+                  };
+                  return (
+                    <div
+                      key={`maintenance-hub-${item.key}`}
+                      className='opl-settings-row opl-settings-surface--action'
+                      id={anchors[item.key]}
+                      data-testid={`opl-maintenance-hub-${item.key}`}
+                    >
+                      <div className='opl-settings-row__main'>
+                        <div className='flex min-w-0 items-start gap-10px'>
+                          <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                            {item.icon}
+                          </span>
+                          <div className='min-w-0'>
+                            <Typography.Text className='block font-600 text-t-primary'>{item.title}</Typography.Text>
+                            <Typography.Text className='mt-4px block text-12px text-t-secondary'>
+                              {item.detail}
+                            </Typography.Text>
+                          </div>
                         </div>
                       </div>
+                      <div className='opl-settings-row__meta'>
+                        <span className='opl-settings-action-result'>
+                          {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}: {item.status}
+                        </span>
+                        <Button
+                          title={item.actionHelp}
+                          loading={item.actionLoading}
+                          disabled={maintenanceOperationBusy || item.actionDisabled}
+                          onClick={item.onAction}
+                          data-testid={`opl-maintenance-action-${item.key}`}
+                        >
+                          {item.actionLabel}
+                        </Button>
+                      </div>
                     </div>
-                    <div className='opl-settings-row__meta'>
-                      <span className='opl-settings-action-result'>
-                        {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}: {item.status}
-                      </span>
-                      <Button
-                        title={item.actionHelp}
-                        loading={item.actionLoading}
-                        disabled={maintenanceOperationBusy || item.actionDisabled}
-                        onClick={item.onAction}
-                        data-testid={`opl-maintenance-action-${item.key}`}
-                      >
-                        {item.actionLabel}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          {makeUsableConfirmationOpen && (
-            <Alert
-              type='warning'
-              title={t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle')}
-              data-testid='opl-maintenance-hub-make-usable-confirmation'
-              content={
-                <div className='flex flex-col gap-8px'>
-                  <span className='break-words'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange')}
-                  </span>
-                  <span className='break-words'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillNotChange')}
-                  </span>
-                  <span className='break-words'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery')}
-                  </span>
-                  <Space wrap size='small'>
-                    <Button size='small' onClick={cancelMakeOplUsable}>
-                      {t('common.cancel')}
-                    </Button>
-                    <span data-testid='settings-maintenance-primary-action'>
-                      <Button
-                        size='small'
-                        type='primary'
-                        loading={makeUsableRunning}
-                        disabled={maintenanceOperationBusy}
-                        onClick={() => void runMakeOplUsable()}
-                        data-testid='opl-maintenance-hub-make-usable-confirm'
-                      >
-                        {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction')}
-                      </Button>
+            {makeUsableConfirmationOpen && (
+              <Alert
+                type='warning'
+                title={t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle')}
+                data-testid='opl-maintenance-hub-make-usable-confirmation'
+                content={
+                  <div className='flex flex-col gap-8px'>
+                    <span className='break-words'>
+                      {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange')}
                     </span>
-                  </Space>
-                </div>
-              }
-            />
-          )}
+                    <span className='break-words'>
+                      {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillNotChange')}
+                    </span>
+                    <span className='break-words'>
+                      {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery')}
+                    </span>
+                    <Space wrap size='small'>
+                      <Button size='small' onClick={cancelMakeOplUsable}>
+                        {t('common.cancel')}
+                      </Button>
+                      <span data-testid='settings-maintenance-primary-action'>
+                        <Button
+                          size='small'
+                          type='primary'
+                          loading={makeUsableRunning}
+                          disabled={maintenanceOperationBusy}
+                          onClick={() => void runMakeOplUsable()}
+                          data-testid='opl-maintenance-hub-make-usable-confirm'
+                        >
+                          {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction')}
+                        </Button>
+                      </span>
+                    </Space>
+                  </div>
+                }
+              />
+            )}
+          </div>
         </div>
 
         <section
           className='opl-settings-section opl-settings-surface--configuration'
-          data-testid='settings-maintenance-management-details'
+          data-testid='settings-maintenance-inline-updates'
         >
           <ManagedUpdatesPanel
             plane={managedUpdatePlane}

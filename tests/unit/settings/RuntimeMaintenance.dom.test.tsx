@@ -1430,6 +1430,8 @@ describe('RuntimeSettings maintenance structure', () => {
   it('keeps daily maintenance actions inline and gates one read-only diagnostics disclosure', () => {
     render(<RuntimeSettings />);
 
+    expect(screen.getByTestId('settings-maintenance-daily-actions')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-primary')).toBeVisible();
     expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('maintenance-domain-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('maintenance-domain-grid').className).not.toMatch(/\bborder(?:-|\b)/);
@@ -1465,7 +1467,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(diagnostics.closest('details')).toHaveClass('opl-settings-details', 'opl-settings-surface--diagnostic');
     expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
 
-    expect(screen.getByTestId('settings-maintenance-management-details')).toHaveClass(
+    expect(screen.getByTestId('settings-maintenance-inline-updates')).toHaveClass(
       'opl-settings-surface--configuration'
     );
     expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();

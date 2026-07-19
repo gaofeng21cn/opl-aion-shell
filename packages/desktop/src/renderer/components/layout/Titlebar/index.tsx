@@ -111,9 +111,8 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const siderTooltip = layout?.siderCollapsed
     ? t('common.expandMore', { defaultValue: 'Expand sidebar' })
     : t('common.collapse', { defaultValue: 'Collapse sidebar' });
-  // 前进/后退仅在桌面端显示（移动端空间有限，保留原有的返回到聊天按钮）
-  // Show back/forward on desktop only; mobile keeps the existing back-to-chat button.
-  const showHistoryNav = Boolean(navigationHistory) && !layout?.isMobile;
+  // Settings owns its desktop return action in the sider; narrow Settings keeps the titlebar action.
+  const showHistoryNav = Boolean(navigationHistory) && !layout?.isMobile && !isSettingsRoute;
   const historyBackTooltip = t('common.historyBack', { defaultValue: 'Back' });
   const historyForwardTooltip = t('common.forward', { defaultValue: 'Forward' });
 
@@ -293,7 +292,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               disabled={!navigationHistory?.canBack}
               aria-label={historyBackTooltip}
               title={historyBackTooltip}
-              data-testid={isSettingsRoute ? 'settings-titlebar-history-back' : undefined}
             >
               <ArrowLeft theme='outline' size={iconSize} fill='currentColor' strokeWidth={desktopIconStroke} />
             </button>
