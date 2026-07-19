@@ -78,6 +78,15 @@
   "searchPlaceholder": "搜索设置",
   "searchEmpty": "未找到相关设置",
   "searchAnchorUnavailable": "未能定位到该设置，已从当前页面顶部显示。",
+  "mobileNavigation": {
+    "label": "设置分类",
+    "groups": {
+      "settingsAndAccess": "设置与访问",
+      "workCapabilities": "工作能力",
+      "system": "系统",
+      "extensions": "扩展"
+    }
+  },
   "searchAssistants": "按名称或描述搜索助手",
   "assistantNoMatch": "没有匹配当前筛选条件的助手。",
   "assistantCreated": "助手已创建",

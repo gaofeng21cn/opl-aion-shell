@@ -180,6 +180,11 @@ vi.mock('react-i18next', () => ({
         'settings.searchPlaceholder': 'Search settings',
         'settings.searchEmpty': 'No matching settings',
         'settings.searchAnchorUnavailable': 'Setting unavailable; showing page start',
+        'settings.mobileNavigation.label': 'Settings section',
+        'settings.mobileNavigation.groups.settingsAndAccess': 'Settings & Access',
+        'settings.mobileNavigation.groups.workCapabilities': 'Work capabilities',
+        'settings.mobileNavigation.groups.system': 'System',
+        'settings.mobileNavigation.groups.extensions': 'Extensions',
         'settings.lightMode': 'Light mode',
         'settings.darkMode': 'Dark mode',
         'common.back': 'Back to chat',
@@ -196,6 +201,10 @@ describe('SettingsModal OPL App navigation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      configurable: true,
+    });
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       value: scrollIntoView,
       configurable: true,
@@ -348,6 +357,32 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
+  });
+
+  it('uses a grouped selector instead of scrolling tabs on narrow screens', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      value: 600,
+      configurable: true,
+    });
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    const selector = await screen.findByTestId('settings-mobile-section-select');
+    expect(screen.getByText('Settings section')).toBeInTheDocument();
+    expect(selector).toHaveAccessibleName('Settings section');
+    expect(document.querySelector('.settings-mobile-tabs')).toBeNull();
+
+    fireEvent.click(selector);
+    expect(await screen.findByText('Settings & Access')).toBeInTheDocument();
+    expect(screen.getByText('Work capabilities')).toBeInTheDocument();
+    expect(screen.getByText('System')).toBeInTheDocument();
+
+    const workspaceOption = (await screen.findAllByText('Workspace')).find((item) =>
+      item.closest('.arco-select-option')
+    );
+    expect(workspaceOption).toBeDefined();
+    fireEvent.click(workspaceOption as HTMLElement);
+
+    await waitFor(() => expect(screen.getByTestId('workspace-content')).toBeInTheDocument());
   });
 
   it('keeps the active narrow-screen Settings entry in view and keyboard discoverable', async () => {

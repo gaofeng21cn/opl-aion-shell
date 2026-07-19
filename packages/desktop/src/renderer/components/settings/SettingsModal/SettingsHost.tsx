@@ -5,6 +5,7 @@
  */
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import AionSelect from '@/renderer/components/base/AionSelect';
 import { iconColors } from '@/renderer/styles/colors';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
@@ -21,7 +22,7 @@ import {
 } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
-import { Button, Input, Tabs } from '@arco-design/web-react';
+import { Button, Input } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,6 +34,31 @@ import type { CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSett
 import type { SettingTab } from './index';
 
 const SIDEBAR_WIDTH = 200;
+
+type MobileSettingsGroupId = 'settingsAndAccess' | 'workCapabilities' | 'system' | 'extensions';
+
+const MOBILE_SETTINGS_GROUPS: ReadonlyArray<{
+  id: MobileSettingsGroupId;
+  labelKey: string;
+}> = [
+  { id: 'settingsAndAccess', labelKey: 'settings.mobileNavigation.groups.settingsAndAccess' },
+  { id: 'workCapabilities', labelKey: 'settings.mobileNavigation.groups.workCapabilities' },
+  { id: 'system', labelKey: 'settings.mobileNavigation.groups.system' },
+  { id: 'extensions', labelKey: 'settings.mobileNavigation.groups.extensions' },
+];
+
+const MOBILE_SETTINGS_GROUP_BY_TAB: Readonly<Record<string, MobileSettingsGroupId>> = {
+  general: 'settingsAndAccess',
+  gateway: 'settingsAndAccess',
+  access: 'settingsAndAccess',
+  workspace: 'settingsAndAccess',
+  agents: 'workCapabilities',
+  capabilities: 'workCapabilities',
+  resources: 'workCapabilities',
+  environment: 'system',
+  storage: 'system',
+  appearance: 'system',
+};
 
 type SettingsMenuItem = {
   id: string;
@@ -122,6 +148,20 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     return [...entryMatches, ...extensionMatches];
   }, [language, menuItems, menuSearchQuery, t]);
 
+  const mobileMenuGroups = useMemo(() => {
+    const itemsByGroup = new Map<MobileSettingsGroupId, SettingsMenuItem[]>();
+    for (const item of menuItems) {
+      const groupId = MOBILE_SETTINGS_GROUP_BY_TAB[item.key] ?? 'extensions';
+      const items = itemsByGroup.get(groupId) ?? [];
+      items.push(item);
+      itemsByGroup.set(groupId, items);
+    }
+    return MOBILE_SETTINGS_GROUPS.flatMap((group) => {
+      const items = itemsByGroup.get(group.id) ?? [];
+      return items.length > 0 ? [{ ...group, items }] : [];
+    });
+  }, [menuItems]);
+
   useEffect(() => {
     const target = resolveSettingsRenderTarget(defaultTab);
     setActiveTab(target.routeId);
@@ -187,7 +227,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   };
 
   const mobileMenu = (
-    <div className='mt-16px mb-20px overflow-x-auto'>
+    <div className='mt-16px mb-20px'>
       <Input
         value={menuSearchQuery}
         onChange={setMenuSearchQuery}
@@ -220,17 +260,31 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
           ))}
         </div>
       ) : (
-        <Tabs
-          activeTab={activeTab}
-          onChange={handleTabChange}
-          type='line'
-          size='default'
-          className='settings-mobile-tabs [&_.arco-tabs-nav]:border-b-0'
-        >
-          {filteredMenuItems.map((item) => (
-            <Tabs.TabPane key={item.key} title={item.label} />
-          ))}
-        </Tabs>
+        <div data-testid='settings-mobile-navigation'>
+          <label id='settings-mobile-navigation-label' className='mb-6px block text-12px font-500 text-t-secondary'>
+            {t('settings.mobileNavigation.label', { defaultValue: 'Settings section' })}
+          </label>
+          <AionSelect
+            value={activeTab}
+            onChange={(value) => handleTabChange(String(value))}
+            className='w-full'
+            aria-labelledby='settings-mobile-navigation-label'
+            data-testid='settings-mobile-section-select'
+          >
+            {mobileMenuGroups.map((group) => (
+              <AionSelect.OptGroup key={group.id} label={t(group.labelKey)}>
+                {group.items.map((item) => (
+                  <AionSelect.Option key={item.id} value={item.key}>
+                    <span className='flex min-w-0 items-center gap-8px'>
+                      {item.icon}
+                      <span className='truncate'>{item.label}</span>
+                    </span>
+                  </AionSelect.Option>
+                ))}
+              </AionSelect.OptGroup>
+            ))}
+          </AionSelect>
+        </div>
       )}
       {filteredMenuItems.length === 0 && (
         <div className='px-8px py-12px text-13px text-t-secondary' data-testid='settings-search-empty'>

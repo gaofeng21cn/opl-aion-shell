@@ -78,6 +78,15 @@
   "searchPlaceholder": "Search settings",
   "searchEmpty": "No matching settings",
   "searchAnchorUnavailable": "That setting could not be located. Showing the page from the beginning.",
+  "mobileNavigation": {
+    "label": "Settings section",
+    "groups": {
+      "settingsAndAccess": "Settings & Access",
+      "workCapabilities": "Work capabilities",
+      "system": "System",
+      "extensions": "Extensions"
+    }
+  },
   "searchAssistants": "Search assistants by name or description",
   "assistantNoMatch": "No assistants match the current filters.",
   "assistantCreated": "Assistant created",
