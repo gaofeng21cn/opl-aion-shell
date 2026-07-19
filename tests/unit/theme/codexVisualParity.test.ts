@@ -330,6 +330,23 @@ describe('Codex visual parity overlay', () => {
     expect(runtime).not.toContain('visible={managementVisible}');
   });
 
+  it('keeps Maintenance diagnostics as one flat disclosure', () => {
+    const runtime = read('packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx');
+    const zhSettings = JSON.parse(read('packages/desktop/src/renderer/services/i18n/locales/zh-CN/settings.json'));
+    const enSettings = JSON.parse(read('packages/desktop/src/renderer/services/i18n/locales/en-US/settings.json'));
+
+    expect(zhSettings.oplEnvironmentPage.advancedDetails).toEqual({
+      title: '诊断详情',
+      description: '查看运行目录、日志位置和模块来源。',
+    });
+    expect(enSettings.oplEnvironmentPage.advancedDetails).toEqual({
+      title: 'Diagnostics',
+      description: 'View runtime folders, log locations, and module sources.',
+    });
+    expect(runtime).not.toContain("t('settings.oplEnvironmentPage.diagnostics.title')");
+    expect(runtime).not.toContain("name='environment-diagnostics'");
+  });
+
   it('uses the observed Codex conversation typography and unframed process rows', () => {
     const fontSizes = read('packages/desktop/src/common/config/fontSizes.ts');
     const markdown = read('packages/desktop/src/renderer/components/Markdown/ShadowView.tsx');

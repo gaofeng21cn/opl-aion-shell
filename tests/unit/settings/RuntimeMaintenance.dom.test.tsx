@@ -1465,6 +1465,10 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'true');
     const diagnostics = screen.getByTestId('settings-maintenance-technical-details');
     expect(diagnostics.closest('details')).toHaveClass('opl-settings-details', 'opl-settings-surface--diagnostic');
+    expect(diagnostics.querySelector('.arco-collapse')).toBeNull();
+    expect(within(diagnostics).getByText('settings.workDir')).toBeVisible();
+    expect(within(diagnostics).getByText('settings.logDir')).toBeVisible();
+    expect(within(diagnostics).getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle')).toBeVisible();
     expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
 
     expect(screen.getByTestId('settings-maintenance-inline-updates')).toHaveClass(

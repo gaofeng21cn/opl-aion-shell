@@ -3225,7 +3225,6 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.developerSource.nextStep'
   | 'settings.oplEnvironmentPage.developerSource.title'
   | 'settings.oplEnvironmentPage.diagnostics.modulesTitle'
-  | 'settings.oplEnvironmentPage.diagnostics.title'
   | 'settings.oplEnvironmentPage.gitSyncStatus.ahead'
   | 'settings.oplEnvironmentPage.gitSyncStatus.behind'
   | 'settings.oplEnvironmentPage.gitSyncStatus.current'

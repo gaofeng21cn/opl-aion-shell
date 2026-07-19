@@ -609,6 +609,9 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     const diagnostics = await screen.findByTestId('settings-maintenance-technical-details');
     expect(within(diagnostics).getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
+    expect(diagnostics.querySelector('.arco-collapse')).toBeNull();
+    expect(within(diagnostics).getByText('settings.workDir')).toBeVisible();
+    expect(within(diagnostics).getByText('settings.logDir')).toBeVisible();
     expect(within(diagnostics).queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByText('settings.oplEnvironmentPage.codexContext.title')).not.toBeInTheDocument();

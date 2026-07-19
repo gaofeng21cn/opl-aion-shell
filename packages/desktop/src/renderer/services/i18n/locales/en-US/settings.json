@@ -2778,8 +2778,8 @@
       }
     },
     "advancedDetails": {
-      "title": "Advanced maintenance details",
-      "description": "Runtime folders, log locations, and module sources are only needed for troubleshooting or manual handling."
+      "title": "Diagnostics",
+      "description": "View runtime folders, log locations, and module sources."
     },
     "summary": {
       "nextAction": "Next step: {{action}}",
@@ -2802,7 +2802,6 @@
       "description": "Use the readiness cards above to decide whether action is needed. These are the common diagnose, refresh, and repair actions."
     },
     "diagnostics": {
-      "title": "Advanced diagnostics",
       "modulesTitle": "Module path and source diagnostics"
     },
     "actions": {

@@ -2779,8 +2779,8 @@
       }
     },
     "advancedDetails": {
-      "title": "高级维护详情",
-      "description": "运行目录、日志位置和模块来源只在排查或手动处理时查看。"
+      "title": "诊断详情",
+      "description": "查看运行目录、日志位置和模块来源。"
     },
     "summary": {
       "nextAction": "下一步：{{action}}",
@@ -2803,7 +2803,6 @@
       "description": "先按上方状态卡判断是否需要处理；这里提供诊断、刷新和修复三个常用动作。"
     },
     "diagnostics": {
-      "title": "高级诊断",
       "modulesTitle": "模块路径与来源诊断"
     },
     "actions": {
