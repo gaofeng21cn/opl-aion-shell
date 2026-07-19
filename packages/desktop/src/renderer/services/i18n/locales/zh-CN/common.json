@@ -56,6 +56,7 @@
   "select": "选择",
   "expandMore": "展开更多",
   "collapse": "收起",
+  "collapseSidebar": "收起侧边栏",
   "viewMoreLines": "查看更多 ({{count}} 行)",
   "success": "成功",
   "error": "错误",

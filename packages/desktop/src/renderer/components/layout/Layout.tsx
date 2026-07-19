@@ -12,6 +12,7 @@ import Titlebar from '@/renderer/components/layout/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from '@renderer/hooks/context/LayoutContext';
 import { NavigationHistoryProvider } from '@renderer/hooks/context/NavigationHistoryContext';
@@ -85,6 +86,14 @@ const SIDER_DRAG_HYSTERESIS = 6;
 const MOBILE_SIDER_WIDTH_RATIO = 0.67;
 const MOBILE_SIDER_MIN_WIDTH = 260;
 const MOBILE_SIDER_MAX_WIDTH = 420;
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 const DesktopNavigationController: React.FC = () => {
   const navigate = useNavigate();
@@ -111,6 +120,8 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
+  const { t } = useTranslation();
+  const primaryNavigationLabel = t('common.primaryNavigation');
   const [collapsed, setCollapsed] = useState(() => detectMobileViewportOrTouch());
   const [isMobile, setIsMobile] = useState(() => detectMobileViewportOrTouch());
   const [desktopSiderWidth, setDesktopSiderWidth] = useState(DEFAULT_SIDER_WIDTH);
@@ -127,6 +138,7 @@ const Layout: React.FC<{
   const workspaceAvailable =
     location.pathname.startsWith('/conversation/') || (TEAM_MODE_ENABLED && location.pathname.startsWith('/team/'));
   const collapsedRef = useRef(collapsed);
+  const siderElementRef = useRef<HTMLElement | null>(null);
   const desktopSiderWidthRef = useRef(desktopSiderWidth);
   const wasMobileRef = useRef(false);
   const dragStateRef = useRef<{ active: boolean; startX: number; startWidth: number }>({
@@ -257,6 +269,105 @@ const Layout: React.FC<{
     desktopSiderWidthRef.current = desktopSiderWidth;
   }, [desktopSiderWidth]);
 
+  useEffect(() => {
+    const panel = siderElementRef.current;
+    if (!panel) return undefined;
+
+    if (!isMobile) {
+      panel.removeAttribute('role');
+      panel.removeAttribute('aria-modal');
+      panel.removeAttribute('aria-label');
+      panel.removeAttribute('aria-hidden');
+      panel.removeAttribute('inert');
+      return undefined;
+    }
+
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', primaryNavigationLabel);
+    panel.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+    if (collapsed) {
+      panel.removeAttribute('aria-modal');
+      panel.setAttribute('inert', '');
+      return undefined;
+    }
+
+    panel.setAttribute('aria-modal', 'true');
+    panel.removeAttribute('inert');
+    const previousTabIndex = panel.getAttribute('tabindex');
+    const restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const isolatedSiblings: Array<{
+      element: HTMLElement;
+      ariaHidden: string | null;
+      wasInert: boolean;
+    }> = [];
+    let branch: HTMLElement = panel;
+    while (branch.parentElement) {
+      const parent = branch.parentElement;
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
+        if (sibling.dataset.testid === 'app-navigation-rail-backdrop') continue;
+        isolatedSiblings.push({
+          element: sibling,
+          ariaHidden: sibling.getAttribute('aria-hidden'),
+          wasInert: sibling.hasAttribute('inert'),
+        });
+        sibling.setAttribute('inert', '');
+        sibling.setAttribute('aria-hidden', 'true');
+      }
+      if (parent === document.body) break;
+      branch = parent;
+    }
+
+    const focusable = () =>
+      Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (element) => !element.closest('[hidden], [aria-hidden="true"], [inert]')
+      );
+    const focusWithinPanel = (target: HTMLElement) => {
+      target.focus({ preventScroll: true });
+      if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+    };
+    panel.tabIndex = -1;
+    focusWithinPanel(focusable()[0] ?? panel);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setCollapsed(true);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const targets = focusable();
+      if (!targets.length) {
+        event.preventDefault();
+        focusWithinPanel(panel);
+        return;
+      }
+      const first = targets[0];
+      const last = targets[targets.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        focusWithinPanel(last);
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        focusWithinPanel(first);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      for (const { element, ariaHidden, wasInert } of isolatedSiblings) {
+        if (!wasInert) element.removeAttribute('inert');
+        if (ariaHidden === null) element.removeAttribute('aria-hidden');
+        else element.setAttribute('aria-hidden', ariaHidden);
+      }
+      if (previousTabIndex === null) panel.removeAttribute('tabindex');
+      else panel.setAttribute('tabindex', previousTabIndex);
+      if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+    };
+  }, [collapsed, isMobile, primaryNavigationLabel]);
+
   const beginSiderResizeDrag = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (isMobile) return;
@@ -350,6 +461,9 @@ const Layout: React.FC<{
 
           <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
             <ArcoLayout.Sider
+              ref={(element) => {
+                siderElementRef.current = element instanceof HTMLElement ? element : null;
+              }}
               collapsedWidth={isMobile ? 0 : DESKTOP_COLLAPSED_WIDTH}
               collapsed={collapsed}
               width={siderWidth}
@@ -382,10 +496,10 @@ const Layout: React.FC<{
                     type='button'
                     className='app-titlebar__button app-titlebar__button--mobile'
                     onClick={() => setCollapsed(true)}
-                    title='Collapse sidebar'
-                    aria-label='Collapse sidebar'
+                    title={t('common.collapseSidebar')}
+                    aria-label={t('common.collapseSidebar')}
                   >
-                    <SidebarIcon size={18} strokeWidth={2.5} />
+                    <SidebarIcon size={18} strokeWidth={2.5} aria-hidden='true' />
                   </button>
                 )}
                 {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}

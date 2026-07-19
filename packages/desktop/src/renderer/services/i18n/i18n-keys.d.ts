@@ -204,6 +204,7 @@ export type I18nKey =
   | 'common.clear'
   | 'common.close'
   | 'common.collapse'
+  | 'common.collapseSidebar'
   | 'common.confirm'
   | 'common.confirmDelete'
   | 'common.contact'

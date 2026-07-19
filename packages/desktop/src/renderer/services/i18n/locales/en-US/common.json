@@ -56,6 +56,7 @@
   "select": "Select",
   "expandMore": "Expand More",
   "collapse": "Collapse",
+  "collapseSidebar": "Collapse sidebar",
   "viewMoreLines": "View More ({{count}} lines)",
   "success": "Success",
   "error": "Error",
