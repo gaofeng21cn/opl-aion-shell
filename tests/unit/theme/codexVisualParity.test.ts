@@ -324,8 +324,9 @@ describe('Codex visual parity overlay', () => {
     expect(skills).toContain("type='secondary'");
     expect(skills).toContain("data-testid='btn-manual-import'");
     expect(skills).toContain('group-focus-within:opacity-100');
-    expect(runtime).toContain("data-testid='settings-maintenance-management-details'");
+    expect(runtime).toContain("data-testid='settings-maintenance-inline-updates'");
     expect(runtime).toContain("className='opl-settings-details opl-settings-surface--diagnostic'");
+    expect(runtime).not.toContain("data-testid='settings-maintenance-management-details'");
     expect(runtime).not.toContain('visible={managementVisible}');
   });
 

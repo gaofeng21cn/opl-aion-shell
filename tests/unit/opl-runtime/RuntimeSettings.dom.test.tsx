@@ -561,7 +561,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-maintenance-management-details')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-inline-updates')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
