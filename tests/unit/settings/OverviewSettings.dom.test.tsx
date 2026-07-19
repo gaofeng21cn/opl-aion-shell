@@ -411,28 +411,29 @@ describe('OverviewSettings', () => {
     expect(mocks.loadAppState).toHaveBeenCalledTimes(1);
   });
 
-  it('shows compact Gateway usage and the direct technical readback needed for an overview', () => {
+  it('keeps Overview to machine summaries and owner routes without duplicating account details', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-icon')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
     expect(screen.getByTestId('settings-overview-card-codex')).toHaveTextContent('Codex CLI');
     expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('OPL Gateway');
+    expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('Connected');
     expect(document.getElementById('codex')).toBe(screen.getByTestId('settings-overview-card-codex'));
     expect(document.getElementById('gateway')).toBe(screen.getByTestId('settings-overview-card-gateway'));
-    expect(screen.getByTestId('settings-overview-gateway-account')).toHaveTextContent('Gao Feng');
-    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('1.25M');
-    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('2.5 USD');
-    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('42 USD');
-    expect(screen.getByTestId('settings-overview-gateway-metrics')).toHaveTextContent('Availability: Connected');
+    expect(screen.queryByTestId('settings-overview-gateway-account')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-gateway-metrics')).not.toBeInTheDocument();
+    expect(screen.queryByText('Gao Feng')).not.toBeInTheDocument();
+    expect(screen.queryByText('gf@example.test')).not.toBeInTheDocument();
+    expect(screen.queryByText('1.25M')).not.toBeInTheDocument();
+    expect(screen.queryByText('2.5 USD')).not.toBeInTheDocument();
+    expect(screen.queryByText('42 USD')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-summary-grid')).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('settings-overview-summary-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
-    expect(screen.getByTestId('settings-overview-technical-codex')).toHaveTextContent('0.142.4 · Connected');
-    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverReady');
-    expect(screen.getByTestId('settings-overview-temporal-worker')).toHaveTextContent('OPL workerReady');
-    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent('OPL schedulerReady');
-    expect(screen.getByTestId('settings-overview-technical-capabilities')).toHaveTextContent('5/5');
-    expect(screen.queryByTestId('settings-overview-diagnostics-action')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByTestId('settings-overview-card-codex')).getByRole('button', { name: 'Open' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
   });
 
   it('does not treat an informational Framework issue as an actionable exception', () => {
@@ -449,14 +450,13 @@ describe('OverviewSettings', () => {
     expect(screen.queryByTestId('settings-overview-exception')).not.toBeInTheDocument();
   });
 
-  it('localizes capability health tokens instead of exposing internal status values', () => {
+  it('does not surface raw capability health in a permanent technical inventory', () => {
     mocks.capabilityHealth = 'attention_needed';
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const capabilities = screen.getByTestId('settings-overview-technical-capabilities');
-    expect(capabilities).toHaveTextContent('Needs attention');
-    expect(capabilities).not.toHaveTextContent('attention_needed');
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
+    expect(screen.queryByText('attention_needed')).not.toBeInTheDocument();
   });
 
   it('keeps a disconnected optional Gateway quiet when Codex access works', () => {
@@ -484,7 +484,7 @@ describe('OverviewSettings', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/capabilities');
   });
 
-  it('explains an unconfigured Temporal server and worker without exposing the raw status code', () => {
+  it('summarizes an unconfigured Temporal runtime and routes recovery to Maintenance', () => {
     mocks.temporalProviderStatus = 'attention_needed';
     mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
     mocks.temporalDegradedReason = 'temporal_runtime_not_configured';
@@ -502,19 +502,17 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-temporal-server');
-    const worker = screen.getByTestId('settings-overview-temporal-worker');
-    expect(server).toHaveTextContent('Temporal serverNot configured');
-    expect(server).toHaveTextContent('No runtime address is configured.');
-    expect(worker).toHaveTextContent('OPL workerNot configured');
-    expect(worker).toHaveTextContent('No runtime address is configured.');
-    expect(server).not.toHaveTextContent('attention_needed');
-    expect(worker).not.toHaveTextContent('attention_needed');
-    fireEvent.click(screen.getByTestId('settings-overview-temporal-maintenance'));
+    const exception = screen.getByTestId('settings-overview-exception');
+    expect(exception).toHaveTextContent('Local Services');
+    expect(exception).toHaveTextContent('Temporal server and worker are not configured');
+    expect(exception).not.toHaveTextContent('attention_needed');
+    expect(exception).not.toHaveTextContent('provider_code_landed_unconfigured');
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
-  it('treats an unreachable configured Temporal server as attention instead of not configured', () => {
+  it('makes an unreachable configured Temporal server actionable through its owner route', () => {
     mocks.temporalProviderStatus = 'provider_code_landed_unconfigured';
     mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
     mocks.temporalDegradedReason = 'temporal_server_unreachable';
@@ -527,11 +525,11 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-temporal-server');
-    expect(server).toHaveTextContent('Temporal serverNeeds attention');
-    expect(server).toHaveTextContent('The server cannot be reached.');
-    expect(server).not.toHaveTextContent('Not configured');
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent(
+      'The Temporal server, worker, or scheduler still needs attention.'
+    );
+    expect(screen.queryByText('temporal_server_unreachable')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
@@ -544,9 +542,9 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent(
-      'Startup protection configuration drifted.'
-    );
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('does not require a local supervisor for an explicit external Temporal service', () => {
@@ -559,7 +557,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
-    expect(screen.getByTestId('settings-overview-temporal-server')).toHaveTextContent('Temporal serverReady');
+    expect(screen.queryByTestId('settings-overview-exception')).not.toBeInTheDocument();
   });
 
   it('fails closed when a configured Temporal server omits explicit readiness', () => {
@@ -570,13 +568,13 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-temporal-server');
-    expect(server).toHaveTextContent('Temporal serverCheck required');
-    expect(server).not.toHaveTextContent('Ready');
-    expect(server).not.toHaveTextContent('Not configured');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
-  it('keeps a ready Temporal server separate when the worker source is stale', () => {
+  it('keeps a stale worker actionable without exposing its internal status token', () => {
     mocks.temporalProviderStatus = 'provider_code_landed_unconfigured';
     mocks.temporalRuntimeStatus = 'provider_code_landed_unconfigured';
     mocks.temporalDegradedReason = 'worker_source_stale';
@@ -586,16 +584,14 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-temporal-server');
-    const worker = screen.getByTestId('settings-overview-temporal-worker');
-    expect(server).toHaveTextContent('Temporal serverReady');
-    expect(worker).toHaveTextContent('OPL workerRestart required');
-    expect(worker).toHaveTextContent('The worker source is stale.');
-    expect(server).not.toHaveTextContent('attention_needed');
-    expect(worker).not.toHaveTextContent('worker_source_stale');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.queryByText('worker_source_stale')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
-  it('keeps a ready Temporal server separate when worker maintenance is blocked', () => {
+  it('keeps blocked worker maintenance actionable without exposing its mutation guard', () => {
     mocks.temporalProviderStatus = 'attention_needed';
     mocks.temporalRuntimeStatus = 'attention_needed';
     mocks.temporalServiceReady = true;
@@ -605,15 +601,14 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const server = screen.getByTestId('settings-overview-temporal-server');
-    const worker = screen.getByTestId('settings-overview-temporal-worker');
-    expect(server).toHaveTextContent('Temporal serverReady');
-    expect(worker).toHaveTextContent('OPL workerNeeds attention');
-    expect(worker).toHaveTextContent('The active source cannot take over the managed worker.');
-    expect(worker).not.toHaveTextContent('blocked_developer_checkout_shared_state');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.queryByText('blocked_developer_checkout_shared_state')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
-  it('explains a missing worker dependency without exposing the blocker token', () => {
+  it('routes a missing worker dependency without exposing the blocker token', () => {
     mocks.temporalProviderStatus = 'attention_needed';
     mocks.temporalRuntimeStatus = 'attention_needed';
     mocks.temporalServiceReady = true;
@@ -623,9 +618,11 @@ describe('OverviewSettings', () => {
 
     render(<OverviewSettings withWrapper={false} />);
 
-    const worker = screen.getByTestId('settings-overview-temporal-worker');
-    expect(worker).toHaveTextContent('A required worker dependency is unavailable in OPL Base.');
-    expect(worker).not.toHaveTextContent('temporal_worker_dependency_unavailable');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.queryByText('temporal_worker_dependency_unavailable')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('fails closed when worker readiness is missing even if the provider reports ready', () => {
@@ -638,8 +635,8 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-temporal-worker')).toHaveTextContent('Check required');
-    expect(screen.getByTestId('settings-overview-temporal-worker')).not.toHaveTextContent('Ready');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
   });
 
   it('makes an explicit scheduler failure actionable without relying on the issue queue', async () => {
@@ -652,9 +649,8 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-temporal-scheduler')).toHaveTextContent(
-      'Needs attention · The scheduler reported an error.'
-    );
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.queryByText('error')).not.toBeInTheDocument();
     const action = screen.getByTestId('settings-overview-primary-action');
     action.focus();
     await user.keyboard('{Enter}');

@@ -10,12 +10,7 @@ import { CloudStorage, DashboardOne, Terminal } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import {
-  formatGatewayObservedAt,
-  formatGatewayTokenCount,
-  gatewayAccountInitials,
-  readGatewayAccountProjection,
-} from '../accessProjection';
+import { readGatewayAccountProjection } from '../accessProjection';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 type OverviewSettingsProps = {
@@ -32,36 +27,10 @@ type AttentionItem = {
 
 type TemporalStatusKind = 'ready' | 'not_configured' | 'not_installed' | 'paused' | 'attention' | 'unknown';
 
-type TemporalReasonKind =
-  | 'ready'
-  | 'not_configured'
-  | 'server_unreachable'
-  | 'supervisor_not_installed'
-  | 'supervisor_not_loaded'
-  | 'supervisor_configuration_drift'
-  | 'supervisor_error'
-  | 'supervisor_unready'
-  | 'worker_dependency_unavailable'
-  | 'worker_mutation_blocked'
-  | 'worker_source_stale'
-  | 'duplicate_worker'
-  | 'worker_exited'
-  | 'worker_not_ready'
-  | 'scheduler_not_installed'
-  | 'scheduler_paused'
-  | 'scheduler_error'
-  | 'scheduler_not_ready'
-  | 'attention'
-  | 'unknown';
-
 type TemporalStatusProjection = {
   server: TemporalStatusKind;
-  serverReason: TemporalReasonKind;
   worker: TemporalStatusKind;
-  workerReason: TemporalReasonKind;
   scheduler: TemporalStatusKind;
-  schedulerReason: TemporalReasonKind;
-  workerNeedsRestart: boolean;
 };
 
 const TEMPORAL_NOT_CONFIGURED_STATUSES = new Set([
@@ -91,17 +60,6 @@ const TEMPORAL_SCHEDULER_NOT_INSTALLED_STATUSES = new Set(['not_installed', 'mis
 const TEMPORAL_RECOVERY_REFRESH_INTERVAL_MS = 3_000;
 const TEMPORAL_RECOVERY_REFRESH_MAX_ATTEMPTS = 30;
 const TEMPORAL_RECOVERY_REFRESH_MAX_DURATION_MS = 90_000;
-const CAPABILITY_READY_STATUSES = new Set(['ready', 'current', 'healthy', 'ok']);
-const CAPABILITY_ATTENTION_STATUSES = new Set([
-  'attention_needed',
-  'attention_required',
-  'needs_attention',
-  'degraded',
-  'failed',
-  'blocked',
-  'missing',
-  'not_installed',
-]);
 
 function normalizedStatus(value: unknown): string | null {
   return oplString(value)?.toLowerCase() ?? null;
@@ -161,14 +119,7 @@ function temporalStatusProjection(
       normalizedStatus(serviceLifecycle.service_status) === 'external_running'
     );
   const supervisorReady = typeof serviceSupervisor.ready === 'boolean' ? serviceSupervisor.ready : null;
-  const supervisorInstalled = typeof serviceSupervisor.installed === 'boolean' ? serviceSupervisor.installed : null;
-  const supervisorLoaded = typeof serviceSupervisor.loaded === 'boolean' ? serviceSupervisor.loaded : null;
-  const supervisorConfigurationCurrent =
-    typeof serviceSupervisor.configuration_current === 'boolean' ? serviceSupervisor.configuration_current : null;
-  const supervisorStatus = normalizedStatus(serviceSupervisor.status);
   const supervisorError = oplString(serviceSupervisor.error);
-  const serverReachable =
-    typeof workerReadiness.server_reachable === 'boolean' ? workerReadiness.server_reachable : null;
   const serverNotConfigured =
     addressSource !== null
       ? TEMPORAL_NOT_CONFIGURED_STATUSES.has(addressSource)
@@ -185,28 +136,6 @@ function temporalStatusProjection(
           : providerCandidates.some((value) => TEMPORAL_ATTENTION_STATUSES.has(value))
             ? 'attention'
             : 'unknown';
-  const serverReason: TemporalReasonKind =
-    server === 'ready'
-      ? 'ready'
-      : serverNotConfigured
-        ? 'not_configured'
-        : serviceReady === false || serverReachable === false
-          ? 'server_unreachable'
-          : supervisorRequired && supervisorError
-            ? 'supervisor_error'
-            : supervisorRequired && (supervisorInstalled === false || supervisorStatus === 'not_installed')
-              ? 'supervisor_not_installed'
-              : supervisorRequired &&
-                  (supervisorConfigurationCurrent === false ||
-                    Boolean(supervisorStatus?.includes('configuration_drift')))
-                ? 'supervisor_configuration_drift'
-                : supervisorRequired && (supervisorLoaded === false || supervisorStatus === 'not_loaded')
-                  ? 'supervisor_not_loaded'
-                  : supervisorRequired && supervisorReady === false
-                    ? 'supervisor_unready'
-                    : server === 'attention'
-                      ? 'attention'
-                      : 'unknown';
 
   const workerCandidates = [
     normalizedStatus(workerReadiness.lifecycle_status),
@@ -229,28 +158,6 @@ function temporalStatusProjection(
       : workerReadyValue === true
         ? 'ready'
         : 'unknown';
-  const workerReason: TemporalReasonKind =
-    worker === 'ready'
-      ? 'ready'
-      : workerNotConfigured
-        ? 'not_configured'
-        : workerCandidates.some((value) => value.includes('dependency_unavailable'))
-          ? 'worker_dependency_unavailable'
-          : workerCandidates.some((value) => value.includes('blocked_developer_checkout_shared_state'))
-            ? 'worker_mutation_blocked'
-            : workerCandidates.some((value) => value.includes('worker_source_stale'))
-              ? 'worker_source_stale'
-              : workerCandidates.some((value) => value.includes('duplicate_worker'))
-                ? 'duplicate_worker'
-                : workerCandidates.some((value) => value.includes('server_unreachable'))
-                  ? 'server_unreachable'
-                  : workerCandidates.some((value) => value.includes('process_exited'))
-                    ? 'worker_exited'
-                    : workerReadyValue === false || workerCandidates.some((value) => value.includes('worker_not_ready'))
-                      ? 'worker_not_ready'
-                      : worker === 'attention'
-                        ? 'attention'
-                        : 'unknown';
 
   const schedulerCandidates = [
     normalizedStatus(schedulerReadiness.status),
@@ -277,24 +184,8 @@ function temporalStatusProjection(
                 )
               ? 'attention'
               : 'unknown';
-  const schedulerReason: TemporalReasonKind =
-    scheduler === 'ready' && !schedulerError
-      ? 'ready'
-      : scheduler === 'not_configured'
-        ? 'not_configured'
-        : scheduler === 'not_installed'
-          ? 'scheduler_not_installed'
-          : scheduler === 'paused'
-            ? 'scheduler_paused'
-            : schedulerError || schedulerCandidates.some((value) => value === 'error' || value === 'unhealthy')
-              ? 'scheduler_error'
-              : schedulerReadyValue === false
-                ? 'scheduler_not_ready'
-                : scheduler === 'attention'
-                  ? 'attention'
-                  : 'unknown';
 
-  return { server, serverReason, worker, workerReason, scheduler, schedulerReason, workerNeedsRestart };
+  return { server, worker, scheduler };
 }
 
 function useTemporalRecoveryRefresh(hydrated: boolean, ready: boolean, refresh: () => Promise<unknown>): void {
@@ -357,7 +248,7 @@ function issueSettingsRoute(issue: Record<string, unknown>): string {
 }
 
 const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
@@ -466,114 +357,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     : gatewayConnected || gatewayAccount?.connection_mode === 'manual_key'
       ? 'opl-settings-status--ready'
       : '';
-  const gatewayAccountName =
-    gatewayAccount?.account?.display_name ||
-    gatewayAccount?.account?.email ||
-    t('settings.accessPage.gatewayAccount.unknownAccount');
-  const gatewayObservedAt = formatGatewayObservedAt(
-    gatewayAccount?.freshness.observed_at ?? null,
-    i18n.resolvedLanguage
-  );
-  const formatGatewayAmount = (value: number | null | undefined, currency: string | null | undefined): string => {
-    if (value === null || value === undefined || !Number.isFinite(value)) return '--';
-    const amount = new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 2 }).format(value);
-    return `${amount}${currency ? ` ${currency}` : ''}`;
-  };
-  const technicalUnknown = t('settings.oplEnvironmentPage.status.unknown');
-  const temporalComponentLabel = (kind: TemporalStatusKind, needsRestart = false): string => {
-    if (needsRestart) return t('settings.oplEnvironmentPage.temporal.values.restartRequired');
-    if (kind === 'ready') return t('settings.oplEnvironmentPage.temporal.values.ready');
-    if (kind === 'not_configured') return t('settings.oplEnvironmentPage.temporal.values.notConfigured');
-    if (kind === 'not_installed') return t('settings.oplEnvironmentPage.temporal.values.notInstalled');
-    if (kind === 'paused') return t('settings.oplEnvironmentPage.temporal.values.paused');
-    if (kind === 'attention') return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
-    return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
-  };
-  const temporalReasonLabel = (reason: TemporalReasonKind): string | null => {
-    if (reason === 'ready') return null;
-    const keyByReason: Record<Exclude<TemporalReasonKind, 'ready'>, string> = {
-      not_configured: 'notConfigured',
-      server_unreachable: 'serverUnreachable',
-      supervisor_not_installed: 'supervisorNotInstalled',
-      supervisor_not_loaded: 'supervisorNotLoaded',
-      supervisor_configuration_drift: 'supervisorConfigurationDrift',
-      supervisor_error: 'supervisorError',
-      supervisor_unready: 'supervisorUnready',
-      worker_dependency_unavailable: 'workerDependencyUnavailable',
-      worker_mutation_blocked: 'workerMutationBlocked',
-      worker_source_stale: 'workerSourceStale',
-      duplicate_worker: 'duplicateWorker',
-      worker_exited: 'workerExited',
-      worker_not_ready: 'workerNotReady',
-      scheduler_not_installed: 'schedulerNotInstalled',
-      scheduler_paused: 'schedulerPaused',
-      scheduler_error: 'schedulerError',
-      scheduler_not_ready: 'schedulerNotReady',
-      attention: 'attention',
-      unknown: 'unknown',
-    };
-    return t(`settings.overviewPage.technical.temporalReasons.${keyByReason[reason]}`);
-  };
-  const temporalComponentValue = (
-    kind: TemporalStatusKind,
-    reason: TemporalReasonKind,
-    needsRestart = false
-  ): string => {
-    const status = temporalComponentLabel(kind, needsRestart);
-    const reasonLabel = temporalReasonLabel(reason);
-    return reasonLabel ? `${status} · ${reasonLabel}` : status;
-  };
-  const rawCapabilityHealth = oplString(statusSummary.runtime_source_carrier_health);
-  const capabilityHealthLabel = rawCapabilityHealth
-    ? /^\d+\s*\/\s*\d+$/.test(rawCapabilityHealth)
-      ? rawCapabilityHealth
-      : CAPABILITY_READY_STATUSES.has(rawCapabilityHealth)
-        ? t('settings.oplEnvironmentPage.status.ready')
-        : CAPABILITY_ATTENTION_STATUSES.has(rawCapabilityHealth)
-          ? t('settings.oplEnvironmentPage.status.attention_required')
-          : technicalUnknown
-    : technicalUnknown;
-  const technicalRows = [
-    {
-      id: 'codex',
-      label: t('settings.overviewPage.technical.codex'),
-      value: [codexVersion, codexStatusLabel].filter(Boolean).join(' · ') || technicalUnknown,
-    },
-    {
-      id: 'gateway',
-      label: t('settings.overviewPage.technical.gatewayFreshness'),
-      value: gatewayObservedAt ?? technicalUnknown,
-    },
-    {
-      id: 'temporal-server',
-      label: t('settings.oplEnvironmentPage.temporal.server.title'),
-      value: temporalComponentValue(temporalStatus.server, temporalStatus.serverReason),
-      testId: 'settings-overview-temporal-server',
-      route: '/settings/environment?section=services',
-      actionLabel: t('settings.overviewPage.actions.openRuntimeSettings'),
-    },
-    {
-      id: 'temporal-worker',
-      label: t('settings.oplEnvironmentPage.temporal.worker.title'),
-      value: temporalComponentValue(
-        temporalStatus.worker,
-        temporalStatus.workerReason,
-        temporalStatus.workerNeedsRestart
-      ),
-      testId: 'settings-overview-temporal-worker',
-    },
-    {
-      id: 'temporal-scheduler',
-      label: t('settings.oplEnvironmentPage.temporal.scheduler.title'),
-      value: temporalComponentValue(temporalStatus.scheduler, temporalStatus.schedulerReason),
-      testId: 'settings-overview-temporal-scheduler',
-    },
-    {
-      id: 'capabilities',
-      label: t('settings.overviewPage.technical.capabilities'),
-      value: capabilityHealthLabel,
-    },
-  ];
 
   const content = (
     <div className='opl-settings-page' data-testid='settings-page-overview'>
@@ -712,69 +495,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                       ? t('settings.overviewPage.gateway.manualKeyDescription')
                       : t('settings.overviewPage.gateway.notConnectedDescription')}
                 </Typography.Text>
-                {gatewayConnected && gatewayAccount?.account && (
-                  <div
-                    className='mt-8px flex min-w-0 items-center gap-8px'
-                    data-testid='settings-overview-gateway-account'
-                  >
-                    <span className='flex size-28px shrink-0 items-center justify-center rd-full bg-success-1 text-11px font-600 text-success-6'>
-                      {gatewayAccountInitials(gatewayAccount.account.display_name, gatewayAccount.account.email)}
-                    </span>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block truncate text-12px font-500 text-t-primary'>
-                        {gatewayAccountName}
-                      </Typography.Text>
-                      {gatewayAccount.account.email && (
-                        <Typography.Text className='block break-all text-11px text-t-secondary'>
-                          {gatewayAccount.account.email}
-                        </Typography.Text>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {gatewayConnected && gatewayAccount?.account && (
-                  <div
-                    className='mt-8px flex flex-wrap gap-x-16px gap-y-4px'
-                    data-testid='settings-overview-gateway-metrics'
-                  >
-                    {[
-                      {
-                        id: 'today-tokens',
-                        label: t('settings.accessPage.gatewayAccount.metrics.todayTokens'),
-                        value: formatGatewayTokenCount(
-                          gatewayAccount.usage?.today_tokens ?? null,
-                          i18n.resolvedLanguage
-                        ),
-                      },
-                      {
-                        id: 'today-cost',
-                        label: t('settings.accessPage.gatewayAccount.metrics.todayCost'),
-                        value: formatGatewayAmount(
-                          gatewayAccount.usage?.today_actual_cost,
-                          gatewayAccount.usage?.currency
-                        ),
-                      },
-                      {
-                        id: 'balance',
-                        label: t('settings.accessPage.gatewayAccount.metrics.balance'),
-                        value: formatGatewayAmount(
-                          gatewayAccount.account.balance.amount,
-                          gatewayAccount.account.balance.currency
-                        ),
-                      },
-                      {
-                        id: 'availability',
-                        label: t('settings.overviewPage.gateway.metrics.availability'),
-                        value: gatewayStatusLabel,
-                      },
-                    ].map((metric) => (
-                      <span className='min-w-0 text-11px text-t-secondary' key={metric.id}>
-                        {metric.label}: <strong className='font-500 text-t-primary'>{metric.value}</strong>
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -786,40 +506,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           </div>
         </div>
       </div>
-
-      <section className='opl-settings-section' data-testid='settings-overview-technical-details'>
-        <div className='opl-settings-section__header'>
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.overviewPage.technical.description')}
-          </Typography.Text>
-        </div>
-        <div className='opl-settings-list'>
-          {technicalRows.map((row) => (
-            <div
-              className='opl-settings-row'
-              key={row.id}
-              data-testid={'testId' in row && row.testId ? row.testId : `settings-overview-technical-${row.id}`}
-            >
-              <Typography.Text className='font-500 text-t-primary'>{row.label}</Typography.Text>
-              <div className='opl-settings-row__meta'>
-                <Typography.Text className='break-words text-right text-12px text-t-secondary'>
-                  {row.value}
-                </Typography.Text>
-                {'route' in row && row.route && (
-                  <Button
-                    type='text'
-                    className='px-0'
-                    onClick={() => navigate(row.route)}
-                    data-testid='settings-overview-temporal-maintenance'
-                  >
-                    {row.actionLabel}
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 
