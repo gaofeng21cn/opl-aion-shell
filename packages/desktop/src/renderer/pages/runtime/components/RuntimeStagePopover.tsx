@@ -39,6 +39,14 @@ export function RuntimeStagePopover({ item, locale, t }: RuntimeStagePopoverProp
           {executionStateLabel(item.execution.state, t)}
         </Typography.Text>
       </div>
+      {item.execution.attemptId ? (
+        <div className={styles.stageRunStatus} data-testid='runtime-stage-attempt'>
+          <Typography.Text className={styles.stageRunStatusLabel}>
+            {t('common.runtime.taskDetails.currentAttempt')}
+          </Typography.Text>
+          <code className={styles.detailAttemptId}>{item.execution.attemptId}</code>
+        </div>
+      ) : null}
       {item.stageMap.length > 0 ? (
         <ol className={styles.stagePopoverList}>
           {item.stageMap.map((stage) => (

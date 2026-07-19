@@ -382,7 +382,7 @@ describe('Runtime V2 page', () => {
     expect(screen.getAllByTestId('runtime-task-row')).toHaveLength(9);
   });
 
-  it('opens a stage popup with the complete stage list and a user-facing run status', async () => {
+  it('opens a stage popup with the complete stage list and current attempt', async () => {
     render(<RuntimePage />);
 
     const row = (await screen.findAllByTestId('runtime-task-row')).find((candidate) =>
@@ -394,8 +394,7 @@ describe('Runtime V2 page', () => {
     expect(popover).toHaveTextContent('阶段图');
     expect(popover).toHaveTextContent('运行状态');
     expect(popover).toHaveTextContent('正在运行');
-    expect(popover).not.toHaveTextContent('当前尝试');
-    expect(popover).not.toHaveTextContent('attempt:dm001');
+    expect(within(popover).getByTestId('runtime-stage-attempt')).toHaveTextContent('当前尝试attempt:dm001');
     expect(within(popover).getAllByRole('listitem')).toHaveLength(5);
     expect(popover).toHaveTextContent('分析结果复核');
     expect(popover).toHaveTextContent('医学写作');
