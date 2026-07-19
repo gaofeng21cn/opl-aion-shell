@@ -2845,6 +2845,7 @@
       "degraded": "降级",
       "pending": "等待中",
       "ok": "正常",
+      "verification_deferred": "首次使用时检查",
       "worker_source_stale": "后台执行器需重启",
       "attention_required": "需要处理"
     },

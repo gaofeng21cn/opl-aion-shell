@@ -343,6 +343,8 @@ describe('Codex visual parity overlay', () => {
       title: 'Diagnostics',
       description: 'View runtime folders, log locations, and module sources.',
     });
+    expect(zhSettings.oplEnvironmentPage.status.verification_deferred).toBe('首次使用时检查');
+    expect(enSettings.oplEnvironmentPage.status.verification_deferred).toBe('Checked on first use');
     expect(runtime).not.toContain("t('settings.oplEnvironmentPage.diagnostics.title')");
     expect(runtime).not.toContain("name='environment-diagnostics'");
   });

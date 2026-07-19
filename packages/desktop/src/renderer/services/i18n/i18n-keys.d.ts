@@ -3356,6 +3356,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.status.staged'
   | 'settings.oplEnvironmentPage.status.unknown'
   | 'settings.oplEnvironmentPage.status.update_available'
+  | 'settings.oplEnvironmentPage.status.verification_deferred'
   | 'settings.oplEnvironmentPage.status.warning'
   | 'settings.oplEnvironmentPage.status.worker_source_stale'
   | 'settings.oplEnvironmentPage.storageData.description'
