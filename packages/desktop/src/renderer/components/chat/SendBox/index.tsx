@@ -51,7 +51,7 @@ import { useUploadState } from '@renderer/hooks/file/useUploadState';
 import { useAbortUploadsOnConversationChange } from '@renderer/hooks/file/useAbortUploadsOnConversationChange';
 import UploadProgressBar from '@renderer/components/media/UploadProgressBar';
 import { allSupportedExts } from '@renderer/services/FileService';
-import SpeechInputButton from '@/renderer/components/chat/SpeechInputButton';
+import SpeechInputButton from '@/renderer/components/chat/composer/SpeechInputButton';
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { createChainedDispatch, useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { getConversationInputHistory, isCaretOnFirstLine } from '@/renderer/utils/chat/messageHistory';
@@ -310,10 +310,11 @@ const SendBox: React.FC<{
   onSelectedWorkspaceItemsChange?: (items: FileSelectionItem[]) => void;
   bottomHint?: React.ReactNode;
   /**
-   * Mobile-only: open a parent-supplied action sheet via the `+` button.
-   * When provided, mobile renders a single `+` button (left) and send/stop button (right);
-   * `tools` and `rightTools` are not rendered inline on mobile.
+   * Mobile-only compact tool surface. When provided, mobile renders this node
+   * on the left, keeps send/stop on the right, and hides inline right tools.
    */
+  mobileTools?: React.ReactNode;
+  /** Legacy mobile action-sheet launcher for consumers not yet using `mobileTools`. */
   onMobilePlusClick?: () => void;
 }> = ({
   onSend,
@@ -341,13 +342,14 @@ const SendBox: React.FC<{
   selectedWorkspaceItems,
   onSelectedWorkspaceItemsChange,
   bottomHint,
+  mobileTools,
   onMobilePlusClick,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
-  // Mobile compact mode: parent supplies the `+` action sheet, which collapses
-  // tools/rightTools into a single launcher and lets the textarea start as a single line.
-  const isMobileCompact = isMobile && Boolean(onMobilePlusClick);
+  // Compact mode keeps one stable tool launcher and lets the textarea start
+  // as a single line. `mobileTools` is the preferred shared palette path.
+  const isMobileCompact = isMobile && Boolean(mobileTools || onMobilePlusClick);
   const effectiveLockMultiLine = lockMultiLine && !isMobileCompact;
   const effectiveDefaultMultiLine = defaultMultiLine && !isMobileCompact;
   const conversationContext = useConversationContextSafe();
@@ -1338,11 +1340,12 @@ const SendBox: React.FC<{
       type='primary'
       disabled={isButtonDisabled}
       className='send-button-custom'
-      icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
+      icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
       }}
       data-testid='sendbox-send-btn'
+      aria-label={t('common.send')}
     />
   );
 
@@ -1351,9 +1354,11 @@ const SendBox: React.FC<{
       shape='circle'
       type='secondary'
       className='bg-animate sendbox-stop-button'
-      icon={<div className='mx-auto size-12px bg-6'></div>}
+      icon={<div className='mx-auto size-12px bg-6' aria-hidden='true'></div>}
       onClick={stopHandler}
-    ></Button>
+      data-testid='sendbox-stop-btn'
+      aria-label={t('conversation.currentTask.stop')}
+    />
   );
 
   const renderActionButtons = () => {
@@ -1387,9 +1392,8 @@ const SendBox: React.FC<{
     />
   ) : null;
 
-  // On mobile compact mode, the parent supplies the action sheet — collapse
-  // tools/rightTools into the `+` launcher and skip the inline speech button.
-  const renderedTools = isMobileCompact ? mobilePlusButton : tools;
+  // Mobile keeps one compact launcher; decision controls live in its sheet.
+  const renderedTools = isMobileCompact ? (mobileTools ?? mobilePlusButton) : tools;
   const renderedRightTools = isMobileCompact ? null : rightTools;
   const renderedSpeechButton = isMobileCompact ? null : (
     <SpeechInputButton
@@ -1445,6 +1449,7 @@ const SendBox: React.FC<{
         ref={containerRef}
         className={`sendbox-panel relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${isOverlayOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed sendbox-panel--dragging' : ''}`}
         data-testid='conversation-composer'
+        data-composer-palette-boundary='true'
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           ...(isFileDragging
@@ -1704,6 +1709,7 @@ const SendBox: React.FC<{
           </div>
           {isSingleLine && (
             <div className='flex items-center gap-2'>
+              {renderedRightTools}
               {renderedSpeechButton}
               {sendButtonPrefix}
               {renderActionButtons()}

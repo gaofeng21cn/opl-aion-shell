@@ -179,7 +179,11 @@
     }
   },
   "fileAttach.addFiles": "添加文件",
+  "fileAttach.addFilesDescription": "添加文档、图片或其他文件",
+  "fileAttach.addFolder": "添加文件夹",
+  "fileAttach.addFolderDescription": "添加文件夹及其中的内容",
   "fileAttach.myDevice": "从设备上传",
+  "fileAttach.myDeviceDescription": "选择保存在当前设备上的文件",
   "fileAttach.failed": "上传失败",
   "fileAttach.uploading": "上传中...",
   "fileAttach.uploadSuccess": "上传成功",

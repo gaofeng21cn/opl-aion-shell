@@ -6,7 +6,7 @@
 
 import { Button, Modal, Spin } from '@arco-design/web-react';
 import { FileText, FolderOpen, Up } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBaseUrl } from '@/common/adapter/httpBridge';
 import { stripWindowsVerbatimPrefix } from '@/renderer/utils/file/fileSelection';
@@ -43,6 +43,8 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [currentPath, setCurrentPath] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusListAfterLoadRef = useRef(false);
 
   const loadDirectory = useCallback(
     async (dirPath = '') => {
@@ -100,16 +102,19 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
     }
   }, [visible, loadDirectory]);
 
+  useEffect(() => {
+    if (loading || !focusListAfterLoadRef.current) return;
+    focusListAfterLoadRef.current = false;
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector<HTMLElement>('[data-directory-action]')?.focus({ preventScroll: true });
+    });
+  }, [directoryData.canGoUp, directoryData.items, loading]);
+
   const handleItemClick = (item: DirectoryItem) => {
     if (item.isDirectory) {
+      focusListAfterLoadRef.current = true;
       loadDirectory(item.path).catch((error) => console.error('Failed to load directory:', error));
     }
-  };
-
-  // Double-click behavior removed - single click now handles directory navigation
-  // 移除双击行为 - 单击现在处理目录导航
-  const handleItemDoubleClick = (_item: DirectoryItem) => {
-    // No-op: single click already handles navigation
   };
 
   const handleSelect = (path: string) => {
@@ -121,6 +126,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
       // Handle '__ROOT__' as empty path to show drive list on Windows
       // 处理 '__ROOT__' 为空路径，在 Windows 上显示驱动器列表
       const targetPath = directoryData.parentPath === '__ROOT__' ? '' : directoryData.parentPath;
+      focusListAfterLoadRef.current = true;
       loadDirectory(targetPath).catch((error) => console.error('Failed to load parent directory:', error));
     }
   };
@@ -158,6 +164,8 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
       style={{ width: 'min(600px, 90vw)' }}
       wrapStyle={{ zIndex: 10050 }}
       maskStyle={{ zIndex: 10040 }}
+      focusLock
+      autoFocus
       footer={
         <div className='w-full flex justify-between items-center'>
           <div
@@ -179,14 +187,24 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
     >
       <Spin loading={loading} className='w-full'>
         <div className='w-full border border-b-base rd-4px overflow-hidden' style={{ height: 'min(400px, 60vh)' }}>
-          <div className='h-full overflow-y-auto'>
+          <div ref={listRef} className='h-full overflow-y-auto' role='list'>
             {directoryData.canGoUp && (
-              <div
-                className='flex items-center p-10px border-b border-b-light cursor-pointer hover:bg-hover transition'
-                onClick={handleGoUp}
-              >
-                <Up theme='outline' size='16' fill='currentColor' className='mr-10px text-t-secondary' />
-                <span>..</span>
+              <div role='listitem'>
+                <button
+                  type='button'
+                  className='w-full flex items-center p-10px border-0 border-b border-b-light bg-transparent text-left cursor-pointer hover:bg-hover focus-visible:outline-2 focus-visible:outline-[var(--opl-focus-ring)] transition'
+                  onClick={handleGoUp}
+                  data-directory-action='parent'
+                >
+                  <Up
+                    theme='outline'
+                    size='16'
+                    fill='currentColor'
+                    className='mr-10px text-t-secondary'
+                    aria-hidden='true'
+                  />
+                  <span>..</span>
+                </button>
               </div>
             )}
             {error && (
@@ -199,38 +217,47 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({
             )}
             {directoryData.items.map((item, index) => (
               <div
-                key={index}
-                className='flex items-center justify-between p-10px border-b border-b-light cursor-pointer hover:bg-hover transition'
+                key={item.path || `${item.name}-${index}`}
+                role='listitem'
+                className='flex items-center justify-between border-b border-b-light hover:bg-hover transition'
                 style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}}
-                onClick={() => handleItemClick(item)}
-                onDoubleClick={() => handleItemDoubleClick(item)}
               >
-                <div className='flex items-center flex-1 min-w-0'>
-                  {item.isDirectory ? (
+                {item.isDirectory ? (
+                  <button
+                    type='button'
+                    className='flex items-center flex-1 min-w-0 p-10px border-0 bg-transparent text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--opl-focus-ring)]'
+                    onClick={() => handleItemClick(item)}
+                    data-directory-action={item.path}
+                  >
                     <FolderOpen
                       theme='outline'
                       size='16'
                       fill='currentColor'
                       className='mr-10px shrink-0 text-t-secondary'
+                      aria-hidden='true'
                     />
-                  ) : (
+                    <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
+                  </button>
+                ) : (
+                  <div className='flex items-center flex-1 min-w-0 p-10px'>
                     <FileText
                       theme='outline'
                       size='16'
                       fill='currentColor'
                       className='mr-10px shrink-0 text-t-secondary'
+                      aria-hidden='true'
                     />
-                  )}
-                  <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
-                </div>
+                    <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
+                  </div>
+                )}
                 {canSelect(item) && (
                   <Button
                     type='primary'
                     size='mini'
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={() => {
                       handleSelect(item.path);
                     }}
+                    aria-label={`${t('common.select')} ${item.name}`}
                   >
                     {t('common.select')}
                   </Button>

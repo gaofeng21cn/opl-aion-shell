@@ -5,16 +5,25 @@
  */
 
 import { Left, Right } from '@icon-park/react';
-import React, { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import styles from './MobileActionSheet.module.css';
 import type { MobileActionSheetEntry, MobileActionSheetProps, MobileActionSheetSubMenu } from './types';
 
 const TRANSITION_MS = 260;
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, title, entries }) => {
   const { t } = useTranslation();
+  const titleId = useId();
   const [activeSubKey, setActiveSubKey] = useState<string | null>(null);
   // Sub pane stays mounted briefly after deactivation so its slide-out animation
   // can play. `subPhase` drives the animation: 'enter' positions the sub pane
@@ -31,6 +40,17 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
   // forces React to commit the off-screen frame before the rAF kicks in.
   const [visible, setVisible] = useState(false);
   const openRafRef = useRef<number | null>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const mainPaneRef = useRef<HTMLDivElement>(null);
+  const subPaneRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const returnEntryKeyRef = useRef<string | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Mount / unmount lifecycle — drives DOM presence only.
   useEffect(() => {
@@ -89,6 +109,98 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
     };
   }, [open]);
 
+  useEffect(() => {
+    const layer = layerRef.current;
+    const sheet = sheetRef.current;
+    if (!open || !mounted || !layer || !sheet) return undefined;
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const isolatedSiblings = Array.from(document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== layer)
+      .map((element) => ({
+        element,
+        ariaHidden: element.getAttribute('aria-hidden'),
+        wasInert: element.hasAttribute('inert'),
+      }));
+    for (const { element } of isolatedSiblings) {
+      element.setAttribute('inert', '');
+      element.setAttribute('aria-hidden', 'true');
+    }
+
+    const focusable = () =>
+      Array.from(sheet.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (element) => !element.closest('[hidden], [aria-hidden="true"], [inert]')
+      );
+    const focusWithinSheet = (target: HTMLElement) => {
+      target.focus({ preventScroll: true });
+      if (!sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
+    };
+    focusWithinSheet(focusable()[0] ?? sheet);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+
+      const targets = focusable();
+      if (event.key === 'Tab') {
+        if (!targets.length) {
+          event.preventDefault();
+          focusWithinSheet(sheet);
+          return;
+        }
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          focusWithinSheet(last);
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          focusWithinSheet(first);
+        }
+        return;
+      }
+
+      if (!sheet.contains(document.activeElement) || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const currentIndex = targets.indexOf(document.activeElement as HTMLElement);
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? targets.length - 1
+            : event.key === 'ArrowDown'
+              ? (currentIndex + 1 + targets.length) % targets.length
+              : (currentIndex - 1 + targets.length) % targets.length;
+      const nextTarget = targets[nextIndex];
+      if (nextTarget) focusWithinSheet(nextTarget);
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      for (const { element, ariaHidden, wasInert } of isolatedSiblings) {
+        if (!wasInert) element.removeAttribute('inert');
+        if (ariaHidden === null) element.removeAttribute('aria-hidden');
+        else element.setAttribute('aria-hidden', ariaHidden);
+      }
+      const restoreFocus = restoreFocusRef.current;
+      if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+      restoreFocusRef.current = null;
+    };
+  }, [mounted, open]);
+
+  useEffect(() => {
+    if (!activeSubKey || subPhase !== 'shown') return;
+    const firstSubAction = subPaneRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    firstSubAction?.focus({ preventScroll: true });
+  }, [activeSubKey, subPhase]);
+
   const activeEntry = activeSubKey ? entries.find((e) => e.key === activeSubKey) : null;
   const activeSub: MobileActionSheetSubMenu | undefined = activeEntry?.submenu;
   const renderedSubEntry = renderedSubKey ? entries.find((e) => e.key === renderedSubKey) : null;
@@ -101,6 +213,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
   const handleEntryClick = (entry: MobileActionSheetEntry) => {
     if (entry.disabled) return;
     if (entry.submenu) {
+      returnEntryKeyRef.current = entry.key;
       setActiveSubKey(entry.key);
       return;
     }
@@ -110,6 +223,8 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
 
   const handleSubSelect = (key: string) => {
     if (!activeSub) return;
+    const option = activeSub.options.find((item) => item.key === key);
+    if (option?.disabled) return;
     activeSub.onSelect(key);
     // For settings (model, permission) the user expects to see the new value
     // reflected on the main pane, so we slide back instead of dismissing the
@@ -118,34 +233,63 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
     // the result (e.g. type a slash command, see attached files).
     if (activeSub.selectable !== false) {
       setActiveSubKey(null);
+      requestAnimationFrame(focusReturnEntry);
       return;
     }
     onClose();
   };
 
+  function focusReturnEntry() {
+    const returnEntryTestId = returnEntryKeyRef.current ? `mobile-action-sheet-${returnEntryKeyRef.current}` : null;
+    const returnEntry = returnEntryTestId
+      ? Array.from(mainPaneRef.current?.querySelectorAll<HTMLElement>('[data-testid]') ?? []).find(
+          (element) => element.dataset.testid === returnEntryTestId
+        )
+      : null;
+    returnEntry?.focus({ preventScroll: true });
+  }
+
+  const handleBack = () => {
+    setActiveSubKey(null);
+    requestAnimationFrame(focusReturnEntry);
+  };
+
   return createPortal(
-    <Fragment>
-      <div className={`${styles.mask} ${visible ? styles.visible : ''}`} onClick={onClose} />
+    <div ref={layerRef} aria-hidden={open ? undefined : 'true'} data-testid='mobile-action-sheet-layer'>
+      <div className={`${styles.mask} ${visible ? styles.visible : ''}`} onClick={onClose} aria-hidden='true' />
       <div
+        ref={sheetRef}
         className={`${styles.sheet} ${visible ? styles.visible : ''}`}
         role='dialog'
         aria-modal='true'
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : t('common.more', { defaultValue: 'More' })}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={styles.handle} />
+        <div className={styles.handle} aria-hidden='true' />
         <div className={styles.panes}>
           <div
+            ref={mainPaneRef}
             className={`${styles.pane} ${styles.paneMain} ${subPhase === 'shown' ? styles.paneOutLeft : styles.paneActive}`}
             aria-hidden={subPhase === 'shown'}
           >
-            {title && <div className={styles.header}>{title}</div>}
+            {title && (
+              <div className={styles.header} id={titleId}>
+                {title}
+              </div>
+            )}
             <div className={styles.list}>
               {entries.map((entry, index) => (
                 <Fragment key={entry.key}>
                   {entry.dividerBefore && index !== 0 && <div className={styles.divider} />}
-                  <div
+                  <button
+                    type='button'
                     className={`${styles.item} ${entry.disabled ? styles.disabled : ''}`}
                     onClick={() => handleEntryClick(entry)}
+                    disabled={entry.disabled}
+                    aria-controls={entry.submenu ? `${titleId}-submenu` : undefined}
+                    aria-expanded={entry.submenu ? activeSubKey === entry.key : undefined}
                     data-testid={`mobile-action-sheet-${entry.key}`}
                   >
                     {entry.icon && (
@@ -165,7 +309,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
                         )}
                       </div>
                     )}
-                  </div>
+                  </button>
                 </Fragment>
               ))}
             </div>
@@ -173,27 +317,34 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
 
           {renderedSub && (
             <div
+              ref={subPaneRef}
+              id={`${titleId}-submenu`}
               className={`${styles.pane} ${styles.paneSub} ${subPhase === 'shown' ? styles.paneActive : styles.paneOutRight}`}
               aria-hidden={subPhase !== 'shown'}
             >
               <div className={styles.subbar}>
-                <button className={styles.back} onClick={() => setActiveSubKey(null)} type='button'>
-                  <Left theme='outline' size='16' />
-                  <span>{t('common.back', { defaultValue: 'Back' })}</span>
+                <button className={styles.back} onClick={handleBack} type='button'>
+                  <Left theme='outline' size='16' aria-hidden='true' />
+                  <span>{t('conversation.navigation.back')}</span>
                 </button>
-                <div className={styles.subtitle}>{renderedSub.title}</div>
+                <div className={styles.subtitle} id={`${titleId}-submenu-title`}>
+                  {renderedSub.title}
+                </div>
               </div>
-              <div className={styles.list}>
+              <div className={styles.list} role='group' aria-labelledby={`${titleId}-submenu-title`}>
                 {renderedSub.options.length === 0 ? (
                   <div className={styles.empty}>{renderedSub.emptyText}</div>
                 ) : (
                   renderedSub.options.map((option) => {
                     const showRadio = renderedSub.selectable !== false;
                     return (
-                      <div
+                      <button
+                        type='button'
                         key={option.key}
-                        className={styles.item}
+                        className={`${styles.item} ${option.disabled ? styles.disabled : ''}`}
                         onClick={() => handleSubSelect(option.key)}
+                        disabled={option.disabled}
+                        aria-pressed={showRadio ? Boolean(option.active) : undefined}
                         data-testid={`mobile-action-sheet-option-${option.key}`}
                       >
                         <div className={styles.body}>
@@ -206,7 +357,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
                             aria-hidden='true'
                           />
                         )}
-                      </div>
+                      </button>
                     );
                   })
                 )}
@@ -215,7 +366,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
           )}
         </div>
       </div>
-    </Fragment>,
+    </div>,
     document.body
   );
 };

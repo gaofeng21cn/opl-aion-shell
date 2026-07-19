@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import {
+  canonicalizeOplProfessionalAgentId,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
   isOplCodexCliFixedExecutor,
@@ -16,11 +16,17 @@ import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
-  useAttachEntry,
 } from '@/renderer/components/chat/MobileActionSheet';
-import { addRecentWorkspace, getRecentWorkspaces } from '@/renderer/components/workspace';
+import ComposerCapabilityPalette, {
+  type ComposerCapabilityPaletteGroup,
+  type ComposerCapabilityPaletteItem,
+} from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
 import { useAgentModesForBackend } from '@/renderer/hooks/agent/useAgentModesForBackend';
-import { supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
+import {
+  filterNonPermissionAccessModes,
+  supportsModeSwitch,
+  type AgentModeOption,
+} from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
@@ -35,31 +41,14 @@ import {
 import type { AcpModelInfo, AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
+import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
-import GuidWorkspaceManagementModal from './GuidWorkspaceManagementModal';
-import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import {
-  ArrowUp,
-  CheckSmall,
-  CloseSmall,
-  FolderOpen,
-  Lightning,
-  Link,
-  MagicHat,
-  Paperclip,
-  Plus,
-  Shield,
-} from '@icon-park/react';
+import { Button, Message, Tooltip } from '@arco-design/web-react';
+import { ArrowUp, CheckSmall, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Shield } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import styles from '../index.module.css';
-
-type GuidMobileCodexModelSelection = {
-  modelInfo: AcpModelInfo | null;
-  selectedModelId: string | null;
-  selectedReasoningEffort: string | null;
-  onChange: (modelId: string | null, reasoningEffort: string | null) => void;
-};
 
 type GuidActionRowProps = {
   // File handling
@@ -71,7 +60,9 @@ type GuidActionRowProps = {
   // Model selector node (rendered by parent)
   modelSelectorNode: React.ReactNode;
   mobileCodexModelSelection?: GuidMobileCodexModelSelection;
+  activeCapabilityId?: string;
   activeCapabilityLabel?: string;
+  onSelectCapability?: (assistantId: string) => void;
 
   // Agent mode
   selectedAgent: string | 'custom';
@@ -104,18 +95,18 @@ type GuidActionRowProps = {
   selectedMcpServerIds: string[];
   onToggleMcpServer: (serverId: string) => void;
 
-  // New-session working directory
-  workspaceDir: string;
-  onSelectWorkspace: (dir: string) => void;
-  onClearWorkspace: () => void;
-  workspaceAccessDisabled?: boolean;
-  workspaceAccessDisabledReason?: string;
-
   // Send button
   loading: boolean;
   isButtonDisabled: boolean;
   speechInputNode?: React.ReactNode;
   onSend: () => void;
+};
+
+type GuidMobileCodexModelSelection = {
+  modelInfo: AcpModelInfo | null;
+  selectedModelId: string | null;
+  selectedReasoningEffort: string | null;
+  onChange: (modelId: string | null, reasoningEffort: string | null) => void;
 };
 
 const GuidActionRow: React.FC<GuidActionRowProps> = ({
@@ -125,7 +116,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   fileAccessDisabledReason,
   modelSelectorNode,
   mobileCodexModelSelection,
+  activeCapabilityId,
   activeCapabilityLabel,
+  onSelectCapability,
   selectedAgent,
   effectiveModeAgent,
   selectedMode,
@@ -145,11 +138,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   mcpServers,
   selectedMcpServerIds,
   onToggleMcpServer,
-  workspaceDir,
-  onSelectWorkspace,
-  onClearWorkspace,
-  workspaceAccessDisabled = false,
-  workspaceAccessDisabledReason,
   hidePresetTag = false,
   showModeSelector = true,
   loading,
@@ -158,13 +146,14 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   onSend,
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
-  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
-  const [isWorkspaceManagementOpen, setIsWorkspaceManagementOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const availableAgentModes = useAgentModesForBackend(modeBackend);
+  const sessionModes = useMemo(() => filterNonPermissionAccessModes(availableAgentModes), [availableAgentModes]);
   const showModeSwitch = showModeSelector && supportsModeSwitch(modeBackend);
   const showMobileModeSwitch = showModeSelector && availableAgentModes.length > 0;
   const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0);
@@ -215,171 +204,237 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     openDirectorySelector();
   }, [fileAccessDisabled, openDirectorySelector]);
 
-  const openWorkspacePicker = useCallback(() => {
-    if (workspaceAccessDisabled) return;
-    void ipcBridge.dialog.showOpen
-      .invoke({ properties: ['openDirectory', 'createDirectory'] })
-      .then((directories) => {
-        const selectedDirectory = directories?.[0];
-        if (!selectedDirectory) return;
-        addRecentWorkspace(selectedDirectory);
-        onSelectWorkspace(selectedDirectory);
-      })
-      .catch((error) => {
-        console.error('Failed to open workspace directory dialog:', error);
+  const paletteGroups = useMemo<ComposerCapabilityPaletteGroup[]>(() => {
+    const addItems: ComposerCapabilityPaletteItem[] = [
+      {
+        id: 'attach-file',
+        label: t('guid.context.attachFile'),
+        description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFilesDescription'),
+        icon: <Paperclip theme='outline' size='16' />,
+        disabled: fileAccessDisabled || uploading,
+        onSelect: openHostFilePicker,
+      },
+      {
+        id: 'attach-directory',
+        label: t('guid.context.attachDirectory'),
+        description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFolderDescription'),
+        icon: <FolderOpen theme='outline' size='16' />,
+        disabled: fileAccessDisabled || uploading,
+        onSelect: openHostDirectoryPicker,
+      },
+    ];
+
+    if (isWebUI) {
+      addItems.push({
+        id: 'attach-device',
+        label: t('common.fileAttach.myDevice'),
+        description: fileAccessDisabled ? fileAccessDisabledReason : undefined,
+        icon: <Paperclip theme='outline' size='16' />,
+        disabled: fileAccessDisabled || uploading,
+        onSelect: () => fileInputRef.current?.click(),
       });
-  }, [onSelectWorkspace, workspaceAccessDisabled]);
+    }
 
-  const handleMobileFilesAdded = useCallback(
-    (items: Array<{ path: string }>) => {
-      onFilesUploaded(items.map((item) => item.path));
-    },
-    [onFilesUploaded]
-  );
-  const { entries: mobileAttachEntries, hiddenFileInput: mobileAttachHiddenInput } = useAttachEntry({
-    openFileSelector: openHostFilePicker,
-    openDirectorySelector: openHostDirectoryPicker,
-    directoryLabel: t('guid.context.attachDirectory'),
-    onLocalFilesAdded: handleMobileFilesAdded,
-  });
+    const agentPackageItems: ComposerCapabilityPaletteItem[] = [];
+    const allowedAgentIds = new Set(getOplHomePurposeAssistantIds());
+    assistants
+      .filter(
+        (assistant) =>
+          Boolean(onSelectCapability) && allowedAgentIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
+      )
+      .forEach((assistant) => {
+        agentPackageItems.push({
+          id: `agent-${assistant.id}`,
+          label: assistant.name_i18n?.[localeKey] || assistant.name,
+          description: assistant.description_i18n?.[localeKey] || assistant.description,
+          icon: <MagicHat theme='outline' size='16' />,
+          active:
+            Boolean(activeCapabilityId) &&
+            canonicalizeOplProfessionalAgentId(activeCapabilityId as string) ===
+              canonicalizeOplProfessionalAgentId(assistant.id),
+          onSelect: () => onSelectCapability?.(assistant.id),
+        });
+      });
 
-  const isSkillChecked = (skill: GuidSkillMenuItem) => isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
+    if (agentPackageItems.length === 0) {
+      agentPackageItems.push({
+        id: 'manage-agents',
+        label: t('guid.context.manageAgents'),
+        description: t('guid.context.noAgentPackages'),
+        icon: <MagicHat theme='outline' size='16' />,
+        onSelect: () => void navigate('/settings/agents'),
+      });
+    }
 
-  const activeSkillCount = allSkills.filter(isSkillChecked).length;
-  const activeMcpCount = selectedMcpServerIds.length;
-  const workspaceName = workspaceDir ? workspaceDir.split(/[\\/]/).pop() || workspaceDir : '';
-  const recentWorkspaces = getRecentWorkspaces();
+    const skillItems: ComposerCapabilityPaletteItem[] = [];
+    if (allSkills.length > 0) {
+      allSkills.forEach((skill) => {
+        skillItems.push({
+          id: `skill-${skill.name}`,
+          label: skill.name,
+          description: skill.description || undefined,
+          keywords: ['skill'],
+          icon: <Lightning theme='outline' size='16' />,
+          active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
+          disabled: skill.locked,
+          closeOnSelect: false,
+          onSelect: () => onToggleSkill(skill.name, skill.isAuto),
+        });
+      });
+    } else {
+      skillItems.push({
+        id: 'manage-skills',
+        label: t('guid.context.manageSkills'),
+        description: t('guid.context.noSelectableSkills'),
+        icon: <Lightning theme='outline' size='16' />,
+        onSelect: () => void navigate('/settings/capabilities?tab=skills'),
+      });
+    }
+
+    const connectionItems: ComposerCapabilityPaletteItem[] = [];
+    if (mcpServers.length > 0) {
+      mcpServers.forEach((server) => {
+        connectionItems.push({
+          id: `connection-${server.id}`,
+          label: server.name,
+          description: server.description || undefined,
+          keywords: ['connection', 'app'],
+          icon: <Link theme='outline' size='16' />,
+          active: selectedMcpServerIds.includes(server.id),
+          closeOnSelect: false,
+          onSelect: () => onToggleMcpServer(server.id),
+        });
+      });
+    } else {
+      connectionItems.push({
+        id: 'manage-connections',
+        label: t('guid.context.manageConnections'),
+        description: t('guid.context.noConnections'),
+        icon: <Link theme='outline' size='16' />,
+        onSelect: () => void navigate('/settings/capabilities?tab=tools'),
+      });
+    }
+
+    const sessionModeItems: ComposerCapabilityPaletteItem[] = [];
+    if (showModeSelector) {
+      sessionModes.forEach((mode) => {
+        sessionModeItems.push({
+          id: `mode-${mode.value}`,
+          label: getModeDisplayLabel(mode),
+          description: mode.description,
+          icon: <Shield theme='outline' size='16' />,
+          active: selectedMode === mode.value,
+          closeOnSelect: false,
+          onSelect: () => onModeSelect(mode.value),
+        });
+      });
+    }
+
+    const groups: ComposerCapabilityPaletteGroup[] = [
+      { id: 'local_inputs', label: t('guid.context.localInputsGroup'), items: addItems },
+      { id: 'agent_packages', label: t('guid.context.agentPackagesGroup'), items: agentPackageItems },
+      { id: 'skills', label: t('guid.context.skillsGroup'), items: skillItems },
+    ];
+    if (sessionModeItems.length > 0) {
+      groups.push({ id: 'session_modes', label: t('guid.context.sessionModesGroup'), items: sessionModeItems });
+    }
+    groups.push({
+      id: 'apps_and_connections',
+      label: t('guid.context.appsAndConnectionsGroup'),
+      items: connectionItems,
+    });
+    return groups;
+  }, [
+    activeCapabilityId,
+    allSkills,
+    assistants,
+    disabledBuiltinSkills,
+    enabledSkills,
+    fileAccessDisabled,
+    fileAccessDisabledReason,
+    getModeDisplayLabel,
+    isWebUI,
+    localeKey,
+    mcpServers,
+    navigate,
+    onModeSelect,
+    onSelectCapability,
+    onToggleMcpServer,
+    onToggleSkill,
+    openHostDirectoryPicker,
+    openHostFilePicker,
+    selectedMcpServerIds,
+    selectedMode,
+    sessionModes,
+    showModeSelector,
+    t,
+    uploading,
+  ]);
 
   const mobileSheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
     if (!isMobile) return [];
 
-    const entries: MobileActionSheetEntry[] = mobileAttachEntries.map((entry) => ({
-      ...entry,
-      disabled: fileAccessDisabled,
-      description: fileAccessDisabled ? fileAccessDisabledReason : entry.description,
-      dividerBefore: false,
-    }));
-
-    const workspaceOptions: MobileActionSheetOption[] = [
-      {
-        key: 'choose',
-        label: t('guid.context.chooseWorkingDirectory'),
-      },
-    ];
-    if (recentWorkspaces.length > 0) {
-      workspaceOptions.push({
-        key: 'manage',
-        label: t('guid.workspace.manageRegistered'),
+    const entries: MobileActionSheetEntry[] = [];
+    const localInputGroup = paletteGroups.find((group) => group.id === 'local_inputs');
+    localInputGroup?.items.forEach((item) => {
+      entries.push({
+        key: item.id,
+        icon: item.icon,
+        label: item.label,
+        description: item.description,
+        disabled: item.disabled,
+        onClick: item.onSelect,
       });
-    }
-    if (workspaceDir) {
-      workspaceOptions.push({
-        key: 'clear',
-        label: t('guid.context.clearWorkingDirectory'),
-      });
-    }
-    entries.push({
-      key: 'workspace',
-      icon: <FolderOpen theme='outline' size='16' />,
-      label: t('guid.context.workingDirectory'),
-      meta: workspaceName || undefined,
-      description: workspaceAccessDisabled ? workspaceAccessDisabledReason : undefined,
-      disabled: workspaceAccessDisabled,
-      submenu: {
-        title: t('guid.context.workingDirectory'),
-        options: workspaceOptions,
-        selectable: false,
-        onSelect: (key) => {
-          if (key === 'choose') {
-            openWorkspacePicker();
-          } else if (key === 'manage') {
-            setIsWorkspaceManagementOpen(true);
-          } else if (key === 'clear') {
-            onClearWorkspace();
-          }
-        },
-      },
     });
 
-    const mobileSkillOptions: MobileActionSheetOption[] = allSkills
-      .map((skill, index) => ({ skill, index }))
-      .filter(({ skill }) => !skill.locked)
-      .map(({ skill, index }) => {
-        const checked = isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
-        return {
-          key: String(index),
-          label: (
-            <span className='flex min-w-0 items-center justify-between gap-8px'>
-              <span className='truncate'>{skill.name}</span>
-              {checked ? <CheckSmall theme='outline' size='16' className='shrink-0' /> : null}
-            </span>
-          ),
-          description: skill.description || undefined,
-        };
+    const groupIcons: Record<string, React.ReactNode> = {
+      agent_packages: <MagicHat theme='outline' size='16' />,
+      skills: <Lightning theme='outline' size='16' />,
+      session_modes: <Shield theme='outline' size='16' />,
+      apps_and_connections: <Link theme='outline' size='16' />,
+    };
+    paletteGroups
+      .filter((group) => group.id !== 'local_inputs')
+      .forEach((group) => {
+        const enabledItems = group.items.filter((item) => !item.disabled);
+        if (enabledItems.length === 0) return;
+        const options: MobileActionSheetOption[] = enabledItems.map((item) => ({
+          key: item.id,
+          label: item.label,
+          description: item.description,
+          active: item.active,
+        }));
+        entries.push({
+          key: `capability-${group.id}`,
+          icon: groupIcons[group.id],
+          label: group.label,
+          meta: group.items.filter((item) => item.active).length || undefined,
+          submenu: {
+            title: group.label,
+            options,
+            selectable: group.id === 'agent_packages' || group.id === 'session_modes',
+            onSelect: (itemId) => enabledItems.find((item) => item.id === itemId)?.onSelect(),
+          },
+        });
       });
-    entries.push({
-      key: 'skills',
-      icon: <Lightning theme='outline' size='16' />,
-      label: t('guid.context.skills'),
-      meta: `${activeSkillCount}/${allSkills.length}`,
-      submenu: {
-        title: t('guid.context.skills'),
-        options: mobileSkillOptions,
-        emptyText: t('guid.context.noSelectableSkills'),
-        selectable: false,
-        onSelect: (key) => {
-          const skill = allSkills[Number(key)];
-          if (skill && !skill.locked) {
-            onToggleSkill(skill.name, skill.isAuto);
-          }
-        },
-      },
-    });
 
-    const connectionOptions: MobileActionSheetOption[] = mcpServers.map((server) => ({
-      key: server.id,
-      label: (
-        <span className='flex min-w-0 items-center justify-between gap-8px'>
-          <span className='truncate'>{server.name}</span>
-          {selectedMcpServerIds.includes(server.id) ? (
-            <CheckSmall theme='outline' size='16' className='shrink-0' />
-          ) : null}
-        </span>
-      ),
-      description: server.description || undefined,
-    }));
-    entries.push({
-      key: 'connections',
-      icon: <Link theme='outline' size='16' />,
-      label: t('guid.context.connections'),
-      meta: `${activeMcpCount}/${mcpServers.length}`,
-      submenu: {
-        title: t('guid.context.connections'),
-        options: connectionOptions,
-        emptyText: t('guid.context.noConnections'),
-        selectable: false,
-        onSelect: onToggleMcpServer,
-      },
-    });
-
-    const modeOptions: MobileActionSheetOption[] = showMobileModeSwitch
-      ? availableAgentModes.map((mode) => ({
-          key: mode.value,
-          label: getModeDisplayLabel(mode),
-          description: mode.description,
-          active: selectedMode === mode.value,
-        }))
-      : [];
-
-    if (modeOptions.length > 0) {
+    const sessionModeValues = new Set(sessionModes.map((mode) => mode.value));
+    const permissionModes = availableAgentModes.filter((mode) => !sessionModeValues.has(mode.value));
+    if (showMobileModeSwitch && permissionModes.length > 0) {
+      const permissionOptions: MobileActionSheetOption[] = permissionModes.map((mode) => ({
+        key: mode.value,
+        label: getModeDisplayLabel(mode),
+        description: mode.description,
+        active: selectedMode === mode.value,
+      }));
       entries.push({
         key: 'permission',
         icon: <Shield theme='outline' size='16' />,
         label: t('agentMode.permission', { defaultValue: 'Permission' }),
-        meta: modeOptions.find((option) => option.active)?.label,
+        meta: permissionOptions.find((option) => option.active)?.label,
         submenu: {
           title: t('agentMode.permission', { defaultValue: 'Permission' }),
-          options: modeOptions,
+          options: permissionOptions,
           onSelect: onModeSelect,
         },
       });
@@ -472,208 +527,30 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     return entries;
   }, [
     activeCapabilityLabel,
-    activeMcpCount,
-    activeSkillCount,
-    allSkills,
     availableAgentModes,
-    disabledBuiltinSkills,
-    enabledSkills,
-    fileAccessDisabled,
-    fileAccessDisabledReason,
     getModeDisplayLabel,
     isMobile,
     localeKey,
-    mobileAttachEntries,
     mobileCodexModelSelection,
     modeBackend,
-    mcpServers,
-    onClearWorkspace,
     onModeSelect,
-    onToggleMcpServer,
-    onToggleSkill,
-    openWorkspacePicker,
-    recentWorkspaces.length,
-    selectedMcpServerIds,
+    paletteGroups,
     selectedMode,
+    sessionModes,
     showMobileModeSwitch,
     t,
-    workspaceAccessDisabled,
-    workspaceAccessDisabledReason,
-    workspaceDir,
-    workspaceName,
   ]);
-
-  const menuContent = (
-    <Menu
-      className='min-w-220px'
-      onClickMenuItem={(key) => {
-        if (key === 'attach-file') {
-          openHostFilePicker();
-        } else if (key === 'attach-directory') {
-          openHostDirectoryPicker();
-        } else if (key === 'attach-device') {
-          fileInputRef.current?.click();
-        } else if (key === 'workspace-choose') {
-          openWorkspacePicker();
-        } else if (key === 'workspace-manage') {
-          setIsWorkspaceManagementOpen(true);
-        } else if (key === 'workspace-clear') {
-          onClearWorkspace();
-        } else if (key.startsWith('skill:')) {
-          const skill = allSkills[Number(key.slice('skill:'.length))];
-          if (skill && !skill.locked) {
-            onToggleSkill(skill.name, skill.isAuto);
-          }
-        } else if (key.startsWith('connection:')) {
-          const server = mcpServers[Number(key.slice('connection:'.length))];
-          if (server) {
-            onToggleMcpServer(server.id);
-          }
-        }
-      }}
-    >
-      <Menu.Item key='attach-file' disabled={fileAccessDisabled || uploading}>
-        <div className='flex items-center gap-8px'>
-          <Paperclip theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-          <span>{t('guid.context.attachFile')}</span>
-        </div>
-      </Menu.Item>
-      <Menu.Item key='attach-directory' disabled={fileAccessDisabled || uploading}>
-        <div className='flex items-center gap-8px'>
-          <FolderOpen theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-          <span>{t('guid.context.attachDirectory')}</span>
-        </div>
-      </Menu.Item>
-      {isWebUI ? (
-        <Menu.Item key='attach-device' disabled={fileAccessDisabled || uploading}>
-          <div className='flex items-center gap-8px'>
-            <Paperclip theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-            <span>{t('common.fileAttach.myDevice')}</span>
-          </div>
-        </Menu.Item>
-      ) : null}
-
-      <Menu.SubMenu
-        key='workspace'
-        title={
-          <div className='flex items-center gap-8px'>
-            <FolderOpen theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-            <span>{t('guid.context.workingDirectory')}</span>
-          </div>
-        }
-      >
-        {workspaceAccessDisabled ? (
-          <Menu.Item key='workspace-disabled' disabled>
-            <span className='text-12px text-t-secondary'>{workspaceAccessDisabledReason}</span>
-          </Menu.Item>
-        ) : (
-          <>
-            {workspaceDir ? (
-              <Menu.Item key='workspace-current' disabled>
-                <div className='flex min-w-0 items-center gap-8px'>
-                  <CheckSmall theme='outline' size='16' className='shrink-0 leading-none' />
-                  <span className='truncate' title={workspaceDir}>
-                    {workspaceName}
-                  </span>
-                </div>
-              </Menu.Item>
-            ) : null}
-            <Menu.Item key='workspace-choose'>
-              <span>{t('guid.context.chooseWorkingDirectory')}</span>
-            </Menu.Item>
-            {recentWorkspaces.length > 0 ? (
-              <Menu.Item key='workspace-manage'>
-                <span>{t('guid.workspace.manageRegistered')}</span>
-              </Menu.Item>
-            ) : null}
-            {workspaceDir ? (
-              <Menu.Item key='workspace-clear'>
-                <div className='flex items-center gap-8px'>
-                  <CloseSmall theme='outline' size='16' className='leading-none' />
-                  <span>{t('guid.context.clearWorkingDirectory')}</span>
-                </div>
-              </Menu.Item>
-            ) : null}
-          </>
-        )}
-      </Menu.SubMenu>
-
-      <Menu.SubMenu
-        key='skills'
-        title={
-          <div className='flex items-center gap-8px'>
-            <Lightning theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-            <span>
-              {t('guid.context.skills')} ({activeSkillCount}/{allSkills.length})
-            </span>
-          </div>
-        }
-        triggerProps={{ popupStyle: { maxHeight: 360, overflowY: 'auto', overflowX: 'hidden' } }}
-      >
-        {allSkills.length > 0 ? (
-          allSkills.map((skill, index) => (
-            <Menu.Item key={`skill:${index}`} disabled={skill.locked}>
-              <Checkbox
-                checked={isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills)}
-                disabled={skill.locked}
-                onClick={(event: React.MouseEvent) => event.stopPropagation()}
-                onChange={() => {
-                  if (!skill.locked) onToggleSkill(skill.name, skill.isAuto);
-                }}
-              >
-                <span className='text-13px'>{skill.name}</span>
-              </Checkbox>
-            </Menu.Item>
-          ))
-        ) : (
-          <Menu.Item key='skills-empty' disabled>
-            <span className='text-12px text-t-secondary'>{t('guid.context.noSelectableSkills')}</span>
-          </Menu.Item>
-        )}
-      </Menu.SubMenu>
-
-      <Menu.SubMenu
-        key='connections'
-        title={
-          <div className='flex items-center gap-8px'>
-            <Link theme='outline' size='16' fill={iconColors.secondary} className='leading-none' />
-            <span>
-              {t('guid.context.connections')} ({activeMcpCount}/{mcpServers.length})
-            </span>
-          </div>
-        }
-        triggerProps={{ popupStyle: { maxHeight: 360, overflowY: 'auto', overflowX: 'hidden' } }}
-      >
-        {mcpServers.length > 0 ? (
-          mcpServers.map((server, index) => (
-            <Menu.Item key={`connection:${index}`}>
-              <Checkbox
-                checked={selectedMcpServerIds.includes(server.id)}
-                onClick={(event: React.MouseEvent) => event.stopPropagation()}
-                onChange={() => onToggleMcpServer(server.id)}
-              >
-                <span className='text-13px'>{server.name}</span>
-              </Checkbox>
-            </Menu.Item>
-          ))
-        ) : (
-          <Menu.Item key='connections-empty' disabled>
-            <span className='text-12px text-t-secondary'>{t('guid.context.noConnections')}</span>
-          </Menu.Item>
-        )}
-      </Menu.SubMenu>
-    </Menu>
-  );
 
   const contextEntry = (
     <span className='flex cursor-pointer items-center gap-4px lh-[1]'>
       <Button
         type='secondary'
         shape='circle'
-        className={isPlusDropdownOpen ? styles.plusButtonRotate : ''}
+        className={isPaletteOpen ? styles.plusButtonRotate : ''}
         icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
         data-testid='file-upload-btn'
         aria-label={t('guid.context.addContext')}
+        aria-expanded={isPaletteOpen}
       />
       {files.length > 0 && (
         <Tooltip
@@ -699,23 +576,32 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
                   data-testid='file-upload-btn'
                   aria-label={t('guid.context.addContext')}
+                  aria-expanded={isMobileSheetOpen}
                   onClick={() => setIsMobileSheetOpen(true)}
                 />
-                {files.length > 0 && (
+                {files.length > 0 ? (
                   <Tooltip
-                    className={'!max-w-max'}
+                    className='!max-w-max'
                     content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}
                   >
                     <span className='text-t-primary'>
                       {t('conversation.commandQueue.files', { count: files.length })}
                     </span>
                   </Tooltip>
-                )}
+                ) : null}
               </span>
             ) : (
-              <Dropdown trigger='click' onVisibleChange={setIsPlusDropdownOpen} droplist={menuContent}>
-                {contextEntry}
-              </Dropdown>
+              <ComposerCapabilityPalette
+                open={isPaletteOpen}
+                onOpenChange={setIsPaletteOpen}
+                trigger={contextEntry}
+                title={t('guid.context.paletteTitle')}
+                searchPlaceholder={t('guid.context.searchPalette')}
+                noResultsText={t('guid.context.noPaletteResults')}
+                groups={paletteGroups}
+                horizontalOffset={-8}
+                testId='guid-capability-palette'
+              />
             )}
             {isWebUI && (
               <input
@@ -728,48 +614,20 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             )}
           </div>
 
-          {workspaceDir ? (
-            <Tooltip content={workspaceDir} position='top'>
-              <span className={styles.workspaceChip} data-testid='guid-workspace-chip'>
-                <FolderOpen theme='outline' size='14' className='shrink-0' />
-                <span className={styles.workspaceChipLabel}>{workspaceName}</span>
-                <Button
-                  type='text'
-                  shape='circle'
-                  size='mini'
-                  className={styles.workspaceChipClear}
-                  icon={<CloseSmall theme='outline' size='12' strokeWidth={3} />}
-                  disabled={workspaceAccessDisabled}
-                  onClick={onClearWorkspace}
-                  data-testid='guid-workspace-clear'
-                  aria-label={t('guid.context.clearWorkingDirectoryNamed', { name: workspaceName })}
-                />
-              </span>
-            </Tooltip>
-          ) : null}
-
           {fileAccessDisabled ? (
             <span className='sr-only' data-testid='opl-guid-file-access-disabled'>
               {fileAccessDisabledReason}
             </span>
           ) : null}
-          {workspaceAccessDisabled ? (
-            <span className='sr-only' data-testid='opl-guid-workspace-access-disabled'>
-              {workspaceAccessDisabledReason}
-            </span>
-          ) : null}
         </div>
-        {isMobile && (
-          <>
-            <MobileActionSheet
-              open={isMobileSheetOpen}
-              onClose={() => setIsMobileSheetOpen(false)}
-              title={t('guid.context.addContext')}
-              entries={mobileSheetEntries}
-            />
-            {mobileAttachHiddenInput}
-          </>
-        )}
+        {isMobile ? (
+          <MobileActionSheet
+            open={isMobileSheetOpen}
+            onClose={() => setIsMobileSheetOpen(false)}
+            title={t('guid.context.addContext')}
+            entries={mobileSheetEntries}
+          />
+        ) : null}
         <div className={styles.actionSubmit} data-testid='guid-action-submit'>
           {!isMobile && configOptionCount > 0 && (
             <div className={styles.actionConfigGroup} data-mobile={isMobile ? 'true' : undefined}>
@@ -816,10 +674,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           />
         </div>
       </div>
-      <GuidWorkspaceManagementModal
-        visible={isWorkspaceManagementOpen}
-        onClose={() => setIsWorkspaceManagementOpen(false)}
-      />
     </>
   );
 };

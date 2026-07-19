@@ -179,7 +179,11 @@
     }
   },
   "fileAttach.addFiles": "Add files",
+  "fileAttach.addFilesDescription": "Add documents, images, or other files",
+  "fileAttach.addFolder": "Add folder",
+  "fileAttach.addFolderDescription": "Add a folder and its contents",
   "fileAttach.myDevice": "Upload from device",
+  "fileAttach.myDeviceDescription": "Choose files stored on this device",
   "fileAttach.failed": "Upload failed",
   "fileAttach.uploading": "Uploading...",
   "fileAttach.uploadSuccess": "Upload successful",

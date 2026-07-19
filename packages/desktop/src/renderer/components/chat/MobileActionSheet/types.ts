@@ -11,6 +11,7 @@ export interface MobileActionSheetOption {
   label: ReactNode;
   description?: ReactNode;
   active?: boolean;
+  disabled?: boolean;
 }
 
 export interface MobileActionSheetSubMenu {

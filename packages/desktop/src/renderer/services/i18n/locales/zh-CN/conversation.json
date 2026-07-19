@@ -567,6 +567,7 @@
     "count": "{{count}} 条"
   },
   "chat": {
+    "oplPlaceholder": "向 One Person Lab 提问或安排任务...",
     "noModelSelected": "当前会话未选择模型，无法发送消息",
     "sendMessageTo": "发送消息到 {{model}}",
     "processing": "正在处理中……",
@@ -666,10 +667,18 @@
     "label": "思考中..."
   },
   "skills": {
-    "loaded": "已加载技能"
+    "loaded": "已加载技能",
+    "manage": "管理技能",
+    "empty": "当前对话没有已加载的 App 白名单技能"
+  },
+  "capabilities": {
+    "emptyTitle": "未加载可选能力",
+    "emptyDescription": "当前 adapter 没有为此对话提供可选择的 App 白名单能力。"
   },
   "mcp": {
     "loaded": "已加载 MCP",
+    "manage": "管理应用与连接",
+    "empty": "当前对话没有可用的 App 白名单应用或连接",
     "managementHint": "如果某个 MCP 加载异常，通常是 MCP JSON 配置有问题。请到工具设置页检查并手动检测。",
     "openSettings": "前往工具设置",
     "status": {

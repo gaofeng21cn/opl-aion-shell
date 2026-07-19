@@ -4,6 +4,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
+}));
+
 let isMobileLayout = false;
 
 const acpModelInfoMocks = vi.hoisted(() => ({

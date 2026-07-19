@@ -61,6 +61,11 @@
 }
 
 .item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -75,6 +80,12 @@
 
 .item:active {
   background: var(--color-fill-1, #f2f3f5);
+}
+
+.item:focus-visible,
+.back:focus-visible {
+  outline: 2px solid var(--opl-focus-ring, rgb(var(--primary-6, 22 93 255)));
+  outline-offset: -2px;
 }
 
 .item.disabled {

@@ -21,6 +21,7 @@ import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
+import GuidWorkspaceContextBar from './components/GuidWorkspaceContextBar';
 import GuidModelSelector from './components/GuidModelSelector';
 import HomeStarters from './components/HomeStarters';
 import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
@@ -37,7 +38,7 @@ import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/active
 import { resolveOplHomeComposerSurface } from './utils/composerSurface';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
-import SpeechInputButton from '@/renderer/components/chat/SpeechInputButton';
+import SpeechInputButton from '@/renderer/components/chat/composer/SpeechInputButton';
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
@@ -711,7 +712,9 @@ const GuidPage: React.FC = () => {
             }
           : undefined
       }
+      activeCapabilityId={activeShortcut?.package_id}
       activeCapabilityLabel={activeCapabilityLabel}
+      onSelectCapability={handleSelectShortcut}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agent_type}
       selectedMode={agentSelection.selectedMode}
@@ -731,11 +734,6 @@ const GuidPage: React.FC = () => {
       mcpServers={availableMcpServers}
       selectedMcpServerIds={guidSelectedMcpServerIds ?? []}
       onToggleMcpServer={handleToggleMcpServer}
-      workspaceDir={guidInput.dir}
-      onSelectWorkspace={handleWorkspaceSelect}
-      onClearWorkspace={handleWorkspaceClear}
-      workspaceAccessDisabled={workspaceAccessBlocked}
-      workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
       hidePresetTag
       speechInputNode={
         <SpeechInputButton
@@ -806,6 +804,13 @@ const GuidPage: React.FC = () => {
           </div>
 
           <div className={styles.guidComposerDock}>
+            <GuidWorkspaceContextBar
+              workspaceDir={guidInput.dir}
+              onSelectWorkspace={handleWorkspaceSelect}
+              onClearWorkspace={handleWorkspaceClear}
+              workspaceAccessDisabled={workspaceAccessBlocked}
+              workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
+            />
             <GuidInputCard
               input={guidInput.input}
               onInputChange={handleInputChange}

@@ -21,10 +21,15 @@ function extractModesFromConfigOptions(config_options: AcpSessionConfigOption[])
 /**
  * Resolves the available agent modes for a backend, in the same priority
  * order as `AgentModeSelector`: cached handshake modes → cached config
- * options (`category=mode`) → static `getAgentModes` fallback. Lets the
- * mobile action sheet enumerate modes without re-implementing the lookup.
+ * options (`category=mode`) → optional static `getAgentModes` fallback.
+ * Capability palettes use `dynamicOnly` so they never advertise modes that
+ * the active adapter did not report.
  */
-export const useAgentModesForBackend = (backend?: string): AgentModeOption[] => {
+export const useAgentModesForBackend = (
+  backend?: string,
+  options: { dynamicOnly?: boolean } = {}
+): AgentModeOption[] => {
+  const dynamicOnly = options.dynamicOnly === true;
   const [cachedModes, setCachedModes] = useState<AgentModeOption[]>([]);
 
   useEffect(() => {
@@ -55,6 +60,7 @@ export const useAgentModesForBackend = (backend?: string): AgentModeOption[] => 
 
   return useMemo(() => {
     if (cachedModes.length > 0) return cachedModes;
+    if (dynamicOnly) return [];
     return getAgentModes(backend);
-  }, [cachedModes, backend]);
+  }, [backend, cachedModes, dynamicOnly]);
 };

@@ -575,15 +575,16 @@ describe('GuidPage selected purpose assistant surface', () => {
     render(<GuidPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
 
-    expect(screen.getByTestId('mobile-action-sheet-attach-host-files')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-attach-host-directory')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-attach-file')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-attach-directory')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-workspace')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-skills')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-connections')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-workspace')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-agent_packages')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-skills')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-apps_and_connections')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('mobile-action-sheet-auto'));

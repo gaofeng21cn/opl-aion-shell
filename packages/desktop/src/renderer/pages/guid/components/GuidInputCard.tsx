@@ -108,6 +108,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       <div
         className={`${styles.guidInputInner} relative z-1 flex flex-col bg-dialog-fill-0`}
         data-testid='guid-input-card-inner'
+        data-composer-palette-boundary='true'
         style={{
           transition: 'box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,

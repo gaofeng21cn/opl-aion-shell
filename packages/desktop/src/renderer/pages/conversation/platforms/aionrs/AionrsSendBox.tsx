@@ -9,7 +9,8 @@ import { filterOplOrdinaryMcpStatuses, filterOplOrdinarySkillNames } from '@/com
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
-import ConversationComposerContextStrip from '@/renderer/components/chat/ConversationComposerContextStrip';
+import ConversationComposerContextStrip from '@/renderer/components/chat/composer/ConversationComposerContextStrip';
+import type { ComposerCapabilityPaletteItem } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -49,11 +50,18 @@ import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
 import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
-import { mergeWithCapabilities, type AgentModeOption } from '@/renderer/utils/model/agentModes';
+import {
+  filterNonPermissionAccessModes,
+  getAgentModes,
+  mergeWithCapabilities,
+  type AgentModeOption,
+} from '@/renderer/utils/model/agentModes';
 import { Message, Tag } from '@arco-design/web-react';
-import { Brain, MagicHat, Shield } from '@icon-park/react';
+import { Compass, Lightning, Link, MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import AionrsModelSelector from './AionrsModelSelector';
 import { useAionrsMessage } from './useAionrsMessage';
 import type { AionrsModelSelection } from './useAionrsModelSelection';
 
@@ -131,6 +139,7 @@ const AionrsSendBox: React.FC<{
   const [workspacePath, setWorkspacePath] = useState(workspaceProp ?? '');
   const [dynamicModes, setDynamicModes] = useState<AgentModeOption[]>([]);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
@@ -145,10 +154,12 @@ const AionrsSendBox: React.FC<{
       }))
   );
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { checkAndUpdateTitle } = useAutoTitle();
   const { current_model } = modelSelection;
   const teamPermission = useTeamPermission();
   const propagateMode = teamPermission?.propagateMode;
+  const sessionModes = useMemo(() => filterNonPermissionAccessModes(dynamicModes), [dynamicModes]);
 
   const { thought, running, setActiveMsgId, setWaitingResponse, resetState } = useAionrsMessage(conversation_id, {
     onConfigChanged: (capabilities) => {
@@ -385,19 +396,19 @@ const AionrsSendBox: React.FC<{
     },
     [setUploadFile]
   );
-  const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
+  const { openFileSelector, openDirectorySelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
 
   const { entries: attachEntries, hiddenFileInput: attachHiddenInput } = useAttachEntry({
     openFileSelector,
+    openDirectorySelector,
+    directoryLabel: t('guid.context.attachDirectory'),
     onLocalFilesAdded: handleFilesAdded,
-    dividerBefore: true,
   });
 
-  // Mode switching for the mobile action sheet — mirrors AgentModeSelector's
-  // setMode call so the bottom-sheet path stays in lockstep with the desktop dropdown.
-  const handleSheetModeChange = useCallback(
+  // Session-mode selection mirrors AgentModeSelector's runtime update path.
+  const handlePaletteModeChange = useCallback(
     async (mode: string) => {
       if (mode === currentMode) return;
       try {
@@ -409,16 +420,17 @@ const AionrsSendBox: React.FC<{
         propagateMode?.(confirmedMode);
         Message.success(t('agentMode.switchSuccess'));
       } catch (error) {
-        console.error('[AionrsSendBox] Failed to switch mode via sheet:', error);
+        console.error('[AionrsSendBox] Failed to switch session mode via palette:', error);
         Message.error(t('agentMode.switchFailed'));
       }
     },
     [conversation_id, currentMode, prepareRuntimeSync, propagateMode, t]
   );
 
-  // Sync currentMode from backend when the sheet first opens / conversation switches
+  const isModeSurfaceOpen = isMobile ? isMobileSheetOpen : isPaletteOpen;
+  // Sync currentMode from the backend whenever a compact mode surface opens.
   useEffect(() => {
-    if (!isMobile || !isMobileSheetOpen) return;
+    if (!isModeSurfaceOpen) return;
     if (!conversation_id) return;
     let cancelled = false;
     void prepareRuntimeSync()
@@ -433,13 +445,29 @@ const AionrsSendBox: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, isMobile, isMobileSheetOpen, prepareRuntimeSync]);
+  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
+
+  const sessionModeItems = useMemo<ComposerCapabilityPaletteItem[]>(
+    () =>
+      sessionModes.map((mode) => ({
+        id: `mode-${mode.value}`,
+        label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
+        description: mode.description,
+        icon: <Compass theme='outline' size='16' />,
+        active: currentMode === mode.value,
+        closeOnSelect: false,
+        onSelect: () => void handlePaletteModeChange(mode.value),
+      })),
+    [currentMode, handlePaletteModeChange, sessionModes, t]
+  );
 
   const handleSheetModelSelect = useCallback(
     (value: string) => {
-      // value format: `${providerId}::${modelName}`
-      const [providerId, modelName] = value.split('::');
-      const provider = modelSelection.providers.find((p) => p.id === providerId);
+      const separatorIndex = value.indexOf('::');
+      if (separatorIndex < 0) return;
+      const providerId = value.slice(0, separatorIndex);
+      const modelName = value.slice(separatorIndex + 2);
+      const provider = modelSelection.providers.find((candidate) => candidate.id === providerId);
       if (!provider || !modelName) return;
       void modelSelection.handleSelectModel(provider, modelName);
     },
@@ -449,20 +477,103 @@ const AionrsSendBox: React.FC<{
   const sheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
     if (!isMobile) return [];
 
-    const availableModes: AgentModeOption[] =
-      dynamicModes.length > 0
-        ? dynamicModes
-        : [
-            { value: 'default', label: 'Default' },
-            { value: 'auto_edit', label: 'Auto-Accept Edits' },
-            { value: 'yolo', label: 'YOLO' },
-          ];
-    const modeOptions: MobileActionSheetOption[] = availableModes.map((mode) => ({
-      key: mode.value,
-      label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
-      description: mode.description,
-      active: currentMode === mode.value,
+    const entries: MobileActionSheetEntry[] = attachEntries.map((entry) => ({
+      ...entry,
+      dividerBefore: false,
     }));
+
+    if (loadedSkills.length > 0) {
+      entries.push({
+        key: 'skills',
+        icon: <Lightning theme='outline' size='16' />,
+        label: t('guid.context.skillsGroup'),
+        meta: loadedSkills.length,
+        submenu: {
+          title: t('guid.context.skillsGroup'),
+          selectable: false,
+          options: loadedSkills.map((name) => ({ key: name, label: name })),
+          onSelect: (name) => emitter.emit('sendbox.fill', `/${name} `),
+        },
+      });
+    } else {
+      entries.push({
+        key: 'manage-skills',
+        icon: <Lightning theme='outline' size='16' />,
+        label: t('conversation.skills.manage'),
+        description: t('conversation.skills.empty'),
+        onClick: () => void navigate('/settings/capabilities?tab=skills'),
+      });
+    }
+
+    if (sessionModeItems.length > 0) {
+      entries.push({
+        key: 'session-modes',
+        icon: <Compass theme='outline' size='16' />,
+        label: t('guid.context.sessionModesGroup'),
+        meta: sessionModeItems.find((item) => item.active)?.label,
+        submenu: {
+          title: t('guid.context.sessionModesGroup'),
+          options: sessionModeItems.map((item) => ({
+            key: item.id,
+            label: item.label,
+            description: item.description,
+            active: item.active,
+          })),
+          onSelect: (itemId) => sessionModeItems.find((item) => item.id === itemId)?.onSelect(),
+        },
+      });
+    }
+
+    if (loadedMcpStatuses.length > 0) {
+      entries.push({
+        key: 'connections',
+        icon: <Link theme='outline' size='16' />,
+        label: t('guid.context.appsAndConnectionsGroup'),
+        meta: loadedMcpStatuses.length,
+        submenu: {
+          title: t('guid.context.appsAndConnectionsGroup'),
+          selectable: false,
+          options: loadedMcpStatuses.map((status) => ({
+            key: status.id,
+            label: status.name,
+            description: status.reason,
+            disabled: true,
+          })),
+          onSelect: () => undefined,
+        },
+      });
+    } else {
+      entries.push({
+        key: 'manage-connections',
+        icon: <Link theme='outline' size='16' />,
+        label: t('conversation.mcp.manage'),
+        description: t('conversation.mcp.empty'),
+        onClick: () => void navigate('/settings/capabilities?tab=tools'),
+      });
+    }
+
+    const availableModes = dynamicModes.length > 0 ? dynamicModes : getAgentModes('aionrs');
+    const sessionModeValues = new Set(sessionModes.map((mode) => mode.value));
+    const permissionModes = availableModes.filter((mode) => !sessionModeValues.has(mode.value));
+    if (permissionModes.length > 0) {
+      const permissionOptions: MobileActionSheetOption[] = permissionModes.map((mode) => ({
+        key: mode.value,
+        label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
+        description: mode.description,
+        active: currentMode === mode.value,
+      }));
+      entries.push({
+        key: 'permission',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('agentMode.permission', { defaultValue: 'Permission' }),
+        meta: permissionOptions.find((option) => option.active)?.label,
+        submenu: {
+          title: t('agentMode.permission', { defaultValue: 'Permission' }),
+          options: permissionOptions,
+          onSelect: (key) => void handlePaletteModeChange(key),
+        },
+      });
+    }
 
     const modelOptions: MobileActionSheetOption[] = modelSelection.providers.flatMap((provider) =>
       modelSelection.getAvailableModels(provider).map((modelName) => ({
@@ -473,98 +584,59 @@ const AionrsSendBox: React.FC<{
           modelSelection.current_model?.id === provider.id && modelSelection.current_model?.use_model === modelName,
       }))
     );
-
-    const currentModeLabel =
-      modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
-    const currentModelLabel = modelSelection.current_model?.use_model || t('conversation.welcome.selectModel');
-
-    const entries: MobileActionSheetEntry[] = [
-      {
-        key: 'model',
-        icon: <Brain theme='outline' size='16' />,
-        label: t('common.model', { defaultValue: 'Model' }),
-        meta: currentModelLabel,
-        submenu: {
-          title: t('common.model', { defaultValue: 'Model' }),
-          options: modelOptions,
-          onSelect: handleSheetModelSelect,
-          emptyText: t('conversation.welcome.selectModel'),
-        },
+    entries.push({
+      key: 'model',
+      icon: <MagicHat theme='outline' size='16' />,
+      label: t('common.model', { defaultValue: 'Model' }),
+      meta: modelSelection.current_model?.use_model || t('conversation.welcome.selectModel'),
+      submenu: {
+        title: t('common.model', { defaultValue: 'Model' }),
+        options: modelOptions,
+        onSelect: handleSheetModelSelect,
+        emptyText: t('conversation.welcome.selectModel'),
       },
-      {
-        key: 'permission',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('agentMode.permission', { defaultValue: 'Permission' }),
-        meta: currentModeLabel,
-        submenu: {
-          title: t('agentMode.permission', { defaultValue: 'Permission' }),
-          options: modeOptions,
-          onSelect: (key) => void handleSheetModeChange(key),
-        },
-      },
-      ...attachEntries,
-    ];
+    });
 
-    if (loadedSkills.length > 0) {
-      const skillOptions: MobileActionSheetOption[] = loadedSkills.map((name) => ({
-        key: name,
-        label: `/${name}`,
-      }));
+    if (activeCapabilityLabel) {
       entries.push({
-        key: 'skills',
+        key: 'active-capability',
         icon: <MagicHat theme='outline' size='16' />,
-        label: t('common.skills', { defaultValue: 'Skills' }),
+        label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
         variant: 'muted',
-        submenu: {
-          title: t('common.skills', { defaultValue: 'Skills' }),
-          selectable: false,
-          options: skillOptions,
-          onSelect: (name) => {
-            setContent(`/${name} `);
-          },
-        },
-      });
-    }
-
-    if (loadedMcpStatuses.length > 0) {
-      const mcpOptions: MobileActionSheetOption[] = loadedMcpStatuses.map((item) => ({
-        key: item.id,
-        label: item.name,
-        description:
-          item.status === 'loaded'
-            ? undefined
-            : item.reason
-              ? `${t(`conversation.mcp.status.${item.status}` as const)} · ${item.reason}`
-              : t(`conversation.mcp.status.${item.status}` as const),
-      }));
-      entries.push({
-        key: 'mcp',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
-        variant: 'muted',
-        submenu: {
-          title: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
-          selectable: false,
-          options: mcpOptions,
-          onSelect: () => undefined,
-        },
+        dividerBefore: entries.length > 0,
+        disabled: true,
       });
     }
 
     return entries;
   }, [
+    activeCapabilityLabel,
     attachEntries,
     currentMode,
     dynamicModes,
-    handleSheetModeChange,
+    handlePaletteModeChange,
     handleSheetModelSelect,
     isMobile,
     loadedMcpStatuses,
     loadedSkills,
     modelSelection,
-    setContent,
+    navigate,
+    sessionModeItems,
+    sessionModes,
     t,
   ]);
+
+  const composerCapabilityPalette = (
+    <FileAttachButton
+      openFileSelector={openFileSelector}
+      openDirectorySelector={openDirectorySelector}
+      onLocalFilesAdded={handleFilesAdded}
+      loadedSkills={loadedSkills}
+      loadedMcpStatuses={loadedMcpStatuses}
+      sessionModeItems={sessionModeItems}
+      onPaletteOpenChange={setIsPaletteOpen}
+    />
+  );
 
   useAddEventListener('aionrs.selected.file', setAtPath);
   useAddEventListener('aionrs.selected.file.append', (selectedItems: Array<string | FileOrFolderItem>) => {
@@ -598,7 +670,7 @@ const AionrsSendBox: React.FC<{
   };
 
   return (
-    <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+    <div className='max-w-736px w-full mx-auto flex flex-col mt-auto mb-16px'>
       <CommandQueuePanel
         items={queuedCommands}
         paused={isQueuePaused}
@@ -631,14 +703,7 @@ const AionrsSendBox: React.FC<{
         }}
         loading={isBusy}
         disabled={!current_model?.use_model}
-        placeholder={
-          current_model?.use_model
-            ? t('acp.sendbox.placeholder', {
-                backend: agent_name || 'AionCLI',
-                defaultValue: `Send message to {{backend}}...`,
-              })
-            : t('conversation.chat.noModelSelected')
-        }
+        placeholder={t('conversation.chat.oplPlaceholder')}
         onStop={handleStop}
         className='z-10'
         onFilesAdded={handleFilesAdded}
@@ -646,27 +711,30 @@ const AionrsSendBox: React.FC<{
         supportedExts={allSupportedExts}
         defaultMultiLine={!isMobile}
         lockMultiLine={!isMobile}
-        tools={
-          <FileAttachButton
-            openFileSelector={openFileSelector}
-            onLocalFilesAdded={handleFilesAdded}
-            loadedMcpStatuses={loadedMcpStatuses}
-          />
-        }
+        tools={composerCapabilityPalette}
         rightTools={
-          <AgentModeSelector
-            backend='aionrs'
-            conversation_id={conversation_id}
-            compact
-            initialMode={session_mode}
-            dynamicModes={dynamicModes}
-            compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
-            modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
-            compactLabelPrefix={t('agentMode.permission')}
-            hideCompactLabelPrefixOnMobile
-            onModeChanged={propagateMode}
-            beforeRuntimeSync={prepareRuntimeSync}
-          />
+          !isMobile ? (
+            <div className='sendbox-decision-controls' data-testid='aionrs-sendbox-decision-controls'>
+              <div className='sendbox-decision-control'>
+                <AionrsModelSelector selection={modelSelection} />
+              </div>
+              <div className='sendbox-decision-control'>
+                <AgentModeSelector
+                  backend='aionrs'
+                  conversation_id={conversation_id}
+                  compact
+                  initialMode={session_mode}
+                  dynamicModes={dynamicModes}
+                  compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
+                  modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
+                  compactLabelPrefix={t('agentMode.permission')}
+                  hideCompactLabelPrefixOnMobile
+                  onModeChanged={propagateMode}
+                  beforeRuntimeSync={prepareRuntimeSync}
+                />
+              </div>
+            </div>
+          ) : undefined
         }
         prefix={
           <>
@@ -715,7 +783,7 @@ const AionrsSendBox: React.FC<{
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         allowSendWhileLoading
       />
-      {isMobile && (
+      {isMobile ? (
         <>
           <MobileActionSheet
             open={isMobileSheetOpen}
@@ -725,7 +793,7 @@ const AionrsSendBox: React.FC<{
           />
           {attachHiddenInput}
         </>
-      )}
+      ) : null}
     </div>
   );
 };

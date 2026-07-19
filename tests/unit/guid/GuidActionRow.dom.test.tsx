@@ -4,6 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GuidActionRow from '@/renderer/pages/guid/components/GuidActionRow';
 
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
+}));
+
 let isMobileLayout = false;
 
 const mocks = vi.hoisted(() => ({
@@ -35,6 +39,7 @@ vi.mock('@/renderer/utils/platform', () => ({
 
 vi.mock('@/renderer/utils/model/agentModes', () => ({
   supportsModeSwitch: () => true,
+  filterNonPermissionAccessModes: () => [],
 }));
 
 vi.mock('@/renderer/hooks/agent/useAgentModesForBackend', () => ({
@@ -117,10 +122,11 @@ vi.mock('react-i18next', () => ({
         'guid.context.addContext': 'Add context',
         'guid.context.attachFile': 'Attach file',
         'guid.context.attachDirectory': 'Attach folder',
-        'guid.context.workingDirectory': 'Working directory',
-        'guid.context.chooseWorkingDirectory': 'Choose working directory',
-        'guid.context.clearWorkingDirectory': 'Clear working directory',
-        'guid.context.clearWorkingDirectoryNamed': `Clear working directory ${String(options?.name ?? '')}`,
+        'guid.context.localInputsGroup': 'Local inputs',
+        'guid.context.agentPackagesGroup': 'Agent Packages',
+        'guid.context.skillsGroup': 'Skills',
+        'guid.context.sessionModesGroup': 'Session modes',
+        'guid.context.appsAndConnectionsGroup': 'Apps & connections',
         'guid.context.skills': 'Skills',
         'guid.context.noSelectableSkills': 'No optional skills available',
         'guid.context.connections': 'Apps & connections',
@@ -163,9 +169,6 @@ const buildProps = () => ({
   ],
   selectedMcpServerIds: ['image-generation'],
   onToggleMcpServer: vi.fn(),
-  workspaceDir: '',
-  onSelectWorkspace: vi.fn(),
-  onClearWorkspace: vi.fn(),
   hidePresetTag: true,
   showModeSelector: true,
   loading: false,
@@ -199,9 +202,9 @@ describe('GuidActionRow composer controls', () => {
     await user.click(screen.getByRole('button', { name: 'Add context' }));
     expect(await screen.findByText('Attach file')).toBeInTheDocument();
     expect(screen.getByText('Attach folder')).toBeInTheDocument();
-    expect(screen.getByText(/Working directory/)).toBeInTheDocument();
-    expect(screen.getByText(/Skills/)).toBeInTheDocument();
-    expect(screen.getByText(/Apps & connections/)).toBeInTheDocument();
+    expect(screen.queryByText(/Working directory/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Skills' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Apps & connections' })).toBeInTheDocument();
     expect(screen.queryByText(/\bMCP\b|provider|team/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Attach file'));
@@ -216,49 +219,29 @@ describe('GuidActionRow composer controls', () => {
     );
   });
 
-  it('shows a compact working-directory chip only when selected and clears it without touching attachments', async () => {
-    const onClearWorkspace = vi.fn();
-    const { rerender } = render(<GuidActionRow {...buildProps()} onClearWorkspace={onClearWorkspace} />);
-
+  it('keeps working-directory selection out of the action row and capability palette', async () => {
+    render(<GuidActionRow {...buildProps()} />);
     expect(screen.queryByTestId('guid-workspace-chip')).not.toBeInTheDocument();
     expect(screen.queryByText('No Project')).not.toBeInTheDocument();
-
-    rerender(
-      <GuidActionRow {...buildProps()} workspaceDir='/workspace/research' onClearWorkspace={onClearWorkspace} />
-    );
-    expect(screen.getByTestId('guid-workspace-chip')).toHaveTextContent('research');
-
-    await userEvent.click(screen.getByTestId('guid-workspace-clear'));
-    expect(onClearWorkspace).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    expect(screen.queryByText(/Working directory/)).not.toBeInTheDocument();
   });
 
-  it('selects a working directory and toggles session skills and connections from the mobile context sheet', async () => {
+  it('toggles new-session skills and connections without moving working-directory selection into the mobile sheet', async () => {
     isMobileLayout = true;
-    mocks.showOpenInvoke.mockResolvedValue(['/workspace/new-project']);
-    const onSelectWorkspace = vi.fn();
     const onToggleSkill = vi.fn();
     const onToggleMcpServer = vi.fn();
 
-    render(
-      <GuidActionRow
-        {...buildProps()}
-        onSelectWorkspace={onSelectWorkspace}
-        onToggleSkill={onToggleSkill}
-        onToggleMcpServer={onToggleMcpServer}
-      />
-    );
+    render(<GuidActionRow {...buildProps()} onToggleSkill={onToggleSkill} onToggleMcpServer={onToggleMcpServer} />);
     fireEvent.click(screen.getByRole('button', { name: 'Add context' }));
 
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-workspace-choose'));
-    await waitFor(() =>
-      expect(mocks.showOpenInvoke).toHaveBeenCalledWith({ properties: ['openDirectory', 'createDirectory'] })
-    );
-    expect(onSelectWorkspace).toHaveBeenCalledWith('/workspace/new-project');
-
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-skills-0'));
+    expect(screen.queryByTestId('mobile-action-sheet-workspace')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-capability-skills-skill-arbitrary-skill'));
     expect(onToggleSkill).toHaveBeenCalledWith('arbitrary-skill', false);
 
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-connections-image-generation'));
+    fireEvent.click(
+      screen.getByTestId('mobile-action-sheet-option-capability-apps_and_connections-connection-image-generation')
+    );
     expect(onToggleMcpServer).toHaveBeenCalledWith('image-generation');
   });
 
@@ -294,11 +277,12 @@ describe('GuidActionRow composer controls', () => {
     expect(plusButton).toBeEnabled();
     fireEvent.click(plusButton);
 
-    expect(screen.getByTestId('mobile-action-sheet-attach')).toBeDisabled();
+    expect(screen.getByTestId('mobile-action-sheet-attach-file')).toBeDisabled();
     expect(screen.getByTestId('mobile-action-sheet-attach-directory')).toBeDisabled();
-    expect(screen.getByTestId('mobile-action-sheet-workspace')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-skills')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-connections')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-workspace')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-agent_packages')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-skills')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-capability-apps_and_connections')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();

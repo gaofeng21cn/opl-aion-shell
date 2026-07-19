@@ -23,6 +23,28 @@ export interface AgentModeOption {
   description?: string;
 }
 
+const PERMISSION_ACCESS_EQUIVALENT_MODE_VALUES = new Set([
+  'read-only',
+  'auto',
+  'full-access',
+  'default',
+  'acceptEdits',
+  'autoEdit',
+  'auto_edit',
+  'bypassPermissions',
+  'dontAsk',
+  'yolo',
+  'yoloNoSandbox',
+]);
+
+/**
+ * Keeps adapter-reported session modes that do not duplicate the dedicated
+ * permission and file-access selector.
+ */
+export function filterNonPermissionAccessModes(modes: AgentModeOption[]): AgentModeOption[] {
+  return modes.filter((mode) => !PERMISSION_ACCESS_EQUIVALENT_MODE_VALUES.has(mode.value));
+}
+
 /**
  * Agent modes configuration
  * Maps backend type to available modes

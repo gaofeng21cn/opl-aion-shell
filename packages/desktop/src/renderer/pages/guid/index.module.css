@@ -631,6 +631,78 @@
   border-radius: 22px;
 }
 
+.workspaceContextBar {
+  display: flex;
+  position: relative;
+  z-index: 0;
+  width: calc(100% - 24px);
+  min-width: 0;
+  height: 52px;
+  min-height: 52px;
+  align-items: center;
+  gap: 7px;
+  box-sizing: border-box;
+  margin: 0 12px -13px;
+  padding: 0 12px 13px;
+  border: 1px solid var(--opl-composer-border);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: var(--dialog-fill-0);
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.workspaceContextLabel {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-3);
+}
+
+.workspaceContextPath:global(.arco-btn) {
+  min-width: 0 !important;
+  max-width: min(360px, 55vw);
+  height: 26px !important;
+  padding: 0 5px !important;
+  overflow: hidden;
+  color: var(--color-text-2) !important;
+  font-size: 12px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceContextPath:global(.arco-btn) :global(.arco-btn-content) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceContextActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.workspaceContextActions :global(.arco-btn) {
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  color: var(--color-text-3) !important;
+}
+
+.workspaceContextActions :global(.arco-btn):hover,
+.workspaceContextActions :global(.arco-btn):focus-visible {
+  background: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
+}
+
 .guidInputInner {
   min-height: 98px;
   padding: 12px 8px 8px;
@@ -718,22 +790,22 @@
   flex: 0 1 auto;
 }
 
-/* 首页输入框右下「模型 / 模式」按钮：与对话框 .sendbox-tools/.sendbox-actions 同款 */
-.actionSubmit :global(.sendbox-model-btn),
-.actionSubmit :global(.sendbox-model-btn:hover),
-.actionSubmit :global(.sendbox-model-btn:active),
-.actionSubmit :global(.sendbox-model-btn:focus),
-.actionSubmit :global(.sendbox-model-btn:focus-visible) {
+/* 首页输入框「模型 / 模式」按钮：与对话框 .sendbox-tools/.sendbox-actions 同款 */
+.actionRow :global(.sendbox-model-btn),
+.actionRow :global(.sendbox-model-btn:hover),
+.actionRow :global(.sendbox-model-btn:active),
+.actionRow :global(.sendbox-model-btn:focus),
+.actionRow :global(.sendbox-model-btn:focus-visible) {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   color: var(--text-secondary) !important;
 }
 
-.actionSubmit :global(.sendbox-model-btn:hover),
-.actionSubmit :global(.sendbox-model-btn:active),
-.actionSubmit :global(.sendbox-model-btn:focus),
-.actionSubmit :global(.sendbox-model-btn:focus-visible) {
+.actionRow :global(.sendbox-model-btn:hover),
+.actionRow :global(.sendbox-model-btn:active),
+.actionRow :global(.sendbox-model-btn:focus),
+.actionRow :global(.sendbox-model-btn:focus-visible) {
   color: var(--text-primary) !important;
 }
 

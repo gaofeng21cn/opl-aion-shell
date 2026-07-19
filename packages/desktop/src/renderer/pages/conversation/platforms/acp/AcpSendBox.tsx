@@ -4,6 +4,7 @@ import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import {
   filterOplOrdinaryMcpStatuses,
+  filterOplOrdinarySkillNames,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
   isOplCodexCliFixedExecutor,
@@ -16,7 +17,8 @@ import { parseError, resolveLocaleKey, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
-import ConversationComposerContextStrip from '@/renderer/components/chat/ConversationComposerContextStrip';
+import ConversationComposerContextStrip from '@/renderer/components/chat/composer/ConversationComposerContextStrip';
+import type { ComposerCapabilityPaletteItem } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -57,6 +59,7 @@ import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
 import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
+import { filterNonPermissionAccessModes } from '@/renderer/utils/model/agentModes';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
@@ -64,9 +67,10 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
-import { MagicHat, Shield } from '@icon-park/react';
+import { Compass, Lightning, Link, MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { buildSendFailureError } from './buildSendFailureError';
 import { useAcpInitialMessage } from './useAcpInitialMessage';
 import type { UseAcpMessageReturn } from './useAcpMessage';
@@ -81,7 +85,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 
-const configErrorMessageKey = (error: unknown) => {
+const configErrorMessageKey = (error: unknown): string => {
   if (error instanceof Error) {
     if (error.message.includes('command_ack')) return 'agent.config.commandAck';
     if (error.message.includes('confirmation_timeout')) return 'agent.config.timeout';
@@ -163,12 +167,15 @@ const AcpSendBox: React.FC<{
     fetchSlashCommands,
   } = messageState;
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const teamPermission = useTeamPermission();
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const modelDisplayLocale = resolveLocaleKey(i18n.language) as OplModelDisplayLocale;
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
   const showModeSelector =
     backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
+  const showConversationModelSelector =
+    backend !== 'codex' || !isOplCodexCliFixedExecutor() || shouldShowOplConversationModelSelector();
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
   const { checkAndUpdateTitle } = useAutoTitle();
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, restoreFailedSend } =
@@ -176,6 +183,7 @@ const AcpSendBox: React.FC<{
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
+  const loadedSkills = filterOplOrdinarySkillNames(conversationContext?.loadedSkills ?? []);
   const loadedMcpStatuses = filterOplOrdinaryMcpStatuses(
     conversationContext?.loadedMcpStatuses ??
       (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
@@ -184,6 +192,7 @@ const AcpSendBox: React.FC<{
         status: 'loaded',
       }))
   );
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
   const prepareRuntimeSync = useCallback(async () => {
@@ -193,7 +202,6 @@ const AcpSendBox: React.FC<{
     await warmupConversation(conversation_id);
   }, [conversation_id, teamPermission]);
 
-  // Drive the mobile sheet's model entry off the same source AcpModelSelector uses
   const {
     model_info,
     canSwitch: canSwitchModel,
@@ -211,9 +219,11 @@ const AcpSendBox: React.FC<{
     onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
   });
   const availableAgentModes = useAgentModesForBackend(backend);
-  // Mirror AgentModeSelector's getMode sync so the sheet shows the live mode label.
+  const sessionModes = useMemo(() => filterNonPermissionAccessModes(availableAgentModes), [availableAgentModes]);
+  const isModeSurfaceOpen = isMobile ? isMobileSheetOpen : isPaletteOpen;
+  // Mirror AgentModeSelector's getMode sync so both compact surfaces show the live mode.
   useEffect(() => {
-    if (!isMobile || !isMobileSheetOpen) return;
+    if (!isModeSurfaceOpen) return;
     if (!conversation_id) return;
     let cancelled = false;
     void prepareRuntimeSync()
@@ -228,9 +238,9 @@ const AcpSendBox: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, isMobile, isMobileSheetOpen, prepareRuntimeSync]);
+  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
 
-  const handleSheetModeChange = useCallback(
+  const handlePaletteModeChange = useCallback(
     async (mode: string) => {
       if (mode === currentMode) return;
       try {
@@ -242,7 +252,7 @@ const AcpSendBox: React.FC<{
         if (isLeaderInTeam) teamPermission?.propagateMode?.(confirmedMode);
         Message.success(t('agentMode.switchSuccess'));
       } catch (error) {
-        console.error('[AcpSendBox] Failed to switch mode via sheet:', error);
+        console.error('[AcpSendBox] Failed to switch session mode via palette:', error);
         Message.error(t('agentMode.switchFailed'));
       }
     },
@@ -260,8 +270,6 @@ const AcpSendBox: React.FC<{
   const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
   const showCodexAutoOption =
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
-  const showConversationModelSelector =
-    backend !== 'codex' || !isOplCodexCliFixedExecutor() || shouldShowOplConversationModelSelector();
 
   const handleSheetReasoningSelect = useCallback(
     (value: string) => {
@@ -511,33 +519,136 @@ Please check your local CLI tool authentication status`,
     },
     [setUploadFile]
   );
-  const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
+  const { openFileSelector, openDirectorySelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
 
   const { entries: attachEntries, hiddenFileInput: attachHiddenInput } = useAttachEntry({
     openFileSelector,
+    openDirectorySelector,
+    directoryLabel: t('guid.context.attachDirectory'),
     onLocalFilesAdded: handleFilesAdded,
   });
+
+  const sessionModeItems = useMemo<ComposerCapabilityPaletteItem[]>(
+    () =>
+      sessionModes.map((mode) => ({
+        id: `mode-${mode.value}`,
+        label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
+        description: mode.description,
+        icon: <Compass theme='outline' size='16' />,
+        active: currentMode === mode.value,
+        closeOnSelect: false,
+        onSelect: () => void handlePaletteModeChange(mode.value),
+      })),
+    [currentMode, handlePaletteModeChange, sessionModes, t]
+  );
 
   const sheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
     if (!isMobile) return [];
 
-    const modeOptions: MobileActionSheetOption[] = showModeSelector
-      ? availableAgentModes.map((mode) => ({
+    const entries: MobileActionSheetEntry[] = attachEntries.map((entry) => ({
+      ...entry,
+      dividerBefore: false,
+    }));
+
+    if (loadedSkills.length > 0) {
+      entries.push({
+        key: 'skills',
+        icon: <Lightning theme='outline' size='16' />,
+        label: t('guid.context.skillsGroup'),
+        meta: loadedSkills.length,
+        submenu: {
+          title: t('guid.context.skillsGroup'),
+          options: loadedSkills.map((name) => ({ key: name, label: name })),
+          selectable: false,
+          onSelect: (name) => emitter.emit('sendbox.fill', `/${name} `),
+        },
+      });
+    } else {
+      entries.push({
+        key: 'manage-skills',
+        icon: <Lightning theme='outline' size='16' />,
+        label: t('conversation.skills.manage'),
+        description: t('conversation.skills.empty'),
+        onClick: () => void navigate('/settings/capabilities?tab=skills'),
+      });
+    }
+
+    if (sessionModeItems.length > 0) {
+      entries.push({
+        key: 'session-modes',
+        icon: <Compass theme='outline' size='16' />,
+        label: t('guid.context.sessionModesGroup'),
+        meta: sessionModeItems.find((item) => item.active)?.label,
+        submenu: {
+          title: t('guid.context.sessionModesGroup'),
+          options: sessionModeItems.map((item) => ({
+            key: item.id,
+            label: item.label,
+            description: item.description,
+            active: item.active,
+          })),
+          onSelect: (itemId) => sessionModeItems.find((item) => item.id === itemId)?.onSelect(),
+        },
+      });
+    }
+
+    if (loadedMcpStatuses.length > 0) {
+      entries.push({
+        key: 'connections',
+        icon: <Link theme='outline' size='16' />,
+        label: t('guid.context.appsAndConnectionsGroup'),
+        meta: loadedMcpStatuses.length,
+        submenu: {
+          title: t('guid.context.appsAndConnectionsGroup'),
+          options: loadedMcpStatuses.map((status) => ({
+            key: status.id,
+            label: status.name,
+            description: status.reason,
+            disabled: true,
+          })),
+          selectable: false,
+          onSelect: () => undefined,
+        },
+      });
+    } else {
+      entries.push({
+        key: 'manage-connections',
+        icon: <Link theme='outline' size='16' />,
+        label: t('conversation.mcp.manage'),
+        description: t('conversation.mcp.empty'),
+        onClick: () => void navigate('/settings/capabilities?tab=tools'),
+      });
+    }
+
+    const sessionModeValues = new Set(sessionModes.map((mode) => mode.value));
+    const permissionModes = availableAgentModes.filter((mode) => !sessionModeValues.has(mode.value));
+    const permissionOptions: MobileActionSheetOption[] = showModeSelector
+      ? permissionModes.map((mode) => ({
           key: mode.value,
           label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
           description: mode.description,
           active: currentMode === mode.value,
         }))
       : [];
+    if (permissionOptions.length > 0) {
+      entries.push({
+        key: 'permission',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('agentMode.permission', { defaultValue: 'Permission' }),
+        meta: permissionOptions.find((option) => option.active)?.label,
+        submenu: {
+          title: t('agentMode.permission', { defaultValue: 'Permission' }),
+          options: permissionOptions,
+          onSelect: (key) => void handlePaletteModeChange(key),
+        },
+      });
+    }
 
     const autoModelOption =
       useOplCodexModelDisplay && model_info?.available_models.length
-        ? buildOplCodexAutoModelOption({
-            modelInfo: model_info,
-            localeKey: modelDisplayLocale,
-          })
+        ? buildOplCodexAutoModelOption({ modelInfo: model_info, localeKey: modelDisplayLocale })
         : null;
     const fixedModelOptions: MobileActionSheetOption[] = canSwitchModel
       ? (model_info?.available_models ?? []).map((model) => {
@@ -574,7 +685,6 @@ Please check your local CLI tool authentication status`,
               option.value === (useOplCodexModelDisplay ? currentCodexReasoningEffort : thoughtLevel.currentValue),
           }))
       : [];
-
     const currentModel = model_info?.available_models.find((model) => model.id === model_info.current_model_id);
     const currentModelLabel =
       useOplCodexModelDisplay && currentModel
@@ -589,28 +699,6 @@ Please check your local CLI tool authentication status`,
       currentCodexReasoningEffort === null || currentCodexReasoningEffort === undefined
         ? undefined
         : formatOplCodexReasoningMenuLabel(currentCodexReasoningEffort, modelDisplayLocale);
-    const currentModeLabel =
-      modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
-
-    const entries: MobileActionSheetEntry[] = [];
-
-    attachEntries.forEach((entry) => {
-      entries.push({ ...entry, dividerBefore: false });
-    });
-
-    if (modeOptions.length > 0) {
-      entries.push({
-        key: 'permission',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('agentMode.permission', { defaultValue: 'Permission' }),
-        meta: currentModeLabel,
-        submenu: {
-          title: t('agentMode.permission', { defaultValue: 'Permission' }),
-          options: modeOptions,
-          onSelect: (key) => void handleSheetModeChange(key),
-        },
-      });
-    }
 
     if (showCodexAutoOption && autoModelOption && canSwitchModel && thoughtLevel) {
       entries.push({
@@ -622,28 +710,23 @@ Please check your local CLI tool authentication status`,
         onClick: handleSheetAutoSelect,
       });
     }
-
     if (reasoningOptions.length > 0) {
+      const reasoningTitle =
+        modelDisplayLocale === 'en-US'
+          ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
+          : getOplCodexModelDisplayOptions().reasoning_menu_title_zh;
       entries.push({
         key: 'reasoning',
-        label:
-          modelDisplayLocale === 'en-US'
-            ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
-            : getOplCodexModelDisplayOptions().reasoning_menu_title_zh,
+        label: reasoningTitle,
         meta: currentReasoningLabel,
         disabled: isSettingReasoning,
         submenu: {
-          title:
-            modelDisplayLocale === 'en-US'
-              ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
-              : getOplCodexModelDisplayOptions().reasoning_menu_title_zh,
+          title: reasoningTitle,
           options: reasoningOptions,
           onSelect: handleSheetReasoningSelect,
         },
       });
     }
-
-    // Model entry: fixed model selection only. Auto stays as its own entry.
     if (fixedModelOptions.length > 0) {
       entries.push({
         key: 'model',
@@ -652,9 +735,7 @@ Please check your local CLI tool authentication status`,
         submenu: {
           title: t('common.model', { defaultValue: 'Model' }),
           options: fixedModelOptions,
-          onSelect: (id) => {
-            selectModel(id);
-          },
+          onSelect: selectModel,
         },
       });
     }
@@ -672,26 +753,43 @@ Please check your local CLI tool authentication status`,
 
     return entries;
   }, [
+    activeCapabilityLabel,
     attachEntries,
     availableAgentModes,
     canSwitchModel,
-    currentMode,
     currentCodexReasoningEffort,
-    handleSheetModeChange,
+    currentMode,
+    handlePaletteModeChange,
     handleSheetAutoSelect,
     handleSheetReasoningSelect,
     isMobile,
     isSettingReasoning,
+    loadedMcpStatuses,
+    loadedSkills,
     modelDisplayLocale,
     model_info,
+    navigate,
     selectModel,
-    showModeSelector,
+    sessionModeItems,
+    sessionModes,
     showCodexAutoOption,
+    showModeSelector,
     t,
     thoughtLevel,
     useOplCodexModelDisplay,
-    activeCapabilityLabel,
   ]);
+
+  const composerCapabilityPalette = (
+    <FileAttachButton
+      openFileSelector={openFileSelector}
+      openDirectorySelector={openDirectorySelector}
+      onLocalFilesAdded={handleFilesAdded}
+      loadedSkills={loadedSkills}
+      loadedMcpStatuses={loadedMcpStatuses}
+      sessionModeItems={sessionModeItems}
+      onPaletteOpenChange={setIsPaletteOpen}
+    />
+  );
 
   useAddEventListener('acp.selected.file', setAtPath);
   useAddEventListener('acp.selected.file.append', (selectedItems: Array<string | FileOrFolderItem>) => {
@@ -726,7 +824,7 @@ Please check your local CLI tool authentication status`,
   };
 
   return (
-    <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+    <div className='max-w-736px w-full mx-auto flex flex-col mt-auto mb-16px'>
       <CommandQueuePanel
         items={queuedCommands}
         paused={isQueuePaused}
@@ -758,10 +856,7 @@ Please check your local CLI tool authentication status`,
         }}
         loading={isBusy}
         disabled={false}
-        placeholder={t('acp.sendbox.placeholder', {
-          backend: agent_name || backend,
-          defaultValue: `Send message to {{backend}}...`,
-        })}
+        placeholder={t('conversation.chat.oplPlaceholder')}
         onStop={handleStop}
         className='z-10'
         onFilesAdded={handleFilesAdded}
@@ -770,13 +865,7 @@ Please check your local CLI tool authentication status`,
         supportedExts={allSupportedExts}
         defaultMultiLine={!isMobile}
         lockMultiLine={!isMobile}
-        tools={
-          <FileAttachButton
-            openFileSelector={openFileSelector}
-            onLocalFilesAdded={handleFilesAdded}
-            loadedMcpStatuses={loadedMcpStatuses}
-          />
-        }
+        tools={composerCapabilityPalette}
         rightTools={
           !isMobile && (showConversationModelSelector || showModeSelector) ? (
             <div className='sendbox-decision-controls' data-testid='acp-sendbox-decision-controls'>
@@ -848,7 +937,7 @@ Please check your local CLI tool authentication status`,
         allowSendWhileLoading
         compactActions={false}
       ></SendBox>
-      {isMobile && (
+      {isMobile ? (
         <>
           <MobileActionSheet
             open={isMobileSheetOpen}
@@ -858,7 +947,7 @@ Please check your local CLI tool authentication status`,
           />
           {attachHiddenInput}
         </>
-      )}
+      ) : null}
     </div>
   );
 };
