@@ -85,7 +85,9 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     let attempts = 0;
     let retryTimer: number | undefined;
     const tryFocus = () => {
-      if (cancelled || focusSettingsAnchor(anchor)) return;
+      if (cancelled) return;
+      const contentRoot = contentRef.current;
+      if (contentRoot && focusSettingsAnchor(contentRoot, anchor)) return;
       attempts += 1;
       if (attempts < 4) {
         retryTimer = window.setTimeout(tryFocus, 80);

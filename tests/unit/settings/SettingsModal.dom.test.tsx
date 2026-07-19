@@ -36,7 +36,7 @@ vi.mock('@/renderer/components/base/AionModal', () => ({
 }));
 
 vi.mock('@/renderer/components/base/AionScrollArea', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent', () => ({
@@ -395,6 +395,50 @@ describe('SettingsModal OPL App navigation', () => {
 
     await waitFor(() => expect(screen.getByTestId('visible-model-anchor')).toHaveFocus());
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+  });
+
+  it('does not focus a matching id outside the current Settings content root', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/access?section=model']}>
+        <section id='model' data-testid='outside-settings-anchor'>
+          Unrelated model content
+        </section>
+        <SettingsPageWrapper>
+          <section id='model' data-testid='settings-model-anchor'>
+            Model preference
+          </section>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('settings-model-anchor')).toHaveFocus());
+    expect(screen.getByTestId('outside-settings-anchor')).not.toHaveFocus();
+  });
+
+  it('does not prioritize matching ids beneath hidden ancestors', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/access?section=model']}>
+        <SettingsPageWrapper>
+          <div hidden>
+            <section id='model' data-testid='hidden-ancestor-anchor'>
+              Hidden model preference
+            </section>
+          </div>
+          <div aria-hidden='true'>
+            <section id='model' data-testid='aria-hidden-ancestor-anchor'>
+              Inactive model preference
+            </section>
+          </div>
+          <section id='model' data-testid='visible-descendant-anchor'>
+            Current model preference
+          </section>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('visible-descendant-anchor')).toHaveFocus());
+    expect(screen.getByTestId('hidden-ancestor-anchor')).not.toHaveFocus();
+    expect(screen.getByTestId('aria-hidden-ancestor-anchor')).not.toHaveFocus();
   });
 
   it('falls back to the page start and reports an unavailable search anchor', async () => {

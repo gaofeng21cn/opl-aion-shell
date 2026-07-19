@@ -333,18 +333,17 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
   };
 }
 
-export function focusSettingsAnchor(anchor: string): boolean {
-  const matchingElements = Array.from(document.querySelectorAll<HTMLElement>('[id]')).filter(
+export function focusSettingsAnchor(root: ParentNode, anchor: string): boolean {
+  const matchingElements = Array.from(root.querySelectorAll<HTMLElement>('[id]')).filter(
     (element) => element.id === anchor
   );
-  const anchorElement = matchingElements.find((element) => !element.hasAttribute('aria-hidden')) ?? matchingElements[0];
+  const anchorElement = matchingElements.find(
+    (element) => element.closest('[hidden], [aria-hidden="true"]') === null
+  );
   if (!anchorElement) return false;
-  const focusTarget = anchorElement.hasAttribute('aria-hidden')
-    ? (anchorElement.closest<HTMLElement>('.opl-settings-section') ?? anchorElement)
-    : anchorElement;
-  focusTarget.scrollIntoView({ block: 'start' });
-  if (focusTarget.tabIndex < 0) focusTarget.tabIndex = -1;
-  focusTarget.focus({ preventScroll: true });
+  anchorElement.scrollIntoView({ block: 'start' });
+  if (anchorElement.tabIndex < 0) anchorElement.tabIndex = -1;
+  anchorElement.focus({ preventScroll: true });
   return true;
 }
 

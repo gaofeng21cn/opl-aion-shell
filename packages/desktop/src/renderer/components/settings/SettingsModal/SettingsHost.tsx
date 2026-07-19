@@ -24,7 +24,7 @@ import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSe
 import { Button, Input, Tabs } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SettingsShellAdapterSlot from './SettingsShellAdapterSlot';
@@ -81,6 +81,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     () => resolveSettingsRenderTarget(defaultTab).anchor ?? null
   );
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const extensionTabs = useExtensionSettingsTabs();
   const { resolveExtTabName } = useExtI18n();
 
@@ -131,7 +132,8 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   useEffect(() => {
     if (!visible || !pendingAnchor) return;
     const frame = requestAnimationFrame(() => {
-      if (focusSettingsAnchor(pendingAnchor)) setPendingAnchor(null);
+      const contentRoot = hostRef.current?.querySelector<HTMLElement>('[data-settings-content-root]');
+      if (contentRoot && focusSettingsAnchor(contentRoot, pendingAnchor)) setPendingAnchor(null);
     });
     return () => cancelAnimationFrame(frame);
   }, [activeTab, capabilitiesTab, pendingAnchor, visible]);
@@ -298,6 +300,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   return (
     <SettingsTabNavigateProvider value={handleTabChange}>
       <div
+        ref={hostRef}
         className={classNames('overflow-hidden gap-0', isMobile ? 'flex flex-col min-h-0' : 'flex mt-20px')}
         style={{ height: isMobile ? mobileContentHeight : `${desktopContentHeight}px` }}
         data-testid='settings-host'
@@ -306,6 +309,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
 
         <AionScrollArea
           className={classNames('flex-1 min-h-0', isMobile ? 'overflow-y-auto' : 'flex flex-col pl-24px gap-16px')}
+          data-settings-content-root=''
         >
           {!extensionTabMap.has(activeTab) && (
             <SettingsShellAdapterSlot
