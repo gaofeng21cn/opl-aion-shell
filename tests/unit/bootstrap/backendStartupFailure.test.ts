@@ -332,20 +332,44 @@ describe('getInstallationIntegrityModalActions', () => {
     expect(actions).toMatchObject({
       downloadText: undefined,
       recoverText: 'common.backendStartup.recoverableDatabaseCorruption.confirmRebuild',
+      restartText: undefined,
+      supportText: 'common.backendStartup.actions.openSupport',
     });
     actions.onRecoverCorruptedDatabase();
     expect(onRecoverCorruptedDatabase).toHaveBeenCalledOnce();
   });
 
   it.each(['startup_directory_permission_denied', 'startup_directory_unavailable', 'generic_startup_failure'] as const)(
-    'does not offer install or database recovery actions for %s',
+    'offers restart and support recovery without an irrelevant install action for %s',
     (diagnosticsKind) => {
       expect(getInstallationIntegrityModalActions(translateKey, { diagnosticsKind })).toMatchObject({
         downloadText: undefined,
         recoverText: undefined,
+        restartText: 'common.backendStartup.actions.restartApp',
+        supportText: 'common.backendStartup.actions.openSupport',
       });
     }
   );
+
+  it('routes download, support, and restart actions to the supplied executable handlers', async () => {
+    const onDownloadLatest = vi.fn();
+    const onOpenSupport = vi.fn();
+    const onRestartApplication = vi.fn();
+    const actions = getInstallationIntegrityModalActions(translateKey, {
+      diagnosticsKind: 'generic_startup_failure',
+      onDownloadLatest,
+      onOpenSupport,
+      onRestartApplication,
+    });
+
+    actions.onDownloadLatest();
+    actions.onOpenSupport();
+    await actions.onRestartApplication();
+
+    expect(onDownloadLatest).toHaveBeenCalledOnce();
+    expect(onOpenSupport).toHaveBeenCalledOnce();
+    expect(onRestartApplication).toHaveBeenCalledOnce();
+  });
 });
 
 describe('backend startup failure dialog routing', () => {

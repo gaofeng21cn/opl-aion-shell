@@ -136,17 +136,22 @@
     }
   },
   "backendStartup": {
+    "actions": {
+      "restartApp": "重启 One Person Lab",
+      "restartFailed": "One Person Lab 无法自动重启，请关闭应用后重新打开。",
+      "openSupport": "打开支持页面"
+    },
     "incompatibleRuntime": {
-      "title": "当前系统不支持内置后端",
-      "description": "AionUi 已打开，但本地 AionCore 后端无法在当前 Linux 版本上运行。请升级到受支持的 Linux 发行版后重启 AionUi。",
+      "title": "当前系统不支持本机服务",
+      "description": "One Person Lab 已打开，但本机服务无法在当前 Linux 版本上运行。请升级到受支持的 Linux 发行版后重启 One Person Lab。",
       "requiredVersions": "需要的运行时符号：{{versions}}"
     },
     "incompleteInstallation": {
-      "title": "AionUi 安装不完整",
-      "description": "当前安装缺少必要的本地资源，AionCore 无法启动。请下载并重新安装最新版 AionUi；如果重新安装后仍然出现，请检查系统安全软件或杀毒软件是否隔离了 AionCore。",
+      "title": "One Person Lab 安装不完整",
+      "description": "当前安装缺少必要的本地资源，本机服务无法启动。请下载并重新安装最新版 One Person Lab；如果问题仍然出现，请检查系统安全软件或杀毒软件是否隔离了 One Person Lab 组件。",
       "downloadLatest": "下载最新版",
       "sendDiagnostics": "发送诊断报告",
-      "runtimeComponentDescription": "当前安装缺少必要的内置运行组件，{{resource}} 无法启动。请重新安装最新版 AionUi；如果重新安装后仍然出现，请检查系统安全软件或杀毒软件是否隔离了 AionUi 组件。"
+      "runtimeComponentDescription": "当前安装缺少必要的内置运行组件，{{resource}} 无法启动。请重新安装最新版 One Person Lab；如果问题仍然出现，请检查系统安全软件或杀毒软件是否隔离了 One Person Lab 组件。"
     },
     "startupDirectory": {
       "title": "本机服务所需目录不可用",
@@ -168,8 +173,8 @@
       "rebuildFailed": "备份旧库并重建新库失败"
     },
     "packageArchitectureMismatch": {
-      "title": "AionUi 安装包架构不匹配",
-      "description": "当前 AionUi 安装包是 {{packageArch}}，但这台 Mac 是 {{deviceArch}}。你可能下载了错误的安装包，请重新下载并安装 {{expectedArch}} 版本。"
+      "title": "One Person Lab 安装包架构不匹配",
+      "description": "当前 One Person Lab 安装包是 {{packageArch}}，但这台 Mac 是 {{deviceArch}}。请重新下载并安装 {{expectedArch}} 版本。"
     }
   },
   "fileAttach.addFiles": "添加文件",

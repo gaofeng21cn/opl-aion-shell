@@ -2,12 +2,22 @@ import { Button, Message, Modal, Space, Typography } from '@arco-design/web-reac
 import type { TFunction } from 'i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
+import { getOplGlobalFeedbackIssueUrl } from '@/common/config/oplProductProfile';
 import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
 
-const AIONUI_DOWNLOAD_URL = 'https://www.aionui.com/';
+const OPL_DOWNLOAD_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
 
 export function openDownloadLatest(): void {
-  window.open(AIONUI_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
+  void ipcBridge.shell.openExternal.invoke(OPL_DOWNLOAD_URL).catch((error) => {
+    console.error('[InstallationIntegrityDialog] Failed to open OPL releases:', error);
+  });
+}
+
+export function openStartupSupport(): void {
+  void ipcBridge.shell.openExternal.invoke(getOplGlobalFeedbackIssueUrl()).catch((error) => {
+    console.error('[InstallationIntegrityDialog] Failed to open OPL support:', error);
+  });
 }
 
 export type InstallationIntegrityDialogKind =
@@ -145,23 +155,38 @@ export function getInstallationIntegrityModalActions(
   options: {
     diagnosticsKind?: InstallationIntegrityDialogKind;
     onDownloadLatest?: () => void;
+    onOpenSupport?: () => void;
     onRecoverCorruptedDatabase?: () => Promise<unknown> | void;
+    onRestartApplication?: () => Promise<unknown> | void;
   } = {}
 ): {
   downloadText?: string;
   onDownloadLatest: () => void;
+  onOpenSupport: () => void;
   onRecoverCorruptedDatabase: () => Promise<unknown> | void;
+  onRestartApplication: () => Promise<unknown> | void;
+  restartText?: string;
   recoverText?: string;
+  supportText: string;
 } {
   const diagnosticsKind = options.diagnosticsKind ?? 'incomplete_installation';
   return {
     downloadText: diagnosticsKind === 'incomplete_installation' ? getInstallationIntegrityDownloadText(t) : undefined,
     onDownloadLatest: options.onDownloadLatest ?? openDownloadLatest,
+    onOpenSupport: options.onOpenSupport ?? openStartupSupport,
     onRecoverCorruptedDatabase: options.onRecoverCorruptedDatabase ?? (() => Promise.resolve()),
+    onRestartApplication: options.onRestartApplication ?? (() => ipcBridge.application.restart.invoke()),
+    restartText:
+      diagnosticsKind === 'startup_directory_permission_denied' ||
+      diagnosticsKind === 'startup_directory_unavailable' ||
+      diagnosticsKind === 'generic_startup_failure'
+        ? t('common.backendStartup.actions.restartApp')
+        : undefined,
     recoverText:
       diagnosticsKind === 'recoverable_database_corruption'
         ? t('common.backendStartup.recoverableDatabaseCorruption.confirmRebuild')
         : undefined,
+    supportText: t('common.backendStartup.actions.openSupport'),
   };
 }
 
@@ -182,12 +207,11 @@ const InstallationIntegrityFooter: React.FC<{ diagnosticsKind: InstallationInteg
 }) => {
   const { t } = useTranslation();
   const [recovering, setRecovering] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const actions = getInstallationIntegrityModalActions(t, {
     diagnosticsKind,
     onRecoverCorruptedDatabase: () => window.electronAPI?.recoverCorruptedDatabase?.(),
   });
-
-  if (!actions.downloadText && !actions.recoverText) return null;
 
   const handleRecoverCorruptedDatabase = async () => {
     if (recovering) return;
@@ -200,8 +224,20 @@ const InstallationIntegrityFooter: React.FC<{ diagnosticsKind: InstallationInteg
     }
   };
 
+  const handleRestartApplication = async () => {
+    if (restarting) return;
+    setRestarting(true);
+    try {
+      await actions.onRestartApplication();
+    } catch {
+      Message.error(t('common.backendStartup.actions.restartFailed'));
+      setRestarting(false);
+    }
+  };
+
   return (
-    <Space>
+    <Space wrap>
+      <Button onClick={actions.onOpenSupport}>{actions.supportText}</Button>
       {actions.downloadText ? (
         <Button type='primary' onClick={actions.onDownloadLatest}>
           {actions.downloadText}
@@ -215,6 +251,11 @@ const InstallationIntegrityFooter: React.FC<{ diagnosticsKind: InstallationInteg
           onClick={handleRecoverCorruptedDatabase}
         >
           {actions.recoverText}
+        </Button>
+      ) : null}
+      {actions.restartText ? (
+        <Button type='primary' loading={restarting} onClick={handleRestartApplication}>
+          {actions.restartText}
         </Button>
       ) : null}
     </Space>

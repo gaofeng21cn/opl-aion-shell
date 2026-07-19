@@ -136,17 +136,22 @@
     }
   },
   "backendStartup": {
+    "actions": {
+      "restartApp": "Restart One Person Lab",
+      "restartFailed": "One Person Lab could not restart. Close the app and open it again.",
+      "openSupport": "Open support"
+    },
     "incompatibleRuntime": {
-      "title": "This system is not supported by the bundled backend",
-      "description": "AionUi opened, but the local AionCore backend cannot run on this Linux version. Please upgrade to a supported Linux distribution and restart AionUi.",
+      "title": "This system is not supported by the local service",
+      "description": "One Person Lab opened, but its local service cannot run on this Linux version. Upgrade to a supported Linux distribution and restart One Person Lab.",
       "requiredVersions": "Required runtime symbols: {{versions}}"
     },
     "incompleteInstallation": {
-      "title": "AionUi installation is incomplete",
-      "description": "This installation is missing required local resources, so AionCore cannot start. Please download and reinstall the latest AionUi. If the issue returns after reinstalling, check whether security or antivirus software quarantined AionCore.",
+      "title": "One Person Lab installation is incomplete",
+      "description": "This installation is missing required local resources, so the local service cannot start. Download and reinstall the latest One Person Lab release. If the issue returns, check whether security or antivirus software quarantined One Person Lab components.",
       "downloadLatest": "Download latest",
       "sendDiagnostics": "Send diagnostics",
-      "runtimeComponentDescription": "This installation is missing required bundled runtime components, so {{resource}} cannot start. Reinstall the latest AionUi package. If it still happens after reinstalling, check whether security or antivirus software quarantined AionUi components."
+      "runtimeComponentDescription": "This installation is missing required bundled runtime components, so {{resource}} cannot start. Reinstall the latest One Person Lab package. If it still happens, check whether security or antivirus software quarantined One Person Lab components."
     },
     "startupDirectory": {
       "title": "A local service folder is unavailable",
@@ -168,8 +173,8 @@
       "rebuildFailed": "Failed to back up old DB and rebuild new DB"
     },
     "packageArchitectureMismatch": {
-      "title": "AionUi package architecture mismatch",
-      "description": "This AionUi package is for {{packageArch}}, but this Mac is {{deviceArch}}. You may have downloaded the wrong package. Please download and install the {{expectedArch}} package."
+      "title": "One Person Lab package architecture mismatch",
+      "description": "This One Person Lab package is for {{packageArch}}, but this Mac is {{deviceArch}}. Download and install the {{expectedArch}} package."
     }
   },
   "fileAttach.addFiles": "Add files",
