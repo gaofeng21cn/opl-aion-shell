@@ -31,6 +31,19 @@ const SETTINGS_LONG_PAGE_TABS = new Set<SettingsTab>([
   'about',
 ]);
 
+const SETTINGS_NAVIGATION_TARGETS = {
+  general: { groupId: 'overview', destinationId: 'overview_status' },
+  gateway: { groupId: 'account_models', destinationId: 'account_access' },
+  access: { groupId: 'account_models', destinationId: 'models' },
+  workspace: { groupId: 'workspace', destinationId: 'working_directory' },
+  agents: { groupId: 'agents_capabilities', destinationId: 'agents' },
+  capabilities: { groupId: 'agents_capabilities', destinationId: 'capabilities' },
+  resources: { groupId: 'account_models', destinationId: 'resources_connections' },
+  environment: { groupId: 'runtime_maintenance', destinationId: 'runtime_services' },
+  storage: { groupId: 'workspace', destinationId: 'data_storage' },
+  appearance: { groupId: 'preferences', destinationId: 'preferences' },
+} as const satisfies Partial<Record<SettingsTab, { groupId: string; destinationId: string }>>;
+
 type SettingsVisualAnchor = {
   id: string;
   selector: string;
@@ -264,15 +277,51 @@ const expectSelectedSettingsNavigationItem = async (
   viewport: 'desktop' | 'mobile',
   allowUnlistedRoute = false
 ) => {
-  const itemSelector = viewport === 'mobile' ? '.settings-mobile-top-nav__item' : '.settings-sider__item';
-  const targetItem = page.locator(`${itemSelector}[data-settings-path="${tab}"]`);
-  if (allowUnlistedRoute) {
-    await expect(targetItem).toHaveCount(0);
-    await expect(page.locator(`${itemSelector}[aria-current="page"]`)).toHaveCount(0);
+  const target = SETTINGS_NAVIGATION_TARGETS[tab as keyof typeof SETTINGS_NAVIGATION_TARGETS];
+  if (viewport === 'desktop') {
+    const sider = page.locator('.settings-sider');
+    await expect(sider.locator('[data-settings-group-id]')).toHaveCount(6);
+    if (tab === 'about') {
+      await expect(sider.locator('[data-settings-id="about"]')).toHaveAttribute('aria-current', 'page');
+      await expect(sider.locator('[aria-current="page"]')).toHaveCount(1);
+      return;
+    }
+    expect(target, `Missing Settings navigation target for ${tab}`).toBeDefined();
+    if (!target) return;
+
+    const targetGroup = sider.locator(`[data-settings-group-id="${target.groupId}"]`);
+    const targetDestination = sider.locator(`[data-settings-destination-id="${target.destinationId}"]`);
+    if ((await targetDestination.count()) > 0) {
+      await expect(targetGroup).toHaveAttribute('aria-expanded', 'true');
+      await expect(targetDestination).toHaveAttribute('aria-current', 'page');
+    } else {
+      await expect(targetGroup).toHaveAttribute('aria-current', 'page');
+    }
+    await expect(sider.locator('[aria-current="page"]')).toHaveCount(1);
     return;
   }
-  await expect(targetItem).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator(`${itemSelector}[aria-current="page"]`)).toHaveCount(1);
+
+  const navigation = page.locator('[data-testid="settings-mobile-navigation"]');
+  await expect(navigation).toBeVisible();
+  const groupItems = navigation.locator('[data-settings-group-id]');
+  await expect(groupItems).toHaveCount(6);
+  if (allowUnlistedRoute) {
+    await expect(navigation.locator('[data-settings-group-id][aria-current="page"]')).toHaveCount(0);
+    await expect(navigation.locator('[data-settings-destination-id]')).toHaveCount(0);
+    await expect(navigation.locator('[data-settings-id="about"]')).toHaveCount(1);
+    return;
+  }
+  expect(target, `Missing Settings navigation target for ${tab}`).toBeDefined();
+  if (!target) return;
+
+  const targetGroup = navigation.locator(`[data-settings-group-id="${target.groupId}"]`);
+  await expect(targetGroup).toHaveAttribute('aria-current', 'page');
+  await expect(navigation.locator('[data-settings-group-id][aria-current="page"]')).toHaveCount(1);
+  await targetGroup.click();
+
+  const targetDestination = navigation.locator(`[data-settings-destination-id="${target.destinationId}"]`);
+  await expect(targetDestination).toHaveAttribute('aria-current', 'page');
+  await expect(navigation.locator('[data-settings-destination-id][aria-current="page"]')).toHaveCount(1);
 };
 
 const resetSettingsScreenshotPointer = async (
@@ -289,7 +338,7 @@ const resetSettingsScreenshotPointer = async (
     await Promise.all(items.flatMap((item) => item.getAnimations().map((animation) => animation.finished)));
   });
   await expect(page.locator('.settings-sider__item:hover')).toHaveCount(0);
-  await expect(page.locator('.settings-mobile-top-nav__item:hover')).toHaveCount(0);
+  await expect(page.locator('.settings-mobile-navigation__row:hover')).toHaveCount(0);
 };
 
 const coverageGapsFor = (
@@ -803,6 +852,43 @@ test.describe('Settings Pages', () => {
       await expectVisualStateReady(page);
       await expectNoHorizontalOverflow(page);
     }
+  });
+
+  test('compact settings navigation follows cross-group context on the same carrier route', async ({
+    page,
+    electronApp,
+  }) => {
+    await setElectronViewport(page, electronApp, { width: 400, height: 600 });
+    await goToSettings(page, 'workspace');
+
+    const navigation = page.locator('[data-testid="settings-mobile-navigation"]');
+    const workspaceGroup = navigation.locator('[data-settings-group-id="workspace"]');
+    await expect(navigation.locator('[data-settings-group-id]')).toHaveCount(6);
+    await expect(workspaceGroup).toHaveAttribute('aria-current', 'page');
+    await workspaceGroup.click();
+    await expect(navigation.locator('[data-settings-destination-id="working_directory"]')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+
+    await page.evaluate(() => window.location.assign('#/settings/workspace?section=personalization'));
+    await page.waitForFunction(
+      () =>
+        window.location.hash.startsWith('#/settings/workspace') &&
+        new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === 'personalization',
+      { timeout: 10_000 }
+    );
+
+    await expect(navigation.locator('[data-settings-destination-id="instructions_context"]')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await expect(navigation.locator('[data-settings-destination-id]')).toHaveCount(3);
+    await expect(navigation.locator('[data-settings-destination-id="working_directory"]')).toHaveCount(0);
+    await expect(navigation.locator('[data-settings-destination-id][aria-current="page"]')).toHaveCount(1);
+    await expect(navigation.locator('.settings-mobile-navigation__back')).toBeVisible();
+    await expectSettingsAnchorLanding(page, 'personalization');
+    await expectNoHorizontalOverflow(page);
   });
 
   test('settings search is unique and supports bilingual Enter navigation', async ({ page }) => {
