@@ -1140,8 +1140,10 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(selectionExpression).toContain("getAttribute('aria-disabled')");
     expect(selectionExpression).toContain('|| disabled');
     expect(selectionExpression).toContain('alreadySelected: true');
-    expect(readyExpression).toContain('guid-active-capability');
+    expect(readyExpression).not.toContain('guid-active-capability');
     expect(readyExpression).toContain("getAttribute('aria-pressed') !== 'true'");
+    expect(readyExpression).toContain('semanticState.active_shortcut_id !== "research"');
+    expect(readyExpression).toContain("missingControls.push('active_shortcut_binding')");
     expect(readyExpression).toContain('guid-model-selector');
     expect(readyExpression).toContain('agent-mode-selector-');
     expect(readyExpression).toContain('agent-pill-');
@@ -1207,6 +1209,51 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('send_blocked: true');
     expect(expression).toContain('launch_allowed: false');
     expect(expression).not.toContain('/api/conversations');
+  });
+
+  it('proves Full Home readiness from the canonical composer state without a retired capability node', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main
+        data-testid="opl-guid-entry"
+        data-opl-composer-executor="codex"
+        data-opl-active-shortcut="research"
+        data-opl-model-reasoning-visible="true"
+        data-opl-permission-access-visible="true"
+        data-opl-executor-selector-visible="false"
+        data-opl-workspace-selected="true"
+      >
+        <button data-testid="home-starter-mas" aria-pressed="true">Research</button>
+        <textarea data-testid="guid-input"></textarea>
+        <button data-testid="guid-send-btn">Send</button>
+        <button data-testid="guid-model-selector">Model</button>
+        <button data-testid="agent-mode-selector-codex">Permission</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    for (const node of window.document.querySelectorAll('*')) {
+      Object.defineProperty(node, 'getBoundingClientRect', {
+        value: () => ({ width: 120, height: 32, top: 0, left: 0, right: 120, bottom: 32 }),
+      });
+    }
+
+    const expression = __test.homeAssistantRouteReadyExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    expect(window.eval(expression)).toMatchObject({
+      status: 'ready',
+      assistant_id: 'mas',
+      active_capability: 'research',
+      missing_controls: [],
+    });
+
+    window.document
+      .querySelector('[data-testid="opl-guid-entry"]')!
+      .setAttribute('data-opl-active-shortcut', 'presentation');
+    expect(window.eval(expression)).toMatchObject({
+      status: 'failed',
+      missing_controls: ['active_shortcut_binding'],
+    });
   });
 
   it('executes the complete Standard launch-gate polling lifecycle against the renderer textarea DOM', () => {

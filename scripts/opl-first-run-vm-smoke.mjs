@@ -3780,7 +3780,6 @@ function homeAssistantRouteReadyExpression(target) {
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
-    const activeCapability = document.querySelector('[data-testid="guid-active-capability"]');
     const modelSelector = document.querySelector('[data-testid="guid-model-selector"]');
     const permissionSelector = document.querySelector('[data-testid^="agent-mode-selector-"], [data-testid="agent-mode-selector"]');
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');
@@ -3788,7 +3787,7 @@ function homeAssistantRouteReadyExpression(target) {
       .flatMap((selector) => [...document.querySelectorAll(selector)])
       .filter(visible)
       .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
-    if (!visible(input) || !visible(sendButton) || !visible(card) || !visible(activeCapability)) return false;
+    if (!visible(input) || !visible(sendButton) || !visible(card)) return false;
     if (card.getAttribute('aria-pressed') !== 'true') return false;
     const semanticState = {
       executor: composer?.getAttribute('data-opl-composer-executor') || null,
@@ -3799,6 +3798,7 @@ function homeAssistantRouteReadyExpression(target) {
       workspace_selected: composer?.getAttribute('data-opl-workspace-selected') === 'true',
     };
     const missingControls = [];
+    if (semanticState.active_shortcut_id !== ${cdpString(target.shortcutId)}) missingControls.push('active_shortcut_binding');
     if (!visible(modelSelector) || !semanticState.model_reasoning_visible) missingControls.push('model_reasoning');
     if (!visible(permissionSelector) || !semanticState.permission_access_visible) missingControls.push('permission_access');
     if (deniedVisible.length > 0 || semanticState.executor_selector_visible) missingControls.push('forbidden_executor_selector');
@@ -3817,7 +3817,7 @@ function homeAssistantRouteReadyExpression(target) {
       status: 'ready',
       assistant_id: ${cdpString(target.id)},
       badge: ${cdpString(target.badge)},
-      active_capability: activeCapability.textContent || '',
+      active_capability: semanticState.active_shortcut_id,
       selected_card_text: card.textContent || '',
       model_selector_visible: true,
       permission_selector_visible: true,
