@@ -3336,6 +3336,9 @@
         "minutesAgo": "{{count}} minutes ago",
         "hoursAgo": "{{count}} hours ago",
         "daysAgo": "{{count}} days ago",
+        "minutesLater": "in {{count}} minutes",
+        "hoursLater": "in {{count}} hours",
+        "daysLater": "in {{count}} days",
         "unknown": "Time unknown"
       }
     },

@@ -846,10 +846,12 @@ function BaseDependencyCatalog({ component, t }: { component: ManagedUpdateCompo
 function PostUpdateNotice({
   maintenance,
   plane,
+  locale,
   t,
 }: {
   maintenance: ManagedUpdateMaintenanceSnapshot;
   plane: ManagedUpdatePlane;
+  locale?: string;
   t: Translate;
 }) {
   const action = maintenance.lastAction;
@@ -890,7 +892,9 @@ function PostUpdateNotice({
           )}
           {maintenance.nextRunAt && (
             <span className='break-words'>
-              {t('settings.oplEnvironmentPage.updates.postAction.nextCheck', { value: maintenance.nextRunAt })}
+              {t('settings.oplEnvironmentPage.updates.postAction.nextCheck', {
+                value: formatMaintenanceTimestamp(maintenance.nextRunAt, t, locale),
+              })}
             </span>
           )}
           {reloadGuidance ? (
@@ -1018,7 +1022,7 @@ function ManagedUpdatesPanel({
           </Space>
         </div>
 
-        <PostUpdateNotice maintenance={maintenance} plane={plane} t={t} />
+        <PostUpdateNotice maintenance={maintenance} plane={plane} locale={locale} t={t} />
 
         {plane.summary && <Alert type='info' content={plane.summary} />}
         {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}

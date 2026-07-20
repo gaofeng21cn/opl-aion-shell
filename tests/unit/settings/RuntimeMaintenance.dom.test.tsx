@@ -418,6 +418,7 @@ describe('RuntimeSettings maintenance structure', () => {
       parsed: updateStatus,
     };
     maintenanceSnapshot.lastAction = null;
+    maintenanceSnapshot.nextRunAt = null;
     maintenanceSnapshot.lastSkipReason = null;
     maintenanceSnapshot.reloadGuidance = null;
     maintenanceSnapshot.restartRequired = false;
@@ -1542,6 +1543,36 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );
+  });
+
+  it('localizes the next background check in the update result without exposing its ISO timestamp', async () => {
+    const now = '2026-07-20T08:00:00Z';
+    const nextRunAt = '2026-07-21T08:00:00Z';
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(Date.parse(now));
+    maintenanceSnapshot.lastAction = {
+      kind: 'auto_apply',
+      componentId: 'opl_base',
+      status: 'completed',
+      at: now,
+    };
+    maintenanceSnapshot.nextRunAt = nextRunAt;
+
+    try {
+      await act(async () => {
+        render(<RuntimeSettings />);
+      });
+
+      const notice = screen.getByTestId('opl-managed-update-post-action-notice');
+      const expectedLocal = new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(Date.parse(nextRunAt));
+      expect(notice).toHaveTextContent(expectedLocal);
+      expect(notice).toHaveTextContent('settings.uiOptimization.maintenance.time.daysLater 1');
+      expect(notice).not.toHaveTextContent(nextRunAt);
+    } finally {
+      dateNow.mockRestore();
+    }
   });
 
   it('does not append a reassuring no-reload message after a failed maintenance action', () => {

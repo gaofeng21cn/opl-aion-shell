@@ -104,15 +104,32 @@ export function formatMaintenanceTimestamp(
   if (!value) return t('settings.uiOptimization.maintenance.time.unknown');
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return t('settings.uiOptimization.maintenance.time.unknown');
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  const differenceMinutes = (Date.now() - timestamp) / 60_000;
+  const elapsedMinutes = Math.floor(Math.abs(differenceMinutes));
+  const isFuture = differenceMinutes < 0;
   const relative =
     elapsedMinutes < 1
       ? t('settings.uiOptimization.maintenance.time.justNow')
       : elapsedMinutes < 60
-        ? t('settings.uiOptimization.maintenance.time.minutesAgo', { count: elapsedMinutes })
+        ? t(
+            isFuture
+              ? 'settings.uiOptimization.maintenance.time.minutesLater'
+              : 'settings.uiOptimization.maintenance.time.minutesAgo',
+            { count: elapsedMinutes }
+          )
         : elapsedMinutes < 1_440
-          ? t('settings.uiOptimization.maintenance.time.hoursAgo', { count: Math.floor(elapsedMinutes / 60) })
-          : t('settings.uiOptimization.maintenance.time.daysAgo', { count: Math.floor(elapsedMinutes / 1_440) });
+          ? t(
+              isFuture
+                ? 'settings.uiOptimization.maintenance.time.hoursLater'
+                : 'settings.uiOptimization.maintenance.time.hoursAgo',
+              { count: Math.floor(elapsedMinutes / 60) }
+            )
+          : t(
+              isFuture
+                ? 'settings.uiOptimization.maintenance.time.daysLater'
+                : 'settings.uiOptimization.maintenance.time.daysAgo',
+              { count: Math.floor(elapsedMinutes / 1_440) }
+            );
   const local = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp);
   return t('settings.uiOptimization.maintenance.time.localWithRelative', { local, relative });
 }
