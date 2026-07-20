@@ -515,7 +515,8 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(diagnosticsTarget).toMatchObject({
       hash: '#/settings/environment?section=diagnostics',
       contentSelector: '[data-testid="settings-page-maintenance"]',
-      navigationId: 'environment',
+      navigationGroupId: 'runtime_maintenance',
+      navigationDestinationId: 'logs_diagnostics',
     });
     expect(appearanceTarget?.contentSelector).toBe('[data-testid="settings-page-preferences"]');
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')).toBeUndefined();
@@ -523,18 +524,34 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about')?.navigation).toBe('secondary');
   });
 
-  it('requires sidebar navigation for top-level Settings pages but not App-owned secondary pages', () => {
+  it('requires current navigation groups for top-level Settings pages but not App-owned secondary pages', () => {
     const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
     const aboutTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about');
 
+    expect(
+      Object.fromEntries(
+        vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.filter((target) => target.navigation !== 'secondary').map((target) => [
+          target.id,
+          [target.navigationGroupId, target.navigationDestinationId],
+        ])
+      )
+    ).toEqual({
+      general: ['overview', 'overview_status'],
+      environment: ['runtime_maintenance', 'runtime_services'],
+      capabilities: ['agents_capabilities', 'capabilities'],
+      access: ['account_models', 'models'],
+      appearance: ['preferences', 'preferences'],
+      diagnostics: ['runtime_maintenance', 'logs_diagnostics'],
+    });
     expect(vmSmoke.pageReadinessExpression(generalTarget)).toContain(
-      'document.querySelector(\'.settings-sider__item[data-settings-id="general"]\')'
+      'document.querySelector(\'[data-settings-group-id="overview"]\')'
     );
     expect(vmSmoke.pageReadinessExpression(generalTarget)).toContain(
       'document.querySelector("[data-testid=\\"settings-page-overview\\"]")'
     );
     expect(vmSmoke.pageReadinessExpression(aboutTarget)).toContain('const navPresent = true;');
     expect(vmSmoke.pageReadinessExpression(aboutTarget)).not.toContain('data-settings-id="about"');
+    expect(vmSmoke.pageReadinessExpression(generalTarget)).not.toContain('data-settings-id="general"');
     expect(vmSmoke.pageReadinessExpression(generalTarget)).not.toContain('Open Runtime Status');
   });
 

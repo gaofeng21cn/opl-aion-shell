@@ -5215,32 +5215,43 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     id: 'general',
     hash: '#/settings/general',
     contentSelector: '[data-testid="settings-page-overview"]',
+    navigationGroupId: 'overview',
+    navigationDestinationId: 'overview_status',
   },
   {
     id: 'environment',
     hash: '#/settings/environment',
     contentSelector: '[data-testid="settings-page-maintenance"]',
+    navigationGroupId: 'runtime_maintenance',
+    navigationDestinationId: 'runtime_services',
   },
   {
     id: 'capabilities',
     hash: '#/settings/capabilities',
     contentSelector: '[data-testid="settings-page-capabilities"]',
+    navigationGroupId: 'agents_capabilities',
+    navigationDestinationId: 'capabilities',
   },
   {
     id: 'access',
     hash: '#/settings/access',
     contentSelector: '[data-testid="settings-page-models"]',
+    navigationGroupId: 'account_models',
+    navigationDestinationId: 'models',
   },
   {
     id: 'appearance',
     hash: '#/settings/appearance',
     contentSelector: '[data-testid="settings-page-preferences"]',
+    navigationGroupId: 'preferences',
+    navigationDestinationId: 'preferences',
   },
   {
     id: 'diagnostics',
     hash: '#/settings/environment?section=diagnostics',
     contentSelector: '[data-testid="settings-page-maintenance"]',
-    navigationId: 'environment',
+    navigationGroupId: 'runtime_maintenance',
+    navigationDestinationId: 'logs_diagnostics',
   },
   {
     id: 'about',
@@ -5256,7 +5267,7 @@ function cdpString(value) {
 
 function settingsNavItemExpression(target) {
   if (target.navigation === 'secondary') return 'true';
-  return `Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.navigationId ?? target.id)}]'))`;
+  return `Boolean(document.querySelector('[data-settings-group-id=${cdpString(target.navigationGroupId)}]'))`;
 }
 
 function pageReadinessExpression(target) {
@@ -5353,6 +5364,8 @@ async function captureSettingsPage(client, target, options, secret) {
           textLength: text.length,
           navPresent: ${settingsNavItemExpression(target)},
           navigation: ${cdpString(target.navigation ?? 'top_level')},
+          navigationGroupId: ${cdpString(target.navigationGroupId ?? null)},
+          navigationDestinationId: ${cdpString(target.navigationDestinationId ?? null)},
           contentSelector: ${cdpString(target.contentSelector)},
           contentPresent: Boolean(document.querySelector(${cdpString(target.contentSelector)})),
           loaderVisible: Boolean(document.querySelector('[class*="loader"], .arco-spin-loading')),

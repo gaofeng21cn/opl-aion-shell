@@ -984,7 +984,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/advanced');
   });
 
-  it('uses the Environment navigation entry for diagnostics and keeps About secondary', () => {
+  it('uses current Settings navigation groups for top-level routes and keeps About secondary', () => {
     const aboutTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about');
     const diagnosticsTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'diagnostics');
     const generalTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
@@ -997,17 +997,53 @@ describe('packaged first-run VM smoke helpers', () => {
     }
 
     expect(aboutTarget).toMatchObject({ navigation: 'secondary' });
-    expect(diagnosticsTarget).toMatchObject({ navigationId: 'environment' });
+    expect(diagnosticsTarget).toMatchObject({
+      navigationGroupId: 'runtime_maintenance',
+      navigationDestinationId: 'logs_diagnostics',
+    });
+    expect(generalTarget).toMatchObject({
+      navigationGroupId: 'overview',
+      navigationDestinationId: 'overview_status',
+    });
     expect(__test.pageReadinessExpression(aboutTarget)).toContain('const navPresent = true;');
     expect(__test.pageReadinessExpression(diagnosticsTarget)).toContain(
-      '.settings-sider__item[data-settings-id="environment"]'
+      '[data-settings-group-id="runtime_maintenance"]'
     );
     expect(__test.pageReadinessExpression(diagnosticsTarget)).toContain(
       'window.location.hash === "#/settings/environment?section=diagnostics"'
     );
-    expect(__test.pageReadinessExpression(generalTarget)).toContain(
-      '.settings-sider__item[data-settings-id="general"]'
+    expect(__test.pageReadinessExpression(generalTarget)).toContain('[data-settings-group-id="overview"]');
+    expect(__test.pageReadinessExpression(generalTarget)).not.toContain('data-settings-id="general"');
+  });
+
+  it('accepts a ready Settings page rendered with the grouped navigation contract', () => {
+    const generalTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
+    expect(generalTarget).toBeTruthy();
+    if (!generalTarget) throw new Error('Expected the General Settings smoke target.');
+
+    const dom = new JSDOM(
+      `<body>${'Ready Settings content '.repeat(8)}<button data-settings-group-id="overview"></button><main data-testid="settings-page-overview"></main></body>`,
+      { url: 'https://onepersonlab.local/#/settings/general' }
     );
+    Object.defineProperty(dom.window.document.body, 'innerText', {
+      configurable: true,
+      value: 'Ready Settings content '.repeat(8),
+    });
+    const evaluate = () =>
+      Function(
+        'window',
+        'document',
+        `return ${__test.pageReadinessExpression(generalTarget)};`
+      )(dom.window, dom.window.document);
+
+    expect(evaluate()).toMatchObject({
+      id: 'general',
+      hash: '#/settings/general',
+      navPresent: true,
+      contentPresent: true,
+    });
+    dom.window.document.querySelector('[data-settings-group-id="overview"]')?.remove();
+    expect(evaluate()).toBe(false);
   });
 
   it('opens the current Maintenance diagnostics surface through stable controls', () => {
