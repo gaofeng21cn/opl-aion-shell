@@ -369,7 +369,11 @@ type OplPostInstallAiSelfCheckEntry = {
 };
 
 export type OplDeveloperProfileCapabilityAxis =
-  'source_channel' | 'workspace_trust' | 'github_authority' | 'agent_automation' | 'runtime_mutation_scope';
+  | 'source_channel'
+  | 'workspace_trust'
+  | 'github_authority'
+  | 'agent_automation'
+  | 'runtime_mutation_scope';
 
 export type OplDeveloperProfileCapability = {
   standard_default: string;

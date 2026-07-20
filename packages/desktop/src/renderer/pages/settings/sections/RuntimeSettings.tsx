@@ -644,104 +644,106 @@ function BaseDependencySummary({
         controlsId='base-dependencies-details'
         toggleTestId='settings-maintenance-base-dependency-toggle'
         summary={
-      <div className='opl-settings-section__header'>
-        <div>
-          <Typography.Text className='block font-600 text-t-primary'>
-            {t('settings.oplEnvironmentPage.dependencies.summaryTitle')}
-          </Typography.Text>
-          <Typography.Text className='block text-12px text-t-secondary'>
-            {t('settings.oplEnvironmentPage.dependencies.summaryDescription')}
-          </Typography.Text>
-        </div>
-        <span
-          className={`opl-settings-status ${
-            needsAttention ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
-          }`}
-          data-testid='settings-maintenance-base-dependency-status'
-        >
-          {t(
-            needsAttention
-              ? 'settings.oplEnvironmentPage.healthSummary.attention'
-              : 'settings.uiOptimization.maintenance.noActionRequired'
-          )}
-        </span>
-      </div>
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.oplEnvironmentPage.dependencies.summaryTitle')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.oplEnvironmentPage.dependencies.summaryDescription')}
+              </Typography.Text>
+            </div>
+            <span
+              className={`opl-settings-status ${
+                needsAttention ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+              }`}
+              data-testid='settings-maintenance-base-dependency-status'
+            >
+              {t(
+                needsAttention
+                  ? 'settings.oplEnvironmentPage.healthSummary.attention'
+                  : 'settings.uiOptimization.maintenance.noActionRequired'
+              )}
+            </span>
+          </div>
         }
       >
-      <div className='opl-settings-list' id='base-dependencies-details'>
-        {PRIMARY_BASE_DEPENDENCY_IDS.map((dependencyId) => {
-          const dependency = primaryDependencies.find((candidate) => candidate.id === dependencyId);
-          const delegatedDependency = [
-            dependency,
-            ...(component.dependencyCatalog?.dependencies.filter(
-              (candidate) => candidate.external && candidate.parentId === dependencyId
-            ) ?? []),
-          ].find((candidate): candidate is ManagedDependency =>
-            Boolean(candidate && candidate.currentness === 'update_available' && canDelegateDependencyUpdate(candidate))
-          );
-          const version = dependency?.installed
-            ? (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'))
-            : dependency
-              ? t('settings.oplEnvironmentPage.dependencies.currentness.missing')
+        <div className='opl-settings-list' id='base-dependencies-details'>
+          {PRIMARY_BASE_DEPENDENCY_IDS.map((dependencyId) => {
+            const dependency = primaryDependencies.find((candidate) => candidate.id === dependencyId);
+            const delegatedDependency = [
+              dependency,
+              ...(component.dependencyCatalog?.dependencies.filter(
+                (candidate) => candidate.external && candidate.parentId === dependencyId
+              ) ?? []),
+            ].find((candidate): candidate is ManagedDependency =>
+              Boolean(
+                candidate && candidate.currentness === 'update_available' && canDelegateDependencyUpdate(candidate)
+              )
+            );
+            const version = dependency?.installed
+              ? (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'))
+              : dependency
+                ? t('settings.oplEnvironmentPage.dependencies.currentness.missing')
+                : t('settings.oplEnvironmentPage.status.unknown');
+            const currentness = dependency
+              ? t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
+                  defaultValue: formatStatus(dependency.currentness, t),
+                })
               : t('settings.oplEnvironmentPage.status.unknown');
-          const currentness = dependency
-            ? t(`settings.oplEnvironmentPage.dependencies.currentness.${dependency.currentness}`, {
-                defaultValue: formatStatus(dependency.currentness, t),
-              })
-            : t('settings.oplEnvironmentPage.status.unknown');
-          const attention =
-            dependency?.currentness === 'update_available' ||
-            (dependency?.currentness === 'missing' && dependency.id !== 'temporal-system-cli');
-          const canUpdate = Boolean(delegatedDependency);
+            const attention =
+              dependency?.currentness === 'update_available' ||
+              (dependency?.currentness === 'missing' && dependency.id !== 'temporal-system-cli');
+            const canUpdate = Boolean(delegatedDependency);
 
-          return (
-            <div
-              key={dependencyId}
-              className='opl-settings-row'
-              data-testid={`opl-base-dependency-summary-${dependencyId}`}
-            >
-              <div className='opl-settings-row__main flex-row items-start gap-10px'>
-                <span className='opl-settings-icon' aria-hidden='true'>
-                  {dependencyIcon({ id: dependencyId })}
-                </span>
-                <div className='min-w-0'>
-                  <Typography.Text className='block font-600 text-t-primary break-words'>
-                    {t(`settings.oplEnvironmentPage.dependencies.items.${dependencyId}`)}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.dependencies.version', { value: version })}
-                    {dependency
-                      ? ` · ${t('settings.oplEnvironmentPage.dependencies.source', {
-                          value: dependencySourceLabel(dependency, t),
-                        })}`
-                      : ''}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {dependency
-                      ? dependencyGuidanceLabel(dependency, t)
-                      : t('settings.oplEnvironmentPage.dependencies.guidance.notChecked')}
-                  </Typography.Text>
+            return (
+              <div
+                key={dependencyId}
+                className='opl-settings-row'
+                data-testid={`opl-base-dependency-summary-${dependencyId}`}
+              >
+                <div className='opl-settings-row__main flex-row items-start gap-10px'>
+                  <span className='opl-settings-icon' aria-hidden='true'>
+                    {dependencyIcon({ id: dependencyId })}
+                  </span>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary break-words'>
+                      {t(`settings.oplEnvironmentPage.dependencies.items.${dependencyId}`)}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {t('settings.oplEnvironmentPage.dependencies.version', { value: version })}
+                      {dependency
+                        ? ` · ${t('settings.oplEnvironmentPage.dependencies.source', {
+                            value: dependencySourceLabel(dependency, t),
+                          })}`
+                        : ''}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {dependency
+                        ? dependencyGuidanceLabel(dependency, t)
+                        : t('settings.oplEnvironmentPage.dependencies.guidance.notChecked')}
+                    </Typography.Text>
+                  </div>
+                </div>
+                <div className='opl-settings-row__meta'>
+                  <Tag color={attention ? 'orange' : 'gray'}>{currentness}</Tag>
+                  {canUpdate && delegatedDependency && (
+                    <Button
+                      size='small'
+                      loading={busyDependencyId === delegatedDependency.id}
+                      disabled={Boolean(busyDependencyId)}
+                      onClick={() => onRequestExternalUpdate(delegatedDependency)}
+                      data-testid={`opl-base-dependency-summary-update-${delegatedDependency.id}`}
+                    >
+                      {delegatedDependency.updateAction?.label ??
+                        t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className='opl-settings-row__meta'>
-                <Tag color={attention ? 'orange' : 'gray'}>{currentness}</Tag>
-                {canUpdate && delegatedDependency && (
-                  <Button
-                    size='small'
-                    loading={busyDependencyId === delegatedDependency.id}
-                    disabled={Boolean(busyDependencyId)}
-                    onClick={() => onRequestExternalUpdate(delegatedDependency)}
-                    data-testid={`opl-base-dependency-summary-update-${delegatedDependency.id}`}
-                  >
-                    {delegatedDependency.updateAction?.label ??
-                      t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
       </MaintenanceDisclosure>
     </section>
   );
