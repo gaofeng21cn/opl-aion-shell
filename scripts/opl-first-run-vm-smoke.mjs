@@ -73,7 +73,14 @@ const FULL_RUNTIME_MODULES = [
     'oplmetaagent',
     'opl-meta-agent',
     path.join('modules', 'meta-agent'),
-    ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+    [
+      path.join('contracts', 'action_catalog.json'),
+      path.join('contracts', 'domain_descriptor.json'),
+      path.join('contracts', 'foundry_provider.json'),
+      path.join('contracts', 'pack_compiler_input.json'),
+      path.join('agent', 'stages', 'manifest.json'),
+      path.join('agent', 'primary_skill', 'SKILL.md'),
+    ],
   ],
   ['oplbookforge', 'opl-bookforge', path.join('modules', 'bookforge'), ['contracts']],
 ];
