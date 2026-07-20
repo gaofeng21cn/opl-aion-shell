@@ -11,13 +11,49 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/;
+
+function comparePrereleaseIdentifiers(left, right) {
+  const leftParts = left ? left.split('.') : [];
+  const rightParts = right ? right.split('.') : [];
+  if (leftParts.length === 0 || rightParts.length === 0) {
+    if (leftParts.length === rightParts.length) return 0;
+    return leftParts.length === 0 ? 1 : -1;
+  }
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index];
+    const rightPart = rightParts[index];
+    if (leftPart === undefined || rightPart === undefined) {
+      return leftPart === rightPart ? 0 : leftPart === undefined ? -1 : 1;
+    }
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/.test(leftPart);
+    const rightNumeric = /^\d+$/.test(rightPart);
+    if (leftNumeric && rightNumeric) return Number(leftPart) - Number(rightPart);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart.localeCompare(rightPart);
+  }
+  return 0;
+}
+
+export function compareMachineVersions(left, right) {
+  const leftMatch = VERSION_PATTERN.exec(left);
+  const rightMatch = VERSION_PATTERN.exec(right);
+  if (!leftMatch || !rightMatch) throw new Error('Machine versions must be valid SemVer values.');
+  for (let index = 1; index <= 3; index += 1) {
+    const difference = Number(leftMatch[index]) - Number(rightMatch[index]);
+    if (difference !== 0) return difference;
+  }
+  return comparePrereleaseIdentifiers(leftMatch[4] || '', rightMatch[4] || '');
+}
 
 function usage() {
   process.stdout.write(`Usage:
   node scripts/release/opl-updater-vm-smoke.mjs \\
     --old-dmg ./One-Person-Lab-old.dmg \\
     --feed-dir ./candidate-feed \\
+    --expected-current-display-version 26.7.20 \\
     --expected-current-version 26.7.20 \\
     --expected-display-version 26.7.20-r1 \\
     --expected-updater-version 26.7.2001 \\
@@ -29,6 +65,7 @@ export function parseUpdaterVmArgs(argv) {
   const options = {
     oldDmg: '',
     feedDir: '',
+    expectedCurrentDisplayVersion: '',
     expectedCurrentVersion: '',
     expectedDisplayVersion: '',
     expectedUpdaterVersion: '',
@@ -51,6 +88,7 @@ export function parseUpdaterVmArgs(argv) {
     index += 1;
     if (key === '--old-dmg') options.oldDmg = path.resolve(value);
     else if (key === '--feed-dir') options.feedDir = path.resolve(value);
+    else if (key === '--expected-current-display-version') options.expectedCurrentDisplayVersion = value;
     else if (key === '--expected-current-version') options.expectedCurrentVersion = value;
     else if (key === '--expected-display-version') options.expectedDisplayVersion = value;
     else if (key === '--expected-updater-version') options.expectedUpdaterVersion = value;
@@ -68,13 +106,14 @@ export function parseUpdaterVmArgs(argv) {
     throw new Error('--feed-dir must be a directory.');
   }
   for (const [label, value] of [
+    ['--expected-current-display-version', options.expectedCurrentDisplayVersion],
     ['--expected-current-version', options.expectedCurrentVersion],
     ['--expected-display-version', options.expectedDisplayVersion],
     ['--expected-updater-version', options.expectedUpdaterVersion],
   ]) {
     if (!VERSION_PATTERN.test(value)) throw new Error(`${label} must be a valid version.`);
   }
-  if (options.expectedCurrentVersion === options.expectedUpdaterVersion) {
+  if (compareMachineVersions(options.expectedUpdaterVersion, options.expectedCurrentVersion) <= 0) {
     throw new Error('Updater qualification requires a strictly newer machine version.');
   }
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 60_000) {
@@ -524,7 +563,7 @@ async function main() {
         framework_sha: options.frameworkSha || null,
       },
       baseline: {
-        display_version: options.expectedCurrentVersion,
+        display_version: options.expectedCurrentDisplayVersion,
         updater_version: options.expectedCurrentVersion,
         dmg: oldDmgEvidence,
       },

@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compareMachineVersions } from './opl-updater-vm-smoke.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const GUEST_SCRIPT = path.join(SCRIPT_DIR, 'opl-updater-vm-smoke.mjs');
@@ -15,6 +16,7 @@ function usage() {
     --source-vm macos-clean \\
     --old-dmg ./One-Person-Lab-old.dmg \\
     --feed-dir ./candidate-feed \\
+    --expected-current-display-version 26.7.20 \\
     --expected-current-version 26.7.20 \\
     --expected-display-version 26.7.20-r1 \\
     --expected-updater-version 26.7.2001 \\
@@ -29,6 +31,7 @@ export function parseUpdaterTartArgs(argv) {
     sourceVm: process.env.OPL_FIRST_RUN_TART_SOURCE || '',
     oldDmg: '',
     feedDir: '',
+    expectedCurrentDisplayVersion: '',
     expectedCurrentVersion: '',
     expectedDisplayVersion: '',
     expectedUpdaterVersion: '',
@@ -71,6 +74,7 @@ export function parseUpdaterTartArgs(argv) {
     if (key === '--source-vm') options.sourceVm = value;
     else if (key === '--old-dmg') options.oldDmg = path.resolve(value);
     else if (key === '--feed-dir') options.feedDir = path.resolve(value);
+    else if (key === '--expected-current-display-version') options.expectedCurrentDisplayVersion = value;
     else if (key === '--expected-current-version') options.expectedCurrentVersion = value;
     else if (key === '--expected-display-version') options.expectedDisplayVersion = value;
     else if (key === '--expected-updater-version') options.expectedUpdaterVersion = value;
@@ -91,12 +95,16 @@ export function parseUpdaterTartArgs(argv) {
     ['--source-vm', options.sourceVm],
     ['--old-dmg', options.oldDmg],
     ['--feed-dir', options.feedDir],
+    ['--expected-current-display-version', options.expectedCurrentDisplayVersion],
     ['--expected-current-version', options.expectedCurrentVersion],
     ['--expected-display-version', options.expectedDisplayVersion],
     ['--expected-updater-version', options.expectedUpdaterVersion],
     ['--guest-node-root', options.guestNodeRoot],
   ]) {
     if (!value) throw new Error(`${label} is required.`);
+  }
+  if (compareMachineVersions(options.expectedUpdaterVersion, options.expectedCurrentVersion) <= 0) {
+    throw new Error('--expected-updater-version must be strictly newer than --expected-current-version.');
   }
   if (!options.dryRun) {
     if (!fs.statSync(options.oldDmg, { throwIfNoEntry: false })?.isFile()) throw new Error('--old-dmg must exist.');
@@ -262,6 +270,7 @@ export function updaterTartDryRunPlan(options) {
     guest_workdir: options.guestWorkdir,
     old_dmg: options.oldDmg,
     feed_dir: options.feedDir,
+    expected_current_display_version: options.expectedCurrentDisplayVersion,
     expected_current_version: options.expectedCurrentVersion,
     expected_display_version: options.expectedDisplayVersion,
     expected_updater_version: options.expectedUpdaterVersion,
@@ -319,6 +328,7 @@ async function main() {
       `${shellQuote(guestNode)} ${shellQuote(`${options.guestWorkdir}/${path.basename(GUEST_SCRIPT)}`)}`,
       `--old-dmg ${shellQuote(`${options.guestWorkdir}/${path.basename(options.oldDmg)}`)}`,
       `--feed-dir ${shellQuote(`${options.guestWorkdir}/feed`)}`,
+      `--expected-current-display-version ${shellQuote(options.expectedCurrentDisplayVersion)}`,
       `--expected-current-version ${shellQuote(options.expectedCurrentVersion)}`,
       `--expected-display-version ${shellQuote(options.expectedDisplayVersion)}`,
       `--expected-updater-version ${shellQuote(options.expectedUpdaterVersion)}`,
