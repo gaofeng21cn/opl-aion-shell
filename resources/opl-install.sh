@@ -11,6 +11,10 @@ AUTHORIZE_LOCAL_APP=0
 AUTHORIZE_LOCAL_APP_ONLY=0
 AUTHORIZE_LOCAL_APP_YES=${OPL_AUTHORIZE_LOCAL_APP_YES:-0}
 STABLE_MACOS_INSTALL=0
+STABLE_MACOS_PACKAGE_PROFILE_EXPLICIT=0
+if [ -n "${OPL_STABLE_MACOS_PACKAGE_PROFILE+x}" ]; then
+  STABLE_MACOS_PACKAGE_PROFILE_EXPLICIT=1
+fi
 STABLE_MACOS_PACKAGE_PROFILE=${OPL_STABLE_MACOS_PACKAGE_PROFILE:-full}
 STABLE_MACOS_RELEASE_TAG=${OPL_STABLE_MACOS_RELEASE_TAG:-}
 STABLE_MACOS_DMG_URL=${OPL_STABLE_MACOS_DMG_URL:-}
@@ -28,8 +32,8 @@ Usage:
 Options:
   By default, install the OPL base plus the optional App GUI without Agent packages.
   --stable-macos-install     Download, copy, locally authorize, and open the Stable App.
-  --full                     Use the Full first-install DMG for --stable-macos-install.
-  --standard                 Use the standard App DMG for --stable-macos-install.
+  --full                     Require the Full first-install DMG for --stable-macos-install.
+  --standard                 Require the standard App DMG for --stable-macos-install.
   --release-tag <tag>        GitHub Release tag for --stable-macos-install. Defaults to latest.
   --dmg-url <url>            Download a specific DMG URL for --stable-macos-install.
   --dmg-path <path>          Install from a local DMG path for --stable-macos-install.
@@ -41,6 +45,7 @@ Options:
   --yes                     Confirm local App authorization non-interactively.
 
 The Stable macOS install path uses local authorization and does not require Apple Developer ID signing.
+Without an explicit package profile, Stable prefers Full and falls back to Standard only when the Full asset is not yet published.
 USAGE
 }
 
@@ -52,9 +57,11 @@ while [ "$#" -gt 0 ]; do
       ;;
     --full)
       STABLE_MACOS_PACKAGE_PROFILE=full
+      STABLE_MACOS_PACKAGE_PROFILE_EXPLICIT=1
       ;;
     --standard)
       STABLE_MACOS_PACKAGE_PROFILE=standard
+      STABLE_MACOS_PACKAGE_PROFILE_EXPLICIT=1
       ;;
     --release-tag)
       shift
@@ -354,9 +361,25 @@ release_asset_name() {
   esac
 }
 
+DOWNLOAD_HTTP_CODE=''
+
+download_release_dmg() {
+  local url="$1"
+  local dmg_path="$2"
+  local curl_status=0
+  DOWNLOAD_HTTP_CODE=''
+  printf 'Downloading One Person Lab App DMG:\n  %s\n' "$url" >&2
+  DOWNLOAD_HTTP_CODE=$(curl --http1.1 --connect-timeout 20 --max-time 1800 --retry 3 --retry-delay 2 -fsSL -w '%{http_code}' "$url" -o "$dmg_path") || curl_status=$?
+  if [ "$curl_status" -eq 0 ]; then
+    return 0
+  fi
+  rm -f "$dmg_path"
+  return "$curl_status"
+}
+
 download_or_use_dmg() {
   local work_dir="$1"
-  local tag asset_name url dmg_path
+  local tag asset_name url dmg_path download_status
   if [ -n "$STABLE_MACOS_DMG_PATH" ]; then
     if [ ! -f "$STABLE_MACOS_DMG_PATH" ]; then
       printf 'DMG path not found: %s\n' "$STABLE_MACOS_DMG_PATH" >&2
@@ -378,9 +401,27 @@ download_or_use_dmg() {
     url="https://github.com/$OPL_APP_RELEASE_REPO/releases/download/$tag/$asset_name"
   fi
   dmg_path="$work_dir/$asset_name"
-  printf 'Downloading One Person Lab App DMG:\n  %s\n' "$url" >&2
-  curl --http1.1 --connect-timeout 20 --max-time 1800 --retry 3 --retry-delay 2 --retry-all-errors -fL "$url" -o "$dmg_path"
-  printf '%s\n' "$dmg_path"
+  if download_release_dmg "$url" "$dmg_path"; then
+    printf '%s\n' "$dmg_path"
+    return 0
+  else
+    download_status=$?
+  fi
+
+  if [ -z "$STABLE_MACOS_DMG_URL" ] && [ "$STABLE_MACOS_PACKAGE_PROFILE" = "full" ] && [ "$STABLE_MACOS_PACKAGE_PROFILE_EXPLICIT" = "0" ] && [ "$DOWNLOAD_HTTP_CODE" = "404" ]; then
+    asset_name=$(release_asset_name "$tag" standard)
+    url="https://github.com/$OPL_APP_RELEASE_REPO/releases/download/$tag/$asset_name"
+    dmg_path="$work_dir/$asset_name"
+    printf 'Full DMG is not published for %s; continuing with the Standard DMG.\n' "$tag" >&2
+    if download_release_dmg "$url" "$dmg_path"; then
+      printf '%s\n' "$dmg_path"
+      return 0
+    else
+      return $?
+    fi
+  fi
+
+  return "$download_status"
 }
 
 copy_app_from_dmg() {

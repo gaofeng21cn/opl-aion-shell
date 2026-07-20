@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,93 @@ function writeFile(filePath: string, content: string, mode?: number) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf8');
   if (mode) fs.chmodSync(filePath, mode);
+}
+
+function runStableInstallerFixture(options: { args?: string[]; fullHttpCode?: string } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stable-installer-'));
+  const binDir = path.join(root, 'bin');
+  const curlLog = path.join(root, 'curl.log');
+  const appPath = path.join(root, 'Applications', 'One Person Lab.app');
+  const installerPath = path.join(process.cwd(), 'resources', 'opl-install.sh');
+  writeFile(path.join(binDir, 'uname'), '#!/usr/bin/env bash\nprintf "Darwin\\n"\n', 0o755);
+  writeFile(
+    path.join(binDir, 'curl'),
+    [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'output=""',
+      'url=""',
+      'while [ "$#" -gt 0 ]; do',
+      '  case "$1" in',
+      '    -o) shift; output="$1" ;;',
+      '    https://*) url="$1" ;;',
+      '  esac',
+      '  shift',
+      'done',
+      'printf "%s\\n" "$url" >> "$OPL_TEST_CURL_LOG"',
+      'if [[ "$url" == *"-Full-"* ]]; then',
+      '  printf "%s" "${OPL_TEST_FULL_HTTP_CODE:-404}"',
+      '  exit 22',
+      'fi',
+      ': > "$output"',
+      'printf "200"',
+      '',
+    ].join('\n'),
+    0o755
+  );
+  writeFile(
+    path.join(binDir, 'hdiutil'),
+    [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'if [ "${1:-}" = "attach" ]; then',
+      '  mount_dir=""',
+      '  while [ "$#" -gt 0 ]; do',
+      '    if [ "$1" = "-mountpoint" ]; then shift; mount_dir="$1"; fi',
+      '    shift',
+      '  done',
+      '  mkdir -p "$mount_dir/One Person Lab.app"',
+      'fi',
+      '',
+    ].join('\n'),
+    0o755
+  );
+  writeFile(path.join(binDir, 'ditto'), '#!/usr/bin/env bash\ncp -R "$1" "$2"\n', 0o755);
+  writeFile(
+    path.join(binDir, 'xattr'),
+    '#!/usr/bin/env bash\nif [ "${1:-}" = "-p" ]; then exit 1; fi\nexit 0\n',
+    0o755
+  );
+  for (const command of ['codesign', 'spctl', 'open']) {
+    writeFile(path.join(binDir, command), '#!/usr/bin/env bash\nexit 0\n', 0o755);
+  }
+
+  const result = spawnSync(
+    '/bin/bash',
+    [
+      installerPath,
+      '--stable-macos-install',
+      '--release-tag',
+      'v26.7.20-r1',
+      '--no-open',
+      '--yes',
+      ...(options.args ?? []),
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        OPL_LOCAL_APP_PATH: appPath,
+        OPL_TEST_CURL_LOG: curlLog,
+        OPL_TEST_FULL_HTTP_CODE: options.fullHttpCode ?? '404',
+      },
+    }
+  );
+  const curlUrls = fs.existsSync(curlLog) ? fs.readFileSync(curlLog, 'utf8').trim().split('\n').filter(Boolean) : [];
+  const appInstalled = fs.existsSync(appPath);
+  fs.rmSync(root, { recursive: true, force: true });
+  return { result, curlUrls, appInstalled };
 }
 
 function writeRuntimeToolShim(runtimeHome: string, command: string, output: string) {
@@ -141,7 +229,7 @@ function createFullRuntimeEquivalenceFixture() {
       moduleId: 'oplmetaagent',
       repoName: 'opl-meta-agent',
       modulePath: path.join('modules', 'meta-agent'),
-      payloadPaths: ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+      payloadPaths: [],
     },
     {
       moduleId: 'oplbookforge',
@@ -151,6 +239,16 @@ function createFullRuntimeEquivalenceFixture() {
     },
   ]) {
     writeRuntimeModule(runtimeHome, moduleFixture);
+  }
+  for (const payloadPath of [
+    path.join('contracts', 'action_catalog.json'),
+    path.join('contracts', 'domain_descriptor.json'),
+    path.join('contracts', 'foundry_provider.json'),
+    path.join('contracts', 'pack_compiler_input.json'),
+    path.join('agent', 'stages', 'manifest.json'),
+    path.join('agent', 'primary_skill', 'SKILL.md'),
+  ]) {
+    writeFile(path.join(runtimeHome, 'modules', 'meta-agent', payloadPath), '{}\n');
   }
   for (const pluginFixture of [
     { modulePath: path.join('modules', 'mas'), pluginName: 'med-autoscience', skillId: 'med-autoscience' },
@@ -251,6 +349,31 @@ describe('OPL first-run VM smoke scripts', () => {
       redactedCommand: '/bin/bash <packaged-opl-install.sh> --headless --skip-packages',
     });
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
+  });
+
+  it('prefers the same-tag Full DMG and falls back only when the implicit Full asset returns 404', () => {
+    const { result, curlUrls, appInstalled } = runStableInstallerFixture();
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain('Full DMG is not published for v26.7.20-r1');
+    expect(curlUrls).toEqual([
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-Full-26.7.20-r1-mac-arm64.dmg',
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-26.7.20-r1-mac-arm64.dmg',
+    ]);
+    expect(appInstalled).toBe(true);
+  });
+
+  it('fails closed instead of falling back for explicit Full or non-404 download failures', () => {
+    for (const fixture of [
+      runStableInstallerFixture({ args: ['--full'] }),
+      runStableInstallerFixture({ fullHttpCode: '500' }),
+    ]) {
+      expect(fixture.result.status).not.toBe(0);
+      expect(fixture.curlUrls).toEqual([
+        'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-Full-26.7.20-r1-mac-arm64.dmg',
+      ]);
+      expect(fixture.appInstalled).toBe(false);
+    }
   });
 
   it('fails fast when the packaged App does not contain the main bootstrap fatal marker', () => {
