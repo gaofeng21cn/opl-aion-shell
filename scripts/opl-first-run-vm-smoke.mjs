@@ -3829,6 +3829,62 @@ function homeAssistantRouteReadyExpression(target) {
   })()`;
 }
 
+function homeAssistantCoreReadinessExpression(pendingAsFalse = true) {
+  return `(() => {
+    const cacheKey = 'opl.appState.fast.v1';
+    const raw = window.localStorage.getItem(cacheKey);
+    let envelope = null;
+    let parseError = null;
+    try {
+      envelope = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error);
+    }
+    const payload = envelope?.payload ?? envelope;
+    const appState = payload?.app_state ?? payload;
+    const codex = appState?.core?.codex;
+    const paths = appState?.paths;
+    const workspaceRoot = paths?.workspace_root;
+    const selectedWorkspace = workspaceRoot?.selected_path || paths?.workspace_root_path || null;
+    const workspaceRootReady = Boolean(
+      selectedWorkspace &&
+        workspaceRoot?.exists === true &&
+        workspaceRoot?.writable === true &&
+        !['missing', 'blocking', 'disabled'].includes(workspaceRoot?.health_status)
+    );
+    const codexCliReady = Boolean(
+      codex?.installed === true &&
+        codex?.enabled !== false &&
+        codex?.status !== 'disabled' &&
+        codex?.version_status !== 'incompatible' &&
+        !['missing', 'blocking', 'disabled'].includes(codex?.health_status)
+    );
+    const modelAccessReady = (codex?.model_access_ready ?? codex?.api_key_present) === true;
+    const known = appState?.schema_version === 'opl_app_state.v1';
+    const ready = known && workspaceRootReady && codexCliReady && modelAccessReady;
+    const blockers = [];
+    if (!known) blockers.push('app_state_unknown');
+    if (known && !workspaceRootReady) blockers.push('workspace_root');
+    if (known && !codexCliReady) blockers.push('codex_cli');
+    if (known && !modelAccessReady) blockers.push('model_access');
+    const state = {
+      status: ready ? 'ready' : 'pending',
+      reason: ready ? null : 'core_launch_prerequisites_not_ready',
+      cache_key: cacheKey,
+      cache_present: Boolean(raw),
+      cache_loaded_at: envelope?.loadedAt ?? null,
+      parse_error: parseError,
+      known,
+      workspace_root_ready: workspaceRootReady,
+      codex_cli_ready: codexCliReady,
+      model_access_ready: modelAccessReady,
+      selected_workspace: selectedWorkspace,
+      blockers,
+    };
+    return ${pendingAsFalse ? 'ready ? state : false' : 'state'};
+  })()`;
+}
+
 function homeAssistantRouteSendExpression(target, prompt) {
   return `(() => {
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
@@ -3847,13 +3903,105 @@ function homeAssistantRouteSendExpression(target, prompt) {
     if (sendButton.disabled || sendButton.getAttribute('disabled') !== null || sendButton.getAttribute('aria-disabled') === 'true') {
       return false;
     }
-    const clickedAt = Date.now();
-    sendButton.click();
+    const rect = sendButton.getBoundingClientRect();
+    const clickPoint = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+    const hitTarget = document.elementFromPoint(clickPoint.x, clickPoint.y);
+    if (!(hitTarget === sendButton || sendButton.contains(hitTarget))) return false;
+    const diagnosticsKey = '__oplFullAssistantSendDiagnostics';
+    const diagnostics = {
+      installed_at: new Date().toISOString(),
+      events: [],
+      react_props_key: null,
+      react_onclick_present: false,
+      react_onclick_instrumented: false,
+    };
+    const describeTarget = (node) => node
+      ? {
+          tag_name: node.tagName || null,
+          test_id: node.getAttribute?.('data-testid') || null,
+          class_name: String(node.className || ''),
+        }
+      : null;
+    const record = (phase, event = null, detail = {}) => {
+      diagnostics.events.push({
+        phase,
+        at: new Date().toISOString(),
+        event_type: event?.type || null,
+        is_trusted: event?.isTrusted ?? null,
+        default_prevented: event?.defaultPrevented ?? null,
+        target: describeTarget(event?.target),
+        current_target: describeTarget(event?.currentTarget),
+        ...detail,
+      });
+    };
+    document.addEventListener('click', (event) => record('document_capture', event), true);
+    document.addEventListener('click', (event) => record('document_bubble', event));
+    sendButton.addEventListener('click', (event) => record('button_capture', event), true);
+    sendButton.addEventListener('click', (event) => record('button_bubble', event));
+    const reactPropsKey = Object.keys(sendButton).find((key) => key.startsWith('__reactProps$')) || null;
+    const reactProps = reactPropsKey ? sendButton[reactPropsKey] : null;
+    diagnostics.react_props_key = reactPropsKey;
+    diagnostics.react_onclick_present = typeof reactProps?.onClick === 'function';
+    if (reactPropsKey && typeof reactProps?.onClick === 'function') {
+      const originalOnClick = reactProps.onClick;
+      const instrumentedProps = {
+        ...reactProps,
+        onClick(...args) {
+          const event = args[0]?.nativeEvent || args[0] || null;
+          record('react_onclick_enter', event);
+          try {
+            const result = originalOnClick.apply(this, args);
+            record('react_onclick_return', event, { returned_thenable: Boolean(result?.then) });
+            return result;
+          } catch (error) {
+            record('react_onclick_throw', event, {
+              error: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
+          }
+        },
+      };
+      sendButton[reactPropsKey] = instrumentedProps;
+      diagnostics.react_onclick_instrumented = true;
+    }
+    window[diagnosticsKey] = diagnostics;
     return {
       assistant_id: ${cdpString(target.id)},
       promptLength: ${prompt.length},
-      interaction_path: 'guid_ui_send',
-      clicked_at: clickedAt,
+      interaction_path: 'guid_ui_cdp_pointer_send',
+      prepared_at: Date.now(),
+      click_point: clickPoint,
+      hit_target: describeTarget(hitTarget),
+      diagnostics: {
+        react_props_key: diagnostics.react_props_key,
+        react_onclick_present: diagnostics.react_onclick_present,
+        react_onclick_instrumented: diagnostics.react_onclick_instrumented,
+      },
+    };
+  })()`;
+}
+
+function homeAssistantRouteSendDiagnosticsExpression() {
+  return `(() => {
+    const diagnostics = window.__oplFullAssistantSendDiagnostics;
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const reactPropsKey = sendButton
+      ? Object.keys(sendButton).find((key) => key.startsWith('__reactProps$')) || null
+      : null;
+    const reactProps = reactPropsKey ? sendButton[reactPropsKey] : null;
+    return {
+      installed: Boolean(diagnostics),
+      installed_at: diagnostics?.installed_at ?? null,
+      events: diagnostics?.events ?? [],
+      current_react_props_key: reactPropsKey,
+      current_react_onclick_present: typeof reactProps?.onClick === 'function',
+      button_disabled: sendButton?.disabled ?? null,
+      button_aria_disabled: sendButton?.getAttribute('aria-disabled') ?? null,
+      button_aria_busy: sendButton?.getAttribute('aria-busy') ?? null,
+      button_class_name: String(sendButton?.className || ''),
     };
   })()`;
 }
@@ -3881,10 +4029,15 @@ function homeAssistantRouteSendStateExpression(target, prompt, clickedAt, pendin
       .map((element) => element.textContent?.trim() || '')
       .filter(Boolean)
       .slice(0, 5);
-    const status = routeMatch ? 'routed' : loading || elapsedMs < 2_000 ? 'pending' : 'failed';
+    const setupNotice = document.querySelector('[data-testid="opl-guid-setup-notice"]');
+    const packageLaunchBlocker = document.querySelector('[data-testid="opl-agent-package-launch-blocked"]');
+    const blockedReason = setupNotice
+      ? 'core_launch_prerequisite_notice'
+      : packageLaunchBlocker?.getAttribute('data-opl-block-reason') || null;
+    const status = routeMatch ? 'routed' : blockedReason ? 'failed' : 'pending';
     const state = {
       status,
-      reason: status === 'failed' ? 'send_returned_without_navigation' : null,
+      reason: blockedReason,
       assistant_id: ${cdpString(target.id)},
       elapsed_ms: elapsedMs,
       hash,
@@ -3893,6 +4046,8 @@ function homeAssistantRouteSendStateExpression(target, prompt, clickedAt, pendin
       input_matches_prompt: input?.value === ${cdpString(prompt)},
       send_loading: loading,
       messages,
+      setup_notice: setupNotice?.textContent?.trim() || null,
+      package_launch_blocker: packageLaunchBlocker?.textContent?.trim() || null,
       missing_controls: [],
       composer_state: {
         workspace_selected: composer?.getAttribute('data-opl-workspace-selected') ?? null,
@@ -3969,16 +4124,15 @@ function conversationRouteReceiptExpression(
     if (!activation?.use_boundary_id) invalid.push('activation_use_boundary_id');
     if (!activation?.use_receipt_ref) invalid.push('activation_use_receipt_ref');
     if (!useBinding) invalid.push('activation_use_binding');
-    if (useBinding?.use_boundary_id !== activation?.use_boundary_id) invalid.push('use_binding_boundary_id');
-    if (useBinding?.use_receipt_ref !== activation?.use_receipt_ref) invalid.push('use_binding_receipt_ref');
+    if (useBinding?.surface_kind !== 'opl_agent_package_use_binding.v1') invalid.push('use_binding_surface_kind');
     if (useBinding?.scope !== 'workspace') invalid.push('use_binding_scope');
     if (useBinding?.root_package?.package_id !== ${cdpString(target.packageId)}) invalid.push('use_binding_package_id');
+    if (!activation?.target_workspace) invalid.push('activation_target_workspace');
+    if (useBinding?.target_root !== activation?.target_workspace) invalid.push('use_binding_target_root');
     ${
       expectedWorkspace
         ? `if (matched.extra?.workspace !== ${cdpString(expectedWorkspace)}) invalid.push('conversation_workspace');
-    if (matched.extra?.is_temporary_workspace !== false) invalid.push('conversation_temporary_workspace');
-    if (activation?.target_workspace !== ${cdpString(expectedWorkspace)}) invalid.push('activation_target_workspace');
-    if (useBinding?.target_root !== ${cdpString(expectedWorkspace)}) invalid.push('use_binding_target_root');`
+    if (matched.extra?.is_temporary_workspace !== false) invalid.push('conversation_temporary_workspace');`
         : ''
     }
     if (invalid.length > 0) {
@@ -4724,6 +4878,41 @@ async function evaluateCdp(client, expression, timeoutMs = DEFAULT_CDP_COMMAND_T
   return result.result?.value;
 }
 
+async function dispatchCdpPointerClick(client, prepared) {
+  const x = Number(prepared?.click_point?.x);
+  const y = Number(prepared?.click_point?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`Could not resolve a finite CDP click point: ${JSON.stringify(prepared?.click_point ?? null)}`);
+  }
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x,
+    y,
+    button: 'none',
+  });
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x,
+    y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+  });
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x,
+    y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  });
+  return {
+    ...prepared,
+    clicked_at: await evaluateCdp(client, 'Date.now()'),
+    pointer: { x, y, button: 'left', click_count: 1 },
+  };
+}
+
 async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage, evaluateTimeoutMs) {
   const started = Date.now();
   let lastValue = null;
@@ -5178,6 +5367,7 @@ async function runSettingsSmoke(options, secret) {
 async function runAssistantRouteSmoke(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
   const client = await openCdpClient(target.webSocketDebuggerUrl);
+  const rendererCollector = createRendererBootstrapDiagnosticsCollector(client);
   const results = [];
   const assistantWorkspace =
     options.runtimeProfile === 'full' ? path.join(os.homedir(), 'OPL-Release-Smoke-Workspace') : null;
@@ -5191,6 +5381,7 @@ async function runAssistantRouteSmoke(options, secret) {
   };
   try {
     await client.send('Runtime.enable');
+    await client.send('Log.enable').catch(() => null);
     await client.send('Page.enable');
     for (const assistantTarget of OPL_ASSISTANT_ROUTE_SMOKE_TARGETS) {
       try {
@@ -5260,13 +5451,28 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
         );
+        let coreReadiness;
+        try {
+          coreReadiness = await waitForCdpPredicate(
+            client,
+            homeAssistantCoreReadinessExpression(),
+            Math.min(options.timeoutMs, FULL_ASSISTANT_READINESS_TIMEOUT_MS),
+            `Core launch prerequisites did not become ready before OPL assistant send: ${assistantTarget.id}`
+          );
+        } catch (error) {
+          if (error instanceof Error) {
+            error.lastState = await evaluateCdp(client, homeAssistantCoreReadinessExpression(false));
+          }
+          throw error;
+        }
         const routePrompt = `Verify the packaged ${assistantTarget.shortName} workspace activation and route receipt.`;
-        const sent = await waitForCdpPredicate(
+        const sendPrepared = await waitForCdpPredicate(
           client,
           homeAssistantRouteSendExpression(assistantTarget, routePrompt),
           30_000,
-          `Could not send through the OPL built-in assistant composer: ${assistantTarget.id}`
+          `Could not prepare a real pointer send through the OPL built-in assistant composer: ${assistantTarget.id}`
         );
+        const sent = await dispatchCdpPointerClick(client, sendPrepared);
         let sendState;
         try {
           sendState = await waitForCdpPredicate(
@@ -5277,16 +5483,27 @@ async function runAssistantRouteSmoke(options, secret) {
           );
         } catch (error) {
           if (error instanceof Error) {
-            error.lastState = await evaluateCdp(
-              client,
-              homeAssistantRouteSendStateExpression(assistantTarget, routePrompt, sent.clicked_at, false)
-            );
+            error.lastState = {
+              ...(await evaluateCdp(
+                client,
+                homeAssistantRouteSendStateExpression(assistantTarget, routePrompt, sent.clicked_at, false)
+              )),
+              core_readiness: coreReadiness,
+              send_diagnostics: await evaluateCdp(client, homeAssistantRouteSendDiagnosticsExpression()),
+              renderer_events: rendererCollector.events,
+            };
           }
           throw error;
         }
         if (sendState?.status === 'failed') {
-          const error = new Error(`OPL built-in assistant send failed: ${JSON.stringify(sendState)}`);
-          error.lastState = sendState;
+          const lastState = {
+            ...sendState,
+            core_readiness: coreReadiness,
+            send_diagnostics: await evaluateCdp(client, homeAssistantRouteSendDiagnosticsExpression()),
+            renderer_events: rendererCollector.events,
+          };
+          const error = new Error(`OPL built-in assistant send failed: ${JSON.stringify(lastState)}`);
+          error.lastState = lastState;
           throw error;
         }
         const receipt = await waitForCdpPredicate(
@@ -5308,8 +5525,10 @@ async function runAssistantRouteSmoke(options, secret) {
           workspace,
           selected,
           ready,
+          core_readiness: coreReadiness,
           sent,
           send_state: sendState,
+          send_diagnostics: await evaluateCdp(client, homeAssistantRouteSendDiagnosticsExpression()),
           receipt,
         });
       } catch (error) {
@@ -5318,6 +5537,7 @@ async function runAssistantRouteSmoke(options, secret) {
       }
     }
   } finally {
+    rendererCollector.stop();
     client.close();
   }
   const summary = {
@@ -6747,8 +6967,11 @@ export const __test =
         homeAssistantWorkspacePreparationExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
+        homeAssistantCoreReadinessExpression,
         homeAssistantRouteSendExpression,
+        homeAssistantRouteSendDiagnosticsExpression,
         homeAssistantRouteSendStateExpression,
+        dispatchCdpPointerClick,
         conversationRouteReceiptExpression,
         activeConversationRouteReceiptExpression,
         latestConversationRouteReceiptExpression,
