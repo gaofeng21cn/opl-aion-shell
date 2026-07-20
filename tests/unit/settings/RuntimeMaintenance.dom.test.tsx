@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
+import { SettingsActiveAnchorProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -1245,7 +1246,8 @@ describe('RuntimeSettings maintenance structure', () => {
     fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_status'));
 
     const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
-    expect(evidence).toHaveTextContent(new Date(generatedAt).toLocaleTimeString());
+    expect(evidence).toHaveTextContent('settings.uiOptimization.maintenance.time.localWithRelative');
+    expect(evidence).not.toHaveTextContent(generatedAt);
   });
 
   it('fails closed after one fresh readback when a Temporal start postcondition is not ready', async () => {
@@ -1393,7 +1395,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
   });
 
-  it('keeps Temporal maintenance controls visible but disabled when the action catalog omits them', () => {
+  it('hides Temporal maintenance controls when the action catalog omits them', () => {
     setTemporalState({
       status: 'ready',
       health_status: 'ready',
@@ -1423,7 +1425,7 @@ describe('RuntimeSettings maintenance structure', () => {
       'provider_scheduler_install',
       'provider_scheduler_trigger',
     ]) {
-      expect(screen.getByTestId(`settings-maintenance-temporal-action-${actionId}`)).toBeDisabled();
+      expect(screen.queryByTestId(`settings-maintenance-temporal-action-${actionId}`)).not.toBeInTheDocument();
     }
   });
 
@@ -1441,6 +1443,8 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
+    expect(screen.queryByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('settings-maintenance-toggle-healthy'));
     expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment'
     );
@@ -1499,9 +1503,11 @@ describe('RuntimeSettings maintenance structure', () => {
   });
 
   it('opens the diagnostics disclosure when Settings links directly to it', () => {
-    window.location.hash = '#/settings/environment?section=diagnostics';
-
-    render(<RuntimeSettings />);
+    render(
+      <SettingsActiveAnchorProvider value='diagnostics'>
+        <RuntimeSettings />
+      </SettingsActiveAnchorProvider>
+    );
 
     expect(screen.getByTestId('settings-maintenance-diagnostics-action')).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('settings-maintenance-technical-details')).toBeInTheDocument();

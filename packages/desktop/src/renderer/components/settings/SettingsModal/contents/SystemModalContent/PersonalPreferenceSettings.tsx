@@ -293,7 +293,7 @@ const PersonalPreferenceSettings: React.FC = () => {
           max={3600}
           step={30}
           style={{ width: 120 }}
-          suffix='s'
+          suffix={t('settings.uiOptimization.preferences.units.second')}
         />
       ),
     },
@@ -329,7 +329,7 @@ const PersonalPreferenceSettings: React.FC = () => {
           max={60}
           step={5}
           style={{ width: 120 }}
-          suffix='min'
+          suffix={t('settings.uiOptimization.preferences.units.minute')}
         />
       ),
     },

@@ -70,6 +70,7 @@ import {
   readManagedUpdatePlane,
   readOplFlowManagedCapabilityCatalog,
 } from '@/renderer/services/managedUpdateProjection';
+import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
@@ -334,7 +335,7 @@ function capabilityDefersReadinessToDomainStage(item: CapabilityPurposeViewModel
   );
 }
 
-type CapabilityCatalogGroupKey = 'agents' | 'workflows' | 'supporting';
+type CapabilityCatalogGroupKey = 'frequent' | 'needsAttention' | 'other';
 
 type CapabilityCatalogEntry = {
   item: CapabilityPurposeViewModel;
@@ -361,7 +362,27 @@ function capabilityPackageRoleLabel(
   return t(`settings.capabilitiesPage.packageManager.roleLabels.${labelKey}`);
 }
 
-function capabilityCatalogGroupKey(item: CapabilityPurposeViewModel): CapabilityCatalogGroupKey {
+function capabilityLocalizedSummary(
+  item: CapabilityPurposeViewModel,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  return localizedCapabilitySummary([item.packageId, item.key, item.title], item.title, t);
+}
+
+function capabilityCatalogGroupKey(
+  item: CapabilityPurposeViewModel,
+  professionalAgentOrder: ReadonlyMap<string, number>
+): CapabilityCatalogGroupKey {
+  if (['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)) {
+    return 'needsAttention';
+  }
+  if (capabilityPackageIdentityValues(item.packageId).some((id) => professionalAgentOrder.has(id))) {
+    return 'frequent';
+  }
+  return 'other';
+}
+
+function capabilityRoleGroupKey(item: CapabilityPurposeViewModel): 'agents' | 'workflows' | 'supporting' {
   if (item.packageRole === 'standard_agent') return 'agents';
   if (item.packageRole === 'workflow_profile') return 'workflows';
   return 'supporting';
@@ -1058,13 +1079,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     };
 
     const agents = visibleCapabilities
-      .filter((item) => capabilityCatalogGroupKey(item) === 'agents')
+      .filter((item) => capabilityRoleGroupKey(item) === 'agents')
       .toSorted(compareAgents);
     const workflows = visibleCapabilities
-      .filter((item) => capabilityCatalogGroupKey(item) === 'workflows')
+      .filter((item) => capabilityRoleGroupKey(item) === 'workflows')
       .toSorted(compareByTitle);
     const supporting = visibleCapabilities
-      .filter((item) => capabilityCatalogGroupKey(item) === 'supporting')
+      .filter((item) => capabilityRoleGroupKey(item) === 'supporting')
       .toSorted(compareByTitle);
     const visibleAgentsById = new Map<string, CapabilityPurposeViewModel>();
     agents.forEach((agent) => {
@@ -1089,20 +1110,17 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       dependentsByAgentKey.set(parent.key, [...current, item].toSorted(compareByTitle));
     });
 
-    return [
-      {
-        key: 'agents',
-        entries: agents.map((item) => ({ item, dependents: dependentsByAgentKey.get(item.key) ?? [] })),
-      },
-      {
-        key: 'workflows',
-        entries: workflows.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
-      },
-      {
-        key: 'supporting',
-        entries: ungroupedSupporting.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
-      },
-    ].filter((group) => group.entries.length > 0) as CapabilityCatalogGroup[];
+    const entries = [
+      ...agents.map((item) => ({ item, dependents: dependentsByAgentKey.get(item.key) ?? [] })),
+      ...workflows.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
+      ...ungroupedSupporting.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
+    ];
+    return (['frequent', 'needsAttention', 'other'] as const)
+      .map((key) => ({
+        key,
+        entries: entries.filter((entry) => capabilityCatalogGroupKey(entry.item, professionalAgentOrder) === key),
+      }))
+      .filter((group) => group.entries.length > 0);
   }, [i18n.language, professionalAgentOrder, visibleCapabilities]);
   const hasActiveCatalogFilters =
     Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
@@ -1179,6 +1197,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const selectedUpdateAction = selectedCapability?.availableActions.agent_package_update ?? null;
   const selectedRepairAction = selectedCapability?.availableActions.agent_package_repair ?? null;
   const selectedPreferenceAction = selectedCapability?.availableActions.agent_package_preferences_set ?? null;
+  const selectedSourceLabel = selectedCapability
+    ? (capabilitySourceLabel(selectedCapability, t) ?? t('settings.capabilitiesPage.detailValues.notReported'))
+    : '';
   const selectedUninstallAction = selectedCapability?.availableActions.agent_package_uninstall ?? null;
   const selectedShortcut = selectedCapability?.packageId ? shortcutByPackageId.get(selectedCapability.packageId) : null;
   const selectedShortcutId = selectedShortcut?.shortcut_id ?? '';
@@ -1566,12 +1587,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const conversationReadyCount = purposeCapabilities.filter((item) =>
     ['visible', 'verificationPending'].includes(item.codexVisibility)
   ).length;
-  const catalogAgentCount = purposeCapabilities.filter((item) => capabilityCatalogGroupKey(item) === 'agents').length;
+  const catalogAgentCount = purposeCapabilities.filter((item) => capabilityRoleGroupKey(item) === 'agents').length;
   const catalogWorkflowCount = purposeCapabilities.filter(
-    (item) => capabilityCatalogGroupKey(item) === 'workflows'
+    (item) => capabilityRoleGroupKey(item) === 'workflows'
   ).length;
   const catalogSupportingCount = purposeCapabilities.filter(
-    (item) => capabilityCatalogGroupKey(item) === 'supporting'
+    (item) => capabilityRoleGroupKey(item) === 'supporting'
   ).length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
     const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
@@ -1613,7 +1634,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const renderCapabilityRow = (item: CapabilityPurposeViewModel, parent: CapabilityPurposeViewModel | null = null) => {
     const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
     const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
-    const sourceLabel = capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
     const rowAction = capabilityRowAction(item);
     const rowActionPayload = rowAction ? projectedActionPayload(rowAction) : null;
     const rowActionDisabled = Boolean(
@@ -1646,20 +1666,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               className='opl-settings-capability-description block text-13px text-t-secondary'
               data-testid={`capability-description-${item.key}`}
             >
-              {item.description}
+              {capabilityLocalizedSummary(item, t)}
             </Typography.Text>
-            <div className='opl-settings-capability-identity mt-5px flex flex-wrap items-center gap-6px text-11px text-t-tertiary'>
-              {item.packageRole && <Tag>{capabilityPackageRoleLabel(item.packageRole, t)}</Tag>}
-              {item.publisher && <span>{item.publisher}</span>}
-              {item.version && <span>{item.version}</span>}
-            </div>
             <div className='opl-settings-capability-facts mt-5px text-12px text-t-secondary'>
-              <span className='opl-settings-capability-fact' data-testid={`capability-source-${item.key}`}>
-                <span className='opl-settings-capability-fact__label'>
-                  {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
-                </span>
-                <span>{sourceLabel}</span>
-              </span>
               <span className='opl-settings-capability-fact' data-testid={`capability-conversation-${item.key}`}>
                 <span className='opl-settings-capability-fact__label'>
                   {t('settings.capabilitiesPage.visibility.conversation', {
@@ -1734,7 +1743,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
             >
               {item.availabilityStatus === 'verification'
                 ? t('settings.capabilitiesPage.actions.reviewLocalCheck')
-                : t('settings.capabilitiesPage.packageManager.management')}
+                : t('settings.uiOptimization.capabilities.actions.viewDetails')}
             </Button>
           </div>
         </div>
@@ -1941,7 +1950,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 >
                   <div className='opl-settings-agent-group__header'>
                     <Typography.Text id={titleId} className='font-600 text-t-primary'>
-                      {t(`settings.capabilitiesPage.packageManager.groups.${group.key}`)}
+                      {t(`settings.uiOptimization.capabilities.groups.${group.key}`)}
                     </Typography.Text>
                     <Typography.Text className='text-12px text-t-tertiary'>{group.entries.length}</Typography.Text>
                   </div>
@@ -2036,11 +2045,45 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   </div>
                 </div>
 
-                <div className='flex flex-wrap items-start justify-between gap-10px'>
-                  <Typography.Text className='break-words text-t-secondary'>
-                    {selectedCapability.description}
+                <div className='flex flex-col gap-4px'>
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t('settings.uiOptimization.capabilities.details.purpose')}
+                  </Typography.Text>
+                  <Typography.Text className='break-words text-t-primary'>
+                    {capabilityLocalizedSummary(selectedCapability, t)}
                   </Typography.Text>
                 </div>
+
+                <details
+                  className='opl-settings-details'
+                  data-testid={`capability-product-details-${selectedCapability.key}`}
+                >
+                  <summary>{t('settings.uiOptimization.capabilities.details.title')}</summary>
+                  <div className='mt-10px grid grid-cols-1 gap-8px text-12px'>
+                    <div>
+                      <Typography.Text className='text-t-secondary'>
+                        {t('settings.uiOptimization.capabilities.details.triggerRules')}:{' '}
+                      </Typography.Text>
+                      <Typography.Text className='break-words text-t-primary'>
+                        {selectedCapability.description}
+                      </Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text className='text-t-secondary'>
+                        {t('settings.uiOptimization.capabilities.details.source')}:{' '}
+                      </Typography.Text>
+                      <Typography.Text className='break-words text-t-primary'>{selectedSourceLabel}</Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text className='text-t-secondary'>
+                        {t('settings.uiOptimization.capabilities.details.version')}:{' '}
+                      </Typography.Text>
+                      <Typography.Text className='break-words text-t-primary'>
+                        {selectedCapability.version ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </details>
 
                 <div className='grid grid-cols-1 gap-4px text-12px'>
                   <Typography.Text className='break-words text-t-secondary'>

@@ -137,6 +137,7 @@ vi.mock('react-i18next', () => ({
         'guid.context.connections': 'Apps & connections',
         'guid.context.noConnections': 'No apps or connections available',
         'guid.workspace.manageRegistered': 'Manage folders',
+        'settings.uiOptimization.capabilities.summaries.documents': 'Create, review, and edit Office documents',
       };
       if (labels[key]) return labels[key];
       return String(options?.defaultValue ?? key);
@@ -224,6 +225,20 @@ describe('GuidActionRow composer controls', () => {
     await waitFor(() =>
       expect(mocks.showOpenInvoke).toHaveBeenLastCalledWith({ properties: ['openDirectory', 'multiSelections'] })
     );
+  });
+
+  it('shows localized skill purposes without exposing raw trigger rules in the Home capability palette', async () => {
+    const rawTriggerRule = 'Use when the user asks to create, inspect, or modify a document artifact.';
+    render(
+      <GuidActionRow
+        {...buildProps()}
+        allSkills={[{ name: 'documents', description: rawTriggerRule, isAuto: false }]}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    expect(screen.getByText('Create, review, and edit Office documents')).toBeInTheDocument();
+    expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
   });
 
   it('shows every professional agent independently from Home shortcuts and removes owned skills', async () => {

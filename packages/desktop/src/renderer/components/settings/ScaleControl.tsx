@@ -92,12 +92,14 @@ const ScaleControl: React.FC = () => {
       <div className='flex items-center flex-wrap gap-x-12px gap-y-10px w-full'>
         <div className='flex items-center gap-8px flex-1 min-w-240px'>
           <Button
+            htmlType='button'
             size='mini'
             type='secondary'
             shape='circle'
             className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
             onClick={() => handleStep(-FONT_SCALE_STEP)}
             disabled={fontScale <= FONT_SCALE_MIN + EPSILON}
+            aria-label={t('settings.uiOptimization.preferences.scaleDecreaseAria')}
           >
             -
           </Button>
@@ -114,16 +116,21 @@ const ScaleControl: React.FC = () => {
             marks={defaultMarks}
           />
           <Button
+            htmlType='button'
             size='mini'
             type='secondary'
             shape='circle'
             className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
             onClick={() => handleStep(FONT_SCALE_STEP)}
             disabled={fontScale >= FONT_SCALE_MAX - EPSILON}
+            aria-label={t('settings.uiOptimization.preferences.scaleIncreaseAria')}
           >
             +
           </Button>
         </div>
+        <span className='text-12px text-t-tertiary'>
+          {t('settings.uiOptimization.preferences.recommendedValue')}: {Math.round(FONT_SCALE_DEFAULT * 100)}%
+        </span>
         <div className='flex items-center gap-10px ml-auto'>
           <span
             className='text-13px text-t-primary text-right min-w-56px'
@@ -132,6 +139,7 @@ const ScaleControl: React.FC = () => {
             {formattedValue}
           </span>
           <Button
+            htmlType='button'
             size='small'
             type='text'
             className='px-4px h-28px'
@@ -146,7 +154,7 @@ const ScaleControl: React.FC = () => {
               opacity: 1,
             }}
           >
-            {t('settings.scaleReset')}
+            {t('settings.uiOptimization.preferences.restoreRecommended')}
           </Button>
         </div>
       </div>

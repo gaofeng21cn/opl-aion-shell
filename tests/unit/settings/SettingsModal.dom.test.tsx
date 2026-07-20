@@ -12,6 +12,7 @@ import ChannelItem, {
 import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
+import { useSettingsActiveAnchor } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 
 let isMobileLayout = true;
 
@@ -66,14 +67,17 @@ vi.mock('@/renderer/pages/settings/sections/OverviewSettings', () => ({
 }));
 
 vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
-  default: ({ withWrapper }: { withWrapper?: boolean }) => (
-    <div data-testid='runtime-content'>
-      Runtime content {withWrapper === false ? 'embedded' : 'wrapped'}
-      <section id='updates'>Updates target</section>
-      <section id='services'>Services target</section>
-      <section id='diagnostics'>Diagnostics target</section>
-    </div>
-  ),
+  default: ({ withWrapper }: { withWrapper?: boolean }) => {
+    const selectedAnchor = useSettingsActiveAnchor();
+    return (
+      <div data-testid='runtime-content' data-selected-anchor={selectedAnchor ?? ''}>
+        Runtime content {withWrapper === false ? 'embedded' : 'wrapped'}
+        <section id='updates'>Updates target</section>
+        <section id='services'>Services target</section>
+        <section id='diagnostics'>Diagnostics target</section>
+      </div>
+    );
+  },
 }));
 
 vi.mock('@/renderer/pages/settings/sections/WorkspaceSettings', () => ({
@@ -726,7 +730,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.click(screen.getByText('Diagnostics and working paths'));
 
-    expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-content')).toHaveAttribute('data-selected-anchor', 'diagnostics');
   });
 
   it('uses Enter to open and focus the first matching Settings item', async () => {

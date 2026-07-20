@@ -34,6 +34,7 @@ import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
+import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
@@ -280,7 +281,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           skillItems.push({
             id: `skill-${skill.name}`,
             label: skill.name,
-            description: skill.description || undefined,
+            description: localizedCapabilitySummary([skill.name], skill.name, t),
             keywords: ['skill'],
             icon: <Lightning theme='outline' size='16' />,
             active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),

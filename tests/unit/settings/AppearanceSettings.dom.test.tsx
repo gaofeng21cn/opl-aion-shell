@@ -163,6 +163,8 @@ vi.mock('react-i18next', () => ({
         'settings.promptTimeoutDesc': 'Stop waiting when a model does not respond.',
         'settings.agentIdleTimeout': 'Release an idle background assistant after',
         'settings.agentIdleTimeoutDesc': 'Stops an unused background assistant to free memory.',
+        'settings.uiOptimization.preferences.units.second': 'second',
+        'settings.uiOptimization.preferences.units.minute': 'minute',
         'settings.hardwareAcceleration': 'Hardware acceleration',
         'settings.hardwareAccelerationDesc': 'Use the GPU to render the interface.',
         'settings.appearancePreferencesTitle': 'Display and fonts',
@@ -260,6 +262,8 @@ describe('AppearanceModalContent', () => {
     expect(screen.getByText('Markdown font size')).toBeInTheDocument();
     expect(screen.getByText('Code font size')).toBeInTheDocument();
     expect(screen.getByText('Scale')).toBeInTheDocument();
+    expect(screen.getByText('second')).toBeInTheDocument();
+    expect(screen.getByText('minute')).toBeInTheDocument();
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Appearance');
     const systemMode = screen.getByTestId('appearance-mode-system');

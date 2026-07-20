@@ -542,12 +542,15 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.healthSummary.usable'
     );
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.title'
+      'settings.uiOptimization.maintenance.summaryTitle'
     );
-    ['appUpdates', 'runtimeEnvironment', 'capabilitySurfaceSync', 'localServicesRepair'].forEach((key) => {
+    expect(screen.queryByTestId('opl-maintenance-hub-appUpdates')).not.toBeInTheDocument();
+    ['runtimeEnvironment', 'capabilitySurfaceSync', 'localServicesRepair'].forEach((key) => {
       expect(screen.getByTestId(`opl-maintenance-hub-${key}`)).toBeInTheDocument();
       expect(screen.getByTestId(`opl-maintenance-action-${key}`)).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByTestId('settings-maintenance-toggle-healthy'));
+    expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-updates')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();

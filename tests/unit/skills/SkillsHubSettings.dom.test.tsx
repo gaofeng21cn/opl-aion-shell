@@ -8,7 +8,7 @@ import React from 'react';
  * Shallow verification: module import + basic structure.
  */
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 const i18nMock = vi.hoisted(() => ({
@@ -121,6 +121,7 @@ describe('SkillsHubSettings', () => {
             id: 'ui-ux-pro-max',
             kind: 'codex_skill',
             installed: true,
+            version: '1.2.3',
             currentness: 'current',
             ownership: 'opl_managed',
             updateMode: 'silent_managed',
@@ -146,5 +147,45 @@ describe('SkillsHubSettings', () => {
     expect(screen.getByTestId('opl-flow-capability-mineru-document-extractor')).toHaveTextContent(
       'settings.capabilitiesPage.groups.oplFlowManaged.missing'
     );
+    expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toHaveTextContent(
+      'settings.uiOptimization.capabilities.summaries.uiUxProMax'
+    );
+    const details = screen.getByTestId('opl-flow-capability-details-ui-ux-pro-max') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent('settings.uiOptimization.capabilities.details.source');
+    expect(details).toHaveTextContent('settings.uiOptimization.capabilities.details.version');
+    expect(details).toHaveTextContent('1.2.3');
+  });
+
+  it('keeps a Flow skill trigger description in collapsed details and shows a localized purpose summary', async () => {
+    render(
+      <SkillsHubSettings
+        withWrapper={false}
+        displayGroup='flow'
+        flowManagedSkillIds={['med-autoscience']}
+        flowManagedSkillDependencies={[
+          {
+            id: 'med-autoscience',
+            kind: 'codex_skill',
+            installed: true,
+            version: '0.2.15',
+            currentness: 'current',
+            ownership: 'opl_managed',
+            updateMode: 'silent_managed',
+            external: false,
+          },
+        ]}
+      />
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-flow-capability-details-med-autoscience')).toHaveTextContent('MAS skill')
+    );
+    const row = screen.getByTestId('opl-flow-capability-med-autoscience');
+    expect(row).toHaveTextContent('settings.uiOptimization.capabilities.summaries.medAutoscience');
+    const details = within(row).getByTestId('opl-flow-capability-details-med-autoscience') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent('MAS skill');
+    expect(details).toHaveTextContent('0.2.15');
   });
 });

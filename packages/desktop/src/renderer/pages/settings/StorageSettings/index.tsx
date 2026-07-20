@@ -76,6 +76,8 @@ type SectionMeta = {
   descriptionKey: string;
 };
 
+type StorageUnavailableReason = 'desktopCarrier' | 'permission' | 'service' | 'unknown';
+
 const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> = {
   updater_cache: {
     titleKey: 'settings.storagePage.sections.updater.title',
@@ -108,6 +110,25 @@ const STORAGE_ACTION_ICON_PROPS = {
   size: 16,
   fill: 'currentColor',
   strokeWidth: 2,
+};
+
+const classifyStorageUnavailableReason = (
+  desktopCarrier: boolean,
+  rawError: string | null
+): StorageUnavailableReason => {
+  if (!desktopCarrier) return 'desktopCarrier';
+  if (!rawError) return 'service';
+  if (/\b(?:EACCES|EPERM)\b|permission denied|access denied|not authorized|forbidden/i.test(rawError)) {
+    return 'permission';
+  }
+  if (
+    /\b(?:ECONNREFUSED|ENOTCONN|EPIPE|ETIMEDOUT)\b|timed? out|service|bridge|\bipc\b|not ready|unavailable|failed to fetch|network/i.test(
+      rawError
+    )
+  ) {
+    return 'service';
+  }
+  return 'unknown';
 };
 
 // This pointer only locates a restore candidate; restoreConversationProof remains authoritative.
@@ -286,6 +307,8 @@ export const StorageSettingsContent: React.FC = () => {
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [inventoryReadError, setInventoryReadError] = React.useState<string | null>(null);
+  const [inventoryReadSettled, setInventoryReadSettled] = React.useState(!desktopCarrier);
   const activeActionRef = React.useRef<AsyncAction | null>(null);
   const dangerConfirmationRef = React.useRef<HTMLDivElement>(null);
   const viewModel = React.useMemo(
@@ -318,10 +341,20 @@ export const StorageSettingsContent: React.FC = () => {
     Boolean(viewModel.conversationProof.receiptPath) &&
     !conversationFilesAvailable;
   const interactionLocked = loading !== null || pendingDangerAction !== null;
+  const hasStorageReadback =
+    Boolean(inventory) ||
+    viewModel.ownerSections.some((section) => section.bytes !== null && Number.isFinite(section.bytes));
+  const storageUnavailableRawError = inventoryReadError ?? appStateQuery.error ?? error;
+  const storageUnavailable = inventoryReadSettled && !appStateQuery.loading && !hasStorageReadback;
+  const storageUnavailableReason = classifyStorageUnavailableReason(desktopCarrier, storageUnavailableRawError);
+  const storageRecoveryRoute =
+    storageUnavailableReason === 'permission' ? '/settings/workspace' : '/settings/environment';
 
   const applyInventorySnapshot = React.useCallback((snapshot: LocalDataLifecycleInventorySnapshot) => {
     setInventorySnapshot(snapshot);
     setInventory(snapshot.inventory);
+    setInventoryReadError(snapshot.error);
+    setInventoryReadSettled(true);
   }, []);
 
   const restoreRememberedConversationProof = React.useCallback(async () => {
@@ -421,7 +454,10 @@ export const StorageSettingsContent: React.FC = () => {
         if (active) applyInventorySnapshot(snapshot);
       },
       (snapshotError) => {
-        if (active) setError(snapshotError instanceof Error ? snapshotError.message : String(snapshotError));
+        if (active) {
+          setInventoryReadError(snapshotError instanceof Error ? snapshotError.message : String(snapshotError));
+          setInventoryReadSettled(true);
+        }
       }
     );
     void restoreRememberedConversationProof();
@@ -954,11 +990,13 @@ export const StorageSettingsContent: React.FC = () => {
             {t('settings.storagePage.title')}
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
-          <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
-            {t('settings.storagePage.overview.total')}:{' '}
-            {totalBytesKnown ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
-          </Typography.Text>
-          {desktopCarrier && (
+          {!storageUnavailable && (
+            <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
+              {t('settings.storagePage.overview.total')}:{' '}
+              {totalBytesKnown ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
+            </Typography.Text>
+          )}
+          {desktopCarrier && !storageUnavailable && (
             <Typography.Text
               className='mt-2px block text-12px text-t-tertiary'
               data-testid='storage-inventory-freshness'
@@ -979,185 +1017,255 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      {error && <Alert type='error' content={error} data-testid='settings-storage-exception' />}
-
-      {pendingDangerAction && (
-        <div
-          ref={dangerConfirmationRef}
-          tabIndex={-1}
-          className='outline-none'
-          data-testid='storage-action-confirmation'
+      {storageUnavailable ? (
+        <section
+          className='opl-settings-section opl-settings-surface--status'
+          data-testid='settings-storage-unavailable'
         >
           <Alert
-            type={pendingDangerAction === 'restore-conversations' ? 'info' : 'warning'}
-            title={t('settings.updateConfirm')}
+            type='warning'
+            title={t('settings.uiOptimization.storage.unavailable.title')}
             content={
-              <div className='flex flex-col gap-8px'>
-                <span className='break-words'>{dangerActionSummary()}</span>
+              <div className='flex min-w-0 flex-col gap-10px'>
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('settings.uiOptimization.storage.unavailable.description')}
+                </Typography.Text>
+                <Typography.Text
+                  className='text-13px text-t-primary'
+                  data-testid={`settings-storage-unavailable-reason-${storageUnavailableReason}`}
+                >
+                  {t(`settings.uiOptimization.storage.unavailable.reasons.${storageUnavailableReason}`)}
+                </Typography.Text>
                 <Space wrap size='small'>
-                  <Button htmlType='button' size='small' disabled={loading !== null} onClick={cancelDangerAction}>
-                    {t('common.cancel')}
+                  <Button
+                    htmlType='button'
+                    type='primary'
+                    icon={<UpdateRotation {...STORAGE_ACTION_ICON_PROPS} />}
+                    loading={loading === 'inventory'}
+                    disabled={interactionLocked}
+                    onClick={loadInventory}
+                    data-testid='settings-storage-unavailable-retry'
+                  >
+                    {t('settings.uiOptimization.storage.unavailable.actions.retry')}
                   </Button>
                   <Button
                     htmlType='button'
-                    size='small'
-                    type='primary'
-                    status={pendingDangerAction === 'restore-conversations' ? undefined : 'danger'}
-                    disabled={loading !== null}
-                    loading={loading === pendingDangerAction}
-                    onClick={confirmDangerAction}
-                    data-testid='storage-action-confirm'
+                    icon={<Right {...STORAGE_ACTION_ICON_PROPS} />}
+                    onClick={() => navigate(storageRecoveryRoute)}
+                    data-testid='settings-storage-unavailable-recovery'
                   >
-                    {dangerActionLabel()}
+                    {t(
+                      storageUnavailableReason === 'permission'
+                        ? 'settings.uiOptimization.storage.unavailable.actions.openWorkspace'
+                        : 'settings.uiOptimization.storage.unavailable.actions.openMaintenance'
+                    )}
                   </Button>
                 </Space>
+                {storageUnavailableRawError && (
+                  <details
+                    className='min-w-0 text-12px text-t-secondary'
+                    data-testid='settings-storage-unavailable-technical-details'
+                  >
+                    <summary className='w-fit cursor-pointer font-500'>
+                      {t('settings.uiOptimization.maintenance.technicalDetails')}
+                    </summary>
+                    <pre className='m-0 mt-6px max-w-full whitespace-pre-wrap break-all font-mono text-11px'>
+                      {storageUnavailableRawError}
+                    </pre>
+                  </details>
+                )}
               </div>
             }
           />
-        </div>
-      )}
+        </section>
+      ) : (
+        <>
+          {error && <Alert type='error' content={error} data-testid='settings-storage-exception' />}
 
-      {(lastReceipt || webuiReceipt || webuiRestoreReceipt) && (
-        <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />
-      )}
-
-      <div id='storage-categories' data-testid='settings-storage-primary'>
-        <span id='cleanup-preview' aria-hidden='true' />
-        <div className='mb-10px flex flex-wrap items-center gap-8px'>
-          {cleanupCandidatesAvailable && (
-            <Button
-              htmlType='button'
-              type='primary'
-              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
-              disabled={interactionLocked}
-              loading={loading === 'cleanup-preview'}
-              onClick={previewCleanup}
-              data-testid='settings-storage-primary-action'
+          {pendingDangerAction && (
+            <div
+              ref={dangerConfirmationRef}
+              tabIndex={-1}
+              className='outline-none'
+              data-testid='storage-action-confirmation'
             >
-              {t('settings.storagePage.actions.previewAll')}
-            </Button>
-          )}
-          {desktopCarrier && (
-            <Button
-              type='secondary'
-              icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
-              data-testid='settings-storage-diagnostics-action'
-              onClick={() => setDiagnosticsVisible(true)}
-            >
-              {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-            </Button>
-          )}
-          <OplRefreshIconButton
-            htmlType='button'
-            label={t('settings.storagePage.actions.refresh')}
-            disabled={interactionLocked}
-            loading={loading === 'inventory'}
-            onClick={loadInventory}
-            data-testid='storage-refresh'
-          />
-        </div>
-        {!desktopCarrier && <span id='archives' aria-hidden='true' />}
-        <div className='opl-settings-list' data-testid='storage-category-list'>
-          {desktopCarrier &&
-            viewModel.sections.map((item) => (
-              <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
-            ))}
-          {viewModel.ownerSections.map((item) => {
-            const hostReadback = webuiRestoreReceipt?.readback ?? webuiReceipt?.readback;
-            const displayItem =
-              item.id === 'webui_data_volume' && hostReadback
-                ? { ...item, bytes: hostReadback.bytes, reclaimableBytes: hostReadback.reclaimable_bytes, stale: false }
-                : item;
-            return (
-              <OwnerStorageInventoryRow
-                key={item.id}
-                item={displayItem}
-                onOpenAgents={() => navigate('/settings/agents')}
-                actions={item.id === 'webui_data_volume' ? webuiLifecycleActions : undefined}
-                statusDetail={item.id === 'webui_data_volume' ? webuiLifecycleStatus : undefined}
+              <Alert
+                type={pendingDangerAction === 'restore-conversations' ? 'info' : 'warning'}
+                title={t('settings.updateConfirm')}
+                content={
+                  <div className='flex flex-col gap-8px'>
+                    <span className='break-words'>{dangerActionSummary()}</span>
+                    <Space wrap size='small'>
+                      <Button htmlType='button' size='small' disabled={loading !== null} onClick={cancelDangerAction}>
+                        {t('common.cancel')}
+                      </Button>
+                      <Button
+                        htmlType='button'
+                        size='small'
+                        type='primary'
+                        status={pendingDangerAction === 'restore-conversations' ? undefined : 'danger'}
+                        disabled={loading !== null}
+                        loading={loading === pendingDangerAction}
+                        onClick={confirmDangerAction}
+                        data-testid='storage-action-confirm'
+                      >
+                        {dangerActionLabel()}
+                      </Button>
+                    </Space>
+                  </div>
+                }
               />
-            );
-          })}
-        </div>
-      </div>
+            </div>
+          )}
 
-      {!desktopCarrier && <span id='cleanup-history' aria-hidden='true' />}
+          {(lastReceipt || webuiReceipt || webuiRestoreReceipt) && (
+            <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />
+          )}
 
-      {desktopCarrier && <span data-testid='storage-research-lifecycle' aria-hidden='true' />}
-      {desktopCarrier && (
-        <Modal
-          visible={diagnosticsVisible}
-          title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
-          footer={null}
-          onCancel={() => setDiagnosticsVisible(false)}
-          unmountOnExit
-          style={{ width: 'min(860px, calc(100vw - 48px))' }}
-        >
-          <div
-            className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
-            data-testid='settings-storage-technical-details'
-          >
-            <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
-              {viewModel.sections.map((item) => (
-                <div key={item.id} className='border-0 border-b border-solid border-[var(--border-base)] pb-10px'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t(SECTION_META[item.id].titleKey)}
-                  </Typography.Text>
-                  <div className='mt-6px flex flex-col gap-6px'>
-                    {item.section?.roots.map((root) => (
-                      <div key={root.path} className='flex flex-col gap-2px break-words text-12px'>
-                        <span>{root.path}</span>
-                        <span className='text-t-secondary'>
-                          {t('settings.storagePage.inventory.rootDetail', {
-                            exists: root.exists
-                              ? t('settings.storagePage.inventory.exists')
-                              : t('settings.storagePage.inventory.missing'),
-                            bytes: formatStorageBytes(root.bytes),
-                          })}
-                        </span>
+          <div id='storage-categories' data-testid='settings-storage-primary'>
+            <span id='cleanup-preview' aria-hidden='true' />
+            <div className='mb-10px flex flex-wrap items-center gap-8px'>
+              {cleanupCandidatesAvailable && (
+                <Button
+                  htmlType='button'
+                  type='primary'
+                  icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
+                  disabled={interactionLocked}
+                  loading={loading === 'cleanup-preview'}
+                  onClick={previewCleanup}
+                  data-testid='settings-storage-primary-action'
+                >
+                  {t('settings.storagePage.actions.previewAll')}
+                </Button>
+              )}
+              {desktopCarrier && (
+                <Button
+                  type='secondary'
+                  icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
+                  data-testid='settings-storage-diagnostics-action'
+                  onClick={() => setDiagnosticsVisible(true)}
+                >
+                  {t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+                </Button>
+              )}
+              <OplRefreshIconButton
+                htmlType='button'
+                label={t('settings.storagePage.actions.refresh')}
+                disabled={interactionLocked}
+                loading={loading === 'inventory'}
+                onClick={loadInventory}
+                data-testid='storage-refresh'
+              />
+            </div>
+            {!desktopCarrier && <span id='archives' aria-hidden='true' />}
+            <div className='opl-settings-list' data-testid='storage-category-list'>
+              {desktopCarrier &&
+                viewModel.sections.map((item) => (
+                  <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+                ))}
+              {viewModel.ownerSections.map((item) => {
+                const hostReadback = webuiRestoreReceipt?.readback ?? webuiReceipt?.readback;
+                const displayItem =
+                  item.id === 'webui_data_volume' && hostReadback
+                    ? {
+                        ...item,
+                        bytes: hostReadback.bytes,
+                        reclaimableBytes: hostReadback.reclaimable_bytes,
+                        stale: false,
+                      }
+                    : item;
+                return (
+                  <OwnerStorageInventoryRow
+                    key={item.id}
+                    item={displayItem}
+                    onOpenAgents={() => navigate('/settings/agents')}
+                    actions={item.id === 'webui_data_volume' ? webuiLifecycleActions : undefined}
+                    statusDetail={item.id === 'webui_data_volume' ? webuiLifecycleStatus : undefined}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {!desktopCarrier && <span id='cleanup-history' aria-hidden='true' />}
+
+          {desktopCarrier && <span data-testid='storage-research-lifecycle' aria-hidden='true' />}
+          {desktopCarrier && (
+            <Modal
+              visible={diagnosticsVisible}
+              title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+              footer={null}
+              onCancel={() => setDiagnosticsVisible(false)}
+              unmountOnExit
+              style={{ width: 'min(860px, calc(100vw - 48px))' }}
+            >
+              <div
+                className='opl-settings-surface--diagnostic max-h-[70vh] overflow-auto'
+                data-testid='settings-storage-technical-details'
+              >
+                <div className='flex flex-col gap-12px' data-testid='storage-research-lifecycle-details'>
+                  {viewModel.sections.map((item) => (
+                    <div key={item.id} className='border-0 border-b border-solid border-[var(--border-base)] pb-10px'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t(SECTION_META[item.id].titleKey)}
+                      </Typography.Text>
+                      <div className='mt-6px flex flex-col gap-6px'>
+                        {item.section?.roots.map((root) => (
+                          <div key={root.path} className='flex flex-col gap-2px break-words text-12px'>
+                            <span>{root.path}</span>
+                            <span className='text-t-secondary'>
+                              {t('settings.storagePage.inventory.rootDetail', {
+                                exists: root.exists
+                                  ? t('settings.storagePage.inventory.exists')
+                                  : t('settings.storagePage.inventory.missing'),
+                                bytes: formatStorageBytes(root.bytes),
+                              })}
+                            </span>
+                          </div>
+                        ))}
+                        {categoryPresentation[item.id].technicalDetails}
                       </div>
-                    ))}
-                    {categoryPresentation[item.id].technicalDetails}
+                    </div>
+                  ))}
+                  <div>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {t('settings.storagePage.researchLifecycle.title')}
+                    </Typography.Text>
+                    <div className='text-12px text-t-secondary mt-4px'>
+                      {t('settings.storagePage.researchLifecycle.detail')}
+                    </div>
+                  </div>
+                  <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                    {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+                    {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+                    {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+                    {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+                    {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+                    {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
                   </div>
                 </div>
-              ))}
-              <div>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.storagePage.researchLifecycle.title')}
-                </Typography.Text>
-                <div className='text-12px text-t-secondary mt-4px'>
-                  {t('settings.storagePage.researchLifecycle.detail')}
+              </div>
+            </Modal>
+          )}
+
+          {desktopCarrier && (
+            <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
+              <div className='opl-settings-row'>
+                <div className='opl-settings-row__main'>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('settings.storagePage.history.title')}
+                  </Typography.Text>
+                  <Typography.Text className='break-all text-12px text-t-secondary'>
+                    {lastReceipt
+                      ? t('settings.storagePage.history.latest', { time: lastReceipt.created_at })
+                      : t('settings.storagePage.history.empty')}
+                  </Typography.Text>
                 </div>
               </div>
-              <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-                {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-                {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-                {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-                {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-                {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {desktopCarrier && (
-        <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
-          <div className='opl-settings-row'>
-            <div className='opl-settings-row__main'>
-              <Typography.Text className='font-600 text-t-primary'>
-                {t('settings.storagePage.history.title')}
-              </Typography.Text>
-              <Typography.Text className='break-all text-12px text-t-secondary'>
-                {lastReceipt
-                  ? t('settings.storagePage.history.latest', { time: lastReceipt.created_at })
-                  : t('settings.storagePage.history.empty')}
-              </Typography.Text>
-            </div>
-          </div>
-        </section>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

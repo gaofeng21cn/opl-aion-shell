@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Button, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Button, Tag, Typography } from '@arco-design/web-react';
 import { Download, PlayOne, Refresh, Right, Schedule, Search, Server, Worker } from '@icon-park/react';
 
 export type RuntimeSettingsTone = 'green' | 'orange' | 'gray';
@@ -94,6 +94,28 @@ export type TemporalMaintenanceEvidence = {
 };
 
 type RuntimeSettingsPanelsTranslate = (key: string, options?: Record<string, string | number>) => string;
+
+/** Formats maintenance evidence for people while keeping raw timestamps out of the primary surface. */
+export function formatMaintenanceTimestamp(
+  value: string | null | undefined,
+  t: RuntimeSettingsPanelsTranslate,
+  locale?: string
+): string {
+  if (!value) return t('settings.uiOptimization.maintenance.time.unknown');
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return t('settings.uiOptimization.maintenance.time.unknown');
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  const relative =
+    elapsedMinutes < 1
+      ? t('settings.uiOptimization.maintenance.time.justNow')
+      : elapsedMinutes < 60
+        ? t('settings.uiOptimization.maintenance.time.minutesAgo', { count: elapsedMinutes })
+        : elapsedMinutes < 1_440
+          ? t('settings.uiOptimization.maintenance.time.hoursAgo', { count: Math.floor(elapsedMinutes / 60) })
+          : t('settings.uiOptimization.maintenance.time.daysAgo', { count: Math.floor(elapsedMinutes / 1_440) });
+  const local = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp);
+  return t('settings.uiOptimization.maintenance.time.localWithRelative', { local, relative });
+}
 
 export function RuntimeReadinessGrid({
   cards,
@@ -275,7 +297,7 @@ function TemporalActionButton({
   actionId,
   action,
   label,
-  unavailableHelp,
+  unavailableHelp: _unavailableHelp,
   busyActionId,
   disabled,
   icon,
@@ -290,20 +312,21 @@ function TemporalActionButton({
   icon: React.ReactNode;
   onAction: (actionId: TemporalMaintenanceActionId) => void;
 }) {
+  if (!action) return null;
   const button = (
     <Button
       size='small'
       type='secondary'
       icon={icon}
       loading={busyActionId === actionId}
-      disabled={disabled || !action}
-      onClick={() => action && onAction(action.actionId)}
+      disabled={disabled}
+      onClick={() => onAction(action.actionId)}
       data-testid={`settings-maintenance-temporal-action-${actionId}`}
     >
       {label}
     </Button>
   );
-  return action ? button : <Tooltip content={unavailableHelp}>{button}</Tooltip>;
+  return button;
 }
 
 export function TemporalMaintenancePanel({
@@ -315,6 +338,7 @@ export function TemporalMaintenancePanel({
   onAction,
   onOpenWorkerSourceSettings,
   onRepairWorkerDependency,
+  locale,
   t,
 }: {
   snapshot: TemporalMaintenanceSnapshot;
@@ -325,6 +349,7 @@ export function TemporalMaintenancePanel({
   onAction: (actionId: TemporalMaintenanceActionId) => void;
   onOpenWorkerSourceSettings: () => void;
   onRepairWorkerDependency: () => void;
+  locale?: string;
   t: RuntimeSettingsPanelsTranslate;
 }) {
   const serverNotConfigured =
@@ -422,7 +447,7 @@ export function TemporalMaintenancePanel({
               {snapshot.serviceSupervisorObservedAt && (
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {t('settings.oplEnvironmentPage.temporal.server.supervisorObservedAt', {
-                    observedAt: snapshot.serviceSupervisorObservedAt,
+                    observedAt: formatMaintenanceTimestamp(snapshot.serviceSupervisorObservedAt, t, locale),
                   })}
                 </Typography.Text>
               )}
@@ -583,7 +608,7 @@ export function TemporalMaintenancePanel({
               {snapshot.schedulerObservedAt && (
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {t('settings.oplEnvironmentPage.temporal.scheduler.observedAt', {
-                    observedAt: snapshot.schedulerObservedAt,
+                    observedAt: formatMaintenanceTimestamp(snapshot.schedulerObservedAt, t, locale),
                   })}
                 </Typography.Text>
               )}
@@ -646,7 +671,7 @@ export function TemporalMaintenancePanel({
             {t('settings.oplEnvironmentPage.temporal.readback', {
               action: temporalActionLabel(evidence.actionId, t),
               outcome: t(`settings.oplEnvironmentPage.temporal.outcomes.${evidence.outcome}`),
-              observedAt: evidence.observedAt,
+              observedAt: formatMaintenanceTimestamp(evidence.observedAt, t, locale),
             })}
           </Typography.Text>
         </div>

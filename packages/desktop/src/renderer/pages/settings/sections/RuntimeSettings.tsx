@@ -46,6 +46,7 @@ import {
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import { useSettingsActiveAnchor } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import {
   formatModuleAction,
   formatStatus,
@@ -68,6 +69,7 @@ import {
 } from '../RuntimeSettings/environmentProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
 import {
+  formatMaintenanceTimestamp,
   RuntimeHealthSummary,
   TemporalMaintenancePanel,
   type TemporalMaintenanceAction,
@@ -119,17 +121,22 @@ const TEMPORAL_POSTCONDITION_ACTION_IDS = new Set<TemporalMaintenanceActionId>([
 
 const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
 
-function maintenanceDiagnosticsRequested(): boolean {
-  const query = window.location.hash.split('?')[1] ?? '';
-  return new URLSearchParams(query).get('section') === 'diagnostics';
-}
-
 function runSettingsControlPlaneAction(actionId: SettingsAppActionId): Promise<IOplRuntimeCommandResult> {
   return ipcBridge.oplRuntime.executeAction.invoke({
     actionId: SETTINGS_ACTION_CONTRACT.recommended_action_ids[actionId],
     dryRun: false,
   });
 }
+
+const RuntimeSettingsAnchorController: React.FC<{ onDiagnosticsRequested: () => void }> = ({
+  onDiagnosticsRequested,
+}) => {
+  const selectedAnchor = useSettingsActiveAnchor();
+  React.useEffect(() => {
+    if (selectedAnchor === 'diagnostics') onDiagnosticsRequested();
+  }, [onDiagnosticsRequested, selectedAnchor]);
+  return null;
+};
 
 function componentDisplayLabel(component: ManagedUpdateComponent | undefined, t: Translate): string {
   if (!component) return t('settings.oplEnvironmentPage.updates.components.unknown');
@@ -402,9 +409,9 @@ function temporalReadbackGeneratedAfterAction(appState: Record<string, unknown>,
 
 function temporalReadbackObservedAt(appState: Record<string, unknown>): string {
   const generatedAt = oplString(oplRecord(appState.meta).generated_at);
-  if (!generatedAt) return new Date().toLocaleTimeString();
+  if (!generatedAt) return new Date().toISOString();
   const parsed = Date.parse(generatedAt);
-  return Number.isFinite(parsed) ? new Date(parsed).toLocaleTimeString() : new Date().toLocaleTimeString();
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
 }
 
 function temporalSnapshotHasNoErrors(snapshot: TemporalMaintenanceSnapshot): boolean {
@@ -914,6 +921,7 @@ function ManagedUpdatesPanel({
   onRequestAction,
   onCancelAction,
   onConfirmAction,
+  locale,
   t,
 }: {
   plane: ManagedUpdatePlane;
@@ -928,6 +936,7 @@ function ManagedUpdatesPanel({
   onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
   onCancelAction: () => void;
   onConfirmAction: () => void;
+  locale?: string;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
@@ -1269,12 +1278,12 @@ function ManagedUpdatesPanel({
               >
                 <span className='break-words'>
                   {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
-                    value: maintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                    value: formatMaintenanceTimestamp(maintenance.lastRunAt, t, locale),
                   })}
                 </span>
                 <span className='break-words'>
                   {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
-                    value: maintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                    value: formatMaintenanceTimestamp(maintenance.nextRunAt, t, locale),
                   })}
                 </span>
                 {plane.lockStatus && (
@@ -1334,7 +1343,7 @@ function ManagedUpdatesPanel({
 }
 
 const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const messageRef = useRef(message);
   const tRef = useRef(t);
@@ -1344,7 +1353,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   );
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
-  const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(maintenanceDiagnosticsRequested);
+  const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
+  const [showAllMaintenance, setShowAllMaintenance] = React.useState(false);
   const [updateChannelSaving, setUpdateChannelSaving] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const [busyDependencyId, setBusyDependencyId] = React.useState<string | null>(null);
@@ -1356,13 +1366,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [maintenanceOperationRunning, setMaintenanceOperationRunning] = React.useState(false);
   const maintenanceOperationLockRef = useRef(false);
 
-  React.useEffect(() => {
-    const openRequestedDiagnostics = () => {
-      if (maintenanceDiagnosticsRequested()) setDiagnosticsVisible(true);
-    };
-    window.addEventListener('hashchange', openRequestedDiagnostics);
-    return () => window.removeEventListener('hashchange', openRequestedDiagnostics);
-  }, []);
+  const openRequestedDiagnostics = useCallback(() => setDiagnosticsVisible(true), []);
   const appStateQuery = useOplAppState('fast');
   const desktopAutoUpdateState = useDesktopAutoUpdateStatus();
   const desktopAutoUpdate = useMemo(
@@ -1673,7 +1677,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       if (!beginMaintenanceOperation()) return;
       setBusyTemporalActionId(actionId);
       const actionStartedAtMs = Date.now();
-      const completedAt = () => new Date().toLocaleTimeString();
+      const completedAt = () => new Date().toISOString();
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({ actionId, dryRun: false });
         if (!bridgeResultSucceeded(result)) {
@@ -1845,6 +1849,13 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     healthSummaryItems.some((item) => item.tone === 'orange') ||
     maintenanceHubItems.some((item) => item.tone === 'orange');
   const maintenanceOperationBusy = maintenanceOperationRunning || managedUpdateMaintenance.running;
+  const maintenanceItemsNeedingAttention = maintenanceHubItems.filter((item) => item.tone !== 'green');
+  const healthyMaintenanceItemCount = maintenanceHubItems.length - maintenanceItemsNeedingAttention.length;
+  const visibleMaintenanceHubItems = showAllMaintenance ? maintenanceHubItems : maintenanceItemsNeedingAttention;
+  const maintenanceLocale = i18n?.resolvedLanguage ?? i18n?.language;
+  const localizedHealthSummaryItems = healthSummaryItems.map((item) =>
+    item.key === 'lastCheck' ? { ...item, value: formatMaintenanceTimestamp(item.value, t, maintenanceLocale) } : item
+  );
   const temporalActions = useMemo(() => temporalMaintenanceActions(appState), [appState]);
   const temporalSnapshot = useMemo(
     () =>
@@ -1872,6 +1883,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const content = (
     <>
       {contextHolder}
+      <RuntimeSettingsAnchorController onDiagnosticsRequested={openRequestedDiagnostics} />
       <div className='opl-settings-page' data-testid='settings-page-maintenance'>
         <header className='opl-settings-page-header'>
           <div className='opl-settings-page-header__copy'>
@@ -1891,7 +1903,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               </Typography.Text>
             </div>
           </div>
-          <RuntimeHealthSummary items={healthSummaryItems} />
+          <RuntimeHealthSummary items={localizedHealthSummaryItems} />
         </section>
 
         <BaseDependencySummary
@@ -1910,6 +1922,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           onAction={(actionId) => void runTemporalMaintenanceAction(actionId)}
           onOpenWorkerSourceSettings={openTemporalWorkerSourceSettings}
           onRepairWorkerDependency={requestTemporalWorkerDependencyRepair}
+          locale={maintenanceLocale}
           t={t}
         />
 
@@ -1920,22 +1933,44 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               <div className='flex flex-wrap items-start justify-between gap-12px'>
                 <div>
                   <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+                    {t('settings.uiOptimization.maintenance.summaryTitle')}
                   </Typography.Text>
                   <Typography.Text className='block text-12px text-t-secondary'>
                     {t('settings.oplEnvironmentPage.maintenanceHub.description')}
                   </Typography.Text>
                 </div>
-                {managedUpdateMaintenance.lastRunAt && (
-                  <Typography.Text className='text-12px text-t-tertiary'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.lastChecked', {
-                      value: managedUpdateMaintenance.lastRunAt,
-                    })}
-                  </Typography.Text>
-                )}
+                <div className='flex flex-col items-end gap-6px'>
+                  {managedUpdateMaintenance.lastRunAt && (
+                    <Typography.Text className='text-12px text-t-tertiary'>
+                      {t('settings.oplEnvironmentPage.maintenanceHub.lastChecked', {
+                        value: formatMaintenanceTimestamp(managedUpdateMaintenance.lastRunAt, t, maintenanceLocale),
+                      })}
+                    </Typography.Text>
+                  )}
+                  {healthyMaintenanceItemCount > 0 && (
+                    <Button
+                      size='small'
+                      type='text'
+                      aria-expanded={showAllMaintenance}
+                      onClick={() => setShowAllMaintenance((visible) => !visible)}
+                      data-testid='settings-maintenance-toggle-healthy'
+                    >
+                      {t(
+                        showAllMaintenance
+                          ? 'settings.uiOptimization.maintenance.collapseHealthy'
+                          : 'settings.uiOptimization.maintenance.showAll'
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className='opl-settings-list' data-testid='maintenance-domain-grid'>
-                {maintenanceHubItems.map((item) => {
+                {visibleMaintenanceHubItems.length === 0 && (
+                  <Typography.Text className='py-10px text-12px text-t-secondary' data-testid='maintenance-all-healthy'>
+                    {t('settings.uiOptimization.maintenance.noActionRequired')}
+                  </Typography.Text>
+                )}
+                {visibleMaintenanceHubItems.map((item) => {
                   const anchors: Record<string, string> = {
                     appUpdates: 'updates',
                     runtimeEnvironment: 'runtime-environment',
@@ -2038,6 +2073,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             onRequestAction={requestManagedUpdateAction}
             onCancelAction={cancelManagedUpdateAction}
             onConfirmAction={confirmManagedUpdateAction}
+            locale={maintenanceLocale}
             t={t}
           />
         </section>

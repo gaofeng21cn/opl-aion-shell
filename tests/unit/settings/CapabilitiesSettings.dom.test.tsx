@@ -854,9 +854,23 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.roleLabels.workflowProfile': 'Workflow profile',
         'settings.capabilitiesPage.packageManager.roleLabels.supportingCapability': 'Supporting capability',
         'settings.capabilitiesPage.packageManager.roleLabels.other': 'Other package',
-        'settings.capabilitiesPage.packageManager.groups.agents': 'Agents',
-        'settings.capabilitiesPage.packageManager.groups.workflows': 'Workflow profiles',
-        'settings.capabilitiesPage.packageManager.groups.supporting': 'Supporting capabilities',
+        'settings.uiOptimization.capabilities.groups.frequent': 'Frequent',
+        'settings.uiOptimization.capabilities.groups.needsAttention': 'Needs attention',
+        'settings.uiOptimization.capabilities.groups.other': 'Other',
+        'settings.uiOptimization.capabilities.actions.viewDetails': 'View details',
+        'settings.uiOptimization.capabilities.details.title': 'Capability details',
+        'settings.uiOptimization.capabilities.details.purpose': 'Purpose',
+        'settings.uiOptimization.capabilities.details.triggerRules': 'Trigger rules',
+        'settings.uiOptimization.capabilities.details.source': 'Source',
+        'settings.uiOptimization.capabilities.details.version': 'Version',
+        'settings.uiOptimization.capabilities.summaries.medAutoscience':
+          'Advance medical research, papers, and data analysis',
+        'settings.uiOptimization.capabilities.summaries.medAutogrant': 'Plan and write medical research grants',
+        'settings.uiOptimization.capabilities.summaries.redcubeAi':
+          'Produce research presentations and visual deliverables',
+        'settings.uiOptimization.capabilities.summaries.oplBookforge': 'Plan, write, and organize long-form books',
+        'settings.uiOptimization.capabilities.summaries.oplMetaAgent': 'Create, review, and improve OPL agents',
+        'settings.uiOptimization.capabilities.summaries.fallback': 'Support {{name}} tasks',
         'settings.capabilitiesPage.packageManager.supportingFor': `Supports ${options?.parent ?? ''}`,
         'settings.capabilitiesPage.packageManager.composition': `Runnable agents ${options?.agents ?? ''} · Workflows ${options?.workflows ?? ''} · Supporting capabilities ${options?.supporting ?? ''}`,
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
@@ -1172,7 +1186,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getAllByText('RedCube AI').length).toBeGreaterThan(0);
     expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
-    expect(screen.getAllByText('Local developer source').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Local developer source')).not.toBeInTheDocument();
     expect(screen.getAllByText('Update required').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Repair required').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Available for conversations').length).toBeGreaterThan(0);
@@ -1180,21 +1194,28 @@ describe('Agents and capabilities settings', () => {
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByTestId('capability-description-mas')).toHaveTextContent(
-      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+      'Advance medical research, papers, and data analysis'
     );
+    expect(within(research).queryByText(/For research planning/)).not.toBeInTheDocument();
     expect(within(research).getByText('Available')).toBeInTheDocument();
-    expect(within(research).getByText('Local developer source')).toBeInTheDocument();
     const bookforge = screen.getByTestId('capability-purpose-obf');
     expect(within(bookforge).getByText('Available')).toBeInTheDocument();
-    expect(within(bookforge).getByText('Local developer source')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-obf'));
     expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByTestId('capability-description-oma')).toHaveTextContent(
-      'For creating, taking over, inspecting, and improving OPL professional agents.'
+      'Create, review, and improve OPL agents'
     );
     expect(within(oma).getByText('Available')).toBeInTheDocument();
-    expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(bookforge);
+    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(oma);
+    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(research);
+    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+      screen.getByTestId('capability-purpose-mag')
+    );
+    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+      screen.getByTestId('capability-purpose-example')
+    );
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
     expect(omaHomeSwitch).not.toBeDisabled();
@@ -1213,6 +1234,13 @@ describe('Agents and capabilities settings', () => {
     );
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     let detailedResearch = screen.getByTestId('capability-details-mas');
+    const productDetails = screen.getByTestId('capability-product-details-mas');
+    expect(productDetails).not.toHaveAttribute('open');
+    expect(productDetails).toHaveTextContent(
+      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+    );
+    expect(productDetails).toHaveTextContent('Local developer source');
+    expect(productDetails).toHaveTextContent('1.2.3');
     expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OpenScience artifact graph review')).toBeInTheDocument();
     const openscienceCandidate = within(detailedResearch).getByTestId(
@@ -1402,9 +1430,9 @@ describe('Agents and capabilities settings', () => {
       (row) => row.dataset.testid?.replace('capability-purpose-', '')
     );
     expect(rowOrder).toEqual(['mas', 'mas-scholar-skills', 'mag', 'rca', 'obf', 'oma', 'opl-flow']);
-    expect(screen.getByTestId('settings-agents-group-agents')).toHaveTextContent('Agents5');
-    expect(screen.getByTestId('settings-agents-group-workflows')).toHaveTextContent('Workflow profiles1');
-    expect(screen.queryByTestId('settings-agents-group-supporting')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-agents-group-frequent')).toHaveTextContent('Frequent5');
+    expect(screen.getByTestId('settings-agents-group-other')).toHaveTextContent('Other1');
+    expect(screen.queryByTestId('settings-agents-group-needsAttention')).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
       'Runnable agents 5 · Workflows 1 · Supporting capabilities 1'
     );
@@ -1413,7 +1441,7 @@ describe('Agents and capabilities settings', () => {
     expect(scholarSkills).toHaveClass('opl-settings-capability-row--dependent');
     expect(scholarSkills).toHaveAttribute('data-parent-capability', 'mas');
     expect(scholarSkills).toHaveTextContent('Supports Med Auto Science');
-    expect(scholarSkills).toHaveTextContent('Supporting capability');
+    expect(scholarSkills).not.toHaveTextContent('Supporting capability');
     expect(groups).not.toHaveTextContent('standard_agent');
     expect(groups).not.toHaveTextContent('workflow_profile');
     expect(groups).not.toHaveTextContent('framework_capability_package');
@@ -1422,7 +1450,7 @@ describe('Agents and capabilities settings', () => {
     const filteredScholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
     expect(filteredScholarSkills).not.toHaveClass('opl-settings-capability-row--dependent');
     expect(filteredScholarSkills).not.toHaveAttribute('data-parent-capability');
-    expect(screen.getByTestId('settings-agents-group-supporting')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-agents-group-other')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
   });
 
@@ -1475,14 +1503,19 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const managedRow = screen.getByTestId('capability-purpose-mas');
-    expect(within(managedRow).getByTestId('capability-source-mas')).toHaveTextContent(/Source\s*OPL managed package/);
+    expect(within(managedRow).queryByTestId('capability-source-mas')).not.toBeInTheDocument();
     expect(within(managedRow).getByTestId('capability-conversation-mas')).not.toHaveTextContent('Complete setup');
     expect(within(managedRow).getByTestId('capability-controls-mas')).toBeInTheDocument();
     expect(managedRow).not.toHaveTextContent('first_party');
-    expect(within(screen.getByTestId('capability-purpose-mag')).getByText('Registry install')).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId('capability-purpose-oma')).getByText('Local developer source')
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
+    expect(screen.getByTestId('capability-product-details-mas')).toHaveTextContent('OPL managed package');
+    fireEvent.click(screen.getByTestId('capability-details-close'));
+    fireEvent.click(screen.getByTestId('capability-open-details-mag'));
+    expect(screen.getByTestId('capability-product-details-mag')).toHaveTextContent('Registry install');
+    fireEvent.click(screen.getByTestId('capability-details-close'));
+    fireEvent.click(screen.getByTestId('capability-open-details-oma'));
+    expect(screen.getByTestId('capability-product-details-oma')).toHaveTextContent('Local developer source');
+    fireEvent.click(screen.getByTestId('capability-details-close'));
 
     expect(screen.getByTestId('agent-package-catalog')).not.toHaveTextContent('framework_capability_package');
     await chooseSelectOption('settings-agents-role-filter', 'Supporting capability');

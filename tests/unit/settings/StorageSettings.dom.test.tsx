@@ -193,6 +193,16 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.plans.updater.required': 'Preview required before installer cache cleanup can run.',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
+    'settings.uiOptimization.storage.unavailable.title': 'Storage information temporarily unavailable',
+    'settings.uiOptimization.storage.unavailable.description': 'Storage information could not be read.',
+    'settings.uiOptimization.storage.unavailable.reasons.desktopCarrier': 'Desktop storage carrier is unavailable.',
+    'settings.uiOptimization.storage.unavailable.reasons.permission': 'Storage directory permission is missing.',
+    'settings.uiOptimization.storage.unavailable.reasons.service': 'Local storage service is not ready.',
+    'settings.uiOptimization.storage.unavailable.reasons.unknown': 'Storage failure reason is unknown.',
+    'settings.uiOptimization.storage.unavailable.actions.retry': 'Retry',
+    'settings.uiOptimization.storage.unavailable.actions.openWorkspace': 'Open Workspace settings',
+    'settings.uiOptimization.storage.unavailable.actions.openMaintenance': 'Open Maintenance',
+    'settings.uiOptimization.maintenance.technicalDetails': 'Technical details',
     'settings.workspacePage.logs.title': 'Logs directory',
     'settings.workspacePage.logs.description': 'Choose where the desktop App stores logs.',
     'settings.workspacePage.logs.unavailable': 'Log directory unavailable',
@@ -505,6 +515,57 @@ describe('StorageSettingsContent', () => {
     }
   });
 
+  it('explains a missing desktop carrier only when WebUI has no valid owner readback', async () => {
+    const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.appState = {};
+
+    try {
+      render(<StorageSettingsContent />);
+
+      expect(await screen.findByTestId('settings-storage-unavailable-reason-desktopCarrier')).toHaveTextContent(
+        'Desktop storage carrier is unavailable.'
+      );
+      expect(bridgeMocks.getInventorySnapshot).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
+      expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    } finally {
+      if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
+    }
+  });
+
+  it('routes permission failures to Workspace and keeps the raw error collapsed', async () => {
+    bridgeMocks.getInventorySnapshot.mockRejectedValueOnce(new Error('EACCES: permission denied, scandir /private'));
+
+    render(<StorageSettingsContent />);
+
+    expect(await screen.findByTestId('settings-storage-unavailable-reason-permission')).toHaveTextContent(
+      'Storage directory permission is missing.'
+    );
+    const details = screen.getByTestId('settings-storage-unavailable-technical-details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent('EACCES: permission denied');
+    expect(screen.queryByTestId('settings-storage-exception')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/workspace');
+  });
+
+  it('uses the unknown recovery state for an unclassified storage failure', async () => {
+    bridgeMocks.getInventorySnapshot.mockRejectedValueOnce(new Error('opaque storage fault 42'));
+
+    render(<StorageSettingsContent />);
+
+    expect(await screen.findByTestId('settings-storage-unavailable-reason-unknown')).toHaveTextContent(
+      'Storage failure reason is unknown.'
+    );
+    expect(screen.getByTestId('settings-storage-unavailable-technical-details')).toHaveTextContent(
+      'opaque storage fault 42'
+    );
+    fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
+  });
+
   it('shows the WebUI lifecycle controls only for a complete host capability and preserves plan confirmation', async () => {
     const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
     delete (window as Window & { electronAPI?: unknown }).electronAPI;
@@ -789,7 +850,7 @@ describe('StorageSettingsContent', () => {
     expect(bridgeMocks.getInventory).not.toHaveBeenCalled();
   });
 
-  it('keeps unknown inventory values as placeholders instead of synthetic zero bytes', async () => {
+  it('shows a recoverable service state instead of synthetic zero bytes when every readback is missing', async () => {
     bridgeMocks.getInventorySnapshot.mockResolvedValueOnce({
       ...inventorySnapshot,
       inventory: null,
@@ -801,10 +862,20 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Size unavailable');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('Nothing to clean');
+    expect(await screen.findByTestId('settings-storage-unavailable')).toHaveTextContent(
+      'Storage information temporarily unavailable'
+    );
+    expect(screen.getByTestId('settings-storage-unavailable-reason-service')).toHaveTextContent(
+      'Local storage service is not ready.'
+    );
+    expect(screen.getByTestId('settings-storage-unavailable-retry')).toHaveTextContent('Retry');
+    expect(screen.getByTestId('settings-storage-unavailable-recovery')).toHaveTextContent('Open Maintenance');
+    expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('storage-category-list')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
   });
 
   it('applies inventory update events without remounting or rescanning from the page', async () => {
@@ -816,10 +887,11 @@ describe('StorageSettingsContent', () => {
     });
 
     render(<StorageSettingsContent />);
-    expect(await screen.findByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+    expect(await screen.findByTestId('settings-storage-unavailable')).toBeInTheDocument();
 
     act(() => inventoryListener?.(inventorySnapshot));
     await waitFor(() => expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B'));
+    expect(screen.queryByTestId('settings-storage-unavailable')).not.toBeInTheDocument();
     expect(bridgeMocks.refreshInventory).not.toHaveBeenCalled();
   });
 

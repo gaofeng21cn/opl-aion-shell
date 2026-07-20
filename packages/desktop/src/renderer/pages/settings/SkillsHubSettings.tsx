@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import type { ManagedDependency } from '@/renderer/services/managedUpdateProjection';
+import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 // Skill 信息类型 / Skill info type
 interface SkillInfo {
@@ -38,6 +39,49 @@ interface SkillsHubSettingsProps {
   onSyncFlow?: () => void;
   displayGroup?: 'all' | 'flow' | 'manual';
 }
+
+type FlowCapabilityDetailsProps = {
+  id: string;
+  description?: string;
+  source: string;
+  version?: string;
+  t: (key: string, options?: Record<string, string>) => string;
+};
+
+const FlowCapabilityDetails: React.FC<FlowCapabilityDetailsProps> = ({ id, description, source, version, t }) => (
+  <details
+    className='mt-5px text-12px text-t-secondary'
+    data-testid={`opl-flow-capability-details-${normalizeTestId(id)}`}
+  >
+    <summary className='w-fit cursor-pointer font-500'>
+      {t('settings.uiOptimization.capabilities.actions.viewDetails')}
+    </summary>
+    <div className='mt-6px grid min-w-0 grid-cols-1 gap-4px'>
+      {description && (
+        <div className='min-w-0 break-words'>
+          <Typography.Text className='text-t-tertiary'>
+            {t('settings.uiOptimization.capabilities.details.originalDescription')}:{' '}
+          </Typography.Text>
+          <Typography.Text className='text-t-secondary'>{description}</Typography.Text>
+        </div>
+      )}
+      <div className='min-w-0 break-words'>
+        <Typography.Text className='text-t-tertiary'>
+          {t('settings.uiOptimization.capabilities.details.source')}:{' '}
+        </Typography.Text>
+        <Typography.Text className='text-t-secondary'>{source}</Typography.Text>
+      </div>
+      <div className='min-w-0 break-words'>
+        <Typography.Text className='text-t-tertiary'>
+          {t('settings.uiOptimization.capabilities.details.version')}:{' '}
+        </Typography.Text>
+        <Typography.Text className='text-t-secondary'>
+          {version ?? t('settings.capabilitiesPage.detailValues.notReported')}
+        </Typography.Text>
+      </div>
+    </div>
+  </details>
+);
 
 const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
   withWrapper = true,
@@ -229,11 +273,16 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 >
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{skill.name}</Typography.Text>
-                    {skill.description && (
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {skill.description}
-                      </Typography.Text>
-                    )}
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {localizedCapabilitySummary([skill.name], skill.name, t)}
+                    </Typography.Text>
+                    <FlowCapabilityDetails
+                      id={skill.name}
+                      description={skill.description}
+                      source={t('settings.capabilitiesPage.groups.oplFlowManaged.title')}
+                      version={flowManagedSkillDependencyById.get(skill.name)?.version}
+                      t={t}
+                    />
                   </div>
                   <span
                     className={`opl-settings-status ${
@@ -256,7 +305,18 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   className='flex items-center justify-between gap-12px py-10px'
                   data-testid={`opl-flow-capability-${normalizeTestId(skillId)}`}
                 >
-                  <Typography.Text className='font-600 text-t-primary'>{skillId}</Typography.Text>
+                  <div className='min-w-0'>
+                    <Typography.Text className='font-600 text-t-primary'>{skillId}</Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {localizedCapabilitySummary([skillId], skillId, t)}
+                    </Typography.Text>
+                    <FlowCapabilityDetails
+                      id={skillId}
+                      source={t('settings.capabilitiesPage.groups.oplFlowManaged.title')}
+                      version={flowManagedSkillDependencyById.get(skillId)?.version}
+                      t={t}
+                    />
+                  </div>
                   <span
                     className={`opl-settings-status ${
                       flowManagedSkillIsInstalled(skillId, false)
@@ -280,10 +340,14 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{dependency.id}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.capabilitiesPage.groups.oplFlowManaged.cliVersion', {
-                        version: dependency.version ?? t('settings.capabilitiesPage.detailValues.notReported'),
-                      })}
+                      {localizedCapabilitySummary([dependency.id], dependency.id, t)}
                     </Typography.Text>
+                    <FlowCapabilityDetails
+                      id={dependency.id}
+                      source={t('settings.capabilitiesPage.groups.oplFlowManaged.title')}
+                      version={dependency.version}
+                      t={t}
+                    />
                   </div>
                   <span
                     className={`opl-settings-status ${
