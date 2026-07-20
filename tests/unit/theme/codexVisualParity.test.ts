@@ -72,6 +72,7 @@ describe('Codex visual parity overlay', () => {
     const sendBox = read('packages/desktop/src/renderer/components/chat/SendBox/index.tsx');
     const sendBoxStyles = read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
+    const guidActionRow = read('packages/desktop/src/renderer/pages/guid/components/GuidActionRow.tsx');
 
     expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
     expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('rgba(0, 0, 0, 0.045)');
@@ -90,21 +91,29 @@ describe('Codex visual parity overlay', () => {
     expect(baseline).toContain('--opl-composer-focus-shadow:');
     expect(firstCustomProperty(baseline, '--opl-composer-border-focus')).toBe('rgba(32, 33, 36, 0.24)');
     expect(firstCustomProperty(baseline, '--opl-composer-shadow')).toBe(
-      '0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05)'
+      '0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08)'
     );
+    expect(firstCustomProperty(baseline, '--opl-composer-context-bg')).toBe('#f6f6f5');
+    expect(firstCustomProperty(baseline, '--opl-composer-placeholder')).toBe('rgba(32, 33, 36, 0.42)');
+    expect(firstCustomProperty(baseline, '--opl-composer-send-disabled')).toBe('#94979b');
     expect(focusRing).toContain("activeShadow: 'var(--opl-composer-focus-shadow)'");
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
     expect(guidStyles).toContain('background: var(--dialog-fill-0);');
     expect(guidStyles).toContain('border: 1px solid var(--opl-composer-border);');
+    expect(guidStyles).toContain('background: var(--opl-composer-context-bg);');
+    expect(guidStyles).toContain('border: 1px solid var(--opl-composer-context-border);');
+    expect(guidStyles).toContain('color: var(--opl-composer-placeholder) !important;');
     expect(guidStyles).toContain('color: var(--color-text-3) !important;');
     expect(guidStyles).not.toContain('background: #262626;');
     expect(guidStyles).not.toContain('border-color: #3a3a3a;');
     expect(guidStyles).not.toContain('color: #b4b5bc');
     expect(guidStyles).toMatch(
-      /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*12px\s*!important;/
+      /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*13px\s*!important;/
     );
+    expect(guidActionRow).toContain('data-permission-mode={selectedMode}');
+    expect(guidActionRow).toContain("compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />}");
     expect(sendBoxStyles).toMatch(
       /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
     );

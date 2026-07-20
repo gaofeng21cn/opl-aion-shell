@@ -556,7 +556,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         type='secondary'
         shape='circle'
         className={isPaletteOpen ? styles.plusButtonRotate : ''}
-        icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
+        icon={<Plus theme='outline' size='16' strokeWidth={2} fill={iconColors.primary} />}
         data-testid='file-upload-btn'
         aria-label={t('guid.context.addContext')}
         aria-expanded={isPaletteOpen}
@@ -582,7 +582,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                 <Button
                   type='secondary'
                   shape='circle'
-                  icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
+                  icon={<Plus theme='outline' size='16' strokeWidth={2} fill={iconColors.primary} />}
                   data-testid='file-upload-btn'
                   aria-label={t('guid.context.addContext')}
                   aria-expanded={isMobileSheetOpen}
@@ -639,7 +639,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         ) : null}
         <div className={styles.actionSubmit} data-testid='guid-action-submit'>
           {!isMobile && configOptionCount > 0 && (
-            <div className={styles.actionConfigGroup} data-mobile={isMobile ? 'true' : undefined}>
+            <div
+              className={styles.actionConfigGroup}
+              data-mobile={isMobile ? 'true' : undefined}
+              data-permission-mode={selectedMode}
+            >
               {modelSelectorNode}
 
               {showModeSwitch && (
@@ -648,7 +652,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   compact
                   initialMode={selectedMode}
                   onModeSelect={onModeSelect}
-                  compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
+                  compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />}
                   modeLabelFormatter={getModeDisplayLabel}
                 />
               )}
@@ -676,7 +680,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             loading={loading}
             disabled={isButtonDisabled}
             className='send-button-custom'
-            icon={<ArrowUp theme='filled' size='14' fill='currentColor' strokeWidth={5} />}
+            icon={<ArrowUp theme='filled' size='16' fill='currentColor' strokeWidth={5} />}
             onClick={onSend}
             data-testid='guid-send-btn'
             aria-label={t('common.send', { defaultValue: 'Send' })}

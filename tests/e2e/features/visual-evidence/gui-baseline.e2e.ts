@@ -503,7 +503,7 @@ async function homeComposerVisualCheck(
 
   const optionalModelPass =
     resting.modelFontSize === null ||
-    (resting.modelFontSize === '12px' &&
+    (resting.modelFontSize === '13px' &&
       resting.modelLineHeight === '18px' &&
       resting.modelIconWidth !== null &&
       resting.modelIconHeight !== null &&
@@ -935,7 +935,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('mobile_action_sheet', '[role="dialog"][aria-modal="true"]'),
         anchor(
           'mobile_attach',
-          '[data-testid="mobile-action-sheet-attach"], [data-testid="mobile-action-sheet-attach-host-files"]'
+          '[data-testid="mobile-action-sheet-attach-file"], [data-testid="mobile-action-sheet-attach-host-files"]'
         ),
         anchor('mobile_permission', '[data-testid="mobile-action-sheet-permission"]'),
         anchor('mobile_reasoning', '[data-testid="mobile-action-sheet-reasoning"]'),

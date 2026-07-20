@@ -51,7 +51,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
         aria-disabled={workspaceAccessDisabled}
       >
         <span className={styles.workspaceContextLabel}>
-          <FolderOpen theme='outline' size='14' aria-hidden='true' />
+          <FolderOpen theme='outline' size='16' aria-hidden='true' />
           <span>{t('guid.context.workingDirectory')}</span>
         </span>
         {workspaceDir ? (

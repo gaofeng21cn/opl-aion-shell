@@ -9,9 +9,13 @@
   --opl-focus-ring: #2563eb;
   --opl-composer-border: rgba(0, 0, 0, 0.14);
   --opl-composer-border-focus: rgba(32, 33, 36, 0.24);
-  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --opl-composer-context-bg: #f6f6f5;
+  --opl-composer-context-border: rgba(0, 0, 0, 0.08);
+  --opl-composer-placeholder: rgba(32, 33, 36, 0.42);
+  --opl-composer-send-disabled: #94979b;
+  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08);
   --opl-composer-focus-shadow:
-    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
+    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08);
   --opl-accent-blue: #3478f6;
   --opl-accent-purple: #8b5cf6;
   --opl-accent-green: #20a451;
@@ -71,9 +75,13 @@
   --opl-focus-ring: #60a5fa;
   --opl-composer-border: rgba(255, 255, 255, 0.15);
   --opl-composer-border-focus: rgba(255, 255, 255, 0.26);
-  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18);
+  --opl-composer-context-bg: #242629;
+  --opl-composer-context-border: rgba(255, 255, 255, 0.1);
+  --opl-composer-placeholder: rgba(244, 245, 246, 0.52);
+  --opl-composer-send-disabled: #666a70;
+  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.26);
   --opl-composer-focus-shadow:
-    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18);
+    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.26);
   --opl-accent-blue: #6da3ff;
   --opl-accent-purple: #ab86ff;
   --opl-accent-green: #55bc78;

@@ -634,16 +634,16 @@
   height: 52px;
   min-height: 52px;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   box-sizing: border-box;
   margin: 0 12px -13px;
   padding: 0 12px 13px;
-  border: 1px solid var(--opl-composer-border);
+  border: 1px solid var(--opl-composer-context-border);
   border-bottom: 0;
-  border-radius: 12px 12px 0 0;
-  background: var(--dialog-fill-0);
-  color: var(--color-text-3);
-  font-size: 12px;
+  border-radius: 20px 20px 0 0;
+  background: var(--opl-composer-context-bg);
+  color: var(--color-text-2);
+  font-size: 13px;
   line-height: 18px;
 }
 
@@ -652,17 +652,17 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
-  color: var(--color-text-3);
+  color: var(--color-text-2);
 }
 
 .workspaceContextPath:global(.arco-btn) {
   min-width: 0 !important;
   max-width: min(360px, 55vw);
-  height: 26px !important;
+  height: 28px !important;
   padding: 0 5px !important;
   overflow: hidden;
-  color: var(--color-text-2) !important;
-  font-size: 12px !important;
+  color: var(--color-text-1) !important;
+  font-size: 13px !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -699,7 +699,7 @@
 
 .guidInputInner {
   min-height: 98px;
-  padding: 12px 8px 8px;
+  padding: 14px 8px 8px;
   background: var(--dialog-fill-0);
   border: 1px solid var(--opl-composer-border);
   border-radius: 22px;
@@ -736,6 +736,20 @@
   align-items: center;
   flex: 0 0 auto;
   margin-right: 0;
+}
+
+.actionEntry :global(.arco-btn-secondary) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text-1) !important;
+}
+
+.actionEntry :global(.arco-btn-secondary:hover),
+.actionEntry :global(.arco-btn-secondary:focus-visible),
+.actionEntry :global(.arco-btn-secondary[aria-expanded='true']) {
+  background: var(--color-fill-1) !important;
+  border-color: transparent !important;
 }
 
 .workspaceChip {
@@ -818,8 +832,12 @@
   height: 28px !important;
   min-height: 28px !important;
   padding: 0 4px !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   line-height: 18px !important;
+}
+
+.actionConfigGroup[data-permission-mode='full-access'] :global([data-testid^='agent-mode-selector-']) {
+  color: var(--opl-accent-orange) !important;
 }
 
 .actionConfigGroup :global(.sendbox-model-btn svg) {
@@ -836,6 +854,15 @@
   min-width: 0;
 }
 
+.actionSubmit :global(.send-button-custom:disabled),
+.actionSubmit :global(.send-button-custom.arco-btn:disabled),
+.actionSubmit :global(.send-button-custom.arco-btn-primary:disabled) {
+  background: var(--opl-composer-send-disabled) !important;
+  border-color: var(--opl-composer-send-disabled) !important;
+  color: var(--text-white) !important;
+  opacity: 1 !important;
+}
+
 @media (max-width: 520px) {
   .workspaceChip {
     max-width: 140px;
@@ -843,7 +870,7 @@
 }
 
 .lightPlaceholder::placeholder {
-  color: var(--color-text-3);
+  color: var(--opl-composer-placeholder);
   opacity: 1;
 }
 
@@ -999,7 +1026,7 @@
 
 /* 浅色占位符 */
 .lightPlaceholder :global(textarea::placeholder) {
-  color: var(--color-text-3) !important;
+  color: var(--opl-composer-placeholder) !important;
   opacity: 1 !important;
 }
 
