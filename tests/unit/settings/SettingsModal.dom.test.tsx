@@ -1,7 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import SiderFooter from '@/renderer/components/layout/Sider/SiderFooter';
 import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
 import ChannelItem, {
@@ -18,6 +18,11 @@ let isMobileLayout = true;
 const LocationProbe = () => {
   const location = useLocation();
   return <output data-testid='location-probe'>{`${location.pathname}${location.search}${location.hash}`}</output>;
+};
+
+const RouteChangeControl: React.FC<{ to: string }> = ({ to }) => {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(to)}>Change settings route</button>;
 };
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
@@ -193,6 +198,27 @@ vi.mock('react-i18next', () => ({
         'settings.mobileNavigation.groups.workCapabilities': 'Work capabilities',
         'settings.mobileNavigation.groups.system': 'System',
         'settings.mobileNavigation.groups.extensions': 'Extensions',
+        'settings.uiOptimization.navigation.mobileCategories': 'Settings categories',
+        'settings.uiOptimization.navigation.mobileBack': 'Back to settings categories',
+        'settings.uiOptimization.navigation.about': 'About',
+        'settings.uiOptimization.navigation.groups.overview': 'Overview',
+        'settings.uiOptimization.navigation.groups.accountModels': 'Account & Models',
+        'settings.uiOptimization.navigation.groups.workspace': 'Workspace',
+        'settings.uiOptimization.navigation.groups.agentsCapabilities': 'Agents & Capabilities',
+        'settings.uiOptimization.navigation.groups.runtimeMaintenance': 'Runtime & Maintenance',
+        'settings.uiOptimization.navigation.groups.preferences': 'Preferences',
+        'settings.uiOptimization.navigation.destinations.overviewStatus': 'Overview',
+        'settings.uiOptimization.navigation.destinations.accountAccess': 'Account & Access',
+        'settings.uiOptimization.navigation.destinations.models': 'Models',
+        'settings.uiOptimization.navigation.destinations.resourcesConnections': 'Resources & Connections',
+        'settings.uiOptimization.navigation.destinations.workingDirectory': 'Working Directory',
+        'settings.uiOptimization.navigation.destinations.dataStorage': 'Data & Storage',
+        'settings.uiOptimization.navigation.destinations.agents': 'Agents',
+        'settings.uiOptimization.navigation.destinations.capabilities': 'Capabilities',
+        'settings.uiOptimization.navigation.destinations.instructionsContext': 'Instructions & Context',
+        'settings.uiOptimization.navigation.destinations.runtimeServices': 'Services & Maintenance',
+        'settings.uiOptimization.navigation.destinations.logsDiagnostics': 'Logs & Diagnostics',
+        'settings.uiOptimization.navigation.destinations.preferences': 'Preferences',
         'settings.lightMode': 'Light mode',
         'settings.darkMode': 'Dark mode',
         'common.back': 'Back to chat',
@@ -324,25 +350,23 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('gateway-content')).not.toBeInTheDocument();
   });
 
-  it('shows only App-owned ordinary settings tabs', () => {
+  it('shows the six App-owned Settings groups and expands only the active group', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     const overviewButton = screen.getByRole('button', { name: 'Overview' });
     expect(overviewButton).toBeInTheDocument();
     expect(overviewButton.querySelector('svg')).not.toBeNull();
     expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).toBeNull();
-    expect(screen.getByText('Account & Access')).toBeInTheDocument();
-    expect(screen.getByText('Models')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Account & Models' })).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Agents')).toBeInTheDocument();
-    expect(screen.getByText('Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Data & Storage')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Agents & Capabilities' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Runtime & Maintenance' })).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByText('About')).toBeInTheDocument();
+    expect(screen.queryByText('Account & Access')).not.toBeInTheDocument();
+    expect(screen.queryByText('Models')).not.toBeInTheDocument();
     expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
-    expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
     expect(screen.queryByText('Access')).not.toBeInTheDocument();
@@ -360,14 +384,10 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('settings-search-input')).toBeInTheDocument();
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Account & Access')).toBeInTheDocument();
-    expect(screen.getByText('Models')).toBeInTheDocument();
+    expect(screen.getByText('Account & Models')).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Agents')).toBeInTheDocument();
-    expect(screen.getByText('Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Data & Storage')).toBeInTheDocument();
+    expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Runtime & Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.queryByText('Personalization')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
@@ -377,33 +397,64 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
   });
 
-  it('uses a grouped selector instead of scrolling tabs on narrow screens', async () => {
+  it('uses a vertical category then destination flow on narrow screens', async () => {
     Object.defineProperty(window, 'innerWidth', {
       value: 600,
       configurable: true,
     });
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    const selector = await screen.findByTestId('settings-mobile-section-select');
-    expect(screen.getByText('Settings section')).toBeInTheDocument();
-    expect(selector).toHaveAccessibleName('Settings section');
+    const navigation = await screen.findByTestId('settings-mobile-navigation');
+    expect(navigation).toHaveAccessibleName('Settings categories');
     expect(document.querySelector('.settings-mobile-tabs')).toBeNull();
+    expect(screen.queryByTestId('settings-mobile-section-select')).not.toBeInTheDocument();
 
-    fireEvent.click(selector);
-    expect(await screen.findByText('Settings & Access')).toBeInTheDocument();
-    expect(screen.getByText('Work capabilities')).toBeInTheDocument();
-    expect(screen.getByText('System')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(screen.getByRole('button', { name: 'Back to settings categories' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Working Directory' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Data & Storage' })).toBeInTheDocument();
 
-    const workspaceOption = (await screen.findAllByText('Workspace')).find((item) =>
-      item.closest('.arco-select-option')
-    );
-    expect(workspaceOption).toBeDefined();
-    fireEvent.click(workspaceOption as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Working Directory' }));
 
     await waitFor(() => expect(screen.getByTestId('workspace-content')).toBeInTheDocument());
   });
 
-  it('keeps the active narrow-screen Settings entry in view and keyboard discoverable', async () => {
+  it('updates the modal drilldown when defaultTab moves to another settings group', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      value: 600,
+      configurable: true,
+    });
+    const view = render(<SettingsModal visible onCancel={() => {}} defaultTab='workspace' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Workspace' }));
+    expect(screen.getByRole('button', { name: 'Working Directory' })).toBeInTheDocument();
+
+    view.rerender(<SettingsModal visible onCancel={() => {}} defaultTab='appearance' />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preferences' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Working Directory' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to settings categories' })).toBeInTheDocument();
+  });
+
+  it('updates the page drilldown when navigation moves to another settings group', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/workspace']}>
+        <SettingsPageWrapper>
+          <RouteChangeControl to='/settings/appearance' />
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(screen.getByRole('button', { name: 'Working Directory' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change settings route' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preferences' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Working Directory' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to settings categories' })).toBeInTheDocument();
+  });
+
+  it('keeps every narrow-screen Settings category vertically keyboard discoverable', () => {
     render(
       <MemoryRouter initialEntries={['/settings/appearance']}>
         <SettingsPageWrapper>
@@ -416,7 +467,8 @@ describe('SettingsModal OPL App navigation', () => {
     expect(activeEntry).toHaveAttribute('aria-current', 'page');
     activeEntry.focus();
     expect(activeEntry).toHaveFocus();
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ left: 0 }));
+    expect(document.querySelector('.settings-mobile-top-nav')).toBeNull();
+    expect(scrollTo).not.toHaveBeenCalled();
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
@@ -659,12 +711,12 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Data & Storage')).not.toBeInTheDocument();
   });
 
-  it('keeps Resources ordinary while routing diagnostics search to Maintenance', () => {
+  it('keeps Resources searchable under Account & Models while routing diagnostics to Maintenance', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Account & Models')).toBeInTheDocument();
+    expect(screen.getByText('Runtime & Maintenance')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working paths' } });
 

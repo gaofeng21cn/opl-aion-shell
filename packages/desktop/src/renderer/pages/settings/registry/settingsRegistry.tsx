@@ -18,9 +18,12 @@ import {
   getOplGuiSettingsControlPlane,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
+  getOplSettingsUserNavigationProjection,
   type OplSettingsControlPlane,
   type OplSettingsControlPlaneRoute,
   type OplSettingsControlPlaneSecondaryPage,
+  type OplSettingsDestinationId,
+  type OplSettingsPrimaryGroupId,
 } from '@/common/config/oplProductProfile';
 
 export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
@@ -209,6 +212,53 @@ export function getSettingsSearchEntries(_t: TranslateFn, language = 'en'): Sett
 
 export type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
 
+const SETTINGS_GROUP_LABEL_KEYS: Record<OplSettingsPrimaryGroupId, string> = {
+  overview: 'settings.uiOptimization.navigation.groups.overview',
+  account_models: 'settings.uiOptimization.navigation.groups.accountModels',
+  workspace: 'settings.uiOptimization.navigation.groups.workspace',
+  agents_capabilities: 'settings.uiOptimization.navigation.groups.agentsCapabilities',
+  runtime_maintenance: 'settings.uiOptimization.navigation.groups.runtimeMaintenance',
+  preferences: 'settings.uiOptimization.navigation.groups.preferences',
+};
+
+const SETTINGS_DESTINATION_LABEL_KEYS: Record<OplSettingsDestinationId, string> = {
+  overview_status: 'settings.uiOptimization.navigation.destinations.overviewStatus',
+  account_access: 'settings.uiOptimization.navigation.destinations.accountAccess',
+  models: 'settings.uiOptimization.navigation.destinations.models',
+  resources_connections: 'settings.uiOptimization.navigation.destinations.resourcesConnections',
+  working_directory: 'settings.uiOptimization.navigation.destinations.workingDirectory',
+  data_storage: 'settings.uiOptimization.navigation.destinations.dataStorage',
+  agents: 'settings.uiOptimization.navigation.destinations.agents',
+  capabilities: 'settings.uiOptimization.navigation.destinations.capabilities',
+  instructions_context: 'settings.uiOptimization.navigation.destinations.instructionsContext',
+  runtime_services: 'settings.uiOptimization.navigation.destinations.runtimeServices',
+  logs_diagnostics: 'settings.uiOptimization.navigation.destinations.logsDiagnostics',
+  preferences: 'settings.uiOptimization.navigation.destinations.preferences',
+};
+
+export type SettingsNavigationDestination = {
+  id: OplSettingsDestinationId;
+  ownerGroupId: OplSettingsPrimaryGroupId;
+  routeId: string;
+  anchor?: string;
+  label: string;
+  path: string;
+  icon: React.ReactElement;
+};
+
+export type SettingsNavigationGroup = {
+  id: OplSettingsPrimaryGroupId;
+  label: string;
+  defaultDestinationId: OplSettingsDestinationId;
+  destinations: SettingsNavigationDestination[];
+  icon: React.ReactElement;
+};
+
+export type SettingsNavigationSelection = {
+  groupId: OplSettingsPrimaryGroupId;
+  destinationId: OplSettingsDestinationId;
+};
+
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
 type SettingsIconFactory = (size: number) => React.ReactElement;
@@ -279,6 +329,125 @@ export function getSettingsTabIcon(tabId: string, _slot: SettingsIconSlot): Reac
       {icon(16)}
     </span>
   );
+}
+
+function translatedNavigationLabel(
+  t: TranslateFn,
+  key: string,
+  language: string,
+  labels: { label_zh: string; label_en: string }
+): string {
+  return t(key, {
+    defaultValue: language.toLowerCase().startsWith('zh') ? labels.label_zh : labels.label_en,
+  });
+}
+
+function settingsDestinationPath(routeId: string, anchor?: string): string {
+  return routePathFor(anchor ? `${routeId}#${anchor}` : routeId).replace(/^\/settings\/?/, '');
+}
+
+/** Build the six App-owned Settings groups while preserving stable carrier routes underneath. */
+export function getSettingsNavigationGroups(
+  t: TranslateFn,
+  language = 'en',
+  slot: SettingsIconSlot = 'siderDesktop'
+): SettingsNavigationGroup[] {
+  const settingsUserNavigation = getOplSettingsUserNavigationProjection();
+  const destinationById = new Map(
+    settingsUserNavigation.destinations.map((destination) => [destination.id, destination])
+  );
+  const groupById = new Map(settingsUserNavigation.primary_groups.map((group) => [group.id, group]));
+
+  return settingsUserNavigation.primary_group_order.flatMap((groupId) => {
+    const group = groupById.get(groupId);
+    if (!group) return [];
+    const destinations = group.destination_ids.flatMap((destinationId): SettingsNavigationDestination[] => {
+      const destination = destinationById.get(destinationId);
+      if (!destination) return [];
+      return [
+        {
+          id: destination.id,
+          ownerGroupId: destination.owner_group_id,
+          routeId: destination.route_id,
+          ...(destination.anchor ? { anchor: destination.anchor } : {}),
+          label: translatedNavigationLabel(t, SETTINGS_DESTINATION_LABEL_KEYS[destination.id], language, destination),
+          path: settingsDestinationPath(destination.route_id, destination.anchor),
+          icon: getSettingsTabIcon(destination.route_id, slot),
+        },
+      ];
+    });
+    const defaultDestination = destinationById.get(group.default_destination_id);
+    return [
+      {
+        id: group.id,
+        label: translatedNavigationLabel(t, SETTINGS_GROUP_LABEL_KEYS[group.id], language, group),
+        defaultDestinationId: group.default_destination_id,
+        destinations,
+        icon: getSettingsTabIcon(defaultDestination?.route_id ?? 'general', slot),
+      },
+    ];
+  });
+}
+
+export function getSettingsNavigationSelection(pathname: string, search = ''): SettingsNavigationSelection | null {
+  const settingsUserNavigation = getOplSettingsUserNavigationProjection();
+  const normalizedPath = pathname.replace(/\/$/, '') || '/settings';
+  const route = [...ordinaryRoutes, ...secondaryPages].find(
+    (candidate) => pathToSettingsRoute(candidate.path).replace(/\/$/, '') === normalizedPath
+  );
+  if (!route) return null;
+
+  const anchorParam = settingsControlPlane.experience_contract.global_search.anchor_query_param;
+  const anchor = new URLSearchParams(search).get(anchorParam) ?? '';
+  const destinationById = new Map(
+    settingsUserNavigation.destinations.map((destination) => [destination.id, destination])
+  );
+  if (anchor) {
+    const ownerBinding = settingsUserNavigation.secondary_owner_bindings.find(
+      (binding) => binding.transport_route_id === route.id && binding.anchor === anchor
+    );
+    const boundDestination = ownerBinding ? destinationById.get(ownerBinding.user_destination_id) : undefined;
+    if (boundDestination) {
+      return { groupId: boundDestination.owner_group_id, destinationId: boundDestination.id };
+    }
+    const anchoredDestination = settingsUserNavigation.destinations.find(
+      (destination) => destination.route_id === route.id && destination.anchor === anchor
+    );
+    if (anchoredDestination) {
+      return { groupId: anchoredDestination.owner_group_id, destinationId: anchoredDestination.id };
+    }
+  }
+
+  const routeDestinations = settingsUserNavigation.destinations.filter(
+    (destination) => destination.route_id === route.id
+  );
+  const destination =
+    routeDestinations.find((candidate) => !candidate.anchor) ??
+    routeDestinations.find((candidate) =>
+      settingsUserNavigation.primary_groups.some(
+        (group) => group.id === candidate.owner_group_id && group.default_destination_id === candidate.id
+      )
+    ) ??
+    routeDestinations[0];
+  return destination ? { groupId: destination.owner_group_id, destinationId: destination.id } : null;
+}
+
+export function getSettingsAboutNavigationItem(
+  t: TranslateFn,
+  language = 'en',
+  slot: SettingsIconSlot = 'siderDesktop'
+): SettingsNavItem | null {
+  const settingsUserNavigation = getOplSettingsUserNavigationProjection();
+  const about = settingsUserNavigation.auxiliary_entries.find((entry) => entry.id === 'about');
+  if (!about) return null;
+  const label = translatedNavigationLabel(t, 'settings.uiOptimization.navigation.about', language, about);
+  return {
+    id: about.id,
+    label,
+    icon: getSettingsTabIcon(about.route_id, slot),
+    path: settingsDestinationPath(about.route_id),
+    searchText: getSettingsTabSearchText(about.route_id, label),
+  };
 }
 
 export function resolveLegacySettingsAnchor(anchor: string): string {

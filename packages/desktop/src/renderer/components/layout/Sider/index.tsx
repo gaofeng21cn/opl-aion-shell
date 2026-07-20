@@ -238,15 +238,17 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
       </div>
       {!isSettings && <FirstRunSetupEntry collapsed={collapsed} isMobile={isMobile} onNavigate={onSessionClick} />}
       {/* Footer */}
-      <SiderFooter
-        isMobile={isMobile}
-        collapsed={collapsed}
-        updateAvailable={desktopAutoUpdate.updateAvailable}
-        account={footerAccount}
-        siderTooltipProps={siderTooltipProps}
-        onSettingsClick={handleSettingsClick}
-        onUpdateClick={handleUpdateClick}
-      />
+      {!isSettings ? (
+        <SiderFooter
+          isMobile={isMobile}
+          collapsed={collapsed}
+          updateAvailable={desktopAutoUpdate.updateAvailable}
+          account={footerAccount}
+          siderTooltipProps={siderTooltipProps}
+          onSettingsClick={handleSettingsClick}
+          onUpdateClick={handleUpdateClick}
+        />
+      ) : null}
     </div>
   );
 };

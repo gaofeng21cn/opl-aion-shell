@@ -1,169 +1,181 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { isElectronDesktop } from '@/renderer/utils/platform';
-import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
+import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
+import { Button, Tooltip } from '@arco-design/web-react';
+import { ArrowLeft, Down, Right } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tooltip } from '@arco-design/web-react';
-import { ArrowLeft } from '@icon-park/react';
-import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
-import { buildSettingsNavItems, getBuiltinSettingsNavItems, getSettingsTabIcon } from '../sections/settingsNav';
 import {
-  getSettingsTabLabel,
-  getSettingsTabSearchText,
-  OPL_SEARCHABLE_SECONDARY_TAB_IDS,
-  SETTINGS_ROUTE_PATHS,
+  getSettingsAboutNavigationItem,
+  getSettingsNavigationGroups,
+  getSettingsNavigationSelection,
+  type SettingsNavigationDestination,
 } from '../registry/settingsRegistry';
 
-const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }> = ({
-  collapsed = false,
-  tooltipEnabled = false,
-}) => {
+type SettingsSiderProps = {
+  collapsed?: boolean;
+  tooltipEnabled?: boolean;
+};
+
+const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, tooltipEnabled = false }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const layout = useLayoutContext();
-  const isDesktop = isElectronDesktop();
+  const groups = useMemo(() => getSettingsNavigationGroups(t, language, 'siderDesktop'), [language, t]);
+  const selection = useMemo(() => getSettingsNavigationSelection(pathname, search), [pathname, search]);
+  const aboutItem = useMemo(() => getSettingsAboutNavigationItem(t, language, 'siderDesktop'), [language, t]);
 
-  const extensionTabs = useExtensionSettingsTabs();
-  const { resolveExtTabName } = useExtI18n();
-
-  const { menus, secondaryMenus } = useMemo(() => {
-    const builtins = getBuiltinSettingsNavItems(isDesktop, t, language);
-    const result = buildSettingsNavItems({
-      builtinItems: builtins,
-      extensionTabs,
-      resolveExtTabName,
-      extensionIconClassName: 'w-full h-full object-contain',
-    });
-    const secondaryItems = OPL_SEARCHABLE_SECONDARY_TAB_IDS.map((id) => {
-      const label = getSettingsTabLabel(id, t, language);
-      return {
-        id,
-        label,
-        icon: getSettingsTabIcon(id, isDesktop ? 'siderDesktop' : 'siderMobile'),
-        isImageIcon: false,
-        path: SETTINGS_ROUTE_PATHS[id].replace(/^\/settings\/?/, ''),
-        searchText: getSettingsTabSearchText(id, label),
-      };
-    });
-
-    return {
-      menus: result,
-      secondaryMenus: secondaryItems,
-    };
-  }, [t, language, isDesktop, extensionTabs, resolveExtTabName]);
-
-  const selectMenuItem = React.useCallback(
+  const selectPath = React.useCallback(
     (path: string) => {
-      Promise.resolve(navigate(`/settings/${path}`, { replace: true })).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
+      void navigate(`/settings/${path}`, { replace: true });
     },
     [navigate]
   );
 
+  const renderDestination = (destination: SettingsNavigationDestination) => {
+    const active = selection?.destinationId === destination.id;
+    return (
+      <Button
+        key={destination.id}
+        type='text'
+        htmlType='button'
+        aria-current={active ? 'page' : undefined}
+        data-settings-destination-id={destination.id}
+        data-settings-path={destination.path}
+        className={classNames('settings-sider__destination', {
+          'settings-sider__destination--active': active,
+        })}
+        onClick={() => selectPath(destination.path)}
+      >
+        <span className='settings-sider__destination-rail' aria-hidden='true' />
+        <span className='settings-sider__destination-label'>{destination.label}</span>
+      </Button>
+    );
+  };
+
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const backTooltipProps = getSiderTooltipProps(collapsed || tooltipEnabled);
-  const menuGroups = secondaryMenus.length > 0 ? [menus, secondaryMenus] : [menus];
+
   return (
     <div
-      className={classNames('h-full settings-sider flex flex-col gap-2px overflow-y-auto overflow-x-hidden', {
+      className={classNames('settings-sider h-full flex min-h-0 flex-col overflow-hidden', {
         'settings-sider--collapsed': collapsed,
       })}
     >
-      {!layout?.isMobile && (
+      {!layout?.isMobile ? (
         <>
           <Tooltip {...backTooltipProps} content={t('settings.backToApp')} position='right'>
-            <button
-              type='button'
+            <Button
+              type='text'
+              htmlType='button'
               aria-label={t('settings.backToApp')}
               data-testid='settings-back-to-app'
               className={classNames(
-                'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex h-34px shrink-0 cursor-pointer items-center gap-8px overflow-hidden transition-colors hover:bg-fill-3',
+                'settings-sider__item',
                 collapsed ? 'justify-center px-0' : 'justify-start px-10px'
               )}
               onClick={() => void navigate(resolveSettingsReturnPath())}
             >
-              <span className='size-22px flex shrink-0 items-center justify-center line-height-0'>
-                <ArrowLeft theme='outline' size='16' strokeWidth={2} className='block leading-none text-t-secondary' />
+              <span className='settings-sider__icon-slot'>
+                <ArrowLeft theme='outline' size='16' strokeWidth={2} />
               </span>
-              {!collapsed && (
-                <span className='min-w-0 truncate text-13px font-[500] text-t-primary'>{t('settings.backToApp')}</span>
-              )}
-            </button>
+              {!collapsed ? (
+                <FlexFullContainer className='h-24px'>
+                  <span className='settings-sider__item-label'>{t('settings.backToApp')}</span>
+                </FlexFullContainer>
+              ) : null}
+            </Button>
           </Tooltip>
           <div className='settings-sider__secondary-divider' role='separator' />
         </>
-      )}
-      {menuGroups.map((group, groupIndex) => (
-        <React.Fragment key={groupIndex === 0 ? 'primary' : 'secondary'}>
-          {groupIndex > 0 && (
-            <div
-              className='settings-sider__secondary-divider'
-              data-testid='settings-sider-secondary-divider'
-              role='separator'
-            />
-          )}
-          {group.map((item) => {
-            const isSelected = pathname.includes(item.path);
-            return (
-              <React.Fragment key={item.id}>
-                <Tooltip {...siderTooltipProps} content={item.label} position='right'>
-                  <button
-                    type='button'
-                    data-settings-id={item.id}
-                    data-settings-path={item.path}
-                    aria-current={isSelected ? 'page' : undefined}
-                    className={classNames(
-                      'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
-                      'h-34px',
-                      collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
-                      {
-                        'hover:bg-fill-3': !isSelected,
-                        '!bg-fill-3': isSelected,
-                      }
-                    )}
-                    onClick={() => selectMenuItem(item.path)}
-                  >
-                    {/* Leading icon — 22px slot to align with main sider rows */}
-                    <span className='size-22px flex items-center justify-center shrink-0 line-height-0'>
-                      {item.isImageIcon ? (
-                        <span className='w-16px h-16px flex items-center justify-center'>{item.icon}</span>
-                      ) : (
-                        React.cloneElement(
-                          item.icon as React.ReactElement<{
-                            theme?: string;
-                            size?: string | number;
-                            className?: string;
-                            strokeWidth?: number;
-                          }>,
-                          {
-                            theme: 'outline',
-                            size: '16',
-                            strokeWidth: 2,
-                            className: 'block leading-none text-t-secondary',
-                          }
+      ) : null}
+
+      <nav className='settings-sider__groups' aria-label={t('settings.uiOptimization.navigation.mobileCategories')}>
+        {groups.map((group) => {
+          const active = selection?.groupId === group.id;
+          const defaultDestination =
+            group.destinations.find((destination) => destination.id === group.defaultDestinationId) ??
+            group.destinations[0];
+          const expandable = group.destinations.length > 1;
+          return (
+            <div key={group.id} className='settings-sider__group'>
+              <Tooltip {...siderTooltipProps} content={group.label} position='right'>
+                <Button
+                  type='text'
+                  htmlType='button'
+                  aria-current={active && !expandable ? 'page' : undefined}
+                  aria-expanded={expandable ? active : undefined}
+                  data-settings-group-id={group.id}
+                  className={classNames(
+                    'settings-sider__item',
+                    collapsed ? 'justify-center px-0' : 'justify-start px-10px',
+                    {
+                      'settings-sider__item--active': active,
+                    }
+                  )}
+                  onClick={() => defaultDestination && selectPath(defaultDestination.path)}
+                >
+                  <span className='settings-sider__icon-slot'>{group.icon}</span>
+                  {!collapsed ? (
+                    <>
+                      <FlexFullContainer className='h-24px'>
+                        <span className='settings-sider__item-label'>{group.label}</span>
+                      </FlexFullContainer>
+                      {expandable ? (
+                        active ? (
+                          <Down theme='outline' size='13' />
+                        ) : (
+                          <Right theme='outline' size='13' />
                         )
-                      )}
-                    </span>
-                    <FlexFullContainer className='h-24px collapsed-hidden'>
-                      <div className='settings-sider__item-label overflow-hidden w-full text-13px font-[500] text-t-primary'>
-                        <span className='block lh-24px whitespace-nowrap truncate'>{item.label}</span>
-                      </div>
-                    </FlexFullContainer>
-                  </button>
-                </Tooltip>
-              </React.Fragment>
-            );
-          })}
-        </React.Fragment>
-      ))}
+                      ) : null}
+                    </>
+                  ) : null}
+                </Button>
+              </Tooltip>
+              {active && expandable && !collapsed ? (
+                <div className='settings-sider__destinations' role='group' aria-label={group.label}>
+                  {group.destinations.map(renderDestination)}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </nav>
+
+      {aboutItem ? (
+        <div className='settings-sider__auxiliary'>
+          <div
+            className='settings-sider__secondary-divider'
+            data-testid='settings-sider-secondary-divider'
+            role='separator'
+          />
+          <Tooltip {...siderTooltipProps} content={aboutItem.label} position='right'>
+            <Button
+              type='text'
+              htmlType='button'
+              aria-current={pathname.includes(`/settings/${aboutItem.path}`) ? 'page' : undefined}
+              data-settings-id={aboutItem.id}
+              className={classNames(
+                'settings-sider__item',
+                collapsed ? 'justify-center px-0' : 'justify-start px-10px'
+              )}
+              onClick={() => selectPath(aboutItem.path)}
+            >
+              <span className='settings-sider__icon-slot'>{aboutItem.icon}</span>
+              {!collapsed ? (
+                <FlexFullContainer className='h-24px'>
+                  <span className='settings-sider__item-label'>{aboutItem.label}</span>
+                </FlexFullContainer>
+              ) : null}
+            </Button>
+          </Tooltip>
+        </div>
+      ) : null}
     </div>
   );
 };

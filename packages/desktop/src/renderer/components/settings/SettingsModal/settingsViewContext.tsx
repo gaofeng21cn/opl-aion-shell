@@ -19,3 +19,11 @@ export const SettingsTabNavigateProvider = SettingsTabNavigateContext.Provider;
 export const useSettingsTabNavigate = (): SettingsTabNavigate | undefined => {
   return React.useContext(SettingsTabNavigateContext);
 };
+
+const SettingsActiveAnchorContext = React.createContext<string | null>(null);
+
+export const SettingsActiveAnchorProvider = SettingsActiveAnchorContext.Provider;
+
+export const useSettingsActiveAnchor = (): string | null => {
+  return React.useContext(SettingsActiveAnchorContext);
+};

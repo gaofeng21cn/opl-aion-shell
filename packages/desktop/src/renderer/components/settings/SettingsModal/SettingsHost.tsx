@@ -5,7 +5,6 @@
  */
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import AionSelect from '@/renderer/components/base/AionSelect';
 import { iconColors } from '@/renderer/styles/colors';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
@@ -14,51 +13,36 @@ import {
   getSettingsSearchEntries,
   getSettingsTabIcon,
   getSettingsRenderSlot,
+  getSettingsAboutNavigationItem,
+  getSettingsNavigationGroups,
+  getSettingsNavigationSelection,
   isOplExtensionSettingsTabMountable,
   normalizeSearchText,
   resolveSettingsRenderTarget,
   focusSettingsAnchor,
+  SETTINGS_ROUTE_PATHS,
+  type SettingsNavigationGroup,
   type SettingsModalMenuItem,
 } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Button, Input } from '@arco-design/web-react';
-import { Search } from '@icon-park/react';
+import { ArrowLeft, Down, Right, Search } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SettingsShellAdapterSlot from './SettingsShellAdapterSlot';
-import { SettingsTabNavigateProvider } from './settingsViewContext';
+import { SettingsActiveAnchorProvider, SettingsTabNavigateProvider } from './settingsViewContext';
 import type { CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
+import {
+  InstructionsContextSettingsContent,
+  LogDirectorySettingsContent,
+} from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import type { SettingTab } from './index';
+import '@/renderer/pages/settings/components/settings.css';
 
 const SIDEBAR_WIDTH = 200;
-
-type MobileSettingsGroupId = 'settingsAndAccess' | 'workCapabilities' | 'system' | 'extensions';
-
-const MOBILE_SETTINGS_GROUPS: ReadonlyArray<{
-  id: MobileSettingsGroupId;
-  labelKey: string;
-}> = [
-  { id: 'settingsAndAccess', labelKey: 'settings.mobileNavigation.groups.settingsAndAccess' },
-  { id: 'workCapabilities', labelKey: 'settings.mobileNavigation.groups.workCapabilities' },
-  { id: 'system', labelKey: 'settings.mobileNavigation.groups.system' },
-  { id: 'extensions', labelKey: 'settings.mobileNavigation.groups.extensions' },
-];
-
-const MOBILE_SETTINGS_GROUP_BY_TAB: Readonly<Record<string, MobileSettingsGroupId>> = {
-  general: 'settingsAndAccess',
-  gateway: 'settingsAndAccess',
-  access: 'settingsAndAccess',
-  workspace: 'settingsAndAccess',
-  agents: 'workCapabilities',
-  capabilities: 'workCapabilities',
-  resources: 'workCapabilities',
-  environment: 'system',
-  storage: 'system',
-  appearance: 'system',
-};
 
 type SettingsMenuItem = {
   id: string;
@@ -106,6 +90,10 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(
     () => resolveSettingsRenderTarget(defaultTab).anchor ?? null
   );
+  const [activeAnchor, setActiveAnchor] = useState<string | null>(
+    () => resolveSettingsRenderTarget(defaultTab).anchor ?? null
+  );
+  const [mobileGroupId, setMobileGroupId] = useState<SettingsNavigationGroup['id'] | null>(null);
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const hostRef = useRef<HTMLDivElement | null>(null);
   const extensionTabs = useExtensionSettingsTabs();
@@ -122,6 +110,32 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   const menuItems = useMemo((): SettingsMenuItem[] => {
     return buildSettingsModalMenuItems({ extensionTabs, resolveExtTabName, t }).map(toSettingsMenuItem);
   }, [t, extensionTabs, resolveExtTabName]);
+
+  const navigationGroups = useMemo(
+    () => getSettingsNavigationGroups(t, language, isMobile ? 'siderMobile' : 'modal'),
+    [isMobile, language, t]
+  );
+  const navigationSelection = useMemo(() => {
+    const routePath = SETTINGS_ROUTE_PATHS[activeTab] ?? `/settings/${activeTab}`;
+    const query = activeAnchor ? `?section=${encodeURIComponent(activeAnchor)}` : '';
+    return getSettingsNavigationSelection(routePath, query);
+  }, [activeAnchor, activeTab]);
+  const navigationSelectionKey = navigationSelection
+    ? `${navigationSelection.groupId}:${navigationSelection.destinationId}`
+    : null;
+  const previousNavigationSelectionKeyRef = useRef(navigationSelectionKey);
+  const aboutItem = useMemo(
+    () => getSettingsAboutNavigationItem(t, language, isMobile ? 'siderMobile' : 'modal'),
+    [isMobile, language, t]
+  );
+  const mobileGroup = navigationGroups.find((group) => group.id === mobileGroupId) ?? null;
+
+  useEffect(() => {
+    const selectionChanged = previousNavigationSelectionKeyRef.current !== navigationSelectionKey;
+    previousNavigationSelectionKeyRef.current = navigationSelectionKey;
+    if (!isMobile || !selectionChanged || mobileGroupId === null) return;
+    setMobileGroupId(navigationSelection?.groupId ?? null);
+  }, [isMobile, mobileGroupId, navigationSelection?.groupId, navigationSelectionKey]);
 
   const filteredMenuItems = useMemo(() => {
     const query = normalizeSearchText(menuSearchQuery);
@@ -148,25 +162,12 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     return [...entryMatches, ...extensionMatches];
   }, [language, menuItems, menuSearchQuery, t]);
 
-  const mobileMenuGroups = useMemo(() => {
-    const itemsByGroup = new Map<MobileSettingsGroupId, SettingsMenuItem[]>();
-    for (const item of menuItems) {
-      const groupId = MOBILE_SETTINGS_GROUP_BY_TAB[item.key] ?? 'extensions';
-      const items = itemsByGroup.get(groupId) ?? [];
-      items.push(item);
-      itemsByGroup.set(groupId, items);
-    }
-    return MOBILE_SETTINGS_GROUPS.flatMap((group) => {
-      const items = itemsByGroup.get(group.id) ?? [];
-      return items.length > 0 ? [{ ...group, items }] : [];
-    });
-  }, [menuItems]);
-
   useEffect(() => {
     const target = resolveSettingsRenderTarget(defaultTab);
     setActiveTab(target.routeId);
     setCapabilitiesTab(target.capabilitiesTab);
     setPendingAnchor(target.anchor ?? null);
+    setActiveAnchor(target.anchor ?? null);
   }, [defaultTab]);
 
   useEffect(() => {
@@ -202,13 +203,17 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     setActiveTab(target.routeId);
     setCapabilitiesTab(target.capabilitiesTab);
     setPendingAnchor(target.anchor ?? null);
+    setActiveAnchor(target.anchor ?? null);
   }, []);
 
   const handleMenuItemSelect = useCallback(
     (item: SettingsMenuItem) => {
       handleTabChange(item.key);
       setMenuSearchQuery('');
-      if (item.anchor) setPendingAnchor(item.anchor);
+      if (item.anchor) {
+        setPendingAnchor(item.anchor);
+        setActiveAnchor(item.anchor);
+      }
     },
     [handleTabChange]
   );
@@ -227,7 +232,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   };
 
   const mobileMenu = (
-    <div className='mt-16px mb-20px'>
+    <div className='settings-host-mobile-navigation mt-16px mb-20px'>
       <Input
         value={menuSearchQuery}
         onChange={setMenuSearchQuery}
@@ -260,31 +265,88 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
           ))}
         </div>
       ) : (
-        <div data-testid='settings-mobile-navigation'>
-          <label id='settings-mobile-navigation-label' className='mb-6px block text-12px font-500 text-t-secondary'>
-            {t('settings.mobileNavigation.label', { defaultValue: 'Settings section' })}
-          </label>
-          <AionSelect
-            value={activeTab}
-            onChange={(value) => handleTabChange(String(value))}
-            className='w-full'
-            aria-labelledby='settings-mobile-navigation-label'
-            data-testid='settings-mobile-section-select'
-          >
-            {mobileMenuGroups.map((group) => (
-              <AionSelect.OptGroup key={group.id} label={t(group.labelKey)}>
-                {group.items.map((item) => (
-                  <AionSelect.Option key={item.id} value={item.key}>
-                    <span className='flex min-w-0 items-center gap-8px'>
-                      {item.icon}
-                      <span className='truncate'>{item.label}</span>
-                    </span>
-                  </AionSelect.Option>
-                ))}
-              </AionSelect.OptGroup>
-            ))}
-          </AionSelect>
-        </div>
+        <nav
+          className='settings-modal-navigation settings-modal-navigation--mobile'
+          data-testid='settings-mobile-navigation'
+          aria-label={t('settings.uiOptimization.navigation.mobileCategories')}
+        >
+          {mobileGroup ? (
+            <>
+              <div className='settings-modal-navigation__mobile-header'>
+                <Button
+                  type='text'
+                  htmlType='button'
+                  icon={<ArrowLeft theme='outline' size='16' />}
+                  aria-label={t('settings.uiOptimization.navigation.mobileBack')}
+                  className='settings-modal-navigation__back'
+                  onClick={() => setMobileGroupId(null)}
+                />
+                <span className='settings-modal-navigation__mobile-title'>{mobileGroup.label}</span>
+              </div>
+              <div className='settings-modal-navigation__destinations'>
+                {mobileGroup.destinations.map((destination) => {
+                  const active = navigationSelection?.destinationId === destination.id;
+                  return (
+                    <Button
+                      key={destination.id}
+                      type='text'
+                      htmlType='button'
+                      aria-current={active ? 'page' : undefined}
+                      data-settings-destination-id={destination.id}
+                      className={classNames('settings-modal-navigation__mobile-row', {
+                        'settings-modal-navigation__mobile-row--active': active,
+                      })}
+                      onClick={() =>
+                        handleTabChange(
+                          destination.anchor ? `${destination.routeId}#${destination.anchor}` : destination.routeId
+                        )
+                      }
+                    >
+                      <span className='settings-modal-navigation__icon'>{destination.icon}</span>
+                      <span className='settings-modal-navigation__label'>{destination.label}</span>
+                      <Right theme='outline' size='14' aria-hidden='true' />
+                    </Button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className='settings-modal-navigation__groups'>
+              {navigationGroups.map((group) => {
+                const active = navigationSelection?.groupId === group.id;
+                return (
+                  <Button
+                    key={group.id}
+                    type='text'
+                    htmlType='button'
+                    aria-current={active ? 'page' : undefined}
+                    data-settings-group-id={group.id}
+                    className={classNames('settings-modal-navigation__mobile-row', {
+                      'settings-modal-navigation__mobile-row--active': active,
+                    })}
+                    onClick={() => setMobileGroupId(group.id)}
+                  >
+                    <span className='settings-modal-navigation__icon'>{group.icon}</span>
+                    <span className='settings-modal-navigation__label'>{group.label}</span>
+                    <Right theme='outline' size='14' aria-hidden='true' />
+                  </Button>
+                );
+              })}
+              {aboutItem ? (
+                <Button
+                  type='text'
+                  htmlType='button'
+                  className='settings-modal-navigation__mobile-row settings-modal-navigation__mobile-row--auxiliary'
+                  onClick={() => handleTabChange(aboutItem.id)}
+                >
+                  <span className='settings-modal-navigation__icon'>{aboutItem.icon}</span>
+                  <span className='settings-modal-navigation__label'>{aboutItem.label}</span>
+                  <Right theme='outline' size='14' aria-hidden='true' />
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </nav>
       )}
       {filteredMenuItems.length === 0 && (
         <div className='px-8px py-12px text-13px text-t-secondary' data-testid='settings-search-empty'>
@@ -310,33 +372,115 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
             handleMenuItemSelect(filteredMenuItems[0]);
           }}
         />
-        <div className='flex flex-col gap-2px'>
-          {filteredMenuItems.map((item) => (
-            <button
-              type='button'
-              key={item.id}
-              className={classNames(
-                'flex w-full items-center border-0 bg-transparent px-14px py-10px text-left font-inherit rd-8px cursor-pointer transition-all duration-150 select-none',
-                {
-                  'bg-aou-2 text-t-primary': activeTab === item.key,
-                  'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
-                }
-              )}
-              onClick={() => handleMenuItemSelect(item)}
-              data-testid={item.isSearchResult ? 'settings-search-result' : undefined}
-            >
-              <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
-              {item.isSearchResult ? (
+        {menuSearchQuery.trim() ? (
+          <div className='flex flex-col gap-2px'>
+            {filteredMenuItems.map((item) => (
+              <Button
+                type='text'
+                htmlType='button'
+                key={item.id}
+                className='settings-modal-navigation__search-result'
+                onClick={() => handleMenuItemSelect(item)}
+                data-testid='settings-search-result'
+              >
+                <span className='settings-modal-navigation__icon'>{item.icon}</span>
                 <span className='flex min-w-0 flex-1 flex-col leading-18px'>
                   <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
                   <span className='truncate text-14px font-500 text-t-primary'>{item.itemLabel}</span>
                 </span>
-              ) : (
-                <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
-              )}
-            </button>
-          ))}
-        </div>
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <nav
+            className='settings-modal-navigation'
+            aria-label={t('settings.uiOptimization.navigation.mobileCategories')}
+          >
+            <div className='settings-modal-navigation__groups'>
+              {navigationGroups.map((group) => {
+                const active = navigationSelection?.groupId === group.id;
+                const defaultDestination =
+                  group.destinations.find((destination) => destination.id === group.defaultDestinationId) ??
+                  group.destinations[0];
+                const expandable = group.destinations.length > 1;
+                return (
+                  <div key={group.id} className='settings-modal-navigation__group'>
+                    <Button
+                      type='text'
+                      htmlType='button'
+                      aria-current={active && !expandable ? 'page' : undefined}
+                      aria-expanded={expandable ? active : undefined}
+                      data-settings-group-id={group.id}
+                      className={classNames('settings-modal-navigation__group-row', {
+                        'settings-modal-navigation__group-row--active': active,
+                      })}
+                      onClick={() =>
+                        defaultDestination &&
+                        handleTabChange(
+                          defaultDestination.anchor
+                            ? `${defaultDestination.routeId}#${defaultDestination.anchor}`
+                            : defaultDestination.routeId
+                        )
+                      }
+                    >
+                      <span className='settings-modal-navigation__icon'>{group.icon}</span>
+                      <span className='settings-modal-navigation__label'>{group.label}</span>
+                      {expandable ? (
+                        active ? (
+                          <Down theme='outline' size='13' />
+                        ) : (
+                          <Right theme='outline' size='13' />
+                        )
+                      ) : null}
+                    </Button>
+                    {active && expandable ? (
+                      <div className='settings-modal-navigation__destinations' role='group' aria-label={group.label}>
+                        {group.destinations.map((destination) => {
+                          const destinationActive = navigationSelection?.destinationId === destination.id;
+                          return (
+                            <Button
+                              key={destination.id}
+                              type='text'
+                              htmlType='button'
+                              aria-current={destinationActive ? 'page' : undefined}
+                              data-settings-destination-id={destination.id}
+                              className={classNames('settings-modal-navigation__destination-row', {
+                                'settings-modal-navigation__destination-row--active': destinationActive,
+                              })}
+                              onClick={() =>
+                                handleTabChange(
+                                  destination.anchor
+                                    ? `${destination.routeId}#${destination.anchor}`
+                                    : destination.routeId
+                                )
+                              }
+                            >
+                              {destination.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            {aboutItem ? (
+              <div className='settings-modal-navigation__auxiliary'>
+                <Button
+                  type='text'
+                  htmlType='button'
+                  className='settings-modal-navigation__group-row'
+                  aria-current={activeTab === aboutItem.id ? 'page' : undefined}
+                  onClick={() => handleTabChange(aboutItem.id)}
+                >
+                  <span className='settings-modal-navigation__icon'>{aboutItem.icon}</span>
+                  <span className='settings-modal-navigation__label'>{aboutItem.label}</span>
+                </Button>
+              </div>
+            ) : null}
+          </nav>
+        )}
         {filteredMenuItems.length === 0 && (
           <div
             className='px-14px py-12px rd-8px text-13px text-t-secondary bg-fill-1'
@@ -350,32 +494,45 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   );
 
   const renderSlot = getSettingsRenderSlot(activeTab);
+  const workspaceSecondarySurface =
+    activeTab === 'workspace' && ['personalization', 'system-agents', 'opl-app-context'].includes(activeAnchor ?? '')
+      ? 'instructions'
+      : activeTab === 'workspace' && activeAnchor === 'logs'
+        ? 'logs'
+        : null;
 
   return (
-    <SettingsTabNavigateProvider value={handleTabChange}>
-      <div
-        ref={hostRef}
-        className={classNames('overflow-hidden gap-0', isMobile ? 'flex flex-col min-h-0' : 'flex mt-20px')}
-        style={{ height: isMobile ? mobileContentHeight : `${desktopContentHeight}px` }}
-        data-testid='settings-host'
-      >
-        {isMobile ? mobileMenu : desktopMenu}
-
-        <AionScrollArea
-          className={classNames('flex-1 min-h-0', isMobile ? 'overflow-y-auto' : 'flex flex-col pl-24px gap-16px')}
-          data-settings-content-root=''
+    <SettingsActiveAnchorProvider value={activeAnchor}>
+      <SettingsTabNavigateProvider value={handleTabChange}>
+        <div
+          ref={hostRef}
+          className={classNames('overflow-hidden gap-0', isMobile ? 'flex flex-col min-h-0' : 'flex mt-20px')}
+          style={{ height: isMobile ? mobileContentHeight : `${desktopContentHeight}px` }}
+          data-testid='settings-host'
         >
-          {!extensionTabMap.has(activeTab) && (
-            <SettingsShellAdapterSlot
-              slot={renderSlot}
-              capabilitiesTab={capabilitiesTab}
-              onCapabilitiesTabChange={setCapabilitiesTab}
-            />
-          )}
-          {renderExtensionTabs()}
-        </AionScrollArea>
-      </div>
-    </SettingsTabNavigateProvider>
+          {isMobile ? mobileMenu : desktopMenu}
+
+          <AionScrollArea
+            className={classNames('flex-1 min-h-0', isMobile ? 'overflow-y-auto' : 'flex flex-col pl-24px gap-16px')}
+            data-settings-content-root=''
+          >
+            {!extensionTabMap.has(activeTab) &&
+              (workspaceSecondarySurface === 'instructions' ? (
+                <InstructionsContextSettingsContent />
+              ) : workspaceSecondarySurface === 'logs' ? (
+                <LogDirectorySettingsContent />
+              ) : (
+                <SettingsShellAdapterSlot
+                  slot={renderSlot}
+                  capabilitiesTab={capabilitiesTab}
+                  onCapabilitiesTabChange={setCapabilitiesTab}
+                />
+              ))}
+            {renderExtensionTabs()}
+          </AionScrollArea>
+        </div>
+      </SettingsTabNavigateProvider>
+    </SettingsActiveAnchorProvider>
   );
 };
 

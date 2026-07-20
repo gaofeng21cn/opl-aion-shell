@@ -74,7 +74,12 @@ vi.mock('@/renderer/utils/platform', () => ({
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent/OplPersonalizationSettings', () => ({
-  default: () => <div data-testid='settings-personalization-instructions'>Personalization controls</div>,
+  default: () => (
+    <div data-testid='settings-personalization-instructions'>
+      <section id='system-agents'>System instructions</section>
+      <section id='opl-app-context'>App context</section>
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
@@ -173,6 +178,9 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'settings.workspacePage.title': 'Workspace',
         'settings.workspacePage.description': 'Review default local paths and Codex instructions.',
+        'settings.uiOptimization.navigation.destinations.workingDirectory': 'Working Directory',
+        'settings.uiOptimization.navigation.destinations.instructionsContext': 'Instructions & Context',
+        'settings.uiOptimization.navigation.destinations.logsDiagnostics': 'Logs & Diagnostics',
         'settings.workspacePage.status.ready': 'Available',
         'settings.workspacePage.status.writable': 'Work directory writable',
         'settings.workspacePage.status.needsAction': 'Needs setup',
@@ -256,6 +264,8 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace': 'Sibling workspace',
         'settings.personalization.title': 'Codex instructions',
         'settings.personalization.description': 'Persistent and new-conversation instructions.',
+        'settings.personalization.pageTitle': 'Instructions & Context',
+        'settings.personalization.pageDescription': 'Manage instructions and context used by new conversations.',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -319,10 +329,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     mocks.showOpen.mockResolvedValue(['/Users/example/New Workspace']);
   });
 
-  it('renders workspace, App logs, and personalization on one Settings page', async () => {
-    render(<WorkspaceSettings withWrapper={false} />);
+  it('keeps the default workspace page focused and exposes logs and instructions as separate surfaces', async () => {
+    const view = render(<WorkspaceSettings withWrapper={false} />);
 
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Working Directory')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-primary')).not.toHaveClass('md:grid-cols-2');
@@ -339,19 +349,14 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-workspace-log-directory')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toBe(
-      screen.getByTestId('settings-workspace-log-directory').parentElement
-    );
     expect(screen.getByTestId('opl-workspace-settings-root').parentElement).toHaveClass('opl-settings-list');
-    expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
-    for (const anchor of ['current-workspace', 'permissions', 'artifacts', 'logs', 'personalization']) {
+    expect(screen.queryByTestId('settings-workspace-log-directory')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-personalization')).not.toBeInTheDocument();
+    for (const anchor of ['current-workspace', 'permissions', 'artifacts']) {
       expect(document.getElementById(anchor)).not.toBeNull();
     }
-    const logsPath = await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
-    expect(logsPath).toHaveClass('opl-settings-path');
-    expect(logsPath).not.toHaveClass('break-all');
+    expect(document.getElementById('logs')).toBeNull();
+    expect(document.getElementById('personalization')).toBeNull();
     expect(screen.queryByTestId('settings-workspace-technical-details')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-workspace-diagnostics-action')).toHaveTextContent('Diagnostics');
     expect(screen.queryByText('Modules root: /Users/example/workspace/modules')).not.toBeInTheDocument();
@@ -363,11 +368,26 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       tool: 'explorer',
     });
 
+    view.rerender(<WorkspaceSettings withWrapper={false} surface='logs' />);
+    const logsPath = await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
+    expect(logsPath).toHaveClass('opl-settings-path');
+    expect(logsPath).not.toHaveClass('break-all');
+    expect(document.getElementById('logs')).not.toBeNull();
+    expect(screen.queryByTestId('opl-workspace-settings-root')).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByText('Open logs')[0]);
     expect(mocks.openFolder).toHaveBeenCalledWith({
       folder_path: '/Users/example/Library/Logs/One Person Lab App',
       tool: 'explorer',
     });
+
+    view.rerender(<WorkspaceSettings withWrapper={false} surface='instructions' />);
+    expect(screen.getByText('Instructions & Context')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-personalization')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-personalization-instructions')).toBeInTheDocument();
+    expect(document.getElementById('personalization')).not.toBeNull();
+    expect(document.getElementById('system-agents')).not.toBeNull();
+    expect(document.getElementById('opl-app-context')).not.toBeNull();
+    expect(screen.queryByTestId('settings-workspace-log-directory')).not.toBeInTheDocument();
   });
 
   it('routes the always-available lightweight diagnostics action to Maintenance diagnostics', () => {
@@ -441,7 +461,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
   it('updates the desktop App log directory and Docker projection through one local typed action', async () => {
     mocks.showOpen.mockResolvedValueOnce(['/Users/example/OPL Logs']);
 
-    render(<WorkspaceSettings withWrapper={false} />);
+    render(<WorkspaceSettings withWrapper={false} surface='logs' />);
 
     await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
     fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
@@ -456,7 +476,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     mocks.showOpen.mockResolvedValueOnce(['/Users/example/Broken Logs']);
     mocks.setLogDirectory.mockRejectedValueOnce(new Error('write failed'));
 
-    render(<WorkspaceSettings withWrapper={false} />);
+    render(<WorkspaceSettings withWrapper={false} surface='logs' />);
 
     await screen.findByText('Logs: /Users/example/Library/Logs/One Person Lab App');
     fireEvent.click(screen.getByTestId('settings-workspace-log-directory-action'));
@@ -478,10 +498,12 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       arch: 'x64',
     });
 
-    render(<WorkspaceSettings withWrapper={false} />);
+    const view = render(<WorkspaceSettings withWrapper={false} />);
 
     expect(screen.getByText('Work root: /projects')).toBeInTheDocument();
     expect(screen.getByText('Docker /projects')).toBeInTheDocument();
+    expect(screen.queryByText('Logs: /data/logs')).not.toBeInTheDocument();
+    view.rerender(<WorkspaceSettings withWrapper={false} surface='logs' />);
     expect(await screen.findByText('Logs: /data/logs')).toBeInTheDocument();
     expect(screen.getByText('Docker /data')).toBeInTheDocument();
     expect(screen.queryByText('Open Workspace')).not.toBeInTheDocument();

@@ -1,9 +1,10 @@
 import classNames from 'classnames';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
-import { Search } from '@icon-park/react';
+import { ArrowLeft, Right, Search } from '@icon-park/react';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
+  SettingsActiveAnchorProvider,
   SettingsTabNavigateProvider,
   SettingsViewModeProvider,
 } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
@@ -20,7 +21,14 @@ import {
   resolveLegacySettingsRoute,
 } from '../sections/settingsNav';
 import { iconColors } from '@/renderer/styles/colors';
-import { focusSettingsAnchor, normalizeSearchText } from '../registry/settingsRegistry';
+import {
+  focusSettingsAnchor,
+  getSettingsAboutNavigationItem,
+  getSettingsNavigationGroups,
+  getSettingsNavigationSelection,
+  normalizeSearchText,
+  type SettingsNavigationGroup,
+} from '../registry/settingsRegistry';
 import './settings.css';
 
 interface SettingsPageWrapperProps {
@@ -36,10 +44,11 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const { pathname, search } = useLocation();
   const { t, i18n } = useTranslation();
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
+  const activeAnchor = useMemo(() => new URLSearchParams(search).get('section'), [search]);
   const isDesktop = isElectronDesktop();
   const [searchQuery, setSearchQuery] = useState('');
   const [anchorFocusFailed, setAnchorFocusFailed] = useState(false);
-  const activeMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
+  const [mobileGroupId, setMobileGroupId] = useState<SettingsNavigationGroup['id'] | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const extensionTabs = useExtensionSettingsTabs();
@@ -55,6 +64,27 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       extensionIconClassName: 'w-16px h-16px object-contain',
     });
   }, [isDesktop, language, t, extensionTabs, resolveExtTabName]);
+  const navigationGroups = useMemo(
+    () => getSettingsNavigationGroups(t, language, isDesktop ? 'siderDesktop' : 'siderMobile'),
+    [isDesktop, language, t]
+  );
+  const navigationSelection = useMemo(() => getSettingsNavigationSelection(pathname, search), [pathname, search]);
+  const navigationSelectionKey = navigationSelection
+    ? `${navigationSelection.groupId}:${navigationSelection.destinationId}`
+    : null;
+  const previousNavigationSelectionKeyRef = useRef(navigationSelectionKey);
+  const aboutItem = useMemo(
+    () => getSettingsAboutNavigationItem(t, language, isDesktop ? 'siderDesktop' : 'siderMobile'),
+    [isDesktop, language, t]
+  );
+  const mobileGroup = navigationGroups.find((group) => group.id === mobileGroupId) ?? null;
+
+  useEffect(() => {
+    const selectionChanged = previousNavigationSelectionKeyRef.current !== navigationSelectionKey;
+    previousNavigationSelectionKeyRef.current = navigationSelectionKey;
+    if (!isMobile || !selectionChanged || mobileGroupId === null) return;
+    setMobileGroupId(navigationSelection?.groupId ?? null);
+  }, [isMobile, mobileGroupId, navigationSelection?.groupId, navigationSelectionKey]);
 
   const searchResults = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
@@ -77,7 +107,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   }, [language, menuItems, searchQuery, t]);
 
   useEffect(() => {
-    const anchor = new URLSearchParams(search).get('section') ?? '';
+    const anchor = activeAnchor ?? '';
     setAnchorFocusFailed(false);
     if (!anchor) return undefined;
 
@@ -107,17 +137,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       cancelAnimationFrame(frame);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [pathname, search]);
-
-  useEffect(() => {
-    if (!isMobile) return;
-    const activeItem = activeMobileNavItemRef.current;
-    const nav = activeItem?.parentElement;
-    if (!activeItem || !nav) return;
-    nav.scrollTo({
-      left: Math.max(0, activeItem.offsetLeft - (nav.clientWidth - activeItem.offsetWidth) / 2),
-    });
-  }, [isMobile, menuItems, pathname]);
+  }, [activeAnchor, pathname]);
 
   const selectSearchResult = React.useCallback(
     (path: string) => {
@@ -201,39 +221,97 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   return (
     <SettingsViewModeProvider value='page'>
-      <SettingsTabNavigateProvider value={navigateToSettingsTab}>
-        <div className={containerClass}>
-          {globalSearch}
-          {isMobile && (
-            <div className='settings-mobile-top-nav'>
-              {menuItems.map((item) => {
-                const active = pathname.includes(`/settings/${item.path}`);
-                return (
-                  <Button
-                    key={item.path}
-                    ref={active ? activeMobileNavItemRef : undefined}
-                    data-settings-path={item.path}
-                    htmlType='button'
-                    aria-current={active ? 'page' : undefined}
-                    className={classNames('settings-mobile-top-nav__item', {
-                      'settings-mobile-top-nav__item--active': active,
+      <SettingsActiveAnchorProvider value={activeAnchor}>
+        <SettingsTabNavigateProvider value={navigateToSettingsTab}>
+          <div className={containerClass}>
+            {globalSearch}
+            {isMobile && (
+              <nav
+                className='settings-mobile-navigation'
+                data-testid='settings-mobile-navigation'
+                aria-label={t('settings.uiOptimization.navigation.mobileCategories')}
+              >
+                {mobileGroup ? (
+                  <>
+                    <div className='settings-mobile-navigation__header'>
+                      <Button
+                        type='text'
+                        htmlType='button'
+                        icon={<ArrowLeft theme='outline' size='16' />}
+                        aria-label={t('settings.uiOptimization.navigation.mobileBack')}
+                        className='settings-mobile-navigation__back'
+                        onClick={() => setMobileGroupId(null)}
+                      />
+                      <span className='settings-mobile-navigation__title'>{mobileGroup.label}</span>
+                    </div>
+                    <div className='settings-mobile-navigation__list'>
+                      {mobileGroup.destinations.map((destination) => {
+                        const active = navigationSelection?.destinationId === destination.id;
+                        return (
+                          <Button
+                            key={destination.id}
+                            type='text'
+                            htmlType='button'
+                            aria-current={active ? 'page' : undefined}
+                            data-settings-destination-id={destination.id}
+                            className={classNames('settings-mobile-navigation__row', {
+                              'settings-mobile-navigation__row--active': active,
+                            })}
+                            onClick={() => void navigate(`/settings/${destination.path}`, { replace: true })}
+                          >
+                            <span className='settings-mobile-navigation__row-icon'>{destination.icon}</span>
+                            <span className='settings-mobile-navigation__row-label'>{destination.label}</span>
+                            <Right theme='outline' size='14' aria-hidden='true' />
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className='settings-mobile-navigation__list'>
+                    {navigationGroups.map((group) => {
+                      const active = navigationSelection?.groupId === group.id;
+                      return (
+                        <Button
+                          key={group.id}
+                          type='text'
+                          htmlType='button'
+                          aria-current={active ? 'page' : undefined}
+                          data-settings-group-id={group.id}
+                          className={classNames('settings-mobile-navigation__row', {
+                            'settings-mobile-navigation__row--active': active,
+                          })}
+                          onClick={() => setMobileGroupId(group.id)}
+                        >
+                          <span className='settings-mobile-navigation__row-icon'>{group.icon}</span>
+                          <span className='settings-mobile-navigation__row-label'>{group.label}</span>
+                          <Right theme='outline' size='14' aria-hidden='true' />
+                        </Button>
+                      );
                     })}
-                    onClick={() => {
-                      void navigate(`/settings/${item.path}`, { replace: true });
-                    }}
-                  >
-                    <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
-                    <span className='settings-mobile-top-nav__label'>{item.label}</span>
-                  </Button>
-                );
-              })}
+                    {aboutItem ? (
+                      <Button
+                        type='text'
+                        htmlType='button'
+                        data-settings-id='about'
+                        className='settings-mobile-navigation__row settings-mobile-navigation__row--auxiliary'
+                        onClick={() => void navigate(`/settings/${aboutItem.path}`, { replace: true })}
+                      >
+                        <span className='settings-mobile-navigation__row-icon'>{aboutItem.icon}</span>
+                        <span className='settings-mobile-navigation__row-label'>{aboutItem.label}</span>
+                        <Right theme='outline' size='14' aria-hidden='true' />
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              </nav>
+            )}
+            <div ref={contentRef} className={contentClass} tabIndex={-1} data-testid='settings-page-focus-fallback'>
+              {children}
             </div>
-          )}
-          <div ref={contentRef} className={contentClass} tabIndex={-1} data-testid='settings-page-focus-fallback'>
-            {children}
           </div>
-        </div>
-      </SettingsTabNavigateProvider>
+        </SettingsTabNavigateProvider>
+      </SettingsActiveAnchorProvider>
     </SettingsViewModeProvider>
   );
 };

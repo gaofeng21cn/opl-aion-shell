@@ -389,11 +389,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
       <header className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4}>
-            {surface === 'gateway' ? t('settings.accessPage.gatewayAccount.title') : t('settings.accessPage.title')}
+            {surface === 'gateway' ? t('settings.uiOptimization.account.title') : t('settings.accessPage.title')}
           </Typography.Title>
           <Typography.Text>
             {surface === 'gateway'
-              ? t('settings.accessPage.gatewayAccount.description')
+              ? t('settings.uiOptimization.account.description')
               : t('settings.accessPage.modelAccessSection.description')}
           </Typography.Text>
         </div>
@@ -489,7 +489,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                 </span>
                 <div className='min-w-0'>
                   <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.accessPage.gatewayAccount.title')}
+                    {t('settings.uiOptimization.account.gatewaySection')}
                   </Typography.Text>
                   <Typography.Text className='block text-12px text-t-secondary'>
                     {t('settings.accessPage.gatewayAccount.description')}
