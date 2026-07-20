@@ -213,6 +213,8 @@ const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
 const TEMPORAL_SERVICE_START_ACTION_ID = 'provider_service_start';
 const TEMPORAL_SERVICE_RESTART_ACTION_ID = 'provider_service_restart';
 const TEMPORAL_SERVICE_SUPERVISOR_LABEL = 'ai.opl.family-runtime.temporal-service';
+const FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON =
+  'release_smoke_stage_body_not_started_after_framework_activation';
 const HOST_DEADLINE_SAFETY_MARGIN_MS = 120_000;
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
@@ -3695,7 +3697,7 @@ function homeAssistantDeniedSelectorExpression() {
   return JSON.stringify(homeAssistantDeniedSelectorParts());
 }
 
-function homeAssistantWorkspacePreparationExpression(workspace) {
+function homeAssistantWorkspaceContextExpression(workspace) {
   return `(() => {
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');
     if (
@@ -3885,7 +3887,7 @@ function homeAssistantCoreReadinessExpression(pendingAsFalse = true) {
   })()`;
 }
 
-function homeAssistantRouteSendExpression(target, prompt) {
+function homeAssistantRouteSendWithoutActivationExpression(target, prompt) {
   return `(() => {
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
@@ -3971,7 +3973,8 @@ function homeAssistantRouteSendExpression(target, prompt) {
     return {
       assistant_id: ${cdpString(target.id)},
       promptLength: ${prompt.length},
-      interaction_path: 'guid_ui_cdp_pointer_send',
+      interaction_path: 'guid_ui_cdp_pointer_send_without_shell_activation',
+      shell_activation_allowed: false,
       prepared_at: Date.now(),
       click_point: clickPoint,
       hit_target: describeTarget(hitTarget),
@@ -4099,7 +4102,6 @@ function conversationRouteReceiptExpression(
     if (!matched) return false;
     const invocation = matched.extra.opl_agent_package_invocation;
     const activation = matched.extra.opl_agent_package_activation;
-    const useBinding = activation?.use_binding;
     const legacyRoute = matched.extra.opl_assistant_route;
     const invalid = [];
     if (!invocation) invalid.push('opl_agent_package_invocation');
@@ -4117,18 +4119,7 @@ function conversationRouteReceiptExpression(
     if (legacyRoute?.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('legacy_assistant_short_name');
     if (matched.type !== 'acp') invalid.push('conversation_type');
     if (matched.extra?.backend !== 'codex') invalid.push('backend');
-    if (activation?.action_id !== 'agent_package_activate') invalid.push('activation_action_id');
-    if (activation?.package_id !== ${cdpString(target.packageId)}) invalid.push('activation_package_id');
-    if (activation?.scope !== 'workspace') invalid.push('activation_scope');
-    if (activation?.launch_allowed !== true) invalid.push('activation_launch_allowed');
-    if (!activation?.use_boundary_id) invalid.push('activation_use_boundary_id');
-    if (!activation?.use_receipt_ref) invalid.push('activation_use_receipt_ref');
-    if (!useBinding) invalid.push('activation_use_binding');
-    if (useBinding?.surface_kind !== 'opl_agent_package_use_binding.v1') invalid.push('use_binding_surface_kind');
-    if (useBinding?.scope !== 'workspace') invalid.push('use_binding_scope');
-    if (useBinding?.root_package?.package_id !== ${cdpString(target.packageId)}) invalid.push('use_binding_package_id');
-    if (!activation?.target_workspace) invalid.push('activation_target_workspace');
-    if (useBinding?.target_root !== activation?.target_workspace) invalid.push('use_binding_target_root');
+    if (activation !== undefined && activation !== null) invalid.push('shell_activation_leaked_into_conversation');
     ${
       expectedWorkspace
         ? `if (matched.extra?.workspace !== ${cdpString(expectedWorkspace)}) invalid.push('conversation_workspace');
@@ -4145,7 +4136,8 @@ function conversationRouteReceiptExpression(
       backend: matched.extra.backend,
       workspace: matched.extra.workspace,
       route: invocation,
-      activation,
+      shell_activation_absent: true,
+      activation: null,
       legacy_route: legacyRoute ?? null,
     };
   })()`;
@@ -4157,6 +4149,225 @@ function latestConversationRouteReceiptExpression(target) {
 
 function activeConversationRouteReceiptExpression(target, expectedWorkspace) {
   return conversationRouteReceiptExpression(target, null, expectedWorkspace, true);
+}
+
+function requireAgentPackageStatus(payload, target) {
+  const status = isRecord(payload?.opl_agent_package_status) ? payload.opl_agent_package_status : null;
+  if (!status || status.package_id !== target.packageId) {
+    throw new Error(`Package status readback did not resolve ${target.packageId}.`);
+  }
+  return status;
+}
+
+function lifecycleReceiptTargetsWorkspace(receipt, workspace) {
+  if (!isRecord(receipt)) return false;
+  const roots = [];
+  if (isRecord(receipt.use_binding) && typeof receipt.use_binding.target_root === 'string') {
+    roots.push(receipt.use_binding.target_root);
+  }
+  if (isRecord(receipt.scope_materialization) && typeof receipt.scope_materialization.target_root === 'string') {
+    roots.push(receipt.scope_materialization.target_root);
+  }
+  if (Array.isArray(receipt.scope_materializations)) {
+    for (const materialization of receipt.scope_materializations) {
+      if (isRecord(materialization) && typeof materialization.target_root === 'string') {
+        roots.push(materialization.target_root);
+      }
+    }
+  }
+  return roots.includes(workspace);
+}
+
+function agentPackageLifecycleSnapshot(payload, target, workspace) {
+  const status = requireAgentPackageStatus(payload, target);
+  const receipts = Array.isArray(status.lifecycle_receipts) ? status.lifecycle_receipts : [];
+  const workspaceReceipts = receipts
+    .filter(
+      (receipt) =>
+        isRecord(receipt) &&
+        (receipt.action === 'activate' || receipt.action === 'use') &&
+        lifecycleReceiptTargetsWorkspace(receipt, workspace)
+    )
+    .map((receipt) => ({
+      action: receipt.action,
+      receipt_ref: typeof receipt.receipt_ref === 'string' ? receipt.receipt_ref : null,
+      recorded_at: typeof receipt.recorded_at === 'string' ? receipt.recorded_at : null,
+    }))
+    .filter((receipt) => receipt.receipt_ref)
+    .sort((left, right) => left.receipt_ref.localeCompare(right.receipt_ref));
+  const refsFor = (action) =>
+    workspaceReceipts
+      .filter((receipt) => receipt.action === action)
+      .map((receipt) => receipt.receipt_ref)
+      .sort();
+  return {
+    package_id: target.packageId,
+    workspace,
+    activate_receipt_refs: refsFor('activate'),
+    use_receipt_refs: refsFor('use'),
+    all_receipt_refs: workspaceReceipts.map((receipt) => receipt.receipt_ref).sort(),
+  };
+}
+
+function readAgentPackageLifecycleState(options, target, workspace) {
+  const args = [
+    'packages',
+    'status',
+    '--package-id',
+    target.packageId,
+    '--scope',
+    'workspace',
+    '--target-workspace',
+    workspace,
+    '--json',
+  ];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const payload = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
+  return {
+    args,
+    payload,
+    status: requireAgentPackageStatus(payload, target),
+    snapshot: agentPackageLifecycleSnapshot(payload, target, workspace),
+  };
+}
+
+function assertHomeAssistantRouteSendWithoutActivation(before, after) {
+  const beforeRefs = new Set(before.all_receipt_refs);
+  const newReceiptRefs = after.all_receipt_refs.filter((receiptRef) => !beforeRefs.has(receiptRef));
+  if (newReceiptRefs.length > 0) {
+    throw new Error(
+      `Ordinary Home send created forbidden package activation/use receipts: ${newReceiptRefs.join(', ')}`
+    );
+  }
+  return {
+    status: 'passed',
+    package_id: after.package_id,
+    workspace: after.workspace,
+    shell_activation_attempted: false,
+    activation_or_use_receipts_added: false,
+    receipt_count_before: before.all_receipt_refs.length,
+    receipt_count_after: after.all_receipt_refs.length,
+  };
+}
+
+function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
+  const runtimeSource = isRecord(packageStatus.runtime_source_readiness)
+    ? packageStatus.runtime_source_readiness
+    : null;
+  const checkoutPath =
+    runtimeSource && typeof runtimeSource.checkout_path === 'string' && runtimeSource.checkout_path.trim()
+      ? runtimeSource.checkout_path.trim()
+      : null;
+  if (!checkoutPath) {
+    throw new Error(`Package ${target.packageId} has no Framework-owned runtime source checkout.`);
+  }
+  const manifestPath = path.join(checkoutPath, 'agent', 'stages', 'manifest.json');
+  const manifestBytes = fs.readFileSync(manifestPath);
+  const manifest = JSON.parse(manifestBytes.toString('utf8'));
+  const domainId =
+    typeof manifest.target_domain_id === 'string' && manifest.target_domain_id.trim()
+      ? manifest.target_domain_id.trim()
+      : null;
+  const stage = Array.isArray(manifest.stages)
+    ? manifest.stages.find((candidate) => isRecord(candidate) && typeof candidate.stage_id === 'string')
+    : null;
+  const stageId = stage?.stage_id?.trim() || null;
+  if (!domainId || !stageId) {
+    throw new Error(`Package ${target.packageId} stage manifest does not declare a runtime domain and stage.`);
+  }
+  return {
+    domain_id: domainId,
+    stage_id: stageId,
+    manifest_path: manifestPath,
+    manifest_sha256: createHash('sha256').update(manifestBytes).digest('hex'),
+  };
+}
+
+function frameworkStageRuntimeActivationExpression(input) {
+  const stageRun = isRecord(input.result?.family_runtime_stage_run) ? input.result.family_runtime_stage_run : null;
+  const stageRunInput = isRecord(stageRun?.stage_run_input) ? stageRun.stage_run_input : null;
+  const workspaceLocator = isRecord(stageRunInput?.workspace_locator) ? stageRunInput.workspace_locator : null;
+  const useBinding = isRecord(workspaceLocator?.package_use_binding) ? workspaceLocator.package_use_binding : null;
+  const rootPackage = isRecord(useBinding?.root_package) ? useBinding.root_package : null;
+  const errors = [];
+  if (!stageRun) errors.push('family_runtime_stage_run');
+  if (stageRunInput?.domain_id !== input.stageTarget.domain_id) errors.push('stage_domain_id');
+  if (stageRunInput?.stage_id !== input.stageTarget.stage_id) errors.push('stage_id');
+  if (workspaceLocator?.workspace_root !== input.workspace) errors.push('stage_workspace_locator');
+  if (useBinding?.surface_kind !== 'opl_agent_package_use_binding.v1') errors.push('use_binding_surface_kind');
+  if (useBinding?.scope !== 'workspace') errors.push('use_binding_scope');
+  if (useBinding?.target_root !== input.workspace) errors.push('use_binding_target_root');
+  if (rootPackage?.package_id !== input.target.packageId) errors.push('use_binding_package_id');
+  if (typeof useBinding?.use_boundary_id !== 'string' || !useBinding.use_boundary_id) {
+    errors.push('use_boundary_id');
+  }
+  if (typeof useBinding?.use_receipt_ref !== 'string' || !useBinding.use_receipt_ref) {
+    errors.push('use_receipt_ref');
+  }
+  if (stageRun?.blocked_reason !== FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON) {
+    errors.push('stage_body_blocker');
+  }
+  if (stageRun?.temporal_start !== null) errors.push('unexpected_temporal_start');
+  const beforeUseRefs = new Set(input.beforeSnapshot.use_receipt_refs);
+  const newUseReceiptRefs = input.afterSnapshot.use_receipt_refs.filter((receiptRef) => !beforeUseRefs.has(receiptRef));
+  if (!newUseReceiptRefs.includes(useBinding?.use_receipt_ref)) errors.push('framework_use_receipt_readback');
+  if (errors.length > 0) {
+    throw new Error(
+      `Framework Stage runtime activation evidence is invalid for ${input.target.id}: ${errors.join(', ')}`
+    );
+  }
+  return {
+    status: 'passed',
+    activation_owner: 'one-person-lab_family_runtime',
+    package_id: input.target.packageId,
+    domain_id: input.stageTarget.domain_id,
+    stage_id: input.stageTarget.stage_id,
+    workspace_locator: input.workspace,
+    stage_manifest_path: input.stageTarget.manifest_path,
+    stage_manifest_sha256: input.stageTarget.manifest_sha256,
+    use_boundary_id: useBinding.use_boundary_id,
+    use_receipt_ref: useBinding.use_receipt_ref,
+    lifecycle_use_receipt_readback: true,
+    stage_body_started: false,
+    stage_body_blocked_reason: FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
+  };
+}
+
+function runFrameworkStageRuntimeActivation(options, target, workspace, beforeState) {
+  const stageTarget = resolveFrameworkStageRuntimeTarget(beforeState.status, target);
+  const args = [
+    'family-runtime',
+    'attempt',
+    'create',
+    '--domain',
+    stageTarget.domain_id,
+    '--stage',
+    stageTarget.stage_id,
+    '--workspace-locator',
+    JSON.stringify({ workspace_root: workspace }),
+    '--task',
+    `opl-release-smoke-${target.id}`,
+    '--executor-kind',
+    'codex_cli',
+    '--invocation-mode',
+    'invocation',
+    '--new-stage-run',
+    '--start',
+    '--blocked-reason',
+    FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
+    '--json',
+  ];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const result = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
+  const afterState = readAgentPackageLifecycleState(options, target, workspace);
+  return frameworkStageRuntimeActivationExpression({
+    target,
+    workspace,
+    stageTarget,
+    result,
+    beforeSnapshot: beforeState.snapshot,
+    afterSnapshot: afterState.snapshot,
+  });
 }
 
 function firstRunBeginnerUxExpression() {
@@ -5421,9 +5632,10 @@ async function runAssistantRouteSmoke(options, secret) {
           });
           continue;
         }
+        const packageStateBeforeSend = readAgentPackageLifecycleState(options, assistantTarget, assistantWorkspace);
         const workspace = await waitForCdpPredicate(
           client,
-          homeAssistantWorkspacePreparationExpression(assistantWorkspace),
+          homeAssistantWorkspaceContextExpression(assistantWorkspace),
           30_000,
           `Could not prepare a workspace-scoped OPL assistant launch: ${assistantTarget.id}`
         );
@@ -5465,10 +5677,10 @@ async function runAssistantRouteSmoke(options, secret) {
           }
           throw error;
         }
-        const routePrompt = `Verify the packaged ${assistantTarget.shortName} workspace activation and route receipt.`;
+        const routePrompt = `Verify the packaged ${assistantTarget.shortName} workspace session and route receipt.`;
         const sendPrepared = await waitForCdpPredicate(
           client,
-          homeAssistantRouteSendExpression(assistantTarget, routePrompt),
+          homeAssistantRouteSendWithoutActivationExpression(assistantTarget, routePrompt),
           30_000,
           `Could not prepare a real pointer send through the OPL built-in assistant composer: ${assistantTarget.id}`
         );
@@ -5510,7 +5722,18 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           activeConversationRouteReceiptExpression(assistantTarget, assistantWorkspace),
           45_000,
-          `UI-created conversation did not expose matching workspace activation and route receipts: ${assistantTarget.id}`
+          `UI-created conversation did not expose matching workspace and route receipts: ${assistantTarget.id}`
+        );
+        const packageStateAfterSend = readAgentPackageLifecycleState(options, assistantTarget, assistantWorkspace);
+        const ordinarySendActivation = assertHomeAssistantRouteSendWithoutActivation(
+          packageStateBeforeSend.snapshot,
+          packageStateAfterSend.snapshot
+        );
+        const frameworkStageActivation = runFrameworkStageRuntimeActivation(
+          options,
+          assistantTarget,
+          assistantWorkspace,
+          packageStateAfterSend
         );
         results.push({
           id: assistantTarget.id,
@@ -5521,7 +5744,7 @@ async function runAssistantRouteSmoke(options, secret) {
           required_skill_ids: assistantTarget.requiredSkillIds,
           badge: assistantTarget.badge,
           verification_mode: 'route_receipt',
-          interaction_path: 'workspace_guid_ui_send_then_conversation_get',
+          interaction_path: 'workspace_guid_ui_send_without_shell_activation_then_conversation_get',
           workspace,
           selected,
           ready,
@@ -5530,6 +5753,8 @@ async function runAssistantRouteSmoke(options, secret) {
           send_state: sendState,
           send_diagnostics: await evaluateCdp(client, homeAssistantRouteSendDiagnosticsExpression()),
           receipt,
+          ordinary_send_activation: ordinarySendActivation,
+          framework_stage_runtime_activation: frameworkStageActivation,
         });
       } catch (error) {
         writeFailureSummary(assistantTarget, error);
@@ -5547,7 +5772,9 @@ async function runAssistantRouteSmoke(options, secret) {
     runtime_profile: options.runtimeProfile,
     verification_mode: options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate',
     interaction_path:
-      options.runtimeProfile === 'full' ? 'workspace_guid_ui_send_then_conversation_get' : 'launch_gate_only',
+      options.runtimeProfile === 'full'
+        ? 'workspace_guid_ui_send_without_shell_activation_then_conversation_get'
+        : 'launch_gate_only',
     assistants: results,
     compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
   };
@@ -6964,17 +7191,24 @@ export const __test =
         guideScreenshotSources,
         visibleHomeAssistantControlSelector,
         homeAssistantStandardLaunchGateExpression,
-        homeAssistantWorkspacePreparationExpression,
+        homeAssistantWorkspaceContextExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
         homeAssistantCoreReadinessExpression,
-        homeAssistantRouteSendExpression,
+        homeAssistantRouteSendWithoutActivationExpression,
         homeAssistantRouteSendDiagnosticsExpression,
         homeAssistantRouteSendStateExpression,
         dispatchCdpPointerClick,
         conversationRouteReceiptExpression,
         activeConversationRouteReceiptExpression,
         latestConversationRouteReceiptExpression,
+        agentPackageLifecycleSnapshot,
+        readAgentPackageLifecycleState,
+        assertHomeAssistantRouteSendWithoutActivation,
+        resolveFrameworkStageRuntimeTarget,
+        frameworkStageRuntimeActivationExpression,
+        runFrameworkStageRuntimeActivation,
+        FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
       }
     : undefined;
 

@@ -1117,10 +1117,10 @@ describe('packaged first-run VM smoke helpers', () => {
 
   it('checks packaged assistant routes through workspace-scoped Guid sends and GET readback', () => {
     const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
-    const workspaceExpression = __test.homeAssistantWorkspacePreparationExpression('/Users/opl/OPL-Smoke');
+    const workspaceExpression = __test.homeAssistantWorkspaceContextExpression('/Users/opl/OPL-Smoke');
     const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
     const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
-    const sendExpression = __test.homeAssistantRouteSendExpression(masTarget, 'Verify MAS launch.');
+    const sendExpression = __test.homeAssistantRouteSendWithoutActivationExpression(masTarget, 'Verify MAS launch.');
     const sendDiagnosticsExpression = __test.homeAssistantRouteSendDiagnosticsExpression();
     const sendStateExpression = __test.homeAssistantRouteSendStateExpression(masTarget, 'Verify MAS launch.', 1_000);
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
@@ -1162,7 +1162,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(sendExpression).toContain('guid-send-btn');
     expect(sendExpression).toContain('if (input.value !== "Verify MAS launch.")');
     expect(sendExpression).toContain("input.dispatchEvent(new Event('change', { bubbles: true }))");
-    expect(sendExpression).toContain("interaction_path: 'guid_ui_cdp_pointer_send'");
+    expect(sendExpression).toContain("interaction_path: 'guid_ui_cdp_pointer_send_without_shell_activation'");
+    expect(sendExpression).toContain('shell_activation_allowed: false');
     expect(sendExpression).toContain("key.startsWith('__reactProps$')");
     expect(sendExpression).toContain("record('react_onclick_enter'");
     expect(sendExpression).not.toContain('sendButton.click()');
@@ -1178,14 +1179,10 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(activeReceiptExpression).toContain('window.location.hash.match(/^#\\/conversation\\/');
     expect(activeReceiptExpression).toContain('/api/conversations/');
     expect(activeReceiptExpression).toContain('opl_agent_package_activation');
-    expect(activeReceiptExpression).toContain('activation_use_boundary_id');
-    expect(activeReceiptExpression).toContain('activation_use_receipt_ref');
-    expect(activeReceiptExpression).toContain('activation_use_binding');
-    expect(activeReceiptExpression).toContain('use_binding_surface_kind');
-    expect(activeReceiptExpression).toContain('use_binding_target_root');
-    expect(activeReceiptExpression).toContain('useBinding?.target_root !== activation?.target_workspace');
-    expect(activeReceiptExpression).not.toContain('useBinding?.use_boundary_id');
-    expect(activeReceiptExpression).not.toContain('useBinding?.use_receipt_ref');
+    expect(activeReceiptExpression).toContain('shell_activation_leaked_into_conversation');
+    expect(activeReceiptExpression).toContain('shell_activation_absent: true');
+    expect(activeReceiptExpression).not.toContain('activation_use_boundary_id');
+    expect(activeReceiptExpression).not.toContain('activation_use_receipt_ref');
     expect(activeReceiptExpression).toContain('matched.extra?.is_temporary_workspace !== false');
     expect(activeReceiptExpression).toContain('conversation_temporary_workspace');
     expect(activeReceiptExpression).not.toContain('conversation_custom_workspace');
@@ -1203,54 +1200,35 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
-  it('accepts current Framework activation evidence while keeping conversation and binding targets fail closed', async () => {
+  it('accepts an ordinary conversation only when Shell activation evidence is absent', async () => {
     const dom = new JSDOM('<!doctype html><body></body>', {
       runScripts: 'outside-only',
       url: 'https://opl.invalid/#/conversation/conv-123',
     });
     const { window } = dom;
-    const activation = {
-      action_id: 'agent_package_activate',
-      launch_allowed: true,
-      package_id: 'mas',
-      package_version: '0.2.12',
-      scope: 'workspace',
-      target_workspace: '/Users/opl',
-      use_boundary_id: 'a'.repeat(64),
-      use_receipt_ref: 'opl://agent-package/use/mas/fixture',
-      use_binding: {
-        surface_kind: 'opl_agent_package_use_binding.v1',
-        root_package: {
-          package_id: 'mas',
-          package_version: '0.2.12',
-        },
-        scope: 'workspace',
-        target_root: '/Users/opl',
+    const conversationExtra: Record<string, unknown> = {
+      backend: 'codex',
+      workspace: '/Users/opl/OPL-Smoke',
+      is_temporary_workspace: false,
+      opl_agent_package_invocation: {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        package_id: 'mas',
+        shortcut_id: 'research',
+        codex_visible_entry: 'med-autoscience',
+        required_skill_ids: ['med-autoscience'],
+        source: 'opl_app_home',
+      },
+      opl_assistant_route: {
+        route_kind: 'builtin_capability',
+        assistant_id: 'mas',
+        assistant_short_name: 'MAS',
       },
     };
     const conversation = {
       id: 'conv-123',
       type: 'acp',
-      extra: {
-        backend: 'codex',
-        workspace: '/Users/opl/OPL-Smoke',
-        is_temporary_workspace: false,
-        opl_agent_package_activation: activation,
-        opl_agent_package_invocation: {
-          route_kind: 'agent_package_shortcut',
-          executor: 'codex_cli',
-          package_id: 'mas',
-          shortcut_id: 'research',
-          codex_visible_entry: 'med-autoscience',
-          required_skill_ids: ['med-autoscience'],
-          source: 'opl_app_home',
-        },
-        opl_assistant_route: {
-          route_kind: 'builtin_capability',
-          assistant_id: 'mas',
-          assistant_short_name: 'MAS',
-        },
-      },
+      extra: conversationExtra,
     };
     Object.defineProperty(window, '__backendPort', { value: 12345 });
     Object.defineProperty(window, 'fetch', {
@@ -1268,19 +1246,137 @@ describe('packaged first-run VM smoke helpers', () => {
       status: 'passed',
       conversation_id: 'conv-123',
       workspace: '/Users/opl/OPL-Smoke',
-      activation: {
-        target_workspace: '/Users/opl',
-        use_boundary_id: 'a'.repeat(64),
-        use_receipt_ref: 'opl://agent-package/use/mas/fixture',
-        use_binding: {
-          target_root: '/Users/opl',
-        },
-      },
+      shell_activation_absent: true,
+      activation: null,
     });
 
-    activation.use_binding.target_root = '/Users/other';
-    await expect(window.eval(expression)).rejects.toThrow('use_binding_target_root');
+    conversationExtra.opl_agent_package_activation = {
+      action_id: 'agent_package_activate',
+      package_id: 'mas',
+    };
+    await expect(window.eval(expression)).rejects.toThrow('shell_activation_leaked_into_conversation');
     dom.window.close();
+  });
+
+  it('separates ordinary send receipt stability from real Framework Stage activation evidence', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
+    const manifestPath = path.join(root, 'agent', 'stages', 'manifest.json');
+    const workspace = '/Users/opl/OPL-Smoke';
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        target_domain_id: 'medautoscience',
+        stages: [{ stage_id: 'direction_and_route_selection' }],
+      })
+    );
+    const existingUseReceipt = {
+      action: 'use',
+      receipt_ref: 'opl://agent-package/use/mas/existing',
+      recorded_at: '2026-07-20T00:00:00.000Z',
+      use_binding: { target_root: workspace },
+    };
+    const packagePayload = (lifecycleReceipts: Record<string, unknown>[]) => ({
+      version: 'g2',
+      opl_agent_package_status: {
+        package_id: 'mas',
+        lifecycle_receipts: lifecycleReceipts,
+        runtime_source_readiness: { checkout_path: root },
+      },
+    });
+    const beforePayload = packagePayload([existingUseReceipt]);
+    const beforeSnapshot = __test.agentPackageLifecycleSnapshot(beforePayload, target, workspace);
+    const unchangedSnapshot = __test.agentPackageLifecycleSnapshot(beforePayload, target, workspace);
+    expect(__test.assertHomeAssistantRouteSendWithoutActivation(beforeSnapshot, unchangedSnapshot)).toMatchObject({
+      status: 'passed',
+      shell_activation_attempted: false,
+      activation_or_use_receipts_added: false,
+    });
+
+    const useReceiptRef = 'opl://agent-package/use/mas/stage-runtime';
+    const stageUseReceipt = {
+      action: 'use',
+      receipt_ref: useReceiptRef,
+      recorded_at: '2026-07-20T00:00:01.000Z',
+      use_binding: { target_root: workspace },
+    };
+    const afterPayload = packagePayload([existingUseReceipt, stageUseReceipt]);
+    const afterSnapshot = __test.agentPackageLifecycleSnapshot(afterPayload, target, workspace);
+    expect(() => __test.assertHomeAssistantRouteSendWithoutActivation(beforeSnapshot, afterSnapshot)).toThrow(
+      useReceiptRef
+    );
+
+    const stageResult = {
+      version: 'g2',
+      family_runtime_stage_run: {
+        blocked_reason: __test.FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
+        temporal_start: null,
+        stage_run_input: {
+          domain_id: 'medautoscience',
+          stage_id: 'direction_and_route_selection',
+          workspace_locator: {
+            workspace_root: workspace,
+            package_use_binding: {
+              surface_kind: 'opl_agent_package_use_binding.v1',
+              use_boundary_id: 'package-use-stage-runtime',
+              use_receipt_ref: useReceiptRef,
+              scope: 'workspace',
+              target_root: workspace,
+              root_package: { package_id: 'mas' },
+            },
+          },
+        },
+      },
+    };
+    const runOplJson = vi.fn((args: string[]) =>
+      JSON.stringify(args[0] === 'family-runtime' ? stageResult : afterPayload)
+    );
+    try {
+      const stageTarget = __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target);
+      expect(stageTarget).toMatchObject({
+        domain_id: 'medautoscience',
+        stage_id: 'direction_and_route_selection',
+        manifest_path: manifestPath,
+      });
+      expect(stageTarget.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
+
+      const evidence = __test.runFrameworkStageRuntimeActivation(
+        { timeoutMs: 30_000, __testHooks: { runOplJson } },
+        target,
+        workspace,
+        {
+          status: beforePayload.opl_agent_package_status,
+          snapshot: beforeSnapshot,
+        }
+      );
+      expect(evidence).toMatchObject({
+        status: 'passed',
+        activation_owner: 'one-person-lab_family_runtime',
+        package_id: 'mas',
+        domain_id: 'medautoscience',
+        stage_id: 'direction_and_route_selection',
+        workspace_locator: workspace,
+        use_receipt_ref: useReceiptRef,
+        lifecycle_use_receipt_readback: true,
+        stage_body_started: false,
+      });
+      const stageArgs = runOplJson.mock.calls[0][0];
+      expect(stageArgs).toEqual(
+        expect.arrayContaining([
+          'family-runtime',
+          'attempt',
+          'create',
+          '--new-stage-run',
+          '--start',
+          '--blocked-reason',
+          __test.FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
+        ])
+      );
+      expect(stageArgs).toContain(JSON.stringify({ workspace_root: workspace }));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('checks Standard Home assistants as selectable send-time launch gates without creating route receipts', () => {
@@ -1375,7 +1471,7 @@ describe('packaged first-run VM smoke helpers', () => {
     Object.defineProperty(window.document, 'elementFromPoint', {
       value: () => sendButton,
     });
-    const expression = __test.homeAssistantRouteSendExpression(
+    const expression = __test.homeAssistantRouteSendWithoutActivationExpression(
       __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0],
       'Verify MAS launch.'
     );
@@ -1387,7 +1483,8 @@ describe('packaged first-run VM smoke helpers', () => {
     const prepared = window.eval(expression);
     expect(prepared).toMatchObject({
       assistant_id: 'mas',
-      interaction_path: 'guid_ui_cdp_pointer_send',
+      interaction_path: 'guid_ui_cdp_pointer_send_without_shell_activation',
+      shell_activation_allowed: false,
       prepared_at: expect.any(Number),
       click_point: { x: 50, y: 40 },
     });
