@@ -467,7 +467,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.codexVisibility).toBe('visible');
   });
 
-  it('distinguishes an optional activation from a missing required scope', () => {
+  it('treats use-boundary activation and scope materialization as session preparation', () => {
     const capabilities = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
         {
@@ -496,8 +496,8 @@ describe('buildCapabilitiesViewModel', () => {
       'en-US'
     );
 
-    expect(capabilities.find((item) => item.packageId === 'optional-agent')?.status).toBe('inactive');
-    expect(capabilities.find((item) => item.packageId === 'blocked-agent')?.status).toBe('attention');
+    expect(capabilities.find((item) => item.packageId === 'optional-agent')?.status).toBe('ready');
+    expect(capabilities.find((item) => item.packageId === 'blocked-agent')?.status).toBe('ready');
   });
 
   it('normalizes generic repair, dependent guard, and closure diagnostics', () => {
@@ -824,7 +824,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(Object.keys(capability.availableActions)).toEqual(['agent_package_update']);
   });
 
-  it('keeps deferred physical exposure non-runnable without reporting a failure', () => {
+  it('projects deferred physical exposure as ordinarily available without reporting a failure', () => {
     const [capability] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
         {
@@ -843,8 +843,8 @@ describe('buildCapabilitiesViewModel', () => {
       'en-US'
     );
 
-    expect(capability.status).toBe('verification');
-    expect(capability.codexVisibility).toBe('verificationPending');
+    expect(capability.status).toBe('ready');
+    expect(capability.codexVisibility).toBe('visible');
     expect(capability.operationalReady).toBe(false);
     expect(capability.launchAllowed).toBe(false);
     expect(capability.failureReason).toBeNull();

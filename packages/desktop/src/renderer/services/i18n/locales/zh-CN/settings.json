@@ -2368,15 +2368,15 @@
       }
     },
     "status": {
-      "ready": "可直接使用",
-      "update": "可更新",
-      "sync": "需同步",
-      "source": "开发源",
-      "verification": "尚未完成本机检查",
-      "inactive": "未启用",
-      "attention": "需要完成设置",
-      "repair": "需修复",
-      "missing": "缺失"
+      "ready": "可用",
+      "update": "需要更新",
+      "sync": "需要同步",
+      "source": "可用",
+      "verification": "正在确认",
+      "inactive": "需要启用",
+      "attention": "暂时无法使用",
+      "repair": "需要修复",
+      "missing": "需要安装"
     },
     "entries": {
       "externalTools": {
@@ -2422,11 +2422,11 @@
     "visibility": {
       "conversation": "当前可用性",
       "home": "首页显示",
-      "conversationAvailable": "可直接发起对话",
-      "conversationNeedsSync": "需同步",
-      "conversationUnavailable": "请先完成设置或修复",
-      "conversationVerificationPending": "可发起对话，首次使用时自动检查",
-      "conversationUnverified": "尚未收到本机检查结果"
+      "conversationAvailable": "可发起对话",
+      "conversationNeedsSync": "需要同步",
+      "conversationUnavailable": "暂时无法使用，请打开详情查看原因",
+      "conversationVerificationPending": "可发起对话；首次使用时自动确认",
+      "conversationUnverified": "正在确认当前状态"
     },
     "detailLabels": {
       "purpose": "用途",
@@ -2505,9 +2505,9 @@
       "required_by_installed_package": "被其他已安装包依赖",
       "dependency_closure_not_ready": "依赖闭包尚未就绪",
       "package_not_installed": "请先安装该包",
-      "package_activation_required": "请为当前工作区激活该包",
-      "scope_materialization_missing": "请为当前工作区激活该包",
-      "live_verification_deferred": "可发起对话；首次使用时自动完成本机检查，也可立即查看检查状态",
+      "package_activation_required": "运行时报告需要会话范围准备",
+      "scope_materialization_missing": "运行时报告会话范围能力尚未就绪",
+      "live_verification_deferred": "运行时尚未完成本机验证",
       "status_read_error": "Framework 无法读取包状态",
       "other": "Framework 报告了当前 App 版本尚未识别的问题。"
     },

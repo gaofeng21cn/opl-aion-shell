@@ -34,11 +34,7 @@ import {
   getOplAgentPackageRegistryUrl,
   getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
-import {
-  buildOplProjectedActionPayload,
-  oplProjectedActionNeedsContextField,
-  oplProjectedRequirementAlternatives,
-} from '@/common/types/opl/appState';
+import { oplProjectedRequirementAlternatives } from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
   getAppState,
@@ -60,7 +56,6 @@ import {
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
-  formatCapabilityDisplayToken,
   type CapabilityActionRefViewModel,
   type CapabilityAvailabilityStatus,
   type CapabilityCandidateReportViewModel,
@@ -108,11 +103,8 @@ function capabilityConversationAvailabilityLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
-  if (item.codexVisibility === 'visible') {
+  if (item.codexVisibility === 'visible' || item.codexVisibility === 'verificationPending') {
     return t('settings.capabilitiesPage.visibility.conversationAvailable', { defaultValue: 'Available' });
-  }
-  if (item.codexVisibility === 'verificationPending') {
-    return t('settings.capabilitiesPage.visibility.conversationVerificationPending');
   }
   if (item.codexVisibility === 'needsSync') {
     return t('settings.capabilitiesPage.visibility.conversationNeedsSync', { defaultValue: 'Sync needed' });
@@ -188,6 +180,31 @@ function installedPackageReadback(
     displayName: oplString(entry.display_name) ?? packageId,
     status,
   };
+}
+
+function capabilityReadbackStatus(status: string): CapabilityAvailabilityStatus {
+  const normalized = status.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (
+    [
+      'ready',
+      'compatible',
+      'ok',
+      'installed',
+      'current',
+      'verificationdeferred',
+      'activationrequired',
+      'pendingactivation',
+    ].includes(normalized)
+  ) {
+    return 'ready';
+  }
+  if (['updateavailable', 'staged'].includes(normalized)) return 'update';
+  if (['needssync', 'stale', 'syncrequired'].includes(normalized)) return 'sync';
+  if (['missing', 'notinstalled', 'notconfigured'].includes(normalized)) return 'missing';
+  if (['failed', 'failedwithrepair', 'blocked', 'blocking', 'repairrequired', 'degraded'].includes(normalized)) {
+    return 'repair';
+  }
+  return 'attention';
 }
 
 function capabilityReasonLabel(reason: string, t: (key: string, options?: Record<string, string>) => string): string {
@@ -290,17 +307,30 @@ function capabilitySourceCategory(item: CapabilityPurposeViewModel): string {
   return 'other';
 }
 
-function capabilityCatalogStatus(item: CapabilityPurposeViewModel): string {
-  return item.readiness.status ?? item.installState ?? item.availabilityStatus;
+function capabilityCatalogStatus(item: CapabilityPurposeViewModel): CapabilityAvailabilityStatus {
+  return item.availabilityStatus;
 }
 
 function capabilityCatalogStatusLabel(
-  status: string,
+  status: CapabilityAvailabilityStatus,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
-  return t(`settings.capabilitiesPage.packageManager.filterValues.${status}`, {
-    defaultValue: formatCapabilityDisplayToken(status),
-  });
+  return capabilityStatusLabel(status, t);
+}
+
+const SESSION_PREPARED_USER_REASONS = new Set([
+  'live_verification_deferred',
+  'verification_deferred',
+  'scope_materialization_missing',
+  'package_activation_required',
+]);
+
+function capabilityUsesSessionPreparation(item: CapabilityPurposeViewModel): boolean {
+  const reason = item.readiness.reason ?? item.launchBlockedReason;
+  return (
+    item.availabilityStatus === 'ready' &&
+    (item.readiness.verificationDeferred === true || SESSION_PREPARED_USER_REASONS.has(reason ?? ''))
+  );
 }
 
 type CapabilityCatalogGroupKey = 'agents' | 'workflows' | 'supporting';
@@ -344,13 +374,9 @@ function capabilityPackageIdentityValues(packageId: string | null): string[] {
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
   const action = item.recommendedAction;
   if (!action) return null;
-  return [
-    'install_from_manifest_url',
-    'agent_package_activate',
-    'agent_package_update',
-    'agent_package_repair',
-    'refresh_registry',
-  ].includes(action.actionId)
+  return ['install_from_manifest_url', 'agent_package_update', 'agent_package_repair', 'refresh_registry'].includes(
+    action.actionId
+  )
     ? action
     : null;
 }
@@ -446,13 +472,11 @@ function capabilityUserDetailRows(
           value: item.installability.status,
         }
       : null,
-    hasTextValue(item.readiness.status)
-      ? {
-          key: 'readiness',
-          label: t('settings.capabilitiesPage.detailLabels.readiness'),
-          value: capabilityCatalogStatusLabel(item.readiness.status, t),
-        }
-      : null,
+    {
+      key: 'readiness',
+      label: t('settings.capabilitiesPage.detailLabels.readiness'),
+      value: capabilityCatalogStatusLabel(item.availabilityStatus, t),
+    },
     hasTextValue(item.version)
       ? {
           key: 'version',
@@ -484,13 +508,14 @@ function capabilityReadinessDetailRows(
   const readiness = item.dependencyReadiness;
   const dependencyFailures = readiness?.checks.flatMap((check) => check.failureReasons) ?? [];
   const readinessReason = item.readiness.reason ?? item.launchBlockedReason;
+  const sessionPrepared = capabilityUsesSessionPreparation(item);
   const isNextStepReason = [
     'package_not_installed',
     'package_activation_required',
     'scope_materialization_missing',
   ].includes(readinessReason ?? '');
   return [
-    item.readiness.verificationDeferred === true && readinessReason
+    !sessionPrepared && item.readiness.verificationDeferred === true && readinessReason
       ? {
           key: 'verificationPending',
           label: t('settings.capabilitiesPage.detailLabels.verificationPending'),
@@ -514,7 +539,7 @@ function capabilityReadinessDetailRows(
           }),
         }
       : null,
-    item.operationalReady !== null
+    !sessionPrepared && item.operationalReady !== null
       ? {
           key: 'operationalReady',
           label: t('settings.capabilitiesPage.detailLabels.operationalReady'),
@@ -523,7 +548,7 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
-    item.launchAllowed !== null
+    !sessionPrepared && item.launchAllowed !== null
       ? {
           key: 'launchAllowed',
           label: t('settings.capabilitiesPage.detailLabels.launchAllowed'),
@@ -532,7 +557,7 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
-    item.readiness.verificationDeferred !== true && item.launchAllowed === false && readinessReason
+    !sessionPrepared && item.readiness.verificationDeferred !== true && item.launchAllowed === false && readinessReason
       ? {
           key: 'launchBlockedReason',
           label: t(
@@ -543,7 +568,7 @@ function capabilityReadinessDetailRows(
           value: capabilityReasonLabel(readinessReason, t),
         }
       : null,
-    item.launchAllowed === false && item.allowedWhenBlocked.length > 0
+    !sessionPrepared && item.launchAllowed === false && item.allowedWhenBlocked.length > 0
       ? {
           key: 'allowedWhenBlocked',
           label: t('settings.capabilitiesPage.detailLabels.allowedWhenBlocked'),
@@ -941,8 +966,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     manifestInstallPayloadFields.includes('trust_tier')
   );
   const manifestInstallConfirmationRequired = manifestInstallAction.confirmation_required === true;
-  const paths = oplRecord(appStateQuery.appState.paths);
-  const workspaceRootPath = oplString(paths.workspace_root_path);
   const agentPackages = oplRecord(appStateQuery.appState.agent_packages);
   const directory = oplRecord(agentPackages.directory);
   const directoryStatus = oplString(directory.status);
@@ -1234,15 +1257,8 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
   const projectedActionPayload = (
     action: CapabilityPackageActionViewModel,
-    activation: boolean,
     explicitInput: Record<string, unknown> = {}
-  ): Record<string, unknown> => {
-    if (!activation) return { ...action.payloadRefsOnlyJson, ...explicitInput };
-    return buildOplProjectedActionPayload(action, {
-      ...explicitInput,
-      ...(workspaceRootPath ? { target_workspace: workspaceRootPath } : {}),
-    }).payloadRefsOnlyJson;
-  };
+  ): Record<string, unknown> => ({ ...action.payloadRefsOnlyJson, ...explicitInput });
 
   const projectedActionMissingFields = (
     action: CapabilityPackageActionViewModel,
@@ -1258,24 +1274,21 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
   const projectedActionExecutable = (
     action: CapabilityPackageActionViewModel,
-    options: { activation?: boolean; explicitInput?: Record<string, unknown> } = {}
+    options: { explicitInput?: Record<string, unknown> } = {}
   ): boolean => {
-    const activation = options.activation === true;
-    const payload = projectedActionPayload(action, activation, options.explicitInput);
+    const payload = projectedActionPayload(action, options.explicitInput);
     return projectedActionMissingFields(action, payload).length === 0;
   };
 
   const executeProjectedAction = (
     action: CapabilityPackageActionViewModel,
     options: {
-      activation?: boolean;
       explicitInput?: Record<string, unknown>;
       danger?: boolean;
     } = {}
   ) => {
-    const activation = options.activation === true;
     if (!projectedActionExecutable(action, options)) return;
-    const payload = projectedActionPayload(action, activation, options.explicitInput);
+    const payload = projectedActionPayload(action, options.explicitInput);
     const execute = () => executePackageAction(action.actionId, payload);
     if (!action.confirmationRequired) {
       void execute();
@@ -1413,7 +1426,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       Message.success(
         t('settings.capabilitiesPage.packageManager.installVerified', {
           name: readback.displayName,
-          status: capabilityCatalogStatusLabel(readback.status, t),
+          status: capabilityCatalogStatusLabel(capabilityReadbackStatus(readback.status), t),
         })
       );
       setManifestUrl('');
@@ -1477,7 +1490,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const action = item.availableActions.agent_package_preferences_set;
     if (!shortcut || !action) return false;
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
-    const payload = projectedActionPayload(action, false, {
+    const payload = projectedActionPayload(action, {
       shortcut_id: shortcut.shortcut_id,
       visible: isOplHomeShortcutVisible(shortcut, preferences),
       sort_order:
@@ -1560,15 +1573,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
     return shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
   }).length;
-  const workspaceActivationRequired =
-    !workspaceRootPath &&
-    purposeCapabilities.some((item) => {
-      const action = capabilityRowAction(item);
-      return Boolean(
-        action?.actionId === 'agent_package_activate' && oplProjectedActionNeedsContextField(action, 'target_workspace')
-      );
-    });
-
   const resetCatalogFilters = () => {
     setCatalogSearch('');
     setRoleFilter('all');
@@ -1607,21 +1611,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
     const sourceLabel = capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
     const rowAction = capabilityRowAction(item);
-    const rowActivation = rowAction?.actionId === 'agent_package_activate';
-    const rowNeedsWorkspace = Boolean(
-      rowActivation && rowAction && oplProjectedActionNeedsContextField(rowAction, 'target_workspace')
-    );
-    const rowActionPayload = rowAction ? projectedActionPayload(rowAction, rowActivation) : null;
-    const rowActivationDisabledReason = rowActivation
-      ? rowNeedsWorkspace && !workspaceRootPath
-        ? 'workspace_root_not_configured'
-        : item.activationAction?.enabled === false
-          ? (item.activationAction.reasonCode ?? 'activation_disabled')
-          : null
-      : null;
+    const rowActionPayload = rowAction ? projectedActionPayload(rowAction) : null;
     const rowActionDisabled = Boolean(
       packageMutationBusy ||
-      rowActivationDisabledReason ||
       (rowAction && rowActionPayload && projectedActionMissingFields(rowAction, rowActionPayload).length > 0)
     );
     return (
@@ -1722,11 +1714,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 type='primary'
                 loading={busyAction === rowAction.actionId}
                 disabled={rowActionDisabled}
-                aria-describedby={
-                  rowNeedsWorkspace && !workspaceRootPath ? 'agent-package-workspace-required' : undefined
-                }
-                data-disabled-reason={rowActivationDisabledReason ?? undefined}
-                onClick={() => executeProjectedAction(rowAction, { activation: rowActivation })}
+                onClick={() => executeProjectedAction(rowAction)}
                 data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
               >
                 {capabilityProjectedActionLabel(rowAction.actionId, t)}
@@ -1903,21 +1891,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               </Button>
             </div>
           )}
-          {workspaceActivationRequired && (
-            <div
-              className='flex flex-wrap items-center justify-between gap-8px py-10px text-12px text-t-secondary'
-              data-disabled-reason='workspace_root_not_configured'
-              data-testid='settings-agents-workspace-required'
-            >
-              <span id='agent-package-workspace-required'>
-                {t('settings.capabilitiesPage.packageManager.workspaceRequired')}
-              </span>
-              <Button size='mini' onClick={() => navigate('/settings/workspace#workspace')}>
-                {t('settings.capabilitiesPage.packageManager.openWorkspace')}
-              </Button>
-            </div>
-          )}
-
           <div
             className='flex flex-wrap items-center gap-x-18px gap-y-6px py-10px text-12px text-t-secondary'
             data-testid='capability-summary-grid'

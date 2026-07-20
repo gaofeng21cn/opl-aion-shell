@@ -765,6 +765,27 @@ function isDeveloperCheckout(
   );
 }
 
+const SESSION_PREPARED_READINESS_REASONS = new Set([
+  'liveverificationdeferred',
+  'verificationdeferred',
+  'scopematerializationmissing',
+  'packageactivationrequired',
+]);
+
+function isSessionPreparedReadiness(
+  directoryState: RuntimePackageStateItem | undefined,
+  packageStatus: RuntimePackageStateItem | undefined
+): boolean {
+  const readiness = oplRecord(directoryState?.readiness);
+  const readinessStatus = normalizeStatusToken(firstString(readiness.status));
+  const readinessReason = normalizeStatusToken(firstString(readiness.reason, packageStatus?.launch_blocked_reason));
+  return (
+    readiness.verification_deferred === true ||
+    readinessStatus === 'verificationdeferred' ||
+    SESSION_PREPARED_READINESS_REASONS.has(readinessReason ?? '')
+  );
+}
+
 function mapCapabilityStatus(
   directoryState: RuntimePackageStateItem | undefined,
   packageStatus: RuntimePackageStateItem | undefined,
@@ -807,17 +828,16 @@ function mapCapabilityStatus(
   ) {
     return 'missing';
   }
-  if (
-    readiness.verification_deferred === true ||
-    exactReadinessStatus === 'verificationdeferred' ||
-    readinessReason === 'liveverificationdeferred'
-  ) {
-    return 'verification';
-  }
   if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error))
     return 'repair';
-  if (readinessReason === 'scopematerializationmissing') {
-    return 'attention';
+  if (
+    ['blocked', 'failed', 'repairrequired'].includes(exactReadinessStatus ?? '') ||
+    ['unavailable', 'failed', 'failedwithrepair', 'blocking', 'packageunavailable'].includes(statusIndexStatus ?? '')
+  ) {
+    return 'repair';
+  }
+  if (isSessionPreparedReadiness(directoryState, packageStatus)) {
+    return 'ready';
   }
   if (
     ['activationrequired', 'pendingactivation'].includes(exactReadinessStatus ?? '') ||
@@ -827,9 +847,6 @@ function mapCapabilityStatus(
       ? 'inactive'
       : 'attention';
   }
-  if (['blocked', 'failed', 'repairrequired'].includes(exactReadinessStatus ?? '')) {
-    return 'repair';
-  }
   const dependencyReadiness = normalizeStatusToken(
     firstString(capabilityDependencyReadinessRecord(packageStatus).status)
   );
@@ -837,7 +854,9 @@ function mapCapabilityStatus(
     return 'repair';
   }
   if (readiness.operational_ready === false || packageStatus?.operational_ready === false) return 'attention';
-  if (['unavailable', 'failed', 'failedwithrepair', 'blocking'].includes(statusIndexStatus ?? '')) return 'repair';
+  if (['updateavailable', 'staged'].includes(exactReadinessStatus ?? '')) return 'update';
+  if (['needssync', 'stale', 'syncrequired'].includes(exactReadinessStatus ?? '')) return 'sync';
+  if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(exactReadinessStatus ?? '')) return 'ready';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
   if (
     ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
@@ -894,10 +913,8 @@ function capabilityCodexVisibility(
 ): CapabilityCodexVisibility {
   if (!directoryState) return 'notVisible';
   const readiness = oplRecord(directoryState.readiness);
-  const readinessStatus = normalizeStatusToken(firstString(readiness.status));
-  const verificationDeferred =
-    readiness.verification_deferred === true || readinessStatus === 'verificationdeferred' || status === 'verification';
-  if (verificationDeferred) return 'verificationPending';
+  if (status === 'repair' || status === 'missing') return 'notVisible';
+  if (isSessionPreparedReadiness(directoryState, packageStatus)) return 'visible';
   const operationalReady =
     packageStatus?.operational_ready === false
       ? false
@@ -919,7 +936,7 @@ function capabilityCodexVisibility(
   if (status === 'update' || status === 'sync' || exposureStatus === 'stale' || exposureStatus === 'needssync') {
     return 'needsSync';
   }
-  if (codexVisible === false || status === 'missing') return 'notVisible';
+  if (codexVisible === false) return 'notVisible';
   if (
     operationalReady === true &&
     launchAllowed === true &&

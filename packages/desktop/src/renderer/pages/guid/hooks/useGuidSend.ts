@@ -11,18 +11,12 @@ import {
   filterOplOrdinarySkillNames,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import {
-  buildOplProjectedActionPayload,
-  oplProjectedActionNeedsContextField,
-  type OplProjectedPackageAction,
-} from '@/common/types/opl/appState';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { toSessionMcpServer } from '@/renderer/hooks/mcp/catalog';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspace/workspaceHistory';
-import { canonicalWorkspacePath } from '@/renderer/utils/workspace/workspacePath';
 import { Message } from '@arco-design/web-react';
 import { createElement, useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
@@ -30,11 +24,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import {
-  resolveOplPackageActivationAction,
-  resolveOplPackageLaunchGate,
-  resolveOplPackageSelectionVersion,
-} from '../utils/oplHomeAssistants';
+import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import {
   buildOplShortcutInvocationReceipt,
   buildOplShortcutRouteReceipt,
@@ -59,12 +49,6 @@ function showOplAgentPackageLaunchBlocked(message: string, packageId: string, re
     ),
   });
 }
-import {
-  OplAgentPackageLaunchError,
-  parseOplAgentPackageLaunchResult,
-  type OplAgentPackageActivationReceipt,
-} from '../utils/oplAgentPackageLaunchAuthority';
-
 export type GuidSendDeps = {
   // Input state
   input: string;
@@ -145,65 +129,6 @@ function buildLegacyOplAgentPackageInvocationReceipt(
   return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
 }
 
-async function activateOplAgentPackage(
-  action: OplProjectedPackageAction,
-  packageId: string,
-  packageVersion: string | null,
-  targetWorkspace: string | null
-): Promise<OplAgentPackageActivationReceipt> {
-  const normalizedTarget = targetWorkspace ? canonicalWorkspacePath(targetWorkspace) : null;
-  const actionPayload = buildOplProjectedActionPayload(
-    action,
-    normalizedTarget ? { target_workspace: normalizedTarget } : {}
-  );
-  if (actionPayload.missingRequiredPayloadFields.length > 0) {
-    throw new OplAgentPackageLaunchError(
-      actionPayload.missingRequiredPayloadFields.some((requirement) =>
-        requirement.split(/\s+or\s+/i).includes('target_workspace')
-      )
-        ? 'agent_package_target_mismatch'
-        : 'agent_package_activation_invalid'
-    );
-  }
-  const result = await ipcBridge.oplRuntime.executeAction.invoke({
-    actionId: action.actionId,
-    dryRun: false,
-    payloadRefsOnlyJson: actionPayload.payloadRefsOnlyJson,
-  });
-  if (result.ok === false) {
-    throw new Error(result.error?.message || result.command);
-  }
-  return parseOplAgentPackageLaunchResult({
-    parsed: result.parsed,
-    packageId,
-    packageVersion,
-    targetWorkspace:
-      typeof actionPayload.payloadRefsOnlyJson.target_workspace === 'string'
-        ? actionPayload.payloadRefsOnlyJson.target_workspace
-        : null,
-    scope: typeof actionPayload.payloadRefsOnlyJson.scope === 'string' ? actionPayload.payloadRefsOnlyJson.scope : null,
-  });
-}
-
-function getOplAgentPackageLaunchErrorMessage(error: unknown, t: TFunction): string | null {
-  if (!(error instanceof OplAgentPackageLaunchError)) return null;
-
-  switch (error.code) {
-    case 'agent_package_unavailable':
-    case 'agent_package_launch_blocked':
-    case 'agent_package_entrypoint_missing':
-      return t('guid.home.packageLaunchErrors.blocked');
-    case 'agent_package_selection_mismatch':
-      return t('guid.home.packageLaunchErrors.selectionMismatch');
-    case 'agent_package_version_mismatch':
-      return t('guid.home.packageLaunchErrors.versionMismatch');
-    case 'agent_package_target_mismatch':
-      return t('guid.home.packageLaunchErrors.targetMismatch');
-    case 'agent_package_activation_invalid':
-      return t('guid.home.packageLaunchErrors.invalid');
-  }
-}
-
 /**
  * Hook that manages the send logic for ACP and Aion CLI conversations.
  */
@@ -262,15 +187,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         allowedWhenBlocked: [],
         activationRequired: false,
       };
-  const selectedPackageActivationAction = selectedPackageId
-    ? resolveOplPackageActivationAction(appState, selectedPackageId)
-    : null;
-  const selectedPackageVersion = selectedPackageId
-    ? resolveOplPackageSelectionVersion(appState, selectedPackageId)
-    : null;
-  const packageWorkspaceRequired = selectedPackageActivationAction
-    ? oplProjectedActionNeedsContextField(selectedPackageActivationAction, 'target_workspace')
-    : false;
   const packageLaunchHardBlocked = selectedPackageLaunchGate.state === 'package_unavailable';
   const launchBlockedMessage = () =>
     t('guid.home.launchBlocked', {
@@ -287,22 +203,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       );
       return false;
     }
-    if (selectedPackageId && packageWorkspaceRequired && !dir) {
-      Message.error(t('guid.workspace.specifyWorkspace'));
-      return false;
-    }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
     const initialFiles = Array.from(new Set(files));
-    const oplAgentPackageActivation =
-      selectedPackageId && selectedPackageActivationAction
-        ? await activateOplAgentPackage(
-            selectedPackageActivationAction,
-            selectedPackageId,
-            selectedPackageVersion,
-            finalWorkspace || null
-          )
-        : undefined;
 
     const agentInfo = selectedAgentInfo;
     const is_preset = is_presetAgent;
@@ -372,7 +275,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -423,7 +325,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -478,7 +379,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
             opl_agent_package_invocation: oplAgentPackageInvocation,
-            opl_agent_package_activation: oplAgentPackageActivation,
             opl_assistant_route: oplAssistantRoute,
             selected_mcp_server_ids: selectedUserMcpServerIds,
             // aionrs should consume the authoritative session snapshot, just
@@ -574,7 +474,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_agent_package_activation: oplAgentPackageActivation,
           opl_assistant_route: oplAssistantRoute,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,
@@ -645,9 +544,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
     selectedPackageLaunchGate.activationRequired,
-    selectedPackageActivationAction,
-    selectedPackageVersion,
-    packageWorkspaceRequired,
     selectedPackageId,
     packageLaunchHardBlocked,
   ]);
@@ -661,10 +557,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
         selectedPackageLaunchGate.allowedWhenBlocked
       );
-      return;
-    }
-    if (selectedPackageId && packageWorkspaceRequired && !dir) {
-      Message.error(t('guid.workspace.specifyWorkspace'));
       return;
     }
     sendingRef.current = true;
@@ -685,7 +577,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
-        Message.error(getOplAgentPackageLaunchErrorMessage(error, t) ?? getConversationCreateErrorMessage(error, t));
+        Message.error(getConversationCreateErrorMessage(error, t));
       })
       .finally(() => {
         sendingRef.current = false;
@@ -711,7 +603,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.activationRequired,
     selectedPackageId,
     dir,
-    packageWorkspaceRequired,
     packageLaunchHardBlocked,
   ]);
 

@@ -138,18 +138,6 @@ function buildDeps(): GuidSendDeps {
   };
 }
 
-function buildPackageUseBinding(packageId: string, targetWorkspace: string) {
-  return {
-    surface_kind: 'opl_agent_package_use_binding.v1',
-    root_package: {
-      package_id: packageId,
-      package_version: '1.0.0',
-    },
-    scope: 'workspace',
-    target_root: targetWorkspace,
-  };
-}
-
 function buildActivationAction(packageId: string, workspaceRequired = true) {
   return {
     action_id: 'agent_package_activate',
@@ -184,68 +172,11 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
   };
 }
 
-function buildActivationExecution(payloadRefsOnlyJson: Record<string, unknown>) {
-  const packageId = String(payloadRefsOnlyJson.package_id);
-  const targetWorkspace =
-    typeof payloadRefsOnlyJson.target_workspace === 'string' ? payloadRefsOnlyJson.target_workspace : null;
-  const scope = typeof payloadRefsOnlyJson.scope === 'string' ? payloadRefsOnlyJson.scope : null;
-  return {
-    ok: true,
-    parsed: {
-      app_action_execution: {
-        surface_kind: 'opl_app_action_execution.v1',
-        action_id: 'agent_package_activate',
-        dry_run: false,
-        result: {
-          opl_agent_package_activation: {
-            surface_kind: 'opl_agent_package_activation',
-            status: 'activated',
-            dry_run: false,
-            writes_performed: true,
-            package_id: packageId,
-            operational_ready: true,
-            launch_allowed: true,
-            launch_blocked_reason: null,
-            package_lock: {
-              package_id: packageId,
-              package_version: '1.0.0',
-            },
-            ...(targetWorkspace
-              ? {
-                  materialization_readiness: {
-                    status: 'current',
-                    scope,
-                    target_root: targetWorkspace,
-                  },
-                  scope_materializations: [
-                    {
-                      scope,
-                      target_root: targetWorkspace,
-                    },
-                  ],
-                  package_use_binding: buildPackageUseBinding(packageId, targetWorkspace),
-                }
-              : {}),
-          },
-        },
-      },
-    },
-  };
-}
-
-function activationFromResponse(response: ReturnType<typeof buildActivationExecution>): Record<string, unknown> {
-  return response.parsed.app_action_execution.result.opl_agent_package_activation;
-}
-
 describe('useGuidSend OPL ordinary capability whitelist', () => {
   beforeEach(() => {
     mocks.createConversation.mockReset();
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
     mocks.activatePackage.mockReset();
-    mocks.activatePackage.mockImplementation(
-      ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) =>
-        Promise.resolve(buildActivationExecution(payloadRefsOnlyJson))
-    );
     mocks.navigate.mockReset();
     mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true });
     mocks.messageError.mockReset();
@@ -356,31 +287,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       required_skill_ids: ['med-autoscience'],
       source: 'opl_app_home',
     });
-    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
-    const activationRequest = mocks.activatePackage.mock.calls[0][0];
-    expect(activationRequest).toMatchObject({
-      actionId: 'agent_package_activate',
-      dryRun: false,
-      payloadRefsOnlyJson: {
-        package_id: 'mas',
-        scope: 'workspace',
-        target_workspace: '/tmp/opl',
-      },
-    });
-    expect(activationRequest.payloadRefsOnlyJson).not.toHaveProperty('use_boundary_id');
-    expect(payload.extra.opl_agent_package_activation).toMatchObject({
-      action_id: 'agent_package_activate',
-      package_id: 'mas',
-      package_version: '1.0.0',
-      scope: 'workspace',
-      target_workspace: '/tmp/opl',
-      launch_allowed: true,
-      use_binding: {
-        scope: 'workspace',
-        target_root: '/tmp/opl',
-        root_package: { package_id: 'mas', package_version: '1.0.0' },
-      },
-    });
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
+    expect(payload.extra.opl_agent_package_activation).toBeUndefined();
     expect(payload.extra.opl_assistant_route).toMatchObject({
       route_kind: 'builtin_capability',
       executor: 'codex_cli',
@@ -413,6 +321,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       source: 'opl_app_home',
     });
     expect(payload.extra.opl_assistant_route).toBeUndefined();
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
   });
 
   it('blocks ordinary package launch when Framework reports package_not_installed', async () => {
@@ -459,13 +368,13 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       await result.current.handleSend();
     });
 
-    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
     expect(deps.resolvePresetRulesAndSkills).toHaveBeenCalledTimes(1);
     expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
-  it('activates a scope-required package before creating its workspace conversation', async () => {
+  it('creates a workspace conversation without pre-activating a scope-required package', async () => {
     mocks.appState = buildPackageAppState('mas', {
       operational_ready: false,
       launch_allowed: false,
@@ -478,11 +387,12 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       await result.current.handleSend();
     });
 
-    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation.mock.calls[0][0].extra.workspace).toBe('/tmp/opl');
   });
 
-  it('requires a workspace before activating an OPL package shortcut', async () => {
+  it('creates a projectless professional-agent conversation without pre-activation', async () => {
     const deps = buildDeps();
     deps.dir = '';
     const { result } = renderHook(() => useGuidSend(deps));
@@ -492,11 +402,12 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     });
 
     expect(mocks.activatePackage).not.toHaveBeenCalled();
-    expect(mocks.createConversation).not.toHaveBeenCalled();
-    expect(mocks.messageError).toHaveBeenCalledWith('guid.workspace.specifyWorkspace');
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation.mock.calls[0][0].extra.workspace).toBe('');
+    expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
-  it('activates a package-id-only projected action without a Workspace', async () => {
+  it('does not execute a package-id-only projected activation from Home', async () => {
     mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true }, false);
     const deps = buildDeps();
     deps.dir = '';
@@ -506,17 +417,13 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       await result.current.handleSend();
     });
 
-    expect(mocks.activatePackage).toHaveBeenCalledWith({
-      actionId: 'agent_package_activate',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
     expect(mocks.createConversation.mock.calls[0][0].extra.workspace).toBe('');
     expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
-  it('JIT activates live_verification_deferred instead of pre-blocking the package', async () => {
+  it('does not pre-activate live_verification_deferred before creating the conversation', async () => {
     mocks.appState = buildPackageAppState(
       'mas',
       {
@@ -534,112 +441,55 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       await result.current.handleSend();
     });
 
-    expect(mocks.activatePackage).toHaveBeenCalledTimes(1);
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
     expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
-  it('shows a localized invalid-activation error before creating a conversation', async () => {
-    mocks.activatePackage.mockResolvedValue({
-      ok: true,
-      parsed: {
-        app_action_execution: {
-          action_id: 'unexpected_action',
-          result: {
-            opl_agent_package_activation: {
-              package_id: 'mas',
-              launch_allowed: true,
-              use_boundary_id: 'incomplete-boundary',
-              use_receipt_ref: 'opl://agent-package/use/mas/incomplete',
-              package_use_binding: null,
-            },
-          },
+  it('ignores a legacy projected workspace target when creating a projectless conversation', async () => {
+    const deps = buildDeps();
+    deps.dir = '';
+    const baseActivationAction = buildActivationAction('mas');
+    const activationAction = {
+      ...baseActivationAction,
+      payload: {
+        ...baseActivationAction.payload,
+        target_workspace: '/Users/example/global-workspace',
+      },
+    };
+    mocks.appState = {
+      agent_packages: {
+        directory: {
+          entries: [{ package_id: 'mas', available_actions: [activationAction] }],
         },
       },
+    };
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
+    expect(mocks.createConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.createConversation.mock.calls[0][0].extra.workspace).toBe('');
+    expect(mocks.createConversation.mock.calls[0][0].extra.opl_agent_package_activation).toBeUndefined();
+  });
+
+  it('shows a localized Framework blocked verdict without creating or enqueueing a conversation', async () => {
+    mocks.appState = buildPackageAppState('mas', {
+      operational_ready: false,
+      launch_allowed: false,
+      launch_blocked_reason: 'package_disabled',
+      allowed_when_blocked: ['status', 'doctor', 'repair'],
     });
     const deps = buildDeps();
     const { result } = renderHook(() => useGuidSend(deps));
 
     act(() => result.current.sendMessageHandler());
-    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('guid.home.packageLaunchErrors.invalid'));
+    await waitFor(() => expect(mocks.messageError).toHaveBeenCalled());
 
-    expect(mocks.createConversation).not.toHaveBeenCalled();
-    expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
-    expect(mocks.navigate).not.toHaveBeenCalled();
-    expect(sessionStorage.length).toBe(0);
-  });
-
-  it.each([
-    {
-      caseId: 'selected package drift',
-      errorKey: 'guid.home.packageLaunchErrors.selectionMismatch',
-      mutate: (activation: Record<string, unknown>) => {
-        activation.package_id = 'foreign-package';
-      },
-    },
-    {
-      caseId: 'installed version drift',
-      errorKey: 'guid.home.packageLaunchErrors.versionMismatch',
-      mutate: (activation: Record<string, unknown>) => {
-        const lock = activation.package_lock as Record<string, unknown>;
-        lock.package_version = '9.9.9';
-        const binding = activation.package_use_binding as Record<string, unknown>;
-        const rootPackage = binding.root_package as Record<string, unknown>;
-        rootPackage.package_version = '9.9.9';
-      },
-    },
-    {
-      caseId: 'target-root drift',
-      errorKey: 'guid.home.packageLaunchErrors.targetMismatch',
-      mutate: (activation: Record<string, unknown>) => {
-        const binding = activation.package_use_binding as Record<string, unknown>;
-        binding.target_root = '/tmp/foreign';
-      },
-    },
-  ])(
-    'shows a localized $caseId error before conversation creation or initial-message enqueue',
-    async ({ mutate, errorKey }) => {
-      mocks.activatePackage.mockImplementation(
-        ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) => {
-          const response = buildActivationExecution(payloadRefsOnlyJson);
-          mutate(activationFromResponse(response));
-          return Promise.resolve(response);
-        }
-      );
-      const deps = buildDeps();
-      const { result } = renderHook(() => useGuidSend(deps));
-
-      act(() => result.current.sendMessageHandler());
-      await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith(errorKey));
-
-      expect(mocks.createConversation).not.toHaveBeenCalled();
-      expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
-      expect(mocks.navigate).not.toHaveBeenCalled();
-      expect(sessionStorage.length).toBe(0);
-    }
-  );
-
-  it('shows a localized Framework blocked verdict without creating or enqueueing a conversation', async () => {
-    mocks.activatePackage.mockImplementation(
-      ({ payloadRefsOnlyJson }: { payloadRefsOnlyJson: Record<string, unknown> }) => {
-        const response = buildActivationExecution(payloadRefsOnlyJson);
-        const activation = activationFromResponse(response);
-        activation.status = 'blocked';
-        activation.writes_performed = false;
-        activation.operational_ready = false;
-        activation.launch_allowed = false;
-        activation.launch_blocked_reason = 'package_disabled';
-        activation.use_receipt_ref = null;
-        activation.package_use_binding = null;
-        return Promise.resolve(response);
-      }
-    );
-    const deps = buildDeps();
-    const { result } = renderHook(() => useGuidSend(deps));
-
-    act(() => result.current.sendMessageHandler());
-    await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('guid.home.packageLaunchErrors.blocked'));
-
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(mocks.createConversation).not.toHaveBeenCalled();
     expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
     expect(mocks.navigate).not.toHaveBeenCalled();

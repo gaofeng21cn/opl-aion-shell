@@ -2367,15 +2367,15 @@
       }
     },
     "status": {
-      "ready": "Ready",
-      "update": "Update available",
-      "sync": "Needs sync",
-      "source": "Developer source",
-      "verification": "Local check not complete",
-      "inactive": "Not enabled",
-      "attention": "Setup required",
-      "repair": "Needs repair",
-      "missing": "Missing"
+      "ready": "Available",
+      "update": "Update required",
+      "sync": "Sync required",
+      "source": "Available",
+      "verification": "Checking",
+      "inactive": "Enable required",
+      "attention": "Temporarily unavailable",
+      "repair": "Repair required",
+      "missing": "Install required"
     },
     "entries": {
       "externalTools": {
@@ -2421,11 +2421,11 @@
     "visibility": {
       "conversation": "Current availability",
       "home": "Show on Home",
-      "conversationAvailable": "Ready to start a conversation",
-      "conversationNeedsSync": "Sync needed",
-      "conversationUnavailable": "Complete setup or repair first",
-      "conversationVerificationPending": "You can start a conversation; the local check runs on first use",
-      "conversationUnverified": "No local check result reported yet"
+      "conversationAvailable": "Available for conversations",
+      "conversationNeedsSync": "Sync required",
+      "conversationUnavailable": "Temporarily unavailable; open details for the reason",
+      "conversationVerificationPending": "Available for conversations; confirmed automatically on first use",
+      "conversationUnverified": "Checking the current status"
     },
     "detailLabels": {
       "purpose": "Purpose",
@@ -2504,9 +2504,9 @@
       "required_by_installed_package": "Required by another installed package",
       "dependency_closure_not_ready": "The dependency closure is not ready",
       "package_not_installed": "Install this package to continue",
-      "package_activation_required": "Activate this package for the current Workspace",
-      "scope_materialization_missing": "Activate this package for the current Workspace",
-      "live_verification_deferred": "You can start a conversation; the local check runs on first use, or review it now",
+      "package_activation_required": "Runtime reports that session-scoped preparation is required",
+      "scope_materialization_missing": "Runtime reports that the session-scoped capability is not ready",
+      "live_verification_deferred": "Runtime has not completed local verification",
       "status_read_error": "Framework could not read the package status",
       "other": "Framework reported an issue that this App version does not yet recognize."
     },

@@ -821,15 +821,15 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.developerSource.managedPath': 'Managed path',
         'settings.capabilitiesPage.developerSource.developerPath': 'Developer path',
         'settings.capabilitiesPage.developerSource.fallback': 'Using the managed fallback.',
-        'settings.capabilitiesPage.status.ready': 'Ready to use',
-        'settings.capabilitiesPage.status.update': 'Update available',
-        'settings.capabilitiesPage.status.sync': 'Needs sync',
-        'settings.capabilitiesPage.status.source': 'Developer source',
-        'settings.capabilitiesPage.status.verification': 'Local check not complete',
-        'settings.capabilitiesPage.status.inactive': 'Not enabled',
-        'settings.capabilitiesPage.status.attention': 'Setup required',
-        'settings.capabilitiesPage.status.repair': 'Needs repair',
-        'settings.capabilitiesPage.status.missing': 'Missing',
+        'settings.capabilitiesPage.status.ready': 'Available',
+        'settings.capabilitiesPage.status.update': 'Update required',
+        'settings.capabilitiesPage.status.sync': 'Sync required',
+        'settings.capabilitiesPage.status.source': 'Available',
+        'settings.capabilitiesPage.status.verification': 'Checking',
+        'settings.capabilitiesPage.status.inactive': 'Enable required',
+        'settings.capabilitiesPage.status.attention': 'Temporarily unavailable',
+        'settings.capabilitiesPage.status.repair': 'Repair required',
+        'settings.capabilitiesPage.status.missing': 'Install required',
         'settings.advancedSettings': 'Advanced Settings',
         'common.close': 'Close',
         'common.technical_details': 'Technical Details',
@@ -843,10 +843,11 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
         'settings.capabilitiesPage.visibility.conversation': 'Current availability',
         'settings.capabilitiesPage.visibility.home': 'Show on Home',
-        'settings.capabilitiesPage.visibility.conversationAvailable': 'Ready to start a conversation',
-        'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync needed',
-        'settings.capabilitiesPage.visibility.conversationUnavailable': 'Complete setup or repair first',
-        'settings.capabilitiesPage.visibility.conversationUnverified': 'No local check result reported yet',
+        'settings.capabilitiesPage.visibility.conversationAvailable': 'Available for conversations',
+        'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync required',
+        'settings.capabilitiesPage.visibility.conversationUnavailable':
+          'Temporarily unavailable; open details for the reason',
+        'settings.capabilitiesPage.visibility.conversationUnverified': 'Checking the current status',
         'settings.capabilitiesPage.visibility.conversationVerificationPending':
           'You can start a conversation; the local check runs on first use',
         'settings.capabilitiesPage.actions.reviewLocalCheck': 'Review local check',
@@ -1173,19 +1174,19 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getAllByText('Local developer source').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Needs repair').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Ready to start a conversation').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Sync needed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Update required').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Repair required').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Available for conversations').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sync required').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByTestId('capability-description-mas')).toHaveTextContent(
       'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
     );
-    expect(within(research).getByText('Ready to use')).toBeInTheDocument();
+    expect(within(research).getByText('Available')).toBeInTheDocument();
     expect(within(research).getByText('Local developer source')).toBeInTheDocument();
     const bookforge = screen.getByTestId('capability-purpose-obf');
-    expect(within(bookforge).getByText('Ready to use')).toBeInTheDocument();
+    expect(within(bookforge).getByText('Available')).toBeInTheDocument();
     expect(within(bookforge).getByText('Local developer source')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-obf'));
     expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
@@ -1193,7 +1194,7 @@ describe('Agents and capabilities settings', () => {
     expect(within(oma).getByTestId('capability-description-oma')).toHaveTextContent(
       'For creating, taking over, inspecting, and improving OPL professional agents.'
     );
-    expect(within(oma).getByText('Ready to use')).toBeInTheDocument();
+    expect(within(oma).getByText('Available')).toBeInTheDocument();
     expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
@@ -1432,6 +1433,7 @@ describe('Agents and capabilities settings', () => {
         package_id: 'med-autoscience',
         package_role: 'standard_agent',
         installed: true,
+        installed_version: '1.0.0',
         trust_tier: 'first_party',
         readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
         source_explanation: {
@@ -1444,6 +1446,7 @@ describe('Agents and capabilities settings', () => {
         package_id: 'med-autogrant',
         package_role: 'standard_agent',
         installed: true,
+        installed_version: '1.0.0',
         readiness: { status: 'update_available', operational_ready: true, launch_allowed: true },
         source_explanation: {
           kind: 'agent_package_registry_cache',
@@ -1455,6 +1458,7 @@ describe('Agents and capabilities settings', () => {
         package_id: 'opl-meta-agent',
         package_role: 'framework_capability_package',
         installed: true,
+        installed_version: '1.0.0',
         readiness: {
           status: 'verification_deferred',
           operational_ready: false,
@@ -1473,9 +1477,7 @@ describe('Agents and capabilities settings', () => {
 
     const managedRow = screen.getByTestId('capability-purpose-mas');
     expect(within(managedRow).getByTestId('capability-source-mas')).toHaveTextContent(/Source\s*OPL managed package/);
-    expect(within(managedRow).getByTestId('capability-conversation-mas')).toHaveTextContent(
-      /Current availability\s*Complete setup or repair first/
-    );
+    expect(within(managedRow).getByTestId('capability-conversation-mas')).not.toHaveTextContent('Complete setup');
     expect(within(managedRow).getByTestId('capability-controls-mas')).toBeInTheDocument();
     expect(managedRow).not.toHaveTextContent('first_party');
     expect(within(screen.getByTestId('capability-purpose-mag')).getByText('Registry install')).toBeInTheDocument();
@@ -1489,8 +1491,9 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
 
-    await chooseSelectOption('settings-agents-status-filter', 'verification_deferred');
+    await chooseSelectOption('settings-agents-status-filter', 'Available');
     expect(screen.getByTestId('capability-purpose-oma')).toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-mas')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mag')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
 
@@ -1568,12 +1571,12 @@ describe('Agents and capabilities settings', () => {
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Not enabled')).toBeInTheDocument();
+    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Available')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-exception')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready to use');
+    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Available');
   });
 
-  it('presents deferred local verification as usable on first use instead of unavailable', () => {
+  it('presents deferred local verification as ordinarily available', () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
         package_id: 'med-autoscience',
@@ -1591,14 +1594,14 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const row = screen.getByTestId('capability-purpose-mas');
-    expect(within(row).getByText('Local check not complete')).toBeInTheDocument();
-    expect(within(row).getByTestId('capability-conversation-mas')).toHaveTextContent(
-      'You can start a conversation; the local check runs on first use'
-    );
-    expect(within(row).queryByText('Complete setup or repair first')).not.toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: 'Review local check' })).toBeInTheDocument();
+    expect(within(row).getByText('Available')).toBeInTheDocument();
+    expect(within(row).getByTestId('capability-conversation-mas')).toHaveTextContent('Available for conversations');
+    expect(within(row).queryByText('Local check not complete')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Review local check' })).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('1 / 1');
-    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Ready to use');
+    expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Available');
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
+    expect(screen.queryByTestId('capability-readiness-mas')).not.toBeInTheDocument();
   });
 
   it('keeps a row status read error local to that package and exposes its failure detail', () => {
@@ -1620,13 +1623,13 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Needs repair')).toBeInTheDocument();
+    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Repair required')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-example'));
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
     expect(screen.getByTestId('capability-details-example')).toHaveTextContent('package status unavailable');
   });
 
-  it('executes install and activation only from exact projected action objects', async () => {
+  it('executes install from its exact action but defers activation outside Settings', async () => {
     const installAction = actionFixture(
       'install_from_manifest_url',
       { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
@@ -1703,21 +1706,14 @@ describe('Agents and capabilities settings', () => {
       }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
-    fireEvent.click(screen.getByTestId('agent-package-activate-example'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_activate',
-        dryRun: false,
-        payloadRefsOnlyJson: {
-          package_id: 'example-agent',
-          scope: 'workspace',
-          target_workspace: '/workspace/selected',
-        },
-      })
-    );
+    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-workspace-required')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
+    expect(screen.getByTestId('capability-conversation-example')).toHaveTextContent('Available for conversations');
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
-  it('executes a package-id-only activation without a Workspace or status-index precondition', async () => {
+  it('does not expose package-id-only activation as an ordinary Settings action', () => {
     const activationAction = actionFixture('agent_package_activate', { package_id: 'example-agent' }, ['package_id']);
     appStateOverrides.appState = appStateWithDirectory(
       [
@@ -1741,17 +1737,9 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const activation = screen.getByTestId('agent-package-activate-example');
-    expect(activation).toBeEnabled();
-    expect(activation).not.toHaveAttribute('aria-describedby');
-    fireEvent.click(activation);
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_activate',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'example-agent' },
-      })
-    );
+    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('renders canonical recommended update, repair, and registry refresh actions on package rows', async () => {
@@ -1814,7 +1802,7 @@ describe('Agents and capabilities settings', () => {
     );
   });
 
-  it('disables activation without a Workspace and routes its accessible reason to the Workspace anchor', () => {
+  it('does not route workspace-scoped activation through global Workspace settings', () => {
     const activationAction = actionFixture(
       'agent_package_activate',
       { package_id: 'example-agent', scope: 'workspace' },
@@ -1856,19 +1844,13 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const activation = screen.getByTestId('agent-package-activate-example');
-    expect(activation).toBeDisabled();
-    expect(activation).toHaveAttribute('data-disabled-reason', 'workspace_root_not_configured');
-    expect(activation).toHaveAttribute('aria-describedby', 'agent-package-workspace-required');
-    expect(screen.getByTestId('settings-agents-workspace-required')).toHaveAttribute(
-      'data-disabled-reason',
-      'workspace_root_not_configured'
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }));
-    expect(screen.getByTestId('current-location')).toHaveTextContent('/settings/workspace#workspace');
+    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-workspace-required')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
-  it('uses the exact directory action when status-index activation is missing', async () => {
+  it('does not expose a directory-only activation action in Settings', () => {
     const activationAction = actionFixture(
       'agent_package_activate',
       { package_id: 'example-agent', scope: 'workspace' },
@@ -1888,23 +1870,11 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const activation = screen.getByTestId('agent-package-activate-example');
-    expect(activation).toBeEnabled();
-    fireEvent.click(activation);
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_activate',
-        dryRun: false,
-        payloadRefsOnlyJson: {
-          package_id: 'example-agent',
-          scope: 'workspace',
-          target_workspace: '/workspace/selected',
-        },
-      })
-    );
+    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
-  it('fails activation closed for an explicit disabled authority verdict', () => {
+  it('keeps an explicit disabled activation verdict out of ordinary Settings actions', () => {
     const activationAction = actionFixture(
       'agent_package_activate',
       { package_id: 'example-agent', scope: 'workspace' },
@@ -1938,10 +1908,7 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const activation = screen.getByTestId('agent-package-activate-example');
-    expect(activation).toBeDisabled();
-    expect(activation).toHaveAttribute('data-disabled-reason', 'package_disabled');
-    fireEvent.click(activation);
+    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -2437,7 +2404,7 @@ describe('Agents and capabilities settings', () => {
       })
     );
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
-    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Example Agent installed and verified: READY.');
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Example Agent installed and verified: Available.');
   });
 
   it('rolls Home visibility back when the App action fails', async () => {
