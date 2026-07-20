@@ -5249,10 +5249,15 @@ function runtimeStatusReadinessExpression() {
     const titleOk = /OPL Runtime Status|OPL 运行状态|Project Runtime Progress|项目运行进度|Project Runtime Overview|项目运行总览/.test(text);
     const summaryOk = /App\\/operator Drilldown|运行状态摘要|Task Overview|任务概览|In progress|进行中|Needs system handling|需要系统处理|Status Load|状态加载/.test(text);
     const loadedOk = /Loaded at|已加载于|Loaded|已加载/.test(text);
+    const pagePresent = Boolean(document.querySelector('[data-testid="runtime-v2-page"]'));
+    const refreshPresent = Boolean(document.querySelector('[data-testid="runtime-refresh-button"]'));
+    const readyStatePresent = Boolean(document.querySelector('[data-testid="runtime-ready-state"]'));
+    const emptyStatePresent = Boolean(document.querySelector('[data-testid="runtime-empty-state"]'));
+    const statusRegionPresent = Boolean(document.querySelector('[data-testid="runtime-status-region"]'));
     const pageReady = Boolean(
-      document.querySelector('[data-testid="runtime-v2-page"]') &&
-      document.querySelector('[data-testid="runtime-status-region"]') &&
-      document.querySelector('[data-testid="runtime-refresh-button"]')
+      pagePresent &&
+      refreshPresent &&
+      ((readyStatePresent && statusRegionPresent) || emptyStatePresent)
     );
     return hashOk && titleOk && pageReady
       ? {
@@ -5260,6 +5265,7 @@ function runtimeStatusReadinessExpression() {
           titleReady: titleOk,
           summaryReady: summaryOk,
           loadedReady: loadedOk,
+          state: emptyStatePresent ? 'empty' : 'ready',
           pageReady,
         }
       : false;

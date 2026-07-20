@@ -1891,12 +1891,15 @@ describe('packaged first-run VM smoke helpers', () => {
     });
   });
 
-  it('uses stable Runtime page controls instead of optional status copy as readiness evidence', () => {
+  it('accepts stable ready and empty Runtime states instead of optional status copy as readiness evidence', () => {
     const expression = __test.runtimeStatusReadinessExpression();
 
     expect(expression).toContain('[data-testid="runtime-v2-page"]');
     expect(expression).toContain('[data-testid="runtime-status-region"]');
+    expect(expression).toContain('[data-testid="runtime-ready-state"]');
+    expect(expression).toContain('[data-testid="runtime-empty-state"]');
     expect(expression).toContain('[data-testid="runtime-refresh-button"]');
+    expect(expression).toContain('(readyStatePresent && statusRegionPresent) || emptyStatePresent');
     expect(expression).toContain('hashOk && titleOk && pageReady');
   });
 
