@@ -48,6 +48,25 @@ function unsafeOneSidedBorderClasses(source: string): string[] {
 }
 
 describe('Codex visual parity overlay', () => {
+  it('keeps the first renderer preflight on the product startup stages', () => {
+    const main = read('packages/desktop/src/renderer/main.tsx');
+    const preflightStart = main.indexOf('if (!ready || !configReady)');
+    const preflightEnd = main.indexOf('return (\n    <Router', preflightStart);
+    const preflight = main.slice(preflightStart, preflightEnd);
+
+    expect(preflightStart).toBeGreaterThanOrEqual(0);
+    expect(preflightEnd).toBeGreaterThan(preflightStart);
+    expect(preflight).toContain("t('common.uiOptimization.startup.stages.workspace')");
+    expect(preflight).toContain("t('common.uiOptimization.startup.stages.assistant')");
+    expect(preflight).toContain("t('common.uiOptimization.startup.stages.modelAccess')");
+    expect(preflight).toContain('showProgress={false}');
+    expect(preflight).not.toContain('common.startupPreflight.steps.desktopSession');
+    expect(preflight).not.toContain('common.startupPreflight.steps.appConfig');
+    expect(preflight).not.toContain('common.startupPreflight.steps.firstRunStatus');
+    expect(preflight).not.toContain('common.startupPreflight.messages.connectingBackend');
+    expect(preflight).not.toContain('common.startupPreflight.messages.loadingConfig');
+  });
+
   it('keeps conversation search in the history header as an icon action', () => {
     const sider = read('packages/desktop/src/renderer/components/layout/Sider/index.tsx');
     const searchEntry = read('packages/desktop/src/renderer/components/layout/Sider/SiderNav/SiderSearchEntry.tsx');

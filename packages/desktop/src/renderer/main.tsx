@@ -261,21 +261,16 @@ const Main = () => {
   if (!ready || !configReady) {
     const steps: AppLoaderStep[] = [
       {
-        label: t('common.startupPreflight.steps.desktopSession'),
+        label: t('common.uiOptimization.startup.stages.workspace'),
         state: ready ? 'complete' : 'active',
-        message: ready ? undefined : t('common.startupPreflight.messages.connectingBackend'),
-        progress: ready ? 100 : 50,
       },
       {
-        label: t('common.startupPreflight.steps.appConfig'),
+        label: t('common.uiOptimization.startup.stages.assistant'),
         state: !ready ? 'pending' : configReady ? 'complete' : 'active',
-        message: !ready ? undefined : configReady ? undefined : t('common.startupPreflight.messages.loadingConfig'),
-        progress: !ready ? 0 : configReady ? 100 : 75,
       },
       {
-        label: t('common.startupPreflight.steps.firstRunStatus'),
+        label: t('common.uiOptimization.startup.stages.modelAccess'),
         state: 'pending',
-        progress: 0,
       },
     ];
     return (
@@ -284,7 +279,7 @@ const Main = () => {
         description={t('common.startupPreflight.description')}
         steps={steps}
         testId='opl-startup-preflight'
-        showProgress={true}
+        showProgress={false}
       />
     );
   }
