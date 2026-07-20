@@ -1121,11 +1121,13 @@ describe('packaged first-run VM smoke helpers', () => {
     const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
     const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
     const sendExpression = __test.homeAssistantRouteSendExpression(masTarget, 'Verify MAS launch.');
+    const sendStateExpression = __test.homeAssistantRouteSendStateExpression(masTarget, 'Verify MAS launch.', 1_000);
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
     const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
     const activeReceiptExpression = __test.activeConversationRouteReceiptExpression(masTarget, '/Users/opl/OPL-Smoke');
 
     expect(__test.FULL_ASSISTANT_READINESS_TIMEOUT_MS).toBe(180_000);
+    expect(__test.FULL_ASSISTANT_SEND_TIMEOUT_MS).toBe(180_000);
     expect(workspaceExpression).toContain("getAttribute('data-opl-workspace-selected')");
     expect(workspaceExpression).toContain("getAttribute('data-opl-workspace-path')");
     expect(workspaceExpression).toContain('workspace: "/Users/opl/OPL-Smoke"');
@@ -1160,7 +1162,11 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(sendExpression).toContain('if (input.value !== "Verify MAS launch.")');
     expect(sendExpression).toContain("input.dispatchEvent(new Event('change', { bubbles: true }))");
     expect(sendExpression).toContain("interaction_path: 'guid_ui_send'");
+    expect(sendExpression).toContain('clicked_at: clickedAt');
     expect(sendExpression).not.toContain("method: 'POST'");
+    expect(sendStateExpression).toContain("reason: status === 'failed' ? 'send_returned_without_navigation'");
+    expect(sendStateExpression).toContain("sendButton.classList.contains('arco-btn-loading')");
+    expect(sendStateExpression).toContain('window.location.hash');
     expect(receiptExpression).toContain('/api/conversations?limit=10');
     expect(receiptByIdExpression).toContain('expectedConversationId = "conv-123"');
     expect(activeReceiptExpression).toContain('window.location.hash.match(/^#\\/conversation\\/');
@@ -1285,8 +1291,64 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(window.eval(expression)).toMatchObject({
       assistant_id: 'mas',
       interaction_path: 'guid_ui_send',
+      clicked_at: expect.any(Number),
     });
     expect(sendClick).toHaveBeenCalledOnce();
+  });
+
+  it('waits for Full send completion and returns typed idle or routed state', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main
+        data-testid="opl-guid-entry"
+        data-opl-workspace-selected="true"
+        data-opl-workspace-path="/Users/opl/OPL-Smoke"
+        data-opl-active-shortcut="research"
+        data-opl-composer-executor="codex"
+      >
+        <textarea data-testid="guid-input">Verify MAS launch.</textarea>
+        <button data-testid="guid-send-btn" disabled>Send</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const clickedAt = Date.now() - 3_000;
+
+    expect(window.eval(__test.homeAssistantRouteSendStateExpression(target, 'Verify MAS launch.', clickedAt))).toBe(
+      false
+    );
+    expect(
+      window.eval(__test.homeAssistantRouteSendStateExpression(target, 'Verify MAS launch.', clickedAt, false))
+    ).toMatchObject({
+      status: 'pending',
+      send_loading: true,
+      input_matches_prompt: true,
+    });
+
+    const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    sendButton.disabled = false;
+    expect(
+      window.eval(__test.homeAssistantRouteSendStateExpression(target, 'Verify MAS launch.', clickedAt))
+    ).toMatchObject({
+      status: 'failed',
+      reason: 'send_returned_without_navigation',
+      send_loading: false,
+      composer_state: {
+        workspace_selected: 'true',
+        active_shortcut_id: 'research',
+        executor: 'codex',
+      },
+    });
+
+    window.location.hash = '#/conversation/conv-123';
+    expect(
+      window.eval(__test.homeAssistantRouteSendStateExpression(target, 'Verify MAS launch.', clickedAt))
+    ).toMatchObject({
+      status: 'routed',
+      conversation_id: 'conv-123',
+    });
   });
 
   it('executes the complete Standard launch-gate polling lifecycle against the renderer textarea DOM', () => {

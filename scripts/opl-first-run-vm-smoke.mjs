@@ -38,6 +38,7 @@ const OPL_BOOTSTRAP_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const OPL_JSON_DIAGNOSTIC_INLINE_BYTES = 64 * 1024;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const FULL_ASSISTANT_READINESS_TIMEOUT_MS = 180_000;
+const FULL_ASSISTANT_SEND_TIMEOUT_MS = 180_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
@@ -3846,12 +3847,61 @@ function homeAssistantRouteSendExpression(target, prompt) {
     if (sendButton.disabled || sendButton.getAttribute('disabled') !== null || sendButton.getAttribute('aria-disabled') === 'true') {
       return false;
     }
+    const clickedAt = Date.now();
     sendButton.click();
     return {
       assistant_id: ${cdpString(target.id)},
       promptLength: ${prompt.length},
       interaction_path: 'guid_ui_send',
+      clicked_at: clickedAt,
     };
+  })()`;
+}
+
+function homeAssistantRouteSendStateExpression(target, prompt, clickedAt, pendingAsFalse = true) {
+  return `(() => {
+    const hash = window.location.hash;
+    const routeMatch = hash.match(/^#\\/conversation\\/([^/?#]+)/);
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const composer = document.querySelector('[data-testid="opl-guid-entry"]');
+    const elapsedMs = Math.max(0, Date.now() - ${Number(clickedAt)});
+    const loading = Boolean(
+      sendButton &&
+        (sendButton.disabled ||
+          sendButton.getAttribute('disabled') !== null ||
+          sendButton.getAttribute('aria-disabled') === 'true' ||
+          sendButton.getAttribute('aria-busy') === 'true' ||
+          sendButton.classList.contains('arco-btn-loading') ||
+          sendButton.querySelector('.arco-icon-loading, [data-icon="loading"]'))
+    );
+    const messages = Array.from(
+      document.querySelectorAll('[role="alert"], [role="status"], .arco-message, .arco-notification')
+    )
+      .map((element) => element.textContent?.trim() || '')
+      .filter(Boolean)
+      .slice(0, 5);
+    const status = routeMatch ? 'routed' : loading || elapsedMs < 2_000 ? 'pending' : 'failed';
+    const state = {
+      status,
+      reason: status === 'failed' ? 'send_returned_without_navigation' : null,
+      assistant_id: ${cdpString(target.id)},
+      elapsed_ms: elapsedMs,
+      hash,
+      conversation_id: routeMatch ? decodeURIComponent(routeMatch[1]) : null,
+      input_value: input?.value ?? null,
+      input_matches_prompt: input?.value === ${cdpString(prompt)},
+      send_loading: loading,
+      messages,
+      missing_controls: [],
+      composer_state: {
+        workspace_selected: composer?.getAttribute('data-opl-workspace-selected') ?? null,
+        workspace_path: composer?.getAttribute('data-opl-workspace-path') ?? null,
+        active_shortcut_id: composer?.getAttribute('data-opl-active-shortcut') ?? null,
+        executor: composer?.getAttribute('data-opl-composer-executor') ?? null,
+      },
+    };
+    return ${pendingAsFalse ? "status === 'pending' ? false : state" : 'state'};
   })()`;
 }
 
@@ -5210,15 +5260,35 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
         );
+        const routePrompt = `Verify the packaged ${assistantTarget.shortName} workspace activation and route receipt.`;
         const sent = await waitForCdpPredicate(
           client,
-          homeAssistantRouteSendExpression(
-            assistantTarget,
-            `Verify the packaged ${assistantTarget.shortName} workspace activation and route receipt.`
-          ),
+          homeAssistantRouteSendExpression(assistantTarget, routePrompt),
           30_000,
           `Could not send through the OPL built-in assistant composer: ${assistantTarget.id}`
         );
+        let sendState;
+        try {
+          sendState = await waitForCdpPredicate(
+            client,
+            homeAssistantRouteSendStateExpression(assistantTarget, routePrompt, sent.clicked_at),
+            Math.min(options.timeoutMs, FULL_ASSISTANT_SEND_TIMEOUT_MS),
+            `OPL built-in assistant send did not reach a conversation route: ${assistantTarget.id}`
+          );
+        } catch (error) {
+          if (error instanceof Error) {
+            error.lastState = await evaluateCdp(
+              client,
+              homeAssistantRouteSendStateExpression(assistantTarget, routePrompt, sent.clicked_at, false)
+            );
+          }
+          throw error;
+        }
+        if (sendState?.status === 'failed') {
+          const error = new Error(`OPL built-in assistant send failed: ${JSON.stringify(sendState)}`);
+          error.lastState = sendState;
+          throw error;
+        }
         const receipt = await waitForCdpPredicate(
           client,
           activeConversationRouteReceiptExpression(assistantTarget, assistantWorkspace),
@@ -5239,6 +5309,7 @@ async function runAssistantRouteSmoke(options, secret) {
           selected,
           ready,
           sent,
+          send_state: sendState,
           receipt,
         });
       } catch (error) {
@@ -6641,6 +6712,7 @@ export const __test =
         loadCompiledAssistantRouteExpectations,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         FULL_ASSISTANT_READINESS_TIMEOUT_MS,
+        FULL_ASSISTANT_SEND_TIMEOUT_MS,
         pageReadinessExpression,
         maintenanceDiagnosticsStatusExpression,
         runtimeActionEvidenceExpression,
@@ -6676,6 +6748,7 @@ export const __test =
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
         homeAssistantRouteSendExpression,
+        homeAssistantRouteSendStateExpression,
         conversationRouteReceiptExpression,
         activeConversationRouteReceiptExpression,
         latestConversationRouteReceiptExpression,
