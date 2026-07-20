@@ -988,7 +988,7 @@
           "package_kind": "domain_agent_package",
           "display_name": "Med Auto Science",
           "display_name_i18n": {
-            "zh-CN": "医学科研智能体",
+            "zh-CN": "Med Auto Science",
             "en-US": "Med Auto Science"
           },
           "publisher": "one-person-lab",
@@ -1008,7 +1008,7 @@
           "package_kind": "domain_agent_package",
           "display_name": "Med Auto Grant",
           "display_name_i18n": {
-            "zh-CN": "医学基金智能体",
+            "zh-CN": "Med Auto Grant",
             "en-US": "Med Auto Grant"
           },
           "publisher": "one-person-lab",
@@ -1028,7 +1028,7 @@
           "package_kind": "domain_agent_package",
           "display_name": "RedCube AI",
           "display_name_i18n": {
-            "zh-CN": "演示与视觉智能体",
+            "zh-CN": "RedCube AI",
             "en-US": "RedCube AI"
           },
           "publisher": "one-person-lab",
@@ -1048,7 +1048,7 @@
           "package_kind": "domain_agent_package",
           "display_name": "OPL Meta Agent",
           "display_name_i18n": {
-            "zh-CN": "元智能体",
+            "zh-CN": "OPL Meta Agent",
             "en-US": "OPL Meta Agent"
           },
           "publisher": "one-person-lab",
@@ -1068,7 +1068,7 @@
           "package_kind": "domain_agent_package",
           "display_name": "OPL Book Forge",
           "display_name_i18n": {
-            "zh-CN": "写书智能体",
+            "zh-CN": "OPL Book Forge",
             "en-US": "OPL Book Forge"
           },
           "publisher": "one-person-lab",
@@ -1096,7 +1096,7 @@
           "trust_tier": "first_party",
           "description": "Reusable medical research capabilities consumed by Med Auto Science.",
           "description_i18n": {
-            "zh-CN": "供医学科研智能体使用的可复用医学科研能力。",
+            "zh-CN": "供 Med Auto Science 使用的可复用医学科研能力。",
             "en-US": "Reusable medical research capabilities consumed by Med Auto Science."
           },
           "tags": ["medical-research", "capabilities", "skills"],
@@ -1132,7 +1132,7 @@
         "agent_id": "mas",
         "display_name": "Med Auto Science",
         "display_name_i18n": {
-          "zh-CN": "医学科研智能体",
+          "zh-CN": "Med Auto Science",
           "en-US": "Med Auto Science"
         },
         "description_i18n": {
@@ -1161,7 +1161,7 @@
         "agent_id": "mag",
         "display_name": "Med Auto Grant",
         "display_name_i18n": {
-          "zh-CN": "医学基金智能体",
+          "zh-CN": "Med Auto Grant",
           "en-US": "Med Auto Grant"
         },
         "description_i18n": {
@@ -1190,7 +1190,7 @@
         "agent_id": "rca",
         "display_name": "RedCube AI",
         "display_name_i18n": {
-          "zh-CN": "演示与视觉智能体",
+          "zh-CN": "RedCube AI",
           "en-US": "RedCube AI"
         },
         "description_i18n": {
@@ -1219,7 +1219,7 @@
         "agent_id": "obf",
         "display_name": "OPL Book Forge",
         "display_name_i18n": {
-          "zh-CN": "写书智能体",
+          "zh-CN": "OPL Book Forge",
           "en-US": "OPL Book Forge"
         },
         "description_i18n": {
@@ -1248,7 +1248,7 @@
         "agent_id": "oma",
         "display_name": "OPL Meta Agent",
         "display_name_i18n": {
-          "zh-CN": "元智能体",
+          "zh-CN": "OPL Meta Agent",
           "en-US": "OPL Meta Agent"
         },
         "description_i18n": {
@@ -2805,7 +2805,7 @@
           "icon_token": "agents",
           "ia_group": "agents",
           "slot_id": "settings_agents",
-          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path + home_agent_shortcuts",
+          "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts",
           "refresh_source": "opl app state --profile fast --json",
           "scope": "user",
           "intent": "manage",
@@ -3387,14 +3387,14 @@
             "route_id": "agents",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/agentPackagesProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/AgentPackagesSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path + home_agent_shortcuts",
+            "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.agents",
             "directory_projection_surface": {
               "surface": "settings_agents",
               "primary_identity": "public_agent_package_directory_entries",
               "purpose_role": "secondary_tag_filter_only",
               "home_shortcut_integration": "inline_visibility_and_order_controls_on_package_rows",
-              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.paths.workspace_root_path",
+              "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[]",
               "directory_collection_source": "app_state.agent_packages.directory.entries",
               "directory_collection_policy": "render every canonical entry including uninstalled, OMA, all first-party, framework capability, and workflow profile packages",
               "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.agent_package_registry.first_party_release_set_metadata",
@@ -3407,14 +3407,18 @@
               "canonical_directory_absent_policy": "render loading, empty, last-good stale, or failed without synthesizing rows or actions from status_index, runtime_source_carriers, modules, Home shortcuts, or static metadata",
               "catalog_interaction_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.directory_controls",
               "package_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.canonical_action_contract",
-              "activation_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.workspace_activation_contract",
-              "required_payload_fields_source": "directory.entries[].available_actions[action_id=agent_package_activate].required_payload_fields",
-              "workspace_path_source": "app_state.paths.workspace_root_path",
-              "workspace_path_scope": "only_when_projected_activation_requires_target_workspace",
+              "stage_runtime_activation_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.workspace_activation_contract",
+              "settings_action_scope": "owner_projected_non_activation_actions_only",
+              "settings_activation_execution_allowed": false,
+              "new_conversation_activation_execution_allowed": false,
+              "ordinary_send_activation_execution_allowed": false,
+              "settings_target_workspace_source": null,
+              "global_workspace_root_activation_target_allowed": false,
+              "selected_session_directory_activation_target_allowed": false,
               "scope_inference_allowed": false,
               "session_launch_authority": false,
-              "session_launch_contract_ref": "contracts/app-gui-product-contract.json#agent_package_activation_policy",
-              "workspace_missing_policy": "disable only an activation whose unresolved required_payload_fields includes target_workspace, with workspace_root_not_configured and route to /settings/workspace#workspace",
+              "stage_runtime_activation_owner": "one-person-lab_family_runtime",
+              "stage_runtime_workspace_locator_source": "StageRun.workspace_locator_or_StageAttempt.workspace_locator",
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
                 "user_facing_projection_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.user_facing_status_projection",
@@ -4982,9 +4986,9 @@
             "label_en": "Agents",
             "primary_information": [
               "all discoverable Agent, Framework capability, and workflow profile packages from app_state.agent_packages.directory.entries",
-              "dedicated package catalog search with package role, install or activation status, and source filters",
-              "visible registry refresh and projected per-row install or activation actions",
-              "workspace-scoped activation payload from app_state.paths.workspace_root_path with a disabled reason and Workspace route when missing",
+              "dedicated package catalog search with package role, availability status, and source filters",
+              "visible registry refresh and projected per-row non-activation lifecycle actions",
+              "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
               "professional_agent_packages as package_id-keyed UI metadata only, never directory membership or status truth",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
               "Developer Mode auto activation state, authorized repository scope, and dirty-worktree protection",
@@ -4995,17 +4999,7 @@
             ],
             "management_discoverability": {
               "primary_row_controls": ["home_visibility", "recommended_action", "manage"],
-              "lifecycle_actions": [
-                "install",
-                "activate",
-                "update",
-                "repair",
-                "enable",
-                "disable",
-                "hide",
-                "unhide",
-                "uninstall"
-              ],
+              "lifecycle_actions": ["install", "update", "repair", "enable", "disable", "hide", "unhide", "uninstall"],
               "catalog_search_is_settings_global_search": false,
               "registry_refresh_visibility": "ordinary_visible_action",
               "manifest_url_install_visibility": "advanced_only",
@@ -5090,7 +5084,7 @@
               "default_tab": "agents",
               "on_demand_tab_ids": []
             },
-            "exception_state": "highlight failed or blocked Agent packages and keep normal packages visually quiet",
+            "exception_state": "highlight only genuinely failed blocked or dependency-broken Agent packages; installed exposed verification-deferred or scope-materialization-missing packages read as available with no preconfiguration action",
             "technical_details_boundary": "package ids, receipts, paths, manifests, and raw status axes stay collapsed",
             "required_dom": {
               "always": [
@@ -5121,10 +5115,6 @@
                 {
                   "testid": "settings-agents-error",
                   "when": "catalog_failed"
-                },
-                {
-                  "testid": "settings-agents-workspace-required",
-                  "when": "activation_recommended_and_workspace_root_missing"
                 }
               ]
             },
