@@ -222,6 +222,9 @@ const TEMPORAL_SERVICE_RESTART_ACTION_ID = 'provider_service_restart';
 const TEMPORAL_SERVICE_SUPERVISOR_LABEL = 'ai.opl.family-runtime.temporal-service';
 const FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON =
   'release_smoke_stage_body_not_started_after_framework_activation';
+const TEMPORAL_SERVICE_SUPERVISOR_THROTTLE_MS = 15_000;
+const TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_TIMEOUT_MS = TEMPORAL_SERVICE_SUPERVISOR_THROTTLE_MS + 5_000;
+const TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_POLL_MS = 500;
 const HOST_DEADLINE_SAFETY_MARGIN_MS = 120_000;
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
@@ -2429,22 +2432,75 @@ function assertTemporalSqlite(databasePath, options = {}) {
   return inspection;
 }
 
-function runTemporalSupervisorLaunchctl(args, options = {}) {
+function temporalSupervisorLaunchctlReceipt(args, options = {}) {
   if (options.__testHooks?.runTemporalSupervisorLaunchctl) {
     return options.__testHooks.runTemporalSupervisorLaunchctl(args);
   }
-  const result = spawnSync('launchctl', args, { encoding: 'utf8', timeout: 10_000 });
-  const receipt = {
+  const timeout = args[0] === 'bootstrap' ? TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_TIMEOUT_MS : 10_000;
+  const result = spawnSync('launchctl', args, { encoding: 'utf8', timeout });
+  return {
     args,
     status: result.status ?? null,
     signal: result.signal ?? null,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? result.error?.message ?? '',
+    stderr: result.stderr || result.error?.message || '',
   };
-  if (result.status !== 0 || result.error) {
+}
+
+function runTemporalSupervisorLaunchctl(args, options = {}) {
+  const receipt = temporalSupervisorLaunchctlReceipt(args, options);
+  if (!temporalSupervisorLaunchctlSucceeded(receipt)) {
     throw new Error(`launchctl ${args.join(' ')} failed: ${receipt.stderr || `status=${receipt.status}`}`);
   }
   return receipt;
+}
+
+function temporalSupervisorLaunchctlSucceeded(receipt) {
+  return receipt?.status === 0 && receipt?.signal === null;
+}
+
+function temporalSupervisorBootstrapRetryable(receipt) {
+  return /input\/output error|operation now in progress|resource busy|service .* already loaded/i.test(
+    receipt?.stderr ?? ''
+  );
+}
+
+async function reloadTemporalSupervisorSession(plistPath, options = {}) {
+  const launchctlTarget = `gui/${process.getuid()}/${TEMPORAL_SERVICE_SUPERVISOR_LABEL}`;
+  const launchctlDomain = `gui/${process.getuid()}`;
+  const sleepImpl = options.__testHooks?.sleep ?? sleep;
+  const monotonicNowMs = options.__testHooks?.monotonicNowMs ?? Date.now;
+  const deadline = monotonicNowMs() + TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_TIMEOUT_MS;
+  const bootout = runTemporalSupervisorLaunchctl(['bootout', launchctlTarget], options);
+
+  let unloadReadback = temporalSupervisorLaunchctlReceipt(['print', launchctlTarget], options);
+  while (temporalSupervisorLaunchctlSucceeded(unloadReadback) && monotonicNowMs() < deadline) {
+    await sleepImpl(TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_POLL_MS);
+    unloadReadback = temporalSupervisorLaunchctlReceipt(['print', launchctlTarget], options);
+  }
+  if (temporalSupervisorLaunchctlSucceeded(unloadReadback)) {
+    throw new Error(`Timed out waiting for launchd to unload ${TEMPORAL_SERVICE_SUPERVISOR_LABEL}.`);
+  }
+
+  const bootstrapAttempts = [];
+  while (true) {
+    const receipt = temporalSupervisorLaunchctlReceipt(['bootstrap', launchctlDomain, plistPath], options);
+    bootstrapAttempts.push(receipt);
+    if (temporalSupervisorLaunchctlSucceeded(receipt)) {
+      return {
+        bootout,
+        unload_readback: unloadReadback,
+        bootstrap: receipt,
+        bootstrap_attempts: bootstrapAttempts,
+      };
+    }
+    if (!temporalSupervisorBootstrapRetryable(receipt) || monotonicNowMs() >= deadline) {
+      throw new Error(
+        `launchctl bootstrap ${launchctlDomain} ${plistPath} failed: ${receipt.stderr || `status=${receipt.status}`}`
+      );
+    }
+    await sleepImpl(Math.min(TEMPORAL_SERVICE_SUPERVISOR_TRANSITION_POLL_MS, Math.max(0, deadline - monotonicNowMs())));
+  }
 }
 
 function terminateTemporalSupervisorPid(pid, options = {}) {
@@ -2530,10 +2586,7 @@ async function collectTemporalServiceSupervisorProof(options, secret) {
     throw new Error('Temporal restart did not preserve the exact persistent SQLite file.');
   }
 
-  const launchctlTarget = `gui/${process.getuid()}/${TEMPORAL_SERVICE_SUPERVISOR_LABEL}`;
-  const bootout = runTemporalSupervisorLaunchctl(['bootout', launchctlTarget], options);
-  await (options.__testHooks?.sleep ?? sleep)(1_000);
-  const bootstrap = runTemporalSupervisorLaunchctl(['bootstrap', `gui/${process.getuid()}`, plistPath], options);
+  const sessionReload = await reloadTemporalSupervisorSession(plistPath, options);
   const reloaded = await waitForTemporalSupervisorReady(
     options,
     'after_session_reload',
@@ -2565,8 +2618,7 @@ async function collectTemporalServiceSupervisorProof(options, secret) {
     },
     restart_readback: restartedReadback,
     session_reload: {
-      bootout,
-      bootstrap,
+      ...sessionReload,
       readback: reloadedReadback,
     },
     persistent_database: {
@@ -7188,6 +7240,7 @@ export const __test =
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
         collectTemporalServiceSupervisorProof,
+        reloadTemporalSupervisorSession,
         assertAppActionExecution,
         assertTemporalSupervisorReady,
         assertTemporalSupervisorPlist,

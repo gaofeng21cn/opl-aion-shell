@@ -2145,6 +2145,9 @@ describe('packaged first-run VM smoke helpers', () => {
             },
             runTemporalSupervisorLaunchctl: (args: string[]) => {
               launchctlCalls.push(args);
+              if (args[0] === 'print') {
+                return { args, status: 1, signal: null, stdout: '', stderr: 'Could not find service' };
+              }
               return { args, status: 0, signal: null, stdout: '', stderr: '' };
             },
             sleep: async () => {},
@@ -2173,7 +2176,8 @@ describe('packaged first-run VM smoke helpers', () => {
       });
       expect(terminated).toEqual([4101]);
       expect(launchctlCalls[0]).toEqual(['bootout', `gui/${process.getuid()}/ai.opl.family-runtime.temporal-service`]);
-      expect(launchctlCalls[1]).toEqual(['bootstrap', `gui/${process.getuid()}`, plistPath]);
+      expect(launchctlCalls[1]).toEqual(['print', `gui/${process.getuid()}/ai.opl.family-runtime.temporal-service`]);
+      expect(launchctlCalls[2]).toEqual(['bootstrap', `gui/${process.getuid()}`, plistPath]);
       expect(calls.filter((args) => args[1] === 'action').map((args) => args[4])).toEqual([
         'provider_service_start',
         'provider_service_restart',
@@ -2186,6 +2190,41 @@ describe('packaged first-run VM smoke helpers', () => {
       else process.env.OPL_STATE_DIR = previousStateDir;
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('retries transient launchd bootstrap EIO within the supervisor throttle window', async () => {
+    const calls: string[][] = [];
+    let elapsedMs = 0;
+    let bootstrapAttempts = 0;
+    const plistPath = '/tmp/ai.opl.family-runtime.temporal-service.plist';
+
+    const result = await __test.reloadTemporalSupervisorSession(plistPath, {
+      __testHooks: {
+        monotonicNowMs: () => elapsedMs,
+        sleep: async (milliseconds: number) => {
+          elapsedMs += milliseconds;
+        },
+        runTemporalSupervisorLaunchctl: (args: string[]) => {
+          calls.push(args);
+          if (args[0] === 'print') {
+            return { args, status: 1, signal: null, stdout: '', stderr: 'Could not find service' };
+          }
+          if (args[0] === 'bootstrap') {
+            bootstrapAttempts += 1;
+            return bootstrapAttempts === 1
+              ? { args, status: 5, signal: null, stdout: '', stderr: 'Bootstrap failed: 5: Input/output error' }
+              : { args, status: 0, signal: null, stdout: '', stderr: '' };
+          }
+          return { args, status: 0, signal: null, stdout: '', stderr: '' };
+        },
+      },
+    });
+
+    expect(bootstrapAttempts).toBe(2);
+    expect(elapsedMs).toBe(500);
+    expect(result.bootstrap.status).toBe(0);
+    expect(result.bootstrap_attempts).toHaveLength(2);
+    expect(calls.map((args) => args[0])).toEqual(['bootout', 'print', 'bootstrap', 'bootstrap']);
   });
 
   it('fails closed on unready Temporal start and restart action results before readback', () => {
