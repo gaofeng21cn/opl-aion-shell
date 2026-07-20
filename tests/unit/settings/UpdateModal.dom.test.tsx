@@ -213,6 +213,7 @@ describe('UpdateModal checking layout', () => {
         latest: {
           tagName: 'v1.1.0',
           version: '1.1.0',
+          updaterVersion: '1.1.0',
           name: 'v1.1.0',
           body: [
             'Public English intro',
@@ -272,6 +273,7 @@ describe('UpdateModal checking layout', () => {
         latest: {
           tagName: 'v26.6.5',
           version: '26.6.5',
+          updaterVersion: '26.6.5',
           name: 'v26.6.5',
           body: '',
           htmlUrl: 'https://example.test/releases/v26.6.5',

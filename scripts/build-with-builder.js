@@ -26,6 +26,7 @@ const { assertPackagedUpdaterConfig } = require('./packagedUpdaterConfig');
 const DMG_RETRY_MAX = 3;
 const DMG_RETRY_DELAY_SEC = 30;
 const OPL_RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
+const OPL_UPDATER_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const PACKAGING_STAGE_DIR_RE =
   /^(?:mac(?:-(?:arm64|x64|universal))?|win(?:-[a-z0-9]+)?-unpacked|linux(?:-[a-z0-9._-]+)?)$/i;
 const PACKAGING_ARTIFACT_FILE_RE = /\.(?:dmg|zip|blockmap|exe|msi|7z|AppImage|deb|rpm|snap)$/i;
@@ -357,13 +358,18 @@ function resolveOplReleaseVersion() {
 }
 
 function buildOplReleaseVersionConfigArg() {
-  const version = resolveOplReleaseVersion();
-  if (!version) throw new Error('Unable to resolve OPL release version');
-  if (!OPL_RELEASE_VERSION_PATTERN.test(version)) {
-    throw new Error(`Invalid OPL_RELEASE_VERSION: ${version}`);
+  const releaseVersion = resolveOplReleaseVersion();
+  if (!releaseVersion) throw new Error('Unable to resolve OPL release version');
+  if (!OPL_RELEASE_VERSION_PATTERN.test(releaseVersion)) {
+    throw new Error(`Invalid OPL_RELEASE_VERSION: ${releaseVersion}`);
   }
-  process.env.OPL_RELEASE_VERSION = version;
-  return `--config.extraMetadata.version=${version}`;
+  const updaterVersion = process.env.OPL_UPDATER_VERSION?.trim() || releaseVersion;
+  if (!OPL_UPDATER_VERSION_PATTERN.test(updaterVersion)) {
+    throw new Error(`Invalid OPL_UPDATER_VERSION: ${updaterVersion}`);
+  }
+  process.env.OPL_RELEASE_VERSION = releaseVersion;
+  process.env.OPL_UPDATER_VERSION = updaterVersion;
+  return `--config.extraMetadata.version=${updaterVersion}`;
 }
 
 // Create DMG using electron-builder --prepackaged with .app path
@@ -590,8 +596,10 @@ const packageJsonPath = path.resolve(__dirname, '../package.json');
 try {
   const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
   const oplReleaseVersion = process.env.OPL_RELEASE_VERSION.trim();
+  const oplUpdaterVersion = process.env.OPL_UPDATER_VERSION.trim();
   if (oplReleaseVersionConfigArg) {
     console.log(`📌 Stamping OPL App release version: ${oplReleaseVersion}`);
+    console.log(`📌 Stamping OPL App updater version: ${oplUpdaterVersion}`);
   }
 
   // 1. Ensure package.json main entry is correct for electron-vite

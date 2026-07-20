@@ -166,8 +166,11 @@ childProcess.execSync = function mockedExecSync(command) {
       'utf8'
     );
 
-    const childEnv = { ...process.env };
-    delete childEnv.OPL_RELEASE_VERSION;
+    const childEnv = {
+      ...process.env,
+      OPL_RELEASE_VERSION: '26.7.20-r1',
+      OPL_UPDATER_VERSION: '26.7.2001',
+    };
 
     try {
       const result = withOutBundleBackup(() => {
@@ -185,11 +188,10 @@ childProcess.execSync = function mockedExecSync(command) {
       expect(result.status, result.stderr || result.stdout).toBe(0);
       const commands = JSON.parse(readFileSync(commandsPath, 'utf8')) as string[];
       const builderCommand = commands.find((command) => command.includes('electron-builder'));
-      const date = new Date();
-      const expectedVersion = `${String(date.getUTCFullYear()).slice(-2)}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;
       expect(builderCommand).toContain('--mac dmg zip --arm64');
-      expect(builderCommand).toContain(`--config.extraMetadata.version=${expectedVersion}`);
-      expect(result.stdout).toContain(`Stamping OPL App release version: ${expectedVersion}`);
+      expect(builderCommand).toContain('--config.extraMetadata.version=26.7.2001');
+      expect(result.stdout).toContain('Stamping OPL App release version: 26.7.20-r1');
+      expect(result.stdout).toContain('Stamping OPL App updater version: 26.7.2001');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

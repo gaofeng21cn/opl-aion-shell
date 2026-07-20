@@ -176,6 +176,47 @@ const makeStableAndNightlyReleaseResponse = () => [
   },
 ];
 
+const makeStableRevisionReleaseResponse = (withManifest = true) => [
+  {
+    tag_name: 'v26.7.20-r1',
+    name: 'One Person Lab v26.7.20-r1',
+    body: 'revision release notes',
+    html_url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.7.20-r1',
+    published_at: '2026-07-20T00:00:00Z',
+    prerelease: false,
+    draft: false,
+    assets: [
+      {
+        name: 'One-Person-Lab-26.7.20-r1-mac-arm64.zip',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-26.7.20-r1-mac-arm64.zip',
+        size: 124,
+        content_type: 'application/zip',
+      },
+      ...(withManifest
+        ? [
+            {
+              name: 'opl-app-component-manifest.json',
+              browser_download_url:
+                'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/opl-app-component-manifest.json',
+              size: 1024,
+              content_type: 'application/json',
+            },
+          ]
+        : []),
+    ],
+  },
+];
+
+const stableRevisionManifest = {
+  surface_kind: 'opl_app_component_manifest.v1',
+  component_id: 'opl-app',
+  version: '26.7.20-r1',
+  release_version: '26.7.20-r1',
+  updater_version: '26.7.2001',
+  release_tag: 'v26.7.20-r1',
+};
+
 const getCheckHandler = async () => {
   vi.resetModules();
   const { initUpdateBridge } = await import('@process/bridge/updateBridge');
@@ -336,6 +377,50 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.recommendedAsset?.url).toMatch(
         /^https:\/\/static\.aionui\.com\/releases\/26\.5\.27-nightly\.20260527\//
       );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('uses the bound updater version instead of the display tag for same-day Stable revisions', async () => {
+    const { app } = await import('electron');
+    vi.mocked(app.getVersion).mockReturnValue('26.7.20');
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      return url.endsWith('/opl-app-component-manifest.json')
+        ? { ok: true, json: async () => stableRevisionManifest }
+        : { ok: true, json: async () => makeStableRevisionReleaseResponse() };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({});
+
+      expect(result.success).toBe(true);
+      expect(result.data?.updateAvailable).toBe(true);
+      expect(result.data?.latest?.version).toBe('26.7.20-r1');
+      expect(result.data?.latest?.updaterVersion).toBe('26.7.2001');
+    } finally {
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0');
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('fails closed when a new-scheme OPL release omits its component manifest', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => makeStableRevisionReleaseResponse(false),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({});
+
+      expect(result.success).toBe(true);
+      expect(result.data?.updateAvailable).toBe(false);
+      expect(result.data?.latest).toBeUndefined();
     } finally {
       vi.unstubAllGlobals();
     }

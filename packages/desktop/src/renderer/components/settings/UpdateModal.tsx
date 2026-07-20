@@ -216,7 +216,7 @@ const UpdateModal: React.FC = () => {
         }
         throw new Error(res?.msg || t('update.checkFailed'));
       }
-      setCurrentVersion(res.data?.currentVersion || fallbackCurrentVersion);
+      setCurrentVersion(fallbackCurrentVersion || res.data?.currentVersion || '');
 
       if (autoUpdateOk) {
         // The standard updater downloads in the background. Manual release

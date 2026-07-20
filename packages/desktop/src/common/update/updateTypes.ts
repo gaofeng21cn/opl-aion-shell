@@ -17,7 +17,10 @@ export interface GitHubReleaseAsset {
 
 export interface UpdateReleaseInfo {
   tagName: string;
+  /** User-visible release version used by tags, assets, and renderer copy. */
   version: string;
+  /** Monotonic machine SemVer used by app.getVersion() and updater comparisons. */
+  updaterVersion: string;
   name?: string;
   body?: string;
   htmlUrl: string;

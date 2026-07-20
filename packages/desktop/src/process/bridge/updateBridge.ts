@@ -49,6 +49,15 @@ type GitHubReleaseApi = {
   assets?: GitHubReleaseApiAsset[];
 };
 
+type OplComponentManifest = {
+  surface_kind?: string;
+  component_id?: string;
+  version?: string;
+  release_version?: string;
+  updater_version?: string;
+  release_tag?: string;
+};
+
 /** Parameters for auto-update check via electron-updater */
 interface AutoUpdateCheckParams {
   channel?: 'stable' | 'nightly';
@@ -59,6 +68,8 @@ interface AutoUpdateCheckParams {
 
 const DEFAULT_REPO = 'gaofeng21cn/one-person-lab-app';
 const DEFAULT_USER_AGENT = 'OnePersonLabApp';
+const OPL_COMPONENT_MANIFEST_NAME = 'opl-app-component-manifest.json';
+const LEGACY_OPL_MACHINE_VERSION_CUTOFF = '26.7.20';
 const ALLOWED_ASSET_EXTS = new Set(['.exe', '.msi', '.dmg', '.zip', '.deb', '.rpm']);
 const CDN_HOST = 'static.aionui.com';
 const CDN_BASE_URL = `https://${CDN_HOST}/releases`;
@@ -82,6 +93,78 @@ const normalizeTagToSemver = (tag: string): string | null => {
   // Ensure it looks like a semver prefix at least.
   if (!/^\d+\.\d+\.\d+/.test(withoutV)) return null;
   return semver.valid(withoutV);
+};
+
+const displayVersionFromTag = (tag: string): string | null => {
+  const trimmed = tag.trim();
+  const displayVersion = trimmed.startsWith('v') ? trimmed.slice(1) : trimmed;
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(displayVersion) ? displayVersion : null;
+};
+
+const legacyOplTagFallback = (displayVersion: string): string | null => {
+  if (/-r[1-9][0-9]*$/.test(displayVersion)) return null;
+  const calendarVersion = displayVersion.split('-')[0];
+  if (
+    !calendarVersion ||
+    !semver.valid(calendarVersion) ||
+    semver.gt(calendarVersion, LEGACY_OPL_MACHINE_VERSION_CUTOFF)
+  ) {
+    return null;
+  }
+  return normalizeTagToSemver(displayVersion);
+};
+
+const fetchOplComponentManifest = async (asset: GitHubReleaseApiAsset): Promise<OplComponentManifest | null> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(asset.browser_download_url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': DEFAULT_USER_AGENT,
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as unknown;
+    return payload && typeof payload === 'object' ? (payload as OplComponentManifest) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const resolveReleaseVersions = async (
+  rel: GitHubReleaseApi,
+  requireOplManifest: boolean
+): Promise<{ displayVersion: string; updaterVersion: string } | null> => {
+  const displayVersion = displayVersionFromTag(rel.tag_name);
+  if (!displayVersion) return null;
+
+  if (!requireOplManifest) {
+    const updaterVersion = normalizeTagToSemver(rel.tag_name);
+    return updaterVersion ? { displayVersion, updaterVersion } : null;
+  }
+
+  const manifestAsset = rel.assets?.find((asset) => asset.name === OPL_COMPONENT_MANIFEST_NAME);
+  if (!manifestAsset) {
+    const updaterVersion = legacyOplTagFallback(displayVersion);
+    return updaterVersion ? { displayVersion, updaterVersion } : null;
+  }
+  const manifest = await fetchOplComponentManifest(manifestAsset);
+  const updaterVersion = manifest?.updater_version ? semver.valid(manifest.updater_version) : null;
+  if (
+    manifest?.surface_kind !== 'opl_app_component_manifest.v1' ||
+    manifest.component_id !== 'opl-app' ||
+    manifest.version !== displayVersion ||
+    manifest.release_version !== displayVersion ||
+    manifest.release_tag !== `v${displayVersion}` ||
+    !updaterVersion
+  ) {
+    return null;
+  }
+  return { displayVersion, updaterVersion };
 };
 
 /**
@@ -287,18 +370,19 @@ const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> =>
   }
 };
 
-const mapRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
-  const version = normalizeTagToSemver(rel.tag_name);
-  if (!version) return null;
+const mapRelease = async (rel: GitHubReleaseApi, requireOplManifest: boolean): Promise<UpdateReleaseInfo | null> => {
+  const versions = await resolveReleaseVersions(rel, requireOplManifest);
+  if (!versions) return null;
 
   const assets = (rel.assets || [])
     .filter((asset) => asset && asset.name && asset.browser_download_url)
     .filter((asset) => isAllowedAssetName(asset.name))
-    .map((asset) => mapAsset(asset, version));
+    .map((asset) => mapAsset(asset, versions.displayVersion));
 
   return {
     tagName: rel.tag_name,
-    version,
+    version: versions.displayVersion,
+    updaterVersion: versions.updaterVersion,
     name: rel.name,
     body: rel.body,
     htmlUrl: rel.html_url,
@@ -538,24 +622,13 @@ export function initUpdateBridge(): void {
           params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
         const currentVersion = app.getVersion();
 
-        // EN: Versioning note
-        // Update comparisons are pure semver: `app.getVersion()` (packaged app version) vs release `tag_name`.
-        // If you want dev/prerelease updates to work reliably, CI must inject a prerelease semver into
-        // `package.json#version` for dev builds (e.g. `1.7.2-dev.1234+sha.abcdef0`) so semver ordering holds.
-        // We intentionally avoid heuristics based on tag strings when the app version is a stable semver.
-        //
-        // 中文：版本号说明
-        // 更新比较严格使用 semver：`app.getVersion()`（应用自身版本号）对比 Release 的 `tag_name`。
-        // 若要 dev/预发布版本更新可靠生效，需要 CI 在 dev 构建时把 `package.json#version`
-        // 注入为带 prerelease 的 semver（如 `1.7.2-dev.1234+sha.abcdef0`），以保证比较顺序正确。
-        // 这里刻意不对“当前是稳定版版本号但用户勾选了 prerelease”做字符串猜测。
-
         const releases = await fetchGitHubReleases(repo);
-        const candidates = releases
+        const eligibleReleases = releases
           .filter((r) => r && !r.draft)
-          .filter((r) => (includePrerelease ? true : !r.prerelease))
-          .map(mapRelease)
-          .filter((r): r is UpdateReleaseInfo => Boolean(r));
+          .filter((r) => (includePrerelease ? true : !r.prerelease));
+        const candidates = (
+          await Promise.all(eligibleReleases.map((release) => mapRelease(release, repo === DEFAULT_REPO)))
+        ).filter((r): r is UpdateReleaseInfo => Boolean(r));
 
         const currentSemver = semver.valid(currentVersion) || semver.coerce(currentVersion)?.version;
         if (!currentSemver) {
@@ -563,14 +636,14 @@ export function initUpdateBridge(): void {
         }
 
         const latest = candidates
-          .filter((r) => semver.valid(r.version))
-          .toSorted((a, b) => semver.rcompare(a.version, b.version))[0];
+          .filter((r) => semver.valid(r.updaterVersion))
+          .toSorted((a, b) => semver.rcompare(a.updaterVersion, b.updaterVersion))[0];
 
         if (!latest) {
           return { success: true, data: { currentVersion, updateAvailable: false } };
         }
 
-        const updateAvailable = semver.gt(latest.version, currentSemver);
+        const updateAvailable = semver.gt(latest.updaterVersion, currentSemver);
         return {
           success: true,
           data: {

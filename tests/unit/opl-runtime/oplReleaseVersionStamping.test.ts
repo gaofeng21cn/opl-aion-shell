@@ -9,7 +9,7 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe('OPL release version stamping', () => {
-  it('stamps Electron package metadata from OPL_RELEASE_VERSION without changing the shell package version', () => {
+  it('keeps display release identity separate from Electron updater metadata', () => {
     const buildScript = readRepoFile('scripts/build-with-builder.js');
     const viteConfig = readRepoFile('packages/desktop/electron.vite.config.ts');
     const packageJson = JSON.parse(readRepoFile('package.json')) as { version: string };
@@ -17,9 +17,12 @@ describe('OPL release version stamping', () => {
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
     expect(packageJson.version).not.toBe('26.5.27');
     expect(buildScript).toContain('const OPL_RELEASE_VERSION_PATTERN = /^\\d+\\.\\d+\\.\\d+');
+    expect(buildScript).toContain('const OPL_UPDATER_VERSION_PATTERN = /^\\d+\\.\\d+\\.\\d+');
     expect(buildScript).toContain('function buildOplReleaseVersionConfigArg()');
     expect(buildScript).toContain('return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;');
-    expect(buildScript).toContain('--config.extraMetadata.version=${version}');
+    expect(buildScript).toContain('process.env.OPL_UPDATER_VERSION = updaterVersion');
+    expect(buildScript).toContain('--config.extraMetadata.version=${updaterVersion}');
+    expect(buildScript).toContain('Stamping OPL App updater version: ${oplUpdaterVersion}');
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');
     expect(viteConfig).toContain('const appReleaseVersion = injectedOplReleaseVersion || defaultOplReleaseVersion();');
