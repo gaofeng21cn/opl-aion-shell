@@ -117,6 +117,16 @@
   grid-template-columns: 240px minmax(0, 1fr);
 }
 
+.firstRunWorkspaceComplete,
+.firstRunWorkspaceComplete .firstRunWorkspaceBody,
+.firstRunWorkspaceComplete .firstRunBeginnerSurface {
+  min-height: min(520px, calc(100dvh - 180px));
+}
+
+.firstRunBeginnerSurfaceComplete {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .firstRunStepRail {
   display: flex;
   min-width: 0;
@@ -267,6 +277,29 @@
   padding: 42px 52px 32px;
 }
 
+.firstRunTaskPanelComplete {
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding-block: 48px;
+}
+
+.firstRunTaskPanelComplete .firstRunTaskContent {
+  width: 100%;
+  flex: 0 1 auto;
+  justify-content: center;
+  padding: 0;
+}
+
+.firstRunTaskPanelComplete .firstRunStatePanel {
+  align-items: center;
+  text-align: center;
+}
+
+.firstRunTaskPanelComplete .firstRunTaskActions {
+  width: min(320px, 100%);
+}
+
 .firstRunStepCounter {
   color: var(--text-secondary);
   font-size: 13px;
@@ -311,6 +344,7 @@
   color: rgb(var(--success-6));
 }
 
+.firstRunStatePanel h1,
 .firstRunStatePanel h2 {
   margin: 22px 0 0;
   color: var(--text-primary);
@@ -934,6 +968,7 @@
     padding: 24px 18px 22px;
   }
 
+  .firstRunStatePanel h1,
   .firstRunStatePanel h2 {
     font-size: 24px;
     line-height: 32px;
@@ -994,6 +1029,7 @@
     padding: 0;
   }
 
+  .firstRunStatePanel h1,
   .firstRunStatePanel h2 {
     margin-top: 0;
   }

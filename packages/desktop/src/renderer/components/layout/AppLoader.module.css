@@ -19,6 +19,23 @@
   padding: 22px;
 }
 
+.appLoaderBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 24px;
+}
+
+.appLoaderBrand img {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 6px;
+}
+
 .appLoaderHeader {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -153,6 +170,39 @@
   font-variant-numeric: tabular-nums;
 }
 
+.appLoaderDetails {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  border-top: 1px solid var(--border-base);
+  padding-top: 8px;
+}
+
+.appLoaderDetailsButton {
+  min-height: 32px !important;
+  padding-inline: 0 !important;
+  color: var(--text-secondary) !important;
+}
+
+.appLoaderDetailsBody {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 0 2px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.appLoaderDetailsBody p {
+  margin: 0;
+}
+
+.appLoaderDetailsBody p + p {
+  margin-top: 4px;
+}
+
 /* Footer section */
 .appLoaderFooter {
   display: flex;
@@ -174,21 +224,11 @@
 
 .appLoaderSkipButton {
   flex-shrink: 0;
-  padding: 6px 14px;
-  border: 1px solid var(--border-base);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 20px;
-  cursor: pointer;
-  transition: all 0.2s ease-out;
+  min-height: 32px !important;
 }
 
 .appLoaderSkipButton:hover {
-  background: var(--bg-2);
-  color: var(--text-primary);
-  border-color: var(--primary);
+  color: var(--text-primary) !important;
 }
 
 .appLoaderSkipButton:active {

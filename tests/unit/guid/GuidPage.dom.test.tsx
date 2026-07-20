@@ -514,7 +514,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByText('要让 科研 推进什么？')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-home-model-status')).not.toBeInTheDocument();
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
-    expect(screen.getByTestId('home-starter-mas')).toHaveTextContent('Med Auto Science');
+    expect(screen.getByTestId('home-starter-mas')).toHaveTextContent('guid.uiOptimization.home.shortcuts.research');
     expect(screen.queryByText('推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
@@ -760,6 +760,30 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByTestId('quick-actions')).not.toBeInTheDocument();
     expect(screen.queryByText(/running attempts/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/needs_attention/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-home-runtime-alert')).not.toBeInTheDocument();
+  });
+
+  it('shows one compact maintenance alert only when the local runtime is not ready', async () => {
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+    };
+
+    render(<GuidPage />);
+
+    expect(screen.getAllByTestId('opl-home-runtime-alert')).toHaveLength(1);
+    expect(screen.getByTestId('opl-home-runtime-alert')).toHaveTextContent(
+      'guid.uiOptimization.home.runtimeAlert.title'
+    );
+    await userEvent.click(screen.getByTestId('opl-home-runtime-alert-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/runtime');
   });
 
   it('renders one Home surface and one composer', () => {

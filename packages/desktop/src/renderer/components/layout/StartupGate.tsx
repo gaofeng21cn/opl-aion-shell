@@ -24,6 +24,7 @@ import AppLoader, { type AppLoaderStep } from './AppLoader';
 type StartupCheckPhase = 'startupState' | 'initializeFallback' | 'routeDecision';
 
 export const STARTUP_STATE_SOFT_TIMEOUT_MS = 1500;
+const STARTUP_DETAILS_THRESHOLD_SECONDS = 3;
 
 type StartupStateRead = { kind: 'result'; value: OplAppStatePayload | null } | { kind: 'timeout' };
 
@@ -127,43 +128,45 @@ const StartupGate: React.FC = () => {
 
   // 正在检查，显示加载界面
   if (checking) {
-    const startupStateMessage =
-      elapsedSeconds >= 3
-        ? t('common.startupPreflight.messages.stillReadingStartupState', { seconds: elapsedSeconds })
-        : t('common.startupPreflight.messages.checkingStartupState');
+    const currentStageMessage =
+      phase === 'startupState'
+        ? elapsedSeconds >= STARTUP_DETAILS_THRESHOLD_SECONDS
+          ? t('common.startupPreflight.messages.stillReadingStartupState', { seconds: elapsedSeconds })
+          : t('common.startupPreflight.messages.checkingStartupState')
+        : phase === 'initializeFallback'
+          ? t('common.startupPreflight.messages.checkingAuthoritativeReadiness')
+          : t('common.startupPreflight.messages.decidingNextScreen');
     const steps: AppLoaderStep[] = [
       {
-        label: t('common.startupPreflight.steps.desktopSession'),
-        state: 'complete',
-      },
-      {
-        label: t('common.startupPreflight.steps.startupState'),
+        label: t('common.uiOptimization.startup.stages.workspace'),
         state: phase === 'startupState' ? 'active' : 'complete',
-        message: phase === 'startupState' ? startupStateMessage : undefined,
       },
-      ...(phase === 'initializeFallback'
-        ? [
-            {
-              label: t('common.startupPreflight.steps.initializeFallback'),
-              state: 'active' as const,
-              message: t('common.startupPreflight.messages.checkingAuthoritativeReadiness'),
-            },
-          ]
-        : []),
       {
-        label: t('common.startupPreflight.steps.routeDecision'),
+        label: t('common.uiOptimization.startup.stages.assistant'),
+        state: phase === 'startupState' ? 'pending' : phase === 'initializeFallback' ? 'active' : 'complete',
+      },
+      {
+        label: t('common.uiOptimization.startup.stages.modelAccess'),
         state: phase === 'routeDecision' ? 'active' : 'pending',
-        message: phase === 'routeDecision' ? t('common.startupPreflight.messages.decidingNextScreen') : undefined,
       },
     ];
+    const details =
+      elapsedSeconds >= STARTUP_DETAILS_THRESHOLD_SECONDS ? (
+        <>
+          <p>{t('common.uiOptimization.startup.timeout')}</p>
+          <p>{currentStageMessage}</p>
+        </>
+      ) : undefined;
 
     return (
       <AppLoader
-        title={t('common.startupPreflight.title')}
-        description={t('common.startupPreflight.description')}
+        brand={t('common.uiOptimization.startup.brand')}
+        title={t('common.uiOptimization.startup.title')}
         steps={steps}
         testId='opl-startup-gate'
         showProgress={false}
+        details={details}
+        detailsLabel={t('common.uiOptimization.startup.viewDetails')}
         showSkipButton={true}
         skipButtonText={t('common.startupPreflight.skipCheck')}
         onSkip={skipStartupCheck}

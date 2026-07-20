@@ -84,6 +84,13 @@ describe('HomeStarters', () => {
       'home-starter-oma',
     ]);
     expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^home-starter-/).map((item) => item.textContent)).toEqual([
+      'guid.uiOptimization.home.shortcuts.research',
+      'guid.uiOptimization.home.shortcuts.presentation',
+      'guid.uiOptimization.home.shortcuts.grant',
+      'guid.uiOptimization.home.shortcuts.book',
+      'guid.uiOptimization.home.shortcuts.agentEngineering',
+    ]);
     expect(screen.getByTestId('starter-icon-mas').querySelector('svg')).not.toBeNull();
     expect(screen.queryByTestId('starter-next-mag')).not.toBeInTheDocument();
     expect(screen.getByTestId('home-starter-mag')).toHaveAttribute('data-opl-launch-ready', 'true');

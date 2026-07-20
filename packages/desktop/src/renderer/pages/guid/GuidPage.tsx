@@ -44,7 +44,8 @@ import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { ConfigProvider } from '@arco-design/web-react';
+import { Button, ConfigProvider } from '@arco-design/web-react';
+import { Info, Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -212,6 +213,8 @@ const GuidPage: React.FC = () => {
   const modelSelection = useGuidModelSelection('aionrs');
   const coreReadiness = useCoreLaunchPrerequisites();
   const workspaceAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
+  const runtimeNeedsAttention =
+    coreReadiness.known && (!coreReadiness.codexCliReady || !coreReadiness.modelAccessReady);
 
   const resetAssistantRequested = navState?.resetAssistant === true;
   const preselectAgentKey = navState?.selectedAgentKey;
@@ -390,6 +393,10 @@ const GuidPage: React.FC = () => {
 
   const openFirstRunSetup = useCallback(() => {
     void navigate('/first-run');
+  }, [navigate]);
+
+  const openRuntimeMaintenance = useCallback(() => {
+    void navigate('/settings/runtime');
   }, [navigate]);
 
   const sendWithPrerequisiteCheck = useCallback(() => {
@@ -818,6 +825,29 @@ const GuidPage: React.FC = () => {
           </div>
 
           <div className={styles.guidComposerDock}>
+            {runtimeNeedsAttention && !setupNoticeKind ? (
+              <div
+                className={styles.guidSetupNotice}
+                data-testid='opl-home-runtime-alert'
+                role='status'
+                aria-live='polite'
+              >
+                <Info theme='outline' size='16' fill='currentColor' className={styles.guidSetupNoticeIcon} />
+                <div className={styles.guidSetupNoticeCopy}>
+                  <strong>{t('guid.uiOptimization.home.runtimeAlert.title')}</strong>
+                  <span>{t('guid.uiOptimization.home.runtimeAlert.description')}</span>
+                </div>
+                <Button
+                  type='text'
+                  size='small'
+                  icon={<Right theme='outline' size='14' fill='currentColor' />}
+                  onClick={openRuntimeMaintenance}
+                  data-testid='opl-home-runtime-alert-action'
+                >
+                  {t('guid.uiOptimization.home.runtimeAlert.openMaintenance')}
+                </Button>
+              </div>
+            ) : null}
             <GuidWorkspaceContextBar
               workspaceDir={guidInput.dir}
               onSelectWorkspace={handleWorkspaceSelect}

@@ -5,6 +5,8 @@
  */
 
 import React, { useState } from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -30,6 +32,33 @@ vi.mock('@icon-park/react', () => ({
 }));
 
 describe('MobileActionSheet', () => {
+  it('keeps the 400x600 sheet viewport-bound with the lists as the only scroll regions', () => {
+    const stylesSource = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'packages/desktop/src/renderer/components/chat/MobileActionSheet/MobileActionSheet.module.css'
+      ),
+      'utf8'
+    );
+    const sheetRule = stylesSource.match(/\.sheet\s*\{([^}]*)\}/)?.[1] ?? '';
+    const panesRule = stylesSource.match(/\.panes\s*\{([^}]*)\}/)?.[1] ?? '';
+    const paneRule = stylesSource.match(/\.pane\s*\{([^}]*)\}/)?.[1] ?? '';
+    const listRule = stylesSource.match(/\.list\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(sheetRule).toContain('100dvh');
+    expect(sheetRule).toContain('env(safe-area-inset-top');
+    expect(sheetRule).toContain('env(safe-area-inset-bottom');
+    expect(sheetRule).toContain('overflow: hidden');
+    expect(panesRule).toMatch(/flex:\s*1 1 auto/);
+    expect(panesRule).toContain('min-height: 0');
+    expect(panesRule).toContain('overflow: hidden');
+    expect(paneRule).toContain('min-height: 0');
+    expect(paneRule).not.toContain('overflow-y: auto');
+    expect(listRule).toContain('min-height: 0');
+    expect(listRule).toContain('overflow-y: auto');
+    expect(listRule).toContain('overscroll-behavior: contain');
+  });
+
   it('does not render a dialog while closed', () => {
     render(<MobileActionSheet open={false} onClose={vi.fn()} entries={[]} />);
 

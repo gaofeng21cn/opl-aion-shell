@@ -531,21 +531,21 @@ describe('FirstRun readiness page', () => {
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-window')).toHaveAccessibleName('settings.firstRun.setupTitle');
-    expect(screen.getByRole('heading', { level: 1, name: 'settings.firstRun.setupTitle' })).toHaveAttribute(
-      'id',
-      'opl-first-run-setup-title'
+    expect(screen.getByTestId('opl-first-run-window')).toHaveAccessibleName(
+      'guid.uiOptimization.firstRun.completion.title'
     );
-    await waitFor(() =>
-      expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
-        'settings.firstRun.beginner.summaryReady'
-      )
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'guid.uiOptimization.firstRun.completion.title' })
+    ).toHaveAttribute('id', 'opl-first-run-setup-title');
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
+    expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
+      'guid.uiOptimization.firstRun.completion.summary'
     );
-    expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.stepProgress 3 3');
+    expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('settings.firstRun.stepProgress');
     expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('%');
     expect(screen.getByTestId('opl-first-run-progress')).not.toHaveAttribute('aria-label');
     expect(screen.getByTestId('opl-first-run-primary-action')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-technical-details-toggle')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('settings.firstRun.stage');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('opl system');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('full_readiness');
@@ -556,20 +556,18 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex CLI');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Workspace Root');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Configured');
-    expect(screen.getByTestId('opl-first-run-step-rail')).toHaveTextContent('settings.firstRun.items.workspaceRoot');
-    expect(screen.getByTestId('opl-first-run-step-rail')).toHaveTextContent('settings.firstRun.items.codex');
-    expect(within(screen.getByTestId('opl-first-run-step-rail')).getAllByRole('listitem')).toHaveLength(3);
-    expect(screen.getByTestId('opl-first-run-task-panel')).toHaveTextContent('settings.firstRun.readyPanel.title');
+    expect(screen.queryByTestId('opl-first-run-step-rail')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-task-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('{');
-    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent('https://gflabtoken.cn');
-    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent('gpt-5.5');
-    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
-      'settings.firstRun.maintenance.title'
-    );
+    expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('https://gflabtoken.cn');
+    expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('gpt-5.5');
+    expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('settings.firstRun.maintenance.title');
     expect(screen.queryByTestId('opl-first-run-background-maintenance-secondary')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.noCoreBlockers');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).not.toHaveAttribute('aria-label');
-    expect(screen.getByRole('button', { name: 'settings.firstRun.enterGuid' })).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-blockers-list')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-next-step')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('opl-first-run-ready-entry'));
 
@@ -615,7 +613,9 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.stepProgress 3 3');
+    expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-step-rail')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('settings.firstRun.stepProgress');
     expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
   });
 
@@ -636,7 +636,9 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('button', { name: 'settings.firstRun.enterGuid' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })
+    ).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
@@ -683,23 +685,23 @@ describe('FirstRun readiness page', () => {
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     const beginnerPrimary = within(screen.getByTestId('opl-first-run-beginner-primary'));
-    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
-      'settings.firstRun.stepProgress 3 3'
+    expect(screen.getByTestId('opl-first-run-completion')).toHaveTextContent(
+      'guid.uiOptimization.firstRun.completion.summary'
     );
-    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent('settings.firstRun.enterGuid');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
+      'settings.firstRun.stepProgress'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('settings.firstRun.enterGuid');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
       'settings.firstRun.stage full_readiness_maintenance'
     );
     expect(beginnerPrimary.queryByTestId('opl-settings-environment')).not.toBeInTheDocument();
     expect(beginnerPrimary.queryByTestId('opl-first-run-retry-button')).not.toBeInTheDocument();
     expect(beginnerPrimary.queryByTestId('opl-first-run-open-environment-button')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('settings.firstRun.noNextStep');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.noCoreBlockers');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).not.toHaveTextContent(
-      'settings.firstRun.items.familyRuntimeProvider'
-    );
+    expect(screen.queryByTestId('opl-first-run-next-step')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-blockers-list')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
 
     expect(screen.getByTestId('opl-first-run-stage')).toHaveTextContent(
       'settings.firstRun.stage full_readiness_maintenance'
@@ -707,7 +709,7 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
       'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
     );
-    expect(screen.getByTestId('opl-first-run-core-progress')).toHaveTextContent('settings.firstRun.stepProgress 3 3');
+    expect(screen.queryByTestId('opl-first-run-core-progress')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-settings-environment')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-retry-button')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-full-readiness-progress')).toHaveTextContent(
@@ -1039,7 +1041,6 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    const taskPanel = screen.getByTestId('opl-first-run-task-panel');
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
     fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
     fireEvent.change(screen.getByTestId('opl-first-run-codex-api-key-input'), { target: { value: 'secret-key' } });
@@ -1065,10 +1066,10 @@ describe('FirstRun readiness page', () => {
       })
     );
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(taskPanel).toHaveTextContent('settings.firstRun.readyPanel.title'));
-    expect(screen.getByTestId('opl-first-run-task-panel')).toBe(taskPanel);
-    expect(within(taskPanel).getAllByTestId('opl-first-run-ready-entry')).toHaveLength(1);
-    expect(within(taskPanel).getByRole('button', { name: 'settings.firstRun.enterGuid' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
+    expect(screen.queryByTestId('opl-first-run-task-panel')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('opl-first-run-ready-entry')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })).toHaveFocus();
     expect(screen.queryByTestId('opl-first-run-configure-codex-button')).not.toBeInTheDocument();
     expect(screen.getByText(/"diagnostic": "\[REDACTED\]"/)).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-technical-details')).not.toHaveTextContent('secret-key');
@@ -1092,7 +1093,7 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('provider rejected');
     expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toHaveValue('secret-key');
 
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent('provider rejected [REDACTED]');
     expect(screen.getByTestId('opl-first-run-technical-error')).not.toHaveTextContent('secret-key');
   });
@@ -1125,7 +1126,7 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
     fireEvent.click(screen.getByTestId('opl-first-run-open-environment-button'));
 
     await waitFor(() => expect(bridgeMocks.runStartupMaintenanceInvoke).toHaveBeenCalledTimes(1));
@@ -1154,7 +1155,7 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
     fireEvent.click(screen.getByTestId('opl-first-run-open-environment-button'));
 
     await waitFor(() => expect(bridgeMocks.runStartupMaintenanceInvoke).toHaveBeenCalledTimes(1));

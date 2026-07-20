@@ -26,6 +26,14 @@ type HomeStartersProps = {
   onClear?: () => void;
 };
 
+const STARTER_LABEL_KEYS: Record<string, string> = {
+  mas: 'guid.uiOptimization.home.shortcuts.research',
+  rca: 'guid.uiOptimization.home.shortcuts.presentation',
+  mag: 'guid.uiOptimization.home.shortcuts.grant',
+  obf: 'guid.uiOptimization.home.shortcuts.book',
+  oma: 'guid.uiOptimization.home.shortcuts.agentEngineering',
+};
+
 function starterIcon(packageId: string): React.ReactNode {
   const props = { theme: 'outline' as const, size: 16, fill: 'currentColor' };
   switch (canonicalizeOplProfessionalAgentId(packageId)) {
@@ -66,7 +74,9 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
     <section className={styles.homeStarters} aria-label={t('guid.home.startersLabel')} data-testid='opl-home-starters'>
       <div className={styles.homeStarterGrid}>
         {starters.map((assistant) => {
-          const label = assistant.name_i18n?.[localeKey] || assistant.name;
+          const packageId = canonicalizeOplProfessionalAgentId(assistant.id);
+          const labelKey = STARTER_LABEL_KEYS[packageId];
+          const label = labelKey ? t(labelKey) : assistant.name_i18n?.[localeKey] || assistant.name;
           const active = assistant.id === activeCapabilityId;
           const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
           const launchReady = launchGate.state !== 'package_unavailable';

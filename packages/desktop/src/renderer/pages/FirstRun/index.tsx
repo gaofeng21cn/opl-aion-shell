@@ -762,79 +762,89 @@ const FirstRun: React.FC = () => {
       </header>
 
       <div className={styles.firstRunScrollArea}>
-        <section className={styles.firstRunWorkspace} data-testid='opl-first-run-focused-workspace'>
+        <section
+          className={`${styles.firstRunWorkspace} ${readyToLaunch ? styles.firstRunWorkspaceComplete : ''}`}
+          data-testid='opl-first-run-focused-workspace'
+        >
           <div className={styles.firstRunWorkspaceBody} data-testid='opl-first-run-progress'>
-            <div className={styles.firstRunBeginnerSurface} data-testid='opl-first-run-beginner-primary'>
-              <aside className={styles.firstRunStepRail} data-testid='opl-first-run-step-rail'>
-                <div className={styles.firstRunStepRailHeader}>
-                  <h1 id='opl-first-run-setup-title'>{t('settings.firstRun.setupTitle')}</h1>
-                  <p>{t('settings.firstRun.estimatedTime')}</p>
-                </div>
+            <div
+              className={`${styles.firstRunBeginnerSurface} ${readyToLaunch ? styles.firstRunBeginnerSurfaceComplete : ''}`}
+              data-testid='opl-first-run-beginner-primary'
+            >
+              {!readyToLaunch ? (
+                <aside className={styles.firstRunStepRail} data-testid='opl-first-run-step-rail'>
+                  <div className={styles.firstRunStepRailHeader}>
+                    <h1 id='opl-first-run-setup-title'>{t('settings.firstRun.setupTitle')}</h1>
+                    <p>{t('settings.firstRun.estimatedTime')}</p>
+                  </div>
 
-                <ol className={styles.firstRunStepList}>
-                  {primaryItems.map(({ id, item, label }, index) => {
-                    const ready = isItemReady(item);
-                    const active = !ready && id === activePrimaryStepId;
-                    const stateClass = ready
-                      ? styles.firstRunStepComplete
-                      : active
-                        ? styles.firstRunStepActive
-                        : styles.firstRunStepPending;
-                    return (
-                      <li
-                        key={id}
-                        className={`${styles.firstRunStep} ${stateClass}`}
-                        data-testid={`opl-first-run-step-${id}`}
-                        data-state={ready ? 'complete' : active ? 'active' : 'pending'}
-                      >
-                        <span className={styles.firstRunStepMarker} aria-hidden='true'>
-                          {ready ? <CheckOne /> : index + 1}
-                        </span>
-                        <span className={styles.firstRunStepCopy}>
-                          <span className={styles.firstRunStepLabel}>{formatItemLabel(item, label, t)}</span>
-                          <span className={styles.firstRunStepStatus}>
-                            {formatItemStatus(
-                              item,
-                              initializePending && active
-                                ? t('settings.firstRun.status.initializing')
-                                : t('settings.firstRun.status.unknown'),
-                              t
-                            )}
+                  <ol className={styles.firstRunStepList}>
+                    {primaryItems.map(({ id, item, label }, index) => {
+                      const ready = isItemReady(item);
+                      const active = !ready && id === activePrimaryStepId;
+                      const stateClass = ready
+                        ? styles.firstRunStepComplete
+                        : active
+                          ? styles.firstRunStepActive
+                          : styles.firstRunStepPending;
+                      return (
+                        <li
+                          key={id}
+                          className={`${styles.firstRunStep} ${stateClass}`}
+                          data-testid={`opl-first-run-step-${id}`}
+                          data-state={ready ? 'complete' : active ? 'active' : 'pending'}
+                        >
+                          <span className={styles.firstRunStepMarker} aria-hidden='true'>
+                            {ready ? <CheckOne /> : index + 1}
                           </span>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
+                          <span className={styles.firstRunStepCopy}>
+                            <span className={styles.firstRunStepLabel}>{formatItemLabel(item, label, t)}</span>
+                            <span className={styles.firstRunStepStatus}>
+                              {formatItemStatus(
+                                item,
+                                initializePending && active
+                                  ? t('settings.firstRun.status.initializing')
+                                  : t('settings.firstRun.status.unknown'),
+                                t
+                              )}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
 
-                <div className={styles.firstRunStepProgress} data-testid='opl-first-run-core-progress'>
-                  {t('settings.firstRun.stepProgress', { ready: readyCoreCount, total: totalCoreCount })}
-                </div>
+                  <div className={styles.firstRunStepProgress} data-testid='opl-first-run-core-progress'>
+                    {t('settings.firstRun.stepProgress', { ready: readyCoreCount, total: totalCoreCount })}
+                  </div>
 
-                <Button
-                  type='text'
-                  icon={<Tool />}
-                  className={styles.firstRunTechnicalButton}
-                  onClick={openTechnicalDetails}
-                  data-testid='opl-first-run-technical-details-toggle'
-                >
-                  {t('settings.firstRun.technicalDetails')}
-                </Button>
-              </aside>
+                  <Button
+                    type='text'
+                    icon={<Tool />}
+                    className={styles.firstRunTechnicalButton}
+                    onClick={openTechnicalDetails}
+                    data-testid='opl-first-run-technical-details-toggle'
+                  >
+                    {t('settings.firstRun.technicalDetails')}
+                  </Button>
+                </aside>
+              ) : null}
 
               <section
                 ref={taskPanelRef}
-                className={styles.firstRunTaskPanel}
-                data-testid='opl-first-run-task-panel'
+                className={`${styles.firstRunTaskPanel} ${readyToLaunch ? styles.firstRunTaskPanelComplete : ''}`}
+                data-testid={readyToLaunch ? 'opl-first-run-completion' : 'opl-first-run-task-panel'}
                 aria-live='polite'
                 tabIndex={-1}
               >
-                <div className={styles.firstRunStepCounter}>
-                  {t('settings.firstRun.stepCounter', {
-                    current: readyToLaunch ? totalCoreCount : activePrimaryStepIndex,
-                    total: totalCoreCount,
-                  })}
-                </div>
+                {!readyToLaunch ? (
+                  <div className={styles.firstRunStepCounter}>
+                    {t('settings.firstRun.stepCounter', {
+                      current: activePrimaryStepIndex,
+                      total: totalCoreCount,
+                    })}
+                  </div>
+                ) : null}
 
                 {userFacingError && (
                   <div className={styles.firstRunError} data-testid='opl-first-run-user-error'>
@@ -1013,9 +1023,10 @@ const FirstRun: React.FC = () => {
                       >
                         <CheckOne />
                       </span>
-                      <h2>{t('settings.firstRun.readyPanel.title')}</h2>
-                      <p data-testid='opl-first-run-beginner-summary'>{beginnerSummary}</p>
-                      <p className={styles.firstRunReadyDescription}>{t('settings.firstRun.readyPanel.description')}</p>
+                      <h1 id='opl-first-run-setup-title'>{t('guid.uiOptimization.firstRun.completion.title')}</h1>
+                      <p className={styles.firstRunReadyDescription} data-testid='opl-first-run-beginner-summary'>
+                        {t('guid.uiOptimization.firstRun.completion.summary')}
+                      </p>
                       <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
                         <Button
                           ref={readyEntryRef}
@@ -1024,7 +1035,9 @@ const FirstRun: React.FC = () => {
                           size='large'
                           onClick={() => navigate('/guid', { state: POST_INSTALL_SELF_CHECK_STATE })}
                         >
-                          <span data-testid='opl-first-run-ready-entry'>{t('settings.firstRun.enterGuid')}</span>
+                          <span data-testid='opl-first-run-ready-entry'>
+                            {t('guid.uiOptimization.firstRun.completion.primaryAction')}
+                          </span>
                         </Button>
                       </div>
                     </div>
@@ -1097,16 +1110,18 @@ const FirstRun: React.FC = () => {
                   )}
                 </div>
 
-                <div className={styles.firstRunTaskContext}>
-                  <div>
-                    <span>{t('settings.firstRun.blockers')}</span>
-                    <p data-testid='opl-first-run-blockers-list'>{blockerSummary}</p>
+                {!readyToLaunch ? (
+                  <div className={styles.firstRunTaskContext}>
+                    <div>
+                      <span>{t('settings.firstRun.blockers')}</span>
+                      <p data-testid='opl-first-run-blockers-list'>{blockerSummary}</p>
+                    </div>
+                    <div>
+                      <span>{t('settings.firstRun.beginner.nextStep')}</span>
+                      <p data-testid='opl-first-run-next-step'>{nextStepSummary}</p>
+                    </div>
                   </div>
-                  <div>
-                    <span>{t('settings.firstRun.beginner.nextStep')}</span>
-                    <p data-testid='opl-first-run-next-step'>{nextStepSummary}</p>
-                  </div>
-                </div>
+                ) : null}
               </section>
             </div>
           </div>

@@ -163,9 +163,36 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     expect(screen.getByTestId('opl-startup-gate')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.startupPreflight.steps.startupState');
+    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.uiOptimization.startup.brand');
+    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.uiOptimization.startup.stages.workspace');
+    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.uiOptimization.startup.stages.assistant');
+    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent(
+      'common.uiOptimization.startup.stages.modelAccess'
+    );
+    expect(screen.queryByText('common.uiOptimization.startup.viewDetails')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-startup-gate')).not.toHaveTextContent('%');
     expect(screen.getByText('common.startupPreflight.skipCheck')).toBeInTheDocument();
     expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' });
+  });
+
+  it('reveals collapsed startup details only after the long-wait threshold', async () => {
+    vi.useFakeTimers();
+    bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+    bridgeMocks.getInitializeInvoke.mockReturnValue(new Promise(() => {}));
+
+    render(<StartupGate />);
+    expect(screen.queryByText('common.uiOptimization.startup.viewDetails')).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('common.uiOptimization.startup.viewDetails')).toBeInTheDocument();
+    expect(screen.queryByText('common.uiOptimization.startup.timeout')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('common.uiOptimization.startup.viewDetails'));
+    expect(screen.getByText('common.uiOptimization.startup.timeout')).toBeInTheDocument();
   });
 
   it('uses authoritative initialize readiness when the fast startup read exceeds the soft deadline', async () => {
