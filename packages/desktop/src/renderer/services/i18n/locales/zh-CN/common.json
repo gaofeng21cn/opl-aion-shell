@@ -140,7 +140,12 @@
     "actions": {
       "restartApp": "重启 One Person Lab",
       "restartFailed": "One Person Lab 无法自动重启，请关闭应用后重新打开。",
-      "openSupport": "打开支持页面"
+      "openSupport": "在 GitHub 报告问题",
+      "openSupportFailed": "无法打开 GitHub Issue 页面，请检查默认浏览器后重试。"
+    },
+    "supportIssue": {
+      "title": "[启动失败] One Person Lab 本机服务无法启动",
+      "body": "One Person Lab 未能完成启动。请补充导致本次失败的操作步骤。\n\nApp 版本：{{version}}\n平台：{{platform}}\n架构：{{architecture}}\n失败分类：{{reason}}\n后端边界码：{{boundaryCode}}\n后端边界阶段：{{boundaryStage}}\n\n提交前请删除你不希望共享的信息。应用不会自动附加日志、路径、凭据或用户内容。"
     },
     "incompatibleRuntime": {
       "title": "当前系统不支持本机服务",

@@ -5,6 +5,7 @@ import { detectStartupArchitectureMismatch } from '@/process/startup/architectur
 import { recoverCorruptedDatabaseAfterUserConfirmation } from '@/process/startup/recoverCorruptedDatabase';
 import {
   getBackendStartupFailureDialogRoute,
+  buildStartupSupportIssueUrl,
   getDownloadLatestModalActionProps,
   getInstallationIntegrityDescription,
   getInstallationIntegrityModalActions,
@@ -13,6 +14,20 @@ import {
 } from '@/renderer/components/layout/InstallationIntegrityDialog';
 
 const translateKey = (key: string) => key;
+const translateStartupIssue = (key: string, options?: Record<string, string>) => {
+  if (key === 'common.backendStartup.supportIssue.title') return '[Startup] One Person Lab local service failed';
+  if (key === 'common.backendStartup.supportIssue.body') {
+    return [
+      `App version: ${options?.version}`,
+      `Platform: ${options?.platform}`,
+      `Architecture: ${options?.architecture}`,
+      `Failure reason: ${options?.reason}`,
+      `Backend boundary code: ${options?.boundaryCode}`,
+      `Backend boundary stage: ${options?.boundaryStage}`,
+    ].join('\n');
+  }
+  return key;
+};
 
 describe('classifyBackendStartupFailure', () => {
   it('classifies missing GLIBC symbols as an incompatible backend runtime', () => {
@@ -369,6 +384,35 @@ describe('getInstallationIntegrityModalActions', () => {
     expect(onDownloadLatest).toHaveBeenCalledOnce();
     expect(onOpenSupport).toHaveBeenCalledOnce();
     expect(onRestartApplication).toHaveBeenCalledOnce();
+  });
+});
+
+describe('buildStartupSupportIssueUrl', () => {
+  it('prefills a GitHub issue with non-sensitive startup diagnostics', () => {
+    const issueUrl = new URL(
+      buildStartupSupportIssueUrl(
+        translateStartupIssue,
+        'generic_startup_failure',
+        {
+          reason: 'backend_startup_failed',
+          backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+          backendBoundaryStage: 'database.open',
+        },
+        { appVersion: '26.7.21', platform: 'darwin', architecture: 'arm64' }
+      )
+    );
+
+    expect(`${issueUrl.origin}${issueUrl.pathname}`).toBe(
+      'https://github.com/gaofeng21cn/one-person-lab-app/issues/new'
+    );
+    expect(issueUrl.searchParams.get('title')).toBe('[Startup] One Person Lab local service failed');
+    expect(issueUrl.searchParams.get('body')).toContain('App version: 26.7.21');
+    expect(issueUrl.searchParams.get('body')).toContain('Platform: darwin');
+    expect(issueUrl.searchParams.get('body')).toContain('Architecture: arm64');
+    expect(issueUrl.searchParams.get('body')).toContain('Failure reason: backend_startup_failed');
+    expect(issueUrl.searchParams.get('body')).toContain('Backend boundary code: BOOTSTRAP_DATA_INIT_FAILED');
+    expect(issueUrl.searchParams.get('body')).toContain('Backend boundary stage: database.open');
+    expect(issueUrl.searchParams.get('body')).not.toMatch(/credential|\/Users\/|log body/i);
   });
 });
 

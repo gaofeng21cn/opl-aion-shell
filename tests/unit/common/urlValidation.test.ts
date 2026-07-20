@@ -12,6 +12,7 @@ import {
   isAnthropicHost,
   API_HOST_CONFIG,
   GOOGLE_API_HOSTS,
+  normalizeExternalHttpUrl,
 } from '@/common/utils/urlValidation';
 
 describe('urlValidation', () => {
@@ -150,6 +151,28 @@ describe('urlValidation', () => {
       expect(GOOGLE_API_HOSTS).toContain('generativelanguage.googleapis.com');
       expect(GOOGLE_API_HOSTS).toContain('aiplatform.googleapis.com');
       expect(GOOGLE_API_HOSTS).toHaveLength(2);
+    });
+  });
+
+  describe('normalizeExternalHttpUrl', () => {
+    it('normalizes http and https URLs for the native browser bridge', () => {
+      expect(normalizeExternalHttpUrl('https://github.com/example/repo/issues/new?title=Startup failure')).toBe(
+        'https://github.com/example/repo/issues/new?title=Startup%20failure'
+      );
+      expect(normalizeExternalHttpUrl('http://127.0.0.1:3000/workbench')).toBe('http://127.0.0.1:3000/workbench');
+    });
+
+    it.each(['file:///tmp/report.txt', 'javascript:alert(1)', 'mailto:support@example.com', 'not-a-url'])(
+      'rejects non-browser external target %s',
+      (url) => {
+        expect(() => normalizeExternalHttpUrl(url)).toThrow();
+      }
+    );
+
+    it('rejects embedded credentials', () => {
+      expect(() => normalizeExternalHttpUrl('https://user:secret@example.com/support')).toThrow(
+        'External URL credentials are not allowed'
+      );
     });
   });
 });

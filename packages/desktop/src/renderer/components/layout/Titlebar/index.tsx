@@ -6,7 +6,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ipcBridge } from '@/common';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
-import { getOplGlobalFeedbackIssueUrl, getOplOrdinaryChromeName } from '@/common/config/oplProductProfile';
+import {
+  buildOplAppIssueUrl,
+  getOplGlobalFeedbackIssueUrl,
+  getOplOrdinaryChromeName,
+} from '@/common/config/oplProductProfile';
 import MobileConversationBrand from './MobileConversationBrand';
 import WindowControls from '../WindowControls';
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspace/workspaceEvents';
@@ -19,13 +23,6 @@ import './titlebar.css';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
-}
-
-export function buildOplAppIssueUrl(baseUrl: string, title: string, body: string): string {
-  const url = new URL(baseUrl);
-  url.searchParams.set('title', title);
-  url.searchParams.set('body', body);
-  return url.toString();
 }
 
 // Claude-desktop-style sidebar toggle icon: a rounded rectangle with a vertical divider

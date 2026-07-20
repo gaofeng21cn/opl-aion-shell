@@ -477,12 +477,20 @@ export type IDesktopNavigationState = {
   canNextTask: boolean;
 };
 
+export type IDesktopAppInfo = {
+  platform: string;
+  arch: string;
+  version: string;
+};
+
 // ---------------------------------------------------------------------------
 // Application — stays IPC (Electron-native)
 // ---------------------------------------------------------------------------
 
 export const application = {
   restart: bridge.buildProvider<IAppRestartResult, void>('restart-app'),
+  openExternalUrl: bridge.buildProvider<void, { url: string }>('app.open-external-url'),
+  getDesktopAppInfo: bridge.buildProvider<IDesktopAppInfo, void>('app.get-desktop-app-info'),
   openDevTools: bridge.buildProvider<boolean, void>('open-dev-tools'),
   isDevToolsOpened: bridge.buildProvider<boolean, void>('is-dev-tools-opened'),
   systemInfo: withResponseMap(

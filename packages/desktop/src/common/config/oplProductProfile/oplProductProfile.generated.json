@@ -227,6 +227,24 @@
           "target_url": "https://github.com/gaofeng21cn/one-person-lab-app/issues/new",
           "open_mode": "external_browser_user_review_and_submit",
           "prefill_fields": ["localized_title", "localized_body", "current_route", "app_release_version"],
+          "startup_failure_action": {
+            "placement": "blocking_startup_failure_dialog",
+            "delivery_channel": "electron_main_process_native_open_external_via_preload_ipc",
+            "backend_dependency": "none",
+            "submission_policy": "external_browser_user_review_and_submit",
+            "automatic_submission": false,
+            "prefill_fields": [
+              "localized_title",
+              "localized_body",
+              "app_release_version",
+              "platform",
+              "architecture",
+              "startup_failure_reason",
+              "backend_boundary_code",
+              "backend_boundary_stage"
+            ],
+            "automatic_attachment_policy": "forbidden_no_logs_paths_credentials_or_user_content"
+          },
           "shell_local_delivery_forbidden": true
         },
         "scope": "opl_owned_overlay_surfaces_not_upstream_fork_body"

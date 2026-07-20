@@ -324,7 +324,11 @@ const BackendStartupFailureDialog: React.FC<{
   if (route.kind === 'installation_integrity') {
     return (
       <div className='min-h-screen bg-bg-1'>
-        <InstallationIntegrityModalHost description={description} diagnosticsKind={route.diagnosticsKind} />
+        <InstallationIntegrityModalHost
+          description={description}
+          diagnosticsKind={route.diagnosticsKind}
+          failure={failure}
+        />
       </div>
     );
   }

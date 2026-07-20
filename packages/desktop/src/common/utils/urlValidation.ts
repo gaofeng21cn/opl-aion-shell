@@ -97,3 +97,25 @@ export function isOpenAIHost(urlString: string): boolean {
 export function isAnthropicHost(urlString: string): boolean {
   return isOfficialHost(urlString, Object.values(API_HOST_CONFIG.anthropic));
 }
+
+/**
+ * Normalize a renderer-requested external browser URL for Electron.
+ * Local files, executable protocols, and embedded credentials are rejected.
+ */
+export function normalizeExternalHttpUrl(urlString: string): string {
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch {
+    throw new Error('External URL must be an absolute URL');
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error(`External URL protocol is not allowed: ${url.protocol}`);
+  }
+  if (url.username || url.password) {
+    throw new Error('External URL credentials are not allowed');
+  }
+
+  return url.toString();
+}

@@ -45,6 +45,24 @@ export type OplGlobalFeedbackAction = {
   target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new';
   open_mode: 'external_browser_user_review_and_submit';
   prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'];
+  startup_failure_action: {
+    placement: 'blocking_startup_failure_dialog';
+    delivery_channel: 'electron_main_process_native_open_external_via_preload_ipc';
+    backend_dependency: 'none';
+    submission_policy: 'external_browser_user_review_and_submit';
+    automatic_submission: false;
+    prefill_fields: [
+      'localized_title',
+      'localized_body',
+      'app_release_version',
+      'platform',
+      'architecture',
+      'startup_failure_reason',
+      'backend_boundary_code',
+      'backend_boundary_stage',
+    ];
+    automatic_attachment_policy: 'forbidden_no_logs_paths_credentials_or_user_content';
+  };
   shell_local_delivery_forbidden: true;
 };
 export type OplAccountIdentityAvatarPolicy = {
@@ -2143,8 +2161,16 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const accountIdentityAvatar = isRecord(utilityIconPolicy) ? utilityIconPolicy.account_identity_avatar : null;
   const iconTextActionGeometry = isRecord(utilityIconPolicy) ? utilityIconPolicy.icon_text_action_geometry : null;
   const globalFeedbackAction = isRecord(utilityIconPolicy) ? utilityIconPolicy.global_feedback_action : null;
+  const startupFailureAction = isRecord(globalFeedbackAction) ? globalFeedbackAction.startup_failure_action : null;
   const globalFeedbackPrefillFields = isRecord(globalFeedbackAction)
     ? readStringArray(globalFeedbackAction, 'prefill_fields', 'gui.home.utility_icon_policy.global_feedback_action')
+    : [];
+  const startupFailurePrefillFields = isRecord(startupFailureAction)
+    ? readStringArray(
+        startupFailureAction,
+        'prefill_fields',
+        'gui.home.utility_icon_policy.global_feedback_action.startup_failure_action'
+      )
     : [];
   if (
     !isRecord(utilityIconPolicy) ||
@@ -2182,6 +2208,24 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     globalFeedbackAction.open_mode !== 'external_browser_user_review_and_submit' ||
     JSON.stringify(globalFeedbackPrefillFields) !==
       JSON.stringify(['localized_title', 'localized_body', 'current_route', 'app_release_version']) ||
+    !isRecord(startupFailureAction) ||
+    startupFailureAction.placement !== 'blocking_startup_failure_dialog' ||
+    startupFailureAction.delivery_channel !== 'electron_main_process_native_open_external_via_preload_ipc' ||
+    startupFailureAction.backend_dependency !== 'none' ||
+    startupFailureAction.submission_policy !== 'external_browser_user_review_and_submit' ||
+    startupFailureAction.automatic_submission !== false ||
+    JSON.stringify(startupFailurePrefillFields) !==
+      JSON.stringify([
+        'localized_title',
+        'localized_body',
+        'app_release_version',
+        'platform',
+        'architecture',
+        'startup_failure_reason',
+        'backend_boundary_code',
+        'backend_boundary_stage',
+      ]) ||
+    startupFailureAction.automatic_attachment_policy !== 'forbidden_no_logs_paths_credentials_or_user_content' ||
     globalFeedbackAction.shell_local_delivery_forbidden !== true
   ) {
     throw new Error('Invalid OPL product profile: global feedback must route to the App-owned GitHub issue page');
@@ -2445,6 +2489,24 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
             target_url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues/new',
             open_mode: 'external_browser_user_review_and_submit',
             prefill_fields: ['localized_title', 'localized_body', 'current_route', 'app_release_version'],
+            startup_failure_action: {
+              placement: 'blocking_startup_failure_dialog',
+              delivery_channel: 'electron_main_process_native_open_external_via_preload_ipc',
+              backend_dependency: 'none',
+              submission_policy: 'external_browser_user_review_and_submit',
+              automatic_submission: false,
+              prefill_fields: [
+                'localized_title',
+                'localized_body',
+                'app_release_version',
+                'platform',
+                'architecture',
+                'startup_failure_reason',
+                'backend_boundary_code',
+                'backend_boundary_stage',
+              ],
+              automatic_attachment_policy: 'forbidden_no_logs_paths_credentials_or_user_content',
+            },
             shell_local_delivery_forbidden: true,
           },
           scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body',
@@ -2871,6 +2933,13 @@ export function getOplOrdinaryChromeName(): string {
 
 export function getOplGlobalFeedbackIssueUrl(): string {
   return OPL_PRODUCT_PROFILE.gui.home.utility_icon_policy.global_feedback_action.target_url;
+}
+
+export function buildOplAppIssueUrl(baseUrl: string, title: string, body: string): string {
+  const url = new URL(baseUrl);
+  url.searchParams.set('title', title);
+  url.searchParams.set('body', body);
+  return url.toString();
 }
 
 export function getOplDefaultCodexModel(): string {

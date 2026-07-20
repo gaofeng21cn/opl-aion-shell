@@ -5,7 +5,7 @@
  */
 
 import type { BrowserWindow } from 'electron';
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/utils/initStorage';
 import { getZoomFactor, setZoomFactor } from '@process/utils/zoom';
@@ -15,6 +15,7 @@ import { updateApplicationMenuNavigationState } from '@process/utils/appMenu';
 import { initApplicationBridgeCore } from './applicationBridgeCore';
 import type { IStartOnBootStatus } from '@/common/adapter/ipcBridge';
 import { restartApplication } from './restartApplication';
+import { normalizeExternalHttpUrl } from '@/common/utils/urlValidation';
 
 let mainWindowRef: BrowserWindow | null = null;
 
@@ -106,6 +107,18 @@ export function initApplicationBridge(): void {
     // when backend exits.
     return restartApplication(app);
   });
+
+  ipcBridge.application.openExternalUrl.provider(async ({ url }) => {
+    await shell.openExternal(normalizeExternalHttpUrl(url));
+  });
+
+  ipcBridge.application.getDesktopAppInfo.provider(() =>
+    Promise.resolve({
+      platform: process.platform,
+      arch: process.arch,
+      version: app.getVersion(),
+    })
+  );
 
   ipcBridge.application.isDevToolsOpened.provider(() => {
     if (mainWindowRef && !mainWindowRef.isDestroyed()) {
