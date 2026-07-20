@@ -9,6 +9,7 @@ import {
 } from '@/process/bridge/oplRuntimeBridge';
 
 const tmpRoots: string[] = [];
+const REQUIRED_APP_STATE_CAPABILITY = 'opl_app.domain_detail_views.v2';
 const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 
 function makeTempRoot(name: string): string {
@@ -17,7 +18,12 @@ function makeTempRoot(name: string): string {
   return root;
 }
 
-function makeFrameworkCarrier(packageRoot: string, version = '26.6.27', apiVersion = 'p19.stage-runtime'): void {
+function makeFrameworkCarrier(
+  packageRoot: string,
+  version = '26.6.27',
+  apiVersion = 'p19.stage-runtime',
+  capabilityIds: string[] = [REQUIRED_APP_STATE_CAPABILITY]
+): void {
   fs.mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'dist', 'entrypoints'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'contracts', 'opl-framework'), { recursive: true });
@@ -28,6 +34,11 @@ function makeFrameworkCarrier(packageRoot: string, version = '26.6.27', apiVersi
   fs.writeFileSync(
     path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'),
     JSON.stringify({ version: apiVersion }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(packageRoot, 'contracts', 'opl-framework', 'app-runtime-fast-work-item-projection-contract.json'),
+    JSON.stringify({ compatibility_capabilities: { ids: capabilityIds } }),
     'utf8'
   );
 }
@@ -878,6 +889,112 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(command.args[0]).toBe(path.join(managedRoot, 'dist', 'entrypoints', 'cli.js'));
   });
 
+  it('fails closed when a 0.2.2 carrier has the current API marker but no App state capability', () => {
+    const homeDir = makeTempRoot('opl-legacy-capability-home');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(managedRoot, '0.2.2', 'p19.stage-runtime', []);
+    const appStateSpec = __oplRuntimeBridgeTest.buildAppStateCommand('fast');
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    let compatibilityError: unknown;
+    try {
+      __oplRuntimeBridgeTest.buildOplSpawnCommand(appStateSpec, env);
+    } catch (error) {
+      compatibilityError = error;
+    }
+
+    expect(compatibilityError).toMatchObject({
+      code: 'incompatible_missing_required_capability',
+      receipt: {
+        framework_version: '0.2.2',
+        framework_api_version: 'p19.stage-runtime',
+        producer_capability_ids: [],
+        required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
+        missing_required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
+        compatibility_status: 'incompatible_missing_required_capability',
+      },
+    });
+    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(appStateSpec, compatibilityError)).toBe(true);
+  });
+
+  it('activates a current carrier that publishes the required App state capability', () => {
+    const homeDir = makeTempRoot('opl-current-capability-home');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(managedRoot, '0.3.4');
+    const appStateSpec = __oplRuntimeBridgeTest.buildAppStateCommand('fast');
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, appStateSpec);
+    expect(selection.receipt).toMatchObject({
+      producer_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
+      required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
+      missing_required_capability_ids: [],
+      compatibility_status: 'compatible',
+    });
+    expect(__oplRuntimeBridgeTest.buildOplSpawnCommand(appStateSpec, env).args.slice(-5)).toEqual([
+      'app',
+      'state',
+      '--profile',
+      'fast',
+      '--json',
+    ]);
+  });
+
+  it('keeps canonical update and bootstrap recovery surfaces reachable for a capability-stale carrier', () => {
+    const homeDir = makeTempRoot('opl-capability-recovery-home');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(managedRoot, '0.2.2', 'p19.stage-runtime', []);
+    fs.mkdirSync(path.join(managedRoot, 'dist', 'modules', 'connect'), { recursive: true });
+    fs.writeFileSync(
+      path.join(managedRoot, 'dist', 'modules', 'connect', 'managed-update-kernel.js'),
+      'export {}\n',
+      'utf8'
+    );
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const updateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+      env
+    );
+    const initializeCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildInitializeCommand(),
+      env
+    );
+    const installCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildInstallPrepCommand(),
+      env
+    );
+
+    expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
+    expect(updateCommand.env.OPL_FRAMEWORK_COMPATIBILITY_STATUS).toBe('incompatible_missing_required_capability');
+    expect(initializeCommand.args.slice(-4)).toEqual(['system', 'initialize', '--events', '--json']);
+    expect(installCommand.args.slice(-4)).toEqual(['install', '--headless', '--skip-packages', '--json']);
+  });
+
   it('bootstraps a legacy managed Framework that rejects the OPL Gateway account credential handle', () => {
     const legacyError = new Error('credential_handle must use env:NAME or codex:selected_provider.');
 
@@ -987,6 +1104,11 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.writeFileSync(
       path.join(developerCheckout, 'contracts', 'opl-framework', 'public-surface-index.json'),
       JSON.stringify({ version: 'p19.stage-runtime' }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(developerCheckout, 'contracts', 'opl-framework', 'app-runtime-fast-work-item-projection-contract.json'),
+      JSON.stringify({ compatibility_capabilities: { ids: [REQUIRED_APP_STATE_CAPABILITY] } }),
       'utf8'
     );
     fs.writeFileSync(

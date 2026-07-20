@@ -73,6 +73,13 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
 const OPL_APP_REQUIRED_FRAMEWORK_API_RANGE = 'p19.stage-runtime';
+const OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS = ['opl_app.domain_detail_views.v2'] as const;
+const OPL_APP_RUNTIME_CAPABILITY_CONTRACT_PATH = [
+  'contracts',
+  'opl-framework',
+  'app-runtime-fast-work-item-projection-contract.json',
+] as const;
+const OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE = 'incompatible_missing_required_capability';
 const OPL_MODULE_PATH_ENV_KEYS = [
   'OPL_MODULE_PATH_MEDAUTOSCIENCE',
   'OPL_MODULE_PATH_MEDAUTOGRANT',
@@ -193,7 +200,10 @@ type OplFrameworkCarrierReceipt = {
   framework_version: string;
   framework_api_version: string;
   app_required_api_range: string;
-  compatibility_status: 'compatible';
+  producer_capability_ids: string[];
+  required_capability_ids: string[];
+  missing_required_capability_ids: string[];
+  compatibility_status: 'compatible' | 'incompatible_missing_required_capability';
   selection_status: 'active' | 'pre_formula_transition';
   active_framework_count: 1;
 };
@@ -202,6 +212,19 @@ type ResolvedOplFrameworkCarrier = {
   packageRoot: string;
   receipt: OplFrameworkCarrierReceipt;
 };
+
+class OplFrameworkCapabilityError extends Error {
+  readonly code = OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE;
+  readonly receipt: OplFrameworkCarrierReceipt;
+
+  constructor(receipt: OplFrameworkCarrierReceipt) {
+    super(
+      `Selected OPL Framework carrier is missing App-required capabilities: ${receipt.missing_required_capability_ids.join(', ')}.`
+    );
+    this.name = 'OplFrameworkCapabilityError';
+    this.receipt = receipt;
+  }
+}
 
 type BuildStandardBootstrapEnvInput = {
   baseEnv?: NodeJS.ProcessEnv;
@@ -685,6 +708,10 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     (isManagedCarrierDependencyError(error) &&
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
+    (spec.surface.startsWith('app_state_') &&
+      error instanceof Error &&
+      'code' in error &&
+      error.code === OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE) ||
     isLegacyGatewayCredentialHandleError(spec, error) ||
     isLegacyManagedUpdatePassthroughError(spec, error)
   );
@@ -1071,12 +1098,25 @@ function resolvePackagedFullRuntimeRoot(env: NodeJS.ProcessEnv): string | null {
   return packageManifest?.name === 'opl-framework' && hasOplCliEntrypoint(packageRoot) ? packageRoot : null;
 }
 
-function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string; frameworkApiVersion: string } {
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(normalizeOptionalString).filter((entry): entry is string => entry !== null))];
+}
+
+function readFrameworkIdentity(packageRoot: string): {
+  frameworkVersion: string;
+  frameworkApiVersion: string;
+  producerCapabilityIds: string[];
+} {
   // The Framework does not yet expose a stable live version command; bind activation to its installed package identity.
   const packageManifest = readJsonRecordFile(path.join(packageRoot, 'package.json'));
   const publicSurfaceIndex = readJsonRecordFile(
     path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json')
   );
+  const capabilityContract = readJsonRecordFile(path.join(packageRoot, ...OPL_APP_RUNTIME_CAPABILITY_CONTRACT_PATH));
+  const compatibilityCapabilities = isRecord(capabilityContract?.compatibility_capabilities)
+    ? capabilityContract.compatibility_capabilities
+    : null;
   if (packageManifest?.name !== 'opl-framework') {
     throw new Error('Selected OPL Framework carrier must have package identity opl-framework.');
   }
@@ -1085,15 +1125,24 @@ function readFrameworkIdentity(packageRoot: string): { frameworkVersion: string;
   if (!frameworkVersion || !frameworkApiVersion) {
     throw new Error('Selected OPL Framework carrier is missing package or public API identity.');
   }
-  return { frameworkVersion, frameworkApiVersion };
+  return {
+    frameworkVersion,
+    frameworkApiVersion,
+    producerCapabilityIds: readStringArray(compatibilityCapabilities?.ids),
+  };
+}
+
+function requiresAppStateCapabilityHandshake(spec?: RuntimeCommandSpec): boolean {
+  return !spec || spec.surface.startsWith('app_state_');
 }
 
 function buildFrameworkCarrierSelection(
   packageRoot: string,
   selectedCarrier: OplFrameworkCarrierReceipt['selected_carrier'],
-  selectionStatus: OplFrameworkCarrierReceipt['selection_status'] = 'active'
+  selectionStatus: OplFrameworkCarrierReceipt['selection_status'] = 'active',
+  spec?: RuntimeCommandSpec
 ): ResolvedOplFrameworkCarrier {
-  const { frameworkVersion, frameworkApiVersion } = readFrameworkIdentity(packageRoot);
+  const { frameworkVersion, frameworkApiVersion, producerCapabilityIds } = readFrameworkIdentity(packageRoot);
   const appRequiredApiRange = OPL_APP_REQUIRED_FRAMEWORK_API_RANGE;
   const compatibleApiVersions = appRequiredApiRange
     .split('|')
@@ -1104,18 +1153,30 @@ function buildFrameworkCarrierSelection(
       `OPL Framework API ${frameworkApiVersion} is incompatible with App-required ${appRequiredApiRange}.`
     );
   }
-  return {
+  const requiredCapabilityIds = [...OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS];
+  const missingRequiredCapabilityIds = requiredCapabilityIds.filter(
+    (capabilityId) => !producerCapabilityIds.includes(capabilityId)
+  );
+  const selection: ResolvedOplFrameworkCarrier = {
     packageRoot,
     receipt: {
       selected_carrier: selectedCarrier,
       framework_version: frameworkVersion,
       framework_api_version: frameworkApiVersion,
       app_required_api_range: appRequiredApiRange,
-      compatibility_status: 'compatible',
+      producer_capability_ids: producerCapabilityIds,
+      required_capability_ids: requiredCapabilityIds,
+      missing_required_capability_ids: missingRequiredCapabilityIds,
+      compatibility_status:
+        missingRequiredCapabilityIds.length === 0 ? 'compatible' : 'incompatible_missing_required_capability',
       selection_status: selectionStatus,
       active_framework_count: 1,
     },
   };
+  if (requiresAppStateCapabilityHandshake(spec) && missingRequiredCapabilityIds.length > 0) {
+    throw new OplFrameworkCapabilityError(selection.receipt);
+  }
+  return selection;
 }
 
 function resolveHomebrewFormulaRoot(env: NodeJS.ProcessEnv): string | null {
@@ -1152,13 +1213,13 @@ function hasHomebrewCaskReceipt(env: NodeJS.ProcessEnv): boolean {
 function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeCommandSpec): ResolvedOplFrameworkCarrier {
   const developerCheckout = resolveDeveloperModeCheckoutRoot(env);
   if (developerCheckout) {
-    return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout');
+    return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout', 'active', spec);
   }
 
   if (spec && !spec.surface.startsWith('update_')) {
     const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
     if (packagedFullRuntime) {
-      return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime');
+      return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
     }
   }
 
@@ -1174,14 +1235,15 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
   if (homebrewCaskInstall) {
     const formulaRoot = resolveHomebrewFormulaRoot(env);
     if (formulaRoot) {
-      return buildFrameworkCarrierSelection(formulaRoot, 'system_homebrew_formula');
+      return buildFrameworkCarrierSelection(formulaRoot, 'system_homebrew_formula', 'active', spec);
     }
     const transitionManagedRoot = resolveManagedInstallCheckoutRoot(env);
     if (transitionManagedRoot) {
       return buildFrameworkCarrierSelection(
         transitionManagedRoot,
         'framework_managed_install',
-        'pre_formula_transition'
+        'pre_formula_transition',
+        spec
       );
     }
     throw new Error(
@@ -1193,7 +1255,7 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
   if (!managedRoot) {
     throw new Error('The Framework-managed OPL base carrier is missing.');
   }
-  return buildFrameworkCarrierSelection(managedRoot, 'framework_managed_install');
+  return buildFrameworkCarrierSelection(managedRoot, 'framework_managed_install', 'active', spec);
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
@@ -1211,6 +1273,9 @@ function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): Resolv
       OPL_FRAMEWORK_VERSION: selection.receipt.framework_version,
       OPL_FRAMEWORK_API_VERSION: selection.receipt.framework_api_version,
       OPL_APP_REQUIRED_FRAMEWORK_API_RANGE: selection.receipt.app_required_api_range,
+      OPL_FRAMEWORK_PRODUCER_CAPABILITY_IDS: selection.receipt.producer_capability_ids.join(','),
+      OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS: selection.receipt.required_capability_ids.join(','),
+      OPL_FRAMEWORK_MISSING_REQUIRED_CAPABILITY_IDS: selection.receipt.missing_required_capability_ids.join(','),
       OPL_FRAMEWORK_COMPATIBILITY_STATUS: selection.receipt.compatibility_status,
       OPL_FRAMEWORK_SELECTION_STATUS: selection.receipt.selection_status,
       OPL_ACTIVE_FRAMEWORK_COUNT: String(selection.receipt.active_framework_count),
