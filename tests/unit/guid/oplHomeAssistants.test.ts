@@ -267,6 +267,49 @@ describe('OPL home assistants', () => {
     expect(gate.allowedWhenBlocked).toEqual(['status', 'doctor', 'repair']);
   });
 
+  it('keeps directory launch readiness authoritative over stale status diagnostics', () => {
+    const gate = resolveOplPackageLaunchGate(
+      {
+        agent_packages: {
+          directory: {
+            entries: [
+              {
+                package_id: 'mas',
+                readiness: {
+                  status: 'ready',
+                  operational_ready: true,
+                  launch_allowed: true,
+                  reason: 'use_boundary_reconciliation_ready',
+                },
+                available_actions: [activationAction('mas')],
+              },
+            ],
+          },
+          status_index: {
+            packages: {
+              mas: {
+                package_id: 'mas',
+                operational_ready: false,
+                launch_allowed: false,
+                launch_blocked_reason: null,
+                allowed_when_blocked: ['status', 'doctor', 'repair'],
+              },
+            },
+          },
+        },
+      },
+      'mas'
+    );
+
+    expect(gate).toEqual({
+      state: 'ready',
+      launchAllowed: true,
+      launchBlockedReason: null,
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      activationRequired: true,
+    });
+  });
+
   it.each([
     'package_status_read_failed',
     'package_dependency_missing',

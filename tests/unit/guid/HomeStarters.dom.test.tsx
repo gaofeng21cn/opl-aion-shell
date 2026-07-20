@@ -154,7 +154,7 @@ describe('HomeStarters', () => {
     expect(onSelect).toHaveBeenCalledWith('mag');
   });
 
-  it('keeps a scope-materialization package selectable so send can activate its workspace', async () => {
+  it('keeps a scope-materialization package selectable while Stage runtime owns activation', async () => {
     const appState = readyAppState();
     appState.agent_packages.status_index.packages.mas = {
       package_id: 'mas',
@@ -173,6 +173,43 @@ describe('HomeStarters', () => {
     expect(activationStarter).toHaveAttribute('data-opl-launch-ready', 'true');
     await userEvent.click(activationStarter);
     expect(onSelect).toHaveBeenCalledWith('mas');
+  });
+
+  it('does not expose stale status diagnostics when directory readiness allows launch', () => {
+    mocks.appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'mas',
+              readiness: {
+                status: 'ready',
+                operational_ready: true,
+                launch_allowed: true,
+                reason: 'use_boundary_reconciliation_ready',
+              },
+            },
+          ],
+        },
+        status_index: {
+          packages: {
+            mas: {
+              package_id: 'mas',
+              operational_ready: false,
+              launch_allowed: false,
+              launch_blocked_reason: null,
+              allowed_when_blocked: ['status', 'doctor', 'repair'],
+            },
+          },
+        },
+      },
+    };
+
+    render(<HomeStarters assistants={[assistant('mas')]} localeKey='en-US' onSelect={vi.fn()} />);
+
+    const starter = screen.getByTestId('home-starter-mas');
+    expect(starter).toHaveAttribute('data-opl-launch-ready', 'true');
+    expect(starter).not.toHaveAttribute('title');
   });
 
   it('keeps package_unavailable selectable for recovery while marking the send gate', async () => {

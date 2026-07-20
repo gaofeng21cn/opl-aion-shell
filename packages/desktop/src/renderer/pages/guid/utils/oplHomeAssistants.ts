@@ -142,23 +142,31 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
   const directoryEntry = packageDirectoryEntry(appState, packageId);
   const directoryReadiness = appStateRecord(directoryEntry?.readiness);
   const operationalReady =
-    typeof status?.operational_ready === 'boolean'
-      ? status.operational_ready
-      : typeof directoryReadiness.operational_ready === 'boolean'
-        ? directoryReadiness.operational_ready
+    typeof directoryReadiness.operational_ready === 'boolean'
+      ? directoryReadiness.operational_ready
+      : typeof status?.operational_ready === 'boolean'
+        ? status.operational_ready
         : null;
   const projectedLaunchAllowed =
-    typeof status?.launch_allowed === 'boolean'
-      ? status.launch_allowed
-      : typeof directoryReadiness.launch_allowed === 'boolean'
-        ? directoryReadiness.launch_allowed
+    typeof directoryReadiness.launch_allowed === 'boolean'
+      ? directoryReadiness.launch_allowed
+      : typeof status?.launch_allowed === 'boolean'
+        ? status.launch_allowed
         : null;
-  const launchBlockedReason =
+  const directoryReason =
+    typeof directoryReadiness.reason === 'string' && directoryReadiness.reason.trim()
+      ? directoryReadiness.reason.trim()
+      : null;
+  const statusReason =
     typeof status?.launch_blocked_reason === 'string' && status.launch_blocked_reason.trim()
       ? status.launch_blocked_reason.trim()
-      : typeof directoryReadiness.reason === 'string' && directoryReadiness.reason.trim()
-        ? directoryReadiness.reason.trim()
-        : null;
+      : null;
+  const launchBlockedReason =
+    typeof directoryReadiness.launch_allowed === 'boolean'
+      ? directoryReadiness.launch_allowed
+        ? null
+        : directoryReason
+      : (statusReason ?? directoryReason);
   const activationRequired = resolveOplPackageActivationAction(appState, packageId) !== null;
   const degradedReason = Boolean(
     launchBlockedReason &&
