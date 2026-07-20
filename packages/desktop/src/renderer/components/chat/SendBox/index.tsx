@@ -25,6 +25,7 @@ import { filterWorkspaceMentionItems } from '@/renderer/utils/file/workspaceMent
 import type { ConversationExportFormat } from '@/renderer/utils/chat/conversationExport';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/ui/focus';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { Button, Input, Message, Radio, Tag } from '@arco-design/web-react';
 import { ArrowUp, CloseSmall, FolderOpen, Plus, Quote } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
@@ -1340,7 +1341,7 @@ const SendBox: React.FC<{
       type='primary'
       disabled={isButtonDisabled}
       className='send-button-custom'
-      icon={<ArrowUp theme='outline' size='16' fill='white' strokeWidth={2} aria-hidden='true' />}
+      icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
       }}

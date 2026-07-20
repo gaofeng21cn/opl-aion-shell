@@ -1,4 +1,5 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
@@ -82,7 +83,7 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               onClick={() => void navigate(resolveSettingsReturnPath())}
             >
               <span className='settings-sider__icon-slot'>
-                <ArrowLeft theme='outline' size='16' strokeWidth={2} />
+                <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
               </span>
               {!collapsed ? (
                 <FlexFullContainer className='h-24px'>
@@ -128,9 +129,9 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
                       </FlexFullContainer>
                       {expandable ? (
                         active ? (
-                          <Down theme='outline' size='13' />
+                          <Down aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
                         ) : (
-                          <Right theme='outline' size='13' />
+                          <Right aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
                         )
                       ) : null}
                     </>

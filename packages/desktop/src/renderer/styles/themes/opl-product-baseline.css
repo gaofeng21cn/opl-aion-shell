@@ -188,6 +188,16 @@ body {
   border-radius: 8px;
 }
 
+[data-color-scheme='default'] .send-button-custom.arco-btn {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-width: 2px;
+  border-color: transparent;
+  background-clip: padding-box;
+}
+
 .arco-input-wrapper,
 .arco-textarea-wrapper,
 .arco-input-inner-wrapper,

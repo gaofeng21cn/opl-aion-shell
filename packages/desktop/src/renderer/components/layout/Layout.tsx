@@ -9,7 +9,9 @@ import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { getOplOrdinaryChromeName } from '@/common/config/oplProductProfile';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
+import { LeftBar } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,25 +26,6 @@ import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShor
 import { isElectronDesktop } from '@renderer/utils/platform';
 import { resolveLegacySettingsRoute } from '@renderer/pages/settings/registry/settingsRegistry';
 import '@renderer/styles/layout.css';
-
-const SidebarIcon: React.FC<{ size?: number; strokeWidth?: number }> = ({ size = 18, strokeWidth = 4 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox='0 0 48 48'
-    fill='none'
-    stroke='currentColor'
-    strokeWidth={strokeWidth}
-    strokeLinecap='round'
-    strokeLinejoin='round'
-    aria-hidden='true'
-    focusable='false'
-    style={{ display: 'inline-block', verticalAlign: 'middle' }}
-  >
-    <rect x='6' y='10' width='36' height='28' rx='5' />
-    <line x1='18' y1='10' x2='18' y2='38' />
-  </svg>
-);
 
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -499,7 +482,7 @@ const Layout: React.FC<{
                     title={t('common.collapseSidebar')}
                     aria-label={t('common.collapseSidebar')}
                   >
-                    <SidebarIcon size={18} strokeWidth={2.5} aria-hidden='true' />
+                    <LeftBar {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />
                   </button>
                 )}
                 {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}

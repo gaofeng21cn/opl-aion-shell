@@ -716,7 +716,7 @@
 
 .actionRow {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   width: 100%;
   gap: 8px;
@@ -865,7 +865,8 @@
 .actionSubmit :global(.send-button-custom.arco-btn:disabled),
 .actionSubmit :global(.send-button-custom.arco-btn-primary:disabled) {
   background: var(--opl-composer-send-disabled) !important;
-  border-color: var(--opl-composer-send-disabled) !important;
+  background-clip: padding-box !important;
+  border-color: transparent !important;
   color: var(--text-white) !important;
   opacity: 1 !important;
 }

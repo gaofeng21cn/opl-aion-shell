@@ -12,6 +12,7 @@ import {
 } from '@/common/config/oplProductProfile';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import {
@@ -253,7 +254,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         >
           <span className='flex items-center gap-6px min-w-0'>
             <span>{geminiButtonLabel}</span>
-            <Down theme='outline' size='12' fill={iconColors.secondary} className='shrink-0' />
+            <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
           </span>
         </Button>
       </Dropdown>
@@ -421,7 +422,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
           >
             <span className='flex items-center gap-6px min-w-0'>
               <span>{acpButtonLabel}</span>
-              <Down theme='outline' size='12' fill={iconColors.secondary} className='shrink-0' />
+              <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
             </span>
           </Button>
         </Dropdown>

@@ -13,6 +13,7 @@ import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSe
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import {
   buildSettingsNavItems,
   BUILTIN_TAB_IDS,
@@ -20,7 +21,6 @@ import {
   getSettingsSearchEntries,
   resolveLegacySettingsRoute,
 } from '../sections/settingsNav';
-import { iconColors } from '@/renderer/styles/colors';
 import {
   focusSettingsAnchor,
   getSettingsAboutNavigationItem,
@@ -157,7 +157,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         value={searchQuery}
         onChange={setSearchQuery}
         allowClear
-        prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
+        prefix={<Search {...OPL_CHROME_ICON_PROPS} />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         data-testid='settings-search-input'
         onKeyDown={(event) => {
@@ -237,7 +237,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                       <Button
                         type='text'
                         htmlType='button'
-                        icon={<ArrowLeft theme='outline' size='16' />}
+                        icon={<ArrowLeft {...OPL_CHROME_ICON_PROPS} />}
                         aria-label={t('settings.uiOptimization.navigation.mobileBack')}
                         className='settings-mobile-navigation__back'
                         onClick={() => setMobileGroupId(null)}
@@ -261,7 +261,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                           >
                             <span className='settings-mobile-navigation__row-icon'>{destination.icon}</span>
                             <span className='settings-mobile-navigation__row-label'>{destination.label}</span>
-                            <Right theme='outline' size='14' aria-hidden='true' />
+                            <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
                           </Button>
                         );
                       })}
@@ -285,7 +285,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                         >
                           <span className='settings-mobile-navigation__row-icon'>{group.icon}</span>
                           <span className='settings-mobile-navigation__row-label'>{group.label}</span>
-                          <Right theme='outline' size='14' aria-hidden='true' />
+                          <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
                         </Button>
                       );
                     })}
@@ -299,7 +299,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                       >
                         <span className='settings-mobile-navigation__row-icon'>{aboutItem.icon}</span>
                         <span className='settings-mobile-navigation__row-label'>{aboutItem.label}</span>
-                        <Right theme='outline' size='14' aria-hidden='true' />
+                        <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
                       </Button>
                     ) : null}
                   </div>

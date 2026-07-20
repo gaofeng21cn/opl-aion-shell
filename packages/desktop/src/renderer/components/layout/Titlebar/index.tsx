@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Help, Peoples } from '@icon-park/react';
+import { ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Help, LeftBar, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -19,40 +19,12 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { isElectronDesktop, isMacOS, openExternalUrl } from '@/renderer/utils/platform';
 import { rememberSettingsReturnPath, resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import './titlebar.css';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
 }
-
-// Claude-desktop-style sidebar toggle icon: a rounded rectangle with a vertical divider
-// near the left edge, indicating a collapsible side panel. Rendered as inline SVG since
-// @icon-park doesn't ship this exact shape.
-//
-// Uses a 48-unit viewBox to match @icon-park's stroke scale, so passing the same
-// `strokeWidth` value here and to @icon-park icons produces visually identical lines.
-//
-// The rect spans y=10..38 (height 28), slightly taller than @icon-park's
-// ArrowLeft/ArrowRight (which span y=12..36) so the sidebar icon reads a
-// touch larger. The rect remains centered at y=24, matching the arrows'
-// centerline so all three icons stay on the same visual baseline.
-const SidebarIcon: React.FC<{ size?: number; strokeWidth?: number }> = ({ size = 18, strokeWidth = 4 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox='0 0 48 48'
-    fill='none'
-    stroke='currentColor'
-    strokeWidth={strokeWidth}
-    strokeLinecap='round'
-    strokeLinejoin='round'
-    aria-hidden='true'
-    focusable='false'
-  >
-    <rect x='6' y='10' width='36' height='28' rx='5' />
-    <line x1='18' y1='10' x2='18' y2='38' />
-  </svg>
-);
 
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
@@ -98,10 +70,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const backToAppTooltip = t('settings.backToApp');
   const feedbackTooltip = t('settings.githubIssue.tooltip');
   const isSettingsRoute = location.pathname.startsWith('/settings');
-  const iconSize = 18;
-  // Desktop uses slimmer strokes to match macOS-native chrome aesthetics;
-  // mobile keeps the default weight so icons stay legible at larger sizes.
-  const desktopIconStroke = layout?.isMobile ? undefined : 2.5;
   // 统一在标题栏左侧展示主侧栏开关 / Always expose sidebar toggle on titlebar left side
   const showSiderToggle = Boolean(layout?.setSiderCollapsed) && !(layout?.isMobile && isSettingsRoute);
   const showBackToChatButton = Boolean(layout?.isMobile && isSettingsRoute);
@@ -264,9 +232,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
             onClick={handleBackToChat}
             aria-label={backToAppTooltip}
+            title={backToAppTooltip}
             data-testid='settings-titlebar-back-to-app'
           >
-            <ArrowLeft theme='outline' size={iconSize} fill='currentColor' />
+            <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
           </button>
         )}
         {showSiderToggle && (
@@ -275,9 +244,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
             onClick={handleSiderToggle}
             aria-label={siderTooltip}
+            title={siderTooltip}
             data-testid='app-navigation-rail-toggle'
           >
-            <SidebarIcon size={iconSize} strokeWidth={desktopIconStroke} />
+            <LeftBar aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
           </button>
         )}
         {showHistoryNav && (
@@ -290,7 +260,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               aria-label={historyBackTooltip}
               title={historyBackTooltip}
             >
-              <ArrowLeft theme='outline' size={iconSize} fill='currentColor' strokeWidth={desktopIconStroke} />
+              <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
             </button>
             <button
               type='button'
@@ -300,7 +270,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               aria-label={historyForwardTooltip}
               title={historyForwardTooltip}
             >
-              <ArrowRight theme='outline' size={iconSize} fill='currentColor' strokeWidth={desktopIconStroke} />
+              <ArrowRight aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
             </button>
           </>
         )}
@@ -324,7 +294,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               <span className='app-titlebar__brand-mobile'>
                 {isTeamRoute && (
                   <span className='app-titlebar__brand-icon' aria-hidden='true'>
-                    <Peoples theme='outline' size='16' fill='currentColor' />
+                    <Peoples {...OPL_CHROME_ICON_PROPS} />
                   </span>
                 )}
                 <span className='app-titlebar__brand-text'>{mobileCenterTitle}</span>
@@ -341,14 +311,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           aria-label={feedbackTooltip}
           title={feedbackTooltip}
         >
-          <Help
-            theme='outline'
-            size={iconSize}
-            fill='currentColor'
-            strokeWidth={desktopIconStroke}
-            data-testid='app-titlebar-help-icon'
-            aria-hidden='true'
-          />
+          <Help {...OPL_CHROME_ICON_PROPS} data-testid='app-titlebar-help-icon' aria-hidden='true' />
         </button>
         {showWorkspaceButton && (
           <button
@@ -356,11 +319,12 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
             onClick={handleWorkspaceToggle}
             aria-label={workspaceTooltip}
+            title={workspaceTooltip}
           >
             {workspaceCollapsed ? (
-              <ExpandRight theme='outline' size={iconSize} fill='currentColor' />
+              <ExpandRight aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
             ) : (
-              <ExpandLeft theme='outline' size={iconSize} fill='currentColor' />
+              <ExpandLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
             )}
           </button>
         )}

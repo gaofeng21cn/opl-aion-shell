@@ -182,13 +182,6 @@
   background-color: transparent;
 }
 
-/* Optical alignment: arrow icons have their visual weight pulled upward by
-   the V tip; nudge them down 1px to sit on the same centerline as the
-   sidebar rectangle icon (which has a solid, symmetric visual weight). */
-.app-titlebar__button--nav svg {
-  transform: translateY(1px);
-}
-
 .app-titlebar__button:disabled:hover,
 .app-titlebar__button[disabled]:hover {
   background-color: transparent;
@@ -201,8 +194,8 @@
 }
 
 .app-titlebar__button--mobile svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 
 .app-window-controls {

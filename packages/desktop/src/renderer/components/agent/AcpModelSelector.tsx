@@ -8,6 +8,7 @@ import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { iconColors } from '@/renderer/styles/colors';
 import {
   getOplCodexModelDisplayOptions,
@@ -281,7 +282,7 @@ const AcpModelSelector: React.FC<{
       <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0 leading-none'>
           <MarqueePillLabel>{display_label}</MarqueePillLabel>
-          <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
+          <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
         </span>
       </Button>
     </Dropdown>

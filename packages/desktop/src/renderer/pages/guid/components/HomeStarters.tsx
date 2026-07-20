@@ -7,11 +7,12 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { BookOpen, ChartHistogram, Flask, Microscope, WritingFluently } from '@icon-park/react';
+import { BookOpen, Microscope, Robot, Slide, Write } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
@@ -35,18 +36,17 @@ const STARTER_LABEL_KEYS: Record<string, string> = {
 };
 
 function starterIcon(packageId: string): React.ReactNode {
-  const props = { theme: 'outline' as const, size: 16, fill: 'currentColor' };
   switch (canonicalizeOplProfessionalAgentId(packageId)) {
     case 'mas':
-      return <Microscope {...props} />;
+      return <Microscope {...OPL_CHROME_ICON_PROPS} />;
     case 'mag':
-      return <Flask {...props} />;
+      return <Write {...OPL_CHROME_ICON_PROPS} />;
     case 'rca':
-      return <ChartHistogram {...props} />;
+      return <Slide {...OPL_CHROME_ICON_PROPS} />;
     case 'obf':
-      return <BookOpen {...props} />;
+      return <BookOpen {...OPL_CHROME_ICON_PROPS} />;
     default:
-      return <WritingFluently {...props} />;
+      return <Robot {...OPL_CHROME_ICON_PROPS} />;
   }
 }
 

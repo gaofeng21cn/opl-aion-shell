@@ -5,10 +5,11 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { ActivitySource, AlarmClock, Inbox } from '@icon-park/react';
+import { ChartLine, Inbox, Schedule } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
 
 type SiderPrimaryNavProps = {
@@ -36,21 +37,21 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
       key: 'runtime',
       label: t('common.runtime.sidebarEntry'),
       active: pathname.startsWith('/runtime'),
-      icon: <ActivitySource theme='outline' size='16' fill='currentColor' />,
+      icon: <ChartLine {...OPL_CHROME_ICON_PROPS} />,
       onClick: onRuntimeClick,
     },
     {
       key: 'scheduled',
       label: t('cron.scheduledTasks'),
       active: pathname.startsWith('/scheduled'),
-      icon: <AlarmClock theme='outline' size='16' fill='currentColor' />,
+      icon: <Schedule {...OPL_CHROME_ICON_PROPS} />,
       onClick: onScheduledClick,
     },
     {
       key: 'archived',
       label: t('conversation.history.archivedTitle'),
       active: pathname === '/archived',
-      icon: <Inbox theme='outline' size='16' fill='currentColor' />,
+      icon: <Inbox {...OPL_CHROME_ICON_PROPS} />,
       onClick: onArchivedClick,
     },
   ];

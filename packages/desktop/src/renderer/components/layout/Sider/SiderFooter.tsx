@@ -10,6 +10,7 @@ import { Button, Tooltip } from '@arco-design/web-react';
 import { Download, SettingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 
 export type SiderFooterAccount = {
   displayName: string | null;
@@ -69,13 +70,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
                 </span>
               ) : (
                 <span className='size-22px flex-center shrink-0 text-t-secondary'>
-                  <SettingTwo
-                    theme='outline'
-                    size='16'
-                    fill='currentColor'
-                    className='block leading-none'
-                    style={{ lineHeight: 0 }}
-                  />
+                  <SettingTwo {...OPL_CHROME_ICON_PROPS} className='block leading-none' style={{ lineHeight: 0 }} />
                 </span>
               )}
               {!collapsed && (
@@ -101,12 +96,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
               data-update-available='true'
             >
               <span className='flex size-20px items-center justify-center rounded-full bg-[var(--opl-accent-blue)] shadow-sm'>
-                <Download
-                  theme='outline'
-                  size={collapsed ? 11 : 12}
-                  fill='currentColor'
-                  className='block leading-none'
-                />
+                <Download {...OPL_CHROME_ICON_PROPS} size={collapsed ? 11 : 12} className='block leading-none' />
               </span>
             </Button>
           </Tooltip>

@@ -424,7 +424,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(navItems.find((item) => item.id === 'skills-extension')).toMatchObject({ isImageIcon: false });
     expect(navItems.find((item) => item.id === 'skills-extension')?.icon.props).toMatchObject({
       theme: 'outline',
-      size: '16',
+      size: 16,
     });
 
     expect(items).toEqual([

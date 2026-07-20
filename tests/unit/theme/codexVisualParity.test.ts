@@ -119,9 +119,16 @@ describe('Codex visual parity overlay', () => {
       /\.actionConfigGroup :global\(\.sendbox-model-btn span\)\s*{[^}]*line-height:\s*18px\s*!important;/
     );
     expect(guidActionRow).toContain('data-permission-mode={selectedMode}');
-    expect(guidActionRow).toContain("compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />}");
-    expect(guidActionRow).toContain("<ArrowUp theme='outline' size='16' fill='currentColor' strokeWidth={2} />");
-    expect(sendBox).toContain("<ArrowUp theme='outline' size='16' fill='white' strokeWidth={2} aria-hidden='true' />");
+    expect(guidActionRow).toContain('compactLeadingIcon={<Shield {...OPL_CHROME_ICON_PROPS} size={14} />}');
+    expect(guidActionRow).toContain('icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} />}');
+    expect(sendBox).toContain("icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />}");
+    const sendButtonBaseline = baseline.match(
+      /\[data-color-scheme='default'\] \.send-button-custom\.arco-btn\s*{[^}]*}/
+    )?.[0];
+    expect(sendButtonBaseline).toMatch(
+      /width:\s*32px;[^}]*min-width:\s*32px;[^}]*height:\s*32px;[^}]*border-width:\s*2px;[^}]*border-color:\s*transparent;[^}]*background-clip:\s*padding-box;/
+    );
+    expect(sendButtonBaseline).not.toContain('!important');
     expect(sendBoxStyles).toMatch(
       /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-family:\s*inherit\s*!important;[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?font-weight:\s*400\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
     );
@@ -236,7 +243,7 @@ describe('Codex visual parity overlay', () => {
     expect(settingsRegistry).toContain("from '@icon-park/react'");
     expect(settingsRegistry).toContain("<span className='inline-flex text-t-secondary'");
     expect(settingsRegistry).toContain('{icon(16)}');
-    expect(settingsRegistry).toContain("<Puzzle theme='outline' size='16' />");
+    expect(settingsRegistry).toContain('<Puzzle {...OPL_CHROME_ICON_PROPS} size={size} />');
     expect(settingsRegistry).not.toContain('@fortawesome');
     expect(directoryPicker).toContain("from '@icon-park/react'");
     expect(directoryPicker).not.toContain('@arco-design/web-react/icon');

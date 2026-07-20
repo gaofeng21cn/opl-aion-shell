@@ -6,8 +6,10 @@
 
 import { configService } from '@/common/config/configService';
 import { Message, Button, Tooltip } from '@arco-design/web-react';
+import { Microphone } from '@icon-park/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { SPEECH_TO_TEXT_CONFIG_CHANGED_EVENT } from '@/renderer/services/SpeechToTextService';
 import {
   getSpeechInputErrorMessageKey,
@@ -22,19 +24,7 @@ type SpeechInputButtonProps = {
   onTranscript: (transcript: string) => void;
 };
 
-const SpeechMicIcon = () => (
-  <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' aria-hidden='true'>
-    <path d='M12 3a3 3 0 0 1 3 3v6a3 3 0 1 1-6 0V6a3 3 0 0 1 3-3Z' />
-    <path d='M19 10v2a7 7 0 0 1-14 0v-2' />
-    <path d='M12 19v3' />
-  </svg>
-);
-
-const SpeechStopIcon = () => (
-  <svg width='18' height='18' viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'>
-    <rect x='6' y='6' width='12' height='12' rx='2.5' />
-  </svg>
-);
+const SpeechStopIcon = () => <span className='speech-stop-icon' aria-hidden='true' />;
 
 const SpeechLoaderIcon = () => <span className='speech-loader-spinner' aria-hidden='true' />;
 
@@ -190,7 +180,13 @@ const SpeechInputButton: React.FC<SpeechInputButtonProps> = ({ disabled, onLiveT
 
   const tooltipKey = getTooltipKey(availability, isRecording, isProcessing);
   const ariaLabel = t(tooltipKey);
-  const icon = isRecording ? <SpeechStopIcon /> : isProcessing ? <SpeechLoaderIcon /> : <SpeechMicIcon />;
+  const icon = isRecording ? (
+    <SpeechStopIcon />
+  ) : isProcessing ? (
+    <SpeechLoaderIcon />
+  ) : (
+    <Microphone {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />
+  );
 
   return (
     <>

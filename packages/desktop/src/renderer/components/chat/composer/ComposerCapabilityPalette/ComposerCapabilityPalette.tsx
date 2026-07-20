@@ -2,6 +2,7 @@ import { Button, Input, Trigger } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { CheckSmall, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import styles from './ComposerCapabilityPalette.module.css';
 
 export type ComposerCapabilityPaletteItem = {
@@ -214,7 +215,7 @@ const ComposerCapabilityPalette: React.FC<ComposerCapabilityPaletteProps> = ({
           value={query}
           onChange={setQuery}
           allowClear
-          prefix={<Search theme='outline' size='14' aria-hidden='true' />}
+          prefix={<Search {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           data-testid={`${testId}-search`}
@@ -249,7 +250,7 @@ const ComposerCapabilityPalette: React.FC<ComposerCapabilityPaletteProps> = ({
                     {item.description ? <span className={styles.itemDescription}>{item.description}</span> : null}
                   </span>
                   {item.active ? (
-                    <CheckSmall theme='outline' size='16' className={styles.itemMeta} aria-hidden='true' />
+                    <CheckSmall {...OPL_CHROME_ICON_PROPS} className={styles.itemMeta} aria-hidden='true' />
                   ) : item.meta ? (
                     <span className={styles.itemMeta}>{item.meta}</span>
                   ) : null}

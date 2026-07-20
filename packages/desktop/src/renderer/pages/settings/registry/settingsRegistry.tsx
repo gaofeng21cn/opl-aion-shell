@@ -13,6 +13,7 @@ import {
   Toolkit,
 } from '@icon-park/react';
 import React from 'react';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
   getOplGuiSettingsControlPlane,
@@ -264,21 +265,30 @@ export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 type SettingsIconFactory = (size: number) => React.ReactElement;
 
 const SETTINGS_ICON_PARK_ICONS: Record<string, SettingsIconFactory> = {
-  dashboard: (size) => <DashboardOne theme='outline' size={size} />,
-  general: (size) => <DashboardOne theme='outline' size={size} />,
-  gateway: (size) => <CloudStorage theme='outline' size={size} />,
-  access: (size) => <Key theme='outline' size={size} />,
-  workspace: (size) => <FolderOpen theme='outline' size={size} />,
-  agents: (size) => <Robot theme='outline' size={size} />,
-  capabilities: (size) => <Puzzle theme='outline' size={size} />,
-  resources: (size) => <Link theme='outline' size={size} />,
-  maintenance: (size) => <Toolkit theme='outline' size={size} />,
-  'local-services': (size) => <Toolkit theme='outline' size={size} />,
-  environment: (size) => <Toolkit theme='outline' size={size} />,
-  storage: (size) => <HardDisk theme='outline' size={size} />,
-  appearance: (size) => <Theme theme='outline' size={size} />,
-  advanced: (size) => <SettingConfig theme='outline' size={size} />,
-  about: (size) => <Info theme='outline' size={size} />,
+  dashboard: (size) => <DashboardOne {...OPL_CHROME_ICON_PROPS} size={size} />,
+  general: (size) => <DashboardOne {...OPL_CHROME_ICON_PROPS} size={size} />,
+  gateway: (size) => <CloudStorage {...OPL_CHROME_ICON_PROPS} size={size} />,
+  access: (size) => <Key {...OPL_CHROME_ICON_PROPS} size={size} />,
+  workspace: (size) => <FolderOpen {...OPL_CHROME_ICON_PROPS} size={size} />,
+  agents: (size) => <Robot {...OPL_CHROME_ICON_PROPS} size={size} />,
+  capabilities: (size) => <Puzzle {...OPL_CHROME_ICON_PROPS} size={size} />,
+  resources: (size) => <Link {...OPL_CHROME_ICON_PROPS} size={size} />,
+  maintenance: (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
+  'local-services': (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
+  environment: (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
+  storage: (size) => <HardDisk {...OPL_CHROME_ICON_PROPS} size={size} />,
+  appearance: (size) => <Theme {...OPL_CHROME_ICON_PROPS} size={size} />,
+  advanced: (size) => <SettingConfig {...OPL_CHROME_ICON_PROPS} size={size} />,
+  about: (size) => <Info {...OPL_CHROME_ICON_PROPS} size={size} />,
+};
+
+const SETTINGS_GROUP_ICON_KEYS: Record<OplSettingsPrimaryGroupId, string> = {
+  overview: 'dashboard',
+  account_models: 'access',
+  workspace: 'workspace',
+  agents_capabilities: 'capabilities',
+  runtime_maintenance: 'maintenance',
+  preferences: 'advanced',
 };
 
 export function getSettingsTabLabel(tabId: string, t: TranslateFn, language = 'en'): string {
@@ -376,14 +386,13 @@ export function getSettingsNavigationGroups(
         },
       ];
     });
-    const defaultDestination = destinationById.get(group.default_destination_id);
     return [
       {
         id: group.id,
         label: translatedNavigationLabel(t, SETTINGS_GROUP_LABEL_KEYS[group.id], language, group),
         defaultDestinationId: group.default_destination_id,
         destinations,
-        icon: getSettingsTabIcon(defaultDestination?.route_id ?? 'general', slot),
+        icon: getSettingsTabIcon(SETTINGS_GROUP_ICON_KEYS[group.id], slot),
       },
     ];
   });
@@ -618,7 +627,7 @@ export function buildSettingsNavItems({
       return {
         id: tab.id,
         label,
-        icon: <Puzzle theme='outline' size='16' />,
+        icon: <Puzzle {...OPL_CHROME_ICON_PROPS} />,
         isImageIcon: false,
         path: `ext/${tab.id}`,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
@@ -677,7 +686,7 @@ export function buildSettingsModalMenuItems({
       return {
         id: tab.id,
         label,
-        icon: <Puzzle theme='outline' size='16' />,
+        icon: <Puzzle {...OPL_CHROME_ICON_PROPS} />,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
     },

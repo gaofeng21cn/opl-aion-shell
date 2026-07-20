@@ -32,7 +32,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
-import { iconColors } from '@/renderer/styles/colors';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 import {
@@ -47,7 +47,7 @@ import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSk
 import { resolveOplPackageLaunchGate, resolveOplProfessionalAgentAssistants } from '../utils/oplHomeAssistants';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Message, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, CheckSmall, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Shield } from '@icon-park/react';
+import { ArrowUp, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Shield } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -214,7 +214,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'attach-file',
         label: t('guid.context.attachFile'),
         description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFilesDescription'),
-        icon: <Paperclip theme='outline' size='16' />,
+        icon: <Paperclip {...OPL_CHROME_ICON_PROPS} />,
         disabled: fileAccessDisabled || uploading,
         onSelect: openHostFilePicker,
       },
@@ -222,7 +222,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'attach-directory',
         label: t('guid.context.attachDirectory'),
         description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFolderDescription'),
-        icon: <FolderOpen theme='outline' size='16' />,
+        icon: <FolderOpen {...OPL_CHROME_ICON_PROPS} />,
         disabled: fileAccessDisabled || uploading,
         onSelect: openHostDirectoryPicker,
       },
@@ -233,7 +233,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'attach-device',
         label: t('common.fileAttach.myDevice'),
         description: fileAccessDisabled ? fileAccessDisabledReason : undefined,
-        icon: <Paperclip theme='outline' size='16' />,
+        icon: <Paperclip {...OPL_CHROME_ICON_PROPS} />,
         disabled: fileAccessDisabled || uploading,
         onSelect: () => fileInputRef.current?.click(),
       });
@@ -248,7 +248,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           id: `agent-${assistant.id}`,
           label: assistant.name_i18n?.[localeKey] || assistant.name,
           description: assistant.description_i18n?.[localeKey] || assistant.description,
-          icon: <MagicHat theme='outline' size='16' />,
+          icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
           active:
             Boolean(activeCapabilityId) &&
             canonicalizeOplProfessionalAgentId(activeCapabilityId as string) ===
@@ -263,7 +263,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'manage-agents',
         label: t('guid.context.manageAgents'),
         description: t('guid.context.noAgentPackages'),
-        icon: <MagicHat theme='outline' size='16' />,
+        icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
         onSelect: () => void navigate('/settings/agents'),
       });
     }
@@ -283,7 +283,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             label: skill.name,
             description: localizedCapabilitySummary([skill.name], skill.name, t),
             keywords: ['skill', skill.description],
-            icon: <Lightning theme='outline' size='16' />,
+            icon: <Lightning {...OPL_CHROME_ICON_PROPS} />,
             active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
             disabled: skill.locked,
             closeOnSelect: false,
@@ -295,7 +295,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'manage-skills',
         label: t('guid.context.manageSkills'),
         description: t('guid.context.noSelectableSkills'),
-        icon: <Lightning theme='outline' size='16' />,
+        icon: <Lightning {...OPL_CHROME_ICON_PROPS} />,
         onSelect: () => void navigate('/settings/capabilities?tab=skills'),
       });
     }
@@ -308,7 +308,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           label: server.name,
           description: server.description || undefined,
           keywords: ['connection', 'app'],
-          icon: <Link theme='outline' size='16' />,
+          icon: <Link {...OPL_CHROME_ICON_PROPS} />,
           active: selectedMcpServerIds.includes(server.id),
           closeOnSelect: false,
           onSelect: () => onToggleMcpServer(server.id),
@@ -319,7 +319,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         id: 'manage-connections',
         label: t('guid.context.manageConnections'),
         description: t('guid.context.noConnections'),
-        icon: <Link theme='outline' size='16' />,
+        icon: <Link {...OPL_CHROME_ICON_PROPS} />,
         onSelect: () => void navigate('/settings/capabilities?tab=tools'),
       });
     }
@@ -331,7 +331,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           id: `mode-${mode.value}`,
           label: getModeDisplayLabel(mode),
           description: mode.description,
-          icon: <Shield theme='outline' size='16' />,
+          icon: <Shield {...OPL_CHROME_ICON_PROPS} />,
           active: selectedMode === mode.value,
           closeOnSelect: false,
           onSelect: () => onModeSelect(mode.value),
@@ -398,10 +398,10 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     });
 
     const groupIcons: Record<string, React.ReactNode> = {
-      agent_packages: <MagicHat theme='outline' size='16' />,
-      skills: <Lightning theme='outline' size='16' />,
-      session_modes: <Shield theme='outline' size='16' />,
-      apps_and_connections: <Link theme='outline' size='16' />,
+      agent_packages: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
+      skills: <Lightning {...OPL_CHROME_ICON_PROPS} />,
+      session_modes: <Shield {...OPL_CHROME_ICON_PROPS} />,
+      apps_and_connections: <Link {...OPL_CHROME_ICON_PROPS} />,
     };
     paletteGroups
       .filter((group) => group.id !== 'local_inputs')
@@ -439,7 +439,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       }));
       entries.push({
         key: 'permission',
-        icon: <Shield theme='outline' size='16' />,
+        icon: <Shield {...OPL_CHROME_ICON_PROPS} />,
         label: t('agentMode.permission', { defaultValue: 'Permission' }),
         meta: permissionOptions.find((option) => option.active)?.label,
         submenu: {
@@ -495,7 +495,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
         entries.push({
           key: 'auto',
-          icon: <MagicHat theme='outline' size='16' />,
+          icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
           label: autoDisplay.label,
           description: autoDisplay.description,
           onClick: () => onChange(null, null),
@@ -526,7 +526,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     if (activeCapabilityLabel) {
       entries.push({
         key: 'active-capability',
-        icon: <MagicHat theme='outline' size='16' />,
+        icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
         label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
         variant: 'muted',
         dividerBefore: entries.length > 0,
@@ -557,7 +557,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         type='secondary'
         shape='circle'
         className={isPaletteOpen ? styles.plusButtonRotate : ''}
-        icon={<Plus theme='outline' size='16' strokeWidth={2} fill={iconColors.primary} />}
+        icon={<Plus {...OPL_CHROME_ICON_PROPS} />}
         data-testid='file-upload-btn'
         aria-label={t('guid.context.addContext')}
         aria-expanded={isPaletteOpen}
@@ -583,7 +583,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                 <Button
                   type='secondary'
                   shape='circle'
-                  icon={<Plus theme='outline' size='16' strokeWidth={2} fill={iconColors.primary} />}
+                  icon={<Plus {...OPL_CHROME_ICON_PROPS} />}
                   data-testid='file-upload-btn'
                   aria-label={t('guid.context.addContext')}
                   aria-expanded={isMobileSheetOpen}
@@ -653,7 +653,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   compact
                   initialMode={selectedMode}
                   onModeSelect={onModeSelect}
-                  compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />}
+                  compactLeadingIcon={<Shield {...OPL_CHROME_ICON_PROPS} size={14} />}
                   modeLabelFormatter={getModeDisplayLabel}
                 />
               )}
@@ -681,7 +681,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             loading={loading}
             disabled={isButtonDisabled}
             className='send-button-custom'
-            icon={<ArrowUp theme='outline' size='16' fill='currentColor' strokeWidth={2} />}
+            icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} />}
             onClick={onSend}
             data-testid='guid-send-btn'
             aria-label={t('common.send', { defaultValue: 'Send' })}
