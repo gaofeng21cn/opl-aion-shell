@@ -1157,6 +1157,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(readyExpression).toContain("missingControls.push('workspace_scope')");
     expect(readyExpression).toContain("reason: 'home_composer_contract_mismatch'");
     expect(sendExpression).toContain('guid-send-btn');
+    expect(sendExpression).toContain('if (input.value !== "Verify MAS launch.")');
+    expect(sendExpression).toContain("input.dispatchEvent(new Event('change', { bubbles: true }))");
     expect(sendExpression).toContain("interaction_path: 'guid_ui_send'");
     expect(sendExpression).not.toContain("method: 'POST'");
     expect(receiptExpression).toContain('/api/conversations?limit=10');
@@ -1254,6 +1256,37 @@ describe('packaged first-run VM smoke helpers', () => {
       status: 'failed',
       missing_controls: ['active_shortcut_binding'],
     });
+  });
+
+  it('lets React commit the Full route prompt before clicking Send', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main data-testid="opl-guid-entry" data-opl-workspace-selected="true">
+        <textarea data-testid="guid-input"></textarea>
+        <button data-testid="guid-send-btn">Send</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    const input = window.document.querySelector<HTMLTextAreaElement>('[data-testid="guid-input"]')!;
+    const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    const sendClick = vi.fn();
+    sendButton.addEventListener('click', sendClick);
+    const expression = __test.homeAssistantRouteSendExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0],
+      'Verify MAS launch.'
+    );
+
+    expect(window.eval(expression)).toBe(false);
+    expect(input.value).toBe('Verify MAS launch.');
+    expect(sendClick).not.toHaveBeenCalled();
+
+    expect(window.eval(expression)).toMatchObject({
+      assistant_id: 'mas',
+      interaction_path: 'guid_ui_send',
+    });
+    expect(sendClick).toHaveBeenCalledOnce();
   });
 
   it('executes the complete Standard launch-gate polling lifecycle against the renderer textarea DOM', () => {

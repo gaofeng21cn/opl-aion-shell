@@ -3834,12 +3834,15 @@ function homeAssistantRouteSendExpression(target, prompt) {
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');
     if (!input || !sendButton || composer?.getAttribute('data-opl-workspace-selected') !== 'true') return false;
-    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
-      || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-    if (!nativeSetter) throw new Error('Could not resolve native input value setter');
-    nativeSetter.call(input, ${cdpString(prompt)});
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    if (input.value !== ${cdpString(prompt)}) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (!nativeSetter) throw new Error('Could not resolve native input value setter');
+      nativeSetter.call(input, ${cdpString(prompt)});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return false;
+    }
     if (sendButton.disabled || sendButton.getAttribute('disabled') !== null || sendButton.getAttribute('aria-disabled') === 'true') {
       return false;
     }
