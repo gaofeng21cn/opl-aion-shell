@@ -3308,6 +3308,8 @@
         "redcubeAi": "制作科研演示与视觉交付物",
         "oplBookforge": "规划、撰写和整理长篇书稿",
         "oplMetaAgent": "创建、检查和改进 OPL 智能体",
+        "masScholarSkills": "为医学科研智能体提供可复用科研能力",
+        "oplFlow": "管理 OPL 推荐工作流与受管 Codex 策略",
         "officecli": "处理本机 Office 文档工作流",
         "officecliDocx": "创建和修改 Word 文档",
         "officecliPptx": "创建和修改 PowerPoint 演示文稿",

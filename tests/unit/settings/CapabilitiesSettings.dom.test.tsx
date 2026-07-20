@@ -19,6 +19,8 @@ const appStateOverrides = vi.hoisted(() => ({
   developerConfirmationRequired: false,
 }));
 
+const translationMocks = vi.hoisted(() => ({ language: 'en-US' }));
+
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
   loadAppState: vi.fn(),
@@ -757,7 +759,7 @@ vi.mock('@/common/config/oplProductProfile', () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    i18n: { language: 'en-US' },
+    i18n: { language: translationMocks.language },
     t: (key: string, options?: Record<string, string | undefined> & { defaultValue?: string }) => {
       const labels: Record<string, string> = {
         'settings.agentsPage.title': 'Agents',
@@ -870,6 +872,14 @@ vi.mock('react-i18next', () => ({
           'Produce research presentations and visual deliverables',
         'settings.uiOptimization.capabilities.summaries.oplBookforge': 'Plan, write, and organize long-form books',
         'settings.uiOptimization.capabilities.summaries.oplMetaAgent': 'Create, review, and improve OPL agents',
+        'settings.uiOptimization.capabilities.summaries.masScholarSkills':
+          translationMocks.language === 'zh-CN'
+            ? '为医学科研智能体提供可复用科研能力'
+            : 'Provide reusable research capabilities for Med Auto Science',
+        'settings.uiOptimization.capabilities.summaries.oplFlow':
+          translationMocks.language === 'zh-CN'
+            ? '管理 OPL 推荐工作流与受管 Codex 策略'
+            : 'Manage recommended OPL workflows and managed Codex policy',
         'settings.uiOptimization.capabilities.summaries.fallback': 'Support {{name}} tasks',
         'settings.capabilitiesPage.packageManager.supportingFor': `Supports ${options?.parent ?? ''}`,
         'settings.capabilitiesPage.packageManager.composition': `Runnable agents ${options?.agents ?? ''} · Workflows ${options?.workflows ?? ''} · Supporting capabilities ${options?.supporting ?? ''}`,
@@ -1083,6 +1093,7 @@ const chooseSelectOption = async (testId: string, label: string) => {
 
 describe('Agents and capabilities settings', () => {
   beforeEach(() => {
+    translationMocks.language = 'en-US';
     appStateOverrides.developerMode = undefined;
     appStateOverrides.appState = undefined;
     appStateOverrides.loading = false;
@@ -1366,6 +1377,43 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
     expect(screen.queryByTestId('settings-agents-filter-empty')).not.toBeInTheDocument();
+  });
+
+  it('searches dedicated capability summaries in Chinese', () => {
+    translationMocks.language = 'zh-CN';
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'mas-scholar-skills',
+        display_name: 'MAS Scholar Skills',
+        package_role: 'framework_capability_package',
+        installed: true,
+        status: 'ready',
+      },
+      {
+        package_id: 'opl-flow',
+        display_name: 'OPL Flow',
+        package_role: 'workflow_profile',
+        installed: true,
+        status: 'ready',
+      },
+    ]);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const search = screen.getByTestId('settings-agents-catalog-search');
+    expect(screen.getByTestId('capability-description-mas-scholar-skills')).toHaveTextContent(
+      '为医学科研智能体提供可复用科研能力'
+    );
+    expect(screen.getByTestId('capability-description-opl-flow')).toHaveTextContent(
+      '管理 OPL 推荐工作流与受管 Codex 策略'
+    );
+
+    fireEvent.change(search, { target: { value: '提供可复用' } });
+    expect(screen.getByTestId('capability-purpose-mas-scholar-skills')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-opl-flow')).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: '管理 opl' } });
+    expect(screen.getByTestId('capability-purpose-opl-flow')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
   it('orders professional agents, separates workflows, and nests Framework-reported dependencies', async () => {

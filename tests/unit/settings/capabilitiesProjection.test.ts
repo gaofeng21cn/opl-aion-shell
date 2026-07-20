@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabilitiesProjection';
+import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
   canonicalizeOplProfessionalAgentId: (value: string) => {
@@ -142,6 +143,25 @@ function appStateWithPackageDirectory(
     },
   };
 }
+
+describe('localizedCapabilitySummary', () => {
+  it.each([
+    ['mas', 'medAutoscience'],
+    ['med-auto-science', 'medAutoscience'],
+    ['mag', 'medAutogrant'],
+    ['med-auto-grant', 'medAutogrant'],
+    ['rca', 'redcubeAi'],
+    ['oma', 'oplMetaAgent'],
+    ['obf', 'oplBookforge'],
+    ['opl-book-forge', 'oplBookforge'],
+    ['mas-scholar-skills', 'masScholarSkills'],
+    ['opl-flow', 'oplFlow'],
+  ])('maps %s to the dedicated %s summary', (identity, summaryKey) => {
+    expect(localizedCapabilitySummary([identity], identity, (key) => key)).toBe(
+      `settings.uiOptimization.capabilities.summaries.${summaryKey}`
+    );
+  });
+});
 
 describe('buildCapabilitiesViewModel', () => {
   it('uses App-owned localized metadata for every first-party package', () => {

@@ -3307,6 +3307,8 @@
         "redcubeAi": "Produce research presentations and visual deliverables",
         "oplBookforge": "Plan, write, and organize long-form books",
         "oplMetaAgent": "Create, review, and improve OPL agents",
+        "masScholarSkills": "Provide reusable research capabilities for Med Auto Science",
+        "oplFlow": "Manage recommended OPL workflows and managed Codex policy",
         "officecli": "Handle local Office document workflows",
         "officecliDocx": "Create and edit Word documents",
         "officecliPptx": "Create and edit PowerPoint presentations",
