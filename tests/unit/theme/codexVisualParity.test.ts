@@ -285,7 +285,13 @@ describe('Codex visual parity overlay', () => {
     expect(settingsStyles).toMatch(
       /@container settings-page \(max-width: 720px\)\s*{[\s\S]*?\.opl-settings-capability-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[\s\S]*?\.opl-settings-row__meta\.opl-settings-capability-meta\s*{[^}]*width:\s*100%;[^}]*flex-direction:\s*row;/
     );
-    expect(capabilities).toContain('data-testid={`capability-source-${item.key}`}');
+    expect(capabilities).toContain('{capabilityLocalizedSummary(item, t)}');
+    expect(capabilities).toContain('localizedCapabilitySummary([item.packageId, item.key, item.title], item.title, t)');
+    expect(capabilities).toContain('data-testid={`capability-product-details-${selectedCapability.key}`}');
+    expect(capabilities).toContain("t('settings.uiOptimization.capabilities.details.triggerRules')");
+    expect(capabilities).toContain('{selectedCapability.description}');
+    expect(capabilities).toContain("t('settings.uiOptimization.capabilities.details.source')");
+    expect(capabilities).toContain('{selectedSourceLabel}');
     expect(capabilities).toContain('data-testid={`capability-conversation-${item.key}`}');
     expect(capabilities).not.toContain('formatCapabilityDisplayToken(item.trustState)');
   });
