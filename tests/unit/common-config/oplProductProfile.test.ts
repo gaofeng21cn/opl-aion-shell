@@ -559,11 +559,12 @@ describe('OPL generated product profile', () => {
   it('exposes assistant-scoped home skill profiles from the App contract', () => {
     const profiles = getOplAssistantSkillProfiles();
 
-    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
     expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
       mas: ['med-autoscience'],
       mag: ['med-autogrant'],
       rca: ['redcube-ai'],
+      obf: ['opl-bookforge'],
       oma: ['opl-meta-agent'],
     });
     expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);

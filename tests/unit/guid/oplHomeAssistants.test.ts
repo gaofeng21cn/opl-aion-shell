@@ -46,7 +46,7 @@ const activationAction = (
 
 describe('OPL home assistants', () => {
   it('keeps Home shortcuts separate from the complete professional-agent directory', () => {
-    expect(resolveOplHomeAssistants([]).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
+    expect(resolveOplHomeAssistants([]).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
 
     const directory = resolveOplProfessionalAgentAssistants([]);
     expect(directory.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
@@ -68,12 +68,13 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'RedCube AI',
       'Med Auto Grant',
+      'OPL Book Forge',
       'OPL Meta Agent',
     ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
@@ -82,46 +83,66 @@ describe('OPL home assistants', () => {
       mas: ['med-autoscience'],
       mag: ['med-autogrant'],
       rca: ['redcube-ai'],
+      obf: ['opl-bookforge'],
       oma: ['opl-meta-agent'],
     });
   });
 
-  it('adds the default-visible OMA shortcut when merging shell defaults for the Guid page', () => {
+  it('adds the default-visible Book Forge and OMA shortcuts when merging shell defaults for the Guid page', () => {
     const resolved = withOplFoundryAssistantDefaults([
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '元智能体']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
       'Med Auto Science',
       'RedCube AI',
       'Med Auto Grant',
+      'OPL Book Forge',
       'OPL Meta Agent',
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'oma']);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
     expect(resolved.map((item) => item.enabled_skills)).toEqual([
       ['med-autoscience'],
       ['redcube-ai'],
       ['med-autogrant'],
+      ['opl-bookforge'],
       ['opl-meta-agent'],
     ]);
   });
 
-  it('uses only explicit user preferences to override the App-owned default order', () => {
+  it('uses only explicit user preferences to override App-owned defaults', () => {
     expect(
       getOplHomeShortcutPreferencesFromAppState({
         opl_agent_packages: {
           home_shortcut_preferences: [
             { shortcut_id: 'grant', visible: true, sort_order: 0, source: 'default' },
-            { shortcut_id: 'ppt', visible: true, sort_order: 1, source: 'user_preference' },
+            { shortcut_id: 'book', visible: false, sort_order: 1, source: 'default' },
+            { shortcut_id: 'ppt', visible: true, sort_order: 2, source: 'user_preference' },
           ],
         },
       })
     ).toEqual({
       hiddenShortcutIds: [],
-      visibleShortcutIds: ['grant', 'ppt'],
+      visibleShortcutIds: ['ppt'],
       orderedShortcutIds: ['ppt'],
+    });
+  });
+
+  it('preserves an explicit user preference that hides Book Forge', () => {
+    expect(
+      getOplHomeShortcutPreferencesFromAppState({
+        opl_agent_package_status: {
+          home_shortcut_preferences: [
+            { shortcut_id: 'book', visible: false, sort_order: 3, source: 'user_preference' },
+          ],
+        },
+      })
+    ).toEqual({
+      hiddenShortcutIds: ['book'],
+      visibleShortcutIds: [],
+      orderedShortcutIds: ['book'],
     });
   });
 

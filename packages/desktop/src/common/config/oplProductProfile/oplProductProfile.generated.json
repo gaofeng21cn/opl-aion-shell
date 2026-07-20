@@ -438,7 +438,7 @@
           "executor": "codex_cli",
           "display_policy": "purpose_first",
           "home_entry_policy": "visible_click_to_start",
-          "default_visible": false,
+          "default_visible": true,
           "user_configurable": true
         },
         {
@@ -1248,7 +1248,7 @@
         "role": "book_authoring_agent",
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
-        "default_home_visible": false,
+        "default_home_visible": true,
         "codex_visible_entry": "opl-bookforge",
         "home_shortcut_ids": ["book"],
         "required_skill_ids": ["opl-bookforge"],
@@ -1940,7 +1940,7 @@
         "id": "control_center",
         "label_zh": "控制中心",
         "label_en": "Control Center",
-        "positioning": "single App-owned OPL Control Center for overview, account and Gateway, models, workspace, agents, capabilities, resources and connections, maintenance, data and storage, and preferences; diagnostics live under Maintenance and About is the only secondary page"
+        "positioning": "single App-owned OPL Control Center with six primary groups and second-level destinations over ten stable carrier routes; diagnostics live under Runtime and Maintenance and About is a sidebar-bottom auxiliary entry"
       },
       "ordinary_groups": [
         {
@@ -1951,57 +1951,40 @@
           "ordinary_entries": ["settings_general"]
         },
         {
-          "id": "gateway",
-          "label_zh": "账户与访问",
-          "label_en": "Account & Access",
-          "role": "gateway_login_identity_usage_and_access_lifecycle",
-          "ordinary_entries": ["settings_gateway"],
-          "primary_tasks": ["gateway_account", "gateway_usage", "gateway_access"]
-        },
-        {
-          "id": "models",
-          "label_zh": "模型",
-          "label_en": "Models",
-          "role": "model_source_default_reasoning_and_codex_cli",
-          "ordinary_entries": ["settings_access"],
-          "primary_tasks": ["model_access", "codex_cli"]
+          "id": "account_models",
+          "label_zh": "账户与模型",
+          "label_en": "Account & Models",
+          "role": "account_model_and_connection_configuration",
+          "ordinary_entries": ["settings_gateway", "settings_access", "settings_resources"],
+          "primary_tasks": ["gateway_account", "gateway_usage", "model_access", "resources_connections"]
         },
         {
           "id": "workspace",
           "label_zh": "工作区",
           "label_en": "Workspace",
-          "role": "workspace_log_paths_and_new_conversation_personalization_single_owner",
-          "ordinary_entries": ["workspace"],
-          "primary_tasks": ["workspace", "log_directory", "codex_user_instructions", "opl_app_session_context"]
+          "role": "working_directory_and_data_storage",
+          "ordinary_entries": ["workspace", "settings_storage"],
+          "primary_tasks": ["workspace", "data_storage"]
         },
         {
-          "id": "agents",
-          "label_zh": "智能体",
-          "label_en": "Agents",
-          "role": "runnable_agent_package_lifecycle_and_home_visibility",
-          "ordinary_entries": ["settings_agents"]
+          "id": "agents_capabilities",
+          "label_zh": "智能体与能力",
+          "label_en": "Agents & Capabilities",
+          "role": "agent_package_capability_and_instruction_context_management",
+          "ordinary_entries": ["settings_agents", "settings_capabilities", "workspace#personalization"],
+          "primary_tasks": [
+            "agent_packages",
+            "capability_directory",
+            "codex_user_instructions",
+            "opl_app_session_context"
+          ]
         },
         {
-          "id": "capabilities",
-          "label_zh": "能力",
-          "label_en": "Capabilities",
-          "role": "skill_plugin_catalog_and_opl_flow_recommendations",
-          "ordinary_entries": ["settings_capabilities"]
-        },
-        {
-          "id": "resources",
-          "label_zh": "资源与连接",
-          "label_en": "Resources & Connections",
-          "role": "local_access_webui_and_optional_owner_projected_connections",
-          "ordinary_entries": ["settings_resources"],
-          "primary_tasks": ["resources_connections", "docker_webui", "optional_owner_projected_resource_refs"]
-        },
-        {
-          "id": "maintenance",
-          "label_zh": "维护",
-          "label_en": "Maintenance",
-          "role": "health_updates_and_repair",
-          "ordinary_entries": ["settings_environment"],
+          "id": "runtime_maintenance",
+          "label_zh": "运行与维护",
+          "label_en": "Runtime & Maintenance",
+          "role": "runtime_health_updates_repair_logs_and_diagnostics",
+          "ordinary_entries": ["settings_environment", "workspace#logs"],
           "owns": [
             "local_service_health",
             "installation_carrier_updates",
@@ -2010,20 +1993,6 @@
             "repair_recommendations"
           ],
           "anchors": ["health", "updates", "services", "packages"]
-        },
-        {
-          "id": "storage",
-          "label_zh": "数据与存储",
-          "label_en": "Data & Storage",
-          "role": "cached_local_and_Docker_usage_and_safe_cleanup",
-          "ordinary_entries": ["settings_storage"],
-          "owns": [
-            "storage_inventory",
-            "Docker_usage_projection",
-            "conversation_archives",
-            "runtime_cache",
-            "safe_cleanup"
-          ]
         },
         {
           "id": "preferences",
@@ -2041,23 +2010,23 @@
           "role": "control_center_summary",
           "primary_question": "Is the App usable now, and what should I do next?",
           "ia_group": "overview",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ordinary_entry_policy": "default_destination_under_overview"
         },
         "gateway": {
           "label_zh": "账户与访问",
           "label_en": "Account & Access",
           "role": "gateway_login_identity_usage_and_access_lifecycle",
           "primary_question": "Which Gateway account is connected, what usage is available, and how is model access authorized?",
-          "ia_group": "gateway",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "account_models",
+          "ordinary_entry_policy": "second_level_destination_under_account_models"
         },
         "access": {
           "label_zh": "模型",
           "label_en": "Models",
           "role": "model_source_default_reasoning_and_codex_cli",
           "primary_question": "Which model source, default model, reasoning preference, and Codex CLI does OPL use?",
-          "ia_group": "models",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "account_models",
+          "ordinary_entry_policy": "second_level_destination_under_account_models"
         },
         "workspace": {
           "label_zh": "工作区",
@@ -2065,47 +2034,47 @@
           "role": "selected_workspace_path_writability_and_new_conversation_context",
           "primary_question": "Which workspace is active, can the App write to it, and what context should new conversations inherit?",
           "ia_group": "workspace",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ordinary_entry_policy": "default_destination_under_workspace"
         },
         "agents": {
           "label_zh": "智能体",
           "label_en": "Agents",
           "role": "runnable_agent_package_directory_and_home_shortcut_management",
           "primary_question": "Which runnable agent packages are available, where do they run from, and which should appear on Home?",
-          "ia_group": "agents",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "agents_capabilities",
+          "ordinary_entry_policy": "default_destination_under_agents_capabilities"
         },
         "capabilities": {
           "label_zh": "能力",
           "label_en": "Capabilities",
           "role": "skill_plugin_catalog_and_opl_flow_recommendations",
           "primary_question": "Which OPL Flow managed and local skills or plugins are available, and who manages their lifecycle?",
-          "ia_group": "capabilities",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "agents_capabilities",
+          "ordinary_entry_policy": "second_level_destination_under_agents_capabilities"
         },
         "resources": {
           "label_zh": "资源与连接",
           "label_en": "Resources & Connections",
           "role": "local_access_webui_and_optional_owner_projected_connections",
           "primary_question": "Which local access paths and currently projected external connections can my tasks use?",
-          "ia_group": "resources",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "account_models",
+          "ordinary_entry_policy": "second_level_destination_under_account_models"
         },
         "environment": {
           "label_zh": "维护",
           "label_en": "Maintenance",
           "role": "health_updates_and_repair",
           "primary_question": "How do I keep the local App healthy and safe?",
-          "ia_group": "maintenance",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ia_group": "runtime_maintenance",
+          "ordinary_entry_policy": "default_destination_under_runtime_maintenance"
         },
         "storage": {
           "label_zh": "数据与存储",
           "label_en": "Data & Storage",
           "role": "safe_local_data_lifecycle_inventory_and_cleanup",
           "primary_question": "Which local data roots are using space, and which cleanup actions are safe after preview or proof?",
-          "ia_group": "storage",
-          "ordinary_entry_policy": "top_level_control_center_group_entry"
+          "ia_group": "workspace",
+          "ordinary_entry_policy": "second_level_destination_under_workspace"
         },
         "appearance": {
           "label_zh": "偏好",
@@ -2113,21 +2082,21 @@
           "role": "user_preferences_not_runtime_health",
           "primary_question": "How should the App behave and look for me?",
           "ia_group": "preferences",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ordinary_entry_policy": "default_destination_under_preferences"
         },
         "about": {
           "label_zh": "关于",
           "label_en": "About",
           "role": "version_channel_and_update_status",
           "primary_question": "Which version and channel are active, and is an update available?",
-          "ia_group": "about",
-          "ordinary_entry_policy": "independent_secondary_page"
+          "ia_group": "auxiliary",
+          "ordinary_entry_policy": "sidebar_bottom_auxiliary_entry"
         }
       },
       "secondary_page_ids": ["about"],
       "task_entry_policy": {
-        "ordinary_entry_model": "user_task_first_sections_inside_the_ten_OPL_Control_Center_entries",
-        "top_level_tab_policy": "do_not_add_new_shell_route_tabs_for_model_updates_web_tools_developer_profile_or_advanced_diagnostics; workspace_and_resources_are_user_visible_top_level_entries",
+        "ordinary_entry_model": "six_primary_groups_expand_or_drill_into_second_level_destinations_backed_by_ten_stable_carrier_routes",
+        "top_level_tab_policy": "render_only_overview_account_models_workspace_agents_capabilities_runtime_maintenance_and_preferences_as_primary_groups; keep About at the sidebar bottom",
         "p0_entries": [
           "gateway_account",
           "model_access",
@@ -2192,10 +2161,10 @@
               "cli_currentness_owner": "opl_base"
             },
             "manual_and_third_party": {
-              "label_zh": "本机能力",
-              "label_en": "Local capabilities",
+              "label_zh": "手工添加",
+              "label_en": "Manually added",
               "source": "codex_and_shell_skill_plugin_registries_plus_aionui_mcp_image_voice_configuration",
-              "membership_policy": "show_user_managed_and_third_party_skills_plugins_MCP_image_and_voice_controls_without_reclassifying_them_as_opl_flow_managed",
+              "membership_policy": "show_user_managed_and_third_party_skills_plugins_MCP_image_and_voice_controls_without_reclassifying_them_as_opl_flow_managed; manual skill counts and empty states describe only the shell import directory",
               "display_name_policy": "use_product_profile_display_names_and_never_raw_provider_ids_as_primary_labels",
               "aionui_native_policy": "keep_AionUI_native_skills_tools_assistants_MCP_helpers_image_controls_and_voice_input_controls_in_local_or_third_party_ownership_never_OPL_Flow_managed",
               "lifecycle_owner": "detected_install_source_or_user",
@@ -2737,6 +2706,200 @@
       ],
       "default_route": "/settings/general",
       "route_identity_policy": "keep_current_shell_route_ids_distinct_from_user_facing_ia_groups",
+      "user_navigation_projection": {
+        "schema": "opl_app_settings_user_navigation.v1",
+        "source_ref": "contracts/app-gui-product-contract.json#settings_navigation.settings_ia",
+        "carrier_route_policy": "ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items",
+        "primary_group_order": [
+          "overview",
+          "account_models",
+          "workspace",
+          "agents_capabilities",
+          "runtime_maintenance",
+          "preferences"
+        ],
+        "primary_groups": [
+          {
+            "id": "overview",
+            "label_zh": "概览",
+            "label_en": "Overview",
+            "default_destination_id": "overview_status",
+            "destination_ids": ["overview_status"]
+          },
+          {
+            "id": "account_models",
+            "label_zh": "账户与模型",
+            "label_en": "Account & Models",
+            "default_destination_id": "account_access",
+            "destination_ids": ["account_access", "models", "resources_connections"]
+          },
+          {
+            "id": "workspace",
+            "label_zh": "工作区",
+            "label_en": "Workspace",
+            "default_destination_id": "working_directory",
+            "destination_ids": ["working_directory", "data_storage"]
+          },
+          {
+            "id": "agents_capabilities",
+            "label_zh": "智能体与能力",
+            "label_en": "Agents & Capabilities",
+            "default_destination_id": "agents",
+            "destination_ids": ["agents", "capabilities", "instructions_context"]
+          },
+          {
+            "id": "runtime_maintenance",
+            "label_zh": "运行与维护",
+            "label_en": "Runtime & Maintenance",
+            "default_destination_id": "runtime_services",
+            "destination_ids": ["runtime_services", "logs_diagnostics"]
+          },
+          {
+            "id": "preferences",
+            "label_zh": "偏好",
+            "label_en": "Preferences",
+            "default_destination_id": "preferences",
+            "destination_ids": ["preferences"]
+          }
+        ],
+        "destinations": [
+          {
+            "id": "overview_status",
+            "owner_group_id": "overview",
+            "route_id": "general",
+            "label_zh": "概览",
+            "label_en": "Overview"
+          },
+          {
+            "id": "account_access",
+            "owner_group_id": "account_models",
+            "route_id": "gateway",
+            "label_zh": "账户与访问",
+            "label_en": "Account & Access"
+          },
+          {
+            "id": "models",
+            "owner_group_id": "account_models",
+            "route_id": "access",
+            "label_zh": "模型",
+            "label_en": "Models"
+          },
+          {
+            "id": "resources_connections",
+            "owner_group_id": "account_models",
+            "route_id": "resources",
+            "label_zh": "资源与连接",
+            "label_en": "Resources & Connections"
+          },
+          {
+            "id": "working_directory",
+            "owner_group_id": "workspace",
+            "route_id": "workspace",
+            "anchor": "current-workspace",
+            "label_zh": "工作目录",
+            "label_en": "Working Directory"
+          },
+          {
+            "id": "data_storage",
+            "owner_group_id": "workspace",
+            "route_id": "storage",
+            "label_zh": "数据与存储",
+            "label_en": "Data & Storage"
+          },
+          {
+            "id": "agents",
+            "owner_group_id": "agents_capabilities",
+            "route_id": "agents",
+            "label_zh": "智能体",
+            "label_en": "Agents"
+          },
+          {
+            "id": "capabilities",
+            "owner_group_id": "agents_capabilities",
+            "route_id": "capabilities",
+            "label_zh": "能力",
+            "label_en": "Capabilities"
+          },
+          {
+            "id": "instructions_context",
+            "owner_group_id": "agents_capabilities",
+            "route_id": "workspace",
+            "anchor": "personalization",
+            "label_zh": "指令与上下文",
+            "label_en": "Instructions & Context",
+            "transport_owner_policy": "reuse_workspace_personalization_carrier_without_presenting_the_destination_under_Workspace"
+          },
+          {
+            "id": "runtime_services",
+            "owner_group_id": "runtime_maintenance",
+            "route_id": "environment",
+            "label_zh": "服务与维护",
+            "label_en": "Services & Maintenance"
+          },
+          {
+            "id": "logs_diagnostics",
+            "owner_group_id": "runtime_maintenance",
+            "route_id": "environment",
+            "anchor": "diagnostics",
+            "label_zh": "日志与诊断",
+            "label_en": "Logs & Diagnostics",
+            "transport_owner_policy": "reuse_workspace_log_action_and_maintenance_diagnostics_without_presenting_logs_under_Workspace"
+          },
+          {
+            "id": "preferences",
+            "owner_group_id": "preferences",
+            "route_id": "appearance",
+            "label_zh": "偏好",
+            "label_en": "Preferences"
+          }
+        ],
+        "secondary_owner_bindings": [
+          {
+            "content_id": "codex_user_instructions",
+            "user_destination_id": "instructions_context",
+            "transport_route_id": "workspace",
+            "anchor": "system-agents"
+          },
+          {
+            "content_id": "opl_app_session_context",
+            "user_destination_id": "instructions_context",
+            "transport_route_id": "workspace",
+            "anchor": "opl-app-context"
+          },
+          {
+            "content_id": "app_log_directory",
+            "user_destination_id": "logs_diagnostics",
+            "transport_route_id": "workspace",
+            "anchor": "logs"
+          }
+        ],
+        "auxiliary_entries": [
+          {
+            "id": "about",
+            "route_id": "about",
+            "placement": "sidebar_bottom",
+            "label_zh": "关于",
+            "label_en": "About"
+          }
+        ],
+        "responsive_navigation": {
+          "desktop": "six_primary_groups_with_the_active_group_expanded_to_second_level_destinations",
+          "mobile": "category_list_then_second_level_destination_with_a_visible_back_control",
+          "mobile_horizontal_tab_strip_allowed": false,
+          "mobile_navigation_scroll_axis": "vertical",
+          "minimum_viewport_px": {
+            "width": 400,
+            "height": 600
+          },
+          "keyboard_policy": "all_primary_groups_second_level_destinations_back_and_about_are_reachable_in_logical_order"
+        },
+        "global_search_policy": "preserve_one_bilingual_item_level_search_across_all_carrier_routes_and_owner_anchors",
+        "footer_policy": {
+          "duplicate_settings_entry": "forbidden_inside_settings",
+          "about_placement": "sidebar_bottom_auxiliary_entry",
+          "account_and_update_controls": "compact_footer_without_reclassifying_them_as_primary_groups"
+        }
+      },
       "ordinary_routes": [
         {
           "id": "general",
@@ -2764,7 +2927,7 @@
           "default_label_en": "Account & Access",
           "default_label_zh": "账户与访问",
           "icon_token": "gateway",
-          "ia_group": "gateway",
+          "ia_group": "account_models",
           "slot_id": "settings_gateway",
           "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
           "refresh_source": "opl app state --profile fast --json",
@@ -2783,7 +2946,7 @@
           "default_label_en": "Models",
           "default_label_zh": "模型",
           "icon_token": "access",
-          "ia_group": "models",
+          "ia_group": "account_models",
           "slot_id": "settings_access",
           "state_source": "opl app state --profile fast --json#app_state.core.codex.model_access_ready + app_state.core.codex.model_access_source + app_state.core.codex.model + app_state.access.api_key_present",
           "refresh_source": "opl app state --profile fast --json",
@@ -2821,7 +2984,7 @@
           "default_label_en": "Agents",
           "default_label_zh": "智能体",
           "icon_token": "agents",
-          "ia_group": "agents",
+          "ia_group": "agents_capabilities",
           "slot_id": "settings_agents",
           "state_source": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + home_agent_shortcuts",
           "refresh_source": "opl app state --profile fast --json",
@@ -2840,7 +3003,7 @@
           "default_label_en": "Capabilities",
           "default_label_zh": "能力",
           "icon_token": "capabilities",
-          "ia_group": "capabilities",
+          "ia_group": "agents_capabilities",
           "slot_id": "settings_capabilities",
           "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
           "refresh_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
@@ -2859,7 +3022,7 @@
           "default_label_en": "Resources & Connections",
           "default_label_zh": "资源与连接",
           "icon_token": "resources",
-          "ia_group": "resources",
+          "ia_group": "account_models",
           "slot_id": "settings_resources",
           "state_source": "opl app state --profile fast --json#settings_control_center.connection_registry + settings_control_center.app_settings_read_model.resource_sources + docker_webui",
           "refresh_source": "opl app state --profile fast --json",
@@ -2878,7 +3041,7 @@
           "default_label_en": "Maintenance",
           "default_label_zh": "维护",
           "icon_token": "maintenance",
-          "ia_group": "maintenance",
+          "ia_group": "runtime_maintenance",
           "slot_id": "settings_environment",
           "state_source": "opl app state --profile fast --json",
           "refresh_source": "opl app state --profile fast --json",
@@ -2897,7 +3060,7 @@
           "default_label_en": "Data & Storage",
           "default_label_zh": "数据与存储",
           "icon_token": "storage",
-          "ia_group": "storage",
+          "ia_group": "workspace",
           "slot_id": "settings_storage",
           "state_source": "active shell local data lifecycle service + Framework and carrier-host owner projections from opl app state --profile fast --json + contracts/app-release-channel.json#local_data_lifecycle",
           "refresh_source": "cached shell and owner snapshots followed by non-blocking TTL/manual refresh; missing owner projections fail open",
@@ -2933,7 +3096,7 @@
         {
           "id": "about",
           "path": "/settings/about",
-          "ia_group": "about",
+          "ia_group": "auxiliary",
           "slot_id": "about",
           "visibility": "secondary_or_deep_link",
           "scope": "machine",
@@ -3559,6 +3722,28 @@
       },
       "visual_qa_policy": {
         "policy": "settings_control_center_visual_qa_is_shell_behavior_evidence",
+        "component_audit": {
+          "contract_ref": "contracts/app-gui-product-contract.json#settings_navigation.settings_ia.protocols.visual_qa_expectations.settings_component_audit",
+          "scope": "all_Settings_routes_sections_rows_actions_and_interaction_states",
+          "required_color_schemes": ["light", "dark"],
+          "required_focus_routes": [
+            "/settings/capabilities#third-party",
+            "/settings/resources",
+            "/settings/environment",
+            "/settings/storage",
+            "/settings/gateway"
+          ],
+          "required_checks": [
+            "unframed_ordinary_sections",
+            "no_nested_card_or_border_wall",
+            "currentColor_icon_contrast",
+            "stable_icon_slot_and_label_alignment",
+            "owned_action_adjacency",
+            "localized_text_wrap_and_no_horizontal_overflow",
+            "stable_hover_focus_disabled_loading_error_geometry"
+          ],
+          "acceptance": "fresh_same_cohort_source_DOM_and_installed_pixel_review"
+        },
         "required_viewports": ["desktop", "mobile"],
         "required_routes": [
           "/settings/general",
@@ -4403,11 +4588,13 @@
           },
           "object_accent_policy": "use monochrome utility navigation icons and reserve color for typed warning error success and brand actions",
           "footer_layout": "compact",
-          "footer_controls": ["gateway_account_or_settings_entry", "app_update_status_and_trigger"],
-          "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_settings_on_all_routes_and_open_account_gateway_or_overview",
+          "footer_controls": ["gateway_account_or_account_access_entry", "app_update_status_and_trigger"],
+          "footer_account_entry_policy": "show_gateway_display_name_when_connected_else_account_access_without_a_duplicate_settings_entry",
           "footer_update_entry_policy": "show_confirmed_newer_app_update_as_account_row_trailing_action_and_reuse_existing_carrier_updater_without_owning_update_truth",
           "footer_theme_quick_toggle_allowed": false,
-          "footer_secondary_navigation_allowed": false,
+          "footer_secondary_navigation_allowed": true,
+          "footer_auxiliary_navigation": "about_only_sidebar_bottom",
+          "footer_duplicate_settings_entry_allowed": false,
           "appearance_mode_values": ["system", "light", "dark"],
           "appearance_mode_presentation": "three_visual_preview_cards",
           "appearance_mode_preserves_theme_preset": false,
@@ -4499,11 +4686,22 @@
             "primary_information": [
               "one overall usability summary led by Codex CLI and model-access readiness",
               "signed-in Gateway identity, connection and availability with compact today token, cost, and balance summaries",
+              "localized Temporal server, worker, and scheduler status with a plain-language reason and direct Maintenance route",
               "issue queue ordered by user impact and limited to actionable exceptions",
               "one next useful action",
               "workspace path stays on Workspace and is not a primary Overview card",
               "necessary Codex and Gateway technical rows remain directly visible after duplicate fields are removed"
             ],
+            "background_services_summary": {
+              "dependency_role": "required_for_complete_opl_durable_workflow",
+              "visible_components": ["temporal_server", "temporal_worker", "temporal_scheduler"],
+              "component_status_policy": "show_server_worker_and_scheduler_independently_so_one_ready_component_never_collapses_an_unready_or_unknown_component_into_one_opaque_state",
+              "projection_policy": "server_worker_and_scheduler_readiness_require_explicit_component_fields_must_never_be_inferred_from_provider_ready_and_take_precedence_over_aggregate_provider_status",
+              "normal_state_policy": "when_server_worker_and_scheduler_are_all_explicitly_ready_show_one_quiet_localized_ready_summary_without_attention_emphasis",
+              "copy_policy": "localized_user_language_status_and_reason_never_raw_enum_or_blocker_id",
+              "attention_route": "/settings/environment#services",
+              "recommended_action_policy": "real_projected_Temporal_action_or_Maintenance_route_never_settings_sync_capabilities"
+            },
             "first_viewport_groups": ["system_status", "attention_queue", "codex_and_gateway"],
             "surface_inventory": {
               "configuration": [],
@@ -4547,7 +4745,10 @@
                 "settings-page-overview",
                 "settings-overview-primary",
                 "settings-overview-card-codex",
-                "settings-overview-card-gateway"
+                "settings-overview-card-gateway",
+                "settings-overview-temporal-server",
+                "settings-overview-temporal-worker",
+                "settings-overview-temporal-scheduler"
               ],
               "conditional": [
                 {
@@ -4646,6 +4847,8 @@
               "display_policy_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_projection.display_policy",
               "group_resolution_policy_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_projection.group_resolution_policy",
               "normal_state_action_policy": "refresh_icon_adjacent_to_local_time_and_disconnect_only",
+              "disconnect_placement": "identity_row_trailing_adjacent_to_display_name_email_and_connection_status",
+              "disconnect_detached_footer_or_page_edge_allowed": false,
               "exception_action_policy": "complete_connection_retry_connection_or_sign_in_again_only_when_required",
               "webui_password_login_allowed": false,
               "generic_action_secret_payload_allowed": false
@@ -4976,6 +5179,12 @@
               "default_tab": "opl_flow_managed",
               "on_demand_tab_ids": []
             },
+            "layout_policy": {
+              "section_presentation": "unframed_heading_plus_flat_rows",
+              "row_separation": "section_scoped_hairlines",
+              "manual_group_presentation": "one_aligned_settings_list",
+              "nested_card_or_gray_block_allowed": false
+            },
             "exception_state": "highlight failed sync or owner attention without mutating third-party items",
             "technical_details_boundary": "raw registry paths, package closure refs, and receipts stay collapsed",
             "required_dom": {
@@ -5007,11 +5216,14 @@
               "dedicated package catalog search with package role, availability status, and source filters",
               "visible registry refresh and projected per-row non-activation lifecycle actions",
               "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
-              "professional_agent_packages as package_id-keyed UI metadata only, never directory membership or status truth",
+              "first_party_release_set_metadata as package_id-keyed localized UI metadata only, never directory membership or status truth",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
               "Developer Mode auto activation state, authorized repository scope, and dirty-worktree protection",
               "per-package automatic, managed, or developer source selection in package details",
               "Home visibility, shortcut order, launch readiness, and lifecycle management on Agent rows",
+              "localized package-role labels with no raw internal enum in ordinary rows",
+              "professional Agents ordered by App metadata, workflow profiles separated, and dependency packages grouped from dependent_guard.required_by_package_ids",
+              "runtime source and authorized repository maintenance collapsed as advanced configuration by default",
               "Skills and Plugins excluded and routed to Capabilities",
               "AionUI custom assistants excluded from the OPL product surface"
             ],
@@ -5043,7 +5255,16 @@
                 "reason when inactive"
               ],
               "explicit_user_choices": ["auto", "off"],
-              "shared_runtime_mutation_boundary": "still requires enabled=on, mode=developer_apply_safe, and source=user_config"
+              "shared_runtime_mutation_boundary": "still requires enabled=on, mode=developer_apply_safe, and source=user_config",
+              "default_disclosure": "collapsed"
+            },
+            "catalog_presentation": {
+              "policy_ref": "contracts/app-product-profile.json#gui.agent_package_registry.catalog_presentation_policy",
+              "section_order": ["professional_agents", "workflow_profiles", "shared_dependencies", "other_packages"],
+              "role_label_policy": "localized_product_label_never_raw_package_role_enum",
+              "dependency_source": "app_state.agent_packages.status_index.packages[].dependent_guard.required_by_package_ids",
+              "dependency_policy": "single_parent_nested_multi_parent_or_missing_parent_shared_each_package_rendered_once",
+              "hardcoded_relationships_allowed": false
             },
             "first_viewport_groups": [
               "agent_package_catalog_controls",
@@ -5218,6 +5439,12 @@
                 "provider_truth"
               ]
             },
+            "layout_policy": {
+              "section_presentation": "unframed_heading_plus_flat_rows",
+              "row_separation": "section_scoped_hairlines",
+              "status_and_action_alignment": "shared_row_grid_without_per_item_card_frames",
+              "nested_card_or_border_wall_allowed": false
+            },
             "primary_action": {
               "id": "open_selected_resource_action",
               "availability": "executable_action_available",
@@ -5359,6 +5586,44 @@
             },
             "app_update_state_policy_ref": "contracts/app-gui-product-contract.json#framework_surfaces.managed_update_plane.app_update_state_policy",
             "managed_update_repair_availability_policy_ref": "contracts/app-gui-product-contract.json#framework_surfaces.managed_update_plane.repair_availability_policy",
+            "layout_policy": {
+              "section_presentation": "unframed_heading_plus_flat_rows",
+              "row_separation": "section_scoped_hairlines",
+              "managed_dependency_presentation": "shared_column_headers_and_flat_component_rows",
+              "nested_card_or_border_wall_allowed": false
+            },
+            "temporal_service_management": {
+              "contract_ref": "contracts/app-gui-product-contract.json#pages.settings_environment.temporal_maintenance_contract",
+              "dependency_role": "required_for_complete_opl_durable_workflow",
+              "visible_components": ["temporal_server", "temporal_worker", "temporal_scheduler"],
+              "component_status_policy": "server_worker_and_scheduler_have_independent_status_reason_and_action_rows",
+              "component_projection_policy": "server_worker_and_scheduler_readiness_require_explicit_component_fields_must_never_be_inferred_from_provider_ready_and_take_precedence_over_aggregate_provider_status",
+              "service_supervisor_state_source": "app_state.provider.temporal.details.worker_readiness.temporal_service_lifecycle.supervisor",
+              "service_supervisor_policy": "desktop_macos_local_managed_service_requires_login_resident_run_at_load_keep_alive_stable_launcher_persistent_store_and_idempotent_provider_service_start_repair_while_external_container_and_non_macos_foreground_services_report_supervisor_not_applicable",
+              "ready_state_policy": "server_worker_and_scheduler_all_explicitly_ready_is_muted_normal_state_while_check_and_maintenance_actions_remain_reachable",
+              "worker_mutation_guard_policy": {
+                "blocked_status": "blocked_developer_checkout_shared_state",
+                "applies_when": "the_fresh_projected_mutation_guard_status_is_blocked_developer_checkout_shared_state",
+                "localized_reason_zh": "当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。",
+                "localized_reason_en": "The active OPL CLI points to a developer checkout, so it cannot take over the shared managed worker.",
+                "allowed_next_steps": [
+                  "switch_to_managed_runtime",
+                  "explicitly_enable_authorized_developer_maintenance"
+                ],
+                "environment_bypass_guidance_allowed": false
+              },
+              "action_ids": {
+                "detect": ["provider_service_status", "provider_scheduler_status", "provider_worker_status"],
+                "install_or_configure": ["provider_service_start", "provider_scheduler_install"],
+                "start": ["provider_service_start", "provider_worker_start"],
+                "restart": ["provider_service_restart", "provider_worker_restart"],
+                "run_now": ["provider_scheduler_trigger"]
+              },
+              "runtime_dependency_action_source": "managed_dependency_summary[dependency_id=temporal-runtime].update_action",
+              "mutation_readback": "single_force_fresh_fast_app_state_executes_and_projects_temporal_server_worker_scheduler_component_readback",
+              "success_policy": "service_ready_and_required_platform_supervisor_ready_and_worker_ready_and_scheduler_ready_and_fresh_no_error_readback_only",
+              "failure_policy": "failed_stale_or_guidance_only_results_never_show_success_or_route_to_settings_sync_capabilities"
+            },
             "primary_action": {
               "id": "run_recommended_maintenance",
               "availability": "attention_only",
@@ -5373,6 +5638,10 @@
                 "settings-page-maintenance",
                 "settings-maintenance-primary",
                 "settings-maintenance-managed-dependencies",
+                "settings-maintenance-temporal",
+                "settings-maintenance-temporal-server",
+                "settings-maintenance-temporal-worker",
+                "settings-maintenance-temporal-scheduler",
                 "settings-maintenance-daily-actions",
                 "settings-maintenance-diagnostics-action"
               ],
@@ -5384,6 +5653,10 @@
                 {
                   "testid": "settings-maintenance-primary-action",
                   "when": "attention_only"
+                },
+                {
+                  "testid": "settings-maintenance-temporal-action",
+                  "when": "temporal_attention_or_user_requested_maintenance"
                 },
                 {
                   "testid": "settings-maintenance-technical-details",
@@ -5494,6 +5767,15 @@
                 }
               }
             },
+            "action_visual_policy": {
+              "icon_size_px": 16,
+              "icon_slot_px": 20,
+              "icon_color": "currentColor",
+              "icon_background": "transparent_none",
+              "icon_label_gap_px": 8,
+              "alignment": "icon_slot_and_label_share_one_vertical_centerline",
+              "contrast_policy": "button_foreground_color_applies_to_icon_and_label_together"
+            },
             "primary_action": {
               "id": "preview_cleanup",
               "availability": "reclaimable_items_available",
@@ -5537,7 +5819,7 @@
               "application behavior including startup, close-window behavior, uploads, and reply waiting time",
               "notifications",
               "language, display scale, chat, Markdown, and code font sizes",
-              "theme and appearance including hardware acceleration where relevant"
+              "appearance mode including hardware acceleration where relevant"
             ],
             "first_viewport_groups": [
               "application_behavior_and_notifications",

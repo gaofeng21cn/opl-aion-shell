@@ -672,13 +672,11 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
   });
 
-  it('keeps the non-shortcut book agent fully bound when selected from the complete add menu', async () => {
+  it('keeps the default book Home starter fully bound', async () => {
     mocks.locationState.value = null;
     render(<GuidPage />);
 
-    expect(screen.queryByTestId('home-starter-obf')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
-    fireEvent.click(screen.getByText('写书').closest('button')!);
+    await userEvent.click(screen.getByTestId('home-starter-obf'));
 
     await waitFor(() =>
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(

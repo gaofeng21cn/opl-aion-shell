@@ -189,9 +189,9 @@ describe('useGuidAgentSelection', () => {
       name: 'Codex',
     });
     expect(result.current.availableAgents?.map((agent) => agent.assistant_id)).toEqual(
-      expect.arrayContaining(['mas', 'mag', 'rca', 'oma'])
+      expect.arrayContaining(['mas', 'mag', 'rca', 'obf', 'oma'])
     );
-    expect(result.current.availableAgents?.some((agent) => agent.assistant_id === 'obf')).toBe(false);
+    expect(result.current.availableAgents?.some((agent) => agent.assistant_id === 'obf')).toBe(true);
     expect(result.current.availableAgents?.some((agent) => agent.name === 'Managed Codex')).toBe(false);
     expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(
       expect.arrayContaining(['gpt-5.5', 'gpt-5.6-sol'])

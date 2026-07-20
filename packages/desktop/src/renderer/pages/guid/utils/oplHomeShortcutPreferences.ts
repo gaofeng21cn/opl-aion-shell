@@ -1,7 +1,7 @@
 import { getOplHomeAgentShortcuts, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
 
-const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v1';
+const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v2';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
 
 export type OplHomeShortcutPreferences = {
@@ -70,21 +70,19 @@ function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): Opl
   if (records.length === 0) return null;
 
   const validShortcutIds = new Set(getOplHomeAgentShortcuts().map((shortcut) => shortcut.shortcut_id));
-  const hiddenShortcutIds = records
+  const userPreferences = records.filter((entry) => entry.source === 'user_preference');
+  const hiddenShortcutIds = userPreferences
     .filter((entry) => entry.visible === false)
     .map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id : null))
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));
 
-  const visibleShortcutIds = records
+  const visibleShortcutIds = userPreferences
     .filter((entry) => entry.visible === true)
     .map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id : null))
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));
 
-  const orderedShortcutIds = records
-    .filter(
-      (entry) =>
-        entry.source === 'user_preference' && typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order)
-    )
+  const orderedShortcutIds = userPreferences
+    .filter((entry) => typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order))
     .sort((a, b) => (a.sort_order as number) - (b.sort_order as number))
     .map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id : null))
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));

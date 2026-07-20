@@ -2328,7 +2328,7 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toContain('research');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2344,7 +2344,7 @@ describe('Agents and capabilities settings', () => {
 
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     fireEvent.click(screen.getByTestId('agent-package-home-down-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toContain('grant');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2460,7 +2460,7 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(homeSwitch);
 
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).not.toContain('research');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).not.toContain('research');
   });
 
   it('stops manifest installation when dry-run does not return a package identity', async () => {
@@ -2824,7 +2824,7 @@ describe('Agents and capabilities settings', () => {
 
   it('uses persisted shortcut preferences when building Home agents', () => {
     localStorage.setItem(
-      'opl.homeAgentShortcutPreferences.v1',
+      'opl.homeAgentShortcutPreferences.v2',
       JSON.stringify({
         hiddenShortcutIds: ['grant'],
         visibleShortcutIds: ['oma'],
@@ -2842,7 +2842,7 @@ describe('Agents and capabilities settings', () => {
 
   it('uses Framework app-state shortcut preference readback before the local fallback', () => {
     localStorage.setItem(
-      'opl.homeAgentShortcutPreferences.v1',
+      'opl.homeAgentShortcutPreferences.v2',
       JSON.stringify({
         hiddenShortcutIds: [],
         orderedShortcutIds: ['research', 'grant', 'ppt', 'book'],
