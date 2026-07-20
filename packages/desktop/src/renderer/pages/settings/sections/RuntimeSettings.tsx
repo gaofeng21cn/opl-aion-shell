@@ -70,6 +70,7 @@ import {
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
 import {
   formatMaintenanceTimestamp,
+  MaintenanceDisclosure,
   RuntimeHealthSummary,
   TemporalMaintenancePanel,
   type TemporalMaintenanceAction,
@@ -603,6 +604,12 @@ function canDelegateDependencyUpdate(dependency: ManagedDependency): boolean {
   );
 }
 
+function baseDependencyNeedsDisclosure(dependencyId: string, dependency: ManagedDependency | undefined): boolean {
+  if (dependencyId === 'temporal-system-cli' && (!dependency || dependency.currentness === 'missing')) return false;
+  if (!dependency) return true;
+  return !dependency.installed || dependency.currentness !== 'current';
+}
+
 function BaseDependencySummary({
   component,
   busyDependencyId,
@@ -617,6 +624,14 @@ function BaseDependencySummary({
   if (!component) return null;
   const primaryDependencies =
     component.dependencyCatalog?.dependencies.filter((dependency) => !dependency.external) ?? [];
+  const needsAttention =
+    componentStatusTone(component) !== 'green' ||
+    PRIMARY_BASE_DEPENDENCY_IDS.some((dependencyId) =>
+      baseDependencyNeedsDisclosure(
+        dependencyId,
+        primaryDependencies.find((dependency) => dependency.id === dependencyId)
+      )
+    );
 
   return (
     <section
@@ -624,6 +639,11 @@ function BaseDependencySummary({
       id='base-dependencies'
       data-testid='settings-maintenance-base-dependency-summary'
     >
+      <MaintenanceDisclosure
+        needsAttention={needsAttention}
+        controlsId='base-dependencies-details'
+        toggleTestId='settings-maintenance-base-dependency-toggle'
+        summary={
       <div className='opl-settings-section__header'>
         <div>
           <Typography.Text className='block font-600 text-t-primary'>
@@ -633,8 +653,22 @@ function BaseDependencySummary({
             {t('settings.oplEnvironmentPage.dependencies.summaryDescription')}
           </Typography.Text>
         </div>
+        <span
+          className={`opl-settings-status ${
+            needsAttention ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+          }`}
+          data-testid='settings-maintenance-base-dependency-status'
+        >
+          {t(
+            needsAttention
+              ? 'settings.oplEnvironmentPage.healthSummary.attention'
+              : 'settings.uiOptimization.maintenance.noActionRequired'
+          )}
+        </span>
       </div>
-      <div className='opl-settings-list'>
+        }
+      >
+      <div className='opl-settings-list' id='base-dependencies-details'>
         {PRIMARY_BASE_DEPENDENCY_IDS.map((dependencyId) => {
           const dependency = primaryDependencies.find((candidate) => candidate.id === dependencyId);
           const delegatedDependency = [
@@ -708,6 +742,7 @@ function BaseDependencySummary({
           );
         })}
       </div>
+      </MaintenanceDisclosure>
     </section>
   );
 }

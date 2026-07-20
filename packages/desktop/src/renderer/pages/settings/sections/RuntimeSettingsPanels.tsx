@@ -95,6 +95,43 @@ export type TemporalMaintenanceEvidence = {
 
 type RuntimeSettingsPanelsTranslate = (key: string, options?: Record<string, string | number>) => string;
 
+export function MaintenanceDisclosure({
+  needsAttention,
+  controlsId,
+  toggleTestId,
+  summary,
+  children,
+}: {
+  needsAttention: boolean;
+  controlsId: string;
+  toggleTestId: string;
+  summary: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = React.useState(needsAttention);
+
+  React.useEffect(() => {
+    setExpanded(needsAttention);
+  }, [needsAttention]);
+
+  return (
+    <details className='opl-settings-details' open={expanded}>
+      <summary
+        aria-expanded={expanded}
+        aria-controls={controlsId}
+        data-testid={toggleTestId}
+        onClick={(event) => {
+          event.preventDefault();
+          setExpanded((visible) => !visible);
+        }}
+      >
+        {summary}
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 /** Formats maintenance evidence for people while keeping raw timestamps out of the primary surface. */
 export function formatMaintenanceTimestamp(
   value: string | null | undefined,
@@ -415,6 +452,16 @@ export function TemporalMaintenancePanel({
       : providerNotConfigured
         ? t('settings.oplEnvironmentPage.temporal.values.notConfigured')
         : t('settings.oplEnvironmentPage.temporal.values.needsCheck');
+  const needsAttention =
+    !snapshot.ready ||
+    componentFailureReported ||
+    serverNotConfigured ||
+    !serverReady ||
+    !snapshot.workerReady ||
+    workerMutationBlocked ||
+    workerDependencyUnavailable ||
+    snapshot.schedulerReady !== true ||
+    snapshot.blockers.length > 0;
 
   return (
     <section
@@ -422,6 +469,11 @@ export function TemporalMaintenancePanel({
       id='temporal-runtime'
       data-testid='settings-maintenance-temporal'
     >
+      <MaintenanceDisclosure
+        needsAttention={needsAttention}
+        controlsId='temporal-runtime-details'
+        toggleTestId='settings-maintenance-temporal-toggle'
+        summary={
       <div className='opl-settings-section__header'>
         <div>
           <Typography.Text className='block font-600 text-t-primary'>
@@ -435,8 +487,10 @@ export function TemporalMaintenancePanel({
           {aggregateStatusLabel}
         </span>
       </div>
+        }
+      >
 
-      <div className='opl-settings-list'>
+      <div className='opl-settings-list' id='temporal-runtime-details'>
         <div className='opl-settings-row' data-testid='settings-maintenance-temporal-server'>
           <div className='opl-settings-row__main flex-row items-start gap-10px'>
             <span className='opl-settings-icon' aria-hidden='true'>
@@ -693,6 +747,7 @@ export function TemporalMaintenancePanel({
           </Typography.Text>
         </div>
       )}
+      </MaintenanceDisclosure>
     </section>
   );
 }

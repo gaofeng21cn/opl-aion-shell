@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import { MaintenanceDisclosure } from '@/renderer/pages/settings/sections/RuntimeSettingsPanels';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import { SettingsActiveAnchorProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 
@@ -433,6 +434,30 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
   });
 
+  it('returns to the collapsed summary when attention clears without blocking a later manual expansion', () => {
+    const { rerender } = render(
+      <MaintenanceDisclosure needsAttention controlsId='test-details' toggleTestId='test-toggle' summary='Summary'>
+        <div data-testid='test-details'>Details</div>
+      </MaintenanceDisclosure>
+    );
+
+    expect(screen.getByTestId('test-toggle')).toHaveAttribute('aria-expanded', 'true');
+    rerender(
+      <MaintenanceDisclosure
+        needsAttention={false}
+        controlsId='test-details'
+        toggleTestId='test-toggle'
+        summary='Summary'
+      >
+        <div data-testid='test-details'>Details</div>
+      </MaintenanceDisclosure>
+    );
+    expect(screen.getByTestId('test-toggle')).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(screen.getByTestId('test-toggle'));
+    expect(screen.getByTestId('test-toggle')).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('does not probe update status, check, or plan when the page mounts without a startup snapshot', () => {
     maintenanceSnapshot.result = null;
 
@@ -481,16 +506,6 @@ describe('RuntimeSettings maintenance structure', () => {
                       binary_path: '/private/managed/bin/officecli',
                     },
                     {
-                      dependency_id: 'temporal-system-cli',
-                      installed: true,
-                      version: '1.4.0',
-                      currentness: 'current',
-                      ownership: 'global_path',
-                      update_mode: 'detect_only_guidance',
-                      binary_path: '/opt/homebrew/bin/temporal',
-                      guidance: 'Update with the original package manager.',
-                    },
-                    {
                       dependency_id: 'codex-cli',
                       installed: true,
                       version: '0.144.3',
@@ -529,6 +544,16 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     const summary = await screen.findByTestId('settings-maintenance-base-dependency-summary');
+    const toggle = within(summary).getByTestId('settings-maintenance-base-dependency-toggle');
+    const details = toggle.closest('details');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(details).not.toHaveAttribute('open');
+    expect(within(summary).getByTestId('opl-base-dependency-summary-codex-cli')).not.toBeVisible();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(details).toHaveAttribute('open');
     expect(
       within(summary)
         .getAllByTestId(/^opl-base-dependency-summary-/)
@@ -572,6 +597,17 @@ describe('RuntimeSettings maintenance structure', () => {
 
     expect(screen.queryByTestId('settings-maintenance-temporal-action-provider_service_start')).not.toBeInTheDocument();
     const restartButton = screen.getByTestId('settings-maintenance-temporal-action-provider_service_restart');
+    const toggle = screen.getByTestId('settings-maintenance-temporal-toggle');
+    const details = toggle.closest('details');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(details).not.toHaveAttribute('open');
+    expect(restartButton).not.toBeVisible();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(details).toHaveAttribute('open');
+    expect(restartButton).toBeVisible();
     expect(restartButton).toBeEnabled();
     expect(restartButton).toHaveTextContent('重启 Server');
     fireEvent.click(restartButton);
@@ -718,7 +754,10 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
+    expect(screen.getByTestId('settings-maintenance-temporal-toggle')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('settings-maintenance-temporal-toggle').closest('details')).toHaveAttribute('open');
     expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要处理');
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toBeVisible();
     expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('启动保护：配置需要修复');
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
   });
@@ -1081,7 +1120,11 @@ describe('RuntimeSettings maintenance structure', () => {
     });
 
     render(<RuntimeSettings />);
+    const temporalToggle = screen.getByTestId('settings-maintenance-temporal-toggle');
+    expect(temporalToggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(temporalToggle);
     const triggerButton = screen.getByTestId('settings-maintenance-temporal-action-provider_scheduler_trigger');
+    expect(triggerButton).toBeVisible();
     expect(triggerButton).toBeEnabled();
     fireEvent.click(triggerButton);
 
@@ -1522,6 +1565,11 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
+    expect(screen.getByTestId('settings-maintenance-base-dependency-toggle')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('settings-maintenance-base-dependency-toggle').closest('details')).toHaveAttribute(
+      'open'
+    );
+    expect(screen.getByTestId('opl-base-dependency-summary-codex-cli')).toBeVisible();
     expect(screen.getAllByTestId(/opl-maintenance-action-/)).toHaveLength(4);
     expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.checkRuntimeEnvironment'
