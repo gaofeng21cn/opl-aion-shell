@@ -45,6 +45,19 @@ describe('ensurePackagedOplFullRuntime', () => {
     });
     fs.mkdirSync(path.join(runtimePayload, 'modules', 'mas'), { recursive: true });
     fs.writeFileSync(path.join(runtimePayload, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    const readonlyPythonFile = path.join(
+      runtimePayload,
+      'python',
+      'cpython-3.12.12-macos-aarch64-none',
+      'lib',
+      'python3.12',
+      'site-packages',
+      'pip',
+      '__init__.py'
+    );
+    fs.mkdirSync(path.dirname(readonlyPythonFile), { recursive: true });
+    fs.writeFileSync(readonlyPythonFile, '# packaged Python payload\n', { encoding: 'utf8', mode: 0o444 });
+    fs.chmodSync(readonlyPythonFile, 0o444);
     fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
     fs.writeFileSync(
       path.join(payloadRoot, 'manifest', 'full-package-manifest.json'),
@@ -61,6 +74,9 @@ describe('ensurePackagedOplFullRuntime', () => {
     const expectedHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     expect(installed?.runtimeHome).toBe(expectedHome);
     expect(fs.existsSync(path.join(expectedHome, 'bin', 'opl'))).toBe(true);
+    expect(fs.statSync(path.join(expectedHome, path.relative(runtimePayload, readonlyPythonFile))).mode & 0o200).toBe(
+      0o200
+    );
     expect(fs.existsSync(path.join(expectedHome, '.opl-full-runtime-installed.json'))).toBe(true);
     expect(fs.existsSync(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current.json'))).toBe(
       true

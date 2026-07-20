@@ -167,6 +167,7 @@ function installRuntimePayload(
     dereference: false,
     preserveTimestamps: true,
   });
+  makeRuntimePayloadOwnerWritable(tempTarget);
   removeMacosQuarantineAttribute(tempTarget);
   fs.writeFileSync(
     path.join(tempTarget, INSTALL_MARKER),
@@ -183,6 +184,28 @@ function installRuntimePayload(
   );
   fs.rmSync(runtimeHome, { recursive: true, force: true });
   fs.renameSync(tempTarget, runtimeHome);
+}
+
+function makeRuntimePayloadOwnerWritable(root: string): void {
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) {
+      continue;
+    }
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) {
+      continue;
+    }
+    if ((stat.mode & 0o200) === 0) {
+      fs.chmodSync(current, stat.mode | 0o200);
+    }
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        pending.push(path.join(current, entry));
+      }
+    }
+  }
 }
 
 function removeMacosQuarantineAttribute(root: string): void {
