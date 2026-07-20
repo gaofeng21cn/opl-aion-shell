@@ -45,6 +45,7 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 function createCard(
   options: {
     slashCommandMenu?: React.ReactNode;
+    mentionOpen?: boolean;
     fileAccessEnabled?: boolean;
     onPaste?: React.ClipboardEventHandler;
     dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
@@ -65,8 +66,8 @@ function createCard(
       inactiveBorderColor='#ddd'
       activeShadow='none'
       dragHandlers={options.dragHandlers ?? {}}
-      mentionOpen={false}
-      mentionDropdown={null}
+      mentionOpen={options.mentionOpen ?? false}
+      mentionDropdown={<div data-testid='guid-mention-menu'>Mentions</div>}
       files={[]}
       onRemoveFile={vi.fn()}
       actionRow={<div data-testid='action-row' />}
@@ -112,8 +113,12 @@ describe('GuidInputCard compact home composer', () => {
 
   it('keeps the resting composer surface elevated while focus styling remains geometry-neutral', () => {
     const view = renderCard();
+    const shell = screen.getByTestId('guid-input-card-shell');
     const inner = screen.getByTestId('guid-input-card-inner');
 
+    expect(shell).toHaveClass('overflow-visible');
+    expect(shell).not.toHaveClass('overflow-hidden');
+    expect(inner).toHaveStyle({ overflow: 'hidden' });
     expect(inner).toHaveStyle({ boxShadow: 'var(--opl-home-composer-shadow)' });
     expect(inner.getAttribute('style')).toContain('box-shadow 160ms ease');
 
@@ -148,7 +153,15 @@ describe('GuidInputCard compact home composer', () => {
   it('renders the slash command menu below the composer when provided', () => {
     renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
 
+    expect(screen.getByTestId('guid-input-card-inner')).toHaveStyle({ overflow: 'visible' });
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
+  });
+
+  it('allows mention overlays to escape the rounded content clip', () => {
+    renderCard({ mentionOpen: true });
+
+    expect(screen.getByTestId('guid-input-card-inner')).toHaveStyle({ overflow: 'visible' });
+    expect(screen.getByTestId('guid-mention-menu')).toBeInTheDocument();
   });
 
   it('accepts file paste and drop without a selected workspace', () => {

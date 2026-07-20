@@ -91,8 +91,11 @@ describe('Codex visual parity overlay', () => {
     expect(baseline).toContain('--opl-composer-focus-shadow:');
     expect(firstCustomProperty(baseline, '--opl-composer-border-focus')).toBe('rgba(32, 33, 36, 0.24)');
     expect(firstCustomProperty(baseline, '--opl-composer-shadow')).toBe(
-      '0 1px 2px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.08)'
+      '0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05)'
     );
+    expect(
+      customPropertyInBlock(baseline, "[data-color-scheme='default'][data-theme='dark']", '--opl-composer-shadow')
+    ).toBe('0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18)');
     expect(firstCustomProperty(baseline, '--opl-composer-context-bg')).toBe('#f6f6f5');
     expect(firstCustomProperty(baseline, '--opl-composer-placeholder')).toBe('rgba(32, 33, 36, 0.42)');
     expect(firstCustomProperty(baseline, '--opl-composer-send-disabled')).toBe('#94979b');
@@ -110,13 +113,23 @@ describe('Codex visual parity overlay', () => {
     expect(guidStyles).not.toContain('border-color: #3a3a3a;');
     expect(guidStyles).not.toContain('color: #b4b5bc');
     expect(guidStyles).toMatch(
-      /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-size:\s*13px\s*!important;/
+      /\.actionConfigGroup :global\(\.sendbox-model-btn\)\s*{[^}]*font-family:\s*inherit\s*!important;[^}]*font-size:\s*12px\s*!important;[^}]*font-weight:\s*400\s*!important;[^}]*line-height:\s*18px\s*!important;/
+    );
+    expect(guidStyles).toMatch(
+      /\.actionConfigGroup :global\(\.sendbox-model-btn span\)\s*{[^}]*line-height:\s*18px\s*!important;/
     );
     expect(guidActionRow).toContain('data-permission-mode={selectedMode}');
     expect(guidActionRow).toContain("compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />}");
+    expect(guidActionRow).toContain("<ArrowUp theme='outline' size='16' fill='currentColor' strokeWidth={2} />");
+    expect(sendBox).toContain("<ArrowUp theme='outline' size='16' fill='white' strokeWidth={2} aria-hidden='true' />");
     expect(sendBoxStyles).toMatch(
-      /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
+      /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-family:\s*inherit\s*!important;[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?font-weight:\s*400\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
     );
+    expect(sendBoxStyles).toMatch(
+      /\.sendbox-tools \.sendbox-model-btn \.arco-btn-content,[\s\S]*?\.sendbox-tools \.sendbox-model-btn span,[\s\S]*?line-height:\s*18px\s*!important;/
+    );
+    expect(sendBoxStyles).not.toContain('stroke-width: 5');
+    expect(sendBoxStyles).not.toContain('drop-shadow');
     expect(sendBoxStyles).toMatch(
       /\.sendbox-panel textarea::placeholder\s*{[^}]*color:\s*var\(--text-secondary\)\s*!important;[^}]*opacity:\s*1;/
     );

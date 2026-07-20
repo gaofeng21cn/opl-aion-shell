@@ -1340,7 +1340,7 @@ const SendBox: React.FC<{
       type='primary'
       disabled={isButtonDisabled}
       className='send-button-custom'
-      icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} aria-hidden='true' />}
+      icon={<ArrowUp theme='outline' size='16' fill='white' strokeWidth={2} aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
       }}

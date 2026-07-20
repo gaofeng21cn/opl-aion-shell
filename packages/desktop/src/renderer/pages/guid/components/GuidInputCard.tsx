@@ -88,7 +88,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCardWrap} guid-input-card-shell relative flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
+      className={`${styles.guidInputCardWrap} guid-input-card-shell relative flex flex-col overflow-visible ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
       data-testid='guid-input-card-shell'
       style={{
         zIndex: 1,
@@ -111,6 +111,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         data-composer-palette-boundary='true'
         style={{
           transition: 'box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease',
+          overflow: mentionOpen || slashCommandMenu ? 'visible' : 'hidden',
           borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
           boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'var(--opl-home-composer-shadow)',
         }}

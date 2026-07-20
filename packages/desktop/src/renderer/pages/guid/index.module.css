@@ -821,19 +821,26 @@
   height: 100%;
   align-items: center;
   gap: 0 !important;
-  line-height: 18px;
+  line-height: 18px !important;
 }
 
 .actionConfigGroup :global(.sendbox-model-btn .arco-btn-content > span:first-child) {
   gap: 4px !important;
 }
 
+.actionConfigGroup :global(.sendbox-model-btn span) {
+  line-height: 18px !important;
+}
+
 .actionConfigGroup :global(.sendbox-model-btn) {
   height: 28px !important;
   min-height: 28px !important;
   padding: 0 4px !important;
-  font-size: 13px !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
   line-height: 18px !important;
+  letter-spacing: 0 !important;
 }
 
 .actionConfigGroup[data-permission-mode='full-access'] :global([data-testid^='agent-mode-selector-']) {
