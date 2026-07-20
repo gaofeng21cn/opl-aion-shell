@@ -1476,8 +1476,13 @@ describe('RuntimeSettings maintenance structure', () => {
     );
     expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
+    const managedUpdatesAdvanced = screen
+      .getByTestId('opl-managed-update-advanced')
+      .querySelector('.arco-collapse-item-header') as HTMLElement;
+    fireEvent.click(managedUpdatesAdvanced);
     expect(screen.getByTestId('opl-managed-update-opl_base')).toBeVisible();
-    expect(screen.getByTestId('opl-managed-update-opl_app')).toBeVisible();
+    expect(screen.queryByTestId('opl-managed-update-opl_app')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-update-opl_packages')).toBeVisible();
     expect(screen.queryByTestId('opl-managed-update-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-workflow_profile')).not.toBeInTheDocument();
@@ -1636,6 +1641,9 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
+    fireEvent.click(
+      screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement
+    );
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-opl_base'));
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')

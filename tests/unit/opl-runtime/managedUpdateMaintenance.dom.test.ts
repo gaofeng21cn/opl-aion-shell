@@ -280,6 +280,31 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.restartRequired).toBe(true);
   });
 
+  it('clears historical action and failure receipts after a successful authoritative read', async () => {
+    bridgeMocks.repairUpdateInvoke.mockResolvedValueOnce({
+      ok: false,
+      surface: 'update_repair',
+      command: 'opl update repair --json',
+      stdout: '',
+      parsed: null,
+      error: { message: 'Historical repair failure' },
+    });
+
+    await executeManagedUpdateMutation('repair', { componentId: 'opl_base' });
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      lastFailure: 'Historical repair failure',
+      lastAction: expect.objectContaining({ status: 'failed' }),
+    });
+
+    await executeManagedUpdateRead('status', { trigger: 'manual_refresh_status' });
+
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      lastFailure: null,
+      lastAction: null,
+      result: managedUpdateStatusResult,
+    });
+  });
+
   it('routes Base and explicitly targeted Packages mutations while rejecting App', async () => {
     await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
     await executeManagedUpdateMutation('apply', { componentId: 'opl_packages', packageId: 'oma' });

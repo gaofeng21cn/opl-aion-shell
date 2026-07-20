@@ -75,6 +75,14 @@ export function buildRuntimeSettingsViewModel({
   const oplPackagesHealthy =
     packagesOperationalReady && (!oplPackagesComponent || componentStatusTone(oplPackagesComponent) === 'green');
   const oplPackagesChecked = packageStatusAvailable || Boolean(oplPackagesComponent);
+  const oplPackagesStatus = oplPackagesComponent
+    ? formatStatus(
+        oplPackagesComponent.state === 'unknown' && packageStatusAvailable ? 'current' : oplPackagesComponent.state,
+        t
+      )
+    : packageStatusAvailable
+      ? t('settings.oplEnvironmentPage.maintenanceHub.status.available')
+      : formatStatus('unknown', t);
   const oplBaseRepairAvailable = oplBaseComponent?.repairAllowed === true;
   const desktopAppUpdate = desktopAutoUpdate?.supported === true;
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
@@ -120,6 +128,12 @@ export function buildRuntimeSettingsViewModel({
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'),
       detail: oplPackagesComponent
         ? [
+            modules.length === 0
+              ? t('settings.oplEnvironmentPage.noInstalledPackages')
+              : t('settings.oplEnvironmentPage.modulesInstalledCount', {
+                  installed: moduleInstalledCount,
+                  total: modules.length,
+                }),
             moduleManualMaintenanceCount > 0
               ? t('settings.oplEnvironmentPage.moduleMaintenance.manualMaintenanceSummary', {
                   count: moduleManualMaintenanceCount,
@@ -129,15 +143,20 @@ export function buildRuntimeSettingsViewModel({
           ]
             .filter((value): value is string => Boolean(value))
             .join(' ')
-        : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
-      status: oplPackagesChecked
-        ? modules.length === 0
-          ? t('settings.oplEnvironmentPage.noInstalledPackages')
-          : t('settings.oplEnvironmentPage.modulesInstalledCount', {
-              installed: moduleInstalledCount,
-              total: modules.length,
-            })
-        : formatStatus('unknown', t),
+        : [
+            oplPackagesChecked
+              ? modules.length === 0
+                ? t('settings.oplEnvironmentPage.noInstalledPackages')
+                : t('settings.oplEnvironmentPage.modulesInstalledCount', {
+                    installed: moduleInstalledCount,
+                    total: modules.length,
+                  })
+              : null,
+            t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
+          ]
+            .filter((value): value is string => Boolean(value))
+            .join(' '),
+      status: oplPackagesStatus,
       tone: oplPackagesChecked ? (oplPackagesHealthy ? 'green' : 'orange') : 'gray',
       icon: <Puzzle theme='outline' size='16' />,
       actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'),

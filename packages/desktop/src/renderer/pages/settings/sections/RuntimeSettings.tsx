@@ -585,7 +585,28 @@ function dependencyGuidanceLabel(dependency: ManagedDependency, t: Translate): s
   return t('settings.oplEnvironmentPage.dependencies.guidance.originalInstaller');
 }
 
-function BaseDependencySummary({ component, t }: { component?: ManagedUpdateComponent; t: Translate }) {
+function canDelegateDependencyUpdate(dependency: ManagedDependency): boolean {
+  return (
+    dependency.updateMode === 'explicit_owner_delegated' &&
+    Boolean(dependency.updateAction) &&
+    dependency.updateAction?.surface === 'opl app action execute' &&
+    dependency.updateAction.payloadFields.length === 0 &&
+    dependency.updateAction.confirmationRequired === true &&
+    dependency.updateAction.autoApplyAllowed === false
+  );
+}
+
+function BaseDependencySummary({
+  component,
+  busyDependencyId,
+  onRequestExternalUpdate,
+  t,
+}: {
+  component?: ManagedUpdateComponent;
+  busyDependencyId: string | null;
+  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
+  t: Translate;
+}) {
   if (!component) return null;
   const primaryDependencies =
     component.dependencyCatalog?.dependencies.filter((dependency) => !dependency.external) ?? [];
@@ -609,6 +630,14 @@ function BaseDependencySummary({ component, t }: { component?: ManagedUpdateComp
       <div className='opl-settings-list'>
         {PRIMARY_BASE_DEPENDENCY_IDS.map((dependencyId) => {
           const dependency = primaryDependencies.find((candidate) => candidate.id === dependencyId);
+          const delegatedDependency = [
+            dependency,
+            ...(component.dependencyCatalog?.dependencies.filter(
+              (candidate) => candidate.external && candidate.parentId === dependencyId
+            ) ?? []),
+          ].find((candidate): candidate is ManagedDependency =>
+            Boolean(candidate && candidate.currentness === 'update_available' && canDelegateDependencyUpdate(candidate))
+          );
           const version = dependency?.installed
             ? (dependency.version ?? t('settings.oplEnvironmentPage.status.unknown'))
             : dependency
@@ -622,6 +651,7 @@ function BaseDependencySummary({ component, t }: { component?: ManagedUpdateComp
           const attention =
             dependency?.currentness === 'update_available' ||
             (dependency?.currentness === 'missing' && dependency.id !== 'temporal-system-cli');
+          const canUpdate = Boolean(delegatedDependency);
 
           return (
             <div
@@ -654,6 +684,18 @@ function BaseDependencySummary({ component, t }: { component?: ManagedUpdateComp
               </div>
               <div className='opl-settings-row__meta'>
                 <Tag color={attention ? 'orange' : 'gray'}>{currentness}</Tag>
+                {canUpdate && delegatedDependency && (
+                  <Button
+                    size='small'
+                    loading={busyDependencyId === delegatedDependency.id}
+                    disabled={Boolean(busyDependencyId)}
+                    onClick={() => onRequestExternalUpdate(delegatedDependency)}
+                    data-testid={`opl-base-dependency-summary-update-${delegatedDependency.id}`}
+                  >
+                    {delegatedDependency.updateAction?.label ??
+                      t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
+                  </Button>
+                )}
               </div>
             </div>
           );
@@ -669,17 +711,7 @@ function managedComponentIcon(component: ManagedUpdateComponent): React.ReactNod
   return <Toolkit theme='outline' size='16' />;
 }
 
-function BaseDependencyCatalog({
-  component,
-  busyDependencyId,
-  onRequestExternalUpdate,
-  t,
-}: {
-  component: ManagedUpdateComponent;
-  busyDependencyId: string | null;
-  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
-  t: Translate;
-}) {
+function BaseDependencyCatalog({ component, t }: { component: ManagedUpdateComponent; t: Translate }) {
   const catalog = component.dependencyCatalog;
   if (!catalog || catalog.dependencies.length === 0) return null;
 
@@ -689,13 +721,6 @@ function BaseDependencyCatalog({
   );
 
   const renderDependencyRow = (dependency: ManagedDependency, rowId: string, externalInstallation: boolean) => {
-    const canDelegateUpdate =
-      dependency.updateMode === 'explicit_owner_delegated' &&
-      Boolean(dependency.updateAction) &&
-      dependency.updateAction?.surface === 'opl app action execute' &&
-      dependency.updateAction?.payloadFields.length === 0 &&
-      dependency.updateAction?.confirmationRequired === true &&
-      dependency.updateAction?.autoApplyAllowed === false;
     const versionDetail =
       dependency.latestVersion && dependency.latestVersion !== dependency.version
         ? `${dependency.version ?? t('settings.oplEnvironmentPage.status.unknown')} -> ${dependency.latestVersion}`
@@ -749,17 +774,6 @@ function BaseDependencyCatalog({
               defaultValue: formatStatus(dependency.currentness, t),
             })}
           </Tag>
-          {canDelegateUpdate && dependency.currentness === 'update_available' && (
-            <Button
-              size='small'
-              loading={busyDependencyId === dependency.id}
-              disabled={Boolean(busyDependencyId)}
-              onClick={() => onRequestExternalUpdate(dependency)}
-              data-testid={`opl-base-dependency-update-${rowId}`}
-            >
-              {dependency.updateAction?.label ?? t('settings.oplEnvironmentPage.dependencies.actions.updateViaOwner')}
-            </Button>
-          )}
         </div>
       </div>
     );
@@ -889,6 +903,7 @@ function PostUpdateNotice({
 
 function ManagedUpdatesPanel({
   plane,
+  hideFrameworkApp,
   maintenance,
   maintenanceOperationBusy,
   activeReadOperation,
@@ -899,11 +914,10 @@ function ManagedUpdatesPanel({
   onRequestAction,
   onCancelAction,
   onConfirmAction,
-  busyDependencyId,
-  onRequestExternalUpdate,
   t,
 }: {
   plane: ManagedUpdatePlane;
+  hideFrameworkApp?: boolean;
   maintenance: ManagedUpdateMaintenanceSnapshot;
   maintenanceOperationBusy: boolean;
   activeReadOperation: 'status' | 'check' | 'plan' | null;
@@ -914,15 +928,16 @@ function ManagedUpdatesPanel({
   onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
   onCancelAction: () => void;
   onConfirmAction: () => void;
-  busyDependencyId: string | null;
-  onRequestExternalUpdate: (dependency: ManagedDependency) => void;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
   const checkLoading = activeReadOperation === 'check';
   const planLoading = activeReadOperation === 'plan';
   const busyAction = maintenance.busyAction;
-  const recommendedAction = findRecommendedUpdateAction(plane.components);
+  const visibleComponents = hideFrameworkApp
+    ? plane.components.filter((component) => component.id !== 'opl_app')
+    : plane.components;
+  const recommendedAction = findRecommendedUpdateAction(visibleComponents);
   const recommendedActionLoading =
     recommendedAction.kind === 'check'
       ? checkLoading
@@ -1044,199 +1059,202 @@ function ManagedUpdatesPanel({
           />
         )}
 
-        <div className='opl-settings-list border-0 border-t border-solid border-border-1'>
-          {plane.components.map((component) => (
-            <div
-              key={component.id}
-              className='opl-settings-row items-start'
-              data-testid={`opl-managed-update-${component.id}`}
-            >
-              <div className='opl-settings-row__main flex-row items-start gap-10px'>
-                <span className='opl-settings-icon' aria-hidden='true'>
-                  {managedComponentIcon(component)}
-                </span>
-                <div className='min-w-0'>
-                  <Typography.Text className='block font-600 text-t-primary break-words'>
-                    {componentDisplayLabel(component, t)}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {componentUserSummary(component, t)}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.updates.nextStep', {
-                      action: updateComponentUserAction(component, t),
-                    })}
-                  </Typography.Text>
-                  <HostRouteDetail component={component} t={t} />
-                  {(component.conditions.length > 0 ||
-                    component.substatuses.length > 0 ||
-                    component.receiptRef ||
-                    component.repairAction ||
-                    component.rollbackRef ||
-                    component.reloadGuidance ||
-                    component.manualGuidance ||
-                    component.hostUpdateRoute ||
-                    component.dataVolumePreservation ||
-                    component.preservedMounts.length > 0 ||
-                    component.requiredPreservationEvidence.length > 0 ||
-                    Boolean(component.dependencyCatalog)) && (
-                    <Collapse className='mt-6px' bordered={false}>
-                      <Collapse.Item
-                        header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
-                        name={`component-${component.id}`}
-                      >
-                        <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
-                          {component.substatuses.map((substatus) => (
-                            <div key={substatus.id} data-testid={`opl-managed-update-substatus-${substatus.id}`}>
-                              <Tag size='small'>{formatStatus(substatus.state, t)}</Tag>
-                              <span className='ml-6px font-500 text-t-primary'>
-                                {t(`settings.oplEnvironmentPage.updates.substatuses.${substatus.id}`)}
-                              </span>
-                              {substatus.summary && <span className='ml-6px'>{substatus.summary}</span>}
-                            </div>
-                          ))}
-                          {component.conditions.map((condition) => (
-                            <div key={condition.id}>
-                              <Tag size='small'>{condition.status}</Tag>
-                              <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
-                              {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
-                              {condition.message && <span className='ml-6px'>{condition.message}</span>}
-                            </div>
-                          ))}
-                          {component.receiptRef && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}
-                            </span>
-                          )}
-                          {component.repairAction && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.repairAction', {
-                                action: component.repairAction,
-                              })}
-                            </span>
-                          )}
-                          {component.rollbackRef && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}
-                            </span>
-                          )}
-                          {component.needsRestart && (
-                            <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>
-                          )}
-                          {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
-                          {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
-                          {component.manualGuidance && <span>{component.manualGuidance}</span>}
-                          {component.hostUpdateRoute && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.hostUpdateRoute', {
-                                route: component.hostUpdateRoute,
-                              })}
-                            </span>
-                          )}
-                          {component.dataVolumePreservation && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
-                                value: component.dataVolumePreservation,
-                              })}
-                            </span>
-                          )}
-                          {component.preservedMounts.length > 0 && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.preservedMounts', {
-                                value: component.preservedMounts.join(', '),
-                              })}
-                            </span>
-                          )}
-                          {component.requiredPreservationEvidence.length > 0 && (
-                            <span>
-                              {t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
-                                value: component.requiredPreservationEvidence.join(', '),
-                              })}
-                            </span>
-                          )}
-                          {component.id === 'opl_base' && (
-                            <BaseDependencyCatalog
-                              component={component}
-                              busyDependencyId={busyDependencyId}
-                              onRequestExternalUpdate={onRequestExternalUpdate}
-                              t={t}
-                            />
-                          )}
-                        </div>
-                      </Collapse.Item>
-                    </Collapse>
-                  )}
-                </div>
-              </div>
-              <div className='opl-settings-row__meta'>
-                <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
-                <Space wrap size='small'>
-                  {componentApplyAllowed(component) && (
-                    <Button
-                      data-testid={`opl-managed-update-apply-${component.id}`}
-                      size='small'
-                      type='primary'
-                      loading={busyAction === `apply:${component.id}`}
-                      disabled={maintenanceOperationBusy}
-                      onClick={() => onRequestAction('apply', component)}
-                    >
-                      {t('settings.oplEnvironmentPage.updates.actions.applyUpdate')}
-                    </Button>
-                  )}
-                  {component.repairAllowed && (
-                    <Button
-                      data-testid={`opl-managed-update-repair-${component.id}`}
-                      size='small'
-                      loading={busyAction === `repair:${component.id}`}
-                      disabled={maintenanceOperationBusy}
-                      onClick={() => onRequestAction('repair', component)}
-                    >
-                      {t('settings.oplEnvironmentPage.updates.actions.repair')}
-                    </Button>
-                  )}
-                  {component.rollbackAllowed && (
-                    <Button
-                      data-testid={`opl-managed-update-rollback-${component.id}`}
-                      size='small'
-                      loading={busyAction === `rollback:${component.id}`}
-                      disabled={maintenanceOperationBusy}
-                      onClick={() => onRequestAction('rollback', component)}
-                    >
-                      {t('settings.oplEnvironmentPage.updates.actions.rollback')}
-                    </Button>
-                  )}
-                </Space>
-              </div>
-            </div>
-          ))}
-        </div>
-        <Collapse bordered={false}>
+        <Collapse bordered={false} data-testid='opl-managed-update-advanced'>
           <Collapse.Item
             header={t('settings.oplEnvironmentPage.updates.advancedActions')}
             name='managed-update-advanced-actions'
           >
-            <Space wrap>
-              <Tooltip content={updateReadActionHelp('check', t)}>
-                <Button
-                  data-testid='opl-managed-update-check'
-                  loading={checkLoading}
-                  disabled={maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'check')}
-                  onClick={onCheck}
-                >
-                  {t('settings.oplEnvironmentPage.updates.actions.check')}
-                </Button>
-              </Tooltip>
-              <Tooltip content={updateReadActionHelp('plan', t)}>
-                <Button
-                  data-testid='opl-managed-update-plan'
-                  loading={planLoading}
-                  disabled={maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'plan')}
-                  onClick={onPlan}
-                >
-                  {t('settings.oplEnvironmentPage.updates.actions.previewChanges')}
-                </Button>
-              </Tooltip>
-            </Space>
+            <div className='flex flex-col gap-12px'>
+              <div className='opl-settings-list border-0 border-t border-solid border-border-1'>
+                {visibleComponents.map((component) => (
+                  <div
+                    key={component.id}
+                    className='opl-settings-row items-start'
+                    data-testid={`opl-managed-update-${component.id}`}
+                  >
+                    <div className='opl-settings-row__main flex-row items-start gap-10px'>
+                      <span className='opl-settings-icon' aria-hidden='true'>
+                        {managedComponentIcon(component)}
+                      </span>
+                      <div className='min-w-0'>
+                        <Typography.Text className='block font-600 text-t-primary break-words'>
+                          {componentDisplayLabel(component, t)}
+                        </Typography.Text>
+                        <Typography.Text className='block text-12px text-t-secondary break-words'>
+                          {componentUserSummary(component, t)}
+                        </Typography.Text>
+                        <Typography.Text className='block text-12px text-t-secondary break-words'>
+                          {t('settings.oplEnvironmentPage.updates.nextStep', {
+                            action: updateComponentUserAction(component, t),
+                          })}
+                        </Typography.Text>
+                        <HostRouteDetail component={component} t={t} />
+                        {(component.conditions.length > 0 ||
+                          component.substatuses.length > 0 ||
+                          component.receiptRef ||
+                          component.repairAction ||
+                          component.rollbackRef ||
+                          component.reloadGuidance ||
+                          component.manualGuidance ||
+                          component.hostUpdateRoute ||
+                          component.dataVolumePreservation ||
+                          component.preservedMounts.length > 0 ||
+                          component.requiredPreservationEvidence.length > 0 ||
+                          Boolean(component.dependencyCatalog)) && (
+                          <Collapse className='mt-6px' bordered={false}>
+                            <Collapse.Item
+                              header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
+                              name={`component-${component.id}`}
+                            >
+                              <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
+                                {component.substatuses.map((substatus) => (
+                                  <div key={substatus.id} data-testid={`opl-managed-update-substatus-${substatus.id}`}>
+                                    <Tag size='small'>{formatStatus(substatus.state, t)}</Tag>
+                                    <span className='ml-6px font-500 text-t-primary'>
+                                      {t(`settings.oplEnvironmentPage.updates.substatuses.${substatus.id}`)}
+                                    </span>
+                                    {substatus.summary && <span className='ml-6px'>{substatus.summary}</span>}
+                                  </div>
+                                ))}
+                                {component.conditions.map((condition) => (
+                                  <div key={condition.id}>
+                                    <Tag size='small'>{condition.status}</Tag>
+                                    <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
+                                    {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
+                                    {condition.message && <span className='ml-6px'>{condition.message}</span>}
+                                  </div>
+                                ))}
+                                {component.receiptRef && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}
+                                  </span>
+                                )}
+                                {component.repairAction && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.repairAction', {
+                                      action: component.repairAction,
+                                    })}
+                                  </span>
+                                )}
+                                {component.rollbackRef && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.rollbackRef', {
+                                      ref: component.rollbackRef,
+                                    })}
+                                  </span>
+                                )}
+                                {component.needsRestart && (
+                                  <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>
+                                )}
+                                {component.needsReload && (
+                                  <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>
+                                )}
+                                {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
+                                {component.manualGuidance && <span>{component.manualGuidance}</span>}
+                                {component.hostUpdateRoute && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.hostUpdateRoute', {
+                                      route: component.hostUpdateRoute,
+                                    })}
+                                  </span>
+                                )}
+                                {component.dataVolumePreservation && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
+                                      value: component.dataVolumePreservation,
+                                    })}
+                                  </span>
+                                )}
+                                {component.preservedMounts.length > 0 && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.preservedMounts', {
+                                      value: component.preservedMounts.join(', '),
+                                    })}
+                                  </span>
+                                )}
+                                {component.requiredPreservationEvidence.length > 0 && (
+                                  <span>
+                                    {t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
+                                      value: component.requiredPreservationEvidence.join(', '),
+                                    })}
+                                  </span>
+                                )}
+                                {component.id === 'opl_base' && <BaseDependencyCatalog component={component} t={t} />}
+                              </div>
+                            </Collapse.Item>
+                          </Collapse>
+                        )}
+                      </div>
+                    </div>
+                    <div className='opl-settings-row__meta'>
+                      <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
+                      <Space wrap size='small'>
+                        {componentApplyAllowed(component) && (
+                          <Button
+                            data-testid={`opl-managed-update-apply-${component.id}`}
+                            size='small'
+                            type='primary'
+                            loading={busyAction === `apply:${component.id}`}
+                            disabled={maintenanceOperationBusy}
+                            onClick={() => onRequestAction('apply', component)}
+                          >
+                            {t('settings.oplEnvironmentPage.updates.actions.applyUpdate')}
+                          </Button>
+                        )}
+                        {component.repairAllowed && (
+                          <Button
+                            data-testid={`opl-managed-update-repair-${component.id}`}
+                            size='small'
+                            loading={busyAction === `repair:${component.id}`}
+                            disabled={maintenanceOperationBusy}
+                            onClick={() => onRequestAction('repair', component)}
+                          >
+                            {t('settings.oplEnvironmentPage.updates.actions.repair')}
+                          </Button>
+                        )}
+                        {component.rollbackAllowed && (
+                          <Button
+                            data-testid={`opl-managed-update-rollback-${component.id}`}
+                            size='small'
+                            loading={busyAction === `rollback:${component.id}`}
+                            disabled={maintenanceOperationBusy}
+                            onClick={() => onRequestAction('rollback', component)}
+                          >
+                            {t('settings.oplEnvironmentPage.updates.actions.rollback')}
+                          </Button>
+                        )}
+                      </Space>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Space wrap>
+                <Tooltip content={updateReadActionHelp('check', t)}>
+                  <Button
+                    data-testid='opl-managed-update-check'
+                    loading={checkLoading}
+                    disabled={
+                      maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'check')
+                    }
+                    onClick={onCheck}
+                  >
+                    {t('settings.oplEnvironmentPage.updates.actions.check')}
+                  </Button>
+                </Tooltip>
+                <Tooltip content={updateReadActionHelp('plan', t)}>
+                  <Button
+                    data-testid='opl-managed-update-plan'
+                    loading={planLoading}
+                    disabled={
+                      maintenanceOperationBusy || Boolean(activeReadOperation && activeReadOperation !== 'plan')
+                    }
+                    onClick={onPlan}
+                  >
+                    {t('settings.oplEnvironmentPage.updates.actions.previewChanges')}
+                  </Button>
+                </Tooltip>
+              </Space>
+            </div>
           </Collapse.Item>
         </Collapse>
         {showDiagnostics && (
@@ -1876,7 +1894,12 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           <RuntimeHealthSummary items={healthSummaryItems} />
         </section>
 
-        <BaseDependencySummary component={oplBaseComponent} t={t} />
+        <BaseDependencySummary
+          component={oplBaseComponent}
+          busyDependencyId={busyDependencyId}
+          onRequestExternalUpdate={requestExternalDependencyUpdate}
+          t={t}
+        />
 
         <TemporalMaintenancePanel
           snapshot={temporalSnapshot}
@@ -2004,6 +2027,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         >
           <ManagedUpdatesPanel
             plane={managedUpdatePlane}
+            hideFrameworkApp={desktopAutoUpdate.supported}
             maintenance={managedUpdateMaintenance}
             maintenanceOperationBusy={maintenanceOperationBusy}
             activeReadOperation={activeReadOperation}
@@ -2014,8 +2038,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             onRequestAction={requestManagedUpdateAction}
             onCancelAction={cancelManagedUpdateAction}
             onConfirmAction={confirmManagedUpdateAction}
-            busyDependencyId={busyDependencyId}
-            onRequestExternalUpdate={requestExternalDependencyUpdate}
             t={t}
           />
         </section>

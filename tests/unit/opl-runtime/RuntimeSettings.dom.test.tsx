@@ -572,6 +572,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByTestId('opl-managed-update-repair-opl_base')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalled());
+    fireEvent.click(
+      screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement
+    );
     const oplBaseRow = screen.getByTestId('opl-managed-update-opl_base');
     const componentDetails = within(oplBaseRow).getByRole('button', {
       name: 'settings.oplEnvironmentPage.updates.diagnostics.componentDetails',
@@ -592,10 +595,11 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(otherInstallations).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(otherInstallations);
     expect(otherInstallations).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByTestId('opl-base-dependency-update-codex-cli-external-1')).toHaveTextContent(
+    expect(screen.queryByTestId('opl-base-dependency-update-codex-cli-external-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-base-dependency-summary-update-codex-cli-homebrew')).toHaveTextContent(
       'Update with Homebrew'
     );
-    fireEvent.click(screen.getByTestId('opl-base-dependency-update-codex-cli-external-1'));
+    fireEvent.click(screen.getByTestId('opl-base-dependency-summary-update-codex-cli-homebrew'));
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
       expect.objectContaining({ actionId: 'update_external_codex_homebrew' })
     );

@@ -236,6 +236,8 @@ describe('RuntimeSettings view model adapter', () => {
       actionDisabled: true,
     });
     expect(model.maintenanceHubItems.find((item) => item.key === 'capabilitySurfaceSync')).toMatchObject({
+      status: 'settings.oplEnvironmentPage.status.failed_with_repair failed_with_repair',
+      detail: expect.stringContaining('settings.oplEnvironmentPage.modulesInstalledCount 4 4'),
       actionLoading: true,
       actionDisabled: true,
     });

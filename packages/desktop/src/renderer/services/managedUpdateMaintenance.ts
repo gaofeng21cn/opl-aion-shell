@@ -528,6 +528,7 @@ export async function executeManagedUpdateRead(
         executionStatus,
         lastRunAt: isoNow(),
         lastFailure,
+        ...(lastFailure ? {} : { lastAction: null }),
         lockStatus: readLockStatus(result),
         reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance,
         restartRequired: readRestartRequired(result),
@@ -588,6 +589,8 @@ export async function executeManagedUpdateReconciliation(
       projectionResult = preflightStatusResult;
       emit({
         result: preflightStatusResult,
+        lastFailure: null,
+        lastAction: null,
         lockStatus: readLockStatus(preflightStatusResult),
         reloadGuidance: readReloadGuidance(preflightStatusResult) ?? snapshot.reloadGuidance,
         restartRequired: readRestartRequired(preflightStatusResult),
@@ -654,6 +657,7 @@ export async function executeManagedUpdateReconciliation(
       executionStatus: readExecutionStatus(result),
       lastRunAt: isoNow(),
       lastFailure,
+      ...(lastFailure || applyResult ? {} : { lastAction: null }),
       lockStatus: readLockStatus(result),
       reloadGuidance:
         readReloadGuidance(result) ??
