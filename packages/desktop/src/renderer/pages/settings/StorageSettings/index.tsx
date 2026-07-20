@@ -116,19 +116,20 @@ const classifyStorageUnavailableReason = (
   desktopCarrier: boolean,
   rawError: string | null
 ): StorageUnavailableReason => {
-  if (!desktopCarrier) return 'desktopCarrier';
-  if (!rawError) return 'service';
-  if (/\b(?:EACCES|EPERM)\b|permission denied|access denied|not authorized|forbidden/i.test(rawError)) {
-    return 'permission';
+  if (rawError) {
+    if (/\b(?:EACCES|EPERM)\b|permission denied|access denied|not authorized|forbidden/i.test(rawError)) {
+      return 'permission';
+    }
+    if (
+      /\b(?:ECONNREFUSED|ENOTCONN|EPIPE|ETIMEDOUT)\b|timed? out|service|bridge|\bipc\b|not ready|unavailable|failed to fetch|network/i.test(
+        rawError
+      )
+    ) {
+      return 'service';
+    }
+    return 'unknown';
   }
-  if (
-    /\b(?:ECONNREFUSED|ENOTCONN|EPIPE|ETIMEDOUT)\b|timed? out|service|bridge|\bipc\b|not ready|unavailable|failed to fetch|network/i.test(
-      rawError
-    )
-  ) {
-    return 'service';
-  }
-  return 'unknown';
+  return desktopCarrier ? 'service' : 'desktopCarrier';
 };
 
 // This pointer only locates a restore candidate; restoreConversationProof remains authoritative.
@@ -341,11 +342,15 @@ export const StorageSettingsContent: React.FC = () => {
     Boolean(viewModel.conversationProof.receiptPath) &&
     !conversationFilesAvailable;
   const interactionLocked = loading !== null || pendingDangerAction !== null;
-  const hasStorageReadback =
-    Boolean(inventory) ||
-    viewModel.ownerSections.some((section) => section.bytes !== null && Number.isFinite(section.bytes));
+  const hasLocalStorageReadback = Boolean(inventory);
+  const hasOwnerStorageReadback = viewModel.ownerSections.some(
+    (section) => section.bytes !== null && Number.isFinite(section.bytes)
+  );
+  const hasStorageReadback = hasLocalStorageReadback || hasOwnerStorageReadback;
   const storageUnavailableRawError = inventoryReadError ?? appStateQuery.error ?? error;
-  const storageUnavailable = inventoryReadSettled && !appStateQuery.loading && !hasStorageReadback;
+  const storageUnavailable = desktopCarrier
+    ? inventoryReadSettled && (Boolean(inventoryReadError) || !hasLocalStorageReadback)
+    : !appStateQuery.loading && !hasOwnerStorageReadback;
   const storageUnavailableReason = classifyStorageUnavailableReason(desktopCarrier, storageUnavailableRawError);
   const storageRecoveryRoute =
     storageUnavailableReason === 'permission' ? '/settings/workspace' : '/settings/environment';
@@ -370,8 +375,14 @@ export const StorageSettingsContent: React.FC = () => {
   }, []);
 
   const refreshInventory = React.useCallback(async () => {
-    const snapshot = await ipcBridge.localDataLifecycle.refreshInventory.invoke();
-    applyInventorySnapshot(snapshot);
+    try {
+      const snapshot = await ipcBridge.localDataLifecycle.refreshInventory.invoke();
+      applyInventorySnapshot(snapshot);
+    } catch (refreshError) {
+      setInventoryReadError(refreshError instanceof Error ? refreshError.message : String(refreshError));
+      setInventoryReadSettled(true);
+      throw refreshError;
+    }
   }, [applyInventorySnapshot]);
 
   const refreshWebuiCapability = React.useCallback(async () => {
@@ -990,13 +1001,13 @@ export const StorageSettingsContent: React.FC = () => {
             {t('settings.storagePage.title')}
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
-          {!storageUnavailable && (
+          {hasStorageReadback && (
             <Typography.Text className='mt-6px block text-12px text-t-secondary' data-testid='storage-overview'>
               {t('settings.storagePage.overview.total')}:{' '}
               {totalBytesKnown ? formatStorageBytes(totalBytes) : t('settings.storagePage.inventory.unknownSize')}
             </Typography.Text>
           )}
-          {desktopCarrier && !storageUnavailable && (
+          {desktopCarrier && hasLocalStorageReadback && (
             <Typography.Text
               className='mt-2px block text-12px text-t-tertiary'
               data-testid='storage-inventory-freshness'
@@ -1017,7 +1028,7 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      {storageUnavailable ? (
+      {storageUnavailable && (
         <section
           className='opl-settings-section opl-settings-surface--status'
           data-testid='settings-storage-unavailable'
@@ -1078,9 +1089,13 @@ export const StorageSettingsContent: React.FC = () => {
             }
           />
         </section>
-      ) : (
+      )}
+
+      {hasStorageReadback && (
         <>
-          {error && <Alert type='error' content={error} data-testid='settings-storage-exception' />}
+          {error && !storageUnavailable && (
+            <Alert type='error' content={error} data-testid='settings-storage-exception' />
+          )}
 
           {pendingDangerAction && (
             <div
@@ -1138,7 +1153,7 @@ export const StorageSettingsContent: React.FC = () => {
                   {t('settings.storagePage.actions.previewAll')}
                 </Button>
               )}
-              {desktopCarrier && (
+              {desktopCarrier && hasLocalStorageReadback && (
                 <Button
                   type='secondary'
                   icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
@@ -1160,6 +1175,7 @@ export const StorageSettingsContent: React.FC = () => {
             {!desktopCarrier && <span id='archives' aria-hidden='true' />}
             <div className='opl-settings-list' data-testid='storage-category-list'>
               {desktopCarrier &&
+                hasLocalStorageReadback &&
                 viewModel.sections.map((item) => (
                   <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
                 ))}
@@ -1189,8 +1205,10 @@ export const StorageSettingsContent: React.FC = () => {
 
           {!desktopCarrier && <span id='cleanup-history' aria-hidden='true' />}
 
-          {desktopCarrier && <span data-testid='storage-research-lifecycle' aria-hidden='true' />}
-          {desktopCarrier && (
+          {desktopCarrier && hasLocalStorageReadback && (
+            <span data-testid='storage-research-lifecycle' aria-hidden='true' />
+          )}
+          {desktopCarrier && hasLocalStorageReadback && (
             <Modal
               visible={diagnosticsVisible}
               title={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
@@ -1249,7 +1267,7 @@ export const StorageSettingsContent: React.FC = () => {
             </Modal>
           )}
 
-          {desktopCarrier && (
+          {desktopCarrier && hasLocalStorageReadback && (
             <section className='opl-settings-section opl-settings-surface--status' id='cleanup-history'>
               <div className='opl-settings-row'>
                 <div className='opl-settings-row__main'>

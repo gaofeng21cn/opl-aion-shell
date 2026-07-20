@@ -1347,6 +1347,14 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const search = screen.getByTestId('settings-agents-catalog-search');
+    fireEvent.change(search, { target: { value: 'advance medical' } });
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-purpose-mas')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'budget narratives' } });
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
+
     fireEvent.change(search, { target: { value: 'grant' } });
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
     expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
@@ -1452,6 +1460,56 @@ describe('Agents and capabilities settings', () => {
     expect(filteredScholarSkills).not.toHaveAttribute('data-parent-capability');
     expect(screen.getByTestId('settings-agents-group-other')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
+  });
+
+  it('moves a healthy parent entry to needs attention when a nested dependency requires repair', () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'med-autoscience',
+          display_name: 'Med Auto Science',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+        },
+        {
+          package_id: 'mas-scholar-skills',
+          display_name: 'MAS Scholar Skills',
+          package_role: 'framework_capability_package',
+          installed: true,
+          status: 'failed',
+        },
+      ],
+      {
+        statusEntries: [
+          {
+            package_id: 'mas-scholar-skills',
+            dependent_guard: {
+              required_by_package_ids: ['med-autoscience'],
+              disable: { allowed: false, reason_code: 'required_by_installed_package' },
+              uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
+            },
+          },
+        ],
+      }
+    );
+
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const needsAttention = screen.getByTestId('settings-agents-group-needsAttention');
+    const parent = screen.getByTestId('capability-purpose-mas');
+    const dependent = screen.getByTestId('capability-purpose-mas-scholar-skills');
+    expect(needsAttention).toContainElement(parent);
+    expect(needsAttention).toContainElement(dependent);
+    expect(screen.queryByTestId('settings-agents-group-frequent')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('settings-agents-catalog-search'), {
+      target: { value: 'advance medical' },
+    });
+    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+      screen.getByTestId('capability-purpose-mas')
+    );
+    expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
   it('filters canonical package roles, statuses, and source explanation kinds', async () => {

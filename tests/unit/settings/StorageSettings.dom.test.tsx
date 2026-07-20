@@ -26,6 +26,7 @@ const bridgeMocks = vi.hoisted(() => ({
   loadAppState: vi.fn(),
   navigate: vi.fn(),
   appState: {} as Record<string, unknown>,
+  appStateError: null as string | null,
 }));
 
 const webuiLifecycleMocks = vi.hoisted(() => ({
@@ -91,7 +92,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
     loadedAt: null,
     loading: false,
     refreshing: false,
-    error: null,
+    error: bridgeMocks.appStateError,
     load: bridgeMocks.loadAppState,
   }),
 }));
@@ -377,6 +378,7 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeAction.mockResolvedValue({ ok: true, parsed: {} });
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: {} });
     bridgeMocks.appState = {};
+    bridgeMocks.appStateError = null;
     webuiLifecycleMocks.readCapability.mockResolvedValue(null);
     webuiLifecycleMocks.plan.mockReset();
     webuiLifecycleMocks.execute.mockReset();
@@ -534,7 +536,20 @@ describe('StorageSettingsContent', () => {
     }
   });
 
-  it('routes permission failures to Workspace and keeps the raw error collapsed', async () => {
+  it('keeps owner data visible when desktop inventory permissions fail and routes recovery to Workspace', async () => {
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 2048,
+          reclaimable_bytes: 1024,
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+    };
     bridgeMocks.getInventorySnapshot.mockRejectedValueOnce(new Error('EACCES: permission denied, scandir /private'));
 
     render(<StorageSettingsContent />);
@@ -546,9 +561,47 @@ describe('StorageSettingsContent', () => {
     expect(details.open).toBe(false);
     expect(details).toHaveTextContent('EACCES: permission denied');
     expect(screen.queryByTestId('settings-storage-exception')).not.toBeInTheDocument();
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+    expect(screen.getByTestId('storage-category-list')).toBeInTheDocument();
+    expect(screen.getByTestId('storage-owner-agent_package_store')).toHaveTextContent('2.0 KB');
+    expect(screen.queryByTestId('storage-inventory-updater_cache')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-storage-diagnostics-action')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
     expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/workspace');
+  });
+
+  it.each([
+    {
+      error: 'EACCES: permission denied while reading storage projection',
+      reason: 'permission',
+      message: 'Storage directory permission is missing.',
+      route: '/settings/workspace',
+    },
+    {
+      error: 'ECONNREFUSED: local storage service unavailable',
+      reason: 'service',
+      message: 'Local storage service is not ready.',
+      route: '/settings/environment',
+    },
+  ])('classifies an explicit WebUI $reason failure before the missing carrier fallback', async (scenario) => {
+    const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.appStateError = scenario.error;
+
+    try {
+      render(<StorageSettingsContent />);
+
+      expect(await screen.findByTestId(`settings-storage-unavailable-reason-${scenario.reason}`)).toHaveTextContent(
+        scenario.message
+      );
+      expect(screen.queryByTestId('settings-storage-unavailable-reason-desktopCarrier')).not.toBeInTheDocument();
+      expect(screen.getByTestId('settings-storage-unavailable-technical-details')).toHaveTextContent(scenario.error);
+      fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
+      expect(bridgeMocks.navigate).toHaveBeenCalledWith(scenario.route);
+    } finally {
+      if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
+    }
   });
 
   it('uses the unknown recovery state for an unclassified storage failure', async () => {

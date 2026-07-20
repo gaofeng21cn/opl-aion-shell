@@ -228,7 +228,7 @@ describe('GuidActionRow composer controls', () => {
   });
 
   it('shows localized skill purposes without exposing raw trigger rules in the Home capability palette', async () => {
-    const rawTriggerRule = 'Use when the user asks to create, inspect, or modify a document artifact.';
+    const rawTriggerRule = 'Use the forensic-folio-trigger when inspecting a document artifact.';
     render(
       <GuidActionRow
         {...buildProps()}
@@ -238,6 +238,12 @@ describe('GuidActionRow composer controls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
     expect(screen.getByText('Create, review, and edit Office documents')).toBeInTheDocument();
+    expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('guid-capability-palette-search'), {
+      target: { value: 'forensic-folio-trigger' },
+    });
+    expect(screen.getByTestId('guid-capability-palette-item-skill-documents')).toBeInTheDocument();
     expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
   });
 

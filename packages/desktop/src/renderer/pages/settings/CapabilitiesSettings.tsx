@@ -370,13 +370,26 @@ function capabilityLocalizedSummary(
 }
 
 function capabilityCatalogGroupKey(
-  item: CapabilityPurposeViewModel,
-  professionalAgentOrder: ReadonlyMap<string, number>
+  entry: CapabilityCatalogEntry,
+  professionalAgentOrder: ReadonlyMap<string, number>,
+  allCapabilities: CapabilityPurposeViewModel[]
 ): CapabilityCatalogGroupKey {
-  if (['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)) {
+  const parentIds = new Set(capabilityPackageIdentityValues(entry.item.packageId));
+  const allDependents = parentIds.size
+    ? allCapabilities.filter((candidate) =>
+        candidate.dependentGuard?.requiredByPackageIds.some((requiredPackageId) =>
+          capabilityPackageIdentityValues(requiredPackageId).some((id) => parentIds.has(id))
+        )
+      )
+    : [];
+  if (
+    [entry.item, ...entry.dependents, ...allDependents].some((item) =>
+      ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
+    )
+  ) {
     return 'needsAttention';
   }
-  if (capabilityPackageIdentityValues(item.packageId).some((id) => professionalAgentOrder.has(id))) {
+  if (capabilityPackageIdentityValues(entry.item.packageId).some((id) => professionalAgentOrder.has(id))) {
     return 'frequent';
   }
   return 'other';
@@ -1051,6 +1064,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       if (!query) return true;
       return [
         item.title,
+        capabilityLocalizedSummary(item, t),
         item.description,
         item.packageId,
         item.packageRole,
@@ -1118,10 +1132,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     return (['frequent', 'needsAttention', 'other'] as const)
       .map((key) => ({
         key,
-        entries: entries.filter((entry) => capabilityCatalogGroupKey(entry.item, professionalAgentOrder) === key),
+        entries: entries.filter(
+          (entry) => capabilityCatalogGroupKey(entry, professionalAgentOrder, purposeCapabilities) === key
+        ),
       }))
       .filter((group) => group.entries.length > 0);
-  }, [i18n.language, professionalAgentOrder, visibleCapabilities]);
+  }, [i18n.language, professionalAgentOrder, purposeCapabilities, visibleCapabilities]);
   const hasActiveCatalogFilters =
     Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
   const catalogFilterEmpty = purposeCapabilities.length > 0 && visibleCapabilities.length === 0;

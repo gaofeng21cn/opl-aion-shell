@@ -282,7 +282,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             id: `skill-${skill.name}`,
             label: skill.name,
             description: localizedCapabilitySummary([skill.name], skill.name, t),
-            keywords: ['skill'],
+            keywords: ['skill', skill.description],
             icon: <Lightning theme='outline' size='16' />,
             active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
             disabled: skill.locked,
