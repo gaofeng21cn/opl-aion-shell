@@ -3251,5 +3251,120 @@
     "conversation": "Conversation",
     "mcp": "MCP",
     "customAgent": "Custom Agent"
+  },
+  "uiOptimization": {
+    "navigation": {
+      "mobileCategories": "Settings categories",
+      "mobileBack": "Back to settings categories",
+      "about": "About",
+      "groups": {
+        "overview": "Overview",
+        "accountModels": "Account & Models",
+        "workspace": "Workspace",
+        "agentsCapabilities": "Agents & Capabilities",
+        "runtimeMaintenance": "Runtime & Maintenance",
+        "preferences": "Preferences"
+      },
+      "destinations": {
+        "overviewStatus": "Overview",
+        "accountAccess": "Account & Access",
+        "models": "Models",
+        "resourcesConnections": "Resources & Connections",
+        "workingDirectory": "Working Directory",
+        "dataStorage": "Data & Storage",
+        "agents": "Agents",
+        "capabilities": "Capabilities",
+        "instructionsContext": "Instructions & Context",
+        "runtimeServices": "Services & Maintenance",
+        "logsDiagnostics": "Logs & Diagnostics",
+        "preferences": "Preferences"
+      }
+    },
+    "capabilities": {
+      "groups": {
+        "frequent": "Frequent",
+        "needsAttention": "Needs attention",
+        "other": "Other"
+      },
+      "details": {
+        "title": "Capability details",
+        "purpose": "Purpose",
+        "triggerRules": "Trigger rules",
+        "originalDescription": "Original description",
+        "source": "Source",
+        "version": "Version"
+      },
+      "actions": {
+        "viewDetails": "View details"
+      },
+      "summaries": {
+        "documents": "Create, review, and edit Office documents",
+        "presentations": "Create and edit presentations",
+        "spreadsheets": "Create, analyze, and edit spreadsheets",
+        "pdf": "Read, create, and review PDF documents",
+        "medAutoscience": "Advance medical research, papers, and data analysis",
+        "medAutogrant": "Plan and write medical research grants",
+        "redcubeAi": "Produce research presentations and visual deliverables",
+        "oplBookforge": "Plan, write, and organize long-form books",
+        "oplMetaAgent": "Create, review, and improve OPL agents",
+        "officecli": "Handle local Office document workflows",
+        "officecliDocx": "Create and edit Word documents",
+        "officecliPptx": "Create and edit PowerPoint presentations",
+        "officecliXlsx": "Create and edit Excel workbooks",
+        "mineruDocumentExtractor": "Extract structured content from complex documents",
+        "uiUxProMax": "Review and improve interface experiences",
+        "fallback": "Support {{name}} tasks; detailed trigger rules are available in details."
+      }
+    },
+    "account": {
+      "title": "Account & Access",
+      "description": "Manage the Gateway account, access credentials, and connection status.",
+      "gatewaySection": "OPL Gateway"
+    },
+    "maintenance": {
+      "summaryTitle": "Runtime & Maintenance",
+      "showNeedsAttention": "Show needs attention only",
+      "showAll": "Show all components",
+      "collapseHealthy": "Collapse healthy components",
+      "noActionRequired": "No action required",
+      "technicalDetails": "Technical details",
+      "time": {
+        "localWithRelative": "{{local}} ({{relative}})",
+        "justNow": "Just now",
+        "minutesAgo": "{{count}} minutes ago",
+        "hoursAgo": "{{count}} hours ago",
+        "daysAgo": "{{count}} days ago",
+        "unknown": "Time unknown"
+      }
+    },
+    "storage": {
+      "unavailable": {
+        "title": "Storage information temporarily unavailable",
+        "description": "One Person Lab could not read local storage information. Resolve the reason below and try again.",
+        "reasons": {
+          "desktopCarrier": "The desktop storage carrier is not available in this environment.",
+          "permission": "The current account does not have permission to read the storage directory.",
+          "service": "The local storage service is not ready.",
+          "unknown": "The reason storage information is unavailable could not be determined."
+        },
+        "actions": {
+          "retry": "Retry",
+          "openWorkspace": "Open Workspace settings",
+          "openMaintenance": "Open Maintenance"
+        }
+      }
+    },
+    "preferences": {
+      "units": {
+        "second": "second",
+        "minute": "minute",
+        "seconds": "{{value}} seconds",
+        "minutes": "{{value}} minutes"
+      },
+      "recommendedValue": "Recommended value",
+      "restoreRecommended": "Restore recommended value",
+      "scaleDecreaseAria": "Decrease interface scale",
+      "scaleIncreaseAria": "Increase interface scale"
+    }
   }
 }

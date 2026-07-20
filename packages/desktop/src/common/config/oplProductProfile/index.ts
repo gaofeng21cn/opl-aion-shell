@@ -369,11 +369,7 @@ type OplPostInstallAiSelfCheckEntry = {
 };
 
 export type OplDeveloperProfileCapabilityAxis =
-  | 'source_channel'
-  | 'workspace_trust'
-  | 'github_authority'
-  | 'agent_automation'
-  | 'runtime_mutation_scope';
+  'source_channel' | 'workspace_trust' | 'github_authority' | 'agent_automation' | 'runtime_mutation_scope';
 
 export type OplDeveloperProfileCapability = {
   standard_default: string;
@@ -464,6 +460,104 @@ export type OplSettingsExperienceContract = {
   };
 };
 
+export const OPL_SETTINGS_PRIMARY_GROUP_IDS = [
+  'overview',
+  'account_models',
+  'workspace',
+  'agents_capabilities',
+  'runtime_maintenance',
+  'preferences',
+] as const;
+export type OplSettingsPrimaryGroupId = (typeof OPL_SETTINGS_PRIMARY_GROUP_IDS)[number];
+
+export const OPL_SETTINGS_CARRIER_ROUTE_IDS = [
+  'general',
+  'gateway',
+  'access',
+  'workspace',
+  'agents',
+  'capabilities',
+  'resources',
+  'environment',
+  'storage',
+  'appearance',
+] as const;
+export type OplSettingsCarrierRouteId = (typeof OPL_SETTINGS_CARRIER_ROUTE_IDS)[number];
+
+export const OPL_SETTINGS_DESTINATION_IDS = [
+  'overview_status',
+  'account_access',
+  'models',
+  'resources_connections',
+  'working_directory',
+  'data_storage',
+  'agents',
+  'capabilities',
+  'instructions_context',
+  'runtime_services',
+  'logs_diagnostics',
+  'preferences',
+] as const;
+export type OplSettingsDestinationId = (typeof OPL_SETTINGS_DESTINATION_IDS)[number];
+
+export type OplSettingsUserNavigationPrimaryGroup = {
+  id: OplSettingsPrimaryGroupId;
+  label_zh: string;
+  label_en: string;
+  default_destination_id: OplSettingsDestinationId;
+  destination_ids: OplSettingsDestinationId[];
+};
+
+export type OplSettingsUserNavigationDestination = {
+  id: OplSettingsDestinationId;
+  owner_group_id: OplSettingsPrimaryGroupId;
+  route_id: OplSettingsCarrierRouteId;
+  anchor?: string;
+  label_zh: string;
+  label_en: string;
+  transport_owner_policy?: string;
+};
+
+export type OplSettingsUserNavigationOwnerBinding = {
+  content_id: string;
+  user_destination_id: OplSettingsDestinationId;
+  transport_route_id: OplSettingsCarrierRouteId;
+  anchor: string;
+};
+
+export type OplSettingsUserNavigationAuxiliaryEntry = {
+  id: 'about';
+  route_id: 'about';
+  placement: 'sidebar_bottom';
+  label_zh: string;
+  label_en: string;
+};
+
+export type OplSettingsUserNavigationProjection = {
+  schema: 'opl_app_settings_user_navigation.v1';
+  source_ref: 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia';
+  carrier_route_policy: 'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items';
+  primary_group_order: OplSettingsPrimaryGroupId[];
+  primary_groups: OplSettingsUserNavigationPrimaryGroup[];
+  destinations: OplSettingsUserNavigationDestination[];
+  secondary_owner_bindings: OplSettingsUserNavigationOwnerBinding[];
+  auxiliary_entries: OplSettingsUserNavigationAuxiliaryEntry[];
+  responsive_navigation: {
+    desktop: 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations';
+    mobile: 'category_list_then_second_level_destination_with_a_visible_back_control';
+    mobile_horizontal_tab_strip_allowed: false;
+    mobile_navigation_scroll_axis: 'vertical';
+    minimum_viewport_px: { width: 400; height: 600 };
+    keyboard_policy: 'all_primary_groups_second_level_destinations_back_and_about_are_reachable_in_logical_order';
+  };
+  global_search_policy: 'preserve_one_bilingual_item_level_search_across_all_carrier_routes_and_owner_anchors';
+  footer_policy: {
+    duplicate_settings_entry: 'forbidden_inside_settings';
+    about_placement: 'sidebar_bottom_auxiliary_entry';
+    account_and_update_controls: 'compact_footer_without_reclassifying_them_as_primary_groups';
+  };
+};
+
 export type OplSettingsControlPlane = {
   source_contract_ref: 'contracts/app-gui-product-contract.json#settings_navigation';
   default_route: string;
@@ -486,6 +580,7 @@ export type OplSettingsControlPlane = {
   >;
   state_action_policy: OplSettingsControlPlaneActionContract;
   experience_contract: OplSettingsExperienceContract;
+  user_navigation_projection: OplSettingsUserNavigationProjection;
 };
 
 export type OplSettingsControlPlaneActionContract = {
@@ -625,7 +720,7 @@ type AppProductProfile = {
   };
   companion_payloads: {
     default_packaged_codex_skill_ids: string[];
-    packaged_not_default_visible_codex_skill_ids: string[];
+    additional_package_skill_ids: string[];
     official_codex_runtime_capabilities: {
       preferred_capability_ids: string[];
     };
@@ -2300,9 +2395,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'default_packaged_codex_skill_ids',
     'companion_payloads'
   );
-  const packagedNotDefaultVisibleCodexSkillIds = readStringArray(
+  const additionalPackageSkillIds = readStringArray(
     companionPayloads,
-    'packaged_not_default_visible_codex_skill_ids',
+    'additional_package_skill_ids',
     'companion_payloads'
   );
   const officialCodexRuntimeCapabilities = companionPayloads.official_codex_runtime_capabilities;
@@ -2361,13 +2456,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const availableSkillSet = new Set([
     ...defaultPackagedCodexSkillIds,
-    ...packagedNotDefaultVisibleCodexSkillIds,
+    ...additionalPackageSkillIds,
     ...officialCodexRuntimeCapabilityIds,
   ]);
   for (const agentPackage of professionalAgentPackages) {
-    const unpackagedProfileSkills = [...agentPackage.required_skill_ids, ...agentPackage.optional_skill_ids].filter(
-      (skill) => !availableSkillSet.has(skill)
-    );
+    const unpackagedProfileSkills = agentPackage.required_skill_ids.filter((skill) => !availableSkillSet.has(skill));
     if (unpackagedProfileSkills.length > 0) {
       throw new Error(
         `Invalid OPL product profile: agent package ${agentPackage.package_id} references unpackaged skills: ${unpackagedProfileSkills.join(', ')}`
@@ -2380,13 +2473,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     }
   }
   const nonDefaultAssistants = readNonDefaultAssistants(gui);
-  if (!packagedNotDefaultVisibleCodexSkillIds.includes('opl-meta-agent')) {
+  if (!additionalPackageSkillIds.includes('opl-meta-agent')) {
     throw new Error('Invalid OPL product profile: explicit OMA package policy must be declared');
   }
   if (
     skillPriority.includes('morph-ppt') ||
     defaultPackagedCodexSkillIds.includes('morph-ppt') ||
-    packagedNotDefaultVisibleCodexSkillIds.includes('morph-ppt')
+    additionalPackageSkillIds.includes('morph-ppt')
   ) {
     throw new Error('Invalid OPL product profile: morph-ppt must not be part of App skill wiring');
   }
@@ -2538,7 +2631,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     },
     companion_payloads: {
       default_packaged_codex_skill_ids: defaultPackagedCodexSkillIds,
-      packaged_not_default_visible_codex_skill_ids: packagedNotDefaultVisibleCodexSkillIds,
+      additional_package_skill_ids: additionalPackageSkillIds,
       official_codex_runtime_capabilities: {
         preferred_capability_ids: officialCodexRuntimeCapabilityIds,
       },
@@ -2614,6 +2707,11 @@ function readSettingsControlPlane(value: unknown): OplSettingsControlPlane {
   const slotRegistry = readSettingsControlPlaneSlotRegistry(value.slot_registry);
   const actionContract = readSettingsControlPlaneActionContract(value.state_action_policy);
   const experienceContract = readSettingsExperienceContract(value.experience_contract);
+  const userNavigationProjection = readSettingsUserNavigationProjection(
+    value.user_navigation_projection,
+    ordinaryRoutes,
+    secondaryPages
+  );
   if (value.source_contract_ref !== 'contracts/app-gui-product-contract.json#settings_navigation') {
     throw new Error('Invalid OPL product profile: settings.control_plane must project the App control-plane contract');
   }
@@ -2644,6 +2742,214 @@ function readSettingsControlPlane(value: unknown): OplSettingsControlPlane {
     slot_registry: slotRegistry,
     state_action_policy: actionContract,
     experience_contract: experienceContract,
+    user_navigation_projection: userNavigationProjection,
+  };
+}
+
+function readSettingsUserNavigationProjection(
+  value: unknown,
+  ordinaryRoutes: OplSettingsControlPlaneRoute[],
+  secondaryPages: OplSettingsControlPlaneSecondaryPage[]
+): OplSettingsUserNavigationProjection {
+  const context = 'settings.control_plane.user_navigation_projection';
+  if (!isRecord(value)) {
+    throw new Error(`Invalid OPL product profile: ${context} must be an object`);
+  }
+  if (
+    value.schema !== 'opl_app_settings_user_navigation.v1' ||
+    value.source_ref !== 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia' ||
+    value.carrier_route_policy !==
+      'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items'
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context} authority or carrier policy is invalid`);
+  }
+
+  const carrierRouteIds = ordinaryRoutes.map((route) => route.id);
+  if (carrierRouteIds.join(',') !== OPL_SETTINGS_CARRIER_ROUTE_IDS.join(',')) {
+    throw new Error(`Invalid OPL product profile: ${context} must preserve ten stable carrier routes`);
+  }
+  const carrierRouteIdSet = new Set<string>(carrierRouteIds);
+  const groupIdSet = new Set<string>(OPL_SETTINGS_PRIMARY_GROUP_IDS);
+  const destinationIdSet = new Set<string>(OPL_SETTINGS_DESTINATION_IDS);
+  const primaryGroupOrder = readStringArray(value, 'primary_group_order', context);
+  if (primaryGroupOrder.join(',') !== OPL_SETTINGS_PRIMARY_GROUP_IDS.join(',')) {
+    throw new Error(`Invalid OPL product profile: ${context}.primary_group_order must define the six App groups`);
+  }
+
+  if (!Array.isArray(value.primary_groups)) {
+    throw new Error(`Invalid OPL product profile: ${context}.primary_groups must be an array`);
+  }
+  const primaryGroups = value.primary_groups.map((entry, index): OplSettingsUserNavigationPrimaryGroup => {
+    const entryContext = `${context}.primary_groups[${index}]`;
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: ${entryContext} must be an object`);
+    }
+    const id = readString(entry, 'id', entryContext);
+    const defaultDestinationId = readString(entry, 'default_destination_id', entryContext);
+    const destinationIds = readStringArray(entry, 'destination_ids', entryContext);
+    if (
+      !groupIdSet.has(id) ||
+      !destinationIdSet.has(defaultDestinationId) ||
+      destinationIds.some((destinationId) => !destinationIdSet.has(destinationId)) ||
+      !destinationIds.includes(defaultDestinationId)
+    ) {
+      throw new Error(`Invalid OPL product profile: ${entryContext} contains an unknown group or destination`);
+    }
+    return {
+      id: id as OplSettingsPrimaryGroupId,
+      label_zh: readString(entry, 'label_zh', entryContext),
+      label_en: readString(entry, 'label_en', entryContext),
+      default_destination_id: defaultDestinationId as OplSettingsDestinationId,
+      destination_ids: destinationIds as OplSettingsDestinationId[],
+    };
+  });
+  if (primaryGroups.map((group) => group.id).join(',') !== primaryGroupOrder.join(',')) {
+    throw new Error(`Invalid OPL product profile: ${context}.primary_groups must follow primary_group_order`);
+  }
+
+  if (!Array.isArray(value.destinations)) {
+    throw new Error(`Invalid OPL product profile: ${context}.destinations must be an array`);
+  }
+  const destinations = value.destinations.map((entry, index): OplSettingsUserNavigationDestination => {
+    const entryContext = `${context}.destinations[${index}]`;
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: ${entryContext} must be an object`);
+    }
+    const id = readString(entry, 'id', entryContext);
+    const ownerGroupId = readString(entry, 'owner_group_id', entryContext);
+    const routeId = readString(entry, 'route_id', entryContext);
+    const anchor = readOptionalString(entry, 'anchor');
+    const transportOwnerPolicy = readOptionalString(entry, 'transport_owner_policy');
+    if (!destinationIdSet.has(id) || !groupIdSet.has(ownerGroupId) || !carrierRouteIdSet.has(routeId)) {
+      throw new Error(`Invalid OPL product profile: ${entryContext} contains an unknown destination, group, or route`);
+    }
+    return {
+      id: id as OplSettingsDestinationId,
+      owner_group_id: ownerGroupId as OplSettingsPrimaryGroupId,
+      route_id: routeId as OplSettingsCarrierRouteId,
+      ...(anchor ? { anchor } : {}),
+      label_zh: readString(entry, 'label_zh', entryContext),
+      label_en: readString(entry, 'label_en', entryContext),
+      ...(transportOwnerPolicy ? { transport_owner_policy: transportOwnerPolicy } : {}),
+    };
+  });
+  if (destinations.map((destination) => destination.id).join(',') !== OPL_SETTINGS_DESTINATION_IDS.join(',')) {
+    throw new Error(`Invalid OPL product profile: ${context}.destinations must define each App destination once`);
+  }
+  const destinationById = new Map(destinations.map((destination) => [destination.id, destination]));
+  const groupedDestinationIds = primaryGroups.flatMap((group) => group.destination_ids);
+  if (
+    groupedDestinationIds.length !== destinations.length ||
+    new Set(groupedDestinationIds).size !== destinations.length
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context} must assign every destination to exactly one group`);
+  }
+  for (const group of primaryGroups) {
+    if (
+      group.destination_ids.some((destinationId) => destinationById.get(destinationId)?.owner_group_id !== group.id)
+    ) {
+      throw new Error(`Invalid OPL product profile: ${context} destination ownership does not match its group`);
+    }
+  }
+
+  if (!Array.isArray(value.secondary_owner_bindings)) {
+    throw new Error(`Invalid OPL product profile: ${context}.secondary_owner_bindings must be an array`);
+  }
+  const secondaryOwnerBindings = value.secondary_owner_bindings.map(
+    (entry, index): OplSettingsUserNavigationOwnerBinding => {
+      const entryContext = `${context}.secondary_owner_bindings[${index}]`;
+      if (!isRecord(entry)) {
+        throw new Error(`Invalid OPL product profile: ${entryContext} must be an object`);
+      }
+      const userDestinationId = readString(entry, 'user_destination_id', entryContext);
+      const transportRouteId = readString(entry, 'transport_route_id', entryContext);
+      if (!destinationIdSet.has(userDestinationId) || !carrierRouteIdSet.has(transportRouteId)) {
+        throw new Error(`Invalid OPL product profile: ${entryContext} contains an unknown destination or route`);
+      }
+      return {
+        content_id: readString(entry, 'content_id', entryContext),
+        user_destination_id: userDestinationId as OplSettingsDestinationId,
+        transport_route_id: transportRouteId as OplSettingsCarrierRouteId,
+        anchor: readString(entry, 'anchor', entryContext),
+      };
+    }
+  );
+
+  if (!Array.isArray(value.auxiliary_entries) || value.auxiliary_entries.length !== 1) {
+    throw new Error(`Invalid OPL product profile: ${context}.auxiliary_entries must contain About only`);
+  }
+  const auxiliaryEntry = value.auxiliary_entries[0];
+  if (
+    !isRecord(auxiliaryEntry) ||
+    auxiliaryEntry.id !== 'about' ||
+    auxiliaryEntry.route_id !== 'about' ||
+    auxiliaryEntry.placement !== 'sidebar_bottom' ||
+    !secondaryPages.some((page) => page.id === 'about')
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context}.auxiliary_entries must bind sidebar-bottom About`);
+  }
+  const auxiliaryEntries: OplSettingsUserNavigationAuxiliaryEntry[] = [
+    {
+      id: 'about',
+      route_id: 'about',
+      placement: 'sidebar_bottom',
+      label_zh: readString(auxiliaryEntry, 'label_zh', `${context}.auxiliary_entries[0]`),
+      label_en: readString(auxiliaryEntry, 'label_en', `${context}.auxiliary_entries[0]`),
+    },
+  ];
+
+  const responsiveNavigation = value.responsive_navigation;
+  const minimumViewport = isRecord(responsiveNavigation) ? responsiveNavigation.minimum_viewport_px : null;
+  if (
+    !isRecord(responsiveNavigation) ||
+    !isRecord(minimumViewport) ||
+    responsiveNavigation.desktop !== 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations' ||
+    responsiveNavigation.mobile !== 'category_list_then_second_level_destination_with_a_visible_back_control' ||
+    responsiveNavigation.mobile_horizontal_tab_strip_allowed !== false ||
+    responsiveNavigation.mobile_navigation_scroll_axis !== 'vertical' ||
+    minimumViewport.width !== 400 ||
+    minimumViewport.height !== 600 ||
+    responsiveNavigation.keyboard_policy !==
+      'all_primary_groups_second_level_destinations_back_and_about_are_reachable_in_logical_order'
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context}.responsive_navigation is invalid`);
+  }
+  const footerPolicy = value.footer_policy;
+  if (
+    value.global_search_policy !==
+      'preserve_one_bilingual_item_level_search_across_all_carrier_routes_and_owner_anchors' ||
+    !isRecord(footerPolicy) ||
+    footerPolicy.duplicate_settings_entry !== 'forbidden_inside_settings' ||
+    footerPolicy.about_placement !== 'sidebar_bottom_auxiliary_entry' ||
+    footerPolicy.account_and_update_controls !== 'compact_footer_without_reclassifying_them_as_primary_groups'
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context} search or footer policy is invalid`);
+  }
+
+  return {
+    schema: 'opl_app_settings_user_navigation.v1',
+    source_ref: 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia',
+    carrier_route_policy:
+      'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items',
+    primary_group_order: primaryGroupOrder as OplSettingsPrimaryGroupId[],
+    primary_groups: primaryGroups,
+    destinations,
+    secondary_owner_bindings: secondaryOwnerBindings,
+    auxiliary_entries: auxiliaryEntries,
+    responsive_navigation: {
+      desktop: 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations',
+      mobile: 'category_list_then_second_level_destination_with_a_visible_back_control',
+      mobile_horizontal_tab_strip_allowed: false,
+      mobile_navigation_scroll_axis: 'vertical',
+      minimum_viewport_px: { width: 400, height: 600 },
+      keyboard_policy: 'all_primary_groups_second_level_destinations_back_and_about_are_reachable_in_logical_order',
+    },
+    global_search_policy: 'preserve_one_bilingual_item_level_search_across_all_carrier_routes_and_owner_anchors',
+    footer_policy: {
+      duplicate_settings_entry: 'forbidden_inside_settings',
+      about_placement: 'sidebar_bottom_auxiliary_entry',
+      account_and_update_controls: 'compact_footer_without_reclassifying_them_as_primary_groups',
+    },
   };
 }
 
@@ -3322,7 +3628,7 @@ export function getOplDefaultPackagedCodexSkills(): string[] {
 export function getOplPackagedCodexSkills(): string[] {
   return [
     ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
-    ...OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids,
+    ...OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids,
   ];
 }
 
@@ -3372,6 +3678,34 @@ export function getOplCommandLineToolsInstallMessage(): string {
   return OPL_PRODUCT_PROFILE.first_run.command_line_tools.messages.join('\n');
 }
 
+function cloneOplSettingsUserNavigationProjection(
+  projection: OplSettingsUserNavigationProjection
+): OplSettingsUserNavigationProjection {
+  return {
+    ...projection,
+    primary_group_order: [...projection.primary_group_order],
+    primary_groups: projection.primary_groups.map((group) => ({
+      ...group,
+      destination_ids: [...group.destination_ids],
+    })),
+    destinations: projection.destinations.map((destination) => ({ ...destination })),
+    secondary_owner_bindings: projection.secondary_owner_bindings.map((binding) => ({ ...binding })),
+    auxiliary_entries: projection.auxiliary_entries.map((entry) => ({ ...entry })),
+    responsive_navigation: {
+      ...projection.responsive_navigation,
+      minimum_viewport_px: { ...projection.responsive_navigation.minimum_viewport_px },
+    },
+    footer_policy: { ...projection.footer_policy },
+  };
+}
+
+/** Return the App-owned Settings navigation grouping without exposing mutable profile state. */
+export function getOplSettingsUserNavigationProjection(): OplSettingsUserNavigationProjection {
+  return cloneOplSettingsUserNavigationProjection(
+    OPL_PRODUCT_PROFILE.settings.control_plane.user_navigation_projection
+  );
+}
+
 export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane {
   const controlPlane = OPL_PRODUCT_PROFILE.settings.control_plane;
   return {
@@ -3413,6 +3747,7 @@ export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane {
         })),
       },
     },
+    user_navigation_projection: cloneOplSettingsUserNavigationProjection(controlPlane.user_navigation_projection),
   };
 }
 

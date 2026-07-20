@@ -3252,5 +3252,120 @@
     "conversation": "对话",
     "mcp": "MCP",
     "customAgent": "自定义 Agent"
+  },
+  "uiOptimization": {
+    "navigation": {
+      "mobileCategories": "设置分类",
+      "mobileBack": "返回设置分类",
+      "about": "关于",
+      "groups": {
+        "overview": "概览",
+        "accountModels": "账户与模型",
+        "workspace": "工作区",
+        "agentsCapabilities": "智能体与能力",
+        "runtimeMaintenance": "运行与维护",
+        "preferences": "偏好"
+      },
+      "destinations": {
+        "overviewStatus": "概览",
+        "accountAccess": "账户与访问",
+        "models": "模型",
+        "resourcesConnections": "资源与连接",
+        "workingDirectory": "工作目录",
+        "dataStorage": "数据与存储",
+        "agents": "智能体",
+        "capabilities": "能力",
+        "instructionsContext": "指令与上下文",
+        "runtimeServices": "服务与维护",
+        "logsDiagnostics": "日志与诊断",
+        "preferences": "偏好"
+      }
+    },
+    "capabilities": {
+      "groups": {
+        "frequent": "常用",
+        "needsAttention": "需要处理",
+        "other": "其他"
+      },
+      "details": {
+        "title": "能力详情",
+        "purpose": "用途",
+        "triggerRules": "触发条件",
+        "originalDescription": "原始描述",
+        "source": "来源",
+        "version": "版本"
+      },
+      "actions": {
+        "viewDetails": "查看详情"
+      },
+      "summaries": {
+        "documents": "创建、检查和修改 Office 文档",
+        "presentations": "创建和修改演示文稿",
+        "spreadsheets": "创建、分析和修改电子表格",
+        "pdf": "读取、创建和检查 PDF 文档",
+        "medAutoscience": "推进医学研究、论文和数据分析",
+        "medAutogrant": "规划和撰写医学科研基金",
+        "redcubeAi": "制作科研演示与视觉交付物",
+        "oplBookforge": "规划、撰写和整理长篇书稿",
+        "oplMetaAgent": "创建、检查和改进 OPL 智能体",
+        "officecli": "处理本机 Office 文档工作流",
+        "officecliDocx": "创建和修改 Word 文档",
+        "officecliPptx": "创建和修改 PowerPoint 演示文稿",
+        "officecliXlsx": "创建和修改 Excel 工作簿",
+        "mineruDocumentExtractor": "从复杂文档中提取结构化内容",
+        "uiUxProMax": "审查和优化界面体验",
+        "fallback": "支持 {{name}} 相关任务；详细触发条件可在详情中查看。"
+      }
+    },
+    "account": {
+      "title": "账户与访问",
+      "description": "管理 Gateway 账户、访问凭据和连接状态。",
+      "gatewaySection": "OPL Gateway"
+    },
+    "maintenance": {
+      "summaryTitle": "运行与维护",
+      "showNeedsAttention": "只看需要处理",
+      "showAll": "显示全部组件",
+      "collapseHealthy": "收起正常组件",
+      "noActionRequired": "当前无需操作",
+      "technicalDetails": "技术详情",
+      "time": {
+        "localWithRelative": "{{local}}（{{relative}}）",
+        "justNow": "刚刚",
+        "minutesAgo": "{{count}} 分钟前",
+        "hoursAgo": "{{count}} 小时前",
+        "daysAgo": "{{count}} 天前",
+        "unknown": "时间未知"
+      }
+    },
+    "storage": {
+      "unavailable": {
+        "title": "存储信息暂时不可用",
+        "description": "One Person Lab 无法读取本机存储信息。请按下方原因恢复后重试。",
+        "reasons": {
+          "desktopCarrier": "当前环境缺少桌面存储载体。",
+          "permission": "当前账户没有读取存储目录的权限。",
+          "service": "本机存储服务尚未就绪。",
+          "unknown": "暂时无法确认存储信息不可用的原因。"
+        },
+        "actions": {
+          "retry": "重试",
+          "openWorkspace": "打开工作区设置",
+          "openMaintenance": "打开维护"
+        }
+      }
+    },
+    "preferences": {
+      "units": {
+        "second": "秒",
+        "minute": "分钟",
+        "seconds": "{{value}} 秒",
+        "minutes": "{{value}} 分钟"
+      },
+      "recommendedValue": "推荐值",
+      "restoreRecommended": "恢复推荐值",
+      "scaleDecreaseAria": "减小界面缩放",
+      "scaleIncreaseAria": "增大界面缩放"
+    }
   }
 }

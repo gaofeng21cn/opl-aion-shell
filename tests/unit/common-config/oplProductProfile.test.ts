@@ -31,7 +31,9 @@ import {
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
+  getOplPackagedCodexSkills,
   getOplSettingsControlPlaneActionContract,
+  getOplSettingsUserNavigationProjection,
   getOplHomeModelStatusLabel,
   getOplModelStatusDisplayText,
   getOplRuntimeEnvironmentItems,
@@ -341,10 +343,38 @@ describe('OPL generated product profile', () => {
       pet: 'appearance',
     });
     const controlPlane = getOplGuiSettingsControlPlane();
+    const userNavigation = getOplSettingsUserNavigationProjection();
     expect(controlPlane.source_contract_ref).toBe('contracts/app-gui-product-contract.json#settings_navigation');
     expect(controlPlane.default_route).toBe('/settings/general');
     expect(controlPlane.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
     expect(controlPlane.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
+    expect(controlPlane.ordinary_routes).toHaveLength(10);
+    expect(userNavigation.primary_group_order).toEqual([
+      'overview',
+      'account_models',
+      'workspace',
+      'agents_capabilities',
+      'runtime_maintenance',
+      'preferences',
+    ]);
+    expect(userNavigation.primary_groups.map((group) => group.id)).toEqual(userNavigation.primary_group_order);
+    expect(userNavigation.destinations.map((destination) => destination.route_id)).toEqual(
+      expect.arrayContaining(getOplGuiSettingsVisibleTabs())
+    );
+    expect(new Set(userNavigation.destinations.map((destination) => destination.route_id))).toEqual(
+      new Set(getOplGuiSettingsVisibleTabs())
+    );
+    expect(userNavigation.auxiliary_entries).toEqual([
+      expect.objectContaining({ id: 'about', route_id: 'about', placement: 'sidebar_bottom' }),
+    ]);
+    expect(userNavigation.responsive_navigation).toMatchObject({
+      mobile_horizontal_tab_strip_allowed: false,
+      mobile_navigation_scroll_axis: 'vertical',
+      minimum_viewport_px: { width: 400, height: 600 },
+    });
+    expect(userNavigation.footer_policy.duplicate_settings_entry).toBe('forbidden_inside_settings');
+    userNavigation.primary_groups[0]?.destination_ids.push('preferences');
+    expect(getOplSettingsUserNavigationProjection().primary_groups[0]?.destination_ids).toEqual(['overview_status']);
     expect(controlPlane.compatibility_redirects).toMatchObject({
       update: { target_route_id: 'environment', anchor: 'updates' },
       theme: { target_route_id: 'appearance', anchor: 'themes' },
@@ -414,6 +444,20 @@ describe('OPL generated product profile', () => {
       default_profile: 'standard_user',
       opt_in_policy: 'automatic_for_matching_identity_and_authorized_repositories_with_explicit_off',
     });
+  });
+
+  it('rejects a generated Settings navigation projection that breaks the mobile contract', async () => {
+    const driftedProfile = structuredClone(generatedProfile);
+    driftedProfile.settings.control_plane.user_navigation_projection.responsive_navigation.mobile_horizontal_tab_strip_allowed = true;
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: driftedProfile,
+    }));
+
+    await expect(import('@/common/config/oplProductProfile')).rejects.toThrow(
+      'settings.control_plane.user_navigation_projection.responsive_navigation is invalid'
+    );
   });
 
   it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {
@@ -545,12 +589,15 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(true);
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('settings_managed_home_shortcut');
-    expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).toContain(
-      'opl-meta-agent'
-    );
-    expect(OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids).not.toContain(
-      'superpowers'
-    );
+    expect(OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids).toEqual(['opl-meta-agent']);
+    expect(getOplPackagedCodexSkills()).toEqual([
+      'med-autoscience',
+      'med-autogrant',
+      'redcube-ai',
+      'opl-bookforge',
+      'opl-meta-agent',
+    ]);
+    expect(getOplPackagedCodexSkills()).not.toContain('superpowers');
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
     expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
@@ -578,14 +625,15 @@ describe('OPL generated product profile', () => {
     ).toBe(true);
     const availableSkillIds = new Set([
       ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
-      ...OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids,
+      ...OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids,
       ...OPL_PRODUCT_PROFILE.companion_payloads.official_codex_runtime_capabilities.preferred_capability_ids,
     ]);
-    expect(
-      profiles.every((profile) =>
-        [...profile.required_skills, ...profile.optional_skills].every((skill) => availableSkillIds.has(skill))
-      )
-    ).toBe(true);
+    expect(profiles.every((profile) => profile.required_skills.every((skill) => availableSkillIds.has(skill)))).toBe(
+      true
+    );
+    expect(profiles.some((profile) => profile.optional_skills.some((skill) => !availableSkillIds.has(skill)))).toBe(
+      true
+    );
     expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
 
     profiles[0].required_skills.push('caller-local-skill');

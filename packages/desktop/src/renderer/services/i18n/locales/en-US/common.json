@@ -628,5 +628,53 @@
   "runtime.systemAttention.issue": "Issue",
   "runtime.systemAttention.impact": "Impact",
   "runtime.systemAttention.repairAction": "Repair action",
-  "runtime.systemAttention.expectedOutcome": "Expected result"
+  "runtime.systemAttention.expectedOutcome": "Expected result",
+  "uiOptimization": {
+    "runtime": {
+      "summary": {
+        "availability": "Availability",
+        "running": "Running",
+        "needsAttention": "Needs attention"
+      },
+      "errors": {
+        "capabilityCatalogUnavailable": {
+          "title": "Capability catalog temporarily unavailable",
+          "description": "The capability catalog could not be loaded. Try again or open Maintenance to check local services."
+        },
+        "incompatibleConfiguration": {
+          "title": "Configuration format is incompatible",
+          "description": "This version cannot read the current configuration. Open Maintenance to inspect and repair it."
+        },
+        "unavailable": {
+          "title": "Runtime status temporarily unavailable",
+          "description": "The latest runtime status could not be loaded. Existing tasks and data have not been changed."
+        }
+      },
+      "states": {
+        "loading": "Loading runtime status...",
+        "empty": "There are no running work items."
+      },
+      "actions": {
+        "retry": "Retry",
+        "openMaintenance": "Open Maintenance"
+      },
+      "technicalDetails": {
+        "label": "Technical details",
+        "copy": "Copy diagnostic information",
+        "copied": "Diagnostic information copied",
+        "copyFailed": "Could not copy diagnostic information"
+      }
+    },
+    "startup": {
+      "brand": "One Person Lab",
+      "title": "Starting One Person Lab",
+      "stages": {
+        "workspace": "Checking working directory",
+        "assistant": "Connecting local assistant",
+        "modelAccess": "Confirming model access"
+      },
+      "timeout": "Startup is taking longer than usual. You can view details for the current stage.",
+      "viewDetails": "View details"
+    }
+  }
 }

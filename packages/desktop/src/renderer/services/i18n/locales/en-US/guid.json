@@ -111,5 +111,28 @@
     "statusTesting": "Testing latency...",
     "statusUnreachable": "Unreachable",
     "statusAvailable": "Available"
+  },
+  "uiOptimization": {
+    "firstRun": {
+      "completion": {
+        "title": "Setup complete",
+        "summary": "Core setup is complete. You can start using One Person Lab.",
+        "primaryAction": "Enter OPL"
+      }
+    },
+    "home": {
+      "shortcuts": {
+        "research": "Advance research",
+        "presentation": "Create a presentation",
+        "grant": "Write a grant",
+        "book": "Write a book",
+        "agentEngineering": "Build an agent"
+      },
+      "runtimeAlert": {
+        "title": "Local runtime needs attention",
+        "description": "Some background capabilities are temporarily unavailable. Regular conversations can continue.",
+        "openMaintenance": "Open Maintenance"
+      }
+    }
   }
 }

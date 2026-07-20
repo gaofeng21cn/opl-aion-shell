@@ -628,5 +628,53 @@
     "hour_short": "小时",
     "minute_short": "m",
     "second_short": "s"
+  },
+  "uiOptimization": {
+    "runtime": {
+      "summary": {
+        "availability": "可用性",
+        "running": "运行中",
+        "needsAttention": "需要处理"
+      },
+      "errors": {
+        "capabilityCatalogUnavailable": {
+          "title": "能力目录暂时不可用",
+          "description": "暂时无法读取能力目录。你可以重试，或打开维护页检查本机服务。"
+        },
+        "incompatibleConfiguration": {
+          "title": "配置格式不兼容",
+          "description": "当前配置无法由此版本读取。请打开维护页检查并修复配置。"
+        },
+        "unavailable": {
+          "title": "运行状态暂时不可用",
+          "description": "暂时无法读取最新运行状态。现有任务和数据不会因此被修改。"
+        }
+      },
+      "states": {
+        "loading": "正在读取运行状态...",
+        "empty": "当前没有运行中的工作项。"
+      },
+      "actions": {
+        "retry": "重试",
+        "openMaintenance": "打开维护"
+      },
+      "technicalDetails": {
+        "label": "技术详情",
+        "copy": "复制诊断信息",
+        "copied": "诊断信息已复制",
+        "copyFailed": "无法复制诊断信息"
+      }
+    },
+    "startup": {
+      "brand": "One Person Lab",
+      "title": "正在启动 One Person Lab",
+      "stages": {
+        "workspace": "检查工作目录",
+        "assistant": "连接本机助手",
+        "modelAccess": "确认模型访问"
+      },
+      "timeout": "启动用时比平常更长，你可以查看当前阶段的详细信息。",
+      "viewDetails": "查看详情"
+    }
   }
 }
