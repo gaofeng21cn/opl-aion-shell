@@ -770,6 +770,7 @@ const DOMAIN_STAGE_DEFERRED_READINESS_REASONS = new Set([
   'verificationdeferred',
   'scopematerializationmissing',
   'packageactivationrequired',
+  'useboundaryreconciliationready',
 ]);
 
 function isDomainStageDeferredReadiness(
@@ -853,7 +854,7 @@ function mapCapabilityStatus(
   if (['repairrequired', 'blocked'].includes(dependencyReadiness ?? '')) {
     return 'repair';
   }
-  if (readiness.operational_ready === false || packageStatus?.operational_ready === false) return 'attention';
+  if (operationalReady === false) return 'attention';
   if (['updateavailable', 'staged'].includes(exactReadinessStatus ?? '')) return 'update';
   if (['needssync', 'stale', 'syncrequired'].includes(exactReadinessStatus ?? '')) return 'sync';
   if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(exactReadinessStatus ?? '')) return 'ready';
@@ -915,14 +916,8 @@ function capabilityCodexVisibility(
   const readiness = oplRecord(directoryState.readiness);
   if (status === 'repair' || status === 'missing') return 'notVisible';
   if (isDomainStageDeferredReadiness(directoryState, packageStatus)) return 'visible';
-  const operationalReady =
-    packageStatus?.operational_ready === false
-      ? false
-      : (nullableBool(readiness.operational_ready) ?? nullableBool(packageStatus?.operational_ready));
-  const launchAllowed =
-    packageStatus?.launch_allowed === false
-      ? false
-      : (nullableBool(readiness.launch_allowed) ?? nullableBool(packageStatus?.launch_allowed));
+  const operationalReady = nullableBool(readiness.operational_ready) ?? nullableBool(packageStatus?.operational_ready);
+  const launchAllowed = nullableBool(readiness.launch_allowed) ?? nullableBool(packageStatus?.launch_allowed);
   if (operationalReady === false || launchAllowed === false) return 'notVisible';
   const exposure = oplRecord(packageStatus?.capability_exposure);
   const codexVisible =
@@ -1382,16 +1377,10 @@ function buildCapabilityPurpose(
   const directoryReadiness = oplRecord(directoryState?.readiness);
   const directoryOperationalReady = nullableBool(directoryReadiness.operational_ready);
   const statusOperationalReady = nullableBool(packageStatus?.operational_ready);
-  const operationalReady =
-    directoryOperationalReady === false || statusOperationalReady === false
-      ? false
-      : (statusOperationalReady ?? directoryOperationalReady);
+  const operationalReady = directoryOperationalReady ?? statusOperationalReady;
   const directoryLaunchAllowed = nullableBool(directoryReadiness.launch_allowed);
   const statusLaunchAllowed = nullableBool(packageStatus?.launch_allowed);
-  const launchAllowed =
-    operationalReady === false || directoryLaunchAllowed === false || statusLaunchAllowed === false
-      ? false
-      : (statusLaunchAllowed ?? directoryLaunchAllowed);
+  const launchAllowed = operationalReady === false ? false : (directoryLaunchAllowed ?? statusLaunchAllowed);
   const connectorReadinessRefs = capabilityRefsFromTask(task, ['connector_readiness_refs']);
   const resourceContextRefs = capabilityRefsFromTask(task, [
     'resource_source_refs',
@@ -1495,7 +1484,12 @@ function buildCapabilityPurpose(
     dependencyReadiness: capabilityDependencyReadiness(packageStatus),
     operationalReady,
     launchAllowed,
-    launchBlockedReason: firstString(packageStatus?.launch_blocked_reason, directoryReadiness.reason),
+    launchBlockedReason:
+      directoryLaunchAllowed !== null
+        ? directoryLaunchAllowed
+          ? null
+          : firstString(directoryReadiness.reason)
+        : firstString(packageStatus?.launch_blocked_reason, directoryReadiness.reason),
     allowedWhenBlocked: listValues(packageStatus?.allowed_when_blocked)
       .map(oplString)
       .filter((action): action is string => Boolean(action)),

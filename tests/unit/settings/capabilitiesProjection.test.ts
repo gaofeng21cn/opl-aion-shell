@@ -775,7 +775,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.recommendedAction).toBeNull();
   });
 
-  it('keeps directory-owned catalog metadata and actions authoritative over status-index overlays', () => {
+  it('keeps directory-owned catalog metadata, readiness, and actions authoritative over status diagnostics', () => {
     const directoryAction = {
       action_id: 'agent_package_update',
       action_ref: 'app_state.actions#agent_package_update',
@@ -799,6 +799,12 @@ describe('buildCapabilitiesViewModel', () => {
             publisher: 'Directory publisher',
             package_role: 'standard_agent',
             installed: true,
+            readiness: {
+              status: 'ready',
+              operational_ready: true,
+              launch_allowed: true,
+              reason: 'use_boundary_reconciliation_ready',
+            },
             available_actions: [directoryAction],
           },
         ],
@@ -809,6 +815,11 @@ describe('buildCapabilitiesViewModel', () => {
             publisher: 'Status publisher',
             package_role: 'workflow_profile',
             status: 'ready',
+            operational_ready: false,
+            launch_allowed: false,
+            launch_blocked_reason: null,
+            allowed_when_blocked: ['status', 'doctor', 'repair'],
+            capability_exposure: { status: 'visible', codex_visible: true },
             available_actions: [statusAction],
           },
         ]
@@ -820,6 +831,12 @@ describe('buildCapabilitiesViewModel', () => {
       title: 'Directory title',
       publisher: 'Directory publisher',
       packageRole: 'standard_agent',
+      status: 'ready',
+      availabilityStatus: 'ready',
+      operationalReady: true,
+      launchAllowed: true,
+      launchBlockedReason: null,
+      codexVisibility: 'visible',
     });
     expect(Object.keys(capability.availableActions)).toEqual(['agent_package_update']);
   });

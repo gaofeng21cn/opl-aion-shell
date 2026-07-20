@@ -323,6 +323,7 @@ const DOMAIN_STAGE_DEFERRED_REASONS = new Set([
   'verification_deferred',
   'scope_materialization_missing',
   'package_activation_required',
+  'use_boundary_reconciliation_ready',
 ]);
 
 function capabilityDefersReadinessToDomainStage(item: CapabilityPurposeViewModel): boolean {

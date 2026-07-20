@@ -1575,6 +1575,47 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Available');
   });
 
+  it('uses canonical directory readiness instead of stale package diagnostics for user availability', () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'med-autoscience',
+          package_role: 'standard_agent',
+          installed: true,
+          readiness: {
+            status: 'ready',
+            operational_ready: true,
+            launch_allowed: true,
+            reason: 'use_boundary_reconciliation_ready',
+          },
+        },
+      ],
+      {
+        statusEntries: [
+          {
+            package_id: 'med-autoscience',
+            status: 'available',
+            operational_ready: false,
+            launch_allowed: false,
+            launch_blocked_reason: null,
+            allowed_when_blocked: ['status', 'doctor', 'repair'],
+            capability_exposure: { status: 'visible', codex_visible: true },
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const row = screen.getByTestId('capability-purpose-mas');
+    expect(within(row).getByText('Available')).toBeInTheDocument();
+    expect(within(row).getByTestId('capability-conversation-mas')).toHaveTextContent('Available for conversations');
+    expect(within(row).queryByText('Temporarily unavailable')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('1 / 1');
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
+    expect(screen.queryByTestId('capability-readiness-mas')).not.toBeInTheDocument();
+    expect(screen.queryByText('use_boundary_reconciliation_ready')).not.toBeInTheDocument();
+  });
+
   it('presents deferred local verification as ordinarily available', () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
