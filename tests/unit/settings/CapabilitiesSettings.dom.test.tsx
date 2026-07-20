@@ -837,7 +837,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailsHeader': 'Capability details',
         'settings.capabilitiesPage.codexVisibilitySummary': `Codex visibility: ${options?.value ?? ''}`,
         'settings.capabilitiesPage.codexVisibility.visible': 'Visible in Codex',
-        'settings.capabilitiesPage.codexVisibility.verificationPending': 'Verification pending',
+        'settings.capabilitiesPage.codexVisibility.verificationPending': 'Status being confirmed',
         'settings.capabilitiesPage.codexVisibility.needsSync': 'Needs sync before Codex sees the latest version',
         'settings.capabilitiesPage.codexVisibility.notVisible': 'Not visible to Codex yet',
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
@@ -848,8 +848,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.visibility.conversationUnavailable':
           'Temporarily unavailable; open details for the reason',
         'settings.capabilitiesPage.visibility.conversationUnverified': 'Checking the current status',
-        'settings.capabilitiesPage.visibility.conversationVerificationPending':
-          'You can start a conversation; the local check runs on first use',
+        'settings.capabilitiesPage.visibility.conversationVerificationPending': 'Available for conversations',
         'settings.capabilitiesPage.actions.reviewLocalCheck': 'Review local check',
         'settings.capabilitiesPage.packageManager.roleLabels.standardAgent': 'Runnable agent',
         'settings.capabilitiesPage.packageManager.roleLabels.workflowProfile': 'Workflow profile',
@@ -969,8 +968,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.failed': `Directory failed: ${options?.reason ?? ''}`,
         'settings.capabilitiesPage.packageManager.noFilterResults': 'No packages match these filters.',
         'settings.capabilitiesPage.packageManager.workspaceRequired':
-          'Choose a Workspace before activating this package.',
-        'settings.capabilitiesPage.packageManager.openWorkspace': 'Open Workspace',
+          'The runtime uses a project folder only when the specific task requires one.',
+        'settings.capabilitiesPage.packageManager.openWorkspace': 'Choose project folder',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.trustTierLabel': 'Manifest trust level',
         'settings.capabilitiesPage.packageManager.trustTierPlaceholder': 'Choose trust level',
@@ -1555,7 +1554,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
   });
 
-  it('keeps an installed package that only needs activation quiet until the user enables it', () => {
+  it('keeps an installed package that is handled at domain stage runtime available without preconfiguration', () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
         package_id: 'example-agent',

@@ -318,18 +318,18 @@ function capabilityCatalogStatusLabel(
   return capabilityStatusLabel(status, t);
 }
 
-const SESSION_PREPARED_USER_REASONS = new Set([
+const DOMAIN_STAGE_DEFERRED_REASONS = new Set([
   'live_verification_deferred',
   'verification_deferred',
   'scope_materialization_missing',
   'package_activation_required',
 ]);
 
-function capabilityUsesSessionPreparation(item: CapabilityPurposeViewModel): boolean {
+function capabilityDefersReadinessToDomainStage(item: CapabilityPurposeViewModel): boolean {
   const reason = item.readiness.reason ?? item.launchBlockedReason;
   return (
     item.availabilityStatus === 'ready' &&
-    (item.readiness.verificationDeferred === true || SESSION_PREPARED_USER_REASONS.has(reason ?? ''))
+    (item.readiness.verificationDeferred === true || DOMAIN_STAGE_DEFERRED_REASONS.has(reason ?? ''))
   );
 }
 
@@ -508,14 +508,14 @@ function capabilityReadinessDetailRows(
   const readiness = item.dependencyReadiness;
   const dependencyFailures = readiness?.checks.flatMap((check) => check.failureReasons) ?? [];
   const readinessReason = item.readiness.reason ?? item.launchBlockedReason;
-  const sessionPrepared = capabilityUsesSessionPreparation(item);
+  const domainStageDeferred = capabilityDefersReadinessToDomainStage(item);
   const isNextStepReason = [
     'package_not_installed',
     'package_activation_required',
     'scope_materialization_missing',
   ].includes(readinessReason ?? '');
   return [
-    !sessionPrepared && item.readiness.verificationDeferred === true && readinessReason
+    !domainStageDeferred && item.readiness.verificationDeferred === true && readinessReason
       ? {
           key: 'verificationPending',
           label: t('settings.capabilitiesPage.detailLabels.verificationPending'),
@@ -539,7 +539,7 @@ function capabilityReadinessDetailRows(
           }),
         }
       : null,
-    !sessionPrepared && item.operationalReady !== null
+    !domainStageDeferred && item.operationalReady !== null
       ? {
           key: 'operationalReady',
           label: t('settings.capabilitiesPage.detailLabels.operationalReady'),
@@ -548,7 +548,7 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
-    !sessionPrepared && item.launchAllowed !== null
+    !domainStageDeferred && item.launchAllowed !== null
       ? {
           key: 'launchAllowed',
           label: t('settings.capabilitiesPage.detailLabels.launchAllowed'),
@@ -557,7 +557,10 @@ function capabilityReadinessDetailRows(
             : t('settings.capabilitiesPage.detailValues.no'),
         }
       : null,
-    !sessionPrepared && item.readiness.verificationDeferred !== true && item.launchAllowed === false && readinessReason
+    !domainStageDeferred &&
+    item.readiness.verificationDeferred !== true &&
+    item.launchAllowed === false &&
+    readinessReason
       ? {
           key: 'launchBlockedReason',
           label: t(
@@ -568,7 +571,7 @@ function capabilityReadinessDetailRows(
           value: capabilityReasonLabel(readinessReason, t),
         }
       : null,
-    !sessionPrepared && item.launchAllowed === false && item.allowedWhenBlocked.length > 0
+    !domainStageDeferred && item.launchAllowed === false && item.allowedWhenBlocked.length > 0
       ? {
           key: 'allowedWhenBlocked',
           label: t('settings.capabilitiesPage.detailLabels.allowedWhenBlocked'),

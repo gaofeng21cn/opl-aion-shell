@@ -765,14 +765,14 @@ function isDeveloperCheckout(
   );
 }
 
-const SESSION_PREPARED_READINESS_REASONS = new Set([
+const DOMAIN_STAGE_DEFERRED_READINESS_REASONS = new Set([
   'liveverificationdeferred',
   'verificationdeferred',
   'scopematerializationmissing',
   'packageactivationrequired',
 ]);
 
-function isSessionPreparedReadiness(
+function isDomainStageDeferredReadiness(
   directoryState: RuntimePackageStateItem | undefined,
   packageStatus: RuntimePackageStateItem | undefined
 ): boolean {
@@ -782,7 +782,7 @@ function isSessionPreparedReadiness(
   return (
     readiness.verification_deferred === true ||
     readinessStatus === 'verificationdeferred' ||
-    SESSION_PREPARED_READINESS_REASONS.has(readinessReason ?? '')
+    DOMAIN_STAGE_DEFERRED_READINESS_REASONS.has(readinessReason ?? '')
   );
 }
 
@@ -836,7 +836,7 @@ function mapCapabilityStatus(
   ) {
     return 'repair';
   }
-  if (isSessionPreparedReadiness(directoryState, packageStatus)) {
+  if (isDomainStageDeferredReadiness(directoryState, packageStatus)) {
     return 'ready';
   }
   if (
@@ -914,7 +914,7 @@ function capabilityCodexVisibility(
   if (!directoryState) return 'notVisible';
   const readiness = oplRecord(directoryState.readiness);
   if (status === 'repair' || status === 'missing') return 'notVisible';
-  if (isSessionPreparedReadiness(directoryState, packageStatus)) return 'visible';
+  if (isDomainStageDeferredReadiness(directoryState, packageStatus)) return 'visible';
   const operationalReady =
     packageStatus?.operational_ready === false
       ? false

@@ -467,7 +467,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.codexVisibility).toBe('visible');
   });
 
-  it('treats use-boundary activation and scope materialization as session preparation', () => {
+  it('defers scope readiness to the real domain stage workspace', () => {
     const capabilities = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
         {

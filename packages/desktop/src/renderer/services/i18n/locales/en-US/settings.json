@@ -2424,7 +2424,7 @@
       "conversationAvailable": "Available for conversations",
       "conversationNeedsSync": "Sync required",
       "conversationUnavailable": "Temporarily unavailable; open details for the reason",
-      "conversationVerificationPending": "Available for conversations; confirmed automatically on first use",
+      "conversationVerificationPending": "Available for conversations",
       "conversationUnverified": "Checking the current status"
     },
     "detailLabels": {
@@ -2464,7 +2464,7 @@
       "sourceSummary": "Source summary",
       "installability": "Installation state",
       "readiness": "Readiness",
-      "verificationPending": "Verification pending",
+      "verificationPending": "Status being confirmed",
       "nextStep": "Next step",
       "dependencyReadiness": "Dependency readiness",
       "dependencyReadinessCount": "Ready dependencies",
@@ -2504,8 +2504,8 @@
       "required_by_installed_package": "Required by another installed package",
       "dependency_closure_not_ready": "The dependency closure is not ready",
       "package_not_installed": "Install this package to continue",
-      "package_activation_required": "Runtime reports that session-scoped preparation is required",
-      "scope_materialization_missing": "Runtime reports that the session-scoped capability is not ready",
+      "package_activation_required": "The runtime handles this when the specific task starts; no advance setup is needed",
+      "scope_materialization_missing": "The runtime prepares this from the task workspace when the specific task starts; no advance setup is needed",
       "live_verification_deferred": "Runtime has not completed local verification",
       "status_read_error": "Framework could not read the package status",
       "other": "Framework reported an issue that this App version does not yet recognize."
@@ -2592,8 +2592,8 @@
       "staleWithReason": "Showing the last directory snapshot because refresh failed: {{reason}}",
       "failed": "The agent package directory could not be refreshed: {{reason}}",
       "noFilterResults": "No packages match these filters.",
-      "workspaceRequired": "Choose a Workspace before activating this package.",
-      "openWorkspace": "Open Workspace",
+      "workspaceRequired": "The runtime uses a project folder only when the specific task requires one.",
+      "openWorkspace": "Choose project folder",
       "manifestUrlPlaceholder": "Manifest URL",
       "trustTierLabel": "Manifest trust level",
       "trustTierPlaceholder": "Choose trust level",
@@ -2641,7 +2641,7 @@
       },
       "actions": {
         "install": "Install",
-        "activate": "Activate",
+        "activate": "Handled at runtime",
         "update": "Update",
         "repair": "Repair",
         "rollback": "Rollback",
@@ -2658,8 +2658,8 @@
         "not_installed": "Not installed",
         "installable": "Installable",
         "installed": "Installed",
-        "activation_required": "Activation required",
-        "verification_deferred": "Check on first use",
+        "activation_required": "Handled at runtime",
+        "verification_deferred": "Installed; checked when used",
         "ready": "Ready"
       }
     },

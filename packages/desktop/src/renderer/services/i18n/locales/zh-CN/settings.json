@@ -2425,7 +2425,7 @@
       "conversationAvailable": "可发起对话",
       "conversationNeedsSync": "需要同步",
       "conversationUnavailable": "暂时无法使用，请打开详情查看原因",
-      "conversationVerificationPending": "可发起对话；首次使用时自动确认",
+      "conversationVerificationPending": "可发起对话",
       "conversationUnverified": "正在确认当前状态"
     },
     "detailLabels": {
@@ -2465,7 +2465,7 @@
       "sourceSummary": "来源说明",
       "installability": "安装状态",
       "readiness": "就绪状态",
-      "verificationPending": "待验证",
+      "verificationPending": "状态确认中",
       "nextStep": "下一步",
       "dependencyReadiness": "依赖就绪状态",
       "dependencyReadinessCount": "已就绪依赖",
@@ -2505,8 +2505,8 @@
       "required_by_installed_package": "被其他已安装包依赖",
       "dependency_closure_not_ready": "依赖闭包尚未就绪",
       "package_not_installed": "请先安装该包",
-      "package_activation_required": "运行时报告需要会话范围准备",
-      "scope_materialization_missing": "运行时报告会话范围能力尚未就绪",
+      "package_activation_required": "开始具体任务时，运行时会按该任务目录完成所需能力；无需提前设置",
+      "scope_materialization_missing": "开始具体任务时，运行时会按该任务目录准备所需能力；无需提前设置",
       "live_verification_deferred": "运行时尚未完成本机验证",
       "status_read_error": "Framework 无法读取包状态",
       "other": "Framework 报告了当前 App 版本尚未识别的问题。"
@@ -2593,8 +2593,8 @@
       "staleWithReason": "目录刷新失败，正在显示上次快照：{{reason}}",
       "failed": "智能体包目录刷新失败：{{reason}}",
       "noFilterResults": "没有符合当前筛选条件的包。",
-      "workspaceRequired": "激活该包前，请先选择工作区。",
-      "openWorkspace": "打开工作区设置",
+      "workspaceRequired": "只有具体任务需要工作目录时，运行时才会使用该任务目录。",
+      "openWorkspace": "选择项目目录",
       "manifestUrlPlaceholder": "Manifest URL",
       "trustTierLabel": "Manifest 信任等级",
       "trustTierPlaceholder": "选择信任等级",
@@ -2642,7 +2642,7 @@
       },
       "actions": {
         "install": "安装",
-        "activate": "激活",
+        "activate": "运行时处理",
         "update": "更新",
         "repair": "修复",
         "rollback": "回滚",
@@ -2659,8 +2659,8 @@
         "not_installed": "未安装",
         "installable": "可安装",
         "installed": "已安装",
-        "activation_required": "待激活",
-        "verification_deferred": "首次使用时检查",
+        "activation_required": "运行时处理",
+        "verification_deferred": "已安装，使用时自动检查",
         "ready": "已就绪"
       }
     },
