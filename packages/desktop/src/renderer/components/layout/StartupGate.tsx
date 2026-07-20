@@ -81,6 +81,16 @@ const StartupGate: React.FC = () => {
   };
 
   useEffect(() => {
+    if (phase !== 'routeDecision') return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setChecking(false);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [phase]);
+
+  useEffect(() => {
     let cancelled = false;
     const startedAt = Date.now();
     const elapsedTimer = window.setInterval(() => {
@@ -110,11 +120,9 @@ const StartupGate: React.FC = () => {
         const message = err instanceof Error ? err.message : String(err);
         console.error('[StartupGate] Check error:', message);
         setNeedsFirstRun(true);
+        setPhase('routeDecision');
       } finally {
         window.clearInterval(elapsedTimer);
-        if (!cancelled) {
-          setChecking(false);
-        }
       }
     };
 

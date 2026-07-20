@@ -155,6 +155,7 @@ describe('StartupGate', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('shows startup preflight while reading fast app state', () => {
@@ -206,6 +207,9 @@ describe('StartupGate', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    act(() => {
+      vi.advanceTimersByTime(16);
+    });
 
     expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid');
     expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledOnce();
@@ -227,6 +231,32 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+  });
+
+  it('renders model access as active for a frame before navigating', async () => {
+    let routeDecisionFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      routeDecisionFrame = callback;
+      return 1;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(readyAppStateResult);
+
+    render(<StartupGate />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('common.uiOptimization.startup.stages.modelAccess').closest('[data-state]')
+      ).toHaveAttribute('data-state', 'active');
+    });
+    expect(screen.queryByTestId('navigate-target')).not.toBeInTheDocument();
+    expect(routeDecisionFrame).not.toBeNull();
+
+    act(() => {
+      routeDecisionFrame?.(16);
+    });
+
+    expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid');
   });
 
   it('routes existing Codex model access directly to guid without OPL Gateway setup', async () => {
