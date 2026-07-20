@@ -396,7 +396,7 @@ const GuidPage: React.FC = () => {
   }, [navigate]);
 
   const openRuntimeMaintenance = useCallback(() => {
-    void navigate('/settings/runtime');
+    void navigate('/settings/environment?section=diagnostics');
   }, [navigate]);
 
   const sendWithPrerequisiteCheck = useCallback(() => {

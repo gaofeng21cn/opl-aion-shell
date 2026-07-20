@@ -783,7 +783,7 @@ describe('GuidPage selected purpose assistant surface', () => {
       'guid.uiOptimization.home.runtimeAlert.title'
     );
     await userEvent.click(screen.getByTestId('opl-home-runtime-alert-action'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/runtime');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=diagnostics');
   });
 
   it('renders one Home surface and one composer', () => {
