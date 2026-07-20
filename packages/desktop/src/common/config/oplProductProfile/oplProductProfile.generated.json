@@ -6513,7 +6513,32 @@
     ],
     "class": "opl_base_integrations",
     "opl_packages_projection_ref": "contracts/app-install-exposure-policy.json#exposure_classes.codex_surface",
-    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_package_distribution"
+    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_package_distribution",
+    "packaged_not_default_visible_codex_skill_ids": [
+      "opl-meta-agent",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ],
+    "companion_skill_sync_default_ids": [
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ]
   },
   "boundary": {
     "app_owns": [
