@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { isBackendHttpError } from '@/common/adapter/httpBridge';
 
 export type WarmupConversationPhase = 'idle' | 'preparing' | 'ready' | 'error';
 
@@ -16,6 +17,13 @@ const IDLE_STATUS: WarmupConversationStatus = {
 const warmupByConversation = new Map<string, Promise<void>>();
 const statusByConversation = new Map<string, WarmupConversationStatus>();
 const listenersByConversation = new Map<string, Set<() => void>>();
+let warmupRouteSupported: boolean | undefined;
+
+function isUnsupportedWarmupRoute(error: unknown): boolean {
+  return (
+    isBackendHttpError(error) && error.status === 404 && error.backendMessage.trim().toLowerCase() === 'route not found'
+  );
+}
 
 function emitWarmupStatus(conversation_id: string): void {
   listenersByConversation.get(conversation_id)?.forEach((listener) => listener());
@@ -60,6 +68,13 @@ export function warmupConversation(conversation_id: string): Promise<void> {
   if (previous.phase === 'ready') {
     return Promise.resolve();
   }
+  if (warmupRouteSupported === false) {
+    setWarmupStatus(conversation_id, {
+      phase: 'ready',
+      attempt: previous.attempt,
+    });
+    return Promise.resolve();
+  }
   const nextAttempt = previous.attempt + 1;
   setWarmupStatus(conversation_id, {
     phase: 'preparing',
@@ -69,12 +84,21 @@ export function warmupConversation(conversation_id: string): Promise<void> {
   const promise = ipcBridge.conversation.warmup
     .invoke({ conversation_id })
     .then(() => {
+      warmupRouteSupported = true;
       setWarmupStatus(conversation_id, {
         phase: 'ready',
         attempt: nextAttempt,
       });
     })
     .catch((error: unknown) => {
+      if (isUnsupportedWarmupRoute(error)) {
+        warmupRouteSupported = false;
+        setWarmupStatus(conversation_id, {
+          phase: 'ready',
+          attempt: nextAttempt,
+        });
+        return;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       setWarmupStatus(conversation_id, {
         phase: 'error',
@@ -95,4 +119,5 @@ export function resetWarmupConversationStateForTests(): void {
   warmupByConversation.clear();
   statusByConversation.clear();
   listenersByConversation.clear();
+  warmupRouteSupported = undefined;
 }
