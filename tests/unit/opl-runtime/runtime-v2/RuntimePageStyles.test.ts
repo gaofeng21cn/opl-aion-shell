@@ -41,6 +41,21 @@ describe('Runtime V2 text wrapping styles', () => {
     );
   });
 
+  it('contains recovery content and long diagnostic tokens at 375 and 400 pixel widths', () => {
+    expect(runtimeStyles).toMatch(
+      /\.recoveryState\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /\.recoveryActions\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;[^}]*min-width:\s*0;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /\.technicalDetailsContent\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*pre-wrap;[^}]*overflow-wrap:\s*break-word;/s
+    );
+    expect(runtimeStyles).toMatch(
+      /@media \(max-width:\s*560px\)[\s\S]*\.recoveryActions\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s
+    );
+  });
+
   it('keeps the research map stable across desktop and narrow viewports', () => {
     expect(runtimeStyles).toMatch(
       /\.reasoningPage\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*overflow:\s*hidden;/s

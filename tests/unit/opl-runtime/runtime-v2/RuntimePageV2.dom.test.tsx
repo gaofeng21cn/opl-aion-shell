@@ -12,6 +12,7 @@ const bridgeMocks = vi.hoisted(() => ({
   modalConfirm: vi.fn(),
   messageSuccess: vi.fn(),
   messageError: vi.fn(),
+  copyText: vi.fn(),
 }));
 const localeMocks = vi.hoisted(() => ({ language: 'zh-CN' as 'zh-CN' | 'en-US' }));
 const routeMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
@@ -29,6 +30,10 @@ vi.mock('@/common', () => ({
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
     },
   },
+}));
+
+vi.mock('@/renderer/utils/ui/clipboard', () => ({
+  copyText: bridgeMocks.copyText,
 }));
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
@@ -130,6 +135,26 @@ vi.mock('react-i18next', () => ({
       'common.runtime.systemAttention.expectedOutcome': '预期结果',
       'common.runtime.projection.unavailableTitle': '运行状态暂不可用',
       'common.runtime.projection.legacyDescription': 'V1 状态不再用于推断',
+      'common.uiOptimization.runtime.summary.availability': '可用性',
+      'common.uiOptimization.runtime.summary.running': '运行中',
+      'common.uiOptimization.runtime.summary.needsAttention': '需要处理',
+      'common.uiOptimization.runtime.errors.capabilityCatalogUnavailable.title': '能力目录暂时不可用',
+      'common.uiOptimization.runtime.errors.capabilityCatalogUnavailable.description':
+        '暂时无法读取能力目录。你可以重试，或打开维护页检查本机服务。',
+      'common.uiOptimization.runtime.errors.incompatibleConfiguration.title': '配置格式不兼容',
+      'common.uiOptimization.runtime.errors.incompatibleConfiguration.description':
+        '当前配置无法由此版本读取。请打开维护页检查并修复配置。',
+      'common.uiOptimization.runtime.errors.unavailable.title': '运行状态暂时不可用',
+      'common.uiOptimization.runtime.errors.unavailable.description':
+        '暂时无法读取最新运行状态。现有任务和数据不会因此被修改。',
+      'common.uiOptimization.runtime.states.loading': '正在读取运行状态...',
+      'common.uiOptimization.runtime.states.empty': '当前没有运行中的工作项。',
+      'common.uiOptimization.runtime.actions.retry': '重试',
+      'common.uiOptimization.runtime.actions.openMaintenance': '打开维护',
+      'common.uiOptimization.runtime.technicalDetails.label': '技术详情',
+      'common.uiOptimization.runtime.technicalDetails.copy': '复制诊断信息',
+      'common.uiOptimization.runtime.technicalDetails.copied': '诊断信息已复制',
+      'common.uiOptimization.runtime.technicalDetails.copyFailed': '无法复制诊断信息',
       'common.runtime.agentAvailability.available': '可用',
       'common.runtime.noActiveRun': '当前没有运行',
       'common.runtime.stageUsageShort': '阶段',
@@ -300,6 +325,8 @@ describe('Runtime V2 page', () => {
     bridgeMocks.modalConfirm.mockReset();
     bridgeMocks.messageSuccess.mockReset();
     bridgeMocks.messageError.mockReset();
+    bridgeMocks.copyText.mockReset();
+    bridgeMocks.copyText.mockResolvedValue(undefined);
     routeMocks.navigate.mockReset();
     localeMocks.language = 'zh-CN';
     resetOplAppStateLoadsForTest();
@@ -785,8 +812,142 @@ describe('Runtime V2 page', () => {
     });
     render(<RuntimePage />);
 
-    expect(await screen.findByTestId('runtime-projection-unavailable')).toHaveTextContent('运行状态暂不可用');
+    expect(await screen.findByTestId('runtime-projection-unavailable')).toHaveTextContent('运行状态暂时不可用');
     expect(document.body).toHaveTextContent('V1 状态不再用于推断');
     expect(document.body).not.toHaveTextContent('Legacy running task');
+    expect(screen.queryByTestId('runtime-error-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-ready-state')).not.toBeInTheDocument();
+  });
+
+  it('keeps loading, ready, and empty page states mutually exclusive', async () => {
+    let resolveState: ((value: { parsed: ReturnType<typeof createRuntimeV2AppState> }) => void) | undefined;
+    bridgeMocks.getAppStateInvoke.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveState = resolve;
+      })
+    );
+    const view = render(<RuntimePage />);
+
+    expect(screen.getByTestId('runtime-loading-state')).toHaveTextContent('正在读取运行状态...');
+    expect(screen.queryByTestId('runtime-ready-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-empty-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-error-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-projection-unavailable')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveState?.({ parsed: createRuntimeV2AppState() });
+    });
+    expect(await screen.findByTestId('runtime-ready-state')).toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-loading-state')).not.toBeInTheDocument();
+
+    resetOplAppStateLoadsForTest();
+    const emptyPayload = createRuntimeV2AppState();
+    emptyPayload.app_state.operator.workbench.work_item_projection_v2.items = [];
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: emptyPayload });
+    view.unmount();
+    render(<RuntimePage />);
+
+    const emptyState = await screen.findByTestId('runtime-empty-state');
+    expect(emptyState).toHaveTextContent('当前没有运行中的工作项。');
+    expect(screen.getByTestId('runtime-summary')).toHaveTextContent('可用性');
+    expect(screen.getByTestId('runtime-summary')).toHaveTextContent('运行中0');
+    expect(screen.getByTestId('runtime-summary')).toHaveTextContent('需要处理0');
+    expect(screen.queryByTestId('runtime-ready-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-loading-state')).not.toBeInTheDocument();
+  });
+
+  it('prioritizes the availability, running, and attention summary before the work list', async () => {
+    render(<RuntimePage />);
+
+    const summary = await screen.findByTestId('runtime-summary');
+    const readyState = screen.getByTestId('runtime-ready-state');
+    const workList = screen.getByTestId('runtime-work-item-list');
+    expect(summary).toHaveTextContent('可用性可用');
+    expect(summary).toHaveTextContent('运行中1');
+    expect(summary).toHaveTextContent('需要处理1');
+    expect(readyState.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_CONTAINED_BY).toBeTruthy();
+    expect(summary.compareDocumentPosition(workList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each([
+    {
+      raw: 'capability_catalog read failed at /Users/alice/.opl/catalog.json',
+      kind: 'capability-catalog',
+      title: '能力目录暂时不可用',
+    },
+    {
+      raw: '(node:412) Warning: contract_shape_invalid {"unknown":["domain_detail_views"]} at /private/tmp/opl/config.json',
+      kind: 'incompatible-configuration',
+      title: '配置格式不兼容',
+    },
+    {
+      raw: 'connect ECONNREFUSED 127.0.0.1:4111',
+      kind: 'unavailable',
+      title: '运行状态暂时不可用',
+    },
+  ])(
+    'projects a localized $kind error without exposing raw diagnostics on the first screen',
+    async ({ raw, kind, title }) => {
+      bridgeMocks.getAppStateInvoke.mockResolvedValue({ ok: false, error: { message: raw } });
+      render(<RuntimePage />);
+
+      const errorState = await screen.findByTestId('runtime-error-state');
+      const summary = within(errorState).getByTestId('runtime-error-summary');
+      const details = within(errorState).getByTestId('runtime-technical-details');
+      expect(errorState).toHaveAttribute('data-error-kind', kind);
+      expect(summary).toHaveTextContent(title);
+      expect(summary).not.toHaveTextContent(raw);
+      expect(summary).not.toHaveTextContent('/Users/alice');
+      expect(summary).not.toHaveTextContent('/private/tmp');
+      expect(summary).not.toHaveTextContent('Node');
+      expect(details).not.toHaveAttribute('open');
+      expect(screen.queryByTestId('runtime-projection-unavailable')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('runtime-ready-state')).not.toBeInTheDocument();
+    }
+  );
+
+  it('retries from the exclusive error state and routes maintenance to diagnostics', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ok: false,
+      error: { message: 'connect ECONNREFUSED 127.0.0.1:4111' },
+    });
+    render(<RuntimePage />);
+
+    const errorState = await screen.findByTestId('runtime-error-state');
+    fireEvent.click(within(errorState).getByRole('button', { name: '打开维护' }));
+    expect(routeMocks.navigate).toHaveBeenCalledWith('/settings/environment?section=diagnostics');
+
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: createRuntimeV2AppState() });
+    fireEvent.click(within(errorState).getByRole('button', { name: '重试' }));
+    expect(await screen.findByTestId('runtime-ready-state')).toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-error-state')).not.toBeInTheDocument();
+  });
+
+  it('copies bounded redacted diagnostics and reports clipboard feedback', async () => {
+    const longToken = `token_${'x'.repeat(7000)}`;
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ok: false,
+      error: {
+        message: `${String.fromCodePoint(27)}[31m(node:412) Warning: failed at /Users/alice/.opl/runtime/config.json api_key=secret-value ${longToken}`,
+      },
+    });
+    render(<RuntimePage />);
+
+    const details = await screen.findByTestId('runtime-technical-details');
+    fireEvent.click(within(details).getByRole('button', { name: '复制诊断信息' }));
+
+    await waitFor(() => expect(bridgeMocks.copyText).toHaveBeenCalledOnce());
+    const copied = bridgeMocks.copyText.mock.calls[0]?.[0] as string;
+    expect(copied.length).toBeLessThanOrEqual(4096);
+    expect(copied).toContain('[path]');
+    expect(copied).toContain('api_key=[redacted]');
+    expect(copied).not.toContain('/Users/alice');
+    expect(copied).not.toContain('secret-value');
+    expect(copied).not.toContain('[31m');
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('诊断信息已复制');
+
+    bridgeMocks.copyText.mockRejectedValueOnce(new Error('clipboard unavailable'));
+    fireEvent.click(within(details).getByRole('button', { name: '复制诊断信息' }));
+    await waitFor(() => expect(bridgeMocks.messageError).toHaveBeenCalledWith('无法复制诊断信息'));
   });
 });

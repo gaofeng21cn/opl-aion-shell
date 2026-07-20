@@ -134,8 +134,137 @@
 
 .loadingState {
   display: grid;
+  width: 100%;
+  min-width: 0;
   min-height: 260px;
   place-items: center;
+}
+
+.recoveryState {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 20px 0;
+}
+
+.recoverySummary {
+  min-width: 0;
+  padding: 16px;
+  border-left: 3px solid var(--color-warning-6);
+  background: var(--color-warning-light-1);
+}
+
+.recoverySummary :global(.arco-typography) {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+}
+
+.recoverySummary > :global(.arco-typography:last-child) {
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+.recoveryActions {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.recoveryActions :global(.arco-btn) {
+  max-width: 100%;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.technicalDetails {
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border-2);
+}
+
+.technicalDetails > summary {
+  max-width: 100%;
+  padding: 12px 0;
+  overflow-wrap: break-word;
+  color: var(--color-text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.technicalDetailsBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.technicalDetailsContent {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 12px;
+  overflow-x: hidden;
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  background: var(--color-fill-1);
+}
+
+.runtimeSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  margin: 0;
+  border-top: 1px solid var(--color-border-2);
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.runtimeSummaryItem {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.runtimeSummaryItem + .runtimeSummaryItem {
+  border-left: 1px solid var(--color-border-2);
+}
+
+.runtimeSummaryItem dt,
+.runtimeSummaryItem dd {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.runtimeSummaryItem dt {
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.runtimeSummaryItem dd {
+  margin-top: 3px;
+  color: var(--color-text-1);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyPageState {
+  min-width: 0;
+  padding: 56px 16px;
+  color: var(--color-text-2);
+  text-align: center;
 }
 
 .content {
@@ -1310,6 +1439,15 @@
 }
 
 @media (max-width: 560px) {
+  .recoveryActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recoveryActions :global(.arco-btn) {
+    width: 100%;
+  }
+
   .scopeControls {
     flex: 0 1 auto;
     flex-direction: column;
