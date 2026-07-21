@@ -1443,6 +1443,13 @@
     "default_model": "gpt-5.6-sol",
     "default_model_description": "System Codex default model when configured",
     "default_reasoning_effort": "max",
+    "app_runtime_home": {
+      "default_path": "~/Library/Application Support/OPL/codex",
+      "override_env": "CODEX_HOME",
+      "override_policy": "explicit_developer_or_operator_override_only",
+      "user_home_path": "~/.codex",
+      "user_config_mutation": "forbidden"
+    },
     "auto_model_policy": {
       "authority": "one-person-lab-app",
       "recommendation_authority": "opl-flow",
@@ -1599,8 +1606,22 @@
       "full_readiness_provider": "temporal",
       "ready_to_launch_blocking": false
     },
+    "full_runtime_package_qualification": {
+      "source": "framework_bundled_full_runtime_catalog",
+      "reconciliation": "idempotent_local_payload_install_before_full_readiness",
+      "required_installed_package_count": 7,
+      "canonical_package_ids": ["mas", "mag", "rca", "oma", "obf", "mas-scholar-skills", "opl-flow"],
+      "global_codex_exposure_package_ids": ["mas", "mag", "rca", "oma", "obf", "opl-flow"],
+      "workspace_scoped_package_ids": ["mas-scholar-skills"],
+      "workspace_scoped_materialization_policy": "package_cache_without_global_marketplace_registration_until_mas_workspace_binding",
+      "global_workspace_scoped_exposure": "forbidden"
+    },
     "first_conversation": {
       "gate": "capability_prerequisites_then_acp_warmup_before_initial_send",
+      "runtime_readiness_method": "POST",
+      "runtime_readiness_route": "/api/conversations/<id>/runtime/ensure",
+      "retired_route": "/api/conversations/<id>/warmup",
+      "route_failure_policy": "http_404_or_500_is_retryable_error_never_ready",
       "source_command": "opl system initialize --json",
       "ready_to_launch_must_be_true": false,
       "required_before_plain_send": ["codex_cli", "codex_config"],
