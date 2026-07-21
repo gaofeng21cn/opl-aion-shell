@@ -39,6 +39,8 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
   // *separate* layout effect — coupling it to `mounted` (instead of `open`)
   // forces React to commit the off-screen frame before the rAF kicks in.
   const [visible, setVisible] = useState(false);
+  const [inputModality, setInputModality] = useState<'keyboard' | 'pointer'>('keyboard');
+  const inputModalityRef = useRef<'keyboard' | 'pointer'>('keyboard');
   const openRafRef = useRef<number | null>(null);
   const layerRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,21 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    const handlePointerDown = () => {
+      inputModalityRef.current = 'pointer';
+    };
+    const handleKeyDown = () => {
+      inputModalityRef.current = 'keyboard';
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, []);
 
   // Mount / unmount lifecycle — drives DOM presence only.
   useEffect(() => {
@@ -115,6 +132,8 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
     if (!open || !mounted || !layer || !sheet) return undefined;
 
     restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const autoFocusFirstAction = inputModalityRef.current === 'keyboard';
+    setInputModality(inputModalityRef.current);
     const isolatedSiblings = Array.from(document.body.children)
       .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== layer)
       .map((element) => ({
@@ -135,9 +154,13 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
       target.focus({ preventScroll: true });
       if (!sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
     };
-    focusWithinSheet(focusable()[0] ?? sheet);
+    focusWithinSheet(autoFocusFirstAction ? (focusable()[0] ?? sheet) : sheet);
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (inputModalityRef.current !== 'keyboard') {
+        inputModalityRef.current = 'keyboard';
+        setInputModality('keyboard');
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -264,7 +287,12 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
         aria-modal='true'
         aria-labelledby={title ? titleId : undefined}
         aria-label={title ? undefined : t('common.more', { defaultValue: 'More' })}
+        data-input-modality={inputModality}
         tabIndex={-1}
+        onPointerDown={() => {
+          inputModalityRef.current = 'pointer';
+          setInputModality('pointer');
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.handle} aria-hidden='true' />
@@ -301,12 +329,13 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
                       <div className={styles.label}>{entry.label}</div>
                       {entry.description && <div className={styles.desc}>{entry.description}</div>}
                     </div>
-                    {(entry.meta || entry.submenu) && (
+                    {(entry.meta || entry.submenu || entry.trailingIcon) && (
                       <div className={styles.meta}>
                         {entry.meta && <span className={styles.metaText}>{entry.meta}</span>}
                         {entry.submenu && (
                           <Right theme='outline' size='14' className={styles.chevron} aria-hidden='true' />
                         )}
+                        {entry.trailingIcon && <span className={styles.chevron}>{entry.trailingIcon}</span>}
                       </div>
                     )}
                   </button>

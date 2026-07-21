@@ -19,6 +19,7 @@ import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import ConversationComposerContextStrip from '@/renderer/components/chat/composer/ConversationComposerContextStrip';
 import type { ComposerCapabilityPaletteItem } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
+import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -67,7 +68,7 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
-import { Compass, Lightning, Link, MagicHat, Shield } from '@icon-park/react';
+import { Compass, Lightning, Link, MagicHat, Refresh, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -205,6 +206,7 @@ const AcpSendBox: React.FC<{
   const {
     model_info,
     canSwitch: canSwitchModel,
+    isAutoModelSelection,
     selectModel,
     selectAutoModel,
     selectReasoningEffort,
@@ -268,6 +270,7 @@ const AcpSendBox: React.FC<{
         : defaultCodexReasoningEffort
       : ((thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort);
   const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
+  const isSettingConfig = setStatus.state === 'setting';
   const showCodexAutoOption =
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
 
@@ -282,9 +285,9 @@ const AcpSendBox: React.FC<{
   );
 
   const handleSheetAutoSelect = useCallback(() => {
-    if (!model_info || isSettingReasoning) return;
+    if (!model_info || isSettingConfig) return;
     void selectAutoModel().catch(() => {});
-  }, [isSettingReasoning, model_info, selectAutoModel]);
+  }, [isSettingConfig, model_info, selectAutoModel]);
 
   // In team mode, warmup the agent then fetch slash commands
   useEffect(() => {
@@ -651,22 +654,36 @@ Please check your local CLI tool authentication status`,
         ? buildOplCodexAutoModelOption({ modelInfo: model_info, localeKey: modelDisplayLocale })
         : null;
     const fixedModelOptions: MobileActionSheetOption[] = canSwitchModel
-      ? (model_info?.available_models ?? []).map((model) => {
-          const modelDisplay = useOplCodexModelDisplay
-            ? formatOplCodexModelDisplay({
-                id: model.id,
-                label: model.label,
-                reasoningEffort: currentCodexReasoningEffort,
-                localeKey: modelDisplayLocale,
-              })
-            : null;
-          return {
-            key: model.id,
-            label: modelDisplay?.label ?? (model.label || model.id),
-            description: modelDisplay?.description,
-            active: model_info?.current_model_id === model.id,
-          };
-        })
+      ? [
+          ...(useOplCodexModelDisplay && showCodexAutoOption && autoModelOption
+            ? [
+                {
+                  key: '__auto',
+                  label: autoModelOption.label,
+                  description: autoModelOption.description,
+                  active: isAutoModelSelection,
+                  disabled: isSettingConfig,
+                },
+              ]
+            : []),
+          ...(model_info?.available_models ?? []).map((model) => {
+            const modelDisplay = useOplCodexModelDisplay
+              ? formatOplCodexModelDisplay({
+                  id: model.id,
+                  label: model.label,
+                  reasoningEffort: currentCodexReasoningEffort,
+                  localeKey: modelDisplayLocale,
+                })
+              : null;
+            return {
+              key: model.id,
+              label: modelDisplay?.label ?? (model.label || model.id),
+              description: modelDisplay?.description,
+              active: !isAutoModelSelection && model_info?.current_model_id === model.id,
+              disabled: isSettingConfig,
+            };
+          }),
+        ]
       : [];
     const reasoningOptions: MobileActionSheetOption[] = thoughtLevel
       ? thoughtLevel.options
@@ -700,44 +717,58 @@ Please check your local CLI tool authentication status`,
         ? undefined
         : formatOplCodexReasoningMenuLabel(currentCodexReasoningEffort, modelDisplayLocale);
 
-    if (showCodexAutoOption && autoModelOption && canSwitchModel && thoughtLevel) {
-      entries.push({
-        key: 'auto',
-        icon: <MagicHat theme='outline' size='16' />,
-        label: autoModelOption.label,
-        description: autoModelOption.description,
-        disabled: isSettingReasoning,
-        onClick: handleSheetAutoSelect,
-      });
-    }
-    if (reasoningOptions.length > 0) {
-      const reasoningTitle =
-        modelDisplayLocale === 'en-US'
-          ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
-          : getOplCodexModelDisplayOptions().reasoning_menu_title_zh;
-      entries.push({
-        key: 'reasoning',
-        label: reasoningTitle,
-        meta: currentReasoningLabel,
-        disabled: isSettingReasoning,
-        submenu: {
-          title: reasoningTitle,
-          options: reasoningOptions,
-          onSelect: handleSheetReasoningSelect,
-        },
-      });
-    }
-    if (fixedModelOptions.length > 0) {
-      entries.push({
-        key: 'model',
-        label: t('common.model', { defaultValue: 'Model' }),
-        meta: currentModelLabel,
-        submenu: {
-          title: t('common.model', { defaultValue: 'Model' }),
-          options: fixedModelOptions,
-          onSelect: selectModel,
-        },
-      });
+    const reasoningTitle =
+      modelDisplayLocale === 'en-US'
+        ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
+        : getOplCodexModelDisplayOptions().reasoning_menu_title_zh;
+    const modelEntry: MobileActionSheetEntry | null =
+      fixedModelOptions.length > 0
+        ? {
+            key: 'model',
+            label: t('common.model', { defaultValue: 'Model' }),
+            meta: currentModelLabel,
+            disabled: isSettingConfig,
+            submenu: {
+              title: t('common.model', { defaultValue: 'Model' }),
+              options: fixedModelOptions,
+              onSelect: (modelId) => {
+                if (modelId === '__auto') handleSheetAutoSelect();
+                else selectModel(modelId);
+              },
+            },
+          }
+        : null;
+    const reasoningEntry: MobileActionSheetEntry | null =
+      reasoningOptions.length > 0
+        ? {
+            key: 'reasoning',
+            label: reasoningTitle,
+            meta: currentReasoningLabel,
+            disabled: isSettingConfig,
+            submenu: {
+              title: reasoningTitle,
+              options: reasoningOptions,
+              onSelect: handleSheetReasoningSelect,
+            },
+          }
+        : null;
+
+    if (useOplCodexModelDisplay) {
+      if (modelEntry) entries.push(modelEntry);
+      if (reasoningEntry) entries.push(reasoningEntry);
+      if (showCodexAutoOption && autoModelOption && canSwitchModel && thoughtLevel) {
+        entries.push({
+          key: 'reset-session-defaults',
+          label: t('agent.sessionConfiguration.resetDefaults'),
+          trailingIcon: <Refresh {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />,
+          dividerBefore: true,
+          disabled: isSettingConfig,
+          onClick: handleSheetAutoSelect,
+        });
+      }
+    } else {
+      if (reasoningEntry) entries.push(reasoningEntry);
+      if (modelEntry) entries.push(modelEntry);
     }
 
     if (activeCapabilityLabel) {
@@ -763,6 +794,8 @@ Please check your local CLI tool authentication status`,
     handleSheetAutoSelect,
     handleSheetReasoningSelect,
     isMobile,
+    isAutoModelSelection,
+    isSettingConfig,
     isSettingReasoning,
     loadedMcpStatuses,
     loadedSkills,

@@ -57,6 +57,9 @@ describe('MobileActionSheet', () => {
     expect(listRule).toContain('min-height: 0');
     expect(listRule).toContain('overflow-y: auto');
     expect(listRule).toContain('overscroll-behavior: contain');
+    expect(stylesSource).toMatch(
+      /\.sheet\[data-input-modality='pointer'\] \.item:focus-visible,[\s\S]*?outline:\s*none;/
+    );
   });
 
   it('does not render a dialog while closed', () => {
@@ -107,7 +110,11 @@ describe('MobileActionSheet', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(container).toHaveAttribute('inert');
     expect(container).toHaveAttribute('aria-hidden', 'true');
-    await waitFor(() => expect(firstAction).toHaveFocus());
+    await waitFor(() => expect(dialog).toHaveFocus());
+    expect(firstAction).not.toHaveFocus();
+
+    await user.keyboard('{ArrowDown}');
+    expect(firstAction).toHaveFocus();
 
     await user.keyboard('{Shift>}{Tab}{/Shift}');
     expect(lastAction).toHaveFocus();
@@ -123,6 +130,34 @@ describe('MobileActionSheet', () => {
     expect(container).not.toHaveAttribute('inert');
     expect(container).not.toHaveAttribute('aria-hidden');
     expect(opener).toHaveFocus();
+  });
+
+  it('moves keyboard-opened sheets directly to the first action', async () => {
+    const user = userEvent.setup();
+    const Harness = () => {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type='button' onClick={() => setOpen(true)}>
+            Open actions
+          </button>
+          <MobileActionSheet
+            open={open}
+            onClose={() => setOpen(false)}
+            title='More'
+            entries={[{ key: 'attach', label: 'Add files' }]}
+          />
+        </>
+      );
+    };
+
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open actions' });
+    opener.focus();
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add files' })).toHaveFocus());
+    expect(screen.getByRole('dialog', { name: 'More' })).toHaveAttribute('data-input-modality', 'keyboard');
   });
 
   it('keeps a single-select sheet open and exposes a keyboard-reachable back control', async () => {
@@ -144,11 +179,13 @@ describe('MobileActionSheet', () => {
     ];
 
     render(<MobileActionSheet open onClose={onClose} entries={entries} />);
+    fireEvent.pointerDown(screen.getByTestId('mobile-action-sheet-model'));
     fireEvent.click(screen.getByTestId('mobile-action-sheet-model'));
 
     const backButton = await screen.findByRole('button', { name: 'Back' });
     const nextModel = screen.getByTestId('mobile-action-sheet-option-gpt-5.4');
     await waitFor(() => expect(backButton).toHaveFocus());
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-input-modality', 'pointer');
     expect(screen.getByTestId('mobile-action-sheet-option-gpt-5.6-sol')).toHaveAttribute('aria-pressed', 'true');
     expect(nextModel).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(nextModel);

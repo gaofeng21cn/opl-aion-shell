@@ -228,7 +228,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_latest_strongest_model_selector_visible');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('gpt-5.6-sol');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
-      'friendly_model_primary_reasoning_primary_model_secondary_menu'
+      'friendly_model_with_discoverable_model_and_reasoning_summary_rows'
     );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.policy_source_ref).toBe(
       'contracts/app-product-profile.json#codex.auto_model_policy'
@@ -256,17 +256,25 @@ describe('OPL generated product profile', () => {
       },
     });
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
-      display_policy: 'friendly_model_name_primary_reasoning_primary_model_secondary_menu',
+      display_policy: 'friendly_model_name_with_session_configuration_summary_rows',
       button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
       raw_model_id_visible_in_ordinary_ui: false,
       reasoning_effort_visible_for_every_option: false,
       reasoning_effort_menu_visible: true,
-      reasoning_menu_title_zh: '推理',
+      reasoning_menu_title_zh: '推理强度',
       reasoning_menu_title_en: 'Reasoning',
-      reasoning_effort_override_surface: 'model_selector_primary_menu',
+      reasoning_effort_override_surface: 'session_configuration_reasoning_summary_row_submenu',
       reasoning_effort_options_source: 'acp_codex_config_options_enum',
       auto_option_current_resolution_visible: true,
-      model_menu_policy: 'current_model_secondary_submenu',
+      model_menu_policy: 'model_summary_row_nested_submenu_with_auto_and_fixed_options',
+      menu_structure: {
+        root_rows: ['model', 'reasoning_effort', 'reset_defaults'],
+        summary_row_policy: 'localized_label_left_current_value_and_chevron_right',
+        reset_defaults_policy: 'restore_auto_model_and_app_default_reasoning',
+        summary_row_icon_policy: 'no_leading_icons',
+        reset_icon_policy: 'single_trailing_reset_outline_icon',
+        home_and_conversation_share_menu_component: true,
+      },
       auto_option: {
         label_zh: '自动（推荐）',
         description_zh: '跟随 Codex CLI 当前默认模型与 App 推理策略',

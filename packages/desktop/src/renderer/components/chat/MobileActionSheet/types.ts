@@ -30,6 +30,8 @@ export interface MobileActionSheetEntry {
   description?: ReactNode;
   /** Right-side hint, e.g. current model label */
   meta?: ReactNode;
+  /** Optional trailing action glyph, used when the icon belongs after the label. */
+  trailingIcon?: ReactNode;
   /** Visual style — `muted` reduces icon emphasis (use for actions, not stateful selectors) */
   variant?: 'primary' | 'muted';
   /** Optional divider above this entry */

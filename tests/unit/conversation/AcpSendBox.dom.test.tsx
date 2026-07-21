@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
@@ -94,8 +94,11 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
       key: string;
       label: React.ReactNode;
       meta?: React.ReactNode;
+      trailingIcon?: React.ReactNode;
+      dividerBefore?: boolean;
+      disabled?: boolean;
       submenu?: {
-        options: Array<{ key: string; label: React.ReactNode; active?: boolean }>;
+        options: Array<{ key: string; label: React.ReactNode; active?: boolean; disabled?: boolean }>;
         onSelect: (key: string) => void;
       };
       onClick?: () => void;
@@ -104,10 +107,20 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
     open ? (
       <div data-testid='mobile-action-sheet'>
         {entries.map((entry) => (
-          <div key={entry.key}>
-            <button type='button' data-testid={`mobile-action-sheet-${entry.key}`} onClick={entry.onClick}>
+          <div key={entry.key} data-mobile-entry-key={entry.key}>
+            {entry.dividerBefore && <div role='separator' data-testid={`mobile-action-sheet-divider-${entry.key}`} />}
+            <button
+              type='button'
+              data-testid={`mobile-action-sheet-${entry.key}`}
+              data-divider-before={entry.dividerBefore ? 'true' : 'false'}
+              disabled={entry.disabled}
+              onClick={entry.onClick}
+            >
               {entry.label}
               {entry.meta ? ` ${entry.meta}` : ''}
+              {entry.trailingIcon && (
+                <span data-testid={`mobile-action-sheet-${entry.key}-trailing-icon`}>{entry.trailingIcon}</span>
+              )}
             </button>
             {entry.submenu?.options.map((option) => (
               <button
@@ -115,6 +128,7 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
                 type='button'
                 data-testid={`mobile-action-sheet-option-${entry.key}-${option.key}`}
                 data-active={option.active ? 'true' : 'false'}
+                disabled={option.disabled}
                 onClick={() => entry.submenu?.onSelect(option.key)}
               >
                 {option.label}
@@ -397,26 +411,59 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
 
-    expect(screen.getByTestId('mobile-action-sheet-auto')).toHaveTextContent('Auto (recommended)');
-    expect(screen.getByTestId('mobile-action-sheet-reasoning')).toHaveTextContent('Reasoning');
+    const sheet = screen.getByTestId('mobile-action-sheet');
+    const entryOrder = Array.from(sheet.querySelectorAll<HTMLElement>('[data-mobile-entry-key]')).map(
+      (entry) => entry.dataset.mobileEntryKey
+    );
+    const modelEntryIndex = entryOrder.indexOf('model');
+    expect(entryOrder.slice(modelEntryIndex, modelEntryIndex + 3)).toEqual([
+      'model',
+      'reasoning',
+      'reset-session-defaults',
+    ]);
+    expect(screen.queryByTestId('mobile-action-sheet-auto')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-model')).toHaveTextContent('Model');
+    expect(screen.getByTestId('mobile-action-sheet-reasoning')).toHaveTextContent('Reasoning');
+    expect(screen.getByTestId('mobile-action-sheet-option-model-__auto')).toHaveTextContent('Auto (recommended)');
+    expect(
+      Array.from(
+        screen
+          .getByTestId('mobile-action-sheet-model')
+          .parentElement?.querySelectorAll<HTMLElement>('[data-testid^="mobile-action-sheet-option-model-"]') ?? []
+      ).map((option) => option.dataset.testid)
+    ).toEqual([
+      'mobile-action-sheet-option-model-__auto',
+      'mobile-action-sheet-option-model-gpt-5.6-sol',
+      'mobile-action-sheet-option-model-gpt-5.4',
+    ]);
     expect(screen.queryByTestId('mobile-action-sheet-intelligence-enhancement')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-option-intelligence-enhancement-enable')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-max')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();
+    const resetEntry = screen.getByTestId('mobile-action-sheet-reset-session-defaults');
+    expect(resetEntry).toHaveAttribute('data-divider-before', 'true');
+    expect(screen.getByTestId('mobile-action-sheet-divider-reset-session-defaults')).toHaveAttribute(
+      'role',
+      'separator'
+    );
+    expect(
+      screen
+        .getByTestId('mobile-action-sheet-reset-session-defaults-trailing-icon')
+        .querySelector('[data-icon="refresh"], .i-icon-refresh')
+    ).not.toBeNull();
   });
 
-  it('delegates latest model and reasoning resolution to the shared Auto action', () => {
+  it('delegates model Auto and Reset to the shared Auto action', () => {
     isMobileLayout = true;
 
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
 
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-model-__auto'));
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-reset-session-defaults'));
 
-    expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
+    expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(2);
     expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
     expect(acpModelInfoMocks.setConfigOption).not.toHaveBeenCalled();
   });

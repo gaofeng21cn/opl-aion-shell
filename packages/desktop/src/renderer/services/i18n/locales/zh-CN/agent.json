@@ -30,5 +30,11 @@
   "model": {
     "switchSuccess": "模型切换成功",
     "switchFailed": "模型切换失败"
+  },
+  "sessionConfiguration": {
+    "menuLabel": "模型与推理设置",
+    "model": "模型",
+    "reasoning": "推理强度",
+    "resetDefaults": "重置为默认设置"
   }
 }

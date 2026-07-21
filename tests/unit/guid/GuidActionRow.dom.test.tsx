@@ -67,28 +67,42 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
     entries: Array<{
       key: string;
       label: React.ReactNode;
+      meta?: React.ReactNode;
+      trailingIcon?: React.ReactNode;
+      dividerBefore?: boolean;
       disabled?: boolean;
       onClick?: () => void;
-      submenu?: { options: Array<{ key: string; label: React.ReactNode }>; onSelect: (key: string) => void };
+      submenu?: {
+        options: Array<{ key: string; label: React.ReactNode; active?: boolean; disabled?: boolean }>;
+        onSelect: (key: string) => void;
+      };
     }>;
   }) =>
     open ? (
       <div data-testid='mobile-action-sheet'>
         {entries.map((entry) => (
-          <div key={entry.key}>
+          <div key={entry.key} data-mobile-entry-key={entry.key}>
+            {entry.dividerBefore && <div role='separator' data-testid={`mobile-action-sheet-divider-${entry.key}`} />}
             <button
               type='button'
               data-testid={`mobile-action-sheet-${entry.key}`}
+              data-divider-before={entry.dividerBefore ? 'true' : 'false'}
               disabled={entry.disabled}
               onClick={entry.onClick}
             >
               {entry.label}
+              {entry.meta && <span>{entry.meta}</span>}
+              {entry.trailingIcon && (
+                <span data-testid={`mobile-action-sheet-${entry.key}-trailing-icon`}>{entry.trailingIcon}</span>
+              )}
             </button>
             {entry.submenu?.options.map((option) => (
               <button
                 type='button'
                 key={`${entry.key}:${option.key}`}
                 data-testid={`mobile-action-sheet-option-${entry.key}-${option.key}`}
+                data-active={option.active ? 'true' : 'false'}
+                disabled={option.disabled}
                 onClick={() => entry.submenu?.onSelect(option.key)}
               >
                 {option.label}
@@ -364,9 +378,42 @@ describe('GuidActionRow composer controls', () => {
     expect(screen.getByTestId('mobile-action-sheet-capability-skills')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-apps_and_connections')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
+    const sheet = screen.getByTestId('mobile-action-sheet');
+    const entryOrder = Array.from(sheet.querySelectorAll<HTMLElement>('[data-mobile-entry-key]')).map(
+      (entry) => entry.dataset.mobileEntryKey
+    );
+    const modelEntryIndex = entryOrder.indexOf('model');
+    expect(entryOrder.slice(modelEntryIndex, modelEntryIndex + 3)).toEqual([
+      'model',
+      'reasoning',
+      'reset-session-defaults',
+    ]);
+    expect(screen.queryByTestId('mobile-action-sheet-auto')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-option-model-__auto')).toHaveAttribute('data-active', 'true');
+    expect(
+      Array.from(
+        screen
+          .getByTestId('mobile-action-sheet-model')
+          .parentElement?.querySelectorAll<HTMLElement>('[data-testid^="mobile-action-sheet-option-model-"]') ?? []
+      ).map((option) => option.dataset.testid)
+    ).toEqual([
+      'mobile-action-sheet-option-model-__auto',
+      'mobile-action-sheet-option-model-gpt-5.6-sol',
+      'mobile-action-sheet-option-model-gpt-5.4',
+    ]);
     expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
+    const resetEntry = screen.getByTestId('mobile-action-sheet-reset-session-defaults');
+    expect(resetEntry).toHaveAttribute('data-divider-before', 'true');
+    expect(screen.getByTestId('mobile-action-sheet-divider-reset-session-defaults')).toHaveAttribute(
+      'role',
+      'separator'
+    );
+    expect(
+      screen
+        .getByTestId('mobile-action-sheet-reset-session-defaults-trailing-icon')
+        .querySelector('[data-icon="refresh"], .i-icon-refresh')
+    ).not.toBeNull();
     expect(screen.getByTestId('mobile-action-sheet-active-capability')).toHaveTextContent('Capability: Research');
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument();
     expect(screen.queryByTestId('permission-mode')).not.toBeInTheDocument();
@@ -374,13 +421,16 @@ describe('GuidActionRow composer controls', () => {
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-permission-read-only'));
     expect(onModeSelect).toHaveBeenCalledWith('read-only');
 
-    fireEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-model-__auto'));
     expect(onModelChange).toHaveBeenCalledWith(null, null);
 
+    fireEvent.click(resetEntry);
+    expect(onModelChange).toHaveBeenNthCalledWith(2, null, null);
+
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra'));
-    expect(onModelChange).toHaveBeenCalledWith('gpt-5.6-sol', 'ultra');
+    expect(onModelChange).toHaveBeenNthCalledWith(3, 'gpt-5.6-sol', 'ultra');
 
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-model-gpt-5.4'));
-    expect(onModelChange).toHaveBeenCalledWith('gpt-5.4', 'high');
+    expect(onModelChange).toHaveBeenNthCalledWith(4, 'gpt-5.4', 'high');
   });
 });

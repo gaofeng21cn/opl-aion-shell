@@ -47,7 +47,7 @@ import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSk
 import { resolveOplPackageLaunchGate, resolveOplProfessionalAgentAssistants } from '../utils/oplHomeAssistants';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Message, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Shield } from '@icon-park/react';
+import { ArrowUp, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Refresh, Shield } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -470,20 +470,28 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             label: formatOplCodexReasoningMenuLabel(effort, modelLocale),
             active: reasoningEffort === effort,
           }));
-        const modelOptions: MobileActionSheetOption[] = modelInfo.available_models.map((model) => {
-          const display = formatOplCodexModelDisplay({
-            id: model.id,
-            label: model.label,
-            reasoningEffort,
-            localeKey: modelLocale,
-          });
-          return {
-            key: model.id,
-            label: display.modelLabel,
-            description: display.description,
-            active: selectedModelId === model.id,
-          };
-        });
+        const modelOptions: MobileActionSheetOption[] = [
+          {
+            key: '__auto',
+            label: autoDisplay.label,
+            description: autoDisplay.description,
+            active: selectedModelId === null,
+          },
+          ...modelInfo.available_models.map((model) => {
+            const display = formatOplCodexModelDisplay({
+              id: model.id,
+              label: model.label,
+              reasoningEffort,
+              localeKey: modelLocale,
+            });
+            return {
+              key: model.id,
+              label: display.modelLabel,
+              description: display.description,
+              active: selectedModelId === model.id,
+            };
+          }),
+        ];
         const currentModelLabel = effectiveModel
           ? formatOplCodexModelDisplay({
               id: effectiveModel.id,
@@ -494,11 +502,17 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           : (modelInfo.current_model_label ?? modelInfo.current_model_id ?? undefined);
 
         entries.push({
-          key: 'auto',
-          icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
-          label: autoDisplay.label,
-          description: autoDisplay.description,
-          onClick: () => onChange(null, null),
+          key: 'model',
+          label: t('common.model', { defaultValue: 'Model' }),
+          meta: currentModelLabel,
+          submenu: {
+            title: t('common.model', { defaultValue: 'Model' }),
+            options: modelOptions,
+            onSelect: (modelId) => {
+              if (modelId === '__auto') onChange(null, null);
+              else onChange(modelId, reasoningEffort);
+            },
+          },
         });
         entries.push({
           key: 'reasoning',
@@ -511,14 +525,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           },
         });
         entries.push({
-          key: 'model',
-          label: t('common.model', { defaultValue: 'Model' }),
-          meta: currentModelLabel,
-          submenu: {
-            title: t('common.model', { defaultValue: 'Model' }),
-            options: modelOptions,
-            onSelect: (modelId) => onChange(modelId, reasoningEffort),
-          },
+          key: 'reset-session-defaults',
+          label: t('agent.sessionConfiguration.resetDefaults'),
+          trailingIcon: <Refresh {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />,
+          dividerBefore: true,
+          onClick: () => onChange(null, null),
         });
       }
     }

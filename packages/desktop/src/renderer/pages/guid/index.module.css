@@ -817,6 +817,11 @@
   color: var(--text-primary) !important;
 }
 
+.actionRow :global(.sendbox-model-btn:focus-visible) {
+  outline: 2px solid var(--opl-focus-ring) !important;
+  outline-offset: 2px;
+}
+
 .actionConfigGroup :global(.sendbox-model-btn .arco-btn-content) {
   height: 100%;
   align-items: center;

@@ -13,6 +13,7 @@ import {
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import OplCodexSessionMenu, { type OplCodexSessionMenuChoice } from '@/renderer/components/agent/OplCodexSessionMenu';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import {
@@ -63,6 +64,22 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [sessionMenuOpen, setSessionMenuOpen] = React.useState(false);
+  const sessionMenuKeyboardOpenRef = React.useRef(false);
+  const sessionMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const closeSessionMenu = React.useCallback(() => {
+    setSessionMenuOpen(false);
+    sessionMenuKeyboardOpenRef.current = false;
+    requestAnimationFrame(() => sessionMenuTriggerRef.current?.focus({ preventScroll: true }));
+  }, []);
+  const handleSessionMenuTriggerKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!['Enter', ' ', 'ArrowDown'].includes(event.key)) return;
+    sessionMenuKeyboardOpenRef.current = true;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSessionMenuOpen(true);
+    }
+  }, []);
   const modelSettingsRoute = resolveLegacySettingsRoute('model');
   const defaultModelLabel = t('common.defaultModel');
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
@@ -280,145 +297,150 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
               localeKey,
             }).modelLabel
           : t('common.model', { defaultValue: 'Model' });
-      const reasoningMenuItems =
+      const selectReasoningEffort = (effort: string) => {
+        if (!setSelectedReasoningEffort) return;
+        if (effectiveModelId && setCodexModelSelection) {
+          setCodexModelSelection(effectiveModelId, effort);
+          return;
+        }
+        if (effectiveModelId && selectedAcpModel === null) setSelectedAcpModel(effectiveModelId);
+        setSelectedReasoningEffort(effort);
+      };
+      const codexReasoningChoices: OplCodexSessionMenuChoice[] =
         useOplCodexModelDisplay && setSelectedReasoningEffort
-          ? codexDisplayOptions.user_reasoning_effort_options.map((effort) => {
-              const selected = effectiveReasoningEffort === effort;
-              return (
-                <Menu.Item
-                  key={`reasoning:${effort}`}
-                  className={selected ? '!bg-2' : ''}
-                  onClick={() => {
-                    if (effectiveModelId && setCodexModelSelection) {
-                      setCodexModelSelection(effectiveModelId, effort);
-                      return;
-                    }
-                    if (effectiveModelId && selectedAcpModel === null) setSelectedAcpModel(effectiveModelId);
-                    setSelectedReasoningEffort(effort);
-                  }}
-                >
-                  <div className='flex items-center justify-between gap-16px w-full'>
-                    <span>{formatOplCodexReasoningMenuLabel(effort, localeKey)}</span>
-                    {selected && <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />}
-                  </div>
-                </Menu.Item>
-              );
-            })
-          : null;
+          ? codexDisplayOptions.user_reasoning_effort_options.map((effort) => ({
+              id: effort,
+              label: formatOplCodexReasoningMenuLabel(effort, localeKey),
+              selected: effectiveReasoningEffort === effort,
+              onSelect: () => selectReasoningEffort(effort),
+            }))
+          : [];
+      const codexModelChoices: OplCodexSessionMenuChoice[] = useOplCodexModelDisplay
+        ? [
+            {
+              id: '__auto',
+              label: autoModelDisplay.label,
+              description: autoModelDisplay.description,
+              selected: selectedAcpModel === null,
+              onSelect: restoreCodexAutoSelection,
+            },
+            ...(unavailableFixedModelId
+              ? [
+                  {
+                    id: `unavailable:${unavailableFixedModelId}`,
+                    label: unavailableFixedModelId,
+                    description: t('conversation.currentTask.unavailable', { defaultValue: 'Unavailable' }),
+                    selected: true,
+                    disabled: true,
+                    onSelect: () => {},
+                  },
+                ]
+              : []),
+            ...currentAcpCachedModelInfo.available_models.map((model) => {
+              const modelDisplay = formatOplCodexModelDisplay({
+                id: model.id,
+                label: model.label,
+                reasoningEffort: effectiveReasoningEffort,
+                localeKey,
+              });
+              return {
+                id: model.id,
+                label: modelDisplay.modelLabel,
+                description: modelDisplay.description,
+                selected: model.id === selectedAcpModel,
+                onSelect: () => {
+                  if (setCodexModelSelection) {
+                    setCodexModelSelection(model.id, effectiveReasoningEffort);
+                    return;
+                  }
+                  setSelectedAcpModel(model.id);
+                },
+              };
+            }),
+          ]
+        : [];
       return (
         <Dropdown
           trigger='click'
+          popupVisible={sessionMenuOpen}
+          onVisibleChange={(visible) => {
+            if (visible) setSessionMenuOpen(true);
+            else closeSessionMenu();
+          }}
           droplist={
-            <Menu
-              mode='pop'
-              selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}
-              style={{ minWidth: 220 }}
-            >
-              <Menu.Item
-                key='__auto'
-                className={selectedAcpModel === null ? '!bg-2' : ''}
-                onClick={restoreCodexAutoSelection}
+            useOplCodexModelDisplay ? (
+              <OplCodexSessionMenu
+                autoFocusOnMount={sessionMenuKeyboardOpenRef.current}
+                modelValue={modelSubmenuTitle}
+                modelChoices={codexModelChoices}
+                reasoningValue={formatOplCodexReasoningMenuLabel(effectiveReasoningEffort, localeKey)}
+                reasoningChoices={codexReasoningChoices}
+                reasoningDisabled={!setSelectedReasoningEffort}
+                onReset={restoreCodexAutoSelection}
+                onRequestClose={closeSessionMenu}
+              />
+            ) : (
+              <Menu
+                mode='pop'
+                selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}
+                style={{ minWidth: 220 }}
               >
-                <div
-                  className={
-                    useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
-                  }
-                >
-                  <span className={useOplCodexModelDisplay ? 'font-medium' : ''}>
-                    {useOplCodexModelDisplay
-                      ? autoModelDisplay.label
-                      : t('conversation.welcome.autoModel', {
-                          model:
-                            currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
-                        })}
-                  </span>
-                  {useOplCodexModelDisplay && (
-                    <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
-                  )}
-                </div>
-              </Menu.Item>
-              {unavailableFixedModelId && (
-                <Menu.Item key={`unavailable:${unavailableFixedModelId}`} disabled>
-                  <div className='flex items-center justify-between gap-16px w-full'>
-                    <span>{unavailableFixedModelId}</span>
-                    <span className='text-12px text-t-secondary'>
-                      {t('conversation.currentTask.unavailable', { defaultValue: 'Unavailable' })}
-                    </span>
-                  </div>
+                <Menu.Item key='__auto' onClick={restoreCodexAutoSelection}>
+                  {t('conversation.welcome.autoModel', {
+                    model: currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
+                  })}
                 </Menu.Item>
-              )}
-              {reasoningMenuItems}
-              <Menu.SubMenu
-                key='__models'
-                title={<span className='text-12px text-t-secondary'>{modelSubmenuTitle}</span>}
-              >
-                {currentAcpCachedModelInfo.available_models.map((model) => {
-                  // 获取模型健康状态
-                  const providerConfig = modelConfig?.find((p) => p.platform?.includes(''));
-                  const healthStatus = providerConfig?.model_health?.[model.id]?.status || 'unknown';
-                  const healthColor =
-                    healthStatus === 'healthy'
-                      ? 'bg-green-500'
-                      : healthStatus === 'unhealthy'
-                        ? 'bg-red-500'
-                        : 'bg-gray-400';
-                  const modelDisplay = useOplCodexModelDisplay
-                    ? formatOplCodexModelDisplay({
-                        id: model.id,
-                        label: model.label,
-                        reasoningEffort: effectiveReasoningEffort,
-                        localeKey,
-                      })
-                    : null;
-
-                  return (
-                    <Menu.Item
-                      key={model.id}
-                      className={model.id === selectedAcpModel ? '!bg-2' : ''}
-                      onClick={() => {
-                        if (useOplCodexModelDisplay && setCodexModelSelection) {
-                          setCodexModelSelection(model.id, effectiveReasoningEffort);
-                          return;
-                        }
-                        setSelectedAcpModel(model.id);
-                      }}
-                    >
-                      <div
-                        className={
-                          useOplCodexModelDisplay
-                            ? 'flex items-center justify-between gap-16px w-full'
-                            : 'flex items-center gap-8px w-full'
-                        }
-                      >
-                        <div className='flex items-center gap-8px'>
-                          {healthStatus !== 'unknown' && (
-                            <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
-                          )}
-                          {useOplCodexModelDisplay ? (
-                            <div className='flex flex-col gap-2px'>
-                              <span>{modelDisplay?.modelLabel}</span>
-                              <span className='text-12px text-t-secondary'>{modelDisplay?.description}</span>
-                            </div>
-                          ) : (
+                {unavailableFixedModelId && (
+                  <Menu.Item key={`unavailable:${unavailableFixedModelId}`} disabled>
+                    {unavailableFixedModelId}
+                  </Menu.Item>
+                )}
+                <Menu.SubMenu
+                  key='__models'
+                  title={<span className='text-12px text-t-secondary'>{modelSubmenuTitle}</span>}
+                >
+                  {currentAcpCachedModelInfo.available_models.map((model) => {
+                    const providerConfig = modelConfig?.find((provider) => provider.platform?.includes(''));
+                    const healthStatus = providerConfig?.model_health?.[model.id]?.status || 'unknown';
+                    const healthColor =
+                      healthStatus === 'healthy'
+                        ? 'bg-green-500'
+                        : healthStatus === 'unhealthy'
+                          ? 'bg-red-500'
+                          : 'bg-gray-400';
+                    return (
+                      <Menu.Item key={model.id} onClick={() => setSelectedAcpModel(model.id)}>
+                        <div className='flex items-center justify-between gap-16px w-full'>
+                          <div className='flex items-center gap-8px'>
+                            {healthStatus !== 'unknown' && (
+                              <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
+                            )}
                             <span>{model.label}</span>
+                          </div>
+                          {model.id === selectedAcpModel && (
+                            <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
                           )}
                         </div>
-                        {model.id === selectedAcpModel && (
-                          <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-                        )}
-                      </div>
-                    </Menu.Item>
-                  );
-                })}
-              </Menu.SubMenu>
-            </Menu>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.SubMenu>
+              </Menu>
+            )
           }
         >
           <Button
+            ref={sessionMenuTriggerRef}
             className={'sendbox-model-btn guid-config-btn'}
             shape='round'
             size='small'
             data-testid='guid-model-selector'
+            aria-haspopup='menu'
+            aria-expanded={sessionMenuOpen}
+            onPointerDown={() => {
+              sessionMenuKeyboardOpenRef.current = false;
+            }}
+            onKeyDown={handleSessionMenuTriggerKeyDown}
           >
             <span className='flex items-center gap-6px min-w-0'>
               <span>{acpButtonLabel}</span>

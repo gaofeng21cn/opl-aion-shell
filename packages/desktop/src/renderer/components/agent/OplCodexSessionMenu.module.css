@@ -1,0 +1,150 @@
+.menu,
+.submenu {
+  display: flex;
+  width: 264px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, calc(100dvh - 24px));
+  flex-direction: column;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--aion-overlay-border);
+  border-radius: 12px;
+  background: var(--aion-overlay-bg);
+  box-shadow: var(--aion-overlay-shadow);
+  color: var(--aion-overlay-text);
+  box-sizing: border-box;
+}
+
+.menuItem:global(.arco-btn) {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  height: auto;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-1);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0;
+  box-sizing: border-box;
+}
+
+.menuItem:global(.arco-btn):hover,
+.menuItem:global(.arco-dropdown-popup-visible) {
+  background: var(--color-fill-1);
+}
+
+.menuItem:global(.arco-btn):focus-visible {
+  outline: 2px solid var(--opl-focus-ring);
+  outline-offset: -2px;
+}
+
+.menuItem:global(.arco-dropdown-popup-visible):focus-visible {
+  outline: none;
+}
+
+.menuItem:global(.arco-btn-disabled) {
+  background: transparent;
+  opacity: 0.55;
+}
+
+.summaryRow,
+.summaryMeta,
+.choiceRow,
+.resetRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.summaryRow,
+.choiceRow,
+.resetRow {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.summaryMeta {
+  width: auto;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.summaryLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryValue {
+  max-width: 116px;
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron,
+.choiceCheck {
+  flex: 0 0 auto;
+  color: var(--color-text-2);
+}
+
+.choiceCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.choiceLabel,
+.choiceDescription {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choiceLabel {
+  color: var(--color-text-1);
+}
+
+.choiceDescription {
+  color: var(--color-text-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.selectedChoice:global(.arco-btn) {
+  background: var(--color-fill-2);
+}
+
+.separator {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--color-border-2);
+}
+
+.resetItem:global(.arco-btn),
+.resetRow {
+  color: var(--color-text-2);
+}
+
+@media (max-width: 480px) {
+  .menu,
+  .submenu {
+    width: min(264px, calc(100vw - 24px));
+    max-height: calc(100dvh - 24px);
+  }
+}

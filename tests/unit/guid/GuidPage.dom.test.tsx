@@ -605,17 +605,38 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('mobile-action-sheet-attach-file')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-attach-directory')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-auto')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-reasoning')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-model')).toBeInTheDocument();
+    const modelEntry = screen.getByTestId('mobile-action-sheet-model');
+    const reasoningEntry = screen.getByTestId('mobile-action-sheet-reasoning');
+    const resetEntry = screen.getByTestId('mobile-action-sheet-reset-session-defaults');
+    const sessionEntryOrder = Array.from(modelEntry.parentElement?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .map((entry) => entry.dataset.testid)
+      .filter((testId): testId is string => Boolean(testId));
+    const modelEntryIndex = sessionEntryOrder.indexOf('mobile-action-sheet-model');
+    expect(sessionEntryOrder.slice(modelEntryIndex, modelEntryIndex + 3)).toEqual([
+      'mobile-action-sheet-model',
+      'mobile-action-sheet-reasoning',
+      'mobile-action-sheet-reset-session-defaults',
+    ]);
+    expect(screen.queryByTestId('mobile-action-sheet-auto')).not.toBeInTheDocument();
+    expect(resetEntry.previousElementSibling).not.toBe(reasoningEntry);
+    expect(resetEntry.previousElementSibling?.previousElementSibling).toBe(reasoningEntry);
+    expect(resetEntry.querySelector('[data-icon="refresh"], .i-icon-refresh')).not.toBeNull();
     expect(screen.queryByTestId('mobile-action-sheet-workspace')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-agent_packages')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-skills')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-apps_and_connections')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
-    expect(mocks.setCodexModelSelection).toHaveBeenCalledWith(null, null);
+    await userEvent.click(modelEntry);
+    const autoOption = await screen.findByTestId('mobile-action-sheet-option-__auto');
+    expect(autoOption).toHaveAttribute('aria-pressed', 'true');
+    expect(autoOption.parentElement?.firstElementChild).toBe(autoOption);
+    await userEvent.click(autoOption);
+    expect(mocks.setCodexModelSelection).toHaveBeenNthCalledWith(1, null, null);
+    await waitFor(() => expect(modelEntry).toHaveFocus());
+
+    fireEvent.click(resetEntry);
+    expect(mocks.setCodexModelSelection).toHaveBeenNthCalledWith(2, null, null);
   });
 
   it.each(['mas', 'mag', 'rca', 'obf', 'oma'])(

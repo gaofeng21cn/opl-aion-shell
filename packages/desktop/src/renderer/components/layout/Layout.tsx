@@ -450,7 +450,7 @@ const Layout: React.FC<{
               collapsedWidth={isMobile ? 0 : DESKTOP_COLLAPSED_WIDTH}
               collapsed={collapsed}
               width={siderWidth}
-              className={classNames('!bg-2 layout-sider', {
+              className={classNames('layout-sider', {
                 collapsed: collapsed,
                 'layout-sider--dragging': isSiderDragging,
               })}

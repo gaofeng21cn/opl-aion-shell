@@ -28,8 +28,8 @@
   --bg-4: #d9d9d7;
   --bg-hover: #ececea;
   --bg-active: #e3e3e1;
-  --text-primary: #202124;
   --color-text-1: #202124;
+  --text-primary: var(--color-text-1);
   --text-secondary: #5f6368;
   --color-text-2: #5f6368;
   --color-text-3: #70757a;
@@ -94,8 +94,8 @@
   --bg-4: #3b3e44;
   --bg-hover: #292b30;
   --bg-active: #36393f;
-  --text-primary: #f4f5f6;
   --color-text-1: #f4f5f6;
+  --text-primary: var(--color-text-1);
   --text-secondary: #aeb4bc;
   --color-text-2: #aeb4bc;
   --color-text-3: #9298a1;
@@ -134,10 +134,39 @@
 }
 
 body {
+  /* Arco redeclares these semantic tokens on body, so bridge the governed
+     product values at the same cascade level instead of relying on inheritance. */
+  --color-text-1: #202124;
+  --color-text-2: #5f6368;
+  --color-text-3: #70757a;
+  --color-text-4: #a7aaae;
+  --color-border-1: rgba(22, 24, 28, 0.12);
+  --color-border-2: rgba(22, 24, 28, 0.08);
+  --color-border-3: rgba(22, 24, 28, 0.14);
+  --color-border-4: rgba(22, 24, 28, 0.2);
+  --color-fill-1: #f7f7f6;
+  --color-fill-2: #eeeeec;
+  --color-fill-3: rgba(229, 229, 227, 0.76);
+  --color-fill-4: rgba(219, 219, 217, 0.88);
   background: var(--opl-main-bg);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   letter-spacing: 0;
+}
+
+body[arco-theme='dark'] {
+  --color-text-1: #f4f5f6;
+  --color-text-2: #aeb4bc;
+  --color-text-3: #9298a1;
+  --color-text-4: #737983;
+  --color-border-1: rgba(255, 255, 255, 0.13);
+  --color-border-2: rgba(255, 255, 255, 0.08);
+  --color-border-3: rgba(255, 255, 255, 0.16);
+  --color-border-4: rgba(255, 255, 255, 0.22);
+  --color-fill-1: #202125;
+  --color-fill-2: #292b30;
+  --color-fill-3: #34363c;
+  --color-fill-4: #41444b;
 }
 
 .app-shell,

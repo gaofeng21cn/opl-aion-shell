@@ -92,6 +92,11 @@
   outline-offset: -2px;
 }
 
+.sheet[data-input-modality='pointer'] .item:focus-visible,
+.sheet[data-input-modality='pointer'] .back:focus-visible {
+  outline: none;
+}
+
 .item.disabled {
   opacity: 0.5;
   cursor: not-allowed;

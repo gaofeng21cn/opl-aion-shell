@@ -9,6 +9,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import OplCodexSessionMenu, { type OplCodexSessionMenuChoice } from './OplCodexSessionMenu';
 import { iconColors } from '@/renderer/styles/colors';
 import {
   getOplCodexModelDisplayOptions,
@@ -27,7 +28,7 @@ import {
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Check, Down } from '@icon-park/react';
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
 
@@ -62,15 +63,23 @@ const AcpModelSelector: React.FC<{
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
-  const { model_info, canSwitch, selectModel, selectAutoModel, selectReasoningEffort, thoughtLevel, setStatus } =
-    useAcpModelInfo({
-      conversation_id,
-      backend,
-      initialModelId,
-      prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
-      onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
-      onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
-    });
+  const {
+    model_info,
+    canSwitch,
+    isAutoModelSelection,
+    selectModel,
+    selectAutoModel,
+    selectReasoningEffort,
+    thoughtLevel,
+    setStatus,
+  } = useAcpModelInfo({
+    conversation_id,
+    backend,
+    initialModelId,
+    prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
+    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
+    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
+  });
   const hideCodexModelList = backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const showCodexAutoOption =
@@ -124,6 +133,23 @@ const AcpModelSelector: React.FC<{
         })
       : null;
   const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
+  const isSettingConfig = setStatus.state === 'setting';
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  const sessionMenuKeyboardOpenRef = useRef(false);
+  const sessionMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeSessionMenu = useCallback(() => {
+    setSessionMenuOpen(false);
+    sessionMenuKeyboardOpenRef.current = false;
+    requestAnimationFrame(() => sessionMenuTriggerRef.current?.focus({ preventScroll: true }));
+  }, []);
+  const handleSessionMenuTriggerKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!['Enter', ' ', 'ArrowDown'].includes(event.key)) return;
+    sessionMenuKeyboardOpenRef.current = true;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSessionMenuOpen(true);
+    }
+  }, []);
   const handleReasoningSelect = useCallback(
     (value: string) => {
       if (!thoughtLevel || value === thoughtLevel.currentValue || isSettingReasoning) return;
@@ -134,9 +160,9 @@ const AcpModelSelector: React.FC<{
     [isSettingReasoning, selectReasoningEffort, thoughtLevel, t]
   );
   const handleAutoSelect = useCallback(() => {
-    if (!model_info || isSettingReasoning) return;
+    if (!model_info || isSettingConfig) return;
     void selectAutoModel().catch(() => {});
-  }, [isSettingReasoning, model_info, selectAutoModel]);
+  }, [isSettingConfig, model_info, selectAutoModel]);
   const reasoningOptions =
     useOplCodexModelDisplay && thoughtLevel
       ? thoughtLevel.options.filter((option) => oplReasoningEfforts.includes(option.value as OplCodexReasoningEffort))
@@ -167,6 +193,50 @@ const AcpModelSelector: React.FC<{
       : null;
   const modelSubmenuTitle =
     oplCurrentModelDisplay?.modelLabel || rawDisplayLabel || t('common.model', { defaultValue: 'Model' });
+  const codexModelChoices: OplCodexSessionMenuChoice[] = useOplCodexModelDisplay
+    ? [
+        ...(showCodexAutoOption
+          ? [
+              {
+                id: '__auto',
+                label:
+                  autoModelDisplay?.label ??
+                  t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label }),
+                description: autoModelDisplay?.description,
+                selected: isAutoModelSelection,
+                disabled: isSettingConfig,
+                onSelect: handleAutoSelect,
+              },
+            ]
+          : []),
+        ...(model_info?.available_models ?? []).map((model) => {
+          const modelDisplay = formatOplCodexModelDisplay({
+            id: model.id,
+            label: model.label,
+            reasoningEffort: currentCodexReasoningEffort,
+            localeKey,
+          });
+          return {
+            id: model.id,
+            label: modelDisplay.modelLabel,
+            description: modelDisplay.description,
+            selected: !isAutoModelSelection && model.id === model_info?.current_model_id,
+            disabled: isSettingConfig,
+            onSelect: () => selectModel(model.id),
+          };
+        }),
+      ]
+    : [];
+  const codexReasoningChoices: OplCodexSessionMenuChoice[] = shouldShowReasoningOptions
+    ? reasoningOptions.map((option) => ({
+        id: option.value,
+        label: formatOplCodexReasoningMenuLabel(option.value, localeKey),
+        description: option.description,
+        selected: option.value === currentCodexReasoningEffort,
+        disabled: isSettingConfig,
+        onSelect: () => handleReasoningSelect(option.value),
+      }))
+    : [];
 
   if (!model_info) {
     return (
@@ -222,64 +292,69 @@ const AcpModelSelector: React.FC<{
   return (
     <Dropdown
       trigger='click'
+      popupVisible={sessionMenuOpen}
+      onVisibleChange={(visible) => {
+        if (visible) setSessionMenuOpen(true);
+        else closeSessionMenu();
+      }}
       // Mobile: portal the popup to <body> so it escapes the titlebar slot.
       // Desktop: leave default container so click events reach Menu.Item normally.
       {...(isMobileHeaderCompact ? { getPopupContainer: () => document.body } : {})}
       droplist={
-        <Menu
-          mode='pop'
-          selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}
-          style={{ minWidth: 220 }}
-        >
-          {showCodexAutoOption && (
-            <Menu.Item key='__auto' className='bg-2!' disabled={isSettingReasoning} onClick={handleAutoSelect}>
-              <div className='flex flex-col gap-2px w-full'>
-                <span className='font-medium'>
-                  {autoModelDisplay?.label ??
-                    t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}
-                </span>
-                {autoModelDisplay?.description && (
-                  <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
-                )}
-              </div>
-            </Menu.Item>
-          )}
-          {reasoningMenuItems}
-          <Menu.SubMenu key='__models' title={<span className='text-12px text-t-secondary'>{modelSubmenuTitle}</span>}>
-            {model_info.available_models.map((model) => {
-              const modelDisplay = useOplCodexModelDisplay
-                ? formatOplCodexModelDisplay({
-                    id: model.id,
-                    label: model.label,
-                    reasoningEffort: currentCodexReasoningEffort,
-                    localeKey,
-                  })
-                : null;
-              return (
+        useOplCodexModelDisplay ? (
+          <OplCodexSessionMenu
+            autoFocusOnMount={sessionMenuKeyboardOpenRef.current}
+            modelValue={modelSubmenuTitle}
+            modelChoices={codexModelChoices}
+            reasoningValue={formatOplCodexReasoningMenuLabel(currentCodexReasoningEffort, localeKey)}
+            reasoningChoices={codexReasoningChoices}
+            reasoningDisabled={!thoughtLevel}
+            onReset={handleAutoSelect}
+            onRequestClose={closeSessionMenu}
+            resetDisabled={isSettingConfig}
+          />
+        ) : (
+          <Menu
+            mode='pop'
+            selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}
+            style={{ minWidth: 220 }}
+          >
+            {reasoningMenuItems}
+            <Menu.SubMenu
+              key='__models'
+              title={<span className='text-12px text-t-secondary'>{modelSubmenuTitle}</span>}
+            >
+              {model_info.available_models.map((model) => (
                 <Menu.Item
                   key={model.id}
                   className={model.id === model_info.current_model_id ? 'bg-2!' : ''}
                   onClick={() => selectModel(model.id)}
                 >
                   <div className='flex items-center justify-between gap-16px w-full'>
-                    <div className='flex flex-col gap-2px'>
-                      <span>{modelDisplay?.modelLabel ?? (model.label || model.id)}</span>
-                      {modelDisplay?.description && (
-                        <span className='text-12px text-t-secondary'>{modelDisplay.description}</span>
-                      )}
-                    </div>
+                    <span>{model.label || model.id}</span>
                     {model.id === model_info.current_model_id && (
                       <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
                     )}
                   </div>
                 </Menu.Item>
-              );
-            })}
-          </Menu.SubMenu>
-        </Menu>
+              ))}
+            </Menu.SubMenu>
+          </Menu>
+        )
       }
     >
-      <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
+      <Button
+        ref={sessionMenuTriggerRef}
+        className='sendbox-model-btn header-model-btn agent-mode-compact-pill'
+        shape='round'
+        size='small'
+        aria-haspopup='menu'
+        aria-expanded={sessionMenuOpen}
+        onPointerDown={() => {
+          sessionMenuKeyboardOpenRef.current = false;
+        }}
+        onKeyDown={handleSessionMenuTriggerKeyDown}
+      >
         <span className='flex items-center gap-6px min-w-0 leading-none'>
           <MarqueePillLabel>{display_label}</MarqueePillLabel>
           <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />

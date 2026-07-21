@@ -173,6 +173,8 @@ export interface UseAcpModelInfoResult {
   model_info: AcpModelInfo | null;
   /** True when the agent exposes a switchable model list */
   canSwitch: boolean;
+  /** True when Codex follows the App Auto policy instead of a persisted fixed model. */
+  isAutoModelSelection: boolean;
   /** Switch the active model and persist via IPC */
   selectModel: (model_id: string) => void;
   /** Restore App automatic model selection and clear any fixed-model preference. */
@@ -629,6 +631,7 @@ export const useAcpModelInfo = ({
     model_info.available_models.length > 0 &&
     !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
   );
+  const isAutoModelSelection = backend === 'codex' && !configService.get('acp.config')?.codex?.preferredModelId?.trim();
 
   const applyAutoSelection = useCallback(
     async (notify: boolean): Promise<void> => {
@@ -742,6 +745,7 @@ export const useAcpModelInfo = ({
   return {
     model_info,
     canSwitch,
+    isAutoModelSelection,
     selectModel,
     selectAutoModel,
     selectReasoningEffort,

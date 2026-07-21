@@ -87,20 +87,38 @@ describe('Codex visual parity overlay', () => {
   it('uses the measured neutral rail and semantic composer elevation tokens', () => {
     const baseline = read('packages/desktop/src/renderer/styles/themes/opl-product-baseline.css');
     const codexPreset = read('packages/desktop/src/renderer/pages/settings/AppearanceSettings/presets/opl-codex.css');
+    const layout = read('packages/desktop/src/renderer/components/layout/Layout.tsx');
+    const layoutStyles = read('packages/desktop/src/renderer/styles/layout.css');
+    const unoConfig = read('uno.config.ts');
     const focusRing = read('packages/desktop/src/renderer/hooks/chat/useInputFocusRing.ts');
     const sendBox = read('packages/desktop/src/renderer/components/chat/SendBox/index.tsx');
     const sendBoxStyles = read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
     const guidActionRow = read('packages/desktop/src/renderer/pages/guid/components/GuidActionRow.tsx');
+    const sessionMenuStyles = read('packages/desktop/src/renderer/components/agent/OplCodexSessionMenu.module.css');
 
     expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
     expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('rgba(0, 0, 0, 0.045)');
     expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('#f0f0f0');
-    expect(firstCustomProperty(baseline, '--text-primary')).toBe('#202124');
+    expect(firstCustomProperty(baseline, '--text-primary')).toBe('var(--color-text-1)');
     expect(firstCustomProperty(baseline, '--text-secondary')).toBe('#5f6368');
     expect(firstCustomProperty(baseline, '--color-text-3')).toBe('#70757a');
+    expect(layout).toContain("classNames('layout-sider'");
+    expect(layout).not.toMatch(/classNames\(['"][^'"]*!bg-2[^'"]*layout-sider/);
+    expect(layoutStyles).toMatch(/\.sider-section-label\s*{[^}]*background-color:\s*var\(--opl-sidebar-bg\);/);
+    expect(unoConfig).toContain("'t-tertiary': 'var(--color-text-3)'");
+    expect(customPropertyInBlock(baseline, 'body {', '--color-text-1')).toBe('#202124');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-text-3')).toBe('#70757a');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-border-2')).toBe('rgba(22, 24, 28, 0.08)');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-fill-3')).toBe('rgba(229, 229, 227, 0.76)');
+    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-text-1')).toBe('#f4f5f6');
+    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-text-3')).toBe('#9298a1');
+    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-border-2')).toBe(
+      'rgba(255, 255, 255, 0.08)'
+    );
+    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-fill-3')).toBe('#34363c');
     expect(baseline).toMatch(
-      /\[data-color-scheme='default'\]\[data-theme='dark'\]\s*{[\s\S]*?--bg-2:\s*#202224;[\s\S]*?--text-primary:\s*#f4f5f6;[\s\S]*?--text-secondary:\s*#aeb4bc;[\s\S]*?--dialog-fill-0:\s*#202224;/
+      /\[data-color-scheme='default'\]\[data-theme='dark'\]\s*{[\s\S]*?--bg-2:\s*#202224;[\s\S]*?--text-primary:\s*var\(--color-text-1\);[\s\S]*?--text-secondary:\s*#aeb4bc;[\s\S]*?--dialog-fill-0:\s*#202224;/
     );
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-bg')).toBe('var(--opl-sidebar-bg)');
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-active')).toBe('var(--opl-sidebar-active)');
@@ -141,6 +159,9 @@ describe('Codex visual parity overlay', () => {
     expect(guidActionRow).toContain('compactLeadingIcon={<Shield {...OPL_CHROME_ICON_PROPS} size={14} />}');
     expect(guidActionRow).toContain('icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} />}');
     expect(sendBox).toContain("icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />}");
+    expect(sessionMenuStyles).toMatch(
+      /\.menuItem:global\(\.arco-dropdown-popup-visible\):focus-visible\s*{[^}]*outline:\s*none;/
+    );
     const sendButtonBaseline = baseline.match(
       /\[data-color-scheme='default'\] \.send-button-custom\.arco-btn\s*{[^}]*}/
     )?.[0];
