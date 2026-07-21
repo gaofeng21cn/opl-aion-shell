@@ -8,7 +8,7 @@ const {
 } = require('../../../packages/shared-scripts/src/verify-bundled-aioncore-resources');
 
 const CODEX_ACP_ENTRYPOINT = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
-const CODEX_ACP_VERSION = '1.1.2';
+const CODEX_ACP_VERSION = '1.1.4';
 const CODEX_VERSION = '0.144.6';
 
 function writeAioncoreManifest(resourcesDir: string, runtimeKey: string): void {
@@ -374,7 +374,7 @@ describe('verifyBundledAioncoreResources', () => {
 
     const managedManifestPath = join(managedResourcesDir, 'manifest.json');
     const managedManifest = JSON.parse(readFileSync(managedManifestPath, 'utf8'));
-    managedManifest.acpTools[0].version = '1.1.4';
+    managedManifest.acpTools[0].version = '1.1.2';
     writeFileSync(managedManifestPath, JSON.stringify(managedManifest));
 
     const result = verifyBundledAioncoreResources({

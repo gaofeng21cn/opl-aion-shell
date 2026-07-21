@@ -3,7 +3,7 @@ const path = require('path');
 
 const REQUIRED_AIONCORE_VERSION = 'v0.1.49';
 const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.49';
-const REQUIRED_CODEX_ACP_VERSION = '1.1.2';
+const REQUIRED_CODEX_ACP_VERSION = '1.1.4';
 const REQUIRED_CODEX_VERSION = '0.144.6';
 const MANAGED_CODEX_ACP_PACKAGE = '@agentclientprotocol/codex-acp';
 const LEGACY_CODEX_ACP_PACKAGE = '@zed-industries/codex-acp';
