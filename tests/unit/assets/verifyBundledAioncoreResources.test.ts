@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +8,7 @@ const {
 } = require('../../../packages/shared-scripts/src/verify-bundled-aioncore-resources');
 
 const CODEX_ACP_ENTRYPOINT = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
-const CODEX_ACP_VERSION = '1.1.4';
+const CODEX_ACP_FIXTURE_VERSION = '1.1.2';
 const CODEX_VERSION = '0.144.6';
 
 function writeAioncoreManifest(resourcesDir: string, runtimeKey: string): void {
@@ -24,7 +24,11 @@ function writeAioncoreManifest(resourcesDir: string, runtimeKey: string): void {
   );
 }
 
-function writeManagedCodexContract(managedResourcesDir: string, runtimeKey: string): string {
+function writeManagedCodexContract(
+  managedResourcesDir: string,
+  runtimeKey: string,
+  managedAcpVersion = CODEX_ACP_FIXTURE_VERSION
+): string {
   const platformExecutableByRuntimeKey: Record<string, string> = {
     'darwin-arm64': 'node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
     'win32-x64': 'node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe',
@@ -32,7 +36,7 @@ function writeManagedCodexContract(managedResourcesDir: string, runtimeKey: stri
   const platformExecutable = platformExecutableByRuntimeKey[runtimeKey];
   if (!platformExecutable) throw new Error(`Missing Codex fixture path for ${runtimeKey}`);
 
-  const root = `acp/codex-acp/${CODEX_ACP_VERSION}/${runtimeKey}`;
+  const root = `acp/codex-acp/${managedAcpVersion}/${runtimeKey}`;
   const toolRoot = join(managedResourcesDir, ...root.split('/'));
   const platformPackageName = `@openai/codex-${runtimeKey}`;
   mkdirSync(join(toolRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'dist'), { recursive: true });
@@ -45,15 +49,29 @@ function writeManagedCodexContract(managedResourcesDir: string, runtimeKey: stri
   );
   writeFileSync(
     join(toolRoot, 'package.json'),
-    JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': CODEX_ACP_VERSION } })
+    JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': managedAcpVersion } })
   );
-  writeFileSync(join(toolRoot, 'package-lock.json'), '{}');
+  writeFileSync(
+    join(toolRoot, 'package-lock.json'),
+    JSON.stringify({
+      name: 'aioncore-managed-codex-acp',
+      lockfileVersion: 3,
+      requires: true,
+      packages: {
+        '': { dependencies: { '@agentclientprotocol/codex-acp': managedAcpVersion } },
+        'node_modules/@agentclientprotocol/codex-acp': {
+          version: managedAcpVersion,
+          integrity: 'sha512-fixture',
+        },
+      },
+    })
+  );
   writeFileSync(join(toolRoot, ...CODEX_ACP_ENTRYPOINT.split('/')), 'console.log("codex-acp")');
   writeFileSync(
     join(toolRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json'),
     JSON.stringify({
       name: '@agentclientprotocol/codex-acp',
-      version: CODEX_ACP_VERSION,
+      version: managedAcpVersion,
       bin: { 'codex-acp': 'dist/index.js' },
     })
   );
@@ -80,7 +98,7 @@ function writeManagedCodexContract(managedResourcesDir: string, runtimeKey: stri
       acpTools: [
         {
           slug: 'codex-acp',
-          version: CODEX_ACP_VERSION,
+          version: managedAcpVersion,
           packageName: '@agentclientprotocol/codex-acp',
           root,
           platformDirectory: runtimeKey,
@@ -344,7 +362,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.missing).toContain(
-      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_VERSION}/win32-x64/${CODEX_ACP_ENTRYPOINT}`
+      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/${CODEX_ACP_ENTRYPOINT}`
     );
   });
 
@@ -365,6 +383,68 @@ describe('verifyBundledAioncoreResources', () => {
     );
   });
 
+  it('derives the managed Codex ACP version from the AionCore manifest without a Shell version pin', () => {
+    const alternativeVersion = '9.8.7';
+    const versionRoot = join(managedResourcesDir, 'acp', 'codex-acp');
+    const alternativeVersionRoot = join(versionRoot, alternativeVersion);
+    renameSync(join(versionRoot, CODEX_ACP_FIXTURE_VERSION), alternativeVersionRoot);
+    const alternativeToolRoot = join(alternativeVersionRoot, 'win32-x64');
+
+    const managedManifestPath = join(managedResourcesDir, 'manifest.json');
+    const managedManifest = JSON.parse(readFileSync(managedManifestPath, 'utf8'));
+    managedManifest.acpTools[0].version = alternativeVersion;
+    managedManifest.acpTools[0].root = `acp/codex-acp/${alternativeVersion}/win32-x64`;
+    writeFileSync(managedManifestPath, JSON.stringify(managedManifest));
+
+    const packageJsonPath = join(alternativeToolRoot, 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    packageJson.dependencies['@agentclientprotocol/codex-acp'] = alternativeVersion;
+    writeFileSync(packageJsonPath, JSON.stringify(packageJson));
+
+    const packageLockPath = join(alternativeToolRoot, 'package-lock.json');
+    const packageLock = JSON.parse(readFileSync(packageLockPath, 'utf8'));
+    packageLock.packages[''].dependencies['@agentclientprotocol/codex-acp'] = alternativeVersion;
+    packageLock.packages['node_modules/@agentclientprotocol/codex-acp'].version = alternativeVersion;
+    writeFileSync(packageLockPath, JSON.stringify(packageLock));
+
+    const installedPackagePath = join(
+      alternativeToolRoot,
+      'node_modules',
+      '@agentclientprotocol',
+      'codex-acp',
+      'package.json'
+    );
+    const installedPackage = JSON.parse(readFileSync(installedPackagePath, 'utf8'));
+    installedPackage.version = alternativeVersion;
+    writeFileSync(installedPackagePath, JSON.stringify(installedPackage));
+
+    const result = verifyBundledAioncoreResources({
+      resourcesDir,
+      electronPlatformName: 'win32',
+      targetArch: 'x64',
+    });
+
+    expect(result.missing).toEqual([]);
+    expect(result.invalid).toEqual([]);
+  });
+
+  it('rejects a package lock that drifts from the AionCore managed resource manifest', () => {
+    const packageLockPath = join(codexRoot, 'package-lock.json');
+    const packageLock = JSON.parse(readFileSync(packageLockPath, 'utf8'));
+    packageLock.packages['node_modules/@agentclientprotocol/codex-acp'].version = '9.8.7';
+    writeFileSync(packageLockPath, JSON.stringify(packageLock));
+
+    const result = verifyBundledAioncoreResources({
+      resourcesDir,
+      electronPlatformName: 'win32',
+      targetArch: 'x64',
+    });
+
+    expect(result.invalid).toContain(
+      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/package-lock.json: package/version lock mismatch`
+    );
+  });
+
   it('rejects AionCore and ACP versions from the superseded Full image', () => {
     const aioncoreManifestPath = join(resourcesDir, 'bundled-aioncore', 'win32-x64', 'manifest.json');
     const aioncoreManifest = JSON.parse(readFileSync(aioncoreManifestPath, 'utf8'));
@@ -374,7 +454,7 @@ describe('verifyBundledAioncoreResources', () => {
 
     const managedManifestPath = join(managedResourcesDir, 'manifest.json');
     const managedManifest = JSON.parse(readFileSync(managedManifestPath, 'utf8'));
-    managedManifest.acpTools[0].version = '1.1.2';
+    managedManifest.acpTools[0].version = '1.1.4';
     writeFileSync(managedManifestPath, JSON.stringify(managedManifest));
 
     const result = verifyBundledAioncoreResources({
@@ -404,7 +484,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_VERSION}/win32-x64/node_modules/@openai/codex/package.json: expected Codex ${CODEX_VERSION} for win32-x64`
+      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/node_modules/@openai/codex/package.json: expected Codex ${CODEX_VERSION} for win32-x64`
     );
   });
 
@@ -429,7 +509,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.missing).toContain(
-      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_VERSION}/win32-x64/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe`
+      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe`
     );
   });
 });

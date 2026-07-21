@@ -3,7 +3,6 @@ const path = require('path');
 
 const REQUIRED_AIONCORE_VERSION = 'v0.1.49';
 const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.49';
-const REQUIRED_CODEX_ACP_VERSION = '1.1.4';
 const REQUIRED_CODEX_VERSION = '0.144.6';
 const MANAGED_CODEX_ACP_PACKAGE = '@agentclientprotocol/codex-acp';
 const LEGACY_CODEX_ACP_PACKAGE = '@zed-industries/codex-acp';
@@ -265,11 +264,12 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   }
 
   const tool = codexTools[0];
-  const expectedRoot = path.posix.join('acp', 'codex-acp', REQUIRED_CODEX_ACP_VERSION, runtimeKey);
+  const managedAcpVersion = typeof tool.version === 'string' ? tool.version.trim() : '';
+  const expectedRoot = path.posix.join('acp', 'codex-acp', managedAcpVersion, runtimeKey);
   const platformPackageName = `@openai/codex-${runtimeKey}`;
   const platformPackageRoot = `node_modules/${platformPackageName}`;
   if (
-    tool.version !== REQUIRED_CODEX_ACP_VERSION ||
+    !/^\d+\.\d+\.\d+$/.test(managedAcpVersion) ||
     tool.packageName !== MANAGED_CODEX_ACP_PACKAGE ||
     tool.root !== expectedRoot ||
     tool.platformDirectory !== runtimeKey ||
@@ -296,10 +296,8 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
 
   const versionRoot = path.join(managedResourcesDir, 'acp', 'codex-acp');
   const installedVersions = readDirectories(versionRoot);
-  if (installedVersions.length !== 1 || installedVersions[0] !== REQUIRED_CODEX_ACP_VERSION) {
-    invalid.push(
-      `${rootManifestRelativePath}: codex-acp directory versions do not match ${REQUIRED_CODEX_ACP_VERSION}`
-    );
+  if (installedVersions.length !== 1 || installedVersions[0] !== managedAcpVersion) {
+    invalid.push(`${rootManifestRelativePath}: codex-acp directory versions do not match ${managedAcpVersion}`);
   }
 
   const requiredFiles = [tool.manifest, tool.entrypoint, tool.platformExecutable, ...tool.requiredFiles];
@@ -357,11 +355,26 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
 
   const packageJson = readManifest(path.join(toolRoot, 'package.json'));
   if (
-    packageJson?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== REQUIRED_CODEX_ACP_VERSION ||
+    packageJson?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== managedAcpVersion ||
     packageJson?.dependencies?.[LEGACY_CODEX_ACP_PACKAGE]
   ) {
     invalid.push(
       `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package.json')}: package/version mismatch`
+    );
+  }
+
+  const packageLock = readManifest(path.join(toolRoot, 'package-lock.json'));
+  const lockedAcpPackage = packageLock?.packages?.[`node_modules/${MANAGED_CODEX_ACP_PACKAGE}`];
+  if (
+    !Number.isInteger(packageLock?.lockfileVersion) ||
+    packageLock.lockfileVersion < 2 ||
+    packageLock?.packages?.['']?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== managedAcpVersion ||
+    lockedAcpPackage?.version !== managedAcpVersion ||
+    typeof lockedAcpPackage?.integrity !== 'string' ||
+    !lockedAcpPackage.integrity.startsWith('sha512-')
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package-lock.json')}: package/version lock mismatch`
     );
   }
 
@@ -370,7 +383,7 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   );
   if (
     acpPackageJson?.name !== MANAGED_CODEX_ACP_PACKAGE ||
-    acpPackageJson?.version !== REQUIRED_CODEX_ACP_VERSION ||
+    acpPackageJson?.version !== managedAcpVersion ||
     acpPackageJson?.bin?.['codex-acp'] !== 'dist/index.js'
   ) {
     invalid.push(

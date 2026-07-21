@@ -18,7 +18,8 @@ Environment variables:
   MANAGED_ACP_WRITE_ROOT_MANIFEST
                                Optional. true/false. Default: false
   MANAGED_ACP_NPM_VERSION      Optional. Exact npm version expected in PATH.
-  CODEX_ACP_VERSION            Optional. Default: 1.1.4
+  AIONCORE_MANAGED_RESOURCES_MANIFEST
+                               Required. Root manifest emitted by the selected AionCore build.
   CLAUDE_ACP_VERSION           Optional. Default: 0.39.0
 EOF
 }
@@ -59,7 +60,7 @@ MANAGED_ACP_TARGETS="${MANAGED_ACP_TARGETS:-darwin-arm64,darwin-x64,linux-x64,li
 MANAGED_ACP_OVERWRITE="${MANAGED_ACP_OVERWRITE:-false}"
 MANAGED_ACP_WRITE_ROOT_MANIFEST="${MANAGED_ACP_WRITE_ROOT_MANIFEST:-false}"
 MANAGED_ACP_NPM_VERSION="${MANAGED_ACP_NPM_VERSION:-}"
-CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-1.1.4}"
+AIONCORE_MANAGED_RESOURCES_MANIFEST="${AIONCORE_MANAGED_RESOURCES_MANIFEST:-}"
 CLAUDE_ACP_VERSION="${CLAUDE_ACP_VERSION:-0.39.0}"
 
 sanitize_version() {
@@ -74,6 +75,39 @@ sanitize_version() {
   printf '%s' "${value}"
 }
 
+if [[ -z "${AIONCORE_MANAGED_RESOURCES_MANIFEST}" ]]; then
+  echo "AIONCORE_MANAGED_RESOURCES_MANIFEST is required." >&2
+  exit 1
+fi
+if [[ ! -f "${AIONCORE_MANAGED_RESOURCES_MANIFEST}" ]]; then
+  echo "AionCore managed resources manifest not found: ${AIONCORE_MANAGED_RESOURCES_MANIFEST}" >&2
+  exit 1
+fi
+
+CODEX_ACP_VERSION="$(node - "${AIONCORE_MANAGED_RESOURCES_MANIFEST}" <<'EOF'
+const fs = require('node:fs');
+
+const manifestPath = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const matches = Array.isArray(manifest.acpTools)
+  ? manifest.acpTools.filter((tool) => tool?.slug === 'codex-acp')
+  : [];
+if (matches.length !== 1) {
+  throw new Error('AionCore managed resources manifest must contain exactly one codex-acp tool');
+}
+const tool = matches[0];
+const version = typeof tool.version === 'string' ? tool.version.trim() : '';
+const expectedRoot = `acp/codex-acp/${version}/${manifest.runtimeKey}`;
+if (
+  !/^\d+\.\d+\.\d+$/.test(version) ||
+  tool.packageName !== '@agentclientprotocol/codex-acp' ||
+  tool.root !== expectedRoot
+) {
+  throw new Error('AionCore managed Codex ACP identity is inconsistent');
+}
+process.stdout.write(version);
+EOF
+)"
 CODEX_ACP_VERSION="$(sanitize_version "${CODEX_ACP_VERSION}")"
 CLAUDE_ACP_VERSION="$(sanitize_version "${CLAUDE_ACP_VERSION}")"
 

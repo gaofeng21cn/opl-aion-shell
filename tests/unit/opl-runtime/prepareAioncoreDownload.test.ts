@@ -26,7 +26,9 @@ describe('managed Codex ACP publisher policy', () => {
       'utf8'
     );
 
-    expect(script).toContain('CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-1.1.4}"');
+    expect(script).toContain('AIONCORE_MANAGED_RESOURCES_MANIFEST is required.');
+    expect(script).toContain("manifest.acpTools.filter((tool) => tool?.slug === 'codex-acp')");
+    expect(script).not.toContain('CODEX_ACP_VERSION="${CODEX_ACP_VERSION:-');
     expect(script).toContain('codex-acp|@agentclientprotocol/codex-acp|${CODEX_ACP_VERSION}');
     expect(script).not.toContain('@zed-industries/codex-acp');
     for (const binaryPath of [
@@ -291,7 +293,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     );
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const codexRoot = path.join(managedResourcesDir, 'acp', 'codex-acp', '1.1.4', 'darwin-arm64');
+    const codexRoot = path.join(managedResourcesDir, 'acp', 'codex-acp', '1.1.2', 'darwin-arm64');
     const codexEntrypoint = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
     const codexPlatformExecutable = 'node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex';
     fs.mkdirSync(path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'dist'), {
@@ -307,15 +309,29 @@ describe('prepare-aioncore prepared runtime cache', () => {
     );
     fs.writeFileSync(
       path.join(codexRoot, 'package.json'),
-      JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': '1.1.4' } })
+      JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': '1.1.2' } })
     );
-    fs.writeFileSync(path.join(codexRoot, 'package-lock.json'), '{}');
+    fs.writeFileSync(
+      path.join(codexRoot, 'package-lock.json'),
+      JSON.stringify({
+        name: 'aioncore-managed-codex-acp',
+        lockfileVersion: 3,
+        requires: true,
+        packages: {
+          '': { dependencies: { '@agentclientprotocol/codex-acp': '1.1.2' } },
+          'node_modules/@agentclientprotocol/codex-acp': {
+            version: '1.1.2',
+            integrity: 'sha512-fixture',
+          },
+        },
+      })
+    );
     fs.writeFileSync(path.join(codexRoot, ...codexEntrypoint.split('/')), 'console.log("ok")');
     fs.writeFileSync(
       path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json'),
       JSON.stringify({
         name: '@agentclientprotocol/codex-acp',
-        version: '1.1.4',
+        version: '1.1.2',
         bin: { 'codex-acp': 'dist/index.js' },
       })
     );
@@ -346,9 +362,9 @@ describe('prepare-aioncore prepared runtime cache', () => {
         acpTools: [
           {
             slug: 'codex-acp',
-            version: '1.1.4',
+            version: '1.1.2',
             packageName: '@agentclientprotocol/codex-acp',
-            root: 'acp/codex-acp/1.1.4/darwin-arm64',
+            root: 'acp/codex-acp/1.1.2/darwin-arm64',
             platformDirectory: 'darwin-arm64',
             manifest: 'manifest.json',
             entrypoint: codexEntrypoint,
@@ -395,7 +411,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'managed-resources',
             'acp',
             'codex-acp',
-            '1.1.4',
+            '1.1.2',
             'darwin-arm64',
             'node_modules',
             '.bin',
