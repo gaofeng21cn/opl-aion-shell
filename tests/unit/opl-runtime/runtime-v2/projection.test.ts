@@ -263,6 +263,19 @@ describe('Runtime V2 projection boundary', () => {
     });
   });
 
+  it('accepts nullable action metadata without exposing it as an i18n interpolation value', () => {
+    const projection = createRuntimeV2Projection();
+    Object.assign(projection.items[0]!.action.message_args, { human_gate_ref: null });
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items[0]?.action?.messageArgs).not.toHaveProperty('human_gate_ref');
+    expect(result.projection?.items[0]?.action?.messageArgs).toMatchObject({ agent_id: 'mas' });
+  });
+
   it('rejects an explicitly invalid owner kind while accepting a legacy missing owner kind', () => {
     const invalid = createRuntimeV2Projection();
     invalid.items[0]!.action.owner_kind = '';

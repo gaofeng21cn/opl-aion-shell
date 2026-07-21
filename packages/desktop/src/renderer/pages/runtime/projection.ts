@@ -209,8 +209,9 @@ function parseMessageArgs(value: unknown): Record<string, string | number> | nul
   if (!source) return null;
   const result: Record<string, string | number> = {};
   for (const [key, entry] of Object.entries(source)) {
-    if (typeof entry !== 'string' && (typeof entry !== 'number' || !Number.isFinite(entry))) return null;
-    result[key] = entry;
+    if (typeof entry === 'string' || (typeof entry === 'number' && Number.isFinite(entry))) {
+      result[key] = entry;
+    }
   }
   return result;
 }
