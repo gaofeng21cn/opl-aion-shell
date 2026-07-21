@@ -8,6 +8,7 @@ import {
   activateInstalledOplFullRuntime,
   buildOplFullRuntimeShellPrefix,
   ensurePackagedOplFullRuntime,
+  resolveOplAppCodexHome,
 } from '@/process/backend/fullRuntime';
 
 vi.mock('child_process', () => ({
@@ -29,6 +30,35 @@ afterEach(() => {
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+describe('resolveOplAppCodexHome', () => {
+  it('isolates App Codex state on every supported desktop platform while honoring an explicit override', () => {
+    expect(resolveOplAppCodexHome({ env: {}, homeDir: '/Users/test', platform: 'darwin' })).toBe(
+      '/Users/test/Library/Application Support/OPL/codex'
+    );
+    expect(
+      resolveOplAppCodexHome({
+        env: { XDG_CONFIG_HOME: '/config' },
+        homeDir: '/home/test',
+        platform: 'linux',
+      })
+    ).toBe('/config/one-person-lab/codex');
+    expect(
+      resolveOplAppCodexHome({
+        env: { APPDATA: 'C:\\Users\\test\\AppData\\Roaming' },
+        homeDir: 'C:\\Users\\test',
+        platform: 'win32',
+      })
+    ).toBe('C:\\Users\\test\\AppData\\Roaming\\OPL\\codex');
+    expect(
+      resolveOplAppCodexHome({
+        env: { CODEX_HOME: '/managed/codex' },
+        homeDir: '/ignored',
+        platform: 'linux',
+      })
+    ).toBe('/managed/codex');
+  });
 });
 
 describe('ensurePackagedOplFullRuntime', () => {
@@ -92,6 +122,7 @@ describe('ensurePackagedOplFullRuntime', () => {
       );
     }
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
+    expect(installed?.env.CODEX_HOME).toBe(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'codex'));
     expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));
     expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
@@ -144,6 +175,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(activated?.version).toBe('26.5.1');
     expect(activated?.runtimeHome).toBe(runtimeHome);
     expect(activated?.env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
+    expect(activated?.env.CODEX_HOME).toBe(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'codex'));
     expect(activated?.env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
     expect(activated?.env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
   });

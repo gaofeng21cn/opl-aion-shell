@@ -27,6 +27,32 @@ type EnsurePackagedOplFullRuntimeInput = {
   homeDir?: string;
 };
 
+type ResolveOplAppCodexHomeInput = {
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
+  platform?: NodeJS.Platform;
+};
+
+/** Resolve the isolated Codex home shared by every OPL App child process. */
+export function resolveOplAppCodexHome(input: ResolveOplAppCodexHomeInput = {}): string {
+  const env = input.env ?? process.env;
+  const platform = input.platform ?? process.platform;
+  const platformPath = platform === 'win32' ? path.win32 : path;
+  const explicit = env.CODEX_HOME?.trim();
+  if (explicit) {
+    return platformPath.resolve(explicit);
+  }
+
+  const homeDir = input.homeDir ?? os.homedir();
+  if (platform === 'win32') {
+    return platformPath.join(env.APPDATA?.trim() || platformPath.join(homeDir, 'AppData', 'Roaming'), 'OPL', 'codex');
+  }
+  if (platform === 'linux') {
+    return path.join(env.XDG_CONFIG_HOME?.trim() || path.join(homeDir, '.config'), 'one-person-lab', 'codex');
+  }
+  return path.join(homeDir, 'Library', 'Application Support', 'OPL', 'codex');
+}
+
 function shellQuote(value: string): string {
   return "'" + value.replace(/'/g, "'\\''") + "'";
 }
@@ -68,7 +94,7 @@ function existingFileEnv(name: string, filePath: string): NodeJS.ProcessEnv {
   return fs.existsSync(filePath) ? { [name]: filePath } : {};
 }
 
-function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
+function buildRuntimeEnv(runtimeHome: string, homeDir: string): NodeJS.ProcessEnv {
   const pythonBin = resolvePythonBin(runtimeHome);
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
@@ -81,6 +107,7 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
   return buildOplHostToolEnv({
     runtimeEnv: {
       OPL_FULL_RUNTIME_HOME: runtimeHome,
+      CODEX_HOME: resolveOplAppCodexHome({ homeDir }),
       OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
       OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
       OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
@@ -283,7 +310,7 @@ export function ensurePackagedOplFullRuntime(
   return {
     version: payload.version,
     runtimeHome,
-    env: buildRuntimeEnv(runtimeHome),
+    env: buildRuntimeEnv(runtimeHome, homeDir),
     source: 'packaged_payload',
   };
 }
@@ -301,7 +328,7 @@ export function activateInstalledOplFullRuntime(input: { homeDir?: string } = {}
         (runtimeHomeFromPointer === activeRuntimeHome ? pointerVersion : '') ||
         ACTIVE_RUNTIME_DIR,
       runtimeHome: activeRuntimeHome,
-      env: buildRuntimeEnv(activeRuntimeHome),
+      env: buildRuntimeEnv(activeRuntimeHome, homeDir),
       source: 'active_pointer',
     };
   }
@@ -315,7 +342,7 @@ export function activateInstalledOplFullRuntime(input: { homeDir?: string } = {}
   return {
     version: pointerVersion,
     runtimeHome,
-    env: buildRuntimeEnv(runtimeHome),
+    env: buildRuntimeEnv(runtimeHome, homeDir),
     source: 'active_pointer',
   };
 }

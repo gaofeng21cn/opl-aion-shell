@@ -1,6 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
+const REQUIRED_AIONCORE_VERSION = 'v0.1.49';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.49';
+const REQUIRED_CODEX_ACP_VERSION = '1.1.2';
+const REQUIRED_CODEX_VERSION = '0.144.6';
+const MANAGED_CODEX_ACP_PACKAGE = '@agentclientprotocol/codex-acp';
+const LEGACY_CODEX_ACP_PACKAGE = '@zed-industries/codex-acp';
+const MANAGED_CODEX_ACP_ENTRYPOINT = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
+
 function backendBinaryName(platform) {
   return platform === 'win32' ? 'aioncore.exe' : 'aioncore';
 }
@@ -145,6 +153,39 @@ function readManifest(manifestPath) {
   }
 }
 
+function hasExactStringEntries(value, expected) {
+  return (
+    Array.isArray(value) &&
+    value.length === expected.length &&
+    value.every((entry, index) => typeof entry === 'string' && entry === expected[index])
+  );
+}
+
+function requireAioncoreManifestContract(baseDir, runtimeKey, platform, arch, invalid) {
+  const manifestPath = path.join(baseDir, 'manifest.json');
+  if (!isFile(manifestPath)) return;
+
+  const relativePath = bundledPath(runtimeKey, 'manifest.json');
+  const manifest = readManifest(manifestPath);
+  if (!manifest) {
+    invalid.push(`${relativePath}: invalid JSON`);
+    return;
+  }
+
+  const normalizedVersion = typeof manifest.version === 'string' ? manifest.version.trim().replace(/^v/, '') : '';
+
+  if (
+    manifest.platform !== platform ||
+    manifest.arch !== arch ||
+    normalizedVersion !== REQUIRED_AIONCORE_REPORTED_VERSION ||
+    manifest.compatibility?.reportedVersion !== REQUIRED_AIONCORE_REPORTED_VERSION
+  ) {
+    invalid.push(
+      `${relativePath}: expected AionCore ${REQUIRED_AIONCORE_VERSION} for ${runtimeKey} with reported version ${REQUIRED_AIONCORE_REPORTED_VERSION}`
+    );
+  }
+}
+
 function requireManagedAcpTool(baseDir, runtimeKey, toolId, checked, missing) {
   const toolRoot = path.join(baseDir, 'managed-resources', 'acp', toolId);
   const versions = readDirectories(toolRoot);
@@ -199,19 +240,189 @@ function requireManagedAcpTool(baseDir, runtimeKey, toolId, checked, missing) {
   }
 }
 
+function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, invalid) {
+  const managedResourcesDir = path.join(baseDir, 'managed-resources');
+  const rootManifestPath = path.join(managedResourcesDir, 'manifest.json');
+  const rootManifestRelativePath = bundledPath(runtimeKey, 'managed-resources', 'manifest.json');
+  checked.push(rootManifestRelativePath);
+  if (!isFile(rootManifestPath)) {
+    missing.push(rootManifestRelativePath);
+    return;
+  }
+
+  const rootManifest = readManifest(rootManifestPath);
+  if (!rootManifest || rootManifest.schemaVersion !== 1 || rootManifest.runtimeKey !== runtimeKey) {
+    invalid.push(`${rootManifestRelativePath}: schemaVersion/runtimeKey mismatch`);
+    return;
+  }
+
+  const codexTools = Array.isArray(rootManifest.acpTools)
+    ? rootManifest.acpTools.filter((tool) => tool?.slug === 'codex-acp')
+    : [];
+  if (codexTools.length !== 1) {
+    invalid.push(`${rootManifestRelativePath}: expected exactly one codex-acp tool`);
+    return;
+  }
+
+  const tool = codexTools[0];
+  const expectedRoot = path.posix.join('acp', 'codex-acp', REQUIRED_CODEX_ACP_VERSION, runtimeKey);
+  const platformPackageName = `@openai/codex-${runtimeKey}`;
+  const platformPackageRoot = `node_modules/${platformPackageName}`;
+  if (
+    tool.version !== REQUIRED_CODEX_ACP_VERSION ||
+    tool.packageName !== MANAGED_CODEX_ACP_PACKAGE ||
+    tool.root !== expectedRoot ||
+    tool.platformDirectory !== runtimeKey ||
+    tool.manifest !== 'manifest.json' ||
+    tool.entrypoint !== MANAGED_CODEX_ACP_ENTRYPOINT ||
+    !hasExactStringEntries(tool.pathEntries, ['node_modules/.bin']) ||
+    !Array.isArray(tool.requiredFiles) ||
+    !tool.requiredFiles.includes('package.json') ||
+    !tool.requiredFiles.includes('package-lock.json') ||
+    !Array.isArray(tool.requiredDirectories) ||
+    !tool.requiredDirectories.includes('node_modules') ||
+    typeof tool.platformExecutable !== 'string' ||
+    !tool.platformExecutable.startsWith(`${platformPackageRoot}/`)
+  ) {
+    invalid.push(`${rootManifestRelativePath}: invalid maintained Codex ACP identity`);
+    return;
+  }
+
+  const toolRoot = path.resolve(managedResourcesDir, ...expectedRoot.split('/'));
+  if (!isPathInside(toolRoot, managedResourcesDir)) {
+    invalid.push(`${rootManifestRelativePath}: codex-acp root escapes managed-resources`);
+    return;
+  }
+
+  const versionRoot = path.join(managedResourcesDir, 'acp', 'codex-acp');
+  const installedVersions = readDirectories(versionRoot);
+  if (installedVersions.length !== 1 || installedVersions[0] !== REQUIRED_CODEX_ACP_VERSION) {
+    invalid.push(
+      `${rootManifestRelativePath}: codex-acp directory versions do not match ${REQUIRED_CODEX_ACP_VERSION}`
+    );
+  }
+
+  const requiredFiles = [tool.manifest, tool.entrypoint, tool.platformExecutable, ...tool.requiredFiles];
+  for (const relativePath of new Set(requiredFiles)) {
+    if (typeof relativePath !== 'string' || !relativePath.trim()) {
+      invalid.push(`${rootManifestRelativePath}: codex-acp required file contract is incomplete`);
+      continue;
+    }
+    const absolutePath = path.resolve(toolRoot, ...relativePath.split('/'));
+    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
+    checked.push(checkedPath);
+    if (!isPathInside(absolutePath, toolRoot)) {
+      invalid.push(`${checkedPath}: path escapes codex-acp root`);
+    } else if (!isFile(absolutePath)) {
+      missing.push(checkedPath);
+    }
+  }
+  for (const relativePath of tool.requiredDirectories) {
+    if (typeof relativePath !== 'string' || !relativePath.trim()) {
+      invalid.push(`${rootManifestRelativePath}: codex-acp required directory contract is incomplete`);
+      continue;
+    }
+    const absolutePath = path.resolve(toolRoot, ...relativePath.split('/'));
+    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
+    checked.push(checkedPath);
+    if (!isPathInside(absolutePath, toolRoot)) {
+      invalid.push(`${checkedPath}: path escapes codex-acp root`);
+    } else if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isDirectory()) {
+      missing.push(checkedPath);
+    }
+  }
+
+  const localManifest = readManifest(path.join(toolRoot, 'manifest.json'));
+  if (
+    !localManifest ||
+    localManifest.entrypoint !== MANAGED_CODEX_ACP_ENTRYPOINT ||
+    !hasExactStringEntries(localManifest.path_entries, ['node_modules/.bin'])
+  ) {
+    invalid.push(`${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'manifest.json')}: contract mismatch`);
+  }
+
+  const packageMetadata = [
+    ['package.json', 'managed root'],
+    [`node_modules/${MANAGED_CODEX_ACP_PACKAGE}/package.json`, 'maintained ACP package'],
+    ['node_modules/@openai/codex/package.json', 'Codex package'],
+    [`${platformPackageRoot}/package.json`, 'Codex platform package'],
+  ];
+  for (const [relativePath] of packageMetadata) {
+    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
+    checked.push(checkedPath);
+    if (!isFile(path.join(toolRoot, ...relativePath.split('/')))) {
+      missing.push(checkedPath);
+    }
+  }
+
+  const packageJson = readManifest(path.join(toolRoot, 'package.json'));
+  if (
+    packageJson?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== REQUIRED_CODEX_ACP_VERSION ||
+    packageJson?.dependencies?.[LEGACY_CODEX_ACP_PACKAGE]
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package.json')}: package/version mismatch`
+    );
+  }
+
+  const acpPackageJson = readManifest(
+    path.join(toolRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json')
+  );
+  if (
+    acpPackageJson?.name !== MANAGED_CODEX_ACP_PACKAGE ||
+    acpPackageJson?.version !== REQUIRED_CODEX_ACP_VERSION ||
+    acpPackageJson?.bin?.['codex-acp'] !== 'dist/index.js'
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', MANAGED_CODEX_ACP_PACKAGE, 'package.json')}: maintained ACP package mismatch`
+    );
+  }
+
+  const codexPackageJson = readManifest(path.join(toolRoot, 'node_modules', '@openai', 'codex', 'package.json'));
+  if (
+    codexPackageJson?.name !== '@openai/codex' ||
+    codexPackageJson?.version !== REQUIRED_CODEX_VERSION ||
+    codexPackageJson?.optionalDependencies?.[platformPackageName] !==
+      `npm:@openai/codex@${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', '@openai/codex', 'package.json')}: expected Codex ${REQUIRED_CODEX_VERSION} for ${runtimeKey}`
+    );
+  }
+
+  const platformPackageJson = readManifest(
+    path.join(toolRoot, 'node_modules', '@openai', `codex-${runtimeKey}`, 'package.json')
+  );
+  if (
+    platformPackageJson?.name !== '@openai/codex' ||
+    platformPackageJson?.version !== `${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, platformPackageRoot, 'package.json')}: expected Codex platform package ${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+    );
+  }
+
+  if (fs.existsSync(path.join(toolRoot, 'node_modules', '@zed-industries', 'codex-acp'))) {
+    invalid.push(`${bundledPath(runtimeKey, 'managed-resources', expectedRoot)}: legacy Codex ACP is forbidden`);
+  }
+}
+
 function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, targetArch }) {
   const runtimeKey = `${electronPlatformName}-${targetArch}`;
   const baseDir = path.join(resourcesDir, 'bundled-aioncore', runtimeKey);
   const checked = [];
   const missing = [];
+  const invalid = [];
   const sizeAccounting = [];
 
   requireRelativePath(baseDir, runtimeKey, [backendBinaryName(electronPlatformName)], checked, missing);
   requireRelativePath(baseDir, runtimeKey, ['manifest.json'], checked, missing);
   requireRelativePath(baseDir, runtimeKey, ['managed-resources'], checked, missing);
+  requireAioncoreManifestContract(baseDir, runtimeKey, electronPlatformName, targetArch, invalid);
   requireManagedNode(baseDir, runtimeKey, electronPlatformName, checked, missing);
   requireManagedAcpTool(baseDir, runtimeKey, 'codex-acp', checked, missing);
   requireManagedAcpTool(baseDir, runtimeKey, 'claude-agent-acp', checked, missing);
+  requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, invalid);
   addSizeAccounting(sizeAccounting, runtimeKey, 'aioncore-binary', baseDir, backendBinaryName(electronPlatformName));
   addSizeAccounting(sizeAccounting, runtimeKey, 'managed-node', baseDir, 'managed-resources', 'node');
   addSizeAccounting(sizeAccounting, runtimeKey, 'codex-acp', baseDir, 'managed-resources', 'acp', 'codex-acp');
@@ -225,7 +436,7 @@ function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, ta
     'claude-agent-acp'
   );
 
-  return { runtimeKey, checked, missing, sizeAccounting };
+  return { runtimeKey, checked, missing, invalid, sizeAccounting };
 }
 
 module.exports = {

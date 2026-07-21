@@ -1,3 +1,5 @@
+import type { TConversationRuntimeSummary } from '../../config/storage';
+
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -202,6 +204,12 @@ export type AcpConfigOptionDto = {
   option_type?: AcpConfigOptionType;
   current_value?: string | null;
   options: AcpConfigSelectOptionDto[];
+};
+
+export type EnsureConversationRuntimeResponse = {
+  recovered: boolean;
+  config_options: AcpConfigOptionDto[];
+  runtime: TConversationRuntimeSummary;
 };
 
 export type GetConfigOptionsResponse = {

@@ -28,7 +28,7 @@ const DEFAULT_MANAGED_RESOURCE_PREPARE_RETRY_DELAY_MS = 5000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS = 600000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
-const MINIMUM_AIONCORE_VERSION = [0, 1, 44];
+const MINIMUM_AIONCORE_VERSION = [0, 1, 49];
 const REQUIRED_AIONCORE_OPTIONS = ['--recover-corrupted-database'];
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
@@ -156,7 +156,7 @@ function getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion) {
 
 function isPreparedRuntimeValid(resourcesRoot, electronPlatformName, targetArch) {
   const result = verifyBundledAioncoreResources({ resourcesDir: resourcesRoot, electronPlatformName, targetArch });
-  return result.missing.length === 0;
+  return result.missing.length === 0 && result.invalid.length === 0;
 }
 
 function restorePreparedRuntimeFromCache({
@@ -245,7 +245,7 @@ function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) 
     );
   }
   if (compareStableVersions(reportedVersionParts, MINIMUM_AIONCORE_VERSION) < 0) {
-    throw new Error(`AionCore recovery requires AionCore >= 0.1.44, reported ${reportedVersion}`);
+    throw new Error(`AionCore recovery requires AionCore >= 0.1.49, reported ${reportedVersion}`);
   }
 
   try {
@@ -964,6 +964,21 @@ function prepareAioncore(options) {
     };
 
     writeJson(path.join(targetDir, 'manifest.json'), manifest);
+    const verification = verifyBundledAioncoreResources({
+      resourcesDir: path.join(projectRoot, 'resources'),
+      electronPlatformName: platform,
+      targetArch: arch,
+    });
+    if (verification.missing.length > 0 || verification.invalid.length > 0) {
+      removeDirectorySafe(targetDir);
+      if (tempDir) removeDirectorySafe(tempDir);
+      throw new Error(
+        `Prepared AionCore managed resources are invalid: ${[
+          ...verification.missing.map((entry) => `missing ${entry}`),
+          ...verification.invalid,
+        ].join(', ')}`
+      );
+    }
     savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir: cachePaths.runtimeDir });
     console.log(
       `  Bundled aioncore prepared: resources/bundled-aioncore/${runtimeKey}/${binaryName} [source=${sourceType}]`

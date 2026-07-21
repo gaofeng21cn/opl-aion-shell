@@ -73,7 +73,11 @@ import {
   setCloseToTrayEnabled,
   setIsQuitting,
 } from './process/utils/tray';
-import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/backend/fullRuntime';
+import {
+  applyOplFullRuntimeEnv,
+  ensurePackagedOplFullRuntime,
+  resolveOplAppCodexHome,
+} from './process/backend/fullRuntime';
 import { buildOplHostToolEnv } from './process/backend/hostToolEnv';
 import { readCloseToTraySetting } from './process/utils/closeToTraySetting';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
@@ -150,7 +154,10 @@ const oplRuntime = ensurePackagedOplFullRuntime({
 const isWebUIBootstrap = process.argv.includes('--webui') || app.commandLine.hasSwitch('webui');
 applyOplFullRuntimeEnv(
   buildOplHostToolEnv({
-    runtimeEnv: oplRuntime?.env,
+    runtimeEnv: {
+      CODEX_HOME: resolveOplAppCodexHome(),
+      ...oplRuntime?.env,
+    },
     usePackagedLocalTemporalDefault: app.isPackaged && !isWebUIBootstrap,
   })
 );

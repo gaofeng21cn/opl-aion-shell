@@ -34,6 +34,10 @@ function verifyBundledResources(resourcesDir, electronPlatformName, targetArch) 
     console.error(`   Missing bundled resources: ${result.missing.join(', ')}`);
     throw new Error(`Packaged app is missing required bundled resource(s): ${result.missing.join(', ')}`);
   }
+  if (result.invalid.length > 0) {
+    console.error(`   Invalid bundled resources: ${result.invalid.join(', ')}`);
+    throw new Error(`Packaged app has invalid bundled resource(s): ${result.invalid.join(', ')}`);
+  }
 
   console.log(`   ✓ Bundled resources verified for ${result.runtimeKey} (${result.checked.length} checks)`);
   const sizeSummary = result.sizeAccounting

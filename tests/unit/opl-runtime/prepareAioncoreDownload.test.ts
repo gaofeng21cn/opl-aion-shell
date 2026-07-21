@@ -46,34 +46,34 @@ describe('prepare-aioncore compatibility gate', () => {
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 
-    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
       execFileSync(_command: string, args: string[]) {
         calls.push(args);
         return args[0] === '--version'
-          ? 'aioncore 0.1.44\n'
+          ? 'aioncore 0.1.49\n'
           : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
       },
     });
 
-    expect(result.version).toBe('0.1.44');
+    expect(result.version).toBe('0.1.49');
     expect(calls).toEqual([['--version'], ['--help']]);
   });
 
   it('rejects a binary whose reported version does not match the package pin', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
         execFileSync() {
           return 'aioncore 0.1.28\n';
         },
       })
-    ).toThrow(/expected 0\.1\.44, reported 0\.1\.28/);
+    ).toThrow(/expected 0\.1\.49, reported 0\.1\.28/);
   });
 
   it('rejects a binary that does not expose database recovery', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
         execFileSync(_command: string, args: string[]) {
-          return args[0] === '--version' ? 'aioncore 0.1.44\n' : 'Options:\n  -V, --version\n';
+          return args[0] === '--version' ? 'aioncore 0.1.49\n' : 'Options:\n  -V, --version\n';
         },
       })
     ).toThrow(/missing required option --recover-corrupted-database/);
@@ -84,18 +84,18 @@ describe('prepare-aioncore compatibility gate', () => {
       __test__.assertAioncoreCompatibility('/tmp/aioncore', null, {
         execFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.43\n'
+            ? 'aioncore 0.1.48\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       })
-    ).toThrow(/requires AionCore >= 0\.1\.44, reported 0\.1\.43/);
+    ).toThrow(/requires AionCore >= 0\.1\.49, reported 0\.1\.48/);
   });
 
   it('rejects prerelease Actions artifacts to match the runtime recovery gate', () => {
     expect(() =>
       __test__.assertAioncoreCompatibility('/tmp/aioncore', null, {
         execFileSync() {
-          return 'aioncore 0.1.44-rc.1\n';
+          return 'aioncore 0.1.49-rc.1\n';
         },
       })
     ).toThrow(/unrecognized --version output/);
@@ -257,7 +257,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
       path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore')
     );
 
-    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.44');
+    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.49');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
   });
 
@@ -265,14 +265,22 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.44', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.49', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
 
     fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
       recursive: true,
     });
     fs.writeFileSync(path.join(cacheRuntimeDir, 'aioncore'), 'binary');
-    fs.writeFileSync(path.join(cacheRuntimeDir, 'manifest.json'), '{}');
+    fs.writeFileSync(
+      path.join(cacheRuntimeDir, 'manifest.json'),
+      JSON.stringify({
+        platform: 'darwin',
+        arch: 'arm64',
+        version: 'v0.1.49',
+        compatibility: { reportedVersion: '0.1.49' },
+      })
+    );
     fs.writeFileSync(
       path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'),
       'node'
@@ -282,40 +290,79 @@ describe('prepare-aioncore prepared runtime cache', () => {
       'npm'
     );
 
-    for (const tool of ['codex-acp', 'claude-agent-acp']) {
-      const toolRoot = path.join(cacheRuntimeDir, 'managed-resources', 'acp', tool, '0.1.0', 'darwin-arm64');
-      fs.mkdirSync(toolRoot, { recursive: true });
-      fs.writeFileSync(path.join(toolRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'index.js' }));
-      fs.writeFileSync(path.join(toolRoot, 'index.js'), 'console.log("ok")');
-    }
-    fs.mkdirSync(
-      path.join(
-        cacheRuntimeDir,
-        'managed-resources',
-        'acp',
-        'codex-acp',
-        '0.1.0',
-        'darwin-arm64',
-        'node_modules',
-        '.bin'
-      ),
-      {
-        recursive: true,
-      }
+    const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
+    const codexRoot = path.join(managedResourcesDir, 'acp', 'codex-acp', '1.1.2', 'darwin-arm64');
+    const codexEntrypoint = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
+    const codexPlatformExecutable = 'node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex';
+    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'dist'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@openai', 'codex'), { recursive: true });
+    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@openai', 'codex-darwin-arm64'), { recursive: true });
+    fs.mkdirSync(path.join(codexRoot, 'node_modules', '.bin'), { recursive: true });
+    fs.mkdirSync(path.join(codexRoot, ...codexPlatformExecutable.split('/').slice(0, -1)), { recursive: true });
+    fs.writeFileSync(
+      path.join(codexRoot, 'manifest.json'),
+      JSON.stringify({ entrypoint: codexEntrypoint, path_entries: ['node_modules/.bin'] })
+    );
+    fs.writeFileSync(
+      path.join(codexRoot, 'package.json'),
+      JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': '1.1.2' } })
+    );
+    fs.writeFileSync(path.join(codexRoot, 'package-lock.json'), '{}');
+    fs.writeFileSync(path.join(codexRoot, ...codexEntrypoint.split('/')), 'console.log("ok")');
+    fs.writeFileSync(
+      path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json'),
+      JSON.stringify({
+        name: '@agentclientprotocol/codex-acp',
+        version: '1.1.2',
+        bin: { 'codex-acp': 'dist/index.js' },
+      })
+    );
+    fs.writeFileSync(
+      path.join(codexRoot, 'node_modules', '@openai', 'codex', 'package.json'),
+      JSON.stringify({
+        name: '@openai/codex',
+        version: '0.144.6',
+        optionalDependencies: {
+          '@openai/codex-darwin-arm64': 'npm:@openai/codex@0.144.6-darwin-arm64',
+        },
+      })
+    );
+    fs.writeFileSync(
+      path.join(codexRoot, 'node_modules', '@openai', 'codex-darwin-arm64', 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.144.6-darwin-arm64' })
+    );
+    fs.writeFileSync(path.join(codexRoot, ...codexPlatformExecutable.split('/')), 'codex');
+    const claudeRoot = path.join(managedResourcesDir, 'acp', 'claude-agent-acp', '0.58.1', 'darwin-arm64');
+    fs.mkdirSync(claudeRoot, { recursive: true });
+    fs.writeFileSync(path.join(claudeRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'index.js' }));
+    fs.writeFileSync(path.join(claudeRoot, 'index.js'), 'console.log("ok")');
+    fs.writeFileSync(
+      path.join(managedResourcesDir, 'manifest.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        runtimeKey: 'darwin-arm64',
+        acpTools: [
+          {
+            slug: 'codex-acp',
+            version: '1.1.2',
+            packageName: '@agentclientprotocol/codex-acp',
+            root: 'acp/codex-acp/1.1.2/darwin-arm64',
+            platformDirectory: 'darwin-arm64',
+            manifest: 'manifest.json',
+            entrypoint: codexEntrypoint,
+            pathEntries: ['node_modules/.bin'],
+            requiredFiles: ['package.json', 'package-lock.json'],
+            requiredDirectories: ['node_modules'],
+            platformExecutable: codexPlatformExecutable,
+          },
+        ],
+      })
     );
     fs.symlinkSync(
-      '../@zed-industries/codex-acp/bin/codex-acp.js',
-      path.join(
-        cacheRuntimeDir,
-        'managed-resources',
-        'acp',
-        'codex-acp',
-        '0.1.0',
-        'darwin-arm64',
-        'node_modules',
-        '.bin',
-        'codex-acp'
-      )
+      '../@agentclientprotocol/codex-acp/dist/index.js',
+      path.join(codexRoot, 'node_modules', '.bin', 'codex-acp')
     );
 
     const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
@@ -325,10 +372,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.44',
+        version: 'v0.1.49',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.44\n'
+            ? 'aioncore 0.1.49\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });
@@ -348,14 +395,14 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'managed-resources',
             'acp',
             'codex-acp',
-            '0.1.0',
+            '1.1.2',
             'darwin-arm64',
             'node_modules',
             '.bin',
             'codex-acp'
           )
         )
-      ).toBe('../@zed-industries/codex-acp/bin/codex-acp.js');
+      ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
     } finally {
       if (previousCacheDir === undefined) {
         delete process.env.AIONUI_AIONCORE_CACHE_DIR;
