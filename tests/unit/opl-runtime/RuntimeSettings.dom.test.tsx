@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import { SettingsActiveAnchorProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 import { resetManagedUpdateMaintenanceForTest } from '@/renderer/services/managedUpdateMaintenance';
 
@@ -20,6 +21,7 @@ const bridgeMocks = vi.hoisted(() => ({
   rollbackUpdateComponentInvoke: vi.fn(),
   autoUpdateGetStatusSnapshotInvoke: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
+  systemInfoInvoke: vi.fn(),
   modalConfirm: vi.fn(),
 }));
 
@@ -51,6 +53,9 @@ vi.mock('@/common', () => ({
     },
     shell: {
       openFolderWith: { invoke: vi.fn() },
+    },
+    application: {
+      systemInfo: { invoke: bridgeMocks.systemInfoInvoke },
     },
     autoUpdate: {
       getStatusSnapshot: { invoke: bridgeMocks.autoUpdateGetStatusSnapshotInvoke },
@@ -389,6 +394,15 @@ const managedUpdateStatusResult = {
   },
 };
 
+type MaintenanceSurface = 'services' | 'updates' | 'diagnostics';
+
+const renderRuntimeSettings = (surface: MaintenanceSurface = 'services') =>
+  render(
+    <SettingsActiveAnchorProvider value={surface}>
+      <RuntimeSettings />
+    </SettingsActiveAnchorProvider>
+  );
+
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
     window.location.hash = '';
@@ -420,6 +434,13 @@ describe('RuntimeSettings app state bridge usage', () => {
     });
     bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
+    bridgeMocks.systemInfoInvoke.mockResolvedValue({
+      cacheDir: '/tmp/opl-cache',
+      workDir: '/tmp/opl-work',
+      logDir: '/tmp/opl-logs',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve(
         detail === 'summary'
@@ -526,21 +547,39 @@ describe('RuntimeSettings app state bridge usage', () => {
   });
 
   it('loads the fast OPL app state on initial render and fast App state on page refresh', async () => {
-    render(<RuntimeSettings />);
+    renderRuntimeSettings();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
-    expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'services'
+    );
+    expect(screen.getByTestId('settings-maintenance-service-status')).toBeInTheDocument();
     expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
   });
 
-  it('renders maintenance health and daily actions without exposing technical details', async () => {
-    render(<RuntimeSettings />);
+  it('keeps maintenance health and daily actions in their owned destinations without exposing technical details', async () => {
+    const services = renderRuntimeSettings('services');
 
     await waitFor(() => expect(screen.getByTestId('opl-runtime-health-summary')).toBeInTheDocument());
-    expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
-      'settings.oplEnvironmentPage.healthSummary.usable'
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'services'
     );
+    expect(screen.getByTestId('settings-maintenance-service-status')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-maintenance-hub')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-update-channel')).not.toBeInTheDocument();
+
+    services.unmount();
+    renderRuntimeSettings('updates');
+
+    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'updates'
+    );
+    expect(screen.queryByTestId('opl-runtime-health-summary')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
       'settings.uiOptimization.maintenance.summaryTitle'
     );
@@ -560,9 +599,13 @@ describe('RuntimeSettings app state bridge usage', () => {
   });
 
   it('keeps maintenance mutations inline and the diagnostics disclosure read-only', async () => {
-    render(<RuntimeSettings />);
+    const updates = renderRuntimeSettings('updates');
 
     await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'updates'
+    );
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-maintenance-inline-updates')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-management-action')).not.toBeInTheDocument();
@@ -612,20 +655,31 @@ describe('RuntimeSettings app state bridge usage', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-diagnostics-action'));
+    updates.unmount();
+    renderRuntimeSettings('diagnostics');
+
+    const diagnosticsAction = await screen.findByTestId('settings-maintenance-diagnostics-action');
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'diagnostics'
+    );
+    expect(screen.queryByTestId('settings-maintenance-inline-updates')).not.toBeInTheDocument();
+    fireEvent.click(diagnosticsAction);
 
     const diagnostics = await screen.findByTestId('settings-maintenance-technical-details');
+    const logDirectory = screen.getByTestId('settings-maintenance-log-directory');
+    expect(within(logDirectory).getByTestId('settings-workspace-log-directory')).toBeVisible();
     expect(within(diagnostics).getByTestId('opl-runtime-developer-source-alert')).toBeInTheDocument();
     expect(diagnostics.querySelector('.arco-collapse')).toBeNull();
     expect(within(diagnostics).getByText('settings.workDir')).toBeVisible();
-    expect(within(diagnostics).getByText('settings.logDir')).toBeVisible();
+    expect(within(diagnostics).queryByTestId('settings-workspace-log-directory')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByTestId('opl-module-maintenance')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByTestId('opl-managed-updates')).not.toBeInTheDocument();
     expect(within(diagnostics).queryByText('settings.oplEnvironmentPage.codexContext.title')).not.toBeInTheDocument();
   });
 
   it('persists the update channel through the Framework configuration catalog action', async () => {
-    render(<RuntimeSettings />);
+    renderRuntimeSettings('updates');
 
     const select = await screen.findByTestId('settings-maintenance-update-channel-select');
     expect(within(select).getByText('稳定版')).toBeInTheDocument();
@@ -789,9 +843,13 @@ describe('RuntimeSettings app state bridge usage', () => {
       },
     });
 
-    render(<RuntimeSettings />);
+    renderRuntimeSettings();
 
-    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('settings-maintenance-destination')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'services'
+    );
     expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByText('Publication artifact')).not.toBeInTheDocument();
