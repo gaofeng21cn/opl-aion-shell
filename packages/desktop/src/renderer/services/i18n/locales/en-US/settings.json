@@ -1510,6 +1510,15 @@
         "availability": "Availability"
       }
     },
+    "backgroundTasks": {
+      "title": "Background tasks",
+      "readyDescription": "The task service, worker, and recurring scheduler are available.",
+      "attentionDescription": "A background-task dependency needs to be checked or repaired.",
+      "status": {
+        "ready": "Available",
+        "attention": "Needs attention"
+      }
+    },
     "technical": {
       "description": "Compact read-only details for troubleshooting.",
       "codex": "Codex",
@@ -1549,10 +1558,10 @@
   },
   "workspacePage": {
     "title": "Workspace",
-    "description": "Choose the default local work and log locations, then manage Codex instructions and additions for new conversations.",
+    "description": "Choose the default work directory for new tasks and project output.",
     "locations": {
       "title": "File locations",
-      "description": "These locations set defaults for new task output and local logs; they do not own conversations."
+      "description": "This directory sets the default location for new tasks and project output; it does not own conversations."
     },
     "status": {
       "ready": "Available",
@@ -1578,8 +1587,12 @@
     "root": {
       "title": "Work directory",
       "current": "New local tasks store output under {{path}} by default.",
+      "webuiManaged": "The container work directory is fixed at {{path}}; its host location is managed by Docker installation or Compose configuration.",
+      "webuiReadOnly": "The WebUI work directory is {{path}}. WebUI launch configuration owns this path, and Settings is read-only.",
+      "webuiManagedTag": "WebUI launch managed",
+      "unavailable": "No work directory is reported for this runtime.",
       "missing": "Choose a work directory before starting local tasks.",
-      "dockerMount": "Docker /projects",
+      "dockerMount": "Docker /projects · deployment managed",
       "changeConfirmTitle": "Change work directory?",
       "changeConfirmContent": "New local tasks will use {{path}} after Framework saves and verifies the setting.",
       "changeNotVerified": "Framework accepted the change, but the selected work directory was not confirmed by a fresh read. The previous value remains shown."
@@ -1601,12 +1614,14 @@
     "logs": {
       "title": "Logs directory",
       "description": "The desktop App writes its local logs here.",
-      "webuiDescription": "Docker/WebUI stores App data and logs under the host-mounted /data directory.",
+      "dockerDescription": "Docker/Compose writes logs to /data/logs in the container. The host location comes from the /data mount, and Settings never rewires it.",
+      "webuiDescription": "The WebUI logs directory comes from launch configuration, and Settings is read-only.",
       "current": "Logs: {{path}}",
       "missing": "No logs directory is currently reported.",
       "loading": "Loading the App logs directory...",
       "unavailable": "The App logs directory could not be read.",
-      "dockerMount": "Docker /data",
+      "dockerMount": "Docker /data/logs · deployment managed",
+      "webuiManagedTag": "WebUI launch managed",
       "saved": "Logs directory updated",
       "saveFailed": "Could not update the logs directory"
     },
@@ -1723,6 +1738,29 @@
   "storagePage": {
     "title": "Data & Storage",
     "description": "Review local data use, then archive or safely remove content you no longer need.",
+    "deployment": {
+      "title": "Docker data locations",
+      "description": "These are fixed container locations. Docker installation or Compose configuration owns the two persistent host directories; Settings never rewires the mounts.",
+      "managed": "Deployment managed",
+      "locations": {
+        "projects": {
+          "title": "Projects and task output",
+          "description": "Stores project files, domain workspaces, and task artifacts.",
+          "path": "/projects"
+        },
+        "data": {
+          "title": "App and runtime data",
+          "description": "Stores App data, Framework state, Temporal data, Codex configuration and sessions, and logs.",
+          "path": "/data"
+        },
+        "recovery": {
+          "title": "Recovery staging",
+          "description": "Used for cleanup staging, archives, and receipts; it is not a third required host mount.",
+          "path": "/recovery",
+          "optional": "Optional · container managed"
+        }
+      }
+    },
     "sections": {
       "updater": {
         "title": "Installer package cache",
@@ -3260,6 +3298,7 @@
       "groups": {
         "overview": "Overview",
         "accountModels": "Account & Models",
+        "connectionsDeployment": "Connections & Deployment",
         "workspace": "Workspace",
         "agentsCapabilities": "Agents & Capabilities",
         "runtimeMaintenance": "Runtime & Maintenance",
@@ -3275,7 +3314,8 @@
         "agents": "Agents",
         "capabilities": "Capabilities",
         "instructionsContext": "Instructions & Context",
-        "runtimeServices": "Services & Maintenance",
+        "runtimeServices": "Service Status",
+        "updatesRepairs": "Updates & Repair",
         "logsDiagnostics": "Logs & Diagnostics",
         "preferences": "Preferences"
       }
@@ -3330,6 +3370,21 @@
       "collapseHealthy": "Collapse healthy components",
       "noActionRequired": "No action required",
       "technicalDetails": "Technical details",
+      "views": {
+        "services": {
+          "title": "Service Status",
+          "description": "Review whether Codex and the background task service, worker, and recurring scheduler are available."
+        },
+        "updates": {
+          "title": "Updates & Repair",
+          "description": "Check and repair the App, runtime dependencies, and capability packages; healthy items stay collapsed."
+        },
+        "diagnostics": {
+          "title": "Logs & Diagnostics",
+          "description": "Manage the desktop log directory and open read-only technical evidence when needed.",
+          "logsDescription": "Desktop can open or change the logs directory. WebUI shows the runtime-reported path read-only; confirmed Docker deployments use /data/logs."
+        }
+      },
       "time": {
         "localWithRelative": "{{local}} ({{relative}})",
         "justNow": "Just now",

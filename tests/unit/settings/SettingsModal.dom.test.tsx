@@ -207,6 +207,7 @@ vi.mock('react-i18next', () => ({
         'settings.uiOptimization.navigation.about': 'About',
         'settings.uiOptimization.navigation.groups.overview': 'Overview',
         'settings.uiOptimization.navigation.groups.accountModels': 'Account & Models',
+        'settings.uiOptimization.navigation.groups.connectionsDeployment': 'Connections & Deployment',
         'settings.uiOptimization.navigation.groups.workspace': 'Workspace',
         'settings.uiOptimization.navigation.groups.agentsCapabilities': 'Agents & Capabilities',
         'settings.uiOptimization.navigation.groups.runtimeMaintenance': 'Runtime & Maintenance',
@@ -220,7 +221,8 @@ vi.mock('react-i18next', () => ({
         'settings.uiOptimization.navigation.destinations.agents': 'Agents',
         'settings.uiOptimization.navigation.destinations.capabilities': 'Capabilities',
         'settings.uiOptimization.navigation.destinations.instructionsContext': 'Instructions & Context',
-        'settings.uiOptimization.navigation.destinations.runtimeServices': 'Services & Maintenance',
+        'settings.uiOptimization.navigation.destinations.runtimeServices': 'Service Status',
+        'settings.uiOptimization.navigation.destinations.updatesRepairs': 'Updates & Repair',
         'settings.uiOptimization.navigation.destinations.logsDiagnostics': 'Logs & Diagnostics',
         'settings.uiOptimization.navigation.destinations.preferences': 'Preferences',
         'settings.lightMode': 'Light mode',
@@ -354,7 +356,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByTestId('gateway-content')).not.toBeInTheDocument();
   });
 
-  it('shows the six App-owned Settings groups and expands only the active group', () => {
+  it('shows the seven App-owned Settings groups and keeps Connections & Deployment independent', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     const overviewButton = screen.getByRole('button', { name: 'Overview' });
@@ -362,6 +364,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(overviewButton.querySelector('svg')).not.toBeNull();
     expect(overviewButton.querySelector('svg[data-icon="gauge-high"]')).toBeNull();
     expect(screen.getByRole('button', { name: 'Account & Models' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connections & Deployment' })).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Agents & Capabilities' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Runtime & Maintenance' })).toBeInTheDocument();
@@ -379,6 +382,16 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Tools')).not.toBeInTheDocument();
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
     expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-settings-group-id]')).toHaveLength(7);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account & Models' }));
+    expect(screen.getByText('Account & Access')).toBeInTheDocument();
+    expect(screen.getByText('Models')).toBeInTheDocument();
+    expect(screen.queryByText('Resources & Connections')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connections & Deployment' }));
+    expect(screen.getByTestId('resources-content')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connections & Deployment' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('keeps Settings control center host anchors stable for visual QA', () => {
@@ -389,6 +402,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Account & Models')).toBeInTheDocument();
+    expect(screen.getByText('Connections & Deployment')).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Runtime & Maintenance')).toBeInTheDocument();
@@ -458,7 +472,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByRole('button', { name: 'Back to settings categories' })).toBeInTheDocument();
   });
 
-  it('keeps every narrow-screen Settings category vertically keyboard discoverable', () => {
+  it('keeps all seven narrow-screen Settings categories vertically keyboard discoverable', () => {
     render(
       <MemoryRouter initialEntries={['/settings/appearance']}>
         <SettingsPageWrapper>
@@ -466,6 +480,21 @@ describe('SettingsModal OPL App navigation', () => {
         </SettingsPageWrapper>
       </MemoryRouter>
     );
+
+    const groupButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-settings-group-id]'));
+    expect(groupButtons.map((button) => button.dataset.settingsGroupId)).toEqual([
+      'overview',
+      'account_models',
+      'connections_deployment',
+      'workspace',
+      'agents_capabilities',
+      'runtime_maintenance',
+      'preferences',
+    ]);
+    for (const groupButton of groupButtons) {
+      groupButton.focus();
+      expect(groupButton).toHaveFocus();
+    }
 
     const activeEntry = screen.getByRole('button', { name: 'Preferences' });
     expect(activeEntry).toHaveAttribute('aria-current', 'page');
@@ -715,12 +744,22 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Data & Storage')).not.toBeInTheDocument();
   });
 
-  it('keeps Resources searchable under Account & Models while routing diagnostics to Maintenance', () => {
+  it('keeps Resources under Connections & Deployment while routing diagnostics to Maintenance', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Account & Models')).toBeInTheDocument();
+    expect(screen.getByText('Connections & Deployment')).toBeInTheDocument();
     expect(screen.getByText('Runtime & Maintenance')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'deployment' } });
+    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
+    expect(screen.getByText('WebUI access')).toBeInTheDocument();
+    expect(screen.queryByText('Account & Models')).not.toBeInTheDocument();
+    expect(screen.queryByText('Connections & Deployment')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('WebUI access'));
+    expect(screen.getByTestId('resources-content')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connections & Deployment' })).toHaveAttribute('aria-current', 'page');
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working paths' } });
 
@@ -731,6 +770,22 @@ describe('SettingsModal OPL App navigation', () => {
     fireEvent.click(screen.getByText('Diagnostics and working paths'));
 
     expect(screen.getByTestId('runtime-content')).toHaveAttribute('data-selected-anchor', 'diagnostics');
+  });
+
+  it('keeps the three Runtime & Maintenance destinations independently addressable', async () => {
+    const view = render(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
+
+    expect(screen.getByTestId('runtime-content')).toHaveAttribute('data-selected-anchor', 'services');
+
+    view.rerender(<SettingsModal visible onCancel={() => {}} defaultTab='update' />);
+    await waitFor(() =>
+      expect(screen.getByTestId('runtime-content')).toHaveAttribute('data-selected-anchor', 'updates')
+    );
+
+    view.rerender(<SettingsModal visible onCancel={() => {}} defaultTab='system' />);
+    await waitFor(() =>
+      expect(screen.getByTestId('runtime-content')).toHaveAttribute('data-selected-anchor', 'diagnostics')
+    );
   });
 
   it('uses Enter to open and focus the first matching Settings item', async () => {

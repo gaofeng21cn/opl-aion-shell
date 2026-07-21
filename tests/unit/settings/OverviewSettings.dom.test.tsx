@@ -182,6 +182,13 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.quickEntries.modelAccount.description': 'Check Codex and model access.',
         'settings.overviewPage.quickEntries.localServices.title': 'Local Services',
         'settings.overviewPage.quickEntries.localServices.description': 'Check background services.',
+        'settings.overviewPage.backgroundTasks.title': 'Background tasks',
+        'settings.overviewPage.backgroundTasks.readyDescription':
+          'The task service, worker, and recurring scheduler are available.',
+        'settings.overviewPage.backgroundTasks.attentionDescription':
+          'A background-task dependency needs to be checked or repaired.',
+        'settings.overviewPage.backgroundTasks.status.ready': 'Available',
+        'settings.overviewPage.backgroundTasks.status.attention': 'Needs attention',
         'settings.overviewPage.actions.openRuntimeSettings': 'Open Maintenance',
         'settings.overviewPage.gateway.title': 'OPL Gateway',
         'settings.overviewPage.gateway.connectedDescription': 'Signed in for usage and billing.',
@@ -419,6 +426,12 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-card-codex')).toHaveTextContent('Codex CLI');
     expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('OPL Gateway');
     expect(screen.getByTestId('settings-overview-card-gateway')).toHaveTextContent('Connected');
+    const backgroundTasks = screen.getByTestId('settings-overview-background-tasks');
+    expect(backgroundTasks).toHaveTextContent('Background tasks');
+    expect(backgroundTasks).toHaveTextContent('Available');
+    expect(screen.queryByText('Temporal server')).not.toBeInTheDocument();
+    expect(screen.queryByText('OPL worker')).not.toBeInTheDocument();
+    expect(screen.queryByText('OPL scheduler')).not.toBeInTheDocument();
     expect(document.getElementById('codex')).toBe(screen.getByTestId('settings-overview-card-codex'));
     expect(document.getElementById('gateway')).toBe(screen.getByTestId('settings-overview-card-gateway'));
     expect(screen.queryByTestId('settings-overview-gateway-account')).not.toBeInTheDocument();
@@ -434,6 +447,8 @@ describe('OverviewSettings', () => {
 
     fireEvent.click(within(screen.getByTestId('settings-overview-card-codex')).getByRole('button', { name: 'Open' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
+    fireEvent.click(within(backgroundTasks).getByRole('button', { name: 'Open' }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/settings/environment?section=services');
   });
 
   it('does not treat an informational Framework issue as an actionable exception', () => {
@@ -503,7 +518,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     const exception = screen.getByTestId('settings-overview-exception');
-    expect(exception).toHaveTextContent('Local Services');
+    expect(exception).toHaveTextContent('Background tasks');
     expect(exception).toHaveTextContent('Temporal server and worker are not configured');
     expect(exception).not.toHaveTextContent('attention_needed');
     expect(exception).not.toHaveTextContent('provider_code_landed_unconfigured');
@@ -542,7 +557,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
@@ -569,7 +584,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
@@ -585,7 +600,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     expect(screen.queryByText('worker_source_stale')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
@@ -602,7 +617,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     expect(screen.queryByText('blocked_developer_checkout_shared_state')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
@@ -619,7 +634,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     expect(screen.queryByText('temporal_worker_dependency_unavailable')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
@@ -635,7 +650,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
   });
 
@@ -649,7 +664,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
-    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Local Services');
+    expect(screen.getByTestId('settings-overview-exception')).toHaveTextContent('Background tasks');
     expect(screen.queryByText('error')).not.toBeInTheDocument();
     const action = screen.getByTestId('settings-overview-primary-action');
     action.focus();

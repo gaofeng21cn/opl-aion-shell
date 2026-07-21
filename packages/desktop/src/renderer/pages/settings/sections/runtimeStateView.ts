@@ -83,6 +83,14 @@ export function oplPathString(value: unknown): string | null {
   return oplString(value) ?? oplString(oplRecord(value).selected_path);
 }
 
+/** Return true only when the runtime reports the paired Docker/Compose data and log locations. */
+export function hasDockerDeploymentDirectoryEvidence(value: unknown): boolean {
+  const directories = oplRecord(value);
+  const workDir = oplString(directories.workDir) ?? oplString(directories.work_dir);
+  const logDir = oplString(directories.logDir) ?? oplString(directories.log_dir);
+  return workDir?.replace(/\/+$/, '') === '/data' && logDir?.replace(/\/+$/, '') === '/data/logs';
+}
+
 export function normalizeModuleId(value: string): string {
   return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }

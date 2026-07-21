@@ -467,6 +467,7 @@ export type OplSettingsExperienceContract = {
 export const OPL_SETTINGS_PRIMARY_GROUP_IDS = [
   'overview',
   'account_models',
+  'connections_deployment',
   'workspace',
   'agents_capabilities',
   'runtime_maintenance',
@@ -499,6 +500,7 @@ export const OPL_SETTINGS_DESTINATION_IDS = [
   'capabilities',
   'instructions_context',
   'runtime_services',
+  'updates_repairs',
   'logs_diagnostics',
   'preferences',
 ] as const;
@@ -538,7 +540,7 @@ export type OplSettingsUserNavigationAuxiliaryEntry = {
 };
 
 export type OplSettingsUserNavigationProjection = {
-  schema: 'opl_app_settings_user_navigation.v1';
+  schema: 'opl_app_settings_user_navigation.v1' | 'opl_app_settings_user_navigation.v2';
   source_ref: 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia';
   carrier_route_policy: 'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items';
   primary_group_order: OplSettingsPrimaryGroupId[];
@@ -547,7 +549,9 @@ export type OplSettingsUserNavigationProjection = {
   secondary_owner_bindings: OplSettingsUserNavigationOwnerBinding[];
   auxiliary_entries: OplSettingsUserNavigationAuxiliaryEntry[];
   responsive_navigation: {
-    desktop: 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations';
+    desktop:
+      | 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations'
+      | 'seven_primary_groups_with_the_active_group_expanded_to_second_level_destinations';
     mobile: 'category_list_then_second_level_destination_with_a_visible_back_control';
     mobile_horizontal_tab_strip_allowed: false;
     mobile_navigation_scroll_axis: 'vertical';
@@ -561,6 +565,30 @@ export type OplSettingsUserNavigationProjection = {
     account_and_update_controls: 'compact_footer_without_reclassifying_them_as_primary_groups';
   };
 };
+
+const OPL_SETTINGS_LEGACY_PRIMARY_GROUP_IDS: OplSettingsPrimaryGroupId[] = [
+  'overview',
+  'account_models',
+  'workspace',
+  'agents_capabilities',
+  'runtime_maintenance',
+  'preferences',
+];
+
+const OPL_SETTINGS_LEGACY_DESTINATION_IDS: OplSettingsDestinationId[] = [
+  'overview_status',
+  'account_access',
+  'models',
+  'resources_connections',
+  'working_directory',
+  'data_storage',
+  'agents',
+  'capabilities',
+  'instructions_context',
+  'runtime_services',
+  'logs_diagnostics',
+  'preferences',
+];
 
 export type OplSettingsControlPlane = {
   source_contract_ref: 'contracts/app-gui-product-contract.json#settings_navigation';
@@ -2759,8 +2787,9 @@ function readSettingsUserNavigationProjection(
   if (!isRecord(value)) {
     throw new Error(`Invalid OPL product profile: ${context} must be an object`);
   }
+  const schema = value.schema;
   if (
-    value.schema !== 'opl_app_settings_user_navigation.v1' ||
+    (schema !== 'opl_app_settings_user_navigation.v1' && schema !== 'opl_app_settings_user_navigation.v2') ||
     value.source_ref !== 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia' ||
     value.carrier_route_policy !==
       'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items'
@@ -2772,12 +2801,26 @@ function readSettingsUserNavigationProjection(
   if (carrierRouteIds.join(',') !== OPL_SETTINGS_CARRIER_ROUTE_IDS.join(',')) {
     throw new Error(`Invalid OPL product profile: ${context} must preserve ten stable carrier routes`);
   }
+  const expectedGroupIds =
+    schema === 'opl_app_settings_user_navigation.v2'
+      ? [...OPL_SETTINGS_PRIMARY_GROUP_IDS]
+      : OPL_SETTINGS_LEGACY_PRIMARY_GROUP_IDS;
+  const expectedDestinationIds =
+    schema === 'opl_app_settings_user_navigation.v2'
+      ? [...OPL_SETTINGS_DESTINATION_IDS]
+      : OPL_SETTINGS_LEGACY_DESTINATION_IDS;
+  const expectedDesktopNavigation =
+    schema === 'opl_app_settings_user_navigation.v2'
+      ? 'seven_primary_groups_with_the_active_group_expanded_to_second_level_destinations'
+      : 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations';
   const carrierRouteIdSet = new Set<string>(carrierRouteIds);
-  const groupIdSet = new Set<string>(OPL_SETTINGS_PRIMARY_GROUP_IDS);
-  const destinationIdSet = new Set<string>(OPL_SETTINGS_DESTINATION_IDS);
+  const groupIdSet = new Set<string>(expectedGroupIds);
+  const destinationIdSet = new Set<string>(expectedDestinationIds);
   const primaryGroupOrder = readStringArray(value, 'primary_group_order', context);
-  if (primaryGroupOrder.join(',') !== OPL_SETTINGS_PRIMARY_GROUP_IDS.join(',')) {
-    throw new Error(`Invalid OPL product profile: ${context}.primary_group_order must define the six App groups`);
+  if (primaryGroupOrder.join(',') !== expectedGroupIds.join(',')) {
+    throw new Error(
+      `Invalid OPL product profile: ${context}.primary_group_order must define the ${expectedGroupIds.length} App groups`
+    );
   }
 
   if (!Array.isArray(value.primary_groups)) {
@@ -2837,7 +2880,7 @@ function readSettingsUserNavigationProjection(
       ...(transportOwnerPolicy ? { transport_owner_policy: transportOwnerPolicy } : {}),
     };
   });
-  if (destinations.map((destination) => destination.id).join(',') !== OPL_SETTINGS_DESTINATION_IDS.join(',')) {
+  if (destinations.map((destination) => destination.id).join(',') !== expectedDestinationIds.join(',')) {
     throw new Error(`Invalid OPL product profile: ${context}.destinations must define each App destination once`);
   }
   const destinationById = new Map(destinations.map((destination) => [destination.id, destination]));
@@ -2907,7 +2950,7 @@ function readSettingsUserNavigationProjection(
   if (
     !isRecord(responsiveNavigation) ||
     !isRecord(minimumViewport) ||
-    responsiveNavigation.desktop !== 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations' ||
+    responsiveNavigation.desktop !== expectedDesktopNavigation ||
     responsiveNavigation.mobile !== 'category_list_then_second_level_destination_with_a_visible_back_control' ||
     responsiveNavigation.mobile_horizontal_tab_strip_allowed !== false ||
     responsiveNavigation.mobile_navigation_scroll_axis !== 'vertical' ||
@@ -2931,7 +2974,7 @@ function readSettingsUserNavigationProjection(
   }
 
   return {
-    schema: 'opl_app_settings_user_navigation.v1',
+    schema,
     source_ref: 'contracts/app-gui-product-contract.json#settings_navigation.settings_ia',
     carrier_route_policy:
       'ten_stable_ordinary_route_ids_paths_slots_and_anchors_remain_addressable_but_are_not_rendered_as_ten_primary_navigation_items',
@@ -2941,7 +2984,7 @@ function readSettingsUserNavigationProjection(
     secondary_owner_bindings: secondaryOwnerBindings,
     auxiliary_entries: auxiliaryEntries,
     responsive_navigation: {
-      desktop: 'six_primary_groups_with_the_active_group_expanded_to_second_level_destinations',
+      desktop: expectedDesktopNavigation,
       mobile: 'category_list_then_second_level_destination_with_a_visible_back_control',
       mobile_horizontal_tab_strip_allowed: false,
       mobile_navigation_scroll_axis: 'vertical',

@@ -452,11 +452,6 @@ export interface IAppRestartResult {
 export type IAppLogDirectoryUpdateResult = {
   schema: 'opl_app_log_directory_update.v1';
   hostLogDir: string;
-  dockerVolume: {
-    sourcePath: string;
-    dataRoot: '/data';
-    logDir: '/data/logs';
-  };
 };
 
 export type IRendererLogLevel = 'info' | 'warn' | 'error';

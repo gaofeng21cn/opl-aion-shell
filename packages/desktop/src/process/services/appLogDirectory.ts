@@ -10,17 +10,11 @@ export type AppLogDirectoryDependencies = {
   setLogRoot: (logDir: string) => void;
 };
 
-const DOCKER_DATA_ROOT = '/data' as const;
-const DOCKER_LOG_DIR = '/data/logs' as const;
-
 function directoryConfig(directories: { cacheDir: string; workDir: string }, logDir: string): AppDirectoryConfig {
   return {
     cacheDir: directories.cacheDir,
     workDir: directories.workDir,
     logDir,
-    dockerDataRoot: DOCKER_DATA_ROOT,
-    dockerLogDir: DOCKER_LOG_DIR,
-    dockerLogVolumeSource: logDir,
   };
 }
 
@@ -50,10 +44,5 @@ export async function applyAppLogDirectoryUpdate(
   return {
     schema: 'opl_app_log_directory_update.v1',
     hostLogDir: nextLogDir,
-    dockerVolume: {
-      sourcePath: nextLogDir,
-      dataRoot: DOCKER_DATA_ROOT,
-      logDir: DOCKER_LOG_DIR,
-    },
   };
 }

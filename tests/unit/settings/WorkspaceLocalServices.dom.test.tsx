@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
 
@@ -195,6 +195,10 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.nextStep.repairPermission': 'Repair permission.',
         'settings.workspacePage.root.title': 'Work directory',
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
+        'settings.workspacePage.root.webuiManaged': `Container work directory: ${options?.path}. Host mount is managed by Docker or Compose.`,
+        'settings.workspacePage.root.webuiReadOnly': `WebUI work directory: ${options?.path}. Configure it when starting WebUI.`,
+        'settings.workspacePage.root.webuiManagedTag': 'WebUI start configuration',
+        'settings.workspacePage.root.unavailable': 'WebUI did not report a work directory.',
         'settings.workspacePage.root.missing': 'No work root.',
         'settings.workspacePage.root.dockerMount': 'Docker /projects',
         'settings.workspacePage.root.changeConfirmTitle': 'Change work directory?',
@@ -212,12 +216,15 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.modulesRoot.missing': 'No modules root.',
         'settings.workspacePage.logs.title': 'Logs directory',
         'settings.workspacePage.logs.description': 'Logs detail.',
-        'settings.workspacePage.logs.webuiDescription': 'Docker data and logs use /data.',
+        'settings.workspacePage.logs.webuiDescription':
+          'WebUI logs are read-only and configured when the service starts.',
+        'settings.workspacePage.logs.dockerDescription': 'Docker logs are deployment managed and read-only.',
+        'settings.workspacePage.logs.webuiManagedTag': 'WebUI start configuration',
         'settings.workspacePage.logs.current': `Logs: ${options?.path}`,
         'settings.workspacePage.logs.missing': 'No logs root.',
         'settings.workspacePage.logs.loading': 'Loading logs.',
         'settings.workspacePage.logs.unavailable': 'Logs unavailable.',
-        'settings.workspacePage.logs.dockerMount': 'Docker /data',
+        'settings.workspacePage.logs.dockerMount': 'Docker /data/logs',
         'settings.workspacePage.logs.saved': 'Logs saved.',
         'settings.workspacePage.logs.saveFailed': 'Logs save failed.',
         'settings.workspacePage.frameworkLogs.title': 'OPL Framework logs',
@@ -323,7 +330,6 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       Promise.resolve({
         schema: 'opl_app_log_directory_update.v1',
         hostLogDir: path,
-        dockerVolume: { sourcePath: path, dataRoot: '/data', logDir: '/data/logs' },
       })
     );
     mocks.showOpen.mockResolvedValue(['/Users/example/New Workspace']);
@@ -458,7 +464,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('settings-workspace-primary-action')).toBeDisabled();
   });
 
-  it('updates the desktop App log directory and Docker projection through one local typed action', async () => {
+  it('updates the desktop App log directory through one local typed action', async () => {
     mocks.showOpen.mockResolvedValueOnce(['/Users/example/OPL Logs']);
 
     render(<WorkspaceSettings withWrapper={false} surface='logs' />);
@@ -487,7 +493,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(mocks.executeAction).not.toHaveBeenCalled();
   });
 
-  it('projects Docker paths read-only from /projects and /data', async () => {
+  it('keeps Docker /projects and /data read-only without pretending to rewire host mounts', async () => {
     mocks.isDesktop = false;
     mocks.workspaceRootPath = '/projects';
     mocks.systemInfo.mockResolvedValue({
@@ -500,15 +506,61 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     const view = render(<WorkspaceSettings withWrapper={false} />);
 
-    expect(screen.getByText('Work root: /projects')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Container work directory: /projects. Host mount is managed by Docker or Compose.')
+    ).toBeInTheDocument();
     expect(screen.getByText('Docker /projects')).toBeInTheDocument();
     expect(screen.queryByText('Logs: /data/logs')).not.toBeInTheDocument();
     view.rerender(<WorkspaceSettings withWrapper={false} surface='logs' />);
     expect(await screen.findByText('Logs: /data/logs')).toBeInTheDocument();
-    expect(screen.getByText('Docker /data')).toBeInTheDocument();
+    expect(screen.getByText('Docker /data/logs')).toBeInTheDocument();
+    expect(screen.getByText('Docker logs are deployment managed and read-only.')).toBeInTheDocument();
     expect(screen.queryByText('Open Workspace')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-primary-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-workspace-log-directory-action')).not.toBeInTheDocument();
+    expect(mocks.showOpen).not.toHaveBeenCalled();
+    expect(mocks.openFolder).not.toHaveBeenCalled();
+    expect(mocks.setLogDirectory).not.toHaveBeenCalled();
+    expect(mocks.executeAction).not.toHaveBeenCalled();
+    expect(mocks.systemInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps standalone WebUI paths read-only without relabeling them as Docker mounts', async () => {
+    mocks.isDesktop = false;
+    mocks.workspaceRootPath = '/Users/example/standalone-projects';
+    mocks.systemInfo.mockResolvedValue({
+      cacheDir: '/Users/example/.aionui-web/cache',
+      workDir: '/Users/example/.aionui-web',
+      logDir: '/Users/example/.aionui-web/logs',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const view = render(<WorkspaceSettings withWrapper={false} />);
+
+    expect(
+      screen.getByText('WebUI work directory: /Users/example/standalone-projects. Configure it when starting WebUI.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('WebUI start configuration')).toBeInTheDocument();
+    expect(screen.queryByText('Docker /projects')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-primary-action')).not.toBeInTheDocument();
+
+    view.rerender(<WorkspaceSettings withWrapper={false} surface='logs' />);
+
+    expect(await screen.findByText('Logs: /Users/example/.aionui-web/logs')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('settings-workspace-log-directory')).getByText(
+        'WebUI logs are read-only and configured when the service starts.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('WebUI start configuration')).toBeInTheDocument();
+    expect(screen.queryByText('Docker /data/logs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-workspace-log-directory-action')).not.toBeInTheDocument();
+    expect(mocks.showOpen).not.toHaveBeenCalled();
+    expect(mocks.openFolder).not.toHaveBeenCalled();
+    expect(mocks.setLogDirectory).not.toHaveBeenCalled();
+    expect(mocks.executeAction).not.toHaveBeenCalled();
+    expect(mocks.systemInfo).toHaveBeenCalledTimes(2);
   });
 
   it('routes a non-writable work root to Maintenance without running global repair', () => {
@@ -526,7 +578,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.queryByText('Permission needs attention')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Open Maintenance'));
 
-    expect(window.location.hash).toBe('#/settings/environment');
+    expect(window.location.hash).toBe('#/settings/environment?section=services');
     expect(mocks.executeAction).not.toHaveBeenCalled();
     expect(screen.queryByText('Repair permissions')).not.toBeInTheDocument();
     expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();
@@ -564,7 +616,7 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByTestId('opl-local-service-background').querySelector('.i-icon-server')).not.toBeNull();
 
     fireEvent.click(screen.getByText('Open Maintenance'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('renders local service refresh as an accessible icon-only action', () => {

@@ -1589,7 +1589,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
 
   const runCapabilityPrimaryAction = (item: CapabilityPurposeViewModel) => {
     if (item.primaryAction === 'maintenance') {
-      navigate('/settings/environment');
+      navigate('/settings/environment?section=updates');
       return;
     }
     setAdvancedDetailsOpen(true);

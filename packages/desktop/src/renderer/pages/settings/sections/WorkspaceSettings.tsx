@@ -20,7 +20,7 @@ import {
 } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import { oplPathString } from './runtimeStateView';
+import { hasDockerDeploymentDirectoryEvidence, oplPathString } from './runtimeStateView';
 
 type WorkspaceSettingsProps = {
   withWrapper?: boolean;
@@ -50,6 +50,134 @@ function configurationItem(appState: Record<string, unknown>, configurationId: s
   );
 }
 
+function useSystemDirectories(enabled: boolean): {
+  systemDirectories: SystemDirectoryInfo | null;
+  systemDirectoryLoadFailed: boolean;
+  setSystemDirectories: React.Dispatch<React.SetStateAction<SystemDirectoryInfo | null>>;
+} {
+  const [systemDirectories, setSystemDirectories] = React.useState<SystemDirectoryInfo | null>(null);
+  const [systemDirectoryLoadFailed, setSystemDirectoryLoadFailed] = React.useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setSystemDirectories(null);
+      setSystemDirectoryLoadFailed(false);
+      return undefined;
+    }
+    let active = true;
+    void ipcBridge.application.systemInfo.invoke().then(
+      (directories) => {
+        if (!active) return;
+        setSystemDirectories(directories);
+        setSystemDirectoryLoadFailed(false);
+      },
+      () => {
+        if (!active) return;
+        setSystemDirectories(null);
+        setSystemDirectoryLoadFailed(true);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+
+  return { systemDirectories, systemDirectoryLoadFailed, setSystemDirectories };
+}
+
+export const LogDirectorySettingsRow: React.FC = () => {
+  const { t } = useTranslation();
+  const [message, messageContextHolder] = Message.useMessage();
+  const [logDirectoryAction, setLogDirectoryAction] = React.useState<'choose' | null>(null);
+  const isDesktop = isElectronDesktop();
+  const { systemDirectories, systemDirectoryLoadFailed, setSystemDirectories } = useSystemDirectories(true);
+  const logsRoot = systemDirectories?.logDir ?? null;
+  const isDockerLogs = !isDesktop && hasDockerDeploymentDirectoryEvidence(systemDirectories);
+  const logDescriptionKey = isDesktop
+    ? 'settings.workspacePage.logs.description'
+    : isDockerLogs
+      ? 'settings.workspacePage.logs.dockerDescription'
+      : 'settings.workspacePage.logs.webuiDescription';
+
+  const openLogs = useCallback(() => {
+    if (!logsRoot || !isDesktop) return;
+    void ipcBridge.shell.openFolderWith.invoke({ folder_path: logsRoot, tool: 'explorer' });
+  }, [isDesktop, logsRoot]);
+
+  const chooseLogDirectory = useCallback(async () => {
+    if (!isDesktop || !systemDirectories) return;
+    setLogDirectoryAction('choose');
+    try {
+      const files = await ipcBridge.dialog.showOpen.invoke({
+        defaultPath: logsRoot ?? systemDirectories.workDir,
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      const selectedPath = files?.[0];
+      if (!selectedPath) return;
+
+      const result = await ipcBridge.application.setLogDirectory.invoke({ path: selectedPath });
+      setSystemDirectories({ ...systemDirectories, logDir: result.hostLogDir });
+      message.success(t('settings.workspacePage.logs.saved'));
+    } catch {
+      message.error(t('settings.workspacePage.logs.saveFailed'));
+    } finally {
+      setLogDirectoryAction(null);
+    }
+  }, [isDesktop, logsRoot, message, setSystemDirectories, systemDirectories, t]);
+
+  return (
+    <>
+      {messageContextHolder}
+      <div className='opl-settings-row' data-testid='settings-workspace-log-directory'>
+        <div className='opl-settings-row__main'>
+          <div className='flex min-w-0 items-start gap-10px'>
+            <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+              <FileText theme='outline' size='16' />
+            </span>
+            <div className='min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.workspacePage.logs.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>{t(logDescriptionKey)}</Typography.Text>
+              <Typography.Text className='opl-settings-path block text-12px text-t-secondary'>
+                {logsRoot
+                  ? t('settings.workspacePage.logs.current', { path: logsRoot })
+                  : systemDirectoryLoadFailed
+                    ? t('settings.workspacePage.logs.unavailable')
+                    : t('settings.workspacePage.logs.loading')}
+              </Typography.Text>
+            </div>
+          </div>
+        </div>
+        <div className='opl-settings-row__meta'>
+          {!isDesktop && (
+            <Tag color='gray'>
+              {t(
+                isDockerLogs ? 'settings.workspacePage.logs.dockerMount' : 'settings.workspacePage.logs.webuiManagedTag'
+              )}
+            </Tag>
+          )}
+          {isDesktop && (
+            <Button disabled={!logsRoot} onClick={openLogs}>
+              {t('settings.workspacePage.actions.openLogs')}
+            </Button>
+          )}
+          {isDesktop && (
+            <Button
+              loading={logDirectoryAction === 'choose'}
+              disabled={!systemDirectories}
+              onClick={() => void chooseLogDirectory()}
+              data-testid='settings-workspace-log-directory-action'
+            >
+              {t('settings.workspacePage.actions.changeLogs')}
+            </Button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
 function workspaceSurfaceFromHash(): NonNullable<WorkspaceSettingsProps['surface']> {
   if (typeof window === 'undefined') return 'workspace';
   const query = window.location.hash.split('?', 2)[1] ?? '';
@@ -65,12 +193,12 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const { t } = useTranslation();
   const [message, messageContextHolder] = Message.useMessage();
   const [workspaceAction, setWorkspaceAction] = React.useState<'choose' | null>(null);
-  const [logDirectoryAction, setLogDirectoryAction] = React.useState<'choose' | null>(null);
-  const [systemDirectories, setSystemDirectories] = React.useState<SystemDirectoryInfo | null>(null);
-  const [systemDirectoryLoadFailed, setSystemDirectoryLoadFailed] = React.useState(false);
   const isDesktop = isElectronDesktop();
   const appStateQuery = useOplAppState('fast');
   const activeSurface = surface ?? (withWrapper ? workspaceSurfaceFromHash() : 'workspace');
+  const { systemDirectories: deploymentDirectories } = useSystemDirectories(
+    !isDesktop && activeSurface === 'workspace'
+  );
   const settingsControlCenter = oplRecord(appStateQuery.appState.settings_control_center);
   const workspaceRootConfiguration = configurationItem(appStateQuery.appState, 'workspace_root');
   const workspaceRootActionId = oplString(workspaceRootConfiguration.action_id);
@@ -80,12 +208,14 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     ? workspaceRootConfiguration.payload_fields.filter((field): field is string => typeof field === 'string')
     : [];
   const workspaceRootConfirmationRequired = workspaceRootConfiguration.confirmation_required === true;
-  const workspaceRootMutationAvailable = Boolean(
-    workspaceRootActionId &&
-    typeof workspaceRootConfiguration.confirmation_required === 'boolean' &&
-    workspaceRootPayloadFields.includes('path') &&
-    (workspaceRootVerifyActionId || workspaceRootVerifyRef)
-  );
+  const workspaceRootMutationAvailable =
+    isDesktop &&
+    Boolean(
+      workspaceRootActionId &&
+      typeof workspaceRootConfiguration.confirmation_required === 'boolean' &&
+      workspaceRootPayloadFields.includes('path') &&
+      (workspaceRootVerifyActionId || workspaceRootVerifyRef)
+    );
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
   const workspaceServices = oplRecord(appSettingsReadModel.workspace_services);
   const paths = oplRecord(appStateQuery.appState.paths);
@@ -126,38 +256,26 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
         : 'unknown';
   const workspaceReady = workspaceExistsState === 'ready' && workspaceAccessState === 'ready';
   const workspaceNeedsAction = workspaceExistsState === 'needsAction' || workspaceAccessState === 'needsAction';
+  const isDockerWorkspace =
+    !isDesktop &&
+    workspaceRoot?.replace(/\/+$/, '') === '/projects' &&
+    hasDockerDeploymentDirectoryEvidence(deploymentDirectories);
   const workspaceSummary = workspaceRoot
-    ? t('settings.workspacePage.root.current', { path: workspaceRoot })
-    : t('settings.workspacePage.root.missing');
-  const logsRoot = systemDirectories?.logDir ?? null;
-
+    ? isDesktop
+      ? t('settings.workspacePage.root.current', { path: workspaceRoot })
+      : t(
+          isDockerWorkspace ? 'settings.workspacePage.root.webuiManaged' : 'settings.workspacePage.root.webuiReadOnly',
+          { path: workspaceRoot }
+        )
+    : t(isDesktop ? 'settings.workspacePage.root.missing' : 'settings.workspacePage.root.unavailable');
   const openFolder = (path: string | null) => {
     if (!path || !isDesktop) return;
     void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' });
   };
 
-  useEffect(() => {
-    let active = true;
-    void ipcBridge.application.systemInfo.invoke().then(
-      (directories) => {
-        if (!active) return;
-        setSystemDirectories(directories);
-        setSystemDirectoryLoadFailed(false);
-      },
-      () => {
-        if (!active) return;
-        setSystemDirectories(null);
-        setSystemDirectoryLoadFailed(true);
-      }
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const applyWorkspaceRoot = useCallback(
     async (selectedPath: string) => {
-      if (!workspaceRootActionId) return;
+      if (!isDesktop || !workspaceRootActionId) return;
       setWorkspaceAction('choose');
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({
@@ -197,11 +315,11 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
         setWorkspaceAction(null);
       }
     },
-    [appStateQuery.load, message, t, workspaceRootActionId, workspaceRootVerifyActionId]
+    [appStateQuery.load, isDesktop, message, t, workspaceRootActionId, workspaceRootVerifyActionId]
   );
 
   const chooseWorkspaceRoot = useCallback(async () => {
-    if (!workspaceRootMutationAvailable) return;
+    if (!isDesktop || !workspaceRootMutationAvailable) return;
     setWorkspaceAction('choose');
     try {
       const files = await ipcBridge.dialog.showOpen.invoke({
@@ -230,33 +348,13 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   }, [
     applyWorkspaceRoot,
     familyWorkspaceRoot,
+    isDesktop,
     message,
     t,
     workspaceRoot,
     workspaceRootConfirmationRequired,
     workspaceRootMutationAvailable,
   ]);
-
-  const chooseLogDirectory = useCallback(async () => {
-    if (!isDesktop || !systemDirectories) return;
-    setLogDirectoryAction('choose');
-    try {
-      const files = await ipcBridge.dialog.showOpen.invoke({
-        defaultPath: logsRoot ?? systemDirectories.workDir,
-        properties: ['openDirectory', 'createDirectory'],
-      });
-      const selectedPath = files?.[0];
-      if (!selectedPath) return;
-
-      const result = await ipcBridge.application.setLogDirectory.invoke({ path: selectedPath });
-      setSystemDirectories({ ...systemDirectories, logDir: result.hostLogDir });
-      message.success(t('settings.workspacePage.logs.saved'));
-    } catch {
-      message.error(t('settings.workspacePage.logs.saveFailed'));
-    } finally {
-      setLogDirectoryAction(null);
-    }
-  }, [isDesktop, logsRoot, message, systemDirectories, t]);
 
   const content = (
     <>
@@ -353,7 +451,15 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                       </div>
                     </div>
                     <div className='opl-settings-row__meta'>
-                      {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.root.dockerMount')}</Tag>}
+                      {!isDesktop && (
+                        <Tag color='gray'>
+                          {t(
+                            isDockerWorkspace
+                              ? 'settings.workspacePage.root.dockerMount'
+                              : 'settings.workspacePage.root.webuiManagedTag'
+                          )}
+                        </Tag>
+                      )}
                       <span
                         className={`opl-settings-status ${
                           workspaceReady
@@ -375,7 +481,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                         </Button>
                       )}
                       {!workspaceReady && (
-                        <Button onClick={() => (window.location.hash = '#/settings/environment')}>
+                        <Button onClick={() => (window.location.hash = '#/settings/environment?section=services')}>
                           {t('settings.workspacePage.actions.openMaintenance')}
                         </Button>
                       )}
@@ -394,54 +500,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                   </div>
                 ) : null}
 
-                {activeSurface === 'logs' ? (
-                  <div className='opl-settings-row' data-testid='settings-workspace-log-directory'>
-                    <div className='opl-settings-row__main'>
-                      <div className='flex min-w-0 items-start gap-10px'>
-                        <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                          <FileText theme='outline' size='16' />
-                        </span>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block font-600 text-t-primary'>
-                            {t('settings.workspacePage.logs.title')}
-                          </Typography.Text>
-                          <Typography.Text className='block text-12px text-t-secondary'>
-                            {t(
-                              isDesktop
-                                ? 'settings.workspacePage.logs.description'
-                                : 'settings.workspacePage.logs.webuiDescription'
-                            )}
-                          </Typography.Text>
-                          <Typography.Text className='opl-settings-path block text-12px text-t-secondary'>
-                            {logsRoot
-                              ? t('settings.workspacePage.logs.current', { path: logsRoot })
-                              : systemDirectoryLoadFailed
-                                ? t('settings.workspacePage.logs.unavailable')
-                                : t('settings.workspacePage.logs.loading')}
-                          </Typography.Text>
-                        </div>
-                      </div>
-                    </div>
-                    <div className='opl-settings-row__meta'>
-                      {!isDesktop && <Tag color='gray'>{t('settings.workspacePage.logs.dockerMount')}</Tag>}
-                      {isDesktop && (
-                        <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
-                          {t('settings.workspacePage.actions.openLogs')}
-                        </Button>
-                      )}
-                      {isDesktop && (
-                        <Button
-                          loading={logDirectoryAction === 'choose'}
-                          disabled={!systemDirectories}
-                          onClick={() => void chooseLogDirectory()}
-                          data-testid='settings-workspace-log-directory-action'
-                        >
-                          {t('settings.workspacePage.actions.changeLogs')}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
+                {activeSurface === 'logs' ? <LogDirectorySettingsRow /> : null}
               </div>
             </section>
           ) : null}

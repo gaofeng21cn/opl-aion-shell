@@ -19,7 +19,7 @@ import type {
 } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -41,6 +41,7 @@ import {
   type WebuiDataLifecycleReceipt,
   type WebuiDataLifecycleRestoreReceipt,
 } from './webuiDataLifecycleClient';
+import { hasDockerDeploymentDirectoryEvidence, oplPathString } from '../sections/runtimeStateView';
 
 type AsyncAction =
   | 'inventory'
@@ -69,6 +70,14 @@ type PendingDangerAction =
 
 type StorageSettingsProps = {
   withWrapper?: boolean;
+};
+
+type SystemDirectoryInfo = {
+  cacheDir: string;
+  workDir: string;
+  logDir: string;
+  platform: string;
+  arch: string;
 };
 
 type SectionMeta = {
@@ -290,6 +299,20 @@ export const StorageSettingsContent: React.FC = () => {
   const navigate = useNavigate();
   const desktopCarrier = isElectronDesktop();
   const appStateQuery = useOplAppState('fast');
+  const settingsControlCenter = oplRecord(appStateQuery.appState.settings_control_center);
+  const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
+  const workspaceServices = oplRecord(appSettingsReadModel.workspace_services);
+  const paths = oplRecord(appStateQuery.appState.paths);
+  const projectedWorkspaceRoot = oplRecord(workspaceServices.workspace_root);
+  const workspaceRoot =
+    oplPathString(projectedWorkspaceRoot) ??
+    oplString(paths.workspace_root_path) ??
+    oplPathString(paths.workspace_root);
+  const [systemDirectories, setSystemDirectories] = React.useState<SystemDirectoryInfo | null>(null);
+  const isDockerDeployment =
+    !desktopCarrier &&
+    workspaceRoot?.replace(/\/+$/, '') === '/projects' &&
+    hasDockerDeploymentDirectoryEvidence(systemDirectories);
   const [inventory, setInventory] = React.useState<LocalDataLifecycleInventory | null>(null);
   const [inventorySnapshot, setInventorySnapshot] = React.useState<LocalDataLifecycleInventorySnapshot | null>(null);
   const [lastReceipt, setLastReceipt] = React.useState<LocalDataLifecycleReceipt | null>(null);
@@ -312,6 +335,25 @@ export const StorageSettingsContent: React.FC = () => {
   const [inventoryReadSettled, setInventoryReadSettled] = React.useState(!desktopCarrier);
   const activeActionRef = React.useRef<AsyncAction | null>(null);
   const dangerConfirmationRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (desktopCarrier) {
+      setSystemDirectories(null);
+      return undefined;
+    }
+    let active = true;
+    void ipcBridge.application.systemInfo.invoke().then(
+      (directories) => {
+        if (active) setSystemDirectories(directories);
+      },
+      () => {
+        if (active) setSystemDirectories(null);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [desktopCarrier]);
   const viewModel = React.useMemo(
     () =>
       buildStorageSettingsViewModel({
@@ -353,7 +395,7 @@ export const StorageSettingsContent: React.FC = () => {
     : !appStateQuery.loading && !hasOwnerStorageReadback;
   const storageUnavailableReason = classifyStorageUnavailableReason(desktopCarrier, storageUnavailableRawError);
   const storageRecoveryRoute =
-    storageUnavailableReason === 'permission' ? '/settings/workspace' : '/settings/environment';
+    storageUnavailableReason === 'permission' ? '/settings/workspace' : '/settings/environment?section=services';
 
   const applyInventorySnapshot = React.useCallback((snapshot: LocalDataLifecycleInventorySnapshot) => {
     setInventorySnapshot(snapshot);
@@ -1027,6 +1069,48 @@ export const StorageSettingsContent: React.FC = () => {
           )}
         </div>
       </div>
+
+      {isDockerDeployment && (
+        <section
+          className='opl-settings-section opl-settings-surface--status'
+          id='deployment-locations'
+          data-testid='settings-storage-deployment-locations'
+        >
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.storagePage.deployment.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.storagePage.deployment.description')}
+              </Typography.Text>
+            </div>
+            <Tag color='gray'>{t('settings.storagePage.deployment.managed')}</Tag>
+          </div>
+          <div className='opl-settings-list'>
+            {(['projects', 'data', 'recovery'] as const).map((location) => (
+              <div className='opl-settings-row' key={location} data-testid={`settings-storage-location-${location}`}>
+                <div className='opl-settings-row__main'>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t(`settings.storagePage.deployment.locations.${location}.title`)}
+                  </Typography.Text>
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t(`settings.storagePage.deployment.locations.${location}.description`)}
+                  </Typography.Text>
+                </div>
+                <div className='opl-settings-row__meta'>
+                  {location === 'recovery' && (
+                    <Tag color='gray'>{t('settings.storagePage.deployment.locations.recovery.optional')}</Tag>
+                  )}
+                  <code className='text-12px text-t-secondary'>
+                    {t(`settings.storagePage.deployment.locations.${location}.path`)}
+                  </code>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {storageUnavailable && (
         <section

@@ -228,7 +228,7 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
             <div className='opl-settings-row__meta'>
               <Button
                 icon={<Toolkit theme='outline' size='16' fill='currentColor' />}
-                onClick={() => navigate('/settings/environment')}
+                onClick={() => navigate('/settings/environment?section=services')}
               >
                 {t('settings.localServicesPage.actions.openMaintenance')}
               </Button>

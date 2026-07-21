@@ -86,6 +86,8 @@ vi.mock('@/renderer/pages/settings/StorageSettings/webuiDataLifecycleClient', ()
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => ({
     appState: bridgeMocks.appState,
     payload: null,
@@ -117,6 +119,22 @@ const translate = (key: string, values?: Record<string, string | number>) => {
   const labels: Record<string, string> = {
     'settings.storagePage.title': 'Data & Storage',
     'settings.storagePage.description': 'Review and safely remove local data.',
+    'settings.storagePage.deployment.title': 'Docker data locations',
+    'settings.storagePage.deployment.description':
+      'Docker or Compose owns the two persistent host directories; Settings never rewires the mounts.',
+    'settings.storagePage.deployment.managed': 'Deployment managed',
+    'settings.storagePage.deployment.locations.projects.title': 'Projects and task output',
+    'settings.storagePage.deployment.locations.projects.description': 'Project files and task artifacts.',
+    'settings.storagePage.deployment.locations.projects.path': '/projects',
+    'settings.storagePage.deployment.locations.data.title': 'App and runtime data',
+    'settings.storagePage.deployment.locations.data.description':
+      'App data, Framework state, Temporal data, Codex sessions, and logs.',
+    'settings.storagePage.deployment.locations.data.path': '/data',
+    'settings.storagePage.deployment.locations.recovery.title': 'Recovery staging',
+    'settings.storagePage.deployment.locations.recovery.description':
+      'Container recovery staging; not a third required host mount.',
+    'settings.storagePage.deployment.locations.recovery.path': '/recovery',
+    'settings.storagePage.deployment.locations.recovery.optional': 'Optional · container managed',
     'settings.storagePage.actions.archive': 'Create archive',
     'settings.storagePage.actions.restoreProof': 'Verify archive',
     'settings.storagePage.actions.previewAll': 'Preview cleanup',
@@ -448,7 +466,18 @@ describe('StorageSettingsContent', () => {
   it('keeps the WebUI Storage core route fail-open without invoking desktop local lifecycle', async () => {
     const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
     delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.systemInfo.mockResolvedValue({
+      cacheDir: '/data/cache',
+      workDir: '/data',
+      logDir: '/data/logs',
+      platform: 'linux',
+      arch: 'x64',
+    });
     bridgeMocks.appState = {
+      paths: {
+        workspace_root_path: '/projects',
+        workspace_root: { selected_path: '/projects' },
+      },
       agent_packages: {
         storage_inventory: {
           status: 'available',
@@ -489,6 +518,18 @@ describe('StorageSettingsContent', () => {
       expect(screen.getByTestId('storage-owner-agent_package_store')).toHaveTextContent('2.0 KB');
       expect(screen.getByTestId('storage-owner-webui_data_volume')).toHaveTextContent('Size unavailable');
       expect(screen.getByTestId('storage-overview')).toHaveTextContent('Size unavailable');
+      const deploymentLocations = await screen.findByTestId('settings-storage-deployment-locations');
+      expect(deploymentLocations).toHaveAttribute('id', 'deployment-locations');
+      expect(deploymentLocations).toHaveTextContent(
+        'Docker or Compose owns the two persistent host directories; Settings never rewires the mounts.'
+      );
+      expect(screen.getByTestId('settings-storage-location-projects')).toHaveTextContent('/projects');
+      expect(screen.getByTestId('settings-storage-location-data')).toHaveTextContent('/data');
+      const recoveryLocation = screen.getByTestId('settings-storage-location-recovery');
+      expect(recoveryLocation).toHaveTextContent('/recovery');
+      expect(recoveryLocation).toHaveTextContent('not a third required host mount');
+      expect(recoveryLocation).toHaveTextContent('Optional · container managed');
+      expect(within(deploymentLocations).queryByRole('button')).not.toBeInTheDocument();
       expect(screen.queryByTestId('storage-inventory-updater_cache')).not.toBeInTheDocument();
       expect(screen.queryByTestId('storage-inventory-user_data_artifacts')).not.toBeInTheDocument();
       expect(screen.queryByTestId('storage-inventory-runtime_substrate')).not.toBeInTheDocument();
@@ -517,6 +558,41 @@ describe('StorageSettingsContent', () => {
     }
   });
 
+  it('does not infer Docker deployment mounts from /projects without paired /data directory evidence', async () => {
+    const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
+    delete (window as Window & { electronAPI?: unknown }).electronAPI;
+    bridgeMocks.appState = {
+      paths: {
+        workspace_root_path: '/projects',
+        workspace_root: { selected_path: '/projects' },
+      },
+      agent_packages: {
+        storage_inventory: {
+          status: 'available',
+          observed_at: '2026-07-18T08:00:00.000Z',
+          stale: false,
+          bytes: 2048,
+          reclaimable_bytes: 1024,
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+    };
+
+    try {
+      render(<StorageSettingsContent />);
+
+      expect(await screen.findByTestId('settings-page-storage')).toBeInTheDocument();
+      await waitFor(() => expect(bridgeMocks.systemInfo).toHaveBeenCalledTimes(1));
+      await act(async () => Promise.resolve());
+      expect(screen.queryByTestId('settings-storage-deployment-locations')).not.toBeInTheDocument();
+      expect(screen.queryByText('/data')).not.toBeInTheDocument();
+      expect(screen.queryByText('/recovery')).not.toBeInTheDocument();
+    } finally {
+      if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
+    }
+  });
+
   it('explains a missing desktop carrier only when WebUI has no valid owner readback', async () => {
     const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
     delete (window as Window & { electronAPI?: unknown }).electronAPI;
@@ -530,7 +606,7 @@ describe('StorageSettingsContent', () => {
       );
       expect(bridgeMocks.getInventorySnapshot).not.toHaveBeenCalled();
       fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
-      expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
+      expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
     } finally {
       if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
     }
@@ -598,7 +674,9 @@ describe('StorageSettingsContent', () => {
       expect(screen.queryByTestId('settings-storage-unavailable-reason-desktopCarrier')).not.toBeInTheDocument();
       expect(screen.getByTestId('settings-storage-unavailable-technical-details')).toHaveTextContent(scenario.error);
       fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
-      expect(bridgeMocks.navigate).toHaveBeenCalledWith(scenario.route);
+      expect(bridgeMocks.navigate).toHaveBeenCalledWith(
+        scenario.route === '/settings/environment' ? '/settings/environment?section=services' : scenario.route
+      );
     } finally {
       if (electronApiDescriptor) Object.defineProperty(window, 'electronAPI', electronApiDescriptor);
     }
@@ -616,7 +694,7 @@ describe('StorageSettingsContent', () => {
       'opaque storage fault 42'
     );
     fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
-    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('shows the WebUI lifecycle controls only for a complete host capability and preserves plan confirmation', async () => {
@@ -928,7 +1006,7 @@ describe('StorageSettingsContent', () => {
     expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
-    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
   });
 
   it('applies inventory update events without remounting or rescanning from the page', async () => {

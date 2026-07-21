@@ -349,15 +349,25 @@ describe('OPL generated product profile', () => {
     expect(controlPlane.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
     expect(controlPlane.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
     expect(controlPlane.ordinary_routes).toHaveLength(10);
+    expect(userNavigation.schema).toBe('opl_app_settings_user_navigation.v2');
     expect(userNavigation.primary_group_order).toEqual([
       'overview',
       'account_models',
+      'connections_deployment',
       'workspace',
       'agents_capabilities',
       'runtime_maintenance',
       'preferences',
     ]);
     expect(userNavigation.primary_groups.map((group) => group.id)).toEqual(userNavigation.primary_group_order);
+    expect(userNavigation.primary_groups.find((group) => group.id === 'connections_deployment')).toMatchObject({
+      default_destination_id: 'resources_connections',
+      destination_ids: ['resources_connections'],
+    });
+    expect(userNavigation.primary_groups.find((group) => group.id === 'runtime_maintenance')).toMatchObject({
+      default_destination_id: 'runtime_services',
+      destination_ids: ['runtime_services', 'updates_repairs', 'logs_diagnostics'],
+    });
     expect(userNavigation.destinations.map((destination) => destination.route_id)).toEqual(
       expect.arrayContaining(getOplGuiSettingsVisibleTabs())
     );

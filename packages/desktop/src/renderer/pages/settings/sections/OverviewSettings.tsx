@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Typography } from '@arco-design/web-react';
-import { CloudStorage, DashboardOne, Terminal } from '@icon-park/react';
+import { CloudStorage, DashboardOne, Server, Terminal } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -244,7 +244,7 @@ function issueSettingsRoute(issue: Record<string, unknown>): string {
   if (actionId === 'settings_apply_opl_packages' || actionId === 'agent_package_activate') return '/settings/agents';
   if (actionId === 'settings_check_app_update') return '/settings/about';
   if (actionId === 'settings_prune_runtime_roots_dry_run') return '/settings/storage';
-  return '/settings/environment';
+  return '/settings/environment?section=services';
 }
 
 const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true }) => {
@@ -294,7 +294,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       title: isModelAccessIssue
         ? t('settings.overviewPage.attention.codexTitle')
         : isProviderIssue
-          ? t('settings.overviewPage.quickEntries.localServices.title')
+          ? t('settings.overviewPage.backgroundTasks.title')
           : t('settings.overviewPage.attention.capabilitiesTitle'),
       description: isModelAccessIssue
         ? t('settings.overviewPage.quickEntries.modelAccount.description')
@@ -324,7 +324,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           ...issueAttentionItems,
           {
             key: 'temporal-required-components',
-            title: t('settings.overviewPage.quickEntries.localServices.title'),
+            title: t('settings.overviewPage.backgroundTasks.title'),
             description: t('settings.overviewPage.technical.temporalNeedsAttention'),
             label: t('common.open'),
             route: '/settings/environment?section=services',
@@ -501,6 +501,44 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           <div className='opl-settings-row__meta'>
             <span className={`opl-settings-status ${gatewayStatusClass}`.trim()}>{gatewayStatusLabel}</span>
             <Button type='text' className='px-0' onClick={() => navigate('/settings/gateway')}>
+              {t('common.open')}
+            </Button>
+          </div>
+        </div>
+
+        <div className='opl-settings-row' id='background-tasks' data-testid='settings-overview-background-tasks'>
+          <div className='opl-settings-row__main'>
+            <div className='flex min-w-0 items-start gap-10px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <Server theme='outline' size='16' aria-hidden='true' />
+              </span>
+              <div className='min-w-0 flex-1'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.overviewPage.backgroundTasks.title')}
+                </Typography.Text>
+                <Typography.Text className='block break-words text-12px text-t-secondary'>
+                  {t(
+                    temporalNeedsAction
+                      ? 'settings.overviewPage.backgroundTasks.attentionDescription'
+                      : 'settings.overviewPage.backgroundTasks.readyDescription'
+                  )}
+                </Typography.Text>
+              </div>
+            </div>
+          </div>
+          <div className='opl-settings-row__meta'>
+            <span
+              className={`opl-settings-status ${
+                temporalNeedsAction ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+              }`}
+            >
+              {t(
+                temporalNeedsAction
+                  ? 'settings.overviewPage.backgroundTasks.status.attention'
+                  : 'settings.overviewPage.backgroundTasks.status.ready'
+              )}
+            </span>
+            <Button type='text' className='px-0' onClick={() => navigate('/settings/environment?section=services')}>
               {t('common.open')}
             </Button>
           </div>

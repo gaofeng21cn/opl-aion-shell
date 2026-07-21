@@ -403,6 +403,17 @@ describe('Codex visual parity overlay', () => {
     expect(runtime).not.toContain("name='environment-diagnostics'");
   });
 
+  it('keeps the Maintenance anchor consumer inside the page context provider', () => {
+    const runtime = read('packages/desktop/src/renderer/pages/settings/sections/RuntimeSettings.tsx');
+    const contentStart = runtime.indexOf('const RuntimeSettingsContent: React.FC = () => {');
+    const anchorConsumer = runtime.indexOf('const selectedAnchor = useSettingsActiveAnchor();');
+    const pageWrapper = runtime.indexOf('<SettingsPageWrapper>\n      <RuntimeSettingsContent />');
+
+    expect(contentStart).toBeGreaterThanOrEqual(0);
+    expect(anchorConsumer).toBeGreaterThan(contentStart);
+    expect(pageWrapper).toBeGreaterThan(anchorConsumer);
+  });
+
   it('uses the observed Codex conversation typography and unframed process rows', () => {
     const fontSizes = read('packages/desktop/src/common/config/fontSizes.ts');
     const markdown = read('packages/desktop/src/renderer/components/Markdown/ShadowView.tsx');

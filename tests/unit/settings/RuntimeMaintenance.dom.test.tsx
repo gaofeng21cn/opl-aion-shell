@@ -22,6 +22,10 @@ const bridgeMocks = vi.hoisted(() => ({
   loadAppState: vi.fn(),
   autoUpdateGetStatusSnapshotInvoke: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
+  systemInfoInvoke: vi.fn(),
+  setLogDirectoryInvoke: vi.fn(),
+  showOpenInvoke: vi.fn(),
+  openFolderInvoke: vi.fn(),
 }));
 
 const messageMocks = vi.hoisted(() => ({
@@ -207,6 +211,16 @@ function freshAppStatePayload() {
   return { app_state: freshAppState };
 }
 
+type MaintenanceSurface = 'services' | 'updates' | 'diagnostics';
+
+function renderRuntime(surface: MaintenanceSurface = 'services') {
+  return render(
+    <SettingsActiveAnchorProvider value={surface}>
+      <RuntimeSettings />
+    </SettingsActiveAnchorProvider>
+  );
+}
+
 const updateStatus = {
   managed_update: {
     operation: 'status',
@@ -281,7 +295,14 @@ vi.mock('@/common', () => ({
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
     },
     shell: {
-      openFolderWith: { invoke: vi.fn() },
+      openFolderWith: { invoke: bridgeMocks.openFolderInvoke },
+    },
+    application: {
+      systemInfo: { invoke: bridgeMocks.systemInfoInvoke },
+      setLogDirectory: { invoke: bridgeMocks.setLogDirectoryInvoke },
+    },
+    dialog: {
+      showOpen: { invoke: bridgeMocks.showOpenInvoke },
     },
     autoUpdate: {
       getStatusSnapshot: { invoke: bridgeMocks.autoUpdateGetStatusSnapshotInvoke },
@@ -409,9 +430,14 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockReset();
     bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockReset();
     bridgeMocks.autoUpdateStatusOn.mockReset();
+    bridgeMocks.systemInfoInvoke.mockReset();
+    bridgeMocks.setLogDirectoryInvoke.mockReset();
+    bridgeMocks.showOpenInvoke.mockReset();
+    bridgeMocks.openFolderInvoke.mockReset();
     messageMocks.error.mockReset();
     messageMocks.success.mockReset();
     messageMocks.warning.mockReset();
+    appState.core.codex.status = 'ready';
     setTemporalState(structuredClone(defaultTemporalState));
     appState.actions = [];
     maintenanceSnapshot.result = {
@@ -432,6 +458,19 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockImplementation(async () => freshAppStatePayload());
     bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
+    bridgeMocks.systemInfoInvoke.mockResolvedValue({
+      cacheDir: '/Users/example/Library/Caches/One Person Lab App',
+      workDir: '/Users/example/Library/Application Support/One Person Lab App',
+      logDir: '/Users/example/Library/Logs/One Person Lab App',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+    bridgeMocks.setLogDirectoryInvoke.mockResolvedValue({
+      schema: 'opl_app_log_directory_update.v1',
+      hostLogDir: '/Users/example/OPL Logs',
+    });
+    bridgeMocks.showOpenInvoke.mockResolvedValue(['/Users/example/OPL Logs']);
+    bridgeMocks.openFolderInvoke.mockResolvedValue(undefined);
   });
 
   it('returns to the collapsed summary when attention clears without blocking a later manual expansion', () => {
@@ -461,7 +500,7 @@ describe('RuntimeSettings maintenance structure', () => {
   it('does not probe update status, check, or plan when the page mounts without a startup snapshot', () => {
     maintenanceSnapshot.result = null;
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     expect(bridgeMocks.executeManagedUpdateRead).not.toHaveBeenCalled();
   });
@@ -472,7 +511,7 @@ describe('RuntimeSettings maintenance structure', () => {
       version: '26.7.18',
     });
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     const appUpdateItem = await screen.findByTestId('opl-maintenance-hub-appUpdates');
     await waitFor(() => {
@@ -541,7 +580,7 @@ describe('RuntimeSettings maintenance structure', () => {
       },
     };
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     const summary = await screen.findByTestId('settings-maintenance-base-dependency-summary');
     const toggle = within(summary).getByTestId('settings-maintenance-base-dependency-toggle');
@@ -1039,6 +1078,15 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(evidence).toHaveTextContent('失败');
   });
 
+  it('keeps Service Status actionable when Temporal is ready but Codex readiness is unknown', () => {
+    appState.core.codex.status = 'unknown';
+
+    renderRuntime('services');
+
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('运行正常');
+    expect(screen.getByTestId('settings-maintenance-exception')).toBeInTheDocument();
+  });
+
   it('renders localized action evidence instead of action ids and raw outcomes', async () => {
     setTemporalState({
       status: 'ready',
@@ -1404,7 +1452,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(window.location.hash).toBe('#/settings/agents?section=source');
   });
 
-  it('disables worker start when its dependency is unavailable and reuses the OPL Base repair flow', async () => {
+  it('routes an unavailable worker dependency to Updates & Repair without mutating from Service Status', () => {
     setTemporalState({
       status: 'attention_needed',
       health_status: 'attention_needed',
@@ -1430,13 +1478,9 @@ describe('RuntimeSettings maintenance structure', () => {
 
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeDisabled();
     fireEvent.click(screen.getByTestId('settings-maintenance-temporal-worker-repair-dependency'));
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable-confirm'));
 
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
-    );
-    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
+    expect(window.location.hash).toBe('#/settings/environment?section=updates');
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('hides Temporal maintenance controls when the action catalog omits them', () => {
@@ -1473,17 +1517,42 @@ describe('RuntimeSettings maintenance structure', () => {
     }
   });
 
-  it('keeps daily maintenance actions inline and gates one read-only diagnostics disclosure', () => {
-    render(<RuntimeSettings />);
+  it('keeps Service Status focused on availability and Temporal component state', () => {
+    renderRuntime('services');
+
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'services'
+    );
+    expect(screen.getByTestId('settings-maintenance-service-status')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-heading')).toHaveAttribute('id', 'services');
+    expect(screen.getByTestId('settings-maintenance-heading')).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByTestId('opl-runtime-health-summary')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toBeVisible();
+    expect(screen.queryByTestId('settings-maintenance-updates-repairs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-logs-diagnostics')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-inline-updates')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-log-directory')).not.toBeInTheDocument();
+  });
+
+  it('keeps Updates & Repair focused on recommended actions and managed updates', () => {
+    renderRuntime('updates');
 
     expect(screen.getByTestId('settings-maintenance-daily-actions')).toBeVisible();
     expect(screen.getByTestId('settings-maintenance-primary')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'updates'
+    );
+    expect(screen.getByTestId('settings-maintenance-updates-repairs')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-heading')).toHaveAttribute('id', 'updates');
+    expect(screen.getByTestId('settings-maintenance-heading')).not.toHaveAttribute('aria-hidden');
+    expect(screen.queryByTestId('settings-maintenance-service-status')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-logs-diagnostics')).not.toBeInTheDocument();
     expect(screen.getByTestId('maintenance-domain-grid')).toHaveClass('opl-settings-list');
     expect(screen.getByTestId('maintenance-domain-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.getByTestId('maintenance-domain-grid').className).not.toMatch(/\bborder(?:-|\b)/);
-    expect(screen.getByTestId('opl-runtime-health-summary').closest('section')).toHaveClass(
-      'opl-settings-surface--status'
-    );
+    expect(screen.queryByTestId('opl-runtime-health-summary')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
@@ -1507,17 +1576,6 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
-    const diagnosticsAction = screen.getByTestId('settings-maintenance-diagnostics-action');
-    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(diagnosticsAction);
-    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'true');
-    const diagnostics = screen.getByTestId('settings-maintenance-technical-details');
-    expect(diagnostics.closest('details')).toHaveClass('opl-settings-details', 'opl-settings-surface--diagnostic');
-    expect(diagnostics.querySelector('.arco-collapse')).toBeNull();
-    expect(within(diagnostics).getByText('settings.workDir')).toBeVisible();
-    expect(within(diagnostics).getByText('settings.logDir')).toBeVisible();
-    expect(within(diagnostics).getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle')).toBeVisible();
-    expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
 
     expect(screen.getByTestId('settings-maintenance-inline-updates')).toHaveClass(
       'opl-settings-surface--configuration'
@@ -1540,21 +1598,42 @@ describe('RuntimeSettings maintenance structure', () => {
     fireEvent.click(packageDiagnostics);
     expect(screen.getByTestId('opl-managed-update-substatus-projection_status')).toBeVisible();
     expect(screen.getByTestId('opl-managed-update-substatus-profile_migration_status')).toBeVisible();
-
-    fireEvent.click(diagnosticsAction);
-    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
   });
 
-  it('opens the diagnostics disclosure when Settings links directly to it', () => {
-    render(
-      <SettingsActiveAnchorProvider value='diagnostics'>
-        <RuntimeSettings />
-      </SettingsActiveAnchorProvider>
+  it('keeps Logs & Diagnostics raw evidence collapsed until explicitly opened', async () => {
+    renderRuntime('diagnostics');
+
+    expect(screen.getByTestId('settings-maintenance-destination')).toHaveAttribute(
+      'data-maintenance-destination',
+      'diagnostics'
+    );
+    expect(screen.getByTestId('settings-maintenance-logs-diagnostics')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-heading')).toHaveAttribute('id', 'diagnostics');
+    expect(screen.getByTestId('settings-maintenance-heading')).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByTestId('settings-maintenance-log-directory')).toBeVisible();
+    expect(screen.queryByTestId('settings-maintenance-service-status')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-updates-repairs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-maintenance-inline-updates')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('settings-workspace-log-directory')).toHaveTextContent(
+        '/Users/example/Library/Logs/One Person Lab App'
+      )
     );
 
-    expect(screen.getByTestId('settings-maintenance-diagnostics-action')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByTestId('settings-maintenance-technical-details')).toBeInTheDocument();
+    const diagnosticsAction = screen.getByTestId('settings-maintenance-diagnostics-action');
+    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('settings-maintenance-technical-details')).not.toBeInTheDocument();
+
+    fireEvent.click(diagnosticsAction);
+
+    expect(diagnosticsAction).toHaveAttribute('aria-expanded', 'true');
+    const diagnostics = screen.getByTestId('settings-maintenance-technical-details');
+    expect(diagnostics.closest('details')).toHaveClass('opl-settings-details', 'opl-settings-surface--diagnostic');
+    expect(diagnostics.querySelector('.arco-collapse')).toBeNull();
+    expect(within(diagnostics).getByText('settings.workDir')).toBeVisible();
+    expect(within(diagnostics).getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle')).toBeVisible();
+    expect(within(diagnostics).queryByTestId('opl-managed-update-opl_base')).not.toBeInTheDocument();
+    await waitFor(() => expect(bridgeMocks.systemInfoInvoke).toHaveBeenCalledTimes(1));
   });
 
   it('keeps one direct action on every maintenance object when attention is present', () => {
@@ -1563,7 +1642,7 @@ describe('RuntimeSettings maintenance structure', () => {
       parsed: actionableUpdateStatus,
     };
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     expect(screen.getByTestId('settings-maintenance-base-dependency-toggle')).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('settings-maintenance-base-dependency-toggle').closest('details')).toHaveAttribute(
@@ -1586,7 +1665,7 @@ describe('RuntimeSettings maintenance structure', () => {
     };
     maintenanceSnapshot.restartRequired = true;
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
@@ -1607,7 +1686,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     try {
       await act(async () => {
-        render(<RuntimeSettings />);
+        renderRuntime('updates');
       });
 
       const notice = screen.getByTestId('opl-managed-update-post-action-notice');
@@ -1631,7 +1710,7 @@ describe('RuntimeSettings maintenance structure', () => {
       at: '2026-07-13T00:00:00Z',
     };
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     const notice = screen.getByTestId('opl-managed-update-post-action-notice');
     expect(notice).toHaveTextContent('settings.oplEnvironmentPage.updates.postAction.failed');
@@ -1639,7 +1718,7 @@ describe('RuntimeSettings maintenance structure', () => {
   });
 
   it('routes capability sync through the canonical App action instead of update check', async () => {
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     fireEvent.click(screen.getByTestId('opl-maintenance-action-capabilitySurfaceSync'));
 
@@ -1673,7 +1752,7 @@ describe('RuntimeSettings maintenance structure', () => {
     }>();
     bridgeMocks.executeActionInvoke.mockReturnValue(sync.promise);
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     const syncButton = screen.getByTestId('opl-maintenance-action-capabilitySurfaceSync');
     act(() => {
@@ -1724,7 +1803,7 @@ describe('RuntimeSettings maintenance structure', () => {
     const mutation = deferred<{ ok: boolean; stdout: string; parsed: typeof actionableUpdateStatus }>();
     bridgeMocks.executeManagedUpdateMutation.mockReturnValue(mutation.promise);
 
-    render(<RuntimeSettings />);
+    renderRuntime('updates');
 
     fireEvent.click(
       screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement

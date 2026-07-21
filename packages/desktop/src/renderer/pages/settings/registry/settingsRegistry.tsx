@@ -216,6 +216,7 @@ export type TranslateFn = (key: string, options?: { defaultValue?: string }) => 
 const SETTINGS_GROUP_LABEL_KEYS: Record<OplSettingsPrimaryGroupId, string> = {
   overview: 'settings.uiOptimization.navigation.groups.overview',
   account_models: 'settings.uiOptimization.navigation.groups.accountModels',
+  connections_deployment: 'settings.uiOptimization.navigation.groups.connectionsDeployment',
   workspace: 'settings.uiOptimization.navigation.groups.workspace',
   agents_capabilities: 'settings.uiOptimization.navigation.groups.agentsCapabilities',
   runtime_maintenance: 'settings.uiOptimization.navigation.groups.runtimeMaintenance',
@@ -233,6 +234,7 @@ const SETTINGS_DESTINATION_LABEL_KEYS: Record<OplSettingsDestinationId, string> 
   capabilities: 'settings.uiOptimization.navigation.destinations.capabilities',
   instructions_context: 'settings.uiOptimization.navigation.destinations.instructionsContext',
   runtime_services: 'settings.uiOptimization.navigation.destinations.runtimeServices',
+  updates_repairs: 'settings.uiOptimization.navigation.destinations.updatesRepairs',
   logs_diagnostics: 'settings.uiOptimization.navigation.destinations.logsDiagnostics',
   preferences: 'settings.uiOptimization.navigation.destinations.preferences',
 };
@@ -285,6 +287,7 @@ const SETTINGS_ICON_PARK_ICONS: Record<string, SettingsIconFactory> = {
 const SETTINGS_GROUP_ICON_KEYS: Record<OplSettingsPrimaryGroupId, string> = {
   overview: 'dashboard',
   account_models: 'access',
+  connections_deployment: 'resources',
   workspace: 'workspace',
   agents_capabilities: 'capabilities',
   runtime_maintenance: 'maintenance',
@@ -356,7 +359,7 @@ function settingsDestinationPath(routeId: string, anchor?: string): string {
   return routePathFor(anchor ? `${routeId}#${anchor}` : routeId).replace(/^\/settings\/?/, '');
 }
 
-/** Build the six App-owned Settings groups while preserving stable carrier routes underneath. */
+/** Build the App-owned Settings groups while preserving stable carrier routes underneath. */
 export function getSettingsNavigationGroups(
   t: TranslateFn,
   language = 'en',

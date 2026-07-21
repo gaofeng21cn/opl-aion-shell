@@ -1511,6 +1511,15 @@
         "availability": "可用性"
       }
     },
+    "backgroundTasks": {
+      "title": "后台任务",
+      "readyDescription": "任务服务、Worker 和周期调度均可用。",
+      "attentionDescription": "后台任务依赖需要检查或修复。",
+      "status": {
+        "ready": "可用",
+        "attention": "需要处理"
+      }
+    },
     "technical": {
       "description": "用于排查问题的精简只读信息。",
       "codex": "Codex",
@@ -1550,10 +1559,10 @@
   },
   "workspacePage": {
     "title": "工作区",
-    "description": "设置本机默认工作目录与日志位置，并管理 Codex 长期指令和新对话附加说明。",
+    "description": "设置新任务和项目产物使用的默认工作目录。",
     "locations": {
       "title": "文件位置",
-      "description": "这些目录只决定新建任务产物与本机日志的默认位置，不决定对话归属。"
+      "description": "此目录决定新任务和项目产物的默认保存位置，不决定对话归属。"
     },
     "status": {
       "ready": "可用",
@@ -1579,8 +1588,12 @@
     "root": {
       "title": "工作目录",
       "current": "新建本机任务默认把产物存放在 {{path}}。",
+      "webuiManaged": "容器内工作目录固定为 {{path}}；宿主机目录由 Docker 安装或 Compose 配置管理。",
+      "webuiReadOnly": "WebUI 工作目录为 {{path}}；该路径由 WebUI 启动配置管理，设置页只读。",
+      "webuiManagedTag": "WebUI 启动配置管理",
+      "unavailable": "当前运行环境未上报工作目录。",
       "missing": "开始本机任务前，请先选择工作目录。",
-      "dockerMount": "Docker /projects",
+      "dockerMount": "Docker /projects · 部署配置管理",
       "changeConfirmTitle": "更改工作目录？",
       "changeConfirmContent": "Framework 保存并验证设置后，新建本机任务将使用 {{path}}。",
       "changeNotVerified": "Framework 已接受更改，但 fresh read 未确认所选工作目录；界面仍显示此前的值。"
@@ -1602,12 +1615,14 @@
     "logs": {
       "title": "日志目录",
       "description": "桌面 App 的本机日志会写入这里。",
-      "webuiDescription": "Docker/WebUI 的 App 数据和日志位于宿主机挂载的 /data 目录。",
+      "dockerDescription": "Docker/Compose 的日志写入容器内 /data/logs；宿主机目录由 /data 挂载决定，设置页不会重接挂载。",
+      "webuiDescription": "WebUI 日志目录由启动配置提供，设置页只读。",
       "current": "日志目录：{{path}}",
       "missing": "当前没有上报日志目录。",
       "loading": "正在读取 App 日志目录…",
       "unavailable": "无法读取 App 日志目录。",
-      "dockerMount": "Docker /data",
+      "dockerMount": "Docker /data/logs · 部署配置管理",
+      "webuiManagedTag": "WebUI 启动配置管理",
       "saved": "日志目录已更新",
       "saveFailed": "无法更新日志目录"
     },
@@ -1724,6 +1739,29 @@
   "storagePage": {
     "title": "数据与存储",
     "description": "查看本机数据占用，并安全归档或清理不再需要的内容。",
+    "deployment": {
+      "title": "Docker 数据位置",
+      "description": "以下是容器内固定位置。两个宿主机持久化目录由 Docker 安装或 Compose 配置管理，设置页不会重接挂载。",
+      "managed": "由部署配置管理",
+      "locations": {
+        "projects": {
+          "title": "项目与任务产物",
+          "description": "保存项目文件、领域工作区和任务产物。",
+          "path": "/projects"
+        },
+        "data": {
+          "title": "App 与运行数据",
+          "description": "保存 App 数据、Framework 状态、Temporal 数据、Codex 配置与会话，以及日志。",
+          "path": "/data"
+        },
+        "recovery": {
+          "title": "恢复暂存区",
+          "description": "用于清理过程中的暂存、归档和回执；不是第三个必需的宿主机挂载。",
+          "path": "/recovery",
+          "optional": "可选 · 容器管理"
+        }
+      }
+    },
     "sections": {
       "updater": {
         "title": "安装包缓存",
@@ -3261,6 +3299,7 @@
       "groups": {
         "overview": "概览",
         "accountModels": "账户与模型",
+        "connectionsDeployment": "连接与部署",
         "workspace": "工作区",
         "agentsCapabilities": "智能体与能力",
         "runtimeMaintenance": "运行与维护",
@@ -3276,7 +3315,8 @@
         "agents": "智能体",
         "capabilities": "能力",
         "instructionsContext": "指令与上下文",
-        "runtimeServices": "服务与维护",
+        "runtimeServices": "服务状态",
+        "updatesRepairs": "更新与修复",
         "logsDiagnostics": "日志与诊断",
         "preferences": "偏好"
       }
@@ -3331,6 +3371,21 @@
       "collapseHealthy": "收起正常组件",
       "noActionRequired": "当前无需操作",
       "technicalDetails": "技术详情",
+      "views": {
+        "services": {
+          "title": "服务状态",
+          "description": "查看 Codex 与后台任务服务、Worker、周期调度是否可用。"
+        },
+        "updates": {
+          "title": "更新与修复",
+          "description": "检查并修复 App、运行依赖和能力包；健康项目默认收起。"
+        },
+        "diagnostics": {
+          "title": "日志与诊断",
+          "description": "管理桌面日志目录并按需查看只读技术证据。",
+          "logsDescription": "桌面端可打开或更换日志目录；WebUI 只读显示运行环境上报的路径，确认 Docker 部署时为 /data/logs。"
+        }
+      },
       "time": {
         "localWithRelative": "{{local}}（{{relative}}）",
         "justNow": "刚刚",

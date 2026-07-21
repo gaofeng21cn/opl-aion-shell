@@ -67,7 +67,7 @@ function renderSettingsRoute({ routeId, path, componentKey }: SettingsRouteDefin
       <Route
         key='settings-route-local-services'
         path='/settings/local-services'
-        element={<Navigate to='/settings/environment' replace />}
+        element={<Navigate to='/settings/environment?section=services' replace />}
       />
     );
   }
