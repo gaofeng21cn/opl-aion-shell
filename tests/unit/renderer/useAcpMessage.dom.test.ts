@@ -8,17 +8,24 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAcpMessage } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
+import { resetWarmupConversationStateForTests } from '@/renderer/pages/conversation/utils/warmupConversation';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 
-const { addOrUpdateMessageMock, getSlashCommandsInvokeMock, responseStreamOnMock, responseStreamHandlerRef } =
-  vi.hoisted(() => ({
-    addOrUpdateMessageMock: vi.fn(),
-    getSlashCommandsInvokeMock: vi.fn(),
-    responseStreamOnMock: vi.fn(),
-    responseStreamHandlerRef: {
-      current: undefined as ((message: IResponseMessage) => void) | undefined,
-    },
-  }));
+const {
+  addOrUpdateMessageMock,
+  ensureRuntimeInvokeMock,
+  getSlashCommandsInvokeMock,
+  responseStreamOnMock,
+  responseStreamHandlerRef,
+} = vi.hoisted(() => ({
+  addOrUpdateMessageMock: vi.fn(),
+  ensureRuntimeInvokeMock: vi.fn(),
+  getSlashCommandsInvokeMock: vi.fn(),
+  responseStreamOnMock: vi.fn(),
+  responseStreamHandlerRef: {
+    current: undefined as ((message: IResponseMessage) => void) | undefined,
+  },
+}));
 
 vi.mock('@/renderer/pages/conversation/Messages/hooks', () => ({
   useAddOrUpdateMessage: () => addOrUpdateMessageMock,
@@ -39,15 +46,20 @@ vi.mock('@/common', () => ({
       },
     },
     conversation: {
-      warmup: {
-        invoke: vi.fn().mockResolvedValue(undefined),
-      },
       getSlashCommands: {
         invoke: getSlashCommandsInvokeMock,
       },
     },
   },
 }));
+
+vi.mock('@/common/adapter/httpBridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/common/adapter/httpBridge')>();
+  return {
+    ...actual,
+    httpPost: vi.fn(() => ({ invoke: ensureRuntimeInvokeMock })),
+  };
+});
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -62,8 +74,10 @@ function deferred<T>() {
 describe('useAcpMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetWarmupConversationStateForTests();
     responseStreamHandlerRef.current = undefined;
     sessionStorage.clear();
+    ensureRuntimeInvokeMock.mockResolvedValue(undefined);
     getSlashCommandsInvokeMock.mockResolvedValue([]);
   });
 

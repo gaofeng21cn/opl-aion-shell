@@ -1,10 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAcpInitialMessage } from '@/renderer/pages/conversation/platforms/acp/useAcpInitialMessage';
+import { resetWarmupConversationStateForTests } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { mergeFailedSendDraft } from '@/renderer/hooks/chat/useSendBoxDraft';
 
 const mocks = vi.hoisted(() => ({
-  warmupInvoke: vi.fn(),
+  ensureRuntimeInvoke: vi.fn(),
   sendMessageInvoke: vi.fn(),
   addOrUpdateMessage: vi.fn(),
   checkAndUpdateTitle: vi.fn(),
@@ -14,11 +15,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    conversation: {
-      warmup: {
-        invoke: mocks.warmupInvoke,
-      },
-    },
     acpConversation: {
       sendMessage: {
         invoke: mocks.sendMessageInvoke,
@@ -26,6 +22,14 @@ vi.mock('@/common', () => ({
     },
   },
 }));
+
+vi.mock('@/common/adapter/httpBridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/common/adapter/httpBridge')>();
+  return {
+    ...actual,
+    httpPost: vi.fn(() => ({ invoke: mocks.ensureRuntimeInvoke })),
+  };
+});
 
 vi.mock('@/renderer/utils/emitter', () => ({
   emitter: {
@@ -42,14 +46,15 @@ vi.mock('react-i18next', () => ({
 describe('useAcpInitialMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetWarmupConversationStateForTests();
     sessionStorage.clear();
-    mocks.warmupInvoke.mockResolvedValue(undefined);
+    mocks.ensureRuntimeInvoke.mockResolvedValue(undefined);
     mocks.sendMessageInvoke.mockResolvedValue({ msg_id: 'msg-1' });
   });
 
   it('waits for ACP warmup before sending the GUID initial message', async () => {
     let resolveWarmup: () => void = () => {};
-    mocks.warmupInvoke.mockReturnValue(
+    mocks.ensureRuntimeInvoke.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveWarmup = resolve;
       })
@@ -69,7 +74,7 @@ describe('useAcpInitialMessage', () => {
       })
     );
 
-    await waitFor(() => expect(mocks.warmupInvoke).toHaveBeenCalledWith({ conversation_id: 'conv-1' }));
+    await waitFor(() => expect(mocks.ensureRuntimeInvoke).toHaveBeenCalledWith({ conversation_id: 'conv-1' }));
     expect(mocks.sendMessageInvoke).not.toHaveBeenCalled();
 
     resolveWarmup();
