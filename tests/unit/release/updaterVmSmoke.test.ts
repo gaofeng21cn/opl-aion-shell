@@ -8,6 +8,7 @@ import {
   armUpdaterInstallExit,
   bindDownloadedZipEvidence,
   candidateZipQualification,
+  cleanupMountedDmg,
   compareMachineVersions,
   dmgDetachAttempts,
   fileEvidence,
@@ -19,6 +20,7 @@ import {
   parseUpdaterVmArgs,
   requestUpdaterInstallExit,
   run,
+  updaterEvidenceScopeAllowsLatest,
   updaterFailureEvidence,
   updaterExpression,
   updaterLoaderProbeExpression,
@@ -55,6 +57,7 @@ function fixtureArgs(): string[] {
     '26.7.20-r1',
     '--expected-updater-version',
     '26.7.2001',
+    '--non-final',
     '--artifacts',
     join(root, 'artifacts'),
   ];
@@ -67,6 +70,34 @@ describe('updater VM smoke contract', () => {
     expect(options?.expectedCurrentVersion).toBe('26.7.20');
     expect(options?.expectedDisplayVersion).toBe('26.7.20-r1');
     expect(options?.expectedUpdaterVersion).toBe('26.7.2001');
+    expect(options?.evidenceScope).toBe('non_final');
+    expect(updaterEvidenceScopeAllowsLatest(options?.evidenceScope)).toBe(false);
+  });
+
+  it('requires every immutable identity for release qualification while allowing explicit non-final rehearsals', () => {
+    const finalArgs = fixtureArgs().filter((value) => value !== '--non-final');
+    finalArgs.push(
+      '--bundle-digest',
+      `sha256:${'a'.repeat(64)}`,
+      '--app-sha',
+      'b'.repeat(40),
+      '--shell-sha',
+      'c'.repeat(40),
+      '--framework-sha',
+      'd'.repeat(40)
+    );
+    const finalOptions = parseUpdaterVmArgs(finalArgs);
+    expect(finalOptions?.evidenceScope).toBe('release_qualification');
+    expect(updaterEvidenceScopeAllowsLatest(finalOptions?.evidenceScope)).toBe(true);
+
+    for (const label of ['--bundle-digest', '--app-sha', '--shell-sha', '--framework-sha']) {
+      const missing = [...finalArgs];
+      const index = missing.indexOf(label);
+      missing.splice(index, 2);
+      expect(() => parseUpdaterVmArgs(missing), `${label} must fail closed`).toThrow(
+        new RegExp(`${label} is required for release qualification`)
+      );
+    }
   });
 
   it('rejects a qualification that cannot prove a strictly newer machine identity', () => {
@@ -313,6 +344,37 @@ describe('updater VM smoke contract', () => {
     ]);
   });
 
+  it('removes the temporary mount after detach failure while preserving the primary failure', () => {
+    const actions: string[] = [];
+    const primaryError = new Error('attach failed');
+    const detachError = new Error('detach failed');
+    expect(
+      cleanupMountedDmg(
+        '/tmp/opl-updater-mount',
+        Date.now() + 1_000,
+        primaryError,
+        () => {
+          actions.push('detach');
+          throw detachError;
+        },
+        () => actions.push('remove')
+      )
+    ).toBe(detachError);
+    expect(actions).toEqual(['detach', 'remove']);
+
+    expect(() =>
+      cleanupMountedDmg(
+        '/tmp/opl-updater-mount',
+        Date.now() + 1_000,
+        null,
+        () => {
+          throw detachError;
+        },
+        () => undefined
+      )
+    ).toThrow(detachError);
+  });
+
   it('binds the actual downloaded ZIP bytes to the frozen feed digest and size', () => {
     const root = mkdtempSync(join(tmpdir(), 'opl-updater-zip-test-'));
     roots.push(root);
@@ -370,6 +432,7 @@ describe('updater VM smoke contract', () => {
 
   it('binds machine-checkable input and typed failure evidence to the frozen cohort', () => {
     const options = {
+      evidenceScope: 'release_qualification',
       bundleDigest: `sha256:${'a'.repeat(64)}`,
       appSha: 'a'.repeat(40),
       shellSha: 'b'.repeat(40),
@@ -389,6 +452,7 @@ describe('updater VM smoke contract', () => {
       { size_bytes: 4, sha256: '4'.repeat(64) },
       { size_bytes: 5, sha256: '5'.repeat(64) }
     );
+    expect(input.evidence_scope).toBe('release_qualification');
     expect(updaterQualificationInputDigest(input)).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(updaterQualificationInputDigest({ b: 1, a: 2 })).toBe(updaterQualificationInputDigest({ a: 2, b: 1 }));
     expect(updaterFailureEvidence('download_candidate', new Error('network failed'))).toMatchObject({

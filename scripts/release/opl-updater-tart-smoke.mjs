@@ -10,6 +10,7 @@ import {
   fileEvidence,
   installedReleaseIdentityMatches,
   isUpdaterRuntimeReady,
+  updaterEvidenceScopeAllowsLatest,
   updaterLoaderProbeIsHealthy,
   updaterQualificationInput,
   updaterQualificationInputDigest,
@@ -19,6 +20,8 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const GUEST_SCRIPT = path.join(SCRIPT_DIR, 'opl-updater-vm-smoke.mjs');
 const MINIMUM_GUEST_QUALIFICATION_MS = 60_000;
 const GUEST_FAILURE_RECEIPT_GRACE_MS = 10_000;
+const RELEASE_QUALIFICATION_SCOPE = 'release_qualification';
+const NON_FINAL_SCOPE = 'non_final';
 
 export function updaterTartGuestExecutionBudget(remainingMs) {
   if (!Number.isInteger(remainingMs) || remainingMs < MINIMUM_GUEST_QUALIFICATION_MS + GUEST_FAILURE_RECEIPT_GRACE_MS) {
@@ -44,6 +47,9 @@ function usage() {
     --expected-updater-version 26.7.2001 \\
     --guest-node-root /path/to/node \\
     --artifacts ./artifacts
+
+  Add --non-final for historical or synthetic rehearsal evidence. Such receipts
+  can never authorize Latest activation.
 `);
 }
 
@@ -71,6 +77,7 @@ export function parseUpdaterTartArgs(argv) {
     appSha: '',
     shellSha: '',
     frameworkSha: '',
+    evidenceScope: RELEASE_QUALIFICATION_SCOPE,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
@@ -88,6 +95,10 @@ export function parseUpdaterTartArgs(argv) {
     }
     if (key === '--dry-run') {
       options.dryRun = true;
+      continue;
+    }
+    if (key === '--non-final') {
+      options.evidenceScope = NON_FINAL_SCOPE;
       continue;
     }
     const value = argv[index + 1];
@@ -148,6 +159,17 @@ export function parseUpdaterTartArgs(argv) {
     ['--framework-sha', options.frameworkSha],
   ]) {
     if (value && !/^[0-9a-f]{40}$/.test(value)) throw new Error(`${label} must be an exact Git SHA.`);
+  }
+  if (options.evidenceScope === RELEASE_QUALIFICATION_SCOPE) {
+    for (const [label, value] of [
+      ['--bundle-digest', options.bundleDigest],
+      ['--app-sha', options.appSha],
+      ['--shell-sha', options.shellSha],
+      ['--framework-sha', options.frameworkSha],
+    ]) {
+      if (!value)
+        throw new Error(`${label} is required for release qualification; use --non-final for rehearsal evidence.`);
+    }
   }
   return options;
 }
@@ -442,13 +464,18 @@ export function updaterTartGuestReceiptMatches(receipt, options, hostInput) {
   const receiptInputDigest = receipt?.input ? updaterQualificationInputDigest(receipt.input) : null;
   const hostInputDigest = hostInput ? updaterQualificationInputDigest(hostInput) : null;
   const qualification = receipt?.qualification;
+  const evidenceScope = options.evidenceScope || RELEASE_QUALIFICATION_SCOPE;
+  const latestActivationAllowed = updaterEvidenceScopeAllowsLatest(evidenceScope);
   const nativeEventSource = 'electron-updater.MacUpdater.nativeUpdater';
   const exitTrigger = 'native_event_observed_then_post_quitAndInstall_microtask';
   const candidateZipName = `One-Person-Lab-${options.expectedDisplayVersion}-mac-arm64.zip`;
   return Boolean(
     receipt?.schema === 'opl_updater_upgrade_qualification_receipt.v1' &&
     receipt?.status === 'passed' &&
-    receipt?.latest_activation_allowed === true &&
+    receipt?.evidence_scope === evidenceScope &&
+    receipt?.latest_activation_allowed === latestActivationAllowed &&
+    receipt?.release_mutation_performed === false &&
+    receipt?.input?.evidence_scope === evidenceScope &&
     /^sha256:[0-9a-f]{64}$/.test(receipt?.input_digest || '') &&
     receipt?.input_digest === receiptInputDigest &&
     receipt?.input_digest === hostInputDigest &&
@@ -518,11 +545,25 @@ export function updaterTartGuestReceiptMatches(receipt, options, hostInput) {
   );
 }
 
-function tartFailureEvidence(error) {
+export function updaterTartFailureEvidence(kind, error) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null;
+  const message = error instanceof Error ? error.message : String(error);
+  const timedOut = code === 'ETIMEDOUT' || /deadline|timed out|ETIMEDOUT/i.test(message);
+  let classification = timedOut ? 'qualification_deadline_exceeded' : 'qualification_stage_failure';
+  if (kind === 'artifact_recovery') {
+    classification = timedOut ? 'artifact_recovery_timeout' : 'artifact_recovery_failure';
+  } else if (kind === 'cleanup') {
+    classification = 'vm_cleanup_failure';
+  } else if (kind === 'guest_receipt_read') {
+    classification = 'guest_receipt_read_failure';
+  } else if (kind === 'receipt_write') {
+    classification = 'receipt_write_failure';
+  }
   return {
+    classification,
     type: error instanceof Error ? error.constructor.name : typeof error,
-    code: error && typeof error === 'object' && 'code' in error ? String(error.code) : null,
-    message: error instanceof Error ? error.message : String(error),
+    code,
+    message,
     stack: error instanceof Error ? error.stack || null : null,
   };
 }
@@ -566,10 +607,18 @@ function writeUpdaterTartFailureReceipt({
   }
   const plan = readJsonFileIfPresent(planPath);
   const hostInputDigest = hostInput ? updaterQualificationInputDigest(hostInput) : null;
+  const terminalFailureKind =
+    terminalError === artifactPullError
+      ? 'artifact_recovery'
+      : terminalError === cleanupError
+        ? 'cleanup'
+        : 'qualification';
   const receipt = {
     schema: 'opl_updater_tart_smoke_receipt.v1',
     status: 'failed',
+    evidence_scope: options.evidenceScope,
     latest_activation_allowed: false,
+    release_mutation_performed: false,
     input: hostInput,
     input_digest: hostInputDigest || plan?.input_digest || `sha256:${sha256File(planPath)}`,
     plan: optionalFileEvidence(planPath),
@@ -577,12 +626,16 @@ function writeUpdaterTartFailureReceipt({
     source_vm: options.sourceVm,
     guest_ip: ip || null,
     bundle_digest: options.bundleDigest || null,
-    failure: tartFailureEvidence(terminalError),
+    failure: updaterTartFailureEvidence(terminalFailureKind, terminalError),
     evidence: {
-      primary_error: primaryError ? tartFailureEvidence(primaryError) : null,
-      artifact_pull_error: artifactPullError ? tartFailureEvidence(artifactPullError) : null,
-      cleanup_error: cleanupError ? tartFailureEvidence(cleanupError) : null,
-      guest_receipt_read_error: guestReceiptReadError ? tartFailureEvidence(guestReceiptReadError) : null,
+      primary_error: primaryError ? updaterTartFailureEvidence('qualification', primaryError) : null,
+      artifact_pull_error: artifactPullError
+        ? updaterTartFailureEvidence('artifact_recovery', artifactPullError)
+        : null,
+      cleanup_error: cleanupError ? updaterTartFailureEvidence('cleanup', cleanupError) : null,
+      guest_receipt_read_error: guestReceiptReadError
+        ? updaterTartFailureEvidence('guest_receipt_read', guestReceiptReadError)
+        : null,
       guest_input_digest: guestReceipt?.input_digest || null,
       guest_receipt: optionalFileEvidence(guestReceiptPath),
       guest_stdout: optionalFileEvidence(path.join(options.artifacts, 'updater-vm-smoke.stdout.log')),
@@ -608,6 +661,10 @@ export function updaterTartDryRunPlan(options, hostInput = null) {
     expected_current_version: options.expectedCurrentVersion,
     expected_display_version: options.expectedDisplayVersion,
     expected_updater_version: options.expectedUpdaterVersion,
+    evidence_scope: options.evidenceScope,
+    latest_activation_allowed: false,
+    release_mutation_performed: false,
+    vm_created: false,
     bundle_digest: options.bundleDigest || null,
     app_sha: options.appSha || null,
     shell_sha: options.shellSha || null,
@@ -618,6 +675,25 @@ export function updaterTartDryRunPlan(options, hostInput = null) {
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
     timeout_ms: options.timeoutMs,
+  };
+}
+
+export function updaterTartDryRunReceipt(options, plan, planPath) {
+  return {
+    schema: 'opl_updater_tart_smoke_receipt.v1',
+    status: 'planned',
+    evidence_scope: NON_FINAL_SCOPE,
+    requested_evidence_scope: options.evidenceScope,
+    latest_activation_allowed: false,
+    release_mutation_performed: false,
+    vm_created: false,
+    input: plan.input,
+    input_digest: plan.input_digest,
+    plan: portableFileEvidence(optionalFileEvidence(planPath)),
+    template_digest: `sha256:${sha256File(planPath)}`,
+    vm_name: options.vmName,
+    source_vm: options.sourceVm,
+    bundle_digest: options.bundleDigest || null,
   };
 }
 
@@ -669,6 +745,11 @@ async function main() {
   const guestReceiptPath = path.join(options.artifacts, 'updater-upgrade-qualification-receipt.json');
   fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
   if (options.dryRun) {
+    const dryRunReceipt = updaterTartDryRunReceipt(options, plan, planPath);
+    fs.writeFileSync(
+      path.join(options.artifacts, 'updater-tart-receipt.json'),
+      `${JSON.stringify(dryRunReceipt, null, 2)}\n`
+    );
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
     return;
   }
@@ -738,6 +819,7 @@ async function main() {
       options.appSha ? `--app-sha ${shellQuote(options.appSha)}` : '',
       options.shellSha ? `--shell-sha ${shellQuote(options.shellSha)}` : '',
       options.frameworkSha ? `--framework-sha ${shellQuote(options.frameworkSha)}` : '',
+      options.evidenceScope === NON_FINAL_SCOPE ? '--non-final' : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -760,7 +842,7 @@ async function main() {
         try {
           fs.writeFileSync(
             path.join(options.artifacts, 'updater-tart-artifact-pull-error.txt'),
-            `${artifactPullError instanceof Error ? artifactPullError.stack || artifactPullError.message : String(artifactPullError)}\n`
+            `${JSON.stringify(updaterTartFailureEvidence('artifact_recovery', artifactPullError), null, 2)}\n`
           );
         } catch {
           // Diagnostic persistence must not replace the qualification failure.
@@ -808,7 +890,7 @@ async function main() {
       try {
         fs.writeFileSync(
           path.join(options.artifacts, 'updater-tart-receipt-write-error.txt'),
-          `${tartFailureEvidence(receiptError).stack || String(receiptError)}\n`
+          `${JSON.stringify(updaterTartFailureEvidence('receipt_write', receiptError), null, 2)}\n`
         );
       } catch {
         // The original qualification failure remains authoritative.
@@ -820,7 +902,9 @@ async function main() {
   const hostReceipt = {
     schema: 'opl_updater_tart_smoke_receipt.v1',
     status: 'passed',
-    latest_activation_allowed: true,
+    evidence_scope: options.evidenceScope,
+    latest_activation_allowed: updaterEvidenceScopeAllowsLatest(options.evidenceScope),
+    release_mutation_performed: false,
     input: hostInput,
     input_digest: receipt.input_digest,
     plan: optionalFileEvidence(planPath),

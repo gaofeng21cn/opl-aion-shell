@@ -12,7 +12,9 @@ import {
   runAsync,
   selectUpdaterTartTerminalError,
   updaterTartArtifactPullPlan,
+  updaterTartDryRunReceipt,
   updaterTartDryRunPlan,
+  updaterTartFailureEvidence,
   updaterTartGuestExecutionBudget,
   updaterTartGuestReceiptMatches,
   updaterTartGuestCommand,
@@ -56,6 +58,10 @@ describe('updater Tart smoke contract', () => {
       expected_current_version: '26.7.20',
       expected_display_version: '26.7.20-r1',
       expected_updater_version: '26.7.2001',
+      evidence_scope: 'release_qualification',
+      latest_activation_allowed: false,
+      release_mutation_performed: false,
+      vm_created: false,
       bundle_digest: `sha256:${'a'.repeat(64)}`,
       app_sha: 'b'.repeat(40),
       shell_sha: 'c'.repeat(40),
@@ -65,6 +71,99 @@ describe('updater Tart smoke contract', () => {
         sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
       },
     });
+  });
+
+  it('fails closed on any missing final identity and allows only explicit non-final rehearsal without them', () => {
+    const rehearsalArgs = [
+      '--dry-run',
+      '--non-final',
+      '--source-vm',
+      'macos-clean',
+      '--old-dmg',
+      '/tmp/old.dmg',
+      '--feed-dir',
+      '/tmp/feed',
+      '--expected-current-display-version',
+      '26.7.20',
+      '--expected-current-version',
+      '26.7.20',
+      '--expected-display-version',
+      '26.7.20-r1',
+      '--expected-updater-version',
+      '26.7.2001',
+      '--guest-node-root',
+      '/tmp/node',
+    ];
+    expect(parseUpdaterTartArgs(rehearsalArgs)?.evidenceScope).toBe('non_final');
+
+    const finalArgs = rehearsalArgs.filter((value) => value !== '--non-final');
+    finalArgs.push(
+      '--bundle-digest',
+      `sha256:${'a'.repeat(64)}`,
+      '--app-sha',
+      'b'.repeat(40),
+      '--shell-sha',
+      'c'.repeat(40),
+      '--framework-sha',
+      'd'.repeat(40)
+    );
+    expect(parseUpdaterTartArgs(finalArgs)?.evidenceScope).toBe('release_qualification');
+    for (const label of ['--bundle-digest', '--app-sha', '--shell-sha', '--framework-sha']) {
+      const missing = [...finalArgs];
+      const index = missing.indexOf(label);
+      missing.splice(index, 2);
+      expect(() => parseUpdaterTartArgs(missing), `${label} must fail closed`).toThrow(
+        new RegExp(`${label} is required for release qualification`)
+      );
+    }
+  });
+
+  it('writes a byte-repeatable dry-run receipt that is always non-final and mutation-free', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-updater-tart-dry-run-'));
+    try {
+      const options = parseUpdaterTartArgs([
+        '--dry-run',
+        '--non-final',
+        '--source-vm',
+        'macos-clean',
+        '--vm-name',
+        'opl-updater-template-rehearsal',
+        '--old-dmg',
+        '/tmp/old.dmg',
+        '--feed-dir',
+        '/tmp/feed',
+        '--expected-current-display-version',
+        '26.7.20',
+        '--expected-current-version',
+        '26.7.20',
+        '--expected-display-version',
+        '26.7.20-r1',
+        '--expected-updater-version',
+        '26.7.2001',
+        '--guest-node-root',
+        '/tmp/node',
+      ])!;
+      const plan = updaterTartDryRunPlan(options);
+      const receipts = ['one', 'two'].map((name) => {
+        const directory = path.join(root, name);
+        fs.mkdirSync(directory);
+        const planPath = path.join(directory, 'updater-tart-plan.json');
+        fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
+        return updaterTartDryRunReceipt(options, plan, planPath);
+      });
+      expect(receipts[0]).toEqual(receipts[1]);
+      expect(receipts[0]).toMatchObject({
+        status: 'planned',
+        evidence_scope: 'non_final',
+        requested_evidence_scope: 'non_final',
+        latest_activation_allowed: false,
+        release_mutation_performed: false,
+        vm_created: false,
+        template_digest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('requires an explicit candidate updater identity', () => {
@@ -162,6 +261,22 @@ describe('updater Tart smoke contract', () => {
     expect(selectUpdaterTartTerminalError(null, pull.error)).toBe(pullError);
   });
 
+  it('classifies qualification timeout, artifact recovery timeout, and cleanup failure distinctly', () => {
+    const timeout = Object.assign(new Error('operation timed out'), { code: 'ETIMEDOUT' });
+    expect(updaterTartFailureEvidence('qualification', timeout)).toMatchObject({
+      classification: 'qualification_deadline_exceeded',
+      code: 'ETIMEDOUT',
+    });
+    expect(updaterTartFailureEvidence('artifact_recovery', timeout)).toMatchObject({
+      classification: 'artifact_recovery_timeout',
+      code: 'ETIMEDOUT',
+    });
+    expect(updaterTartFailureEvidence('cleanup', new Error('delete failed'))).toMatchObject({
+      classification: 'vm_cleanup_failure',
+      code: null,
+    });
+  });
+
   it('returns ETIMEDOUT only after the timed-out child has exited', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-updater-tart-timeout-'));
     const pidPath = path.join(tempDir, 'child.pid');
@@ -213,6 +328,7 @@ describe('updater Tart smoke contract', () => {
 
   it('accepts only a passed guest receipt bound to the exact cohort and identities', () => {
     const options = {
+      evidenceScope: 'release_qualification',
       bundleDigest: `sha256:${'a'.repeat(64)}`,
       appSha: 'b'.repeat(40),
       shellSha: 'c'.repeat(40),
@@ -223,6 +339,7 @@ describe('updater Tart smoke contract', () => {
       expectedUpdaterVersion: '26.7.2001',
     };
     const hostInput = {
+      evidence_scope: options.evidenceScope,
       bundle_digest: options.bundleDigest,
       cohort: { app_sha: options.appSha, shell_sha: options.shellSha, framework_sha: options.frameworkSha },
       baseline: {
@@ -297,7 +414,9 @@ describe('updater Tart smoke contract', () => {
     const receipt = {
       schema: 'opl_updater_upgrade_qualification_receipt.v1',
       status: 'passed',
+      evidence_scope: options.evidenceScope,
       latest_activation_allowed: true,
+      release_mutation_performed: false,
       input: hostInput,
       input_digest: updaterQualificationInputDigest(hostInput),
       bundle_digest: options.bundleDigest,
@@ -359,6 +478,23 @@ describe('updater Tart smoke contract', () => {
       ],
     };
     expect(updaterTartGuestReceiptMatches(receipt, options, hostInput)).toBe(true);
+    const nonFinalOptions = { ...options, evidenceScope: 'non_final' };
+    const nonFinalInput = { ...hostInput, evidence_scope: 'non_final' };
+    const nonFinalReceipt = {
+      ...receipt,
+      evidence_scope: 'non_final',
+      latest_activation_allowed: false,
+      input: nonFinalInput,
+      input_digest: updaterQualificationInputDigest(nonFinalInput),
+    };
+    expect(updaterTartGuestReceiptMatches(nonFinalReceipt, nonFinalOptions, nonFinalInput)).toBe(true);
+    expect(
+      updaterTartGuestReceiptMatches(
+        { ...nonFinalReceipt, latest_activation_allowed: true },
+        nonFinalOptions,
+        nonFinalInput
+      )
+    ).toBe(false);
     for (const flag of [
       'old_app_detected_update',
       'same_candidate_zip_downloaded',

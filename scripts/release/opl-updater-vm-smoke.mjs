@@ -12,6 +12,12 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/;
+const RELEASE_QUALIFICATION_SCOPE = 'release_qualification';
+const NON_FINAL_SCOPE = 'non_final';
+
+export function updaterEvidenceScopeAllowsLatest(evidenceScope) {
+  return evidenceScope === RELEASE_QUALIFICATION_SCOPE;
+}
 
 function comparePrereleaseIdentifiers(left, right) {
   const leftParts = left ? left.split('.') : [];
@@ -58,6 +64,9 @@ function usage() {
     --expected-display-version 26.7.20-r1 \\
     --expected-updater-version 26.7.2001 \\
     --artifacts ./artifacts
+
+  Add --non-final for historical or synthetic rehearsal evidence. Such receipts
+  can never authorize Latest activation.
 `);
 }
 
@@ -76,12 +85,17 @@ export function parseUpdaterVmArgs(argv) {
     appSha: '',
     shellSha: '',
     frameworkSha: '',
+    evidenceScope: RELEASE_QUALIFICATION_SCOPE,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
     if (key === '--help') {
       usage();
       return null;
+    }
+    if (key === '--non-final') {
+      options.evidenceScope = NON_FINAL_SCOPE;
+      continue;
     }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${key}`);
@@ -123,11 +137,17 @@ export function parseUpdaterVmArgs(argv) {
     throw new Error('--bundle-digest must be an exact sha256 identity.');
   }
   for (const [label, value] of [
+    ['--bundle-digest', options.bundleDigest],
     ['--app-sha', options.appSha],
     ['--shell-sha', options.shellSha],
     ['--framework-sha', options.frameworkSha],
   ]) {
-    if (value && !/^[0-9a-f]{40}$/.test(value)) throw new Error(`${label} must be an exact Git SHA.`);
+    if (!value && options.evidenceScope === RELEASE_QUALIFICATION_SCOPE) {
+      throw new Error(`${label} is required for release qualification; use --non-final for rehearsal evidence.`);
+    }
+    if (label !== '--bundle-digest' && value && !/^[0-9a-f]{40}$/.test(value)) {
+      throw new Error(`${label} must be an exact Git SHA.`);
+    }
   }
   return options;
 }
@@ -202,6 +222,7 @@ function portableFileEvidence(evidence) {
 
 export function updaterQualificationInput(options, feedEvidence, oldDmgEvidence, harnessEvidence) {
   return {
+    evidence_scope: options.evidenceScope || RELEASE_QUALIFICATION_SCOPE,
     bundle_digest: options.bundleDigest || null,
     cohort: {
       app_sha: options.appSha || null,
@@ -337,6 +358,22 @@ function detachMountedDmg(mountPoint, deadline) {
   throw lastError || new Error(`Unable to detach baseline DMG mount ${mountPoint}.`);
 }
 
+export function cleanupMountedDmg(mountPoint, deadline, primaryError, detach = detachMountedDmg, remove = fs.rmSync) {
+  let cleanupError = null;
+  try {
+    detach(mountPoint, deadline);
+  } catch (error) {
+    cleanupError = error;
+  }
+  try {
+    remove(mountPoint, { recursive: true, force: true });
+  } catch (error) {
+    cleanupError ||= error;
+  }
+  if (!primaryError && cleanupError) throw cleanupError;
+  return cleanupError;
+}
+
 function installOldDmg(dmgPath, installDir, deadline) {
   const mountPoint = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-updater-old-dmg-'));
   let primaryError = null;
@@ -360,12 +397,7 @@ function installOldDmg(dmgPath, installDir, deadline) {
     primaryError = error;
     throw error;
   } finally {
-    try {
-      detachMountedDmg(mountPoint, deadline);
-      fs.rmSync(mountPoint, { recursive: true, force: true });
-    } catch (cleanupError) {
-      if (!primaryError) throw cleanupError;
-    }
+    cleanupMountedDmg(mountPoint, deadline, primaryError);
   }
 }
 
@@ -1262,7 +1294,9 @@ async function main() {
     const receipt = {
       schema: 'opl_updater_upgrade_qualification_receipt.v1',
       status: 'passed',
-      latest_activation_allowed: true,
+      evidence_scope: options.evidenceScope,
+      latest_activation_allowed: updaterEvidenceScopeAllowsLatest(options.evidenceScope),
+      release_mutation_performed: false,
       input,
       input_digest: updaterQualificationInputDigest(input),
       bundle_digest: options.bundleDigest || null,
@@ -1316,7 +1350,9 @@ async function main() {
     const failureReceipt = {
       schema: 'opl_updater_upgrade_qualification_receipt.v1',
       status: 'failed',
+      evidence_scope: options.evidenceScope,
       latest_activation_allowed: false,
+      release_mutation_performed: false,
       input,
       input_digest: updaterQualificationInputDigest(input),
       bundle_digest: options.bundleDigest || null,
