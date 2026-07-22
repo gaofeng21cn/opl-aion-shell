@@ -891,6 +891,25 @@ describe('Runtime V2 page', () => {
     expect(routeMocks.navigate).toHaveBeenCalledWith('/runtime/item/diabetes%3A001/insights/scientific-reasoning');
   });
 
+  it('keeps core Runtime details and hides research details when the optional capability is absent', async () => {
+    const payload = createRuntimeV2AppState();
+    const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
+      (candidate) => candidate.identity.work_item_id === '001' && candidate.identity.project_id === 'diabetes'
+    )!;
+    delete (item as unknown as Record<string, unknown>).domain_detail_views;
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
+
+    render(<RuntimePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+
+    const drawer = await screen.findByTestId('runtime-task-detail');
+    expect(drawer).toHaveTextContent('阶段与运行');
+    expect(drawer).toHaveTextContent('分析结果复核');
+    expect(drawer).toHaveTextContent('下一步动作');
+    expect(within(drawer).queryByTestId('runtime-research-summary')).not.toBeInTheDocument();
+    expect(routeMocks.navigate).not.toHaveBeenCalled();
+  });
+
   it('shows every system responsibility field only for a complete envelope', async () => {
     const projection = createRuntimeV2Projection();
     projection.items[0]!.lifecycle.primary_state = 'system_attention';

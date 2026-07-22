@@ -73,7 +73,7 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
 const OPL_APP_REQUIRED_FRAMEWORK_API_RANGE = 'p19.stage-runtime';
-const OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS = ['opl_app.domain_detail_views.v2'] as const;
+const OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS = [] as const;
 const OPL_APP_RUNTIME_CAPABILITY_CONTRACT_PATH = [
   'contracts',
   'opl-framework',

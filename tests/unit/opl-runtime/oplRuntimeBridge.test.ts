@@ -9,7 +9,7 @@ import {
 } from '@/process/bridge/oplRuntimeBridge';
 
 const tmpRoots: string[] = [];
-const REQUIRED_APP_STATE_CAPABILITY = 'opl_app.domain_detail_views.v2';
+const OPTIONAL_DOMAIN_DETAIL_CAPABILITY = 'opl_app.domain_detail_views.v2';
 const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 
 function makeTempRoot(name: string): string {
@@ -22,7 +22,7 @@ function makeFrameworkCarrier(
   packageRoot: string,
   version = '26.6.27',
   apiVersion = 'p19.stage-runtime',
-  capabilityIds: string[] = [REQUIRED_APP_STATE_CAPABILITY]
+  capabilityIds: string[] = [OPTIONAL_DOMAIN_DETAIL_CAPABILITY]
 ): void {
   fs.mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'dist', 'entrypoints'), { recursive: true });
@@ -889,7 +889,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(command.args[0]).toBe(path.join(managedRoot, 'dist', 'entrypoints', 'cli.js'));
   });
 
-  it('fails closed when a 0.2.2 carrier has the current API marker but no App state capability', () => {
+  it('keeps fast App state available when a current-API carrier omits optional domain details', () => {
     const homeDir = makeTempRoot('opl-legacy-capability-home');
     const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
     makeFrameworkCarrier(managedRoot, '0.2.2', 'p19.stage-runtime', []);
@@ -904,28 +904,21 @@ describe('OPL runtime bridge command whitelist', () => {
       arch: 'arm64',
     });
 
-    let compatibilityError: unknown;
-    try {
-      __oplRuntimeBridgeTest.buildOplSpawnCommand(appStateSpec, env);
-    } catch (error) {
-      compatibilityError = error;
-    }
-
-    expect(compatibilityError).toMatchObject({
-      code: 'incompatible_missing_required_capability',
-      receipt: {
-        framework_version: '0.2.2',
-        framework_api_version: 'p19.stage-runtime',
-        producer_capability_ids: [],
-        required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
-        missing_required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
-        compatibility_status: 'incompatible_missing_required_capability',
-      },
+    const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, appStateSpec);
+    expect(selection.receipt).toMatchObject({
+      framework_version: '0.2.2',
+      framework_api_version: 'p19.stage-runtime',
+      producer_capability_ids: [],
+      required_capability_ids: [],
+      missing_required_capability_ids: [],
+      compatibility_status: 'compatible',
     });
-    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(appStateSpec, compatibilityError)).toBe(true);
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(appStateSpec, env);
+    expect(command.args.slice(-5)).toEqual(['app', 'state', '--profile', 'fast', '--json']);
+    expect(command.env.OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS).toBe('');
   });
 
-  it('activates a current carrier that publishes the required App state capability', () => {
+  it('activates a current carrier that publishes the optional domain detail capability', () => {
     const homeDir = makeTempRoot('opl-current-capability-home');
     const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
     makeFrameworkCarrier(managedRoot, '0.3.4');
@@ -942,8 +935,8 @@ describe('OPL runtime bridge command whitelist', () => {
 
     const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, appStateSpec);
     expect(selection.receipt).toMatchObject({
-      producer_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
-      required_capability_ids: [REQUIRED_APP_STATE_CAPABILITY],
+      producer_capability_ids: [OPTIONAL_DOMAIN_DETAIL_CAPABILITY],
+      required_capability_ids: [],
       missing_required_capability_ids: [],
       compatibility_status: 'compatible',
     });
@@ -956,7 +949,7 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('keeps canonical update and bootstrap recovery surfaces reachable for a capability-stale carrier', () => {
+  it('keeps canonical update and bootstrap surfaces reachable without optional domain details', () => {
     const homeDir = makeTempRoot('opl-capability-recovery-home');
     const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
     makeFrameworkCarrier(managedRoot, '0.2.2', 'p19.stage-runtime', []);
@@ -990,7 +983,8 @@ describe('OPL runtime bridge command whitelist', () => {
     );
 
     expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
-    expect(updateCommand.env.OPL_FRAMEWORK_COMPATIBILITY_STATUS).toBe('incompatible_missing_required_capability');
+    expect(updateCommand.env.OPL_FRAMEWORK_COMPATIBILITY_STATUS).toBe('compatible');
+    expect(updateCommand.env.OPL_FRAMEWORK_MISSING_REQUIRED_CAPABILITY_IDS).toBe('');
     expect(initializeCommand.args.slice(-4)).toEqual(['system', 'initialize', '--events', '--json']);
     expect(installCommand.args.slice(-4)).toEqual(['install', '--headless', '--skip-packages', '--json']);
   });
@@ -1108,7 +1102,7 @@ describe('OPL runtime bridge command whitelist', () => {
     );
     fs.writeFileSync(
       path.join(developerCheckout, 'contracts', 'opl-framework', 'app-runtime-fast-work-item-projection-contract.json'),
-      JSON.stringify({ compatibility_capabilities: { ids: [REQUIRED_APP_STATE_CAPABILITY] } }),
+      JSON.stringify({ compatibility_capabilities: { ids: [OPTIONAL_DOMAIN_DETAIL_CAPABILITY] } }),
       'utf8'
     );
     fs.writeFileSync(
