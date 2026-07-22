@@ -1251,7 +1251,8 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
         .join('\n')
     );
   }
-  if (codesign.status !== 0) {
+  const blockingCodesignFailure = codesign.status !== 0;
+  if (blockingCodesignFailure) {
     throw new Error(
       [
         'Packaged Full App failed the blocking deep codesign verification before first launch.',
