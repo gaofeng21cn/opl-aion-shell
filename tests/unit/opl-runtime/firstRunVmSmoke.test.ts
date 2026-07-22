@@ -57,6 +57,37 @@ function temporalServiceActionLifecycle(pid: number) {
   };
 }
 
+function writeMasQualificationProvisioningReceipt(
+  root: string,
+  workspace: string,
+  overrides: Record<string, unknown> = {}
+) {
+  const studyId = typeof overrides.study_id === 'string' ? overrides.study_id : 'qualification-study-from-receipt';
+  const receiptPath = path.join(root, `mas-provisioning-${Math.random().toString(16).slice(2)}.json`);
+  const receipt = {
+    surface_kind: 'mas_qualification_work_item_provisioning_receipt',
+    schema_version: 1,
+    action_id: 'qualification_work_item_provisioning_authority_evaluate',
+    receipt_ref: `mas-qualification-work-item-provisioning:${'a'.repeat(64)}`,
+    domain_truth_owner: 'MedAutoScience',
+    domain_id: 'medautoscience',
+    qualification_scope: 'full_vm_release_smoke',
+    workspace_root: workspace,
+    study_id: studyId,
+    canonical_study_root: `studies/${studyId}`,
+    lifecycle_state: 'active',
+    lifecycle_generation: 1,
+    single_use: true,
+    stage_body_allowed: false,
+    business_work_allowed: false,
+    publication_allowed: false,
+    submission_allowed: false,
+    ...overrides,
+  };
+  fs.writeFileSync(receiptPath, `${JSON.stringify(receipt)}\n`);
+  return { receipt, receiptPath };
+}
+
 describe('packaged first-run VM smoke helpers', () => {
   it('allows packaged bootstrap output above the Node spawnSync default buffer', () => {
     withFakePackagedInstaller(2 * 1024 * 1024, (appPath) => {
@@ -1294,12 +1325,62 @@ describe('packaged first-run VM smoke helpers', () => {
     dom.window.close();
   });
 
-  it('separates ordinary send receipt stability from real Framework Stage activation evidence', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
+  it('fails closed before Framework provider start without a valid workspace-bound MAS provisioning receipt', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-provisioning-fail-closed-'));
     const manifestPath = path.join(root, 'agent', 'stages', 'manifest.json');
-    const workspace = '/Users/opl/OPL-Smoke';
+    const workspace = path.join(root, 'workspace');
     const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(workspace, { recursive: true });
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        target_domain_id: 'medautoscience',
+        stages: [{ stage_id: 'direction_and_route_selection' }],
+      })
+    );
+    const beforeState = {
+      status: {
+        package_id: 'mas',
+        runtime_source_readiness: { checkout_path: root },
+      },
+      snapshot: { use_receipt_refs: [] },
+    };
+    const runOplJson = vi.fn();
+    const invoke = (receiptPath: string | null) =>
+      __test.runFrameworkStageRuntimeActivation(
+        { timeoutMs: 30_000, masStudyProvisioningReceipt: receiptPath, __testHooks: { runOplJson } },
+        target,
+        workspace,
+        beforeState
+      );
+    try {
+      expect(() => invoke(null)).toThrow('--mas-study-provisioning-receipt');
+
+      const malformedPath = path.join(root, 'malformed.json');
+      fs.writeFileSync(malformedPath, '{"surface_kind":');
+      expect(() => invoke(malformedPath)).toThrow('unreadable or invalid JSON');
+
+      const mismatched = writeMasQualificationProvisioningReceipt(root, path.join(root, 'other-workspace'));
+      expect(() => invoke(mismatched.receiptPath)).toThrow('workspace_root');
+
+      const wrongOwner = writeMasQualificationProvisioningReceipt(root, workspace, {
+        domain_truth_owner: 'one-person-lab',
+      });
+      expect(() => invoke(wrongOwner.receiptPath)).toThrow('domain_truth_owner');
+      expect(runOplJson).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('separates ordinary send receipt stability from receipt-bound Framework Stage activation evidence', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
+    const manifestPath = path.join(root, 'agent', 'stages', 'manifest.json');
+    const workspace = path.join(root, 'workspace');
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(workspace, { recursive: true });
     fs.writeFileSync(
       manifestPath,
       JSON.stringify({
@@ -1343,6 +1424,7 @@ describe('packaged first-run VM smoke helpers', () => {
       useReceiptRef
     );
 
+    const provisioning = writeMasQualificationProvisioningReceipt(root, workspace);
     const stageResult = {
       version: 'g2',
       family_runtime_stage_run: {
@@ -1353,6 +1435,7 @@ describe('packaged first-run VM smoke helpers', () => {
           stage_id: 'direction_and_route_selection',
           workspace_locator: {
             workspace_root: workspace,
+            study_id: provisioning.receipt.study_id,
             package_use_binding: {
               surface_kind: 'opl_agent_package_use_binding.v1',
               use_boundary_id: 'package-use-stage-runtime',
@@ -1378,7 +1461,11 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(stageTarget.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
 
       const evidence = __test.runFrameworkStageRuntimeActivation(
-        { timeoutMs: 30_000, __testHooks: { runOplJson } },
+        {
+          timeoutMs: 30_000,
+          masStudyProvisioningReceipt: provisioning.receiptPath,
+          __testHooks: { runOplJson },
+        },
         target,
         workspace,
         {
@@ -1393,6 +1480,8 @@ describe('packaged first-run VM smoke helpers', () => {
         domain_id: 'medautoscience',
         stage_id: 'direction_and_route_selection',
         workspace_locator: workspace,
+        study_id: provisioning.receipt.study_id,
+        provisioning_receipt_ref: provisioning.receipt.receipt_ref,
         use_receipt_ref: useReceiptRef,
         lifecycle_use_receipt_readback: true,
         stage_body_started: false,
@@ -1409,7 +1498,9 @@ describe('packaged first-run VM smoke helpers', () => {
           __test.FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
         ])
       );
-      expect(stageArgs).toContain(JSON.stringify({ workspace_root: workspace }));
+      expect(stageArgs).toContain(
+        JSON.stringify({ workspace_root: workspace, study_id: provisioning.receipt.study_id })
+      );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

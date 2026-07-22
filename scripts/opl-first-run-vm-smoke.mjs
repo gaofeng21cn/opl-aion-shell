@@ -113,6 +113,14 @@ const FALLBACK_OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
     requiredSkillIds: ['redcube-ai'],
   },
 ];
+const MAS_QUALIFICATION_PROVISIONING_RECEIPT_SURFACE = 'mas_qualification_work_item_provisioning_receipt';
+const MAS_QUALIFICATION_PROVISIONING_RECEIPT_VERSION = 1;
+const MAS_QUALIFICATION_PROVISIONING_ACTION_ID = 'qualification_work_item_provisioning_authority_evaluate';
+const MAS_QUALIFICATION_PROVISIONING_RECEIPT_REF = /^mas-qualification-work-item-provisioning:[a-f0-9]{64}$/;
+const MAS_QUALIFICATION_SCOPE = 'full_vm_release_smoke';
+const MAS_DOMAIN_ID = 'medautoscience';
+const MAS_DOMAIN_TRUTH_OWNER = 'MedAutoScience';
+const SAFE_STUDY_ID = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 function loadCompiledAssistantRouteExpectations(
   manifestPath = process.env.OPL_FIRST_RUN_COMPILED_EXPECTATIONS,
   runtimeProfile = 'standard',
@@ -279,6 +287,9 @@ Options:
   --assistant-route-smoke
                          Verify MAS/MAG/RCA Home launch gates for Standard. For Full,
                          click each entry and verify its receipt-only Codex route.
+  --mas-study-provisioning-receipt <path>
+                         Domain-owned qualification provisioning receipt used to
+                         derive the MAS study_id before any Full Stage provider starts.
   --codex-functional-check
                          Write codex-functional-check-summary.json with deterministic
                          post-install Codex behavior fields. This does not call an LLM.
@@ -332,6 +343,9 @@ function parseArgs(argv) {
     bootstrapLaunchDiagnostics: false,
     settingsSmoke: false,
     assistantRouteSmoke: false,
+    masStudyProvisioningReceipt: process.env.OPL_FIRST_RUN_MAS_STUDY_PROVISIONING_RECEIPT
+      ? path.resolve(process.env.OPL_FIRST_RUN_MAS_STUDY_PROVISIONING_RECEIPT)
+      : null,
     codexFunctionalCheck: false,
     codexAiSelfCheck: false,
     codexAiSelfCheckMode: 'diagnose',
@@ -404,7 +418,9 @@ function parseArgs(argv) {
     else if (arg === '--codex-npm-cache-dir') options.codexNpmCacheDir = path.resolve(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
-    else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
+    else if (arg === '--mas-study-provisioning-receipt') {
+      options.masStudyProvisioningReceipt = path.resolve(value);
+    } else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
     else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
     else if (arg === '--host-deadline-epoch-ms') options.hostDeadlineEpochMs = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
@@ -444,6 +460,9 @@ function parseArgs(argv) {
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
+  }
+  if (options.runtimeProfile === 'full' && options.assistantRouteSmoke) {
+    resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, fullAssistantWorkspacePath());
   }
   assertBootstrapLaunchDiagnosticsOptions(options);
   return options;
@@ -4457,6 +4476,78 @@ function assertHomeAssistantRouteSendWithoutActivation(before, after) {
   };
 }
 
+function fullAssistantWorkspacePath() {
+  return path.join(os.homedir(), 'OPL-Release-Smoke-Workspace');
+}
+
+function resolveMasQualificationProvisioningReceipt(receiptPath, workspace) {
+  if (typeof receiptPath !== 'string' || !receiptPath.trim()) {
+    throw new Error('Full MAS Stage activation requires --mas-study-provisioning-receipt before any provider starts.');
+  }
+  const resolvedReceiptPath = path.resolve(receiptPath);
+  let receipt;
+  try {
+    receipt = JSON.parse(fs.readFileSync(resolvedReceiptPath, 'utf8'));
+  } catch (error) {
+    throw new Error(
+      `MAS qualification provisioning receipt is unreadable or invalid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+  if (!isRecord(receipt)) {
+    throw new Error('MAS qualification provisioning receipt must be a JSON object.');
+  }
+  const invalid = [];
+  if (receipt.surface_kind !== MAS_QUALIFICATION_PROVISIONING_RECEIPT_SURFACE) {
+    invalid.push('surface_kind');
+  }
+  if (receipt.schema_version !== MAS_QUALIFICATION_PROVISIONING_RECEIPT_VERSION) {
+    invalid.push('schema_version');
+  }
+  if (receipt.action_id !== MAS_QUALIFICATION_PROVISIONING_ACTION_ID) invalid.push('action_id');
+  if (receipt.domain_truth_owner !== MAS_DOMAIN_TRUTH_OWNER) invalid.push('domain_truth_owner');
+  if (receipt.domain_id !== MAS_DOMAIN_ID) invalid.push('domain_id');
+  if (receipt.qualification_scope !== MAS_QUALIFICATION_SCOPE) invalid.push('qualification_scope');
+  if (
+    typeof receipt.receipt_ref !== 'string' ||
+    !MAS_QUALIFICATION_PROVISIONING_RECEIPT_REF.test(receipt.receipt_ref)
+  ) {
+    invalid.push('receipt_ref');
+  }
+  if (receipt.single_use !== true) invalid.push('single_use');
+  for (const field of ['stage_body_allowed', 'business_work_allowed', 'publication_allowed', 'submission_allowed']) {
+    if (receipt[field] !== false) invalid.push(field);
+  }
+  const studyId = typeof receipt.study_id === 'string' ? receipt.study_id : '';
+  if (!SAFE_STUDY_ID.test(studyId) || studyId === '.' || studyId === '..') invalid.push('study_id');
+  if (receipt.canonical_study_root !== `studies/${studyId}`) invalid.push('canonical_study_root');
+  if (receipt.lifecycle_state !== 'active') invalid.push('lifecycle_state');
+  if (!Number.isInteger(receipt.lifecycle_generation) || receipt.lifecycle_generation < 1) {
+    invalid.push('lifecycle_generation');
+  }
+  const expectedWorkspace = path.resolve(workspace);
+  if (
+    typeof receipt.workspace_root !== 'string' ||
+    !path.isAbsolute(receipt.workspace_root) ||
+    path.resolve(receipt.workspace_root) !== expectedWorkspace
+  ) {
+    invalid.push('workspace_root');
+  }
+  if (invalid.length > 0) {
+    throw new Error(`MAS qualification provisioning receipt failed closed: ${invalid.join(', ')}`);
+  }
+  return {
+    receipt_path: resolvedReceiptPath,
+    receipt_ref: receipt.receipt_ref,
+    study_id: studyId,
+    canonical_study_root: receipt.canonical_study_root,
+    lifecycle_state: receipt.lifecycle_state,
+    lifecycle_generation: receipt.lifecycle_generation,
+    workspace_root: expectedWorkspace,
+  };
+}
+
 function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
   const runtimeSource = isRecord(packageStatus.runtime_source_readiness)
     ? packageStatus.runtime_source_readiness
@@ -4501,6 +4592,9 @@ function frameworkStageRuntimeActivationExpression(input) {
   if (stageRunInput?.domain_id !== input.stageTarget.domain_id) errors.push('stage_domain_id');
   if (stageRunInput?.stage_id !== input.stageTarget.stage_id) errors.push('stage_id');
   if (workspaceLocator?.workspace_root !== input.workspace) errors.push('stage_workspace_locator');
+  if (input.provisioning && workspaceLocator?.study_id !== input.provisioning.study_id) {
+    errors.push('stage_study_id');
+  }
   if (useBinding?.surface_kind !== 'opl_agent_package_use_binding.v1') errors.push('use_binding_surface_kind');
   if (useBinding?.scope !== 'workspace') errors.push('use_binding_scope');
   if (useBinding?.target_root !== input.workspace) errors.push('use_binding_target_root');
@@ -4530,6 +4624,8 @@ function frameworkStageRuntimeActivationExpression(input) {
     domain_id: input.stageTarget.domain_id,
     stage_id: input.stageTarget.stage_id,
     workspace_locator: input.workspace,
+    study_id: input.provisioning?.study_id ?? null,
+    provisioning_receipt_ref: input.provisioning?.receipt_ref ?? null,
     stage_manifest_path: input.stageTarget.manifest_path,
     stage_manifest_sha256: input.stageTarget.manifest_sha256,
     use_boundary_id: useBinding.use_boundary_id,
@@ -4540,8 +4636,15 @@ function frameworkStageRuntimeActivationExpression(input) {
   };
 }
 
-function runFrameworkStageRuntimeActivation(options, target, workspace, beforeState) {
+function runFrameworkStageRuntimeActivation(options, target, workspace, beforeState, provisioning = null) {
   const stageTarget = resolveFrameworkStageRuntimeTarget(beforeState.status, target);
+  const workItemProvisioning =
+    target.packageId === 'mas'
+      ? (provisioning ?? resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, workspace))
+      : null;
+  const workspaceLocator = workItemProvisioning
+    ? { workspace_root: workspace, study_id: workItemProvisioning.study_id }
+    : { workspace_root: workspace };
   const args = [
     'family-runtime',
     'attempt',
@@ -4551,7 +4654,7 @@ function runFrameworkStageRuntimeActivation(options, target, workspace, beforeSt
     '--stage',
     stageTarget.stage_id,
     '--workspace-locator',
-    JSON.stringify({ workspace_root: workspace }),
+    JSON.stringify(workspaceLocator),
     '--task',
     `opl-release-smoke-${target.id}`,
     '--executor-kind',
@@ -4574,6 +4677,7 @@ function runFrameworkStageRuntimeActivation(options, target, workspace, beforeSt
     result,
     beforeSnapshot: beforeState.snapshot,
     afterSnapshot: afterState.snapshot,
+    provisioning: workItemProvisioning,
   });
 }
 
@@ -5806,8 +5910,7 @@ async function runAssistantRouteSmoke(options, secret) {
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   const rendererCollector = createRendererBootstrapDiagnosticsCollector(client);
   const results = [];
-  const assistantWorkspace =
-    options.runtimeProfile === 'full' ? path.join(os.homedir(), 'OPL-Release-Smoke-Workspace') : null;
+  const assistantWorkspace = options.runtimeProfile === 'full' ? fullAssistantWorkspacePath() : null;
   if (assistantWorkspace) fs.mkdirSync(assistantWorkspace, { recursive: true });
   const writeFailureSummary = (assistantTarget, error) => {
     writeJsonArtifact(
@@ -5858,6 +5961,10 @@ async function runAssistantRouteSmoke(options, secret) {
           });
           continue;
         }
+        const workItemProvisioning =
+          assistantTarget.packageId === 'mas'
+            ? resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, assistantWorkspace)
+            : null;
         const packageStateBeforeSend = readAgentPackageLifecycleState(options, assistantTarget, assistantWorkspace);
         const workspace = await waitForCdpPredicate(
           client,
@@ -5959,7 +6066,8 @@ async function runAssistantRouteSmoke(options, secret) {
           options,
           assistantTarget,
           assistantWorkspace,
-          packageStateAfterSend
+          packageStateAfterSend,
+          workItemProvisioning
         );
         results.push({
           id: assistantTarget.id,
@@ -7495,6 +7603,8 @@ export const __test =
         readAgentPackageLifecycleState,
         assertHomeAssistantRouteSendWithoutActivation,
         resolveFrameworkStageRuntimeTarget,
+        resolveMasQualificationProvisioningReceipt,
+        fullAssistantWorkspacePath,
         frameworkStageRuntimeActivationExpression,
         runFrameworkStageRuntimeActivation,
         FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
