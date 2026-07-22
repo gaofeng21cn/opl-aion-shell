@@ -1,5 +1,9 @@
 # AionUI upstream intake - 2026-07-22
 
+Machine receipt: `contracts/aionui-upstream-intake.json`. The receipt is the
+offline currentness and managed-runtime projection boundary; this document
+retains the human classification rationale.
+
 ## Authority
 
 - Shell candidate base: `201f338604299caaf1deaf94995fa176393c1165`.

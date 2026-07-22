@@ -1,0 +1,27 @@
+name: Check AionUI upstream currentness
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aionui-upstream-currentness
+  cancel-in-progress: true
+
+jobs:
+  currentness:
+    name: Compare latest stable release with reviewed receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check official AionUI stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/aionui-upstream-currentness.mjs

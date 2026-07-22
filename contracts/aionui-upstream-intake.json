@@ -1,0 +1,47 @@
+{
+  "schema": "opl_aionui_upstream_intake.v1",
+  "upstream_repository": "https://github.com/iOfficeAI/AionUi.git",
+  "channel": "stable_tags_only",
+  "reviewed_release": {
+    "tag": "v2.1.39",
+    "commit": "1b215f2fcb9d220bc66bf3b4961835ded07d5797",
+    "published_at": "2026-07-21T16:18:52Z",
+    "draft": false,
+    "prerelease": false,
+    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.39",
+    "disposition": "selectively_absorbed"
+  },
+  "absorbed_release": {
+    "tag": "v2.1.39",
+    "commit": "1b215f2fcb9d220bc66bf3b4961835ded07d5797"
+  },
+  "shell_projection": {
+    "implementation_refs": ["a226de8a709698d40d19b038ef736475e135e1b2", "bfde9e63179c03b2cdca18f4134f5c28ef78c8e4"],
+    "human_record": "docs/history/aionui-upstream-intake-2026-07-22.md",
+    "aioncore_version_source": "package.json#aioncoreVersion"
+  },
+  "managed_runtime": {
+    "aioncore": {
+      "version": "v0.1.50",
+      "commit": "4089fced543d7f439d59940b4ba129dcfad27c23",
+      "archive_sha256": "9f37c9d9b5f6e74a69796053be9e52a88dd43a58eee0aa7e042ff334830f8dd5"
+    },
+    "managed_resources_manifest_sha256": "a3503fdabd95cc5fa2f84d47097048f5c1297888c0b0f330f8413214c9bafd73",
+    "codex_acp": {
+      "package": "@agentclientprotocol/codex-acp",
+      "version": "1.1.2",
+      "package_lock_sha256": "fb3b47ee03180d9bcf65005cbe9f5cf9792d95de690b49b4b27b55d7c06a81cb"
+    },
+    "codex_cli": {
+      "package": "@openai/codex",
+      "version": "0.144.6",
+      "binary_sha256": "80a3933d11a9d13ef806aa24f7bb8afc9169cfe4e9b09d6da6a92922cbde9cff"
+    }
+  },
+  "policy": {
+    "broad_history_merge": "forbidden",
+    "newer_stable_release": "review_required",
+    "network_unknown": "unknown_fail_closed_for_release_admission",
+    "product_authority": "one-person-lab-app"
+  }
+}
