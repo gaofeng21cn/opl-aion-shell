@@ -247,30 +247,39 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
 
 export type OplAgentReferenceAdmissionPolicy = {
   active_agent_package_cardinality: 'zero_or_one';
-  selection_authority: 'home_starter_new_session_capability_palette_or_explicit_capability_route_only';
-  at_mention_agent_selection_allowed: false;
+  selection_authority: 'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch';
+  at_mention_agent_selection_allowed: true;
+  at_mention_semantics: 'explicit_session_owner_switch_not_prompt_only_reference';
+  at_mention_requires_user_selection: true;
   plain_text_agent_reference_changes_active_package: false;
-  multiple_agent_reference_policy: 'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages';
+  multiple_agent_reference_policy: 'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context';
   cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request';
   deterministic_cross_agent_routing_allowed: false;
   oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required';
   deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering';
-  existing_conversation_rebinding_allowed: false;
+  existing_conversation_rebinding_allowed: true;
+  existing_conversation_rebinding_contract: {
+    transport: 'aioncore_atomic_conversation_owner_rebind_api';
+    allowed_state: 'conversation_idle_and_no_queued_messages';
+    preserve: string[];
+    runtime_transition: 'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime';
+    readback: 'authoritative_conversation_readback_required_before_ui_commit';
+    forbidden_implementations: string[];
+  };
 };
 
 export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
-  authority: 'app_owned_opl_allowlist';
+  authority: 'app_owned_skill_allowlist_and_mcp_negative_filter';
   agent_reference_admission_policy: OplAgentReferenceAdmissionPolicy;
   skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
   conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
-  mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids';
-  mcp_menu_policy: 'empty_until_app_explicitly_whitelists_opl_mcp_servers';
-  visible_mcp_server_ids: string[];
-  conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids';
+  mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers';
+  mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers';
+  conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers';
   forbidden_skill_examples: string[];
-  forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist';
+  forbidden_mcp_policy: 'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers';
   forbidden_mcp_examples: string[];
   conversation_snapshot_policy: 'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations';
   forbidden_mcp_matchers: {
@@ -280,6 +289,8 @@ export type OplOrdinaryCapabilitySelectorPolicy = {
   };
   scrub_extra_keys: string[];
   required_scrub_targets: string[];
+  unmatched_mcp_policy: 'preserve_end_to_end_without_app_allowlist_membership';
+  required_preservation_targets: string[];
 };
 
 export type OplOrdinaryForbiddenCapabilityPolicy = {
@@ -841,6 +852,18 @@ const REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS = [
   'mcp_statuses entries matching forbidden_mcp_matchers',
   'session_mcp_servers entries matching forbidden_mcp_matchers',
   'scrub_extra_keys',
+];
+const REQUIRED_AGENT_REBIND_PRESERVE = ['conversation_id', 'messages', 'artifacts'];
+const REQUIRED_AGENT_REBIND_FORBIDDEN_IMPLEMENTATIONS = [
+  'metadata_patch',
+  'conversation_reset',
+  'client_only_projection',
+];
+const REQUIRED_ORDINARY_MCP_PRESERVATION_TARGETS = [
+  'mcp directory entries not matching forbidden_mcp_matchers',
+  'mcp status entries not matching forbidden_mcp_matchers',
+  'new conversation create payload mcp_servers not matching forbidden_mcp_matchers',
+  'conversation snapshot mcp_servers and mcp_statuses not matching forbidden_mcp_matchers',
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1912,15 +1935,20 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     throw new Error('Invalid OPL product profile: gui.ordinary_capability_selector_policy must be an object');
   }
   const agentReferenceAdmissionPolicy = value.agent_reference_admission_policy;
+  const existingConversationRebindingContract = isRecord(agentReferenceAdmissionPolicy)
+    ? agentReferenceAdmissionPolicy.existing_conversation_rebinding_contract
+    : undefined;
   if (
     !isRecord(agentReferenceAdmissionPolicy) ||
     agentReferenceAdmissionPolicy.active_agent_package_cardinality !== 'zero_or_one' ||
     agentReferenceAdmissionPolicy.selection_authority !==
-      'home_starter_new_session_capability_palette_or_explicit_capability_route_only' ||
-    agentReferenceAdmissionPolicy.at_mention_agent_selection_allowed !== false ||
+      'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch' ||
+    agentReferenceAdmissionPolicy.at_mention_agent_selection_allowed !== true ||
+    agentReferenceAdmissionPolicy.at_mention_semantics !== 'explicit_session_owner_switch_not_prompt_only_reference' ||
+    agentReferenceAdmissionPolicy.at_mention_requires_user_selection !== true ||
     agentReferenceAdmissionPolicy.plain_text_agent_reference_changes_active_package !== false ||
     agentReferenceAdmissionPolicy.multiple_agent_reference_policy !==
-      'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages' ||
+      'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context' ||
     agentReferenceAdmissionPolicy.cross_agent_semantic_admission_owner !==
       'target_primary_skill_over_complete_current_user_request' ||
     agentReferenceAdmissionPolicy.deterministic_cross_agent_routing_allowed !== false ||
@@ -1928,18 +1956,35 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
       'explicit_target_agent_and_explicit_agent_engineering_objective_required' ||
     agentReferenceAdmissionPolicy.deliverable_failure_policy !==
       'repair_current_deliverable_never_authorize_agent_engineering' ||
-    agentReferenceAdmissionPolicy.existing_conversation_rebinding_allowed !== false
+    agentReferenceAdmissionPolicy.existing_conversation_rebinding_allowed !== true ||
+    !isRecord(existingConversationRebindingContract)
   ) {
     throw new Error(
       'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent reference admission is unsupported'
     );
   }
-  const visibleMcpServerIds = Array.isArray(value.visible_mcp_server_ids)
-    ? value.visible_mcp_server_ids.map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    : [];
-  if (visibleMcpServerIds.some((entry) => !entry) || new Set(visibleMcpServerIds).size !== visibleMcpServerIds.length) {
+  const rebindPreserve = readStringArray(
+    existingConversationRebindingContract,
+    'preserve',
+    'gui.ordinary_capability_selector_policy.agent_reference_admission_policy.existing_conversation_rebinding_contract'
+  );
+  const rebindForbiddenImplementations = readStringArray(
+    existingConversationRebindingContract,
+    'forbidden_implementations',
+    'gui.ordinary_capability_selector_policy.agent_reference_admission_policy.existing_conversation_rebinding_contract'
+  );
+  if (
+    existingConversationRebindingContract.transport !== 'aioncore_atomic_conversation_owner_rebind_api' ||
+    existingConversationRebindingContract.allowed_state !== 'conversation_idle_and_no_queued_messages' ||
+    JSON.stringify(rebindPreserve) !== JSON.stringify(REQUIRED_AGENT_REBIND_PRESERVE) ||
+    existingConversationRebindingContract.runtime_transition !==
+      'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime' ||
+    existingConversationRebindingContract.readback !==
+      'authoritative_conversation_readback_required_before_ui_commit' ||
+    JSON.stringify(rebindForbiddenImplementations) !== JSON.stringify(REQUIRED_AGENT_REBIND_FORBIDDEN_IMPLEMENTATIONS)
+  ) {
     throw new Error(
-      'Invalid OPL product profile: gui.ordinary_capability_selector_policy.visible_mcp_server_ids must be unique strings'
+      'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent rebind contract is unsupported'
     );
   }
   const forbiddenSkillExamples = readStringArray(
@@ -1957,20 +2002,26 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     'required_scrub_targets',
     'gui.ordinary_capability_selector_policy'
   );
+  const requiredPreservationTargets = readStringArray(
+    value,
+    'required_preservation_targets',
+    'gui.ordinary_capability_selector_policy'
+  );
   const forbiddenPolicy = readForbiddenCapabilityPolicy(value);
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
-    value.authority !== 'app_owned_opl_allowlist' ||
+    value.authority !== 'app_owned_skill_allowlist_and_mcp_negative_filter' ||
     value.skill_source_ref !== 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids' ||
     value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
     value.conversation_loaded_skill_display_policy !== 'filter_to_ordinary_skill_allowlist' ||
-    value.mcp_server_source_ref !== 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids' ||
-    value.mcp_menu_policy !== 'empty_until_app_explicitly_whitelists_opl_mcp_servers' ||
-    value.conversation_loaded_mcp_display_policy !== 'filter_to_visible_mcp_server_ids' ||
+    value.mcp_server_source_ref !== 'configured_user_and_third_party_mcp_servers' ||
+    value.mcp_menu_policy !== 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers' ||
+    value.conversation_loaded_mcp_display_policy !== 'preserve_non_forbidden_configured_servers' ||
     value.forbidden_mcp_policy !==
-      'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist' ||
+      'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers' ||
     value.conversation_snapshot_policy !==
-      'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations'
+      'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations' ||
+    value.unmatched_mcp_policy !== 'preserve_end_to_end_without_app_allowlist_membership'
   ) {
     throw new Error('Invalid OPL product profile: ordinary capability selector policy is unsupported');
   }
@@ -1989,30 +2040,45 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (JSON.stringify(requiredScrubTargets) !== JSON.stringify(REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS)) {
     throw new Error('Invalid OPL product profile: ordinary selector Team scrub targets are unsupported');
   }
+  if (JSON.stringify(requiredPreservationTargets) !== JSON.stringify(REQUIRED_ORDINARY_MCP_PRESERVATION_TARGETS)) {
+    throw new Error('Invalid OPL product profile: ordinary selector MCP preservation targets are unsupported');
+  }
   return {
     scope: 'home_composer_and_ordinary_conversation',
-    authority: 'app_owned_opl_allowlist',
+    authority: 'app_owned_skill_allowlist_and_mcp_negative_filter',
     agent_reference_admission_policy: {
       active_agent_package_cardinality: 'zero_or_one',
-      selection_authority: 'home_starter_new_session_capability_palette_or_explicit_capability_route_only',
-      at_mention_agent_selection_allowed: false,
+      selection_authority:
+        'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch',
+      at_mention_agent_selection_allowed: true,
+      at_mention_semantics: 'explicit_session_owner_switch_not_prompt_only_reference',
+      at_mention_requires_user_selection: true,
       plain_text_agent_reference_changes_active_package: false,
-      multiple_agent_reference_policy: 'may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages',
+      multiple_agent_reference_policy:
+        'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context',
       cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request',
       deterministic_cross_agent_routing_allowed: false,
       oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required',
       deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering',
-      existing_conversation_rebinding_allowed: false,
+      existing_conversation_rebinding_allowed: true,
+      existing_conversation_rebinding_contract: {
+        transport: 'aioncore_atomic_conversation_owner_rebind_api',
+        allowed_state: 'conversation_idle_and_no_queued_messages',
+        preserve: rebindPreserve,
+        runtime_transition: 'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime',
+        readback: 'authoritative_conversation_readback_required_before_ui_commit',
+        forbidden_implementations: rebindForbiddenImplementations,
+      },
     },
     skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids',
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
     conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
-    mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids',
-    mcp_menu_policy: 'empty_until_app_explicitly_whitelists_opl_mcp_servers',
-    visible_mcp_server_ids: visibleMcpServerIds,
-    conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids',
+    mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
+    mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers',
+    conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers',
     forbidden_skill_examples: forbiddenSkillExamples,
-    forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist',
+    forbidden_mcp_policy:
+      'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers',
     forbidden_mcp_examples: forbiddenMcpExamples,
     conversation_snapshot_policy:
       'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations',
@@ -2023,6 +2089,8 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     },
     scrub_extra_keys: forbiddenPolicy.extra_keys,
     required_scrub_targets: requiredScrubTargets,
+    unmatched_mcp_policy: 'preserve_end_to_end_without_app_allowlist_membership',
+    required_preservation_targets: requiredPreservationTargets,
   };
 }
 
@@ -3571,8 +3639,16 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
   const policy = OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy;
   return {
     ...policy,
-    agent_reference_admission_policy: { ...policy.agent_reference_admission_policy },
-    visible_mcp_server_ids: [...policy.visible_mcp_server_ids],
+    agent_reference_admission_policy: {
+      ...policy.agent_reference_admission_policy,
+      existing_conversation_rebinding_contract: {
+        ...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract,
+        preserve: [...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract.preserve],
+        forbidden_implementations: [
+          ...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract.forbidden_implementations,
+        ],
+      },
+    },
     forbidden_skill_examples: [...policy.forbidden_skill_examples],
     forbidden_mcp_examples: [...policy.forbidden_mcp_examples],
     forbidden_mcp_matchers: {
@@ -3582,6 +3658,7 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
     },
     scrub_extra_keys: [...policy.scrub_extra_keys],
     required_scrub_targets: [...policy.required_scrub_targets],
+    required_preservation_targets: [...policy.required_preservation_targets],
   };
 }
 
@@ -3591,10 +3668,6 @@ export function getOplOrdinarySkillAllowlist(): string[] {
     ...agentPackage.optional_skill_ids,
   ]);
   return Array.from(new Set(skills));
-}
-
-export function getOplOrdinaryMcpServerAllowlist(): string[] {
-  return [...OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.visible_mcp_server_ids];
 }
 
 export function getOplOrdinaryForbiddenCapabilityPolicy(): OplOrdinaryForbiddenCapabilityPolicy {
@@ -3618,23 +3691,11 @@ export function filterOplOrdinarySkillCatalog<T extends { name: string }>(skills
 }
 
 export function filterOplOrdinaryMcpServers<T extends Pick<IMcpServer, 'id' | 'name'>>(servers: T[]): T[] {
-  const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
-  return servers.filter(
-    (server) =>
-      (allowlist.has(server.id) || allowlist.has(server.name)) &&
-      !isOplForbiddenTeamMcpName(server.id) &&
-      !isOplForbiddenTeamMcpName(server.name)
-  );
+  return servers.filter((server) => !isOplForbiddenTeamMcpName(server.id) && !isOplForbiddenTeamMcpName(server.name));
 }
 
 export function filterOplOrdinaryMcpStatuses<T extends IConversationMcpStatus>(statuses: T[]): T[] {
-  const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
-  return statuses.filter(
-    (status) =>
-      (allowlist.has(status.id) || allowlist.has(status.name)) &&
-      !isOplForbiddenTeamMcpName(status.id) &&
-      !isOplForbiddenTeamMcpName(status.name)
-  );
+  return statuses.filter((status) => !isOplForbiddenTeamMcpName(status.id) && !isOplForbiddenTeamMcpName(status.name));
 }
 
 export function isOplForbiddenTeamMcpName(value: unknown): boolean {
@@ -3651,9 +3712,7 @@ export function isOplForbiddenTeamMcpName(value: unknown): boolean {
 export function filterOplOrdinarySessionMcpServers<T extends Pick<ISessionMcpServer, 'id' | 'name'>>(
   servers: T[]
 ): T[] {
-  return filterOplOrdinaryMcpServers(servers).filter(
-    (server) => !isOplForbiddenTeamMcpName(server.id) && !isOplForbiddenTeamMcpName(server.name)
-  );
+  return filterOplOrdinaryMcpServers(servers);
 }
 
 export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, unknown> | undefined>(extra: T): T {

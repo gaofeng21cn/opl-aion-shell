@@ -578,7 +578,7 @@
           },
           {
             "id": "agent_packages",
-            "scope": "new_session_configuration_only",
+            "scope": "session_owner_selection",
             "label_i18n": {
               "zh-CN": "专业智能体",
               "en-US": "Professional agents"
@@ -589,10 +589,11 @@
             "catalog_order_policy": "stable_professional_agent_packages_order",
             "home_shortcut_independence_policy": "render_the_complete_professional_agent_catalog_regardless_of_home_shortcut_visibility_or_order",
             "availability_policy": "show_only_real_app_allowlisted_packages_supported_by_the_active_adapter",
-            "existing_session_rebinding_allowed": false,
+            "existing_session_rebinding_allowed": true,
+            "existing_session_rebinding_transport": "aioncore_atomic_conversation_owner_rebind_api",
             "surface_actions": {
               "home_new_session": ["select_new_session_agent_package"],
-              "existing_conversation": []
+              "existing_conversation": ["explicit_at_mention_owner_rebind_via_core_atomic_api"]
             }
           },
           {
@@ -621,13 +622,13 @@
           {
             "id": "apps_and_connections",
             "scope": "surface_specific_selection_or_status",
-            "source_ref": "ordinary_capability_selector_policy.visible_mcp_server_ids",
-            "availability_policy": "hide_group_when_no_app_allowlisted_session_connection_is_available",
+            "source_ref": "ordinary_capability_selector_policy.configured_mcp_servers_after_negative_filter",
+            "availability_policy": "hide_group_when_no_non_forbidden_configured_session_connection_is_available",
             "label_policy": "localized_product_name_never_raw_mcp_or_provider_id",
             "existing_session_rebinding_allowed": false,
             "surface_actions": {
-              "home_new_session": ["select_new_session_app_or_connection"],
-              "existing_conversation": ["show_loaded_allowlisted_connection_status"]
+              "home_new_session": ["select_new_session_configured_app_or_connection"],
+              "existing_conversation": ["show_loaded_configured_connection_status"]
             }
           }
         ],
@@ -638,10 +639,10 @@
         },
         "surface_behavior": {
           "home_new_session": "configure_only_real_new_session_capabilities_supported_by_the_active_adapter",
-          "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_and_change_only_adapter_reported_nonduplicate_modes_without_rebinding",
+          "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_change_adapter_reported_nonduplicate_modes_and_explicitly_rebind_the_single_agent_owner_via_at_mention",
           "settings_route_policy": "management_entries_are_explicit_fallbacks_not_fake_session_selection"
         },
-        "authority_policy": "render_only_real_picker_actions_and_App_allowlisted_session_capabilities_supported_by_the_active_adapter",
+        "authority_policy": "render_only_real_picker_actions_App_allowlisted_skills_and_non_forbidden_configured_session_connections_supported_by_the_active_adapter",
         "forbidden_entries": [
           "project_object",
           "workspace_or_initial_cwd",
@@ -854,7 +855,7 @@
     },
     "ordinary_capability_selector_policy": {
       "scope": "home_composer_and_ordinary_conversation",
-      "authority": "app_owned_opl_allowlist",
+      "authority": "app_owned_skill_allowlist_and_mcp_negative_filter",
       "palette_agent_catalog_source_ref": "professional_agent_packages",
       "palette_required_agent_package_ids": ["mas", "mag", "rca", "obf", "oma"],
       "palette_home_shortcut_independence_policy": "complete_professional_agent_catalog_independent_of_home_shortcut_visibility_and_order",
@@ -865,25 +866,34 @@
       "agent_owned_skill_deduplication_policy": "exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills",
       "agent_reference_admission_policy": {
         "active_agent_package_cardinality": "zero_or_one",
-        "selection_authority": "home_starter_new_session_capability_palette_or_explicit_capability_route_only",
-        "at_mention_agent_selection_allowed": false,
+        "selection_authority": "home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch",
+        "at_mention_agent_selection_allowed": true,
+        "at_mention_semantics": "explicit_session_owner_switch_not_prompt_only_reference",
+        "at_mention_requires_user_selection": true,
         "plain_text_agent_reference_changes_active_package": false,
-        "multiple_agent_reference_policy": "may_coexist_as_prompt_context_but_never_create_multiple_active_agent_packages",
+        "multiple_agent_reference_policy": "latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context",
         "cross_agent_semantic_admission_owner": "target_primary_skill_over_complete_current_user_request",
         "deterministic_cross_agent_routing_allowed": false,
         "oma_engineering_admission": "explicit_target_agent_and_explicit_agent_engineering_objective_required",
         "deliverable_failure_policy": "repair_current_deliverable_never_authorize_agent_engineering",
-        "existing_conversation_rebinding_allowed": false
+        "existing_conversation_rebinding_allowed": true,
+        "existing_conversation_rebinding_contract": {
+          "transport": "aioncore_atomic_conversation_owner_rebind_api",
+          "allowed_state": "conversation_idle_and_no_queued_messages",
+          "preserve": ["conversation_id", "messages", "artifacts"],
+          "runtime_transition": "terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime",
+          "readback": "authoritative_conversation_readback_required_before_ui_commit",
+          "forbidden_implementations": ["metadata_patch", "conversation_reset", "client_only_projection"]
+        }
       },
       "skill_source_ref": "gui.professional_agent_packages.required_skill_ids + optional_skill_ids",
       "skill_menu_policy": "assistant_scoped_required_checked_optional_visible",
       "conversation_loaded_skill_display_policy": "filter_to_ordinary_skill_allowlist",
-      "mcp_server_source_ref": "gui.ordinary_capability_selector_policy.visible_mcp_server_ids",
-      "mcp_menu_policy": "empty_until_app_explicitly_whitelists_opl_mcp_servers",
-      "visible_mcp_server_ids": [],
-      "conversation_loaded_mcp_display_policy": "filter_to_visible_mcp_server_ids",
+      "mcp_server_source_ref": "configured_user_and_third_party_mcp_servers",
+      "mcp_menu_policy": "preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers",
+      "conversation_loaded_mcp_display_policy": "preserve_non_forbidden_configured_servers",
       "forbidden_skill_examples": ["aionui-skills", "aionui-webui-setup", "skill-creator", "cron"],
-      "forbidden_mcp_policy": "do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist",
+      "forbidden_mcp_policy": "exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers",
       "forbidden_mcp_examples": [
         "aionui-team",
         "team_*",
@@ -911,6 +921,13 @@
         "mcp_statuses entries matching forbidden_mcp_matchers",
         "session_mcp_servers entries matching forbidden_mcp_matchers",
         "scrub_extra_keys"
+      ],
+      "unmatched_mcp_policy": "preserve_end_to_end_without_app_allowlist_membership",
+      "required_preservation_targets": [
+        "mcp directory entries not matching forbidden_mcp_matchers",
+        "mcp status entries not matching forbidden_mcp_matchers",
+        "new conversation create payload mcp_servers not matching forbidden_mcp_matchers",
+        "conversation snapshot mcp_servers and mcp_statuses not matching forbidden_mcp_matchers"
       ]
     },
     "k_dense_byok_learning_surface": {
@@ -1812,9 +1829,20 @@
           "secret_bridge_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_secret_bridge",
           "post_login_state_source": "opl app state --profile fast --json",
           "unique_group_action": "gateway_account_complete_setup",
-          "post_setup_state_refresh": "required_before_model_access_action",
+          "post_setup_state_refresh": "required_before_offering_model_access_confirmation",
           "model_access_action": "gateway_account_use_for_model_access",
-          "model_access_action_policy": "execute_when_exposed_after_fresh_state_read",
+          "model_access_action_policy": "confirmation_required_after_fresh_state_read_never_implied_by_gateway_login",
+          "model_access_confirmation": {
+            "trigger": "separate_explicit_user_action_after_login_and_fresh_state_read",
+            "label_zh": "设为模型访问方式",
+            "label_en": "Use for model access",
+            "danger_level": "medium",
+            "confirmation_required": true,
+            "gateway_login_counts_as_confirmation": false,
+            "action_visibility": "only_when_action_is_exposed_by_fresh_projection",
+            "fresh_state_required_before_execute": true,
+            "fresh_state_required_after_execute": true
+          },
           "shared_fast_state_cache_policy": "publish_each_authoritative_post_login_read",
           "unresolved_group_error": "group_selection_required",
           "ready_claim_policy": "only_after_initialize_confirms_codex_config_ready",

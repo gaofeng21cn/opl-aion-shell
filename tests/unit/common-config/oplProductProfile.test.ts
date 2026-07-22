@@ -37,6 +37,10 @@ import {
   getOplHomeModelStatusLabel,
   getOplModelStatusDisplayText,
   getOplRuntimeEnvironmentItems,
+  filterOplOrdinaryMcpServers,
+  filterOplOrdinaryMcpStatuses,
+  filterOplOrdinarySessionMcpServers,
+  getOplOrdinaryCapabilitySelectorPolicy,
   getOplOrdinaryForbiddenCapabilityPolicy,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
@@ -478,7 +482,41 @@ describe('OPL generated product profile', () => {
     );
   });
 
-  it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {
+  it('ignores any reintroduced ordinary MCP visibility allowlist', async () => {
+    const driftedProfile = structuredClone(generatedProfile);
+    const selectorPolicy = driftedProfile.gui.ordinary_capability_selector_policy as Record<string, unknown>;
+    selectorPolicy.visible_mcp_server_ids = ['listed-only'];
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: driftedProfile,
+    }));
+
+    const driftedModule = await import('@/common/config/oplProductProfile');
+    expect(
+      driftedModule.filterOplOrdinaryMcpServers([
+        { id: 'unlisted-user-server', name: 'Unlisted User Server' },
+        { id: 'aionui-team', name: 'AionUI Team' },
+      ])
+    ).toEqual([{ id: 'unlisted-user-server', name: 'Unlisted User Server' }]);
+  });
+
+  it('preserves user and third-party MCP state while scrubbing AionUI Team state', () => {
+    const selectorPolicy = getOplOrdinaryCapabilitySelectorPolicy();
+    expect(selectorPolicy).toMatchObject({
+      authority: 'app_owned_skill_allowlist_and_mcp_negative_filter',
+      mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
+      mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers',
+      conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers',
+      unmatched_mcp_policy: 'preserve_end_to_end_without_app_allowlist_membership',
+    });
+    expect(selectorPolicy).not.toHaveProperty('visible_mcp_server_ids');
+    expect(selectorPolicy.required_preservation_targets).toEqual([
+      'mcp directory entries not matching forbidden_mcp_matchers',
+      'mcp status entries not matching forbidden_mcp_matchers',
+      'new conversation create payload mcp_servers not matching forbidden_mcp_matchers',
+      'conversation snapshot mcp_servers and mcp_statuses not matching forbidden_mcp_matchers',
+    ]);
     expect(getOplOrdinaryForbiddenCapabilityPolicy()).toEqual({
       exact: ['aionui-team'],
       prefixes: ['team_', 'mcp__aionui-team'],
@@ -499,6 +537,26 @@ describe('OPL generated product profile', () => {
     expect(isOplForbiddenTeamMcpName('custom-aionui-team-shadow')).toBe(true);
     expect(isOplForbiddenTeamMcpName('mas')).toBe(false);
 
+    const configuredServers = [
+      { id: 'user-files', name: 'User Files' },
+      { id: 'third-party-search', name: 'Third Party Search' },
+      { id: 'aionui-team', name: 'AionUI Team' },
+      { id: 'safe-id', name: 'team_internal' },
+    ];
+    expect(filterOplOrdinaryMcpServers(configuredServers)).toEqual(configuredServers.slice(0, 2));
+    expect(
+      filterOplOrdinaryMcpStatuses([
+        { id: 'user-files', name: 'User Files', status: 'loaded' as const },
+        { id: 'mcp__aionui-team-members', name: 'Team Members', status: 'loaded' as const },
+      ])
+    ).toEqual([{ id: 'user-files', name: 'User Files', status: 'loaded' }]);
+    expect(
+      filterOplOrdinarySessionMcpServers([
+        { id: 'third-party-search', name: 'Third Party Search' },
+        { id: 'team_runtime', name: 'Runtime Team' },
+      ])
+    ).toEqual([{ id: 'third-party-search', name: 'Third Party Search' }]);
+
     const extra = sanitizeOplOrdinaryConversationExtra({
       workspace: '/tmp/opl',
       backend: 'codex',
@@ -510,6 +568,11 @@ describe('OPL generated product profile', () => {
       ],
       session_mcp_servers: [
         { id: 'aionui-team', name: 'aionui-team', transport: { type: 'stdio' as const, command: 'mcp-team-stdio' } },
+        {
+          id: 'third-party-search',
+          name: 'Third Party Search',
+          transport: { type: 'stdio' as const, command: 'third-party-search' },
+        },
       ],
       team_mcp_stdio_config: { port: 62520 },
       team_id: 'team-1',
@@ -523,9 +586,15 @@ describe('OPL generated product profile', () => {
     expect(extra).toMatchObject({
       workspace: '/tmp/opl',
       backend: 'codex',
-      mcp_servers: [],
-      mcp_statuses: [],
-      session_mcp_servers: [],
+      mcp_servers: ['unknown-mcp'],
+      mcp_statuses: [{ id: 'unknown-mcp', name: 'Unknown MCP', status: 'loaded' }],
+      session_mcp_servers: [
+        {
+          id: 'third-party-search',
+          name: 'Third Party Search',
+          transport: { type: 'stdio', command: 'third-party-search' },
+        },
+      ],
     });
     expect(extra).not.toHaveProperty('team_mcp_stdio_config');
     expect(extra).not.toHaveProperty('team_id');

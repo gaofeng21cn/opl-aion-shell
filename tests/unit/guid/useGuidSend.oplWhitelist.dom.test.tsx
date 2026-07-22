@@ -53,7 +53,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState }),
 }));
 
-function buildMcpServer(id: string, name: string) {
+function buildMcpServer(id: string, name: string, builtin = false) {
   return {
     id,
     name,
@@ -65,6 +65,7 @@ function buildMcpServer(id: string, name: string) {
     created_at: 1,
     updated_at: 1,
     original_json: '{}',
+    builtin,
   };
 }
 
@@ -119,8 +120,14 @@ function buildDeps(): GuidSendDeps {
     resolveDisabledBuiltinSkills: vi.fn().mockReturnValue(['aionui-webui-setup']),
     guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
     guidEnabledSkills: ['med-autoscience', 'aionui-skills', 'cron'],
-    availableMcpServers: [buildMcpServer('unknown-mcp', 'Unknown MCP'), buildMcpServer('cron', 'cron')],
-    selectedMcpServerIds: ['unknown-mcp', 'cron'],
+    availableMcpServers: [
+      buildMcpServer('unknown-mcp', 'Unknown MCP'),
+      buildMcpServer('cron', 'cron'),
+      buildMcpServer('third-party-builtin', 'Third Party Builtin', true),
+      buildMcpServer('aionui-team', 'AionUI Team'),
+      buildMcpServer('safe-id', 'team_runtime'),
+    ],
+    selectedMcpServerIds: ['unknown-mcp', 'cron', 'third-party-builtin', 'aionui-team', 'safe-id'],
     currentEffectiveAgentInfo: {
       agent_type: 'codex',
       isFallback: false,
@@ -172,7 +179,7 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
   };
 }
 
-describe('useGuidSend OPL ordinary capability whitelist', () => {
+describe('useGuidSend OPL ordinary capability policy', () => {
   beforeEach(() => {
     mocks.createConversation.mockReset();
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
@@ -257,7 +264,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(updateDir('/tmp/other')).toBe('/tmp/other');
   });
 
-  it('filters skills and MCP servers before creating an ordinary OPL Codex conversation', async () => {
+  it('preserves configured MCP servers while filtering forbidden Team MCP servers', async () => {
     const { result } = renderHook(() => useGuidSend(buildDeps()));
 
     await act(async () => {
@@ -276,8 +283,14 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       'skill-creator',
       'cron',
     ]);
-    expect(payload.extra.selected_mcp_server_ids).toEqual([]);
-    expect(payload.extra.selected_session_mcp_servers).toEqual([]);
+    expect(payload.extra.selected_mcp_server_ids).toEqual(['unknown-mcp', 'cron']);
+    expect(payload.extra.selected_session_mcp_servers).toEqual([
+      {
+        id: 'third-party-builtin',
+        name: 'Third Party Builtin',
+        transport: { type: 'stdio', command: 'echo' },
+      },
+    ]);
     expect(payload.extra.opl_agent_package_invocation).toEqual({
       route_kind: 'agent_package_shortcut',
       executor: 'codex_cli',

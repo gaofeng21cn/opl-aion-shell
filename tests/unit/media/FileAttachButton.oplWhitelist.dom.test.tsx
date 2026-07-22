@@ -53,7 +53,7 @@ vi.mock('swr', () => ({
   default: () => ({ data: [] }),
 }));
 
-describe('FileAttachButton OPL ordinary whitelist', () => {
+describe('FileAttachButton OPL ordinary capability policy', () => {
   it('opens the palette with explicit empty capability state instead of invoking the file picker', async () => {
     const user = userEvent.setup();
     const openFileSelector = vi.fn();
@@ -91,7 +91,7 @@ describe('FileAttachButton OPL ordinary whitelist', () => {
     expect(openDirectorySelector).toHaveBeenCalledOnce();
   });
 
-  it('invokes only loaded allowlisted Skills and keeps MCP snapshot entries read-only', async () => {
+  it('invokes only loaded allowlisted Skills and keeps non-forbidden MCP snapshot entries read-only', async () => {
     const user = userEvent.setup();
     render(
       <FileAttachButton
@@ -100,6 +100,7 @@ describe('FileAttachButton OPL ordinary whitelist', () => {
         loadedMcpStatuses={[
           { id: 'unknown-mcp', name: 'Unknown MCP', status: 'loaded' },
           { id: 'aionui-image-generation', name: 'AionUI Image Generation', status: 'loaded' },
+          { id: 'aionui-team', name: 'AionUI Team', status: 'loaded' },
         ]}
       />
     );
@@ -113,8 +114,9 @@ describe('FileAttachButton OPL ordinary whitelist', () => {
     expect(screen.queryByText('aionui-skills')).not.toBeInTheDocument();
     expect(screen.queryByText('cron')).not.toBeInTheDocument();
     expect(screen.queryByText('skill-creator')).not.toBeInTheDocument();
-    expect(screen.queryByText('Unknown MCP')).not.toBeInTheDocument();
-    expect(screen.queryByText('AionUI Image Generation')).not.toBeInTheDocument();
+    expect(screen.getByText('Unknown MCP').closest('button')).toBeDisabled();
+    expect(screen.getByText('AionUI Image Generation').closest('button')).toBeDisabled();
+    expect(screen.queryByText('AionUI Team')).not.toBeInTheDocument();
 
     await waitFor(() => expect(dialog.closest('.arco-trigger')).toHaveStyle({ pointerEvents: 'auto' }));
     await user.click(screen.getByRole('button', { name: 'med-autoscience' }));
