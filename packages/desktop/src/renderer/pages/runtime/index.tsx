@@ -278,8 +278,8 @@ const RuntimePage: React.FC = () => {
     if (projectedSelectedItem) setSelectedItemSnapshot(projectedSelectedItem);
   }, [projectedSelectedItem]);
   const refreshRuntime = useCallback(
-    async (showToast = false) => {
-      const nextPayload = await appStateQuery.load('fast', { showRefreshing: true });
+    async (showToast = false, forceFresh = false) => {
+      const nextPayload = await appStateQuery.load('fast', { showRefreshing: true, forceFresh });
       if (showToast) {
         if (nextPayload) messageRef.current.success(tRef.current('common.refreshSuccess'));
         else messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
@@ -359,7 +359,7 @@ const RuntimePage: React.FC = () => {
             });
             if (result.ok === false) {
               if (isWorkItemControlGenerationConflict(result)) {
-                const conflictReadback = await refreshRuntime(false);
+                const conflictReadback = await refreshRuntime(false, true);
                 const conflictItem = findReadbackWorkItem(conflictReadback, selectedItem);
                 messageRef.current.error(
                   tRef.current(
@@ -372,7 +372,7 @@ const RuntimePage: React.FC = () => {
               }
               throw new Error(result.error?.message || result.command);
             }
-            const refreshedPayload = await refreshRuntime(false);
+            const refreshedPayload = await refreshRuntime(false, true);
             const refreshedItem = findReadbackWorkItem(refreshedPayload, selectedItem);
             if (refreshedItem?.visibility.state !== visibilityState) {
               messageRef.current.error(tRef.current('common.runtime.archivedTasks.readbackFailed'));

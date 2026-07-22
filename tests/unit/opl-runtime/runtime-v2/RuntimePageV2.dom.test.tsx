@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
-import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
+import { loadOplAppStateFromBridge, resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -317,6 +317,17 @@ function appStateResultWithVisibility(
   return { parsed: payload };
 }
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe('Runtime V2 page', () => {
   beforeEach(() => {
     bridgeMocks.getAppStateInvoke.mockReset();
@@ -481,6 +492,117 @@ describe('Runtime V2 page', () => {
     fireEvent.click(screen.getByTestId('runtime-open-archive'));
     expect(await screen.findByText('当前范围内没有已归档任务。')).toBeInTheDocument();
     expect(screen.queryAllByTestId('runtime-task-row')).toHaveLength(0);
+  });
+
+  it('uses one post-archive fresh fast read instead of a pre-mutation poll snapshot', async () => {
+    vi.useFakeTimers();
+    let unmount: (() => void) | undefined;
+    try {
+      const oldPoll = deferred<ReturnType<typeof appStateResultWithVisibility>>();
+      const freshReadback = deferred<ReturnType<typeof appStateResultWithVisibility>>();
+      bridgeMocks.getAppStateInvoke
+        .mockResolvedValueOnce({ parsed: createRuntimeV2AppState() })
+        .mockReturnValueOnce(oldPoll.promise)
+        .mockReturnValueOnce(freshReadback.promise);
+
+      const view = render(<RuntimePage />);
+      unmount = view.unmount;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const pollLoad = loadOplAppStateFromBridge('fast');
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+      fireEvent.click(screen.getByTestId('runtime-archive-work-item'));
+      const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+      let mutation!: Promise<void>;
+      await act(async () => {
+        mutation = confirmation.onOk();
+        await Promise.resolve();
+      });
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+
+      oldPoll.resolve(appStateResultWithVisibility('diabetes', '001', 'visible', 3));
+      await act(async () => {
+        await pollLoad;
+        await Promise.resolve();
+      });
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3);
+      expect(bridgeMocks.getAppStateInvoke.mock.calls).toEqual([
+        [{ profile: 'fast' }],
+        [{ profile: 'fast' }],
+        [{ profile: 'fast' }],
+      ]);
+      const coalescedPoll = loadOplAppStateFromBridge('fast');
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3);
+
+      freshReadback.resolve(appStateResultWithVisibility('diabetes', '001', 'archived', 4));
+      await act(async () => {
+        await Promise.all([mutation, coalescedPoll]);
+      });
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('任务已归档');
+      expect(bridgeMocks.messageError).not.toHaveBeenCalledWith('可见性 readback 未确认，请刷新后重试。');
+    } finally {
+      unmount?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses one post-restore fresh fast read instead of a pre-mutation poll snapshot', async () => {
+    vi.useFakeTimers();
+    let unmount: (() => void) | undefined;
+    try {
+      const oldPoll = deferred<ReturnType<typeof appStateResultWithVisibility>>();
+      const freshReadback = deferred<ReturnType<typeof appStateResultWithVisibility>>();
+      bridgeMocks.getAppStateInvoke
+        .mockResolvedValueOnce(appStateResultWithVisibility('nf-pitnet', 'nf004', 'archived', 7))
+        .mockReturnValueOnce(oldPoll.promise)
+        .mockReturnValueOnce(freshReadback.promise);
+
+      const view = render(<RuntimePage />);
+      unmount = view.unmount;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const pollLoad = loadOplAppStateFromBridge('fast');
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByTestId('runtime-open-archive'));
+      fireEvent.click(screen.getByRole('button', { name: /NF-PitNET Paper 4/ }));
+      fireEvent.click(screen.getByTestId('runtime-restore-work-item'));
+      const confirmation = bridgeMocks.modalConfirm.mock.calls.at(-1)?.[0] as { onOk: () => Promise<void> };
+      let mutation!: Promise<void>;
+      await act(async () => {
+        mutation = confirmation.onOk();
+        await Promise.resolve();
+      });
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+
+      oldPoll.resolve(appStateResultWithVisibility('nf-pitnet', 'nf004', 'archived', 7));
+      await act(async () => {
+        await pollLoad;
+        await Promise.resolve();
+      });
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3);
+      expect(bridgeMocks.getAppStateInvoke.mock.calls).toEqual([
+        [{ profile: 'fast' }],
+        [{ profile: 'fast' }],
+        [{ profile: 'fast' }],
+      ]);
+      const coalescedPoll = loadOplAppStateFromBridge('fast');
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3);
+
+      freshReadback.resolve(appStateResultWithVisibility('nf-pitnet', 'nf004', 'visible', 8));
+      await act(async () => {
+        await Promise.all([mutation, coalescedPoll]);
+      });
+      expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('任务已恢复');
+      expect(bridgeMocks.messageError).not.toHaveBeenCalledWith('可见性 readback 未确认，请刷新后重试。');
+    } finally {
+      unmount?.();
+      vi.useRealTimers();
+    }
   });
 
   it('archives by canonical selection but sends the repeated domain work item identity and generation', async () => {

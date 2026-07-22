@@ -17,6 +17,9 @@ export const OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES = 262_144;
 const AUTOMATIC_APP_STATE_MAX_ATTEMPTS = 2;
 const AUTOMATIC_APP_STATE_RETRY_DELAY_MS = 250;
 const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
+const freshAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
+const appStateRequestGenerations = new Map<OplAppStateProfile, number>();
+let appStateRequestGenerationByPromise = new WeakMap<Promise<OplAppStatePayload | null>, number>();
 let startupMaintenanceRefreshInFlight: Promise<void> | null = null;
 let startupMaintenanceRefreshUnsubscribe: (() => void) | null = null;
 
@@ -36,6 +39,9 @@ export function resetOplAppStateLoadsForTest(): void {
   startupMaintenanceRefreshUnsubscribe = null;
   startupMaintenanceRefreshInFlight = null;
   inflightAppStateLoads.clear();
+  freshAppStateLoads.clear();
+  appStateRequestGenerations.clear();
+  appStateRequestGenerationByPromise = new WeakMap();
   memoryAppStateCaches.clear();
   automaticAppStateLoadsStarted.clear();
 }
@@ -544,38 +550,49 @@ function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undef
   return payload as OplAppStatePayload;
 }
 
+function invokeOplAppStateBridge(profile: OplAppStateProfile): Promise<OplAppStatePayload | null> {
+  return ipcBridge.oplRuntime.getAppState.invoke({ profile }).then(payloadFromBridgeResult);
+}
+
+function trackOplAppStateRequest(
+  profile: OplAppStateProfile,
+  request: Promise<OplAppStatePayload | null>,
+  fresh: boolean,
+  generation: number
+): Promise<OplAppStatePayload | null> {
+  inflightAppStateLoads.set(profile, request);
+  if (fresh) freshAppStateLoads.set(profile, request);
+  appStateRequestGenerationByPromise.set(request, generation);
+  const release = (): void => {
+    if (inflightAppStateLoads.get(profile) === request) inflightAppStateLoads.delete(profile);
+    if (freshAppStateLoads.get(profile) === request) freshAppStateLoads.delete(profile);
+  };
+  void request.then(release, release);
+  return request;
+}
+
+function advanceAppStateRequestGeneration(profile: OplAppStateProfile): number {
+  const generation = (appStateRequestGenerations.get(profile) ?? 0) + 1;
+  appStateRequestGenerations.set(profile, generation);
+  return generation;
+}
+
 export function loadOplAppStateFromBridge(
   profile: OplAppStateProfile,
   options: Pick<OplAppStateLoadOptions, 'forceFresh'> = {}
 ): Promise<OplAppStatePayload | null> {
+  const fresh = freshAppStateLoads.get(profile);
+  if (fresh) return fresh;
   const inflight = inflightAppStateLoads.get(profile);
   if (inflight) {
     if (!options.forceFresh) return inflight;
-    return inflight
-      .catch((): null => null)
-      .then(() => {
-        if (inflightAppStateLoads.get(profile) === inflight) {
-          inflightAppStateLoads.delete(profile);
-        }
-        return loadOplAppStateFromBridge(profile, { forceFresh: true });
-      });
+    const generation = advanceAppStateRequestGeneration(profile);
+    const queuedRequest = inflight.catch((): null => null).then(() => invokeOplAppStateBridge(profile));
+    return trackOplAppStateRequest(profile, queuedRequest, true, generation);
   }
 
-  const request = ipcBridge.oplRuntime.getAppState.invoke({ profile }).then(payloadFromBridgeResult);
-  inflightAppStateLoads.set(profile, request);
-  void request.then(
-    () => {
-      if (inflightAppStateLoads.get(profile) === request) {
-        inflightAppStateLoads.delete(profile);
-      }
-    },
-    () => {
-      if (inflightAppStateLoads.get(profile) === request) {
-        inflightAppStateLoads.delete(profile);
-      }
-    }
-  );
-  return request;
+  const generation = advanceAppStateRequestGeneration(profile);
+  return trackOplAppStateRequest(profile, invokeOplAppStateBridge(profile), options.forceFresh === true, generation);
 }
 
 function readCachedGatewayAccount(): OplGatewayAccountCache | null {
@@ -702,6 +719,8 @@ export function useOplAppState(
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
+  const latestRequestId = useRef(0);
+  const requestIds = useRef(new WeakMap<Promise<OplAppStatePayload | null>, number>());
 
   useEffect(() => {
     ensureStartupMaintenanceRefreshSubscription();
@@ -710,19 +729,34 @@ export function useOplAppState(
   const load = useCallback(
     async (
       profile: OplAppStateProfile = initialProfile,
-      options: OplAppStateLoadOptions = {}
+      loadOptions: OplAppStateLoadOptions = {}
     ): Promise<OplAppStatePayload | null> => {
-      requestSeq.current += 1;
-      const requestId = requestSeq.current;
-      if (options.showRefreshing) {
-        setRefreshing(true);
-      } else if (!options.background) {
-        setLoading(true);
+      const request = loadOplAppStateFromBridge(profile, { forceFresh: loadOptions.forceFresh });
+      const requestGeneration = appStateRequestGenerationByPromise.get(request);
+      let requestId = requestIds.current.get(request);
+      if (requestId === undefined) {
+        requestSeq.current += 1;
+        requestId = requestSeq.current;
+        requestIds.current.set(request, requestId);
       }
-      setError(null);
+      latestRequestId.current = Math.max(latestRequestId.current, requestId);
+      if (latestRequestId.current === requestId) {
+        if (loadOptions.showRefreshing) {
+          setRefreshing(true);
+        } else if (!loadOptions.background) {
+          setLoading(true);
+        }
+        setError(null);
+      }
       try {
-        const loadedPayload = await loadOplAppStateFromBridge(profile, { forceFresh: options.forceFresh });
-        if (requestSeq.current !== requestId) return null;
+        const loadedPayload = await request;
+        if (
+          latestRequestId.current !== requestId ||
+          requestGeneration === undefined ||
+          appStateRequestGenerations.get(profile) !== requestGeneration
+        ) {
+          return null;
+        }
         if (!loadedPayload) {
           throw new Error('Invalid OPL App state payload');
         }
@@ -741,10 +775,16 @@ export function useOplAppState(
         setProvenance('live');
         return loadedPayload;
       } catch (caughtError) {
-        if (requestSeq.current === requestId) setError(errorMessage(caughtError));
+        if (
+          latestRequestId.current === requestId &&
+          requestGeneration !== undefined &&
+          appStateRequestGenerations.get(profile) === requestGeneration
+        ) {
+          setError(errorMessage(caughtError));
+        }
         return null;
       } finally {
-        if (requestSeq.current === requestId) {
+        if (latestRequestId.current === requestId) {
           setLoading(false);
           setRefreshing(false);
         }

@@ -111,6 +111,17 @@ function seedCachedGateway() {
   );
 }
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe('useOplAppState Gateway account bootstrap cache', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -161,24 +172,74 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     );
   });
 
-  it('waits for a shared request before issuing the required fresh read', async () => {
+  it('coalesces queued force-fresh and poll callers into one fresh fast read', async () => {
     let resolveShared!: (value: { ok: true; parsed: { app_state: { version: string } } }) => void;
     const sharedRequest = new Promise<{ ok: true; parsed: { app_state: { version: string } } }>((resolve) => {
       resolveShared = resolve;
     });
-    getAppStateInvoke
-      .mockReturnValueOnce(sharedRequest)
-      .mockResolvedValueOnce({ ok: true, parsed: { app_state: { version: 'fresh' } } });
+    const freshRequest = deferred<{ ok: true; parsed: { app_state: { version: string } } }>();
+    getAppStateInvoke.mockReturnValueOnce(sharedRequest).mockReturnValueOnce(freshRequest.promise);
 
     const sharedLoad = loadOplAppStateFromBridge('fast');
-    const freshLoad = loadOplAppStateFromBridge('fast', { forceFresh: true });
+    const firstFreshLoad = loadOplAppStateFromBridge('fast', { forceFresh: true });
+    const secondFreshLoad = loadOplAppStateFromBridge('fast', { forceFresh: true });
+    const thirdFreshLoad = loadOplAppStateFromBridge('fast', { forceFresh: true });
 
+    expect(secondFreshLoad).toBe(firstFreshLoad);
+    expect(thirdFreshLoad).toBe(firstFreshLoad);
     expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
 
     resolveShared({ ok: true, parsed: { app_state: { version: 'shared' } } });
     await expect(sharedLoad).resolves.toEqual({ app_state: { version: 'shared' } });
-    await expect(freshLoad).resolves.toEqual({ app_state: { version: 'fresh' } });
     expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+
+    const pollLoad = loadOplAppStateFromBridge('fast');
+    expect(pollLoad).toBe(firstFreshLoad);
+    freshRequest.resolve({ ok: true, parsed: { app_state: { version: 'fresh' } } });
+    await expect(Promise.all([firstFreshLoad, secondFreshLoad, thirdFreshLoad, pollLoad])).resolves.toEqual([
+      { app_state: { version: 'fresh' } },
+      { app_state: { version: 'fresh' } },
+      { app_state: { version: 'fresh' } },
+      { app_state: { version: 'fresh' } },
+    ]);
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('prevents an old fast response in one hook from overwriting a force-fresh response in another', async () => {
+    const oldRequest = deferred<{ ok: true; parsed: { app_state: { version: string } } }>();
+    const freshRequest = deferred<{ ok: true; parsed: { app_state: { version: string } } }>();
+    getAppStateInvoke.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(freshRequest.promise);
+    const firstHook = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    const secondHook = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    let oldLoad!: Promise<unknown>;
+    let freshLoad!: Promise<unknown>;
+
+    act(() => {
+      oldLoad = firstHook.result.current.load('fast', { background: true });
+    });
+    act(() => {
+      freshLoad = secondHook.result.current.load('fast', { forceFresh: true });
+    });
+
+    oldRequest.resolve({ ok: true, parsed: { app_state: { version: 'old' } } });
+    await act(async () => {
+      await expect(oldLoad).resolves.toBeNull();
+    });
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(firstHook.result.current.appState).toEqual({});
+    const interimHook = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    expect(interimHook.result.current.appState).toEqual({});
+    interimHook.unmount();
+
+    const freshPayload = { app_state: { version: 'fresh' } };
+    freshRequest.resolve({ ok: true, parsed: freshPayload });
+    await act(async () => {
+      await expect(freshLoad).resolves.toEqual(freshPayload);
+    });
+    expect(secondHook.result.current.appState).toEqual(freshPayload.app_state);
+    expect(firstHook.result.current.appState).toEqual(freshPayload.app_state);
+    const finalHook = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    expect(finalHook.result.current.appState).toEqual(freshPayload.app_state);
   });
 
   it('renders the cached connected account before the background refresh resolves', () => {
