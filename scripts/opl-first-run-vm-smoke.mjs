@@ -290,6 +290,8 @@ Options:
   --mas-study-provisioning-receipt <path>
                          Domain-owned qualification provisioning receipt used to
                          derive the MAS study_id before any Full Stage provider starts.
+  --assistant-workspace <path>
+                         Exact provisioned workspace root bound by the MAS receipt.
   --codex-functional-check
                          Write codex-functional-check-summary.json with deterministic
                          post-install Codex behavior fields. This does not call an LLM.
@@ -346,6 +348,9 @@ function parseArgs(argv) {
     masStudyProvisioningReceipt: process.env.OPL_FIRST_RUN_MAS_STUDY_PROVISIONING_RECEIPT
       ? path.resolve(process.env.OPL_FIRST_RUN_MAS_STUDY_PROVISIONING_RECEIPT)
       : null,
+    assistantWorkspace: process.env.OPL_FIRST_RUN_ASSISTANT_WORKSPACE
+      ? path.resolve(process.env.OPL_FIRST_RUN_ASSISTANT_WORKSPACE)
+      : fullAssistantWorkspacePath(),
     codexFunctionalCheck: false,
     codexAiSelfCheck: false,
     codexAiSelfCheckMode: 'diagnose',
@@ -420,6 +425,8 @@ function parseArgs(argv) {
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--mas-study-provisioning-receipt') {
       options.masStudyProvisioningReceipt = path.resolve(value);
+    } else if (arg === '--assistant-workspace') {
+      options.assistantWorkspace = path.resolve(value);
     } else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
     else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
     else if (arg === '--host-deadline-epoch-ms') options.hostDeadlineEpochMs = Number(value);
@@ -462,7 +469,7 @@ function parseArgs(argv) {
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
   }
   if (options.runtimeProfile === 'full' && options.assistantRouteSmoke) {
-    resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, fullAssistantWorkspacePath());
+    resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, options.assistantWorkspace);
   }
   assertBootstrapLaunchDiagnosticsOptions(options);
   return options;
@@ -5910,7 +5917,7 @@ async function runAssistantRouteSmoke(options, secret) {
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   const rendererCollector = createRendererBootstrapDiagnosticsCollector(client);
   const results = [];
-  const assistantWorkspace = options.runtimeProfile === 'full' ? fullAssistantWorkspacePath() : null;
+  const assistantWorkspace = options.runtimeProfile === 'full' ? options.assistantWorkspace : null;
   if (assistantWorkspace) fs.mkdirSync(assistantWorkspace, { recursive: true });
   const writeFailureSummary = (assistantTarget, error) => {
     writeJsonArtifact(

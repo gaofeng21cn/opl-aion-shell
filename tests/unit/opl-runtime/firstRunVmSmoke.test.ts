@@ -1364,6 +1364,22 @@ describe('packaged first-run VM smoke helpers', () => {
       const mismatched = writeMasQualificationProvisioningReceipt(root, path.join(root, 'other-workspace'));
       expect(() => invoke(mismatched.receiptPath)).toThrow('workspace_root');
 
+      const explicitWorkspace = path.join(root, 'explicit-workspace');
+      const explicitWorkspaceReceipt = writeMasQualificationProvisioningReceipt(root, workspace);
+      expect(() =>
+        __test.parseArgs([
+          '--dmg',
+          '/tmp/One-Person-Lab.dmg',
+          '--runtime-profile',
+          'full',
+          '--assistant-route-smoke',
+          '--assistant-workspace',
+          explicitWorkspace,
+          '--mas-study-provisioning-receipt',
+          explicitWorkspaceReceipt.receiptPath,
+        ])
+      ).toThrow('workspace_root');
+
       const wrongOwner = writeMasQualificationProvisioningReceipt(root, workspace, {
         domain_truth_owner: 'one-person-lab',
       });

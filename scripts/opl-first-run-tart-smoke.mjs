@@ -124,6 +124,11 @@ Options:
   --compiled-expectations <path>
                            App-owned compiled first-run expectation manifest copied
                            into the guest and consumed by the route smoke.
+  --mas-study-provisioning-workspace <path>
+                           Host-materialized MAS qualification workspace. It must use
+                           the exact guest path <guest-workdir>/mas-provisioned-workspace.
+  --mas-study-provisioning-receipt <path>
+                           Domain-owned receipt inside the provisioning workspace.
   --bootstrap-launch-diagnostics
                            Only run packaged bootstrap and initial renderer/CDP
                            launch diagnostics inside the guest.
@@ -195,6 +200,8 @@ function parseArgs(argv) {
     codexPlatformPackageTarball: '',
     codexNpmCacheDir: '',
     compiledExpectations: process.env.OPL_FIRST_RUN_COMPILED_EXPECTATIONS || '',
+    masStudyProvisioningWorkspace: '',
+    masStudyProvisioningReceipt: '',
     bootstrapLaunchDiagnostics: false,
     display: '1920x1080px',
     smokeProfile: 'full-gate',
@@ -340,6 +347,12 @@ function parseArgs(argv) {
     } else if (arg === '--compiled-expectations') {
       options.compiledExpectations = path.resolve(value);
       explicit.add('compiledExpectations');
+    } else if (arg === '--mas-study-provisioning-workspace') {
+      options.masStudyProvisioningWorkspace = path.resolve(value);
+      explicit.add('masStudyProvisioningWorkspace');
+    } else if (arg === '--mas-study-provisioning-receipt') {
+      options.masStudyProvisioningReceipt = path.resolve(value);
+      explicit.add('masStudyProvisioningReceipt');
     } else if (arg === '--display') {
       options.display = value;
       explicit.add('display');
@@ -454,6 +467,7 @@ function parseArgs(argv) {
     throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
   }
   if (options.requireCodexConfigWizard === null) options.requireCodexConfigWizard = false;
+  resolveMasProvisioningTransport(options, !options.dryRun);
   if (
     options.bootstrapLaunchDiagnostics &&
     (options.settingsSmoke || options.assistantRouteSmoke || options.codexFunctionalCheck || options.codexAiSelfCheck)
@@ -465,6 +479,52 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function resolveMasProvisioningTransport(options, requireFiles = true) {
+  const required = options.runtimeProfile === 'full' && options.assistantRouteSmoke;
+  const workspace = options.masStudyProvisioningWorkspace;
+  const receipt = options.masStudyProvisioningReceipt;
+  if (Boolean(workspace) !== Boolean(receipt)) {
+    throw new Error(
+      '--mas-study-provisioning-workspace and --mas-study-provisioning-receipt must be provided together.'
+    );
+  }
+  if (required && !workspace) {
+    throw new Error(
+      'Full assistant route smoke requires a Framework-materialized MAS provisioning workspace and receipt.'
+    );
+  }
+  if (!workspace) return null;
+
+  const expectedWorkspace = path.resolve(options.guestWorkdir, 'mas-provisioned-workspace');
+  if (workspace !== expectedWorkspace) {
+    throw new Error(`--mas-study-provisioning-workspace must equal the guest path ${expectedWorkspace}.`);
+  }
+  const receiptRelative = path.relative(workspace, receipt);
+  if (
+    !receiptRelative ||
+    receiptRelative === '..' ||
+    receiptRelative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(receiptRelative)
+  ) {
+    throw new Error('--mas-study-provisioning-receipt must be contained in the provisioning workspace.');
+  }
+  if (requireFiles) {
+    const workspaceStat = fs.lstatSync(workspace, { throwIfNoEntry: false });
+    if (!workspaceStat?.isDirectory() || workspaceStat.isSymbolicLink()) {
+      throw new Error(`MAS provisioning workspace must be a physical directory: ${workspace}`);
+    }
+    const receiptStat = fs.lstatSync(receipt, { throwIfNoEntry: false });
+    if (!receiptStat?.isFile() || receiptStat.isSymbolicLink()) {
+      throw new Error(`MAS provisioning receipt must be a physical file: ${receipt}`);
+    }
+  }
+  return {
+    workspace,
+    receipt,
+    receipt_relative_path: receiptRelative.split(path.sep).join('/'),
+  };
 }
 
 function buildDryRunPlan(options) {
@@ -481,6 +541,7 @@ function buildDryRunPlan(options) {
     homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
+    mas_study_provisioning: resolveMasProvisioningTransport(options, false),
     timeouts: {
       vm_boot_and_ssh_ms: options.timeoutMs,
       guest_smoke_ms: options.smokeTimeoutMs,
@@ -1157,6 +1218,34 @@ async function copyCodexNpmCacheDirToGuest(options, ip) {
   await ssh(options, ip, `mv ${shellQuote(tmpDir)} ${shellQuote(guestCacheDir)}`);
 }
 
+function assertPhysicalProvisioningTree(root) {
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      const stat = fs.lstatSync(target);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`MAS provisioning transport rejects symlinks: ${target}`);
+      }
+      if (stat.isDirectory()) visit(target);
+      else if (!stat.isFile()) {
+        throw new Error(`MAS provisioning transport accepts only files and directories: ${target}`);
+      }
+    }
+  };
+  visit(root);
+}
+
+async function copyMasProvisioningWorkspaceToGuest(options, ip) {
+  const transport = resolveMasProvisioningTransport(options, true);
+  if (!transport) return;
+  assertPhysicalProvisioningTree(transport.workspace);
+  await ssh(options, ip, `mkdir -p ${shellQuote(transport.workspace)}`);
+  await runPipe('tar', ['-C', transport.workspace, '-cf', '-', '.'], 'ssh', [
+    ...sshBaseArgs(options, ip),
+    `tar -C ${shellQuote(transport.workspace)} -xf -`,
+  ]);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1360,6 +1449,12 @@ function guestSmokeCommand(
       ? `--codex-platform-package-tarball ${shellQuote(guestCodexPlatformPackageTarballPath(options))}`
       : '',
     options.codexNpmCacheDir ? `--codex-npm-cache-dir ${shellQuote(guestCodexNpmCacheDir(options))}` : '',
+    options.masStudyProvisioningWorkspace
+      ? `--assistant-workspace ${shellQuote(options.masStudyProvisioningWorkspace)}`
+      : '',
+    options.masStudyProvisioningReceipt
+      ? `--mas-study-provisioning-receipt ${shellQuote(options.masStudyProvisioningReceipt)}`
+      : '',
     options.bootstrapLaunchDiagnostics ? '--bootstrap-launch-diagnostics' : '',
     options.settingsSmoke ? '--settings-smoke' : '',
     options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
@@ -1721,6 +1816,10 @@ async function main() {
       setStage('copy_codex_npm_cache_dir');
       await copyCodexNpmCacheDirToGuest(options, ip);
     }
+    if (options.masStudyProvisioningWorkspace) {
+      setStage('copy_mas_provisioning_workspace');
+      await copyMasProvisioningWorkspaceToGuest(options, ip);
+    }
     if (options.frameworkInstallScript) {
       setStage('prepare_framework_install_script');
       await ssh(options, ip, frameworkInstallScriptFinalizeCommand(options));
@@ -1811,9 +1910,11 @@ export const __test =
         isRetryableHomebrewInstallError,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
+        copyMasProvisioningWorkspaceToGuest,
         homebrewTrustedCaskRefs,
         isMainModule,
         parseArgs,
+        resolveMasProvisioningTransport,
         recordStageEvent,
         resolveGuestSmokeScriptPath,
         runAsync,

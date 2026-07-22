@@ -15,6 +15,16 @@ function writeFile(filePath: string, content: string, mode?: number) {
   if (mode) fs.chmodSync(filePath, mode);
 }
 
+function fullMasProvisioningTransportArgs(guestWorkdir = '/tmp/opl-first-run-smoke') {
+  const workspace = path.join(guestWorkdir, 'mas-provisioned-workspace');
+  return [
+    '--mas-study-provisioning-workspace',
+    workspace,
+    '--mas-study-provisioning-receipt',
+    path.join(workspace, 'studies', 'qualification-study', 'provisioning-receipt.json'),
+  ];
+}
+
 function runStableInstallerFixture(options: { args?: string[]; fullHttpCode?: string } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stable-installer-'));
   const binDir = path.join(root, 'bin');
@@ -874,6 +884,138 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toThrow(/assistant route smoke/);
   });
 
+  it('fails closed when Full assistant smoke has no complete MAS provisioning transport', () => {
+    const baseArgs = [
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--guest-workdir',
+      '/tmp/opl-transport-guest',
+      '--runtime-profile',
+      'full',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ];
+    const workspace = '/tmp/opl-transport-guest/mas-provisioned-workspace';
+    const receipt = `${workspace}/studies/qualification-study/artifacts/controller/qualification/provisioning-receipt.json`;
+
+    expect(() => tartSmoke.parseArgs(baseArgs)).toThrow('Framework-materialized MAS provisioning workspace');
+    expect(() => tartSmoke.parseArgs([...baseArgs, '--mas-study-provisioning-workspace', workspace])).toThrow(
+      'must be provided together'
+    );
+    expect(() => tartSmoke.parseArgs([...baseArgs, '--mas-study-provisioning-receipt', receipt])).toThrow(
+      'must be provided together'
+    );
+  });
+
+  it('requires the provisioning workspace to use the exact guest path and contain its receipt', () => {
+    const baseArgs = [
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--guest-workdir',
+      '/tmp/opl-transport-guest',
+      '--runtime-profile',
+      'full',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ];
+    const workspace = '/tmp/opl-transport-guest/mas-provisioned-workspace';
+
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--mas-study-provisioning-workspace',
+        '/tmp/other-workspace',
+        '--mas-study-provisioning-receipt',
+        '/tmp/other-workspace/receipt.json',
+      ])
+    ).toThrow('must equal the guest path');
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--mas-study-provisioning-workspace',
+        workspace,
+        '--mas-study-provisioning-receipt',
+        '/tmp/outside-receipt.json',
+      ])
+    ).toThrow('must be contained in the provisioning workspace');
+  });
+
+  it('binds the Framework-materialized provisioning transport into the plan and guest command', () => {
+    const workspace = '/tmp/opl-transport-guest/mas-provisioned-workspace';
+    const receiptRelativePath =
+      'studies/qualification-study/artifacts/controller/qualification/provisioning-receipt.json';
+    const receipt = `${workspace}/${receiptRelativePath}`;
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--guest-workdir',
+      '/tmp/opl-transport-guest',
+      '--runtime-profile',
+      'full',
+      '--assistant-route-smoke',
+      '--mas-study-provisioning-workspace',
+      workspace,
+      '--mas-study-provisioning-receipt',
+      receipt,
+      '--dry-run',
+    ]);
+
+    expect(tartSmoke.buildDryRunPlan(options).mas_study_provisioning).toEqual({
+      workspace,
+      receipt,
+      receipt_relative_path: receiptRelativePath,
+    });
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/opl-transport-guest/One-Person-Lab.dmg',
+      '/tmp/opl-transport-guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/opl-transport-guest/artifacts',
+      '/tmp/opl-transport-guest/codex-api-key.txt'
+    );
+    expect(command).toContain(`--assistant-workspace '${workspace}'`);
+    expect(command).toContain(`--mas-study-provisioning-receipt '${receipt}'`);
+  });
+
+  it('rejects symlinks in the MAS provisioning transport before any guest copy', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-mas-provisioning-transport-'));
+    const guestWorkdir = path.join(root, 'guest');
+    const workspace = path.join(guestWorkdir, 'mas-provisioned-workspace');
+    const receipt = path.join(workspace, 'receipt.json');
+    const dmg = path.join(root, 'One-Person-Lab.dmg');
+    try {
+      writeFile(dmg, 'dmg fixture\n');
+      writeFile(receipt, '{}\n');
+      fs.symlinkSync(receipt, path.join(workspace, 'receipt-link.json'));
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        dmg,
+        '--guest-workdir',
+        guestWorkdir,
+        '--runtime-profile',
+        'full',
+        '--assistant-route-smoke',
+        '--mas-study-provisioning-workspace',
+        workspace,
+        '--mas-study-provisioning-receipt',
+        receipt,
+      ]);
+
+      await expect(tartSmoke.copyMasProvisioningWorkspaceToGuest(options, '192.0.2.1')).rejects.toThrow(
+        'transport rejects symlinks'
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('copies and binds the App compiled expectation manifest into the guest smoke', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
@@ -957,6 +1099,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/One-Person-Lab.dmg',
       '--assistant-route-smoke',
       '--codex-functional-check',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
@@ -984,6 +1127,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dmg',
       '/tmp/One-Person-Lab.dmg',
       '--codex-ai-self-check',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
@@ -1374,6 +1518,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dmg',
       '/tmp/One-Person-Lab.dmg',
       '--codex-functional-check',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
@@ -1414,6 +1559,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dmg',
       '/tmp/One-Person-Lab.dmg',
       '--codex-ai-self-check',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
@@ -1726,6 +1872,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dmg',
       '/tmp/One-Person-Lab.dmg',
       '--assistant-route-smoke',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
@@ -2389,6 +2536,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dmg',
       '/tmp/One-Person-Lab.dmg',
       '--assistant-route-smoke',
+      ...fullMasProvisioningTransportArgs(),
       '--dry-run',
     ]);
 
