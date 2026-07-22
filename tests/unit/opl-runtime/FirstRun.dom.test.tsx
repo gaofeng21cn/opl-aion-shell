@@ -945,10 +945,14 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-task-panel')).toHaveFocus();
   });
 
-  it('completes Gateway setup, binds model access, and publishes ready state to mounted Home consumers', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
+  it('requires explicit confirmation after Gateway setup before binding model access', async () => {
+    bridgeMocks.getInitializeInvoke
+      .mockResolvedValueOnce(blockedInitializeResult)
+      .mockResolvedValueOnce(blockedInitializeResult)
+      .mockResolvedValue(initializeResult);
     bridgeMocks.getAppStateInvoke
       .mockResolvedValueOnce(gatewayFastStateResult)
+      .mockResolvedValueOnce(gatewayManagedKeyStateResult)
       .mockResolvedValueOnce(gatewayManagedKeyStateResult)
       .mockResolvedValueOnce(gatewayModelReadyStateResult);
     cacheFastOplAppState(gatewayFastStateResult.parsed, '20:00:00');
@@ -983,7 +987,19 @@ describe('FirstRun readiness page', () => {
       })
     );
     expect(bridgeMocks.loginGatewayAccountInvoke.mock.calls[0][0]).not.toHaveProperty('deviceLabel');
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'gateway_account_complete_setup',
+      dryRun: false,
+      payloadJson: { group_id: 'codex-group' },
+    });
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: 'gateway_account_use_for_model_access' })
+    );
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-model-access-confirm'));
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(4));
     expect(bridgeMocks.executeActionInvoke.mock.calls.map(([input]) => input)).toEqual([
       {
         actionId: 'gateway_account_complete_setup',
@@ -995,16 +1011,20 @@ describe('FirstRun readiness page', () => {
         dryRun: false,
       },
     ]);
-    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(screen.getByTestId('core-readiness-probe')).toHaveTextContent('ready'));
     await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
     expect(screen.queryByTestId('opl-first-run-gateway-password-input')).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('gateway-password');
   });
 
-  it('uses an existing managed Gateway key for model access instead of returning early', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
+  it('offers explicit model-access confirmation for an existing managed Gateway key', async () => {
+    bridgeMocks.getInitializeInvoke
+      .mockResolvedValueOnce(blockedInitializeResult)
+      .mockResolvedValueOnce(blockedInitializeResult)
+      .mockResolvedValue(initializeResult);
     bridgeMocks.getAppStateInvoke
+      .mockResolvedValueOnce(gatewayManagedKeyStateResult)
       .mockResolvedValueOnce(gatewayManagedKeyStateResult)
       .mockResolvedValueOnce(gatewayModelReadyStateResult);
 
@@ -1019,7 +1039,13 @@ describe('FirstRun readiness page', () => {
     });
     fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: 'gateway_account_use_for_model_access' })
+    );
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-model-access-confirm'));
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3));
     expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
       actionId: 'gateway_account_use_for_model_access',
@@ -1028,7 +1054,39 @@ describe('FirstRun readiness page', () => {
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
       expect.objectContaining({ actionId: 'gateway_account_complete_setup' })
     );
-    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(3));
+  });
+
+  it('fails closed when the fresh projection no longer exposes the model-access action', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(gatewayManagedKeyStateResult).mockResolvedValueOnce(
+      createGatewayFastStateResult({
+        managedKey: { name: 'OPL-APP-TEST', status: 'active', ownership: 'opl_app' },
+      })
+    );
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-email-input'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'gateway-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
+
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-gateway-model-access-confirm')).toBeInTheDocument());
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-model-access-confirm'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent(
+        'settings.accessPage.gatewayAccount.errors.internalContractViolation'
+      )
+    );
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('fails closed on unresolved Gateway groups and clears the password without claiming readiness', async () => {

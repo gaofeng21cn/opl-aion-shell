@@ -350,6 +350,7 @@ const FirstRun: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [gatewayEmail, setGatewayEmail] = useState('');
   const [gatewayPassword, setGatewayPassword] = useState('');
+  const [gatewayModelAccessConfirmationAvailable, setGatewayModelAccessConfirmationAvailable] = useState(false);
   const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
   const [accessMethod, setAccessMethod] = useState<AccessMethod>(isDesktopRuntime ? 'gateway_account' : 'api_key');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
@@ -359,6 +360,7 @@ const FirstRun: React.FC = () => {
     | MaintenanceAction
     | 'configure_codex'
     | 'gateway_account'
+    | 'gateway_model_access'
     | 'workspace_root'
     | 'workspace_open'
     | 'workspace_recheck'
@@ -462,24 +464,24 @@ const FirstRun: React.FC = () => {
     }
   }, [apiKey, refreshInitialize, t]);
 
-  const completeGatewayAccountSetup = useCallback(async () => {
-    const readGatewayAccountState = async () => {
-      const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
-      if (stateResult.ok === false) {
-        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(stateResult.error?.code));
-      }
-      const payload = stateResult.parsed as OplAppStatePayload;
-      const gatewayAccount = readGatewayAccountProjection(getAppState(payload));
-      if (!gatewayAccount || gatewayAccount.connection_mode !== 'account' || !gatewayAccount.account_card_visible) {
-        throw new GatewayAccountFlowError('internal_contract_violation');
-      }
-      if (gatewayAccount.freshness.last_error_code) {
-        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(gatewayAccount.freshness.last_error_code));
-      }
-      cacheFastOplAppState(payload, new Date().toLocaleTimeString());
-      return gatewayAccount;
-    };
+  const readGatewayAccountState = useCallback(async () => {
+    const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+    if (stateResult.ok === false) {
+      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(stateResult.error?.code));
+    }
+    const payload = stateResult.parsed as OplAppStatePayload;
+    const gatewayAccount = readGatewayAccountProjection(getAppState(payload));
+    if (!gatewayAccount || gatewayAccount.connection_mode !== 'account' || !gatewayAccount.account_card_visible) {
+      throw new GatewayAccountFlowError('internal_contract_violation');
+    }
+    if (gatewayAccount.freshness.last_error_code) {
+      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(gatewayAccount.freshness.last_error_code));
+    }
+    cacheFastOplAppState(payload, new Date().toLocaleTimeString());
+    return gatewayAccount;
+  }, []);
 
+  const completeGatewayAccountSetup = useCallback(async () => {
     let gatewayAccount = await readGatewayAccountState();
     let latestActionResult: Exclude<FirstRunCommandResult, null> | null = null;
     if (!gatewayAccount.managed_key) {
@@ -503,19 +505,9 @@ const FirstRun: React.FC = () => {
       }
     }
 
-    if (gatewayAccount.actions.use_for_model_access === 'gateway_account_use_for_model_access') {
-      const modelAccessResult = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: 'gateway_account_use_for_model_access',
-        dryRun: false,
-      });
-      if (modelAccessResult.ok === false) {
-        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(modelAccessResult.error?.code));
-      }
-      latestActionResult = modelAccessResult;
-      await readGatewayAccountState();
-    }
     if (latestActionResult) setActionResult(latestActionResult);
-  }, []);
+    return gatewayAccount.actions.use_for_model_access === 'gateway_account_use_for_model_access';
+  }, [readGatewayAccountState]);
 
   const loginGatewayAccount = useCallback(async () => {
     const email = gatewayEmail.trim();
@@ -530,6 +522,7 @@ const FirstRun: React.FC = () => {
     }
     setActionLoading('gateway_account');
     setError(null);
+    setGatewayModelAccessConfirmationAvailable(false);
     try {
       const result = await ipcBridge.oplRuntime.loginGatewayAccount.invoke({
         email,
@@ -538,7 +531,8 @@ const FirstRun: React.FC = () => {
       if (!result.ok) {
         throw new GatewayAccountFlowError(result.errorCode ?? 'gateway_account_failed');
       }
-      await completeGatewayAccountSetup();
+      const confirmationAvailable = await completeGatewayAccountSetup();
+      setGatewayModelAccessConfirmationAvailable(confirmationAvailable);
       await refreshInitialize();
     } catch (err) {
       const code = err instanceof GatewayAccountFlowError ? err.code : 'gateway_account_failed';
@@ -549,9 +543,37 @@ const FirstRun: React.FC = () => {
     }
   }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword, isDesktopRuntime, refreshInitialize]);
 
+  const confirmGatewayModelAccess = useCallback(async () => {
+    setActionLoading('gateway_model_access');
+    setError(null);
+    try {
+      const gatewayAccount = await readGatewayAccountState();
+      if (gatewayAccount.actions.use_for_model_access !== 'gateway_account_use_for_model_access') {
+        throw new GatewayAccountFlowError('internal_contract_violation');
+      }
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'gateway_account_use_for_model_access',
+        dryRun: false,
+      });
+      if (result.ok === false) {
+        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(result.error?.code));
+      }
+      setActionResult(result);
+      await readGatewayAccountState();
+      setGatewayModelAccessConfirmationAvailable(false);
+      await refreshInitialize();
+    } catch (err) {
+      const code = err instanceof GatewayAccountFlowError ? err.code : 'gateway_account_failed';
+      setError({ source: 'gateway_account', detail: code, gatewayErrorCode: code });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [readGatewayAccountState, refreshInitialize]);
+
   const changeAccessMethod = useCallback((value: string | number) => {
     setGatewayPassword('');
     setError(null);
+    setGatewayModelAccessConfirmationAvailable(false);
     setAccessMethod(value === 'api_key' ? 'api_key' : 'gateway_account');
   }, []);
 
@@ -985,16 +1007,29 @@ const FirstRun: React.FC = () => {
                             <span>{t('settings.firstRun.gatewayAccount.securityNote')}</span>
                           </div>
                           <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
-                            <Button
-                              type='primary'
-                              size='large'
-                              loading={actionLoading === 'gateway_account'}
-                              disabled={requestInFlight}
-                              onClick={() => void loginGatewayAccount()}
-                              data-testid='opl-first-run-gateway-login-button'
-                            >
-                              {t('settings.firstRun.gatewayAccount.loginButton')}
-                            </Button>
+                            {gatewayModelAccessConfirmationAvailable ? (
+                              <Button
+                                type='primary'
+                                size='large'
+                                loading={actionLoading === 'gateway_model_access'}
+                                disabled={requestInFlight}
+                                onClick={() => void confirmGatewayModelAccess()}
+                                data-testid='opl-first-run-gateway-model-access-confirm'
+                              >
+                                {t('settings.accessPage.gatewayAccount.actions.useForModelAccess')}
+                              </Button>
+                            ) : (
+                              <Button
+                                type='primary'
+                                size='large'
+                                loading={actionLoading === 'gateway_account'}
+                                disabled={requestInFlight}
+                                onClick={() => void loginGatewayAccount()}
+                                data-testid='opl-first-run-gateway-login-button'
+                              >
+                                {t('settings.firstRun.gatewayAccount.loginButton')}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ) : (
