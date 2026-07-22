@@ -49,7 +49,6 @@ const LoginPage: React.FC = () => {
   const passwordRef = useRef<HTMLInputElement | null>(null);
   const messageTimer = useRef<number | undefined>(undefined);
   const focusTimer = useRef<number | undefined>(undefined);
-  const navigationTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     document.body.classList.add('login-page-active');
@@ -60,9 +59,6 @@ const LoginPage: React.FC = () => {
       }
       if (focusTimer.current) {
         window.clearTimeout(focusTimer.current);
-      }
-      if (navigationTimer.current) {
-        window.clearTimeout(navigationTimer.current);
       }
     };
   }, []);
@@ -106,7 +102,7 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      void navigate('/startup-gate', { replace: true });
+      void navigate('/guid', { replace: true });
     }
   }, [navigate, status]);
 
@@ -178,10 +174,7 @@ const LoginPage: React.FC = () => {
 
           const successText = t('login.success');
           showMessage({ type: 'success', text: successText });
-
-          navigationTimer.current = window.setTimeout(() => {
-            void navigate('/startup-gate', { replace: true });
-          }, 600);
+          void navigate('/guid', { replace: true });
         } else {
           const errorText = (() => {
             switch (result.code) {

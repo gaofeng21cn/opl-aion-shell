@@ -44,16 +44,16 @@ describe('LoginPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('sends already-authenticated desktop users to the startup gate', async () => {
+  it('sends already-authenticated desktop users directly to Guid', async () => {
     authState.status = 'authenticated';
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/startup-gate', { replace: true }));
-    expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true }));
+    expect(navigateMock).not.toHaveBeenCalledWith('/startup-gate', expect.anything());
   });
 
-  it('sends successful login users to the startup gate', async () => {
+  it('sends successful login users directly to Guid without an artificial delay', async () => {
     authState.status = 'unauthenticated';
 
     render(<LoginPage />);
@@ -66,8 +66,8 @@ describe('LoginPage', () => {
       expect(authState.login).toHaveBeenCalledWith({ username: 'admin', password: 'password', remember: false })
     );
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/startup-gate', { replace: true }));
-    expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true }));
+    expect(navigateMock).not.toHaveBeenCalledWith('/startup-gate', expect.anything());
   });
 
   it('removes a legacy remembered password without hydrating it', async () => {

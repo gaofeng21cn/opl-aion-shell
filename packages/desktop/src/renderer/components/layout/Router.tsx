@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLoader from '@renderer/components/layout/AppLoader';
-import StartupGate from '@renderer/components/layout/StartupGate';
 import { useAuth } from '@renderer/hooks/context/AuthContext';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import {
@@ -106,13 +105,13 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
       <Routes>
         <Route
           path='/login'
-          element={status === 'authenticated' ? <Navigate to='/startup-gate' replace /> : withRouteFallback(LoginPage)}
+          element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)}
         />
         <Route
           index
           element={
             <ProtectedRoute>
-              <Navigate to='/startup-gate' replace />
+              <Navigate to='/guid' replace />
             </ProtectedRoute>
           }
         />
@@ -120,7 +119,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           path='/startup-gate'
           element={
             <ProtectedRoute>
-              <StartupGate />
+              <Navigate to='/guid' replace />
             </ProtectedRoute>
           }
         />
@@ -148,7 +147,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/scheduled' element={withRouteFallback(ScheduledTasksPage)} />
           <Route path='/scheduled/:job_id' element={withRouteFallback(TaskDetailPage)} />
         </Route>
-        <Route path='*' element={<Navigate to={status === 'authenticated' ? '/startup-gate' : '/login'} replace />} />
+        <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />
       </Routes>
     </HashRouter>
   );

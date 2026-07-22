@@ -232,20 +232,22 @@ const Main = () => {
 
   useEffect(() => {
     if (!ready) return;
-    // Prefetch managed runtime metadata in parallel with config initialization and
-    // seed the shared SWR cache so the Guid page's model/mode selectors can
-    // read `handshake.available_models` on the very first render — without
-    // waiting for a session to be created.
-    Promise.all([
-      configService.initialize().catch((err) => {
+    void configService
+      .initialize()
+      .catch((err) => {
         console.error('Failed to initialize config:', err);
-      }),
-      fetchManagedAgents()
-        .then((agents) => swrMutate(MANAGED_AGENTS_SWR_KEY, agents, false))
-        .catch((err) => {
-          console.error('Failed to prefetch agents:', err);
-        }),
-    ]).finally(() => setConfigReady(true));
+      })
+      .finally(() => setConfigReady(true));
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    // Seed model metadata opportunistically; Guid remains usable while this refresh is in flight.
+    void fetchManagedAgents()
+      .then((agents) => swrMutate(MANAGED_AGENTS_SWR_KEY, agents, false))
+      .catch((err) => {
+        console.error('Failed to prefetch agents:', err);
+      });
   }, [ready]);
 
   useEffect(() => {
