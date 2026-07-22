@@ -254,12 +254,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 </Typography.Text>
               </div>
               {onSyncFlow && (
-                <Button
-                  icon={<Refresh theme='outline' size='16' />}
-                  loading={flowSyncing}
-                  onClick={onSyncFlow}
-                  data-testid='settings-capabilities-primary-action'
-                >
+                <Button loading={flowSyncing} onClick={onSyncFlow} data-testid='settings-capabilities-primary-action'>
                   {t('settings.capabilitiesPage.groups.oplFlowManaged.sync')}
                 </Button>
               )}
@@ -427,7 +422,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                     htmlType='button'
                     type='secondary'
                     size='small'
-                    icon={<FolderOpen theme='outline' size='16' fill='currentColor' />}
                     data-testid='btn-manual-import'
                     className='shrink-0 whitespace-nowrap'
                     onClick={handleManualImport}

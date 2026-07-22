@@ -649,6 +649,8 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(restartButton).toBeVisible();
     expect(restartButton).toBeEnabled();
     expect(restartButton).toHaveTextContent('重启 Server');
+    expect(restartButton.querySelector('svg')).toBeNull();
+    expect(screen.getByTestId('settings-maintenance-temporal-server').querySelector('svg')).not.toBeNull();
     fireEvent.click(restartButton);
 
     await waitFor(() => expect(messageMocks.success).toHaveBeenCalledWith('维护已完成'));
@@ -1448,7 +1450,9 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(workerRow).toHaveTextContent('请切回托管运行来源，或明确启用已授权的开发仓库维护。');
     expect(workerRow).not.toHaveTextContent(/环境变量|OPL_ALLOW_/);
 
-    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-worker-source'));
+    const sourceButton = screen.getByTestId('settings-maintenance-temporal-worker-source');
+    expect(sourceButton.querySelector('svg')).not.toBeNull();
+    fireEvent.click(sourceButton);
     expect(window.location.hash).toBe('#/settings/agents?section=source');
   });
 
@@ -1477,7 +1481,9 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeDisabled();
-    fireEvent.click(screen.getByTestId('settings-maintenance-temporal-worker-repair-dependency'));
+    const repairButton = screen.getByTestId('settings-maintenance-temporal-worker-repair-dependency');
+    expect(repairButton.querySelector('svg')).toBeNull();
+    fireEvent.click(repairButton);
 
     expect(window.location.hash).toBe('#/settings/environment?section=updates');
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();

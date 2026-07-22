@@ -934,8 +934,8 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Review log cleanup');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Review installer cache cleanup');
     const previewCleanup = screen.getByTestId('settings-storage-primary-action');
-    expect(previewCleanup.querySelector('svg')).not.toBeNull();
-    expect(previewCleanup.querySelector('svg')?.innerHTML).toContain('currentColor');
+    expect(previewCleanup.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Create archive' }).querySelector('svg')).toBeNull();
     for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
       expect(screen.getByTestId(`storage-inventory-${id}`)).toHaveClass('opl-settings-row');
       expect(screen.getByTestId(`storage-inventory-${id}`)).not.toHaveClass('opl-settings-surface--action');
@@ -1001,6 +1001,8 @@ describe('StorageSettingsContent', () => {
     );
     expect(screen.getByTestId('settings-storage-unavailable-retry')).toHaveTextContent('Retry');
     expect(screen.getByTestId('settings-storage-unavailable-recovery')).toHaveTextContent('Open Maintenance');
+    expect(screen.getByTestId('settings-storage-unavailable-retry').querySelector('svg')).toBeNull();
+    expect(screen.getByTestId('settings-storage-unavailable-recovery').querySelector('svg')).not.toBeNull();
     expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
     expect(screen.queryByTestId('storage-category-list')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
@@ -1054,7 +1056,7 @@ describe('StorageSettingsContent', () => {
 
     const diagnosticsAction = screen.getByTestId('settings-storage-diagnostics-action');
     expect(diagnosticsAction).toHaveTextContent('Diagnostics');
-    expect(diagnosticsAction.querySelector('svg')).not.toBeNull();
+    expect(diagnosticsAction.querySelector('svg')).toBeNull();
     fireEvent.click(diagnosticsAction);
 
     const diagnostics = screen.getByTestId('settings-storage-technical-details');

@@ -98,7 +98,7 @@ describe('SkillsHubSettings', () => {
     expect(screen.queryByText('AionUI implementation helper')).not.toBeInTheDocument();
     const manualImport = screen.getByTestId('btn-manual-import');
     expect(manualImport).toHaveClass('arco-btn');
-    expect(manualImport.querySelector('svg')).not.toBeNull();
+    expect(manualImport.querySelector('svg')).toBeNull();
 
     const search = screen.getByRole('textbox', { name: 'Search skills' });
     expect(search).toHaveAttribute('placeholder', 'Search skills...');
@@ -108,6 +108,8 @@ describe('SkillsHubSettings', () => {
     expect(refresh).toHaveClass('arco-btn');
     expect(refresh.className).toContain('32px');
     expect(refresh.className).toContain('focus-visible:outline');
+    expect(refresh).toHaveTextContent('');
+    expect(refresh.querySelector('svg')).not.toBeNull();
   });
 
   it('uses the typed Flow catalog instead of the App-local skill directory for managed status', async () => {
@@ -137,10 +139,12 @@ describe('SkillsHubSettings', () => {
             external: false,
           },
         ]}
+        onSyncFlow={vi.fn()}
       />
     );
 
     await waitFor(() => expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toBeInTheDocument());
+    expect(screen.getByTestId('settings-capabilities-primary-action').querySelector('svg')).toBeNull();
     expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toHaveTextContent(
       'settings.capabilitiesPage.groups.oplFlowManaged.managed'
     );

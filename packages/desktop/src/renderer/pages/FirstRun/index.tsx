@@ -1,5 +1,5 @@
 import { Button, Collapse, Empty, Input, Radio, Spin, Tag } from '@arco-design/web-react';
-import { CheckOne, Config, FolderOpen, Help, Refresh, Right, Shield, Tool, Workbench } from '@icon-park/react';
+import { CheckOne, Config, Right, Shield, Tool, Workbench } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -771,7 +771,6 @@ const FirstRun: React.FC = () => {
           <Button
             type='text'
             size='small'
-            icon={<Help />}
             className={styles.firstRunHelpButton}
             onClick={openTechnicalDetails}
             aria-label={t('settings.firstRun.help')}
@@ -846,7 +845,6 @@ const FirstRun: React.FC = () => {
 
                   <Button
                     type='text'
-                    icon={<Tool />}
                     className={styles.firstRunTechnicalButton}
                     onClick={openTechnicalDetails}
                     data-testid='opl-first-run-technical-details-toggle'
@@ -1089,7 +1087,6 @@ const FirstRun: React.FC = () => {
                           <div className={styles.firstRunWorkspaceRecoveryActions}>
                             <Button
                               type='text'
-                              icon={<FolderOpen aria-hidden='true' />}
                               loading={actionLoading === 'workspace_open'}
                               disabled={!workspaceRootPath || requestInFlight}
                               onClick={() => void openWorkspaceRoot()}
@@ -1098,7 +1095,6 @@ const FirstRun: React.FC = () => {
                             </Button>
                             <Button
                               type='text'
-                              icon={<Refresh aria-hidden='true' />}
                               loading={actionLoading === 'workspace_recheck'}
                               disabled={requestInFlight}
                               onClick={() => void recheckWorkspaceRoot()}
@@ -1111,7 +1107,6 @@ const FirstRun: React.FC = () => {
                       <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
                         {activePrimaryStepId === 'workspace_root' ? (
                           <Button
-                            icon={<FolderOpen aria-hidden='true' />}
                             type='primary'
                             size='large'
                             loading={actionLoading === 'workspace_root'}

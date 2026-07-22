@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, Delete, EditTwo, LinkCloud, Plus } from '@icon-park/react';
+import { Delete, EditTwo, LinkCloud } from '@icon-park/react';
 import { oplRecord } from '@/renderer/hooks/system/useOplAppState';
 import { useTranslation } from 'react-i18next';
 
@@ -167,7 +167,6 @@ const OplConnectionsSection: React.FC<{
         </div>
         <Button
           type='secondary'
-          icon={<Plus theme='outline' size='16' fill='currentColor' />}
           disabled={busy}
           onClick={() => {
             setFormValue(EMPTY_CONNECTION_FORM);
@@ -233,7 +232,6 @@ const OplConnectionsSection: React.FC<{
                   <Button
                     size='mini'
                     type='secondary'
-                    icon={<CheckOne theme='outline' size='16' fill='currentColor' />}
                     loading={runningActionId === `connection_test:${connection.connectionId}`}
                     disabled={busy || connection.disabled}
                     onClick={() => void onAction('connection_test', { connection_id: connection.connectionId })}

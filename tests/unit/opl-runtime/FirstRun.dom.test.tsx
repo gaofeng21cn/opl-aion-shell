@@ -529,9 +529,10 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
       'settings.firstRun.stage reading_initialize_state'
     );
-    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
-      'settings.firstRun.maintenance.title'
-    );
+    const technicalDetails = screen.getByTestId('opl-first-run-technical-details-toggle');
+    expect(technicalDetails).not.toHaveTextContent('settings.firstRun.maintenance.title');
+    expect(technicalDetails.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: 'settings.firstRun.help' }).querySelector('svg')).toBeNull();
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
       'settings.firstRun.checking.itemsPending'
     );
@@ -862,7 +863,16 @@ describe('FirstRun readiness page', () => {
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     expect(screen.getByTestId('opl-first-run-workspace-path')).toHaveTextContent('/Users/example/current-workspace');
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.openWorkspace' }));
+    const openWorkspace = screen.getByRole('button', { name: 'settings.workspacePage.actions.openWorkspace' });
+    const recheckWorkspace = screen.getByRole('button', { name: 'settings.workspacePage.actions.recheck' });
+    const chooseWorkspace = within(screen.getByTestId('opl-first-run-primary-action')).getByRole('button', {
+      name: 'settings.firstRun.actions.chooseWorkspace',
+    });
+    expect(openWorkspace.querySelector('svg')).toBeNull();
+    expect(recheckWorkspace.querySelector('svg')).toBeNull();
+    expect(chooseWorkspace.querySelector('svg')).toBeNull();
+
+    fireEvent.click(openWorkspace);
     await waitFor(() =>
       expect(bridgeMocks.openFolderWithInvoke).toHaveBeenCalledWith({
         folder_path: '/Users/example/current-workspace',
@@ -871,20 +881,16 @@ describe('FirstRun readiness page', () => {
     );
 
     bridgeMocks.openFolderWithInvoke.mockRejectedValueOnce(new Error('open failed'));
-    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.openWorkspace' }));
+    fireEvent.click(openWorkspace);
     await waitFor(() =>
       expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.workspace')
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.workspacePage.actions.recheck' }));
+    fireEvent.click(recheckWorkspace);
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(
-      within(screen.getByTestId('opl-first-run-primary-action')).getByRole('button', {
-        name: 'settings.firstRun.actions.chooseWorkspace',
-      })
-    );
+    fireEvent.click(chooseWorkspace);
 
     await waitFor(() =>
       expect(bridgeMocks.showOpenInvoke).toHaveBeenCalledWith({

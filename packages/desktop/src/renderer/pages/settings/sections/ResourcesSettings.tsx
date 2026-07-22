@@ -5,8 +5,8 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Alert, Button, Input, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Download, Earth, Open, Search, SettingTwo, Toolkit } from '@icon-park/react';
+import { Alert, Button, Input, Message, Modal, Space, Tag, Typography } from '@arco-design/web-react';
+import { Earth, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -181,15 +181,6 @@ function dockerActionCtaLabel(
   if (kind === 'modelAccess') return t('settings.resourcesPage.docker.openModelAccess');
   if (kind === 'configure') return t('settings.resourcesPage.docker.prepareEnvironment');
   return t('settings.resourcesPage.docker.runDryRoute');
-}
-
-function dockerActionIcon(action: DockerWebuiAction): React.ReactNode {
-  const kind = dockerActionKind(action);
-  if (kind === 'open') return <Open theme='outline' size='16' />;
-  if (kind === 'check') return <Search theme='outline' size='16' />;
-  if (kind === 'configure') return <Download theme='outline' size='16' />;
-  if (kind === 'modelAccess') return <SettingTwo theme='outline' size='16' />;
-  return <Toolkit theme='outline' size='16' />;
 }
 
 function preferredDockerAction(actions: DockerWebuiAction[], readiness: ResourceReadiness): DockerWebuiAction | null {
@@ -415,7 +406,6 @@ export const ResourcesSettingsContent: React.FC = () => {
             <Button
               type='text'
               size='small'
-              icon={<SettingTwo theme='outline' size='14' />}
               data-testid='settings-resources-diagnostics-action'
               onClick={() => setDiagnosticsVisible(true)}
             >
@@ -691,7 +681,6 @@ const DockerActionButton: React.FC<{
       data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
       type={primary ? 'primary' : 'secondary'}
       size={size}
-      icon={dockerActionIcon(action)}
       loading={loading}
       disabled={singleFlight}
       onClick={() => void onAction(action)}

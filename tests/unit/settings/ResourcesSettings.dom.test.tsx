@@ -77,7 +77,7 @@ vi.mock('@arco-design/web-react', () => {
   const Button = ({
     children,
     loading: _loading,
-    icon: _icon,
+    icon,
     type: _type,
     htmlType,
     ...props
@@ -88,6 +88,7 @@ vi.mock('@arco-design/web-react', () => {
     htmlType?: 'button' | 'submit' | 'reset';
   }) => (
     <button {...props} type={htmlType ?? 'button'}>
+      {icon && <span data-button-icon='true'>{icon}</span>}
       {children}
     </button>
   );
@@ -518,6 +519,11 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByTestId('opl-connection-delete-primary')).toBeDisabled();
     expect(view.getByTestId('opl-connection-edit-primary')).toHaveAttribute('aria-label', '编辑');
     expect(view.getByTestId('opl-connection-delete-primary')).toHaveAttribute('aria-label', '删除');
+    expect(view.getByTestId('opl-settings-add-connection').querySelector('[data-button-icon]')).toBeNull();
+    expect(view.getByTestId('opl-connection-test-primary').querySelector('[data-button-icon]')).toBeNull();
+    expect(view.getByTestId('opl-connection-test-secondary').querySelector('[data-button-icon]')).toBeNull();
+    expect(view.getByTestId('opl-connection-edit-primary').querySelector('[data-button-icon]')).not.toBeNull();
+    expect(view.getByTestId('opl-connection-delete-primary').querySelector('[data-button-icon]')).not.toBeNull();
 
     fireEvent.click(view.getByTestId('opl-connection-test-secondary'));
     await waitFor(() => {
@@ -609,6 +615,9 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('浏览器访问这台电脑')).toBeTruthy();
     expect(view.getByText('端口：25808')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
+    expect(
+      view.getByTestId('opl-settings-open-native-remote-settings').querySelector('[data-button-icon]')
+    ).not.toBeNull();
     expect(view.queryByTestId('settings-resources-technical-details')).toBeNull();
     expect(view.getByText('浏览器工作台')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace')).toHaveLength(1);
@@ -636,6 +645,17 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
 
     expect(view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed')).toBeEnabled();
+    expect(view.getByTestId('settings-resources-diagnostics-action').querySelector('[data-button-icon]')).toBeNull();
+    for (const actionId of [
+      'settings_diagnose_docker_webui',
+      'settings_open_docker_webui',
+      'settings_configure_webui_api_key',
+      'settings_select_webui_seed',
+    ]) {
+      expect(
+        view.getByTestId(`opl-settings-docker-webui-action-${actionId}`).querySelector('[data-button-icon]')
+      ).toBeNull();
+    }
     expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('attention_needed');

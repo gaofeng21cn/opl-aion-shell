@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Modal, Space, Tag, Typography } from '@arco-design/web-react';
-import { Delete, FolderSearch, Info, Repair, Right, Undo, UpdateRotation } from '@icon-park/react';
+import { Right } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
@@ -114,7 +114,7 @@ const SECTION_ANCHORS: Record<StorageInventorySectionViewModel['id'], string> = 
 };
 
 const LATEST_CONVERSATION_ARCHIVE_RECEIPT_KEY = 'opl.storage.latestConversationArchiveReceipt.v1';
-const STORAGE_ACTION_ICON_PROPS = {
+const STORAGE_NAV_ICON_PROPS = {
   theme: 'outline' as const,
   size: 16,
   fill: 'currentColor',
@@ -279,7 +279,7 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({
         {isAgentPackageStore && (
           <Button
             htmlType='button'
-            icon={<Right {...STORAGE_ACTION_ICON_PROPS} />}
+            icon={<Right {...STORAGE_NAV_ICON_PROPS} />}
             onClick={onOpenAgents}
             data-testid='storage-owner-agent-package-store-open'
           >
@@ -837,7 +837,6 @@ export const StorageSettingsContent: React.FC = () => {
           {!viewModel.conversationProof.receiptPath && (
             <Button
               htmlType='button'
-              icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked}
               loading={loading === 'archive'}
               onClick={archiveConversations}
@@ -848,7 +847,6 @@ export const StorageSettingsContent: React.FC = () => {
           {conversationArchiveCanRestore && (
             <Button
               htmlType='button'
-              icon={<Undo {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked}
               loading={loading === 'restore-conversations'}
               onClick={() => requestDangerAction('restore-conversations')}
@@ -861,7 +859,6 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               status='danger'
-              icon={<Delete {...STORAGE_ACTION_ICON_PROPS} />}
               disabled={interactionLocked || !viewModel.canDeleteConversationArtifacts}
               loading={loading === 'delete-conversations'}
               onClick={() => requestDangerAction('delete-conversations')}
@@ -887,7 +884,6 @@ export const StorageSettingsContent: React.FC = () => {
         <Button
           htmlType='button'
           status='danger'
-          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'runtime-execute'}
           onClick={() => requestDangerAction('runtime-execute')}
@@ -898,7 +894,6 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'runtime-plan'}
           onClick={dryRunRuntimePrune}
@@ -918,7 +913,6 @@ export const StorageSettingsContent: React.FC = () => {
         <Button
           htmlType='button'
           status='danger'
-          icon={<UpdateRotation {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'logs-execute'}
           onClick={() => requestDangerAction('logs-execute')}
@@ -929,7 +923,6 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'logs-plan'}
           onClick={dryRunLogRotation}
@@ -960,7 +953,6 @@ export const StorageSettingsContent: React.FC = () => {
       actions: viewModel.updaterPlan.canExecute ? (
         <Button
           htmlType='button'
-          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'updater-execute'}
           onClick={() => requestDangerAction('updater-execute')}
@@ -971,7 +963,6 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'updater-plan'}
           onClick={dryRunUpdaterCleanup}
@@ -993,7 +984,6 @@ export const StorageSettingsContent: React.FC = () => {
       {webuiPlan && webuiPlan.candidate_count > 0 ? (
         <Button
           htmlType='button'
-          icon={<Repair {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'webui-execute'}
           onClick={() => requestDangerAction('webui-execute')}
@@ -1004,7 +994,6 @@ export const StorageSettingsContent: React.FC = () => {
       ) : (
         <Button
           htmlType='button'
-          icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'webui-plan'}
           onClick={planWebuiCleanup}
@@ -1016,7 +1005,6 @@ export const StorageSettingsContent: React.FC = () => {
       {webuiRestoreSourceRef && !webuiRestoreReceipt && (
         <Button
           htmlType='button'
-          icon={<Undo {...STORAGE_ACTION_ICON_PROPS} />}
           disabled={interactionLocked}
           loading={loading === 'webui-restore'}
           onClick={restoreWebuiCleanup}
@@ -1135,7 +1123,6 @@ export const StorageSettingsContent: React.FC = () => {
                   <Button
                     htmlType='button'
                     type='primary'
-                    icon={<UpdateRotation {...STORAGE_ACTION_ICON_PROPS} />}
                     loading={loading === 'inventory'}
                     disabled={interactionLocked}
                     onClick={loadInventory}
@@ -1145,7 +1132,7 @@ export const StorageSettingsContent: React.FC = () => {
                   </Button>
                   <Button
                     htmlType='button'
-                    icon={<Right {...STORAGE_ACTION_ICON_PROPS} />}
+                    icon={<Right {...STORAGE_NAV_ICON_PROPS} />}
                     onClick={() => navigate(storageRecoveryRoute)}
                     data-testid='settings-storage-unavailable-recovery'
                   >
@@ -1228,7 +1215,6 @@ export const StorageSettingsContent: React.FC = () => {
                 <Button
                   htmlType='button'
                   type='primary'
-                  icon={<FolderSearch {...STORAGE_ACTION_ICON_PROPS} />}
                   disabled={interactionLocked}
                   loading={loading === 'cleanup-preview'}
                   onClick={previewCleanup}
@@ -1240,7 +1226,6 @@ export const StorageSettingsContent: React.FC = () => {
               {desktopCarrier && hasLocalStorageReadback && (
                 <Button
                   type='secondary'
-                  icon={<Info {...STORAGE_ACTION_ICON_PROPS} />}
                   data-testid='settings-storage-diagnostics-action'
                   onClick={() => setDiagnosticsVisible(true)}
                 >

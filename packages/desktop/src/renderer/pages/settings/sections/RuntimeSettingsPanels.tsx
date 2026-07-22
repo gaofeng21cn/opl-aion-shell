@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Tag, Typography } from '@arco-design/web-react';
-import { Download, PlayOne, Refresh, Right, Schedule, Search, Server, Worker } from '@icon-park/react';
+import { Right, Schedule, Server, Worker } from '@icon-park/react';
 
 export type RuntimeSettingsTone = 'green' | 'orange' | 'gray';
 
@@ -354,7 +354,6 @@ function TemporalActionButton({
   unavailableHelp: _unavailableHelp,
   busyActionId,
   disabled,
-  icon,
   onAction,
 }: {
   actionId: TemporalMaintenanceActionId;
@@ -363,7 +362,6 @@ function TemporalActionButton({
   unavailableHelp: string;
   busyActionId: TemporalMaintenanceActionId | null;
   disabled: boolean;
-  icon: React.ReactNode;
   onAction: (actionId: TemporalMaintenanceActionId) => void;
 }) {
   if (!action) return null;
@@ -371,7 +369,6 @@ function TemporalActionButton({
     <Button
       size='small'
       type='secondary'
-      icon={icon}
       loading={busyActionId === actionId}
       disabled={disabled}
       onClick={() => onAction(action.actionId)}
@@ -542,7 +539,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled}
-                icon={<Search theme='outline' size='14' />}
                 onAction={onAction}
               />
               <TemporalActionButton
@@ -556,7 +552,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled}
-                icon={serverReady ? <Refresh theme='outline' size='14' /> : <Download theme='outline' size='14' />}
                 onAction={onAction}
               />
             </div>
@@ -614,7 +609,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled}
-                icon={<Search theme='outline' size='14' />}
                 onAction={onAction}
               />
               <TemporalActionButton
@@ -634,7 +628,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled || !serverReady || workerMutationBlocked || workerDependencyUnavailable}
-                icon={<Refresh theme='outline' size='14' />}
                 onAction={onAction}
               />
               {workerMutationBlocked && (
@@ -652,7 +645,6 @@ export function TemporalMaintenancePanel({
                 <Button
                   size='small'
                   type='text'
-                  icon={<Right theme='outline' size='14' />}
                   disabled={disabled}
                   onClick={onRepairWorkerDependency}
                   data-testid='settings-maintenance-temporal-worker-repair-dependency'
@@ -707,7 +699,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled}
-                icon={<Search theme='outline' size='14' />}
                 onAction={onAction}
               />
               {snapshot.schedulerStatus === 'not_installed' && (
@@ -718,7 +709,6 @@ export function TemporalMaintenancePanel({
                   unavailableHelp={unavailableHelp}
                   busyActionId={busyActionId}
                   disabled={disabled || !serverReady || !snapshot.workerReady}
-                  icon={<Download theme='outline' size='14' />}
                   onAction={onAction}
                 />
               )}
@@ -729,7 +719,6 @@ export function TemporalMaintenancePanel({
                 unavailableHelp={unavailableHelp}
                 busyActionId={busyActionId}
                 disabled={disabled || !serverReady || !snapshot.workerReady || snapshot.schedulerReady !== true}
-                icon={<PlayOne theme='outline' size='14' />}
                 onAction={onAction}
               />
             </div>
