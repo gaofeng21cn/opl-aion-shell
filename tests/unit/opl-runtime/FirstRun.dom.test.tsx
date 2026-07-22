@@ -4,6 +4,8 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FirstRun from '@/renderer/pages/FirstRun';
+import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
+import { cacheFastOplAppState, resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInitializeInvoke: vi.fn(),
@@ -281,49 +283,87 @@ const gatewayLoginResult = {
   ok: true,
   stateRefreshRequired: true,
 };
-const gatewayFastStateResult = {
-  surface: 'app_state_fast',
-  command: 'opl app state --profile fast --json',
-  stdout: '{}',
-  parsed: {
-    app_state: {
-      settings_control_center: {
-        app_settings_read_model: {
-          opl_gateway_account: {
-            surface_kind: 'opl_gateway_account_read_model.v1',
-            status: 'setup_required',
-            connection_mode: 'account',
-            account_card_visible: true,
-            account: {
-              display_name: 'OPL User',
-              email: 'user@example.com',
-              status: 'active',
-              balance: { amount: null, currency: 'CNY' },
-            },
-            usage: null,
-            managed_key: null,
-            installation: { device_label: 'Framework default', short_id: 'ABCD1234' },
-            available_groups: [{ group_id: 'codex-group', label: 'Codex Team' }],
-            freshness: {
-              observed_at: '2026-07-16T08:00:00Z',
-              stale_after: '2026-07-16T08:15:00Z',
-              stale: false,
-              last_error_code: null,
-            },
-            capabilities: { account_login_supported: true, manual_key_supported: true },
-            actions: {
-              complete_setup: 'gateway_account_complete_setup',
-              refresh: 'gateway_account_refresh',
-              repair: null,
-              use_for_model_access: null,
-              disconnect: 'gateway_account_disconnect',
+function createGatewayFastStateResult({
+  managedKey = null,
+  modelAccessReady = false,
+  useForModelAccess = null,
+}: {
+  managedKey?: { name: string; status: string; ownership: string } | null;
+  modelAccessReady?: boolean;
+  useForModelAccess?: 'gateway_account_use_for_model_access' | null;
+} = {}) {
+  return {
+    surface: 'app_state_fast',
+    command: 'opl app state --profile fast --json',
+    stdout: '{}',
+    parsed: {
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        core: {
+          codex: {
+            installed: true,
+            enabled: true,
+            version_status: 'compatible',
+            model_access_ready: modelAccessReady,
+          },
+        },
+        paths: {
+          workspace_root_path: '/Users/example/workspace',
+          workspace_root: {
+            selected_path: '/Users/example/workspace',
+            exists: true,
+            writable: true,
+            health_status: 'ready',
+          },
+        },
+        settings_control_center: {
+          app_settings_read_model: {
+            opl_gateway_account: {
+              surface_kind: 'opl_gateway_account_read_model.v1',
+              status: managedKey ? 'connected' : 'setup_required',
+              connection_mode: 'account',
+              account_card_visible: true,
+              account: {
+                display_name: 'OPL User',
+                email: 'user@example.com',
+                status: 'active',
+                balance: { amount: null, currency: 'CNY' },
+              },
+              usage: null,
+              managed_key: managedKey,
+              installation: { device_label: 'Framework default', short_id: 'ABCD1234' },
+              available_groups: [{ group_id: 'codex-group', label: 'Codex Team' }],
+              freshness: {
+                observed_at: '2026-07-16T08:00:00Z',
+                stale_after: '2026-07-16T08:15:00Z',
+                stale: false,
+                last_error_code: null,
+              },
+              capabilities: { account_login_supported: true, manual_key_supported: true },
+              actions: {
+                complete_setup: managedKey ? null : 'gateway_account_complete_setup',
+                refresh: 'gateway_account_refresh',
+                repair: null,
+                use_for_model_access: useForModelAccess,
+                disconnect: 'gateway_account_disconnect',
+              },
             },
           },
         },
       },
     },
-  },
-};
+  };
+}
+
+const gatewayFastStateResult = createGatewayFastStateResult();
+const gatewayManagedKeyStateResult = createGatewayFastStateResult({
+  managedKey: { name: 'OPL-APP-TEST', status: 'active', ownership: 'opl_app' },
+  useForModelAccess: 'gateway_account_use_for_model_access',
+});
+const gatewayModelReadyStateResult = createGatewayFastStateResult({
+  managedKey: { name: 'OPL-APP-TEST', status: 'active', ownership: 'opl_app' },
+  modelAccessReady: true,
+});
 const startupMaintenanceResult = {
   surface: 'startup_maintenance',
   command: 'opl system startup-maintenance --json',
@@ -355,6 +395,11 @@ const workspaceFastStateResult = {
   },
 };
 
+const CoreReadinessProbe = () => {
+  const readiness = useCoreLaunchPrerequisites();
+  return <span data-testid='core-readiness-probe'>{readiness.readyToLaunch ? 'ready' : 'blocked'}</span>;
+};
+
 describe('FirstRun readiness page', () => {
   let initializeEventHandler: ((event: unknown) => void) | null = null;
   let resolveInitialize: ((value: typeof initializeResult) => void) | null = null;
@@ -363,6 +408,8 @@ describe('FirstRun readiness page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    resetOplAppStateLoadsForTest();
     initializeEventHandler = null;
     resolveInitialize = null;
     resolveConfigure = null;
@@ -892,12 +939,23 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-task-panel')).toHaveFocus();
   });
 
-  it('defaults Desktop model access to Gateway account login and completes a uniquely resolved Codex group', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
+  it('completes Gateway setup, binds model access, and publishes ready state to mounted Home consumers', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
+    bridgeMocks.getAppStateInvoke
+      .mockResolvedValueOnce(gatewayFastStateResult)
+      .mockResolvedValueOnce(gatewayManagedKeyStateResult)
+      .mockResolvedValueOnce(gatewayModelReadyStateResult);
+    cacheFastOplAppState(gatewayFastStateResult.parsed, '20:00:00');
 
-    render(<FirstRun />);
+    render(
+      <>
+        <CoreReadinessProbe />
+        <FirstRun />
+      </>
+    );
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('core-readiness-probe')).toHaveTextContent('blocked');
     expect(within(screen.getByTestId('opl-first-run-gateway-account-method')).getByRole('radio')).toBeChecked();
     expect(screen.getByTestId('opl-first-run-gateway-email-input')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-gateway-password-input')).toBeInTheDocument();
@@ -919,17 +977,52 @@ describe('FirstRun readiness page', () => {
       })
     );
     expect(bridgeMocks.loginGatewayAccountInvoke.mock.calls[0][0]).not.toHaveProperty('deviceLabel');
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'gateway_account_complete_setup',
-      dryRun: false,
-      payloadJson: { group_id: 'codex-group' },
-    });
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(3));
+    expect(bridgeMocks.executeActionInvoke.mock.calls.map(([input]) => input)).toEqual([
+      {
+        actionId: 'gateway_account_complete_setup',
+        dryRun: false,
+        payloadJson: { group_id: 'codex-group' },
+      },
+      {
+        actionId: 'gateway_account_use_for_model_access',
+        dryRun: false,
+      },
+    ]);
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
-    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
+    await waitFor(() => expect(screen.getByTestId('core-readiness-probe')).toHaveTextContent('ready'));
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
+    expect(screen.queryByTestId('opl-first-run-gateway-password-input')).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('gateway-password');
+  });
 
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
-    expect(screen.getByTestId('opl-first-run-technical-details')).not.toHaveTextContent('gateway-password');
+  it('uses an existing managed Gateway key for model access instead of returning early', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
+    bridgeMocks.getAppStateInvoke
+      .mockResolvedValueOnce(gatewayManagedKeyStateResult)
+      .mockResolvedValueOnce(gatewayModelReadyStateResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-email-input'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByTestId('opl-first-run-gateway-password-input'), {
+      target: { value: 'gateway-password' },
+    });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-login-button'));
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'gateway_account_use_for_model_access',
+      dryRun: false,
+    });
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: 'gateway_account_complete_setup' })
+    );
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
   });
 
   it('fails closed on unresolved Gateway groups and clears the password without claiming readiness', async () => {

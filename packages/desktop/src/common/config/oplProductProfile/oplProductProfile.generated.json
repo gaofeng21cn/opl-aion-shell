@@ -1444,11 +1444,12 @@
     "default_model_description": "System Codex default model when configured",
     "default_reasoning_effort": "max",
     "app_runtime_home": {
-      "default_path": "~/Library/Application Support/OPL/codex",
+      "default_path": "~/.codex",
       "override_env": "CODEX_HOME",
-      "override_policy": "explicit_developer_or_operator_override_only",
-      "user_home_path": "~/.codex",
-      "user_config_mutation": "forbidden"
+      "resolution_policy": "preserve_existing_env_else_codex_system_default",
+      "app_env_injection": "forbidden",
+      "startup_and_recheck_mutation": "forbidden",
+      "explicit_model_access_mutation": "framework_action_atomic_merge_with_backup_and_restore"
     },
     "auto_model_policy": {
       "authority": "one-person-lab-app",
@@ -1811,6 +1812,10 @@
           "secret_bridge_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_secret_bridge",
           "post_login_state_source": "opl app state --profile fast --json",
           "unique_group_action": "gateway_account_complete_setup",
+          "post_setup_state_refresh": "required_before_model_access_action",
+          "model_access_action": "gateway_account_use_for_model_access",
+          "model_access_action_policy": "execute_when_exposed_after_fresh_state_read",
+          "shared_fast_state_cache_policy": "publish_each_authoritative_post_login_read",
           "unresolved_group_error": "group_selection_required",
           "ready_claim_policy": "only_after_initialize_confirms_codex_config_ready",
           "password_clear_policy": "success_failure_or_method_switch",

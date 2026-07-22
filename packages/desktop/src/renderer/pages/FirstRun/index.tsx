@@ -9,7 +9,7 @@ import { getOplProductDisplayName } from '@/common/config/oplProductProfile';
 import type { OplAppStatePayload } from '@/common/types/opl/appState';
 import appLogo from '@/renderer/assets/logos/brand/app.png';
 import WindowControls from '@/renderer/components/layout/WindowControls';
-import { getAppState, oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
+import { cacheFastOplAppState, getAppState, oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
 import { readGatewayAccountProjection, resolveDefaultGatewayGroup } from '@/renderer/pages/settings/accessProjection';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import {
@@ -463,32 +463,58 @@ const FirstRun: React.FC = () => {
   }, [apiKey, refreshInitialize, t]);
 
   const completeGatewayAccountSetup = useCallback(async () => {
-    const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
-    if (stateResult.ok === false) {
-      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(stateResult.error?.code));
+    const readGatewayAccountState = async () => {
+      const stateResult = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+      if (stateResult.ok === false) {
+        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(stateResult.error?.code));
+      }
+      const payload = stateResult.parsed as OplAppStatePayload;
+      const gatewayAccount = readGatewayAccountProjection(getAppState(payload));
+      if (!gatewayAccount || gatewayAccount.connection_mode !== 'account' || !gatewayAccount.account_card_visible) {
+        throw new GatewayAccountFlowError('internal_contract_violation');
+      }
+      if (gatewayAccount.freshness.last_error_code) {
+        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(gatewayAccount.freshness.last_error_code));
+      }
+      cacheFastOplAppState(payload, new Date().toLocaleTimeString());
+      return gatewayAccount;
+    };
+
+    let gatewayAccount = await readGatewayAccountState();
+    let latestActionResult: Exclude<FirstRunCommandResult, null> | null = null;
+    if (!gatewayAccount.managed_key) {
+      if (gatewayAccount.actions.complete_setup !== 'gateway_account_complete_setup') {
+        throw new GatewayAccountFlowError('internal_contract_violation');
+      }
+      const groupId = resolveDefaultGatewayGroup(gatewayAccount.available_groups);
+      if (!groupId) throw new GatewayAccountFlowError('group_selection_required');
+      const setupResult = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'gateway_account_complete_setup',
+        dryRun: false,
+        payloadJson: { group_id: groupId },
+      });
+      if (setupResult.ok === false) {
+        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(setupResult.error?.code));
+      }
+      latestActionResult = setupResult;
+      gatewayAccount = await readGatewayAccountState();
+      if (!gatewayAccount.managed_key) {
+        throw new GatewayAccountFlowError('internal_contract_violation');
+      }
     }
-    const gatewayAccount = readGatewayAccountProjection(getAppState(stateResult.parsed as OplAppStatePayload));
-    if (!gatewayAccount || gatewayAccount.connection_mode !== 'account' || !gatewayAccount.account_card_visible) {
-      throw new GatewayAccountFlowError('internal_contract_violation');
+
+    if (gatewayAccount.actions.use_for_model_access === 'gateway_account_use_for_model_access') {
+      const modelAccessResult = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'gateway_account_use_for_model_access',
+        dryRun: false,
+      });
+      if (modelAccessResult.ok === false) {
+        throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(modelAccessResult.error?.code));
+      }
+      latestActionResult = modelAccessResult;
+      await readGatewayAccountState();
     }
-    if (gatewayAccount.freshness.last_error_code) {
-      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(gatewayAccount.freshness.last_error_code));
-    }
-    if (gatewayAccount.managed_key) return;
-    if (gatewayAccount.actions.complete_setup !== 'gateway_account_complete_setup') {
-      throw new GatewayAccountFlowError('internal_contract_violation');
-    }
-    const groupId = resolveDefaultGatewayGroup(gatewayAccount.available_groups);
-    if (!groupId) throw new GatewayAccountFlowError('group_selection_required');
-    const setupResult = await ipcBridge.oplRuntime.executeAction.invoke({
-      actionId: 'gateway_account_complete_setup',
-      dryRun: false,
-      payloadJson: { group_id: groupId },
-    });
-    if (setupResult.ok === false) {
-      throw new GatewayAccountFlowError(normalizeGatewayAccountErrorCode(setupResult.error?.code));
-    }
-    setActionResult(setupResult);
+    if (latestActionResult) setActionResult(latestActionResult);
   }, []);
 
   const loginGatewayAccount = useCallback(async () => {
