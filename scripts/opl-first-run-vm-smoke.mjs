@@ -195,6 +195,9 @@ const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
   '__CF_USER_TEXT_ENCODING',
   'SSH_AUTH_SOCK',
   'AIONUI_CDP_PORT',
+  'OPL_FULL_RUNTIME_PYCACHE_ROOT',
+  'PYTHONDONTWRITEBYTECODE',
+  'PYTHONPYCACHEPREFIX',
 ]);
 const PACKAGED_APP_LAUNCH_ENV_PREFIX_ALLOWLIST = ['LC_'];
 const PACKAGED_APP_LAUNCH_ENV_BLOCKLIST = new Set([
@@ -1098,10 +1101,33 @@ function buildPackagedTemporalAddressEnv(sourceEnv = process.env) {
   };
 }
 
+function resolvePackagedRuntimeStateRoot(sourceEnv = process.env) {
+  const explicitStateDir = sourceEnv.OPL_STATE_DIR?.trim();
+  if (explicitStateDir) return path.resolve(explicitStateDir);
+  const dataDir = sourceEnv.OPL_DATA_DIR?.trim() || sourceEnv.AIONUI_DATA_DIR?.trim();
+  if (dataDir) return path.join(path.resolve(dataDir), 'opl', 'state');
+  const homeDir = sourceEnv.HOME?.trim() || os.homedir();
+  return path.join(homeDir, 'Library', 'Application Support', 'OPL', 'state');
+}
+
+function resolvePackagedPythonCacheRoot(sourceEnv = process.env) {
+  const explicit = sourceEnv.OPL_FULL_RUNTIME_PYCACHE_ROOT?.trim();
+  return path.resolve(explicit || path.join(resolvePackagedRuntimeStateRoot(sourceEnv), 'full-runtime', 'python-cache'));
+}
+
+function buildPackagedPythonRuntimeEnv(sourceEnv = process.env) {
+  return {
+    OPL_FULL_RUNTIME_PYCACHE_ROOT: resolvePackagedPythonCacheRoot(sourceEnv),
+    PYTHONDONTWRITEBYTECODE: '1',
+    PYTHONPYCACHEPREFIX: resolvePackagedPythonCacheRoot(sourceEnv),
+  };
+}
+
 function buildLaunchAppEnv(options, sourceEnv = process.env) {
   return {
     ...buildPackagedAppLaunchBaseEnv(sourceEnv),
     ...buildPackagedTemporalAddressEnv(sourceEnv),
+    ...buildPackagedPythonRuntimeEnv(sourceEnv),
     AIONUI_CDP_PORT: String(options.cdpPort),
     ...buildCodexInstallPreseedEnv(options),
   };
@@ -1115,6 +1141,8 @@ function launchEnvDiagnostics(env) {
     OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: Boolean(env.OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL),
     OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: Boolean(env.OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR),
     NPM_CONFIG_CACHE: Boolean(env.NPM_CONFIG_CACHE),
+    PYTHONDONTWRITEBYTECODE: env.PYTHONDONTWRITEBYTECODE ?? null,
+    PYTHONPYCACHEPREFIX: env.PYTHONPYCACHEPREFIX ?? null,
     inherited_keys: inheritedKeys,
     blocked_keys_present: [...PACKAGED_APP_LAUNCH_ENV_BLOCKLIST].filter((key) => Object.hasOwn(env, key)).sort(),
   };
@@ -1221,6 +1249,112 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
         .join('\n')
     );
   }
+  if (codesign.status !== 0) {
+    throw new Error(
+      [
+        'Packaged Full App failed the blocking deep codesign verification before first launch.',
+        `codesign status=${codesign.status}`,
+        codesign.stdout ? `codesign stdout:\n${codesign.stdout}` : '',
+        codesign.stderr ? `codesign stderr:\n${codesign.stderr}` : '',
+        `receipt=${path.join(artifactsDir, 'gatekeeper-launch-policy.json')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+}
+
+function inspectPackagedPythonBytecode(appPath) {
+  const paths = [];
+  const errors = [];
+  const stack = [appPath];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (error) {
+      errors.push({ path: current, error: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
+    if (stat.isSymbolicLink()) {
+      if (path.basename(current) === '__pycache__' || /\.(?:pyc|pyo)$/i.test(path.basename(current))) {
+        paths.push(current);
+      }
+      continue;
+    }
+    if (stat.isDirectory()) {
+      if (path.basename(current) === '__pycache__') paths.push(current);
+      let entries;
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch (error) {
+        errors.push({ path: current, error: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      for (const entry of entries) stack.push(path.join(current, entry.name));
+      continue;
+    }
+    if (stat.isFile() && /\.(?:pyc|pyo)$/i.test(path.basename(current))) paths.push(current);
+  }
+  return { paths: paths.sort(), errors };
+}
+
+function verifyPackagedRuntimeIntegrity(appPath, artifactsDir, hooks = {}) {
+  const runCommand = hooks.spawnSync ?? spawnSync;
+  const pythonBytecode = inspectPackagedPythonBytecode(appPath);
+  const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
+    encoding: 'utf8',
+  });
+  const spctl = runCommand('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
+    encoding: 'utf8',
+  });
+  const spctlStatus = codesign.status === 0
+    ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned')
+    : 'failed_allowed_unsigned';
+  const receipt = {
+    schema: 'opl_packaged_runtime_integrity.v1',
+    app_path: appPath,
+    status: pythonBytecode.errors.length === 0 && pythonBytecode.paths.length === 0 && codesign.status === 0
+      ? 'passed'
+      : 'failed',
+    python_bytecode: {
+      forbidden_path_count: pythonBytecode.paths.length,
+      forbidden_paths: pythonBytecode.paths,
+      inspection_errors: pythonBytecode.errors,
+    },
+    codesign: {
+      status: codesign.status,
+      stdout: codesign.stdout ?? '',
+      stderr: codesign.stderr ?? codesign.error?.message ?? '',
+    },
+    spctl: {
+      status: spctl.status,
+      policy_status: spctlStatus,
+      stdout: spctl.stdout ?? '',
+      stderr: spctl.stderr ?? spctl.error?.message ?? '',
+    },
+    checked_after_runtime_smoke: true,
+  };
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  writeJsonArtifact(path.join(artifactsDir, 'packaged-runtime-integrity.json'), receipt);
+  if (receipt.status !== 'passed') {
+    throw new Error(
+      [
+        'Packaged Full runtime integrity gate failed after runtime smoke.',
+        `forbidden_python_bytecode=${pythonBytecode.paths.length}`,
+        `inspection_errors=${pythonBytecode.errors.length}`,
+        `codesign status=${codesign.status}`,
+        `spctl status=${spctl.status}`,
+        `receipt=${path.join(artifactsDir, 'packaged-runtime-integrity.json')}`,
+        pythonBytecode.paths.length ? `forbidden paths:\n${pythonBytecode.paths.join('\n')}` : '',
+        pythonBytecode.errors.length ? `inspection errors:\n${JSON.stringify(pythonBytecode.errors)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+  return receipt;
 }
 
 function terminateExistingApp(processName = DEFAULT_PROCESS_NAME) {
@@ -1387,6 +1521,9 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     .join(runtimePathDelimiter());
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHomeForShell)}`,
+    `export OPL_FULL_RUNTIME_PYCACHE_ROOT=${shellQuote(toRuntimeShellPath(resolvePackagedPythonCacheRoot()))}`,
+    'export PYTHONDONTWRITEBYTECODE="1"',
+    `export PYTHONPYCACHEPREFIX=${shellQuote(toRuntimeShellPath(resolvePackagedPythonCacheRoot()))}`,
     `export OPL_PREFILLED_NODE_MODULES_DIR=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'opl', 'node_modules')))}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'skills')))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mas')))}`,
@@ -6643,7 +6780,7 @@ async function main() {
       assertPackagedMainBootstrap(appPath, options.artifacts)
     );
 
-    if (codexApiKey && !options.bootstrapLaunchDiagnostics) {
+    if (codexApiKey && !options.bootstrapLaunchDiagnostics && !options.requireCodexConfigWizard) {
       const codexConfigurePath = path.join(options.artifacts, 'codex-configure.json');
       const codexConfigure = await runSmokePhase(
         writeSmokeEvent,
@@ -6670,6 +6807,16 @@ async function main() {
         }
       );
       writeJsonArtifact(codexConfigurePath, codexConfigure, codexApiKey);
+    } else if (codexApiKey && options.requireCodexConfigWizard) {
+      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), {
+        status: 'deferred',
+        reason: 'require_codex_config_wizard',
+        launch_phase: 'gui_after_launch',
+      }, codexApiKey);
+      writeSmokeEventSafely(writeSmokeEvent, 'configure_codex_api_key', 'deferred', {
+        reason: 'require_codex_config_wizard',
+        source: 'gui_wizard',
+      });
     }
 
     if (shouldTerminateExistingApp()) {
@@ -7016,6 +7163,7 @@ async function main() {
 
     let appReleaseRuntimeEvidence = null;
     let temporalServiceSupervisorProof = null;
+    let packagedRuntimeIntegrity = null;
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
@@ -7047,6 +7195,16 @@ async function main() {
         () => collectAppReleaseRuntimeEvidence(installedAppOptions, codexApiKey),
         {
           action_id: RELEASE_EVIDENCE_ACTION_ID,
+          timeout_ms: options.timeoutMs,
+        }
+      );
+      packagedRuntimeIntegrity = await runSmokePhase(
+        writeSmokeEvent,
+        'packaged_runtime_integrity',
+        () => verifyPackagedRuntimeIntegrity(appPath, options.artifacts),
+        {
+          blocking_release_gate: true,
+          checks: ['no_packaged_python_bytecode', 'deep_codesign', 'spctl'],
           timeout_ms: options.timeoutMs,
         }
       );
@@ -7114,6 +7272,7 @@ async function main() {
       codex_ai_self_check: codexAiSelfCheck,
       app_release_runtime_evidence: appReleaseRuntimeEvidence,
       temporal_service_supervisor_proof: temporalServiceSupervisorProof,
+      packaged_runtime_integrity: packagedRuntimeIntegrity,
       guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
@@ -7126,6 +7285,7 @@ async function main() {
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
       app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
       temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
+      packaged_runtime_integrity: summary.packaged_runtime_integrity?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -7140,6 +7300,8 @@ export const __test =
   process.env.NODE_ENV === 'test'
     ? {
         buildFullRuntimeCommandPrefix,
+        buildPackagedPythonRuntimeEnv,
+        resolvePackagedPythonCacheRoot,
         assertFullFirstRunEquivalence,
         assertFullCompanionSkillPayloads,
         captureMacScreenArtifact,
@@ -7231,6 +7393,8 @@ export const __test =
         resolveAppExecutablePath,
         collectLaunchDiagnostics,
         verifyGatekeeperLaunchPolicy,
+        inspectPackagedPythonBytecode,
+        verifyPackagedRuntimeIntegrity,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         loadAssistantRouteSmokeTargets,
