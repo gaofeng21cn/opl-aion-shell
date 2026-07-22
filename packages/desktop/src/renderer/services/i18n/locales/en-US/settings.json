@@ -3406,8 +3406,11 @@
       "unavailable": {
         "title": "Storage information temporarily unavailable",
         "description": "One Person Lab could not read local storage information. Resolve the reason below and try again.",
+        "webStatistics": {
+          "title": "This Web version cannot display storage usage",
+          "description": "You are using OPL in a browser, and this deployment is not connected to a storage statistics service. Your existing data and other features are unaffected."
+        },
         "reasons": {
-          "desktopCarrier": "The desktop storage carrier is not available in this environment.",
           "permission": "The current account does not have permission to read the storage directory.",
           "service": "The local storage service is not ready.",
           "unknown": "The reason storage information is unavailable could not be determined."
@@ -3415,7 +3418,8 @@
         "actions": {
           "retry": "Retry",
           "openWorkspace": "Open Workspace settings",
-          "openMaintenance": "Open Maintenance"
+          "openMaintenance": "Open Maintenance",
+          "viewDeploymentStatus": "View deployment status"
         }
       }
     },

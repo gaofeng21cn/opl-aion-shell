@@ -214,13 +214,16 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
     'settings.uiOptimization.storage.unavailable.title': 'Storage information temporarily unavailable',
     'settings.uiOptimization.storage.unavailable.description': 'Storage information could not be read.',
-    'settings.uiOptimization.storage.unavailable.reasons.desktopCarrier': 'Desktop storage carrier is unavailable.',
+    'settings.uiOptimization.storage.unavailable.webStatistics.title': 'This Web version cannot display storage usage',
+    'settings.uiOptimization.storage.unavailable.webStatistics.description':
+      'You are using OPL in a browser, and this deployment is not connected to a storage statistics service. Your existing data and other features are unaffected.',
     'settings.uiOptimization.storage.unavailable.reasons.permission': 'Storage directory permission is missing.',
     'settings.uiOptimization.storage.unavailable.reasons.service': 'Local storage service is not ready.',
     'settings.uiOptimization.storage.unavailable.reasons.unknown': 'Storage failure reason is unknown.',
     'settings.uiOptimization.storage.unavailable.actions.retry': 'Retry',
     'settings.uiOptimization.storage.unavailable.actions.openWorkspace': 'Open Workspace settings',
     'settings.uiOptimization.storage.unavailable.actions.openMaintenance': 'Open Maintenance',
+    'settings.uiOptimization.storage.unavailable.actions.viewDeploymentStatus': 'View deployment status',
     'settings.uiOptimization.maintenance.technicalDetails': 'Technical details',
     'settings.workspacePage.logs.title': 'Logs directory',
     'settings.workspacePage.logs.description': 'Choose where the desktop App stores logs.',
@@ -593,7 +596,7 @@ describe('StorageSettingsContent', () => {
     }
   });
 
-  it('explains a missing desktop carrier only when WebUI has no valid owner readback', async () => {
+  it('explains unavailable Web storage statistics without presenting a fault or invalid retry', async () => {
     const electronApiDescriptor = Object.getOwnPropertyDescriptor(window, 'electronAPI');
     delete (window as Window & { electronAPI?: unknown }).electronAPI;
     bridgeMocks.appState = {};
@@ -601,9 +604,15 @@ describe('StorageSettingsContent', () => {
     try {
       render(<StorageSettingsContent />);
 
-      expect(await screen.findByTestId('settings-storage-unavailable-reason-desktopCarrier')).toHaveTextContent(
-        'Desktop storage carrier is unavailable.'
+      const unavailable = await screen.findByTestId('settings-storage-unavailable');
+      expect(unavailable).toHaveTextContent('This Web version cannot display storage usage');
+      expect(screen.getByTestId('settings-storage-web-statistics-info')).toHaveTextContent(
+        'You are using OPL in a browser, and this deployment is not connected to a storage statistics service. Your existing data and other features are unaffected.'
       );
+      expect(unavailable.querySelector('.arco-alert-info')).not.toBeNull();
+      expect(unavailable).not.toHaveTextContent(/desktop storage carrier|owner projection|carrier host/i);
+      expect(screen.queryByTestId('settings-storage-unavailable-retry')).not.toBeInTheDocument();
+      expect(screen.getByTestId('settings-storage-unavailable-recovery')).toHaveTextContent('View deployment status');
       expect(bridgeMocks.getInventorySnapshot).not.toHaveBeenCalled();
       fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
       expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/environment?section=services');
@@ -671,7 +680,9 @@ describe('StorageSettingsContent', () => {
       expect(await screen.findByTestId(`settings-storage-unavailable-reason-${scenario.reason}`)).toHaveTextContent(
         scenario.message
       );
-      expect(screen.queryByTestId('settings-storage-unavailable-reason-desktopCarrier')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('settings-storage-web-statistics-info')).not.toBeInTheDocument();
+      expect(screen.getByTestId('settings-storage-unavailable').querySelector('.arco-alert-warning')).not.toBeNull();
+      expect(screen.getByTestId('settings-storage-unavailable-retry')).toHaveTextContent('Retry');
       expect(screen.getByTestId('settings-storage-unavailable-technical-details')).toHaveTextContent(scenario.error);
       fireEvent.click(screen.getByTestId('settings-storage-unavailable-recovery'));
       expect(bridgeMocks.navigate).toHaveBeenCalledWith(

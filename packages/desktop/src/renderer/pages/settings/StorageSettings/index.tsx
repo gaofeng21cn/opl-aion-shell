@@ -85,7 +85,7 @@ type SectionMeta = {
   descriptionKey: string;
 };
 
-type StorageUnavailableReason = 'desktopCarrier' | 'permission' | 'service' | 'unknown';
+type StorageUnavailableReason = 'permission' | 'service' | 'unknown';
 
 const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> = {
   updater_cache: {
@@ -121,10 +121,7 @@ const STORAGE_NAV_ICON_PROPS = {
   strokeWidth: 2,
 };
 
-const classifyStorageUnavailableReason = (
-  desktopCarrier: boolean,
-  rawError: string | null
-): StorageUnavailableReason => {
+const classifyStorageUnavailableReason = (rawError: string | null): StorageUnavailableReason => {
   if (rawError) {
     if (/\b(?:EACCES|EPERM)\b|permission denied|access denied|not authorized|forbidden/i.test(rawError)) {
       return 'permission';
@@ -138,7 +135,7 @@ const classifyStorageUnavailableReason = (
     }
     return 'unknown';
   }
-  return desktopCarrier ? 'service' : 'desktopCarrier';
+  return 'service';
 };
 
 // This pointer only locates a restore candidate; restoreConversationProof remains authoritative.
@@ -393,7 +390,8 @@ export const StorageSettingsContent: React.FC = () => {
   const storageUnavailable = desktopCarrier
     ? inventoryReadSettled && (Boolean(inventoryReadError) || !hasLocalStorageReadback)
     : !appStateQuery.loading && !hasOwnerStorageReadback;
-  const storageUnavailableReason = classifyStorageUnavailableReason(desktopCarrier, storageUnavailableRawError);
+  const webStorageStatisticsNotConnected = storageUnavailable && !desktopCarrier && !storageUnavailableRawError;
+  const storageUnavailableReason = classifyStorageUnavailableReason(storageUnavailableRawError);
   const storageRecoveryRoute =
     storageUnavailableReason === 'permission' ? '/settings/workspace' : '/settings/environment?section=services';
 
@@ -1106,40 +1104,58 @@ export const StorageSettingsContent: React.FC = () => {
           data-testid='settings-storage-unavailable'
         >
           <Alert
-            type='warning'
-            title={t('settings.uiOptimization.storage.unavailable.title')}
+            type={webStorageStatisticsNotConnected ? 'info' : 'warning'}
+            title={t(
+              webStorageStatisticsNotConnected
+                ? 'settings.uiOptimization.storage.unavailable.webStatistics.title'
+                : 'settings.uiOptimization.storage.unavailable.title'
+            )}
             content={
               <div className='flex min-w-0 flex-col gap-10px'>
-                <Typography.Text className='text-13px text-t-secondary'>
-                  {t('settings.uiOptimization.storage.unavailable.description')}
-                </Typography.Text>
                 <Typography.Text
-                  className='text-13px text-t-primary'
-                  data-testid={`settings-storage-unavailable-reason-${storageUnavailableReason}`}
+                  className='text-13px text-t-secondary'
+                  data-testid={webStorageStatisticsNotConnected ? 'settings-storage-web-statistics-info' : undefined}
                 >
-                  {t(`settings.uiOptimization.storage.unavailable.reasons.${storageUnavailableReason}`)}
+                  {t(
+                    webStorageStatisticsNotConnected
+                      ? 'settings.uiOptimization.storage.unavailable.webStatistics.description'
+                      : 'settings.uiOptimization.storage.unavailable.description'
+                  )}
                 </Typography.Text>
-                <Space wrap size='small'>
-                  <Button
-                    htmlType='button'
-                    type='primary'
-                    loading={loading === 'inventory'}
-                    disabled={interactionLocked}
-                    onClick={loadInventory}
-                    data-testid='settings-storage-unavailable-retry'
+                {!webStorageStatisticsNotConnected && (
+                  <Typography.Text
+                    className='text-13px text-t-primary'
+                    data-testid={`settings-storage-unavailable-reason-${storageUnavailableReason}`}
                   >
-                    {t('settings.uiOptimization.storage.unavailable.actions.retry')}
-                  </Button>
+                    {t(`settings.uiOptimization.storage.unavailable.reasons.${storageUnavailableReason}`)}
+                  </Typography.Text>
+                )}
+                <Space wrap size='small'>
+                  {!webStorageStatisticsNotConnected && (
+                    <Button
+                      htmlType='button'
+                      type='primary'
+                      loading={loading === 'inventory'}
+                      disabled={interactionLocked}
+                      onClick={loadInventory}
+                      data-testid='settings-storage-unavailable-retry'
+                    >
+                      {t('settings.uiOptimization.storage.unavailable.actions.retry')}
+                    </Button>
+                  )}
                   <Button
                     htmlType='button'
+                    type={webStorageStatisticsNotConnected ? 'primary' : 'secondary'}
                     icon={<Right {...STORAGE_NAV_ICON_PROPS} />}
                     onClick={() => navigate(storageRecoveryRoute)}
                     data-testid='settings-storage-unavailable-recovery'
                   >
                     {t(
-                      storageUnavailableReason === 'permission'
-                        ? 'settings.uiOptimization.storage.unavailable.actions.openWorkspace'
-                        : 'settings.uiOptimization.storage.unavailable.actions.openMaintenance'
+                      webStorageStatisticsNotConnected
+                        ? 'settings.uiOptimization.storage.unavailable.actions.viewDeploymentStatus'
+                        : storageUnavailableReason === 'permission'
+                          ? 'settings.uiOptimization.storage.unavailable.actions.openWorkspace'
+                          : 'settings.uiOptimization.storage.unavailable.actions.openMaintenance'
                     )}
                   </Button>
                 </Space>

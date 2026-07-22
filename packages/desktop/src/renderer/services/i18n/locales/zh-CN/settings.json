@@ -3407,8 +3407,11 @@
       "unavailable": {
         "title": "存储信息暂时不可用",
         "description": "One Person Lab 无法读取本机存储信息。请按下方原因恢复后重试。",
+        "webStatistics": {
+          "title": "当前 Web 版无法显示存储占用",
+          "description": "你正在通过浏览器访问 OPL，此部署尚未连接存储统计服务。已有数据和其他功能不受影响。"
+        },
         "reasons": {
-          "desktopCarrier": "当前环境缺少桌面存储载体。",
           "permission": "当前账户没有读取存储目录的权限。",
           "service": "本机存储服务尚未就绪。",
           "unknown": "暂时无法确认存储信息不可用的原因。"
@@ -3416,7 +3419,8 @@
         "actions": {
           "retry": "重试",
           "openWorkspace": "打开工作区设置",
-          "openMaintenance": "打开维护"
+          "openMaintenance": "打开维护",
+          "viewDeploymentStatus": "查看部署状态"
         }
       }
     },
