@@ -596,7 +596,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain("'failed_allowed_unsigned'");
     expect(scriptSource).toContain('if (quarantineAttributeCount !== 0)');
     expect(scriptSource).toContain('Stable local authorization failed to clear quarantine before first launch.');
-    expect(scriptSource).not.toContain('if (codesign.status !== 0)');
+    expect(scriptSource).toContain('if (codesign.status !== 0)');
     expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
     expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
   });
