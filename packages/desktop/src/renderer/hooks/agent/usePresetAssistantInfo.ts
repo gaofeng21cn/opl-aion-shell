@@ -34,6 +34,8 @@ export interface PresetAssistantInfo {
  * (`ipcBridge.assistants.list`).
  */
 export function resolveAssistantConfigId(conversation: TChatConversation): string | null {
+  const authoritativeAssistantId = conversation.assistant?.id?.trim();
+  if (authoritativeAssistantId) return authoritativeAssistantId;
   const extra = conversation.extra as {
     preset_assistant_id?: unknown;
     custom_agent_id?: unknown;
@@ -234,6 +236,18 @@ export function usePresetAssistantInfo(conversation: TChatConversation | undefin
 
   return useMemo(() => {
     if (!conversation) return { info: null, isLoading: false };
+
+    if (conversation.assistant) {
+      const normalized = normalizeAvatar(conversation.assistant.avatar);
+      return {
+        info: {
+          name: conversation.assistant.name || conversation.assistant.id,
+          logo: normalized.logo,
+          isEmoji: normalized.isEmoji,
+        },
+        isLoading: false,
+      };
+    }
 
     // Remote agent conversations short-circuit to the remote record
     if (conversation.type === 'remote' && remoteAgentId) {

@@ -31,6 +31,7 @@ import { useConversationRuntimeView } from '../runtime/useConversationRuntimeVie
 import CurrentTaskAwareness, { hasCurrentTaskAwareness } from '../runtime/CurrentTaskAwareness';
 import { isLegacyReadOnlyConversationType } from '../utils/conversationRuntime';
 import { sanitizeOplOrdinaryConversationExtra } from '@/common/config/oplProductProfile';
+import ConversationAgentRebindControl from './ConversationAgentRebindControl';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
 
 const getConversationBranch = (conversation: TChatConversation | undefined): string | undefined => {
@@ -194,6 +195,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
       ?.is_temporary_workspace,
     backend: 'aionrs' as const,
     presetAssistant: presetAssistantInfo ? { ...presetAssistantInfo, id: aionrsAssistantId } : undefined,
+    headerLeading: <ConversationAgentRebindControl conversation={conversation} />,
   };
   const ordinaryExtra = useMemo(
     () => sanitizeOplOrdinaryConversationExtra(conversation.extra as Record<string, unknown> | undefined),
@@ -359,6 +361,11 @@ const ChatConversation: React.FC<{
         (conversation?.extra as { is_temporary_workspace?: boolean } | undefined)?.is_temporary_workspace
       }
       conversation_id={conversation?.id}
+      headerLeading={
+        conversation && !isLegacyReadOnlyConversation ? (
+          <ConversationAgentRebindControl conversation={conversation} />
+        ) : undefined
+      }
     >
       {conversationNode}
     </ChatLayout>

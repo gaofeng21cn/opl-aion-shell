@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { filterOplOrdinaryMcpServers, getOplOrdinaryCapabilitySelectorPolicy } from '@/common/config/oplProductProfile';
 import type { AvailableAgent } from '@/renderer/pages/guid/types';
 import GuidPage from '@/renderer/pages/guid/GuidPage';
 
@@ -117,6 +118,28 @@ const selectedAssistant: Assistant = {
   prompts_i18n: {},
   models: [],
 };
+
+const configuredMcpServers = () => [
+  {
+    id: 'unknown-mcp',
+    name: 'Unknown MCP',
+    enabled: true,
+    transport: { type: 'stdio' as const, command: 'echo' },
+    created_at: 1,
+    updated_at: 1,
+    original_json: '{}',
+  },
+  {
+    id: 'aionui-image-generation',
+    name: 'AionUI Image Generation',
+    enabled: true,
+    builtin: true,
+    transport: { type: 'stdio' as const, command: 'echo' },
+    created_at: 1,
+    updated_at: 1,
+    original_json: '{}',
+  },
+];
 
 const shortcutAssistants: Assistant[] = [
   selectedAssistant,
@@ -477,29 +500,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.sendDisabled.value = true;
     mocks.slashExecuteBuiltin.value = undefined;
     mocks.slashCommands.value = [];
-    mocks.ensureBackendMcpCatalog.mockResolvedValue({
-      allServers: [
-        {
-          id: 'unknown-mcp',
-          name: 'Unknown MCP',
-          enabled: true,
-          transport: { type: 'stdio', command: 'echo' },
-          created_at: 1,
-          updated_at: 1,
-          original_json: '{}',
-        },
-        {
-          id: 'aionui-image-generation',
-          name: 'AionUI Image Generation',
-          enabled: true,
-          builtin: true,
-          transport: { type: 'stdio', command: 'echo' },
-          created_at: 1,
-          updated_at: 1,
-          original_json: '{}',
-        },
-      ],
-    });
+    mocks.ensureBackendMcpCatalog.mockResolvedValue({ allServers: configuredMcpServers() });
     mocks.useGuidSend.mockClear();
   });
 
@@ -530,13 +531,15 @@ describe('GuidPage selected purpose assistant surface', () => {
     });
   });
 
-  it('keeps Agent names and @ mentions as prompt content without selecting another Agent', () => {
+  it('keeps plain-text Agent references inert while following the explicit @ selection policy', () => {
     render(<GuidPage />);
     mocks.setSelectedAgentKey.mockClear();
 
+    const mentionSelectionAllowed =
+      getOplOrdinaryCapabilitySelectorPolicy().agent_reference_admission_policy.at_mention_agent_selection_allowed;
     const entry = screen.getByTestId('opl-guid-entry');
-    expect(entry).toHaveAttribute('data-opl-at-mention-agent-selection-enabled', 'false');
-    expect(mocks.mentionSelectionEnabled.value).toBe(false);
+    expect(entry).toHaveAttribute('data-opl-at-mention-agent-selection-enabled', String(mentionSelectionAllowed));
+    expect(mocks.mentionSelectionEnabled.value).toBe(mentionSelectionAllowed);
 
     const prompt = '@OPL Meta Agent 帮我用 RCA 做一个 PPT';
     fireEvent.change(screen.getByTestId('guid-input'), { target: { value: prompt } });
@@ -545,7 +548,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
   });
 
-  it('keeps ordinary Home skills and MCP servers inside the App-owned OPL allowlist', async () => {
+  it('applies the App-owned skill allowlist and MCP visibility policy on ordinary Home', async () => {
     render(<GuidPage />);
 
     await waitFor(() => {
@@ -553,7 +556,7 @@ describe('GuidPage selected purpose assistant surface', () => {
         expect.objectContaining({
           guidEnabledSkills: ['med-autoscience'],
           guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
-          availableMcpServers: [],
+          availableMcpServers: filterOplOrdinaryMcpServers(configuredMcpServers()),
           selectedMcpServerIds: [],
         })
       );

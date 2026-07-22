@@ -254,6 +254,38 @@ describe('useGuidAgentSelection', () => {
 });
 
 describe('useGuidMention Agent admission', () => {
+  it('selects an explicit Agent mention as the single session owner', () => {
+    const setSelectedAgentKey = vi.fn();
+    const setInput = vi.fn((update: (value: string) => string) => update('Draft @oma'));
+    const availableAgents: AvailableAgent[] = [
+      {
+        id: 'oma',
+        custom_agent_id: 'oma',
+        agent_type: 'codex',
+        backend: 'codex',
+        name: 'OPL Meta Agent',
+        is_preset: true,
+      },
+    ];
+    const { result } = renderHook(() =>
+      useGuidMention({
+        selectionEnabled: true,
+        availableAgents,
+        customAgentAvatarMap: new Map(),
+        selectedAgentKey: 'codex',
+        setSelectedAgentKey,
+        setInput: setInput as React.Dispatch<React.SetStateAction<string>>,
+        selectedAgentInfo: undefined,
+      })
+    );
+
+    act(() => result.current.selectMentionAgent('custom:oma'));
+
+    expect(setSelectedAgentKey).toHaveBeenCalledWith('custom:oma');
+    expect(setInput).toHaveBeenCalledOnce();
+    expect(setInput.mock.results[0]?.value).toBe('Draft');
+  });
+
   it('does not expose or select Agent mentions when the App policy disables mention routing', () => {
     const setSelectedAgentKey = vi.fn();
     const setInput = vi.fn();
