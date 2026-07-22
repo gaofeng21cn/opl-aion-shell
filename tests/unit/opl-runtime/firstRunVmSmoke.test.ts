@@ -909,9 +909,9 @@ describe('packaged first-run VM smoke helpers', () => {
           ? { status: 1, stdout: '', stderr: 'codesign-failed\n' }
           : { status: 0, stdout: '', stderr: '' };
 
-      expect(() =>
-        __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts, { spawnSync })
-      ).not.toThrow();
+      expect(() => __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts, { spawnSync })).toThrow(
+        /blocking deep codesign verification/
+      );
       const policy = JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8'));
       expect(policy).toMatchObject({
         schema: 'opl_gatekeeper_launch_policy.v1',

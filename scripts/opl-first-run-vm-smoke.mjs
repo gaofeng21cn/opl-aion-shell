@@ -1112,7 +1112,9 @@ function resolvePackagedRuntimeStateRoot(sourceEnv = process.env) {
 
 function resolvePackagedPythonCacheRoot(sourceEnv = process.env) {
   const explicit = sourceEnv.OPL_FULL_RUNTIME_PYCACHE_ROOT?.trim();
-  return path.resolve(explicit || path.join(resolvePackagedRuntimeStateRoot(sourceEnv), 'full-runtime', 'python-cache'));
+  return path.resolve(
+    explicit || path.join(resolvePackagedRuntimeStateRoot(sourceEnv), 'full-runtime', 'python-cache')
+  );
 }
 
 function buildPackagedPythonRuntimeEnv(sourceEnv = process.env) {
@@ -1309,15 +1311,15 @@ function verifyPackagedRuntimeIntegrity(appPath, artifactsDir, hooks = {}) {
   const spctl = runCommand('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
     encoding: 'utf8',
   });
-  const spctlStatus = codesign.status === 0
-    ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned')
-    : 'failed_allowed_unsigned';
+  const spctlStatus =
+    codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed_allowed_unsigned';
   const receipt = {
     schema: 'opl_packaged_runtime_integrity.v1',
     app_path: appPath,
-    status: pythonBytecode.errors.length === 0 && pythonBytecode.paths.length === 0 && codesign.status === 0
-      ? 'passed'
-      : 'failed',
+    status:
+      pythonBytecode.errors.length === 0 && pythonBytecode.paths.length === 0 && codesign.status === 0
+        ? 'passed'
+        : 'failed',
     python_bytecode: {
       forbidden_path_count: pythonBytecode.paths.length,
       forbidden_paths: pythonBytecode.paths,
@@ -6808,11 +6810,15 @@ async function main() {
       );
       writeJsonArtifact(codexConfigurePath, codexConfigure, codexApiKey);
     } else if (codexApiKey && options.requireCodexConfigWizard) {
-      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), {
-        status: 'deferred',
-        reason: 'require_codex_config_wizard',
-        launch_phase: 'gui_after_launch',
-      }, codexApiKey);
+      writeJsonArtifact(
+        path.join(options.artifacts, 'codex-configure.json'),
+        {
+          status: 'deferred',
+          reason: 'require_codex_config_wizard',
+          launch_phase: 'gui_after_launch',
+        },
+        codexApiKey
+      );
       writeSmokeEventSafely(writeSmokeEvent, 'configure_codex_api_key', 'deferred', {
         reason: 'require_codex_config_wizard',
         source: 'gui_wizard',
