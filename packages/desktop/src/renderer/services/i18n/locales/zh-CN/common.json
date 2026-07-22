@@ -171,6 +171,11 @@
       "description": "本机服务启动失败，One Person Lab App 已停止继续启动。",
       "action": "请重启 One Person Lab App；如果仍然失败，请先查看应用日志，再决定是否修改配置或重新安装应用。"
     },
+    "transientConcurrentStartup": {
+      "title": "One Person Lab 已在启动中",
+      "description": "另一个 One Person Lab 进程正在使用同一份本地数据完成启动。这是临时状态，您的数据是安全的，重新安装无法解决此问题。",
+      "action": "请稍候片刻后重启 One Person Lab；如果问题持续出现，请在 GitHub 报告。"
+    },
     "recoverableDatabaseCorruption": {
       "title": "本地数据已损坏",
       "description": "One Person Lab App 检测到本地数据库损坏，因此本机服务无法继续启动。确认后，One Person Lab App 将备份旧数据库、创建新的本地数据库，并重新启动本机服务。历史本地数据暂时不会显示，旧数据库会保留为备份。",

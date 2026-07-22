@@ -175,6 +175,34 @@ const rewriteExternalMediaUrls = (markdown: string): string => {
   });
 };
 
+// Streamdown memoizes its built-in headings by node position and can retain stale
+// children after rehype-raw reparses the tree. Plain overrides always render the
+// latest heading text while preserving Streamdown's heading attributes.
+const HEADING_COMPONENTS = Object.fromEntries(
+  (
+    [
+      ['h1', 'text-3xl'],
+      ['h2', 'text-2xl'],
+      ['h3', 'text-xl'],
+      ['h4', 'text-lg'],
+      ['h5', 'text-base'],
+      ['h6', 'text-sm'],
+    ] as const
+  ).map(([tag, size], index) => [
+    tag,
+    ({ children, className, node: _node, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { node?: unknown }) =>
+      React.createElement(
+        tag,
+        {
+          className: ['mt-6 mb-2 font-semibold', size, className].filter(Boolean).join(' '),
+          'data-streamdown': `heading-${index + 1}`,
+          ...props,
+        },
+        children
+      ),
+  ])
+);
+
 /**
  * Markdown 预览组件
  * Markdown preview component
@@ -248,6 +276,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               remarkPlugins={[...Object.values(defaultRemarkPlugins), remarkBreaks]}
               rehypePlugins={[defaultRehypePlugins.raw, defaultRehypePlugins.sanitize, defaultRehypePlugins.katex]}
               components={{
+                ...HEADING_COMPONENTS,
                 img({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
                   return <MarkdownImage src={src} alt={alt} baseDir={baseDir} workspace={workspace} {...props} />;
                 },

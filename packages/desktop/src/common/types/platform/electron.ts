@@ -31,6 +31,7 @@ export type BackendStartupFailureReason =
   | 'backend_incomplete_installation'
   | 'backend_package_architecture_mismatch'
   | 'backend_recoverable_database_corruption'
+  | 'backend_transient_concurrent_startup'
   | 'backend_startup_directory_unavailable'
   | 'backend_startup_failed';
 

@@ -23,6 +23,7 @@ import { initializeProcess } from './process';
 import { startBackendOrExit } from './process/startup/backendStartup';
 import { assertStartupArchitectureCompatible } from './process/startup/architectureCompatibility';
 import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
+import { shouldRegisterBackendStartup } from './process/startup/singleInstanceGating';
 import { installQuitCleanup } from './process/startup/quitCleanup';
 import { initializeTrayForDesktopMode } from './process/startup/trayStartup';
 import { ProcessConfig } from './process/utils/initStorage';
@@ -893,15 +894,16 @@ app.on('open-url', (event, url) => {
 // 监听 GPU 子进程崩溃，连续多次后下次启动自动关闭硬件加速（参见 ELECTRON-9A / ELECTRON-9D）。
 installGpuCrashHandler();
 
-// Ensure we don't miss the ready event when running in CLI/WebUI mode
-void app
-  .whenReady()
-  .then(handleAppReady)
-  .catch((error) => {
-    // App initialization failed
-    console.error('[AionUi] App initialization failed:', error);
-    app.quit();
-  });
+// A lock-losing process must not start a second backend over the same data dir.
+if (shouldRegisterBackendStartup(gotTheLock)) {
+  void app
+    .whenReady()
+    .then(handleAppReady)
+    .catch((error) => {
+      console.error('[AionUi] App initialization failed:', error);
+      app.quit();
+    });
+}
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

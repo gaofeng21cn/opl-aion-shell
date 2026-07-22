@@ -234,6 +234,13 @@ const FETCH_FORBIDDEN_PORTS = new Set([
 const FETCH_COMPATIBLE_PORT_MAX_ATTEMPTS = 50;
 const AIONCORE_LISTENING_PREFIX = 'AIONCORE_LISTENING ';
 const BACKEND_PORT_REPORT_TIMEOUT_MS = 30_000;
+const PEER_ALREADY_RUNNING_BOUNDARY_CODE = 'BOOTSTRAP_PEER_ALREADY_RUNNING';
+const PEER_RETRY_MAX_ATTEMPTS = 5;
+const PEER_RETRY_BACKOFF_MS = [250, 500, 1000, 1500];
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function isFetchForbiddenPort(port: number): boolean {
   return FETCH_FORBIDDEN_PORTS.has(port);
@@ -474,7 +481,43 @@ export class BackendLifecycleManager {
     return this._status;
   }
 
+  private isPeerAlreadyRunningError(error: unknown): boolean {
+    return (
+      error instanceof BackendStartupError && error.details.backendBoundaryCode === PEER_ALREADY_RUNNING_BOUNDARY_CODE
+    );
+  }
+
   async start(
+    dbPath: string,
+    logDir?: string,
+    dirs?: BackendDirConfig,
+    options?: BackendStartOptions,
+    preferredPort?: number,
+    launchFlags: BackendLaunchFlags = {}
+  ): Promise<number> {
+    let lastPeerError: unknown;
+    for (let attempt = 0; attempt < PEER_RETRY_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        // Peer retries must be serial so only one backend touches the data dir.
+        // oxlint-disable-next-line no-await-in-loop
+        return await this.attemptStart(dbPath, logDir, dirs, options, preferredPort, launchFlags);
+      } catch (error) {
+        if (!this.isPeerAlreadyRunningError(error) || attempt >= PEER_RETRY_MAX_ATTEMPTS - 1) {
+          throw error;
+        }
+        lastPeerError = error;
+        const backoff = PEER_RETRY_BACKOFF_MS[Math.min(attempt, PEER_RETRY_BACKOFF_MS.length - 1)];
+        console.warn(
+          `[aioncore] a peer already owns the data directory; retrying startup in ${backoff}ms (attempt ${attempt + 1}/${PEER_RETRY_MAX_ATTEMPTS})`
+        );
+        // oxlint-disable-next-line no-await-in-loop
+        await delayMs(backoff);
+      }
+    }
+    throw lastPeerError ?? new Error('aioncore startup failed after peer retries');
+  }
+
+  private async attemptStart(
     dbPath: string,
     logDir?: string,
     dirs?: BackendDirConfig,

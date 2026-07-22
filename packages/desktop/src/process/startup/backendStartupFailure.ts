@@ -39,6 +39,9 @@ const STARTUP_DIRECTORY_FAILURE_STAGES = new Set(['spawn']);
 const STARTUP_DIRECTORY_PERMISSION_RE = /\b(?:EACCES|EPERM)\b|permission denied|operation not permitted/i;
 const STARTUP_DIRECTORY_UNAVAILABLE_RE =
   /startup directory preparation failed|(?:\b(?:ENOENT|ENOTDIR|EEXIST)\b[\s\S]{0,160}\bmkdir\b)|(?:\bmkdir\b[\s\S]{0,160}\b(?:ENOENT|ENOTDIR|EEXIST)\b)/i;
+const TRANSIENT_CONCURRENT_STARTUP_PEER_CODE = 'BOOTSTRAP_PEER_ALREADY_RUNNING';
+const ASSISTANT_STORAGE_BOOTSTRAP_BOUNDARY_CODE = 'BOOTSTRAP_SERVER_FAILED';
+const ASSISTANT_BOOTSTRAP_CONTENTION_STAGE = 'router.assistant.bootstrap.concurrency_contended';
 const MAX_REPORTED_DIR_ENTRIES = 20;
 
 function collectBackendStartupText(error: unknown): string {
@@ -181,6 +184,24 @@ function classifyStartupDirectoryFailure(
   return undefined;
 }
 
+function classifyTransientConcurrentStartupFailure(
+  backendBoundaryCode: string | undefined,
+  backendBoundaryStage: string | undefined
+): BackendStartupFailureInfo | undefined {
+  const isPeerYield = backendBoundaryCode === TRANSIENT_CONCURRENT_STARTUP_PEER_CODE;
+  const isAssistantBootstrapContention =
+    backendBoundaryCode === ASSISTANT_STORAGE_BOOTSTRAP_BOUNDARY_CODE &&
+    backendBoundaryStage === ASSISTANT_BOOTSTRAP_CONTENTION_STAGE;
+
+  if (!isPeerYield && !isAssistantBootstrapContention) return undefined;
+
+  return {
+    reason: 'backend_transient_concurrent_startup',
+    backendBoundaryCode,
+    backendBoundaryStage,
+  };
+}
+
 export function classifyBackendStartupFailure(error: unknown): BackendStartupFailureInfo {
   const details = getBackendStartupDetails(error);
   const packageArchitectureMismatch = classifyPackageArchitectureMismatch(details);
@@ -206,6 +227,12 @@ export function classifyBackendStartupFailure(error: unknown): BackendStartupFai
     typeof details?.backendBoundaryCode === 'string' ? details.backendBoundaryCode : undefined;
   const backendBoundaryStage =
     typeof details?.backendBoundaryStage === 'string' ? details.backendBoundaryStage : undefined;
+
+  const transientConcurrentStartupFailure = classifyTransientConcurrentStartupFailure(
+    backendBoundaryCode,
+    backendBoundaryStage
+  );
+  if (transientConcurrentStartupFailure) return transientConcurrentStartupFailure;
 
   const isRecoverableDatabaseBoundary =
     backendBoundaryStage === RECOVERABLE_DATABASE_CORRUPTION_BOUNDARY_STAGE ||

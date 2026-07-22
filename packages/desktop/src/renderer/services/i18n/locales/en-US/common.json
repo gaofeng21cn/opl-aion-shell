@@ -171,6 +171,11 @@
       "description": "One Person Lab App stopped startup because its local service failed to start.",
       "action": "Restart One Person Lab App. If the failure continues, review the application logs before changing configuration or reinstalling the app."
     },
+    "transientConcurrentStartup": {
+      "title": "One Person Lab is already starting",
+      "description": "Another One Person Lab process is finishing startup with the same local data. This is temporary; your data is safe and reinstalling will not help.",
+      "action": "Wait a moment, then restart One Person Lab. If this keeps happening, report the issue on GitHub."
+    },
     "recoverableDatabaseCorruption": {
       "title": "Local data is corrupted",
       "description": "One Person Lab App detected that its local database is corrupted, so the local service cannot continue startup. After confirmation, One Person Lab App will back up the old database, create a new local database, and restart the local service. Historical local data will not be shown for now, and the old database will be kept as a backup.",

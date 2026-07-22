@@ -18,6 +18,7 @@ export function openDownloadLatest(): void {
 export type InstallationIntegrityDialogKind =
   | 'incomplete_installation'
   | 'recoverable_database_corruption'
+  | 'transient_concurrent_startup'
   | 'startup_directory_permission_denied'
   | 'startup_directory_unavailable'
   | 'generic_startup_failure';
@@ -93,6 +94,8 @@ export function getBackendStartupFailureDialogRoute(
       return { kind: 'installation_integrity', diagnosticsKind: 'incomplete_installation' };
     case 'backend_recoverable_database_corruption':
       return { kind: 'installation_integrity', diagnosticsKind: 'recoverable_database_corruption' };
+    case 'backend_transient_concurrent_startup':
+      return { kind: 'installation_integrity', diagnosticsKind: 'transient_concurrent_startup' };
     case 'backend_startup_directory_unavailable':
       return {
         kind: 'installation_integrity',
@@ -118,6 +121,8 @@ export function getInstallationIntegrityTitle(
   switch (diagnosticsKind) {
     case 'recoverable_database_corruption':
       return t('common.backendStartup.recoverableDatabaseCorruption.title');
+    case 'transient_concurrent_startup':
+      return t('common.backendStartup.transientConcurrentStartup.title');
     case 'startup_directory_permission_denied':
     case 'startup_directory_unavailable':
       return t('common.backendStartup.startupDirectory.title');
@@ -139,6 +144,8 @@ export function getInstallationIntegrityDescription(
   switch (diagnosticsKind) {
     case 'recoverable_database_corruption':
       return t('common.backendStartup.recoverableDatabaseCorruption.description');
+    case 'transient_concurrent_startup':
+      return t('common.backendStartup.transientConcurrentStartup.description');
     case 'startup_directory_permission_denied':
       return t('common.backendStartup.startupDirectory.permissionDeniedDescription');
     case 'startup_directory_unavailable':
@@ -157,6 +164,8 @@ export function getInstallationIntegritySecondaryText(
   switch (diagnosticsKind) {
     case 'recoverable_database_corruption':
       return t('common.backendStartup.recoverableDatabaseCorruption.diagnosticsHint');
+    case 'transient_concurrent_startup':
+      return t('common.backendStartup.transientConcurrentStartup.action');
     case 'startup_directory_permission_denied':
       return t('common.backendStartup.startupDirectory.permissionDeniedAction');
     case 'startup_directory_unavailable':
@@ -226,6 +235,7 @@ export function getInstallationIntegrityModalActions(
     restartText:
       diagnosticsKind === 'startup_directory_permission_denied' ||
       diagnosticsKind === 'startup_directory_unavailable' ||
+      diagnosticsKind === 'transient_concurrent_startup' ||
       diagnosticsKind === 'generic_startup_failure'
         ? t('common.backendStartup.actions.restartApp')
         : undefined,
