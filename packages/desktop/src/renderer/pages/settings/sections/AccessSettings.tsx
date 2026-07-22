@@ -113,7 +113,7 @@ type AccessSettingsContentProps = {
 export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ surface = 'models' }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const appStateQuery = useOplAppState('fast');
+  const appStateQuery = useOplAppState('fast', { requireLive: surface === 'gateway' });
   const modelOptions = getOplCodexModelDisplayOptions();
   const codexPreference = configService.get('acp.config')?.codex;
   const [preferredModel, setPreferredModel] = useState(
@@ -137,9 +137,14 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   const [configureLoading, setConfigureLoading] = useState(false);
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
   const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
+  const gatewayMutationAuthority = appStateQuery.provenance === 'live' && gatewayAccount !== null;
   const isDesktopApp = isElectronDesktop();
-  const accountLoginSupported = Boolean(isDesktopApp && gatewayAccount?.capabilities.account_login_supported === true);
-  const manualKeySupported = gatewayAccount?.capabilities.manual_key_supported !== false;
+  const accountLoginSupported = Boolean(
+    gatewayMutationAuthority && isDesktopApp && gatewayAccount?.capabilities.account_login_supported === true
+  );
+  const manualKeySupported = Boolean(
+    gatewayMutationAuthority && gatewayAccount?.capabilities.manual_key_supported !== false
+  );
   const modelAccessCard = cards.find((card) => card.key === 'account');
   const codexCard = cards.find((card) => card.key === 'model');
   const modelAccessNeedsAttention = modelAccessCard?.tone === 'orange';
@@ -238,6 +243,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   };
 
   const handleConfigureCodex = async () => {
+    if (!gatewayMutationAuthority) return;
     const trimmed = codexApiKey.trim();
     if (!trimmed) {
       Message.error(t('settings.accessPage.modelAccount.apiKeyRequired'));
@@ -264,6 +270,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   );
 
   const handleGatewayLogin = async () => {
+    if (!gatewayMutationAuthority) return;
     const email = gatewayEmail.trim();
     if (!email || !gatewayPassword) {
       setGatewayLoginError('invalid_request');
@@ -299,6 +306,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
       payloadJson?: Record<string, unknown>,
       options: { announceSuccess?: boolean } = {}
     ): Promise<void> => {
+      if (!gatewayMutationAuthority) return;
       setGatewayActionLoading(actionId);
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({
@@ -331,7 +339,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
         setGatewayActionLoading(null);
       }
     },
-    [refreshFastState, t]
+    [gatewayMutationAuthority, refreshFastState, t]
   );
 
   const gatewayNumber = (value: number | null): string =>
@@ -366,6 +374,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
     const actionId = gatewayAccount?.actions.complete_setup;
     if (
       surface !== 'gateway' ||
+      !gatewayMutationAuthority ||
       !gatewayAccount ||
       gatewayAccount.connection_mode !== 'account' ||
       !gatewayAccount.account_card_visible ||
@@ -379,7 +388,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
     if (autoSetupAttemptRef.current === attemptKey) return;
     autoSetupAttemptRef.current = attemptKey;
     void handleGatewayAction(actionId, { group_id: defaultGatewayGroupId }, { announceSuccess: false });
-  }, [defaultGatewayGroupId, gatewayAccount, handleGatewayAction, surface]);
+  }, [defaultGatewayGroupId, gatewayAccount, gatewayMutationAuthority, handleGatewayAction, surface]);
 
   return (
     <div
@@ -496,22 +505,63 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   </Typography.Text>
                 </div>
               </div>
-              {!appStateQuery.loading && !gatewayFormVisible && gatewayAccount?.connection_mode !== 'account' && (
-                <span className='shrink-0' data-testid='settings-gateway-primary-action'>
-                  <Button
-                    type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
-                    data-testid='opl-settings-show-gateway-config-button'
-                    onClick={() => {
-                      setGatewayMode(accountLoginSupported ? 'account' : 'manual_key');
-                      setGatewayFormVisible(true);
-                      setGatewayLoginError(null);
-                    }}
-                  >
-                    {t('settings.accessPage.modelAccount.showConfigButton')}
-                  </Button>
-                </span>
-              )}
+              {!appStateQuery.loading &&
+                gatewayMutationAuthority &&
+                gatewayAccount &&
+                !gatewayFormVisible &&
+                gatewayAccount.connection_mode !== 'account' && (
+                  <span className='shrink-0' data-testid='settings-gateway-primary-action'>
+                    <Button
+                      type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
+                      data-testid='opl-settings-show-gateway-config-button'
+                      onClick={() => {
+                        setGatewayMode(accountLoginSupported ? 'account' : 'manual_key');
+                        setGatewayFormVisible(true);
+                        setGatewayLoginError(null);
+                      }}
+                    >
+                      {t('settings.accessPage.modelAccount.showConfigButton')}
+                    </Button>
+                  </span>
+                )}
             </div>
+
+            {appStateQuery.provenance === 'derived_bootstrap' && gatewayAccount && (
+              <div
+                className='mb-12px flex items-center gap-4px py-4px text-12px leading-18px text-t-secondary sm:pl-38px'
+                data-testid='settings-gateway-cached-bootstrap'
+              >
+                <span>{t('settings.accessPage.gatewayAccount.bootstrap.cached')}</span>
+                <OplRefreshIconButton
+                  type='text'
+                  size='mini'
+                  label={t('settings.accessPage.actions.recheck')}
+                  loading={appStateQuery.refreshing}
+                  onClick={() => void refreshFastState()}
+                />
+              </div>
+            )}
+
+            {appStateQuery.error && (
+              <div
+                className='mb-12px py-4px text-12px leading-18px text-t-secondary sm:pl-38px'
+                data-testid='settings-gateway-refresh-error'
+              >
+                {t('settings.accessPage.gatewayAccount.bootstrap.refreshFailed')}
+              </div>
+            )}
+
+            {!appStateQuery.loading &&
+              appStateQuery.provenance === 'live' &&
+              !gatewayAccount &&
+              !appStateQuery.error && (
+                <div
+                  className='mb-12px py-4px text-12px leading-18px text-t-secondary sm:pl-38px'
+                  data-testid='settings-gateway-projection-unavailable'
+                >
+                  {t('settings.accessPage.gatewayAccount.bootstrap.projectionUnavailable')}
+                </div>
+              )}
 
             {gatewayAccount?.freshness.stale && (
               <div
@@ -533,7 +583,9 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               </div>
             )}
 
-            {gatewayAccount?.status === 'reauth_required' &&
+            {gatewayMutationAuthority &&
+              gatewayAccount &&
+              gatewayAccount.status === 'reauth_required' &&
               !gatewayAccount.account_card_visible &&
               accountLoginSupported &&
               !gatewayFormVisible && (
@@ -576,7 +628,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                         >
                           {accountStatusLabel}
                         </span>
-                        {gatewayAccount.actions.disconnect && (
+                        {gatewayMutationAuthority && gatewayAccount.actions.disconnect && (
                           <Button
                             size='mini'
                             type='text'
@@ -595,7 +647,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       )}
                     </div>
                   </div>
-                  {gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
+                  {gatewayMutationAuthority && gatewayAccount.status === 'reauth_required' && accountLoginSupported && (
                     <div
                       className='flex shrink-0 flex-wrap items-center justify-end gap-8px'
                       data-testid='settings-gateway-identity-actions'
@@ -683,7 +735,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                           observedAt: observedAt ?? t('settings.accessPage.gatewayAccount.unknownObservedAt'),
                         })}
                       </Typography.Text>
-                      {gatewayAccount.actions.refresh && (
+                      {gatewayMutationAuthority && gatewayAccount.actions.refresh && (
                         <OplRefreshIconButton
                           type='text'
                           size='mini'
@@ -698,7 +750,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
               </div>
             )}
 
-            {gatewayFormVisible && (
+            {gatewayFormVisible && gatewayMutationAuthority && (
               <div className='max-w-600px pt-14px sm:pl-38px' data-testid='settings-gateway-setup'>
                 {accountLoginSupported && manualKeySupported && (
                   <Radio.Group

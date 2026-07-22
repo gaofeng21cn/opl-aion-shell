@@ -2000,6 +2000,11 @@
       "updatedAt": "数据更新时间：{{observedAt}}",
       "stale": "当前显示 {{observedAt}} 保存的数据；Gateway 恢复后可刷新。",
       "unknownObservedAt": "此前检查",
+      "bootstrap": {
+        "cached": "正在显示已保存的 Gateway 状态，同时等待最新读取。",
+        "refreshFailed": "无法刷新 Gateway 状态；已保存的数据仅用于展示。",
+        "projectionUnavailable": "当前 App 状态未包含 Gateway 状态，因此不能修改账户。"
+      },
       "groupPlaceholder": "选择访问分组",
       "actionSuccess": "OPL Gateway 账户已更新。",
       "actionFailed": "无法更新 OPL Gateway 账户。",

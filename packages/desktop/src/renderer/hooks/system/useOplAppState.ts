@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
 const GATEWAY_ACCOUNT_CACHE_KEY = 'opl.gatewayAccount.projection.v1';
 const APP_STATE_CACHE_UPDATED_EVENT = 'opl:app-state-cache-updated';
+const DERIVED_BOOTSTRAP_PROVENANCE = 'derived_bootstrap' as const;
 export const OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES = 262_144;
 const AUTOMATIC_APP_STATE_MAX_ATTEMPTS = 2;
 const AUTOMATIC_APP_STATE_RETRY_DELAY_MS = 250;
@@ -22,7 +23,10 @@ let startupMaintenanceRefreshUnsubscribe: (() => void) | null = null;
 export type OplAppStateCache = {
   payload: OplAppStatePayload;
   loadedAt: string | null;
+  provenance: Exclude<OplAppStateProvenance, 'none'>;
 };
+
+export type OplAppStateProvenance = 'none' | typeof DERIVED_BOOTSTRAP_PROVENANCE | 'live';
 
 const memoryAppStateCaches = new Map<OplAppStateProfile, OplAppStateCache>();
 const automaticAppStateLoadsStarted = new Set<OplAppStateProfile>();
@@ -41,8 +45,7 @@ function refreshFastStateAfterStartupMaintenance(): void {
   startupMaintenanceRefreshInFlight = loadOplAppStateFromBridge('fast', { forceFresh: true })
     .then((payload) => {
       if (!payload) return;
-      const nextPayload = mergeCachedGatewayAccount(payload);
-      cacheFastOplAppState(nextPayload, new Date().toLocaleTimeString());
+      cacheFastOplAppState(payload, new Date().toLocaleTimeString());
     })
     .catch(() => {
       // Overview's bounded recovery loop remains the fallback when this best-effort refresh fails.
@@ -64,6 +67,7 @@ function ensureStartupMaintenanceRefreshSubscription(): void {
 type OplGatewayAccountCache = {
   projection: OplAppStateRecord;
   loadedAt: string | null;
+  provenance: typeof DERIVED_BOOTSTRAP_PROVENANCE;
 };
 
 export type UseOplAppStateResult = {
@@ -73,6 +77,7 @@ export type UseOplAppStateResult = {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  provenance: OplAppStateProvenance;
   load: (profile?: OplAppStateProfile, options?: OplAppStateLoadOptions) => Promise<OplAppStatePayload | null>;
 };
 
@@ -84,6 +89,7 @@ export type OplAppStateLoadOptions = {
 
 export type UseOplAppStateOptions = {
   autoLoad?: boolean;
+  requireLive?: boolean;
 };
 
 export function isOplRecord(value: unknown): value is OplAppStateRecord {
@@ -309,7 +315,7 @@ function pickScalarCacheFields(value: unknown, fields: readonly string[]): OplAp
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
-function sanitizeGatewayAccountForCache(value: unknown): OplAppStateRecord | null {
+function sanitizeGatewayAccountForCache(value: unknown, now = Date.now()): OplAppStateRecord | null {
   const gatewayAccount = pickCacheFields(value, GATEWAY_ACCOUNT_CACHE_TOP_LEVEL_FIELDS);
   if (gatewayAccount?.surface_kind !== 'opl_gateway_account_read_model.v1') return null;
 
@@ -330,12 +336,24 @@ function sanitizeGatewayAccountForCache(value: unknown): OplAppStateRecord | nul
   gatewayAccount.available_groups = oplRecordList(gatewayAccount.available_groups).map(
     (group) => pickCacheFields(group, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.available_group) ?? {}
   );
-  gatewayAccount.freshness = pickCacheFields(gatewayAccount.freshness, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.freshness);
-  gatewayAccount.capabilities = pickCacheFields(
-    gatewayAccount.capabilities,
-    GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.capabilities
-  );
-  gatewayAccount.actions = pickCacheFields(gatewayAccount.actions, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.actions);
+  const freshness = pickCacheFields(gatewayAccount.freshness, GATEWAY_ACCOUNT_CACHE_NESTED_FIELDS.freshness) ?? {};
+  const staleAfter = oplString(freshness.stale_after);
+  const staleAfterMs = staleAfter ? Date.parse(staleAfter) : Number.NaN;
+  freshness.stale = freshness.stale === true || !Number.isFinite(staleAfterMs) || now >= staleAfterMs;
+  gatewayAccount.freshness = freshness;
+
+  // Bootstrap cache is display-only. Executable authority must come from a live projection.
+  gatewayAccount.capabilities = {
+    account_login_supported: false,
+    manual_key_supported: false,
+  };
+  gatewayAccount.actions = {
+    complete_setup: null,
+    refresh: null,
+    repair: null,
+    use_for_model_access: null,
+    disconnect: null,
+  };
   return gatewayAccount;
 }
 
@@ -466,10 +484,13 @@ export function sanitizeOplAppStatePayloadForCache(payload: OplAppStatePayload):
   return sanitizeAppStateForCache(payload) as OplAppStatePayload;
 }
 
-function gatewayAccountProjectionFromPayload(payload: OplAppStatePayload | null | undefined): OplAppStateRecord | null {
+function gatewayAccountProjectionFromPayload(
+  payload: OplAppStatePayload | null | undefined,
+  now = Date.now()
+): OplAppStateRecord | null {
   const settingsControlCenter = oplRecord(getAppState(payload).settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);
-  return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account);
+  return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account, now);
 }
 
 function withGatewayAccountProjection(payload: OplAppStatePayload, projection: OplAppStateRecord): OplAppStatePayload {
@@ -567,6 +588,7 @@ function readCachedGatewayAccount(): OplGatewayAccountCache | null {
     return {
       projection,
       loadedAt: oplString(parsed.loadedAt),
+      provenance: DERIVED_BOOTSTRAP_PROVENANCE,
     };
   } catch {
     return null;
@@ -575,23 +597,17 @@ function readCachedGatewayAccount(): OplGatewayAccountCache | null {
 
 function cacheGatewayAccountProjection(projection: OplAppStateRecord, loadedAt: string | null): void {
   try {
-    localStorage.setItem(GATEWAY_ACCOUNT_CACHE_KEY, JSON.stringify({ projection, loadedAt }));
+    localStorage.setItem(
+      GATEWAY_ACCOUNT_CACHE_KEY,
+      JSON.stringify({ projection, loadedAt, provenance: DERIVED_BOOTSTRAP_PROVENANCE })
+    );
   } catch {
     // The Framework-owned projection remains authoritative when renderer persistence is unavailable.
   }
 }
 
 function cacheInMemory(profile: OplAppStateProfile, payload: OplAppStatePayload, loadedAt: string | null): void {
-  memoryAppStateCaches.set(profile, { payload, loadedAt });
-}
-
-function mergeGatewayIntoFastMemory(projection: OplAppStateRecord, loadedAt: string | null): void {
-  const current = memoryAppStateCaches.get('fast');
-  if (!current) return;
-  memoryAppStateCaches.set('fast', {
-    payload: withGatewayAccountProjection(current.payload, projection),
-    loadedAt: current.loadedAt ?? loadedAt,
-  });
+  memoryAppStateCaches.set(profile, { payload, loadedAt, provenance: 'live' });
 }
 
 function notifyOplAppStateCacheUpdated(): void {
@@ -606,7 +622,7 @@ function readLegacyFastStateCache(): OplAppStateCache | null {
     const parsed = oplRecord(JSON.parse(raw) as unknown);
     const payload = sanitizeOplAppStatePayloadForCache(oplRecord(parsed.payload) as OplAppStatePayload);
     if (Object.keys(getAppState(payload)).length === 0) return null;
-    return { payload, loadedAt: oplString(parsed.loadedAt) };
+    return { payload, loadedAt: oplString(parsed.loadedAt), provenance: DERIVED_BOOTSTRAP_PROVENANCE };
   } catch {
     return null;
   }
@@ -627,6 +643,7 @@ function readCachedFastState(): OplAppStateCache | null {
   return {
     payload: gatewayProjection ? withGatewayAccountProjection(basePayload, gatewayProjection) : basePayload,
     loadedAt: gatewayCache?.loadedAt ?? appStateCache?.loadedAt ?? null,
+    provenance: DERIVED_BOOTSTRAP_PROVENANCE,
   };
 }
 
@@ -639,19 +656,17 @@ function hasHydratedMemoryAppStateCache(profile: OplAppStateProfile): boolean {
   return Boolean(cached && (profile !== 'fast' || hasGatewayAccountProjection(cached.payload)));
 }
 
-function mergeCachedGatewayAccount(payload: OplAppStatePayload): OplAppStatePayload {
-  if (gatewayAccountProjectionFromPayload(payload)) return payload;
-  const cachedGateway = readCachedGatewayAccount();
-  return cachedGateway ? withGatewayAccountProjection(payload, cachedGateway.projection) : payload;
-}
-
 export function cacheFastOplAppState(payload: OplAppStatePayload, loadedAt: string): void {
   cacheInMemory('fast', payload, loadedAt);
   const sanitizedPayload = sanitizeOplAppStatePayloadForCache(payload);
   const gatewayProjection = gatewayAccountProjectionFromPayload(sanitizedPayload);
   if (gatewayProjection) cacheGatewayAccountProjection(gatewayProjection, loadedAt);
   try {
-    const serialized = JSON.stringify({ payload: withoutGatewayAccountProjection(sanitizedPayload), loadedAt });
+    const serialized = JSON.stringify({
+      payload: withoutGatewayAccountProjection(sanitizedPayload),
+      loadedAt,
+      provenance: DERIVED_BOOTSTRAP_PROVENANCE,
+    });
     if (new TextEncoder().encode(serialized).byteLength <= OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES) {
       localStorage.setItem(APP_STATE_FAST_CACHE_KEY, serialized);
     } else {
@@ -672,12 +687,17 @@ export function useOplAppState(
   options: UseOplAppStateOptions = {}
 ): UseOplAppStateResult {
   const autoLoad = options.autoLoad !== false;
-  const cached = useMemo(
-    () => memoryAppStateCaches.get(initialProfile) ?? (initialProfile === 'fast' ? readCachedFastState() : null),
-    [initialProfile]
-  );
+  const requireLive = options.requireLive === true;
+  const cached = useMemo(() => {
+    const memoryCache = memoryAppStateCaches.get(initialProfile);
+    if (memoryCache) {
+      return requireLive ? { ...memoryCache, provenance: DERIVED_BOOTSTRAP_PROVENANCE } : memoryCache;
+    }
+    return initialProfile === 'fast' ? readCachedFastState() : null;
+  }, [initialProfile, requireLive]);
   const [payload, setPayload] = useState<OplAppStatePayload | null>(cached?.payload ?? null);
   const [loadedAt, setLoadedAt] = useState<string | null>(cached?.loadedAt ?? null);
+  const [provenance, setProvenance] = useState<OplAppStateProvenance>(cached?.provenance ?? 'none');
   const [loading, setLoading] = useState(!cached || !hasGatewayAccountProjection(cached.payload));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -706,22 +726,20 @@ export function useOplAppState(
         if (!loadedPayload) {
           throw new Error('Invalid OPL App state payload');
         }
-        const nextPayload = mergeCachedGatewayAccount(loadedPayload);
         const nextLoadedAt = new Date().toLocaleTimeString();
-        setPayload(nextPayload);
-        setLoadedAt(nextLoadedAt);
         if (profile === 'fast') {
-          cacheFastOplAppState(nextPayload, nextLoadedAt);
+          cacheFastOplAppState(loadedPayload, nextLoadedAt);
         } else {
-          cacheInMemory(profile, nextPayload, nextLoadedAt);
-          const gatewayProjection = gatewayAccountProjectionFromPayload(nextPayload);
+          cacheInMemory(profile, loadedPayload, nextLoadedAt);
+          const gatewayProjection = gatewayAccountProjectionFromPayload(loadedPayload);
           if (gatewayProjection) {
             cacheGatewayAccountProjection(gatewayProjection, nextLoadedAt);
-            mergeGatewayIntoFastMemory(gatewayProjection, nextLoadedAt);
           }
-          notifyOplAppStateCacheUpdated();
         }
-        return nextPayload;
+        setPayload(loadedPayload);
+        setLoadedAt(nextLoadedAt);
+        setProvenance('live');
+        return loadedPayload;
       } catch (caughtError) {
         if (requestSeq.current === requestId) setError(errorMessage(caughtError));
         return null;
@@ -737,6 +755,10 @@ export function useOplAppState(
 
   useEffect(() => {
     if (!autoLoad) return;
+    if (requireLive) {
+      void load(initialProfile, { background: Boolean(cached), forceFresh: true });
+      return;
+    }
     if (hasHydratedMemoryAppStateCache(initialProfile)) return;
     const requestAlreadyRunning = inflightAppStateLoads.has(initialProfile);
     if (automaticAppStateLoadsStarted.has(initialProfile) && !requestAlreadyRunning) return;
@@ -762,7 +784,26 @@ export function useOplAppState(
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [autoLoad, cached, initialProfile, load]);
+  }, [autoLoad, cached, initialProfile, load, requireLive]);
+
+  useEffect(() => {
+    if (provenance !== DERIVED_BOOTSTRAP_PROVENANCE || !payload) return undefined;
+    const gatewayAccount = gatewayAccountProjectionFromPayload(payload);
+    const freshness = oplRecord(gatewayAccount?.freshness);
+    if (!gatewayAccount || freshness.stale === true) return undefined;
+    const staleAfter = oplString(freshness.stale_after);
+    const staleAfterMs = staleAfter ? Date.parse(staleAfter) : Number.NaN;
+    if (!Number.isFinite(staleAfterMs)) return undefined;
+    const delayMs = Math.max(0, staleAfterMs - Date.now());
+    const timer = window.setTimeout(() => {
+      setPayload((currentPayload) => {
+        if (!currentPayload) return currentPayload;
+        const expiredProjection = gatewayAccountProjectionFromPayload(currentPayload, Date.now());
+        return expiredProjection ? withGatewayAccountProjection(currentPayload, expiredProjection) : currentPayload;
+      });
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [payload, provenance]);
 
   useEffect(() => {
     if (initialProfile !== 'fast' || typeof window === 'undefined') return undefined;
@@ -772,11 +813,12 @@ export function useOplAppState(
       if (!nextCached) return;
       setPayload(nextCached.payload);
       setLoadedAt(nextCached.loadedAt);
+      setProvenance(requireLive ? DERIVED_BOOTSTRAP_PROVENANCE : nextCached.provenance);
       setLoading(!hasGatewayAccountProjection(nextCached.payload));
     };
     window.addEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
     return () => window.removeEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);
-  }, [initialProfile]);
+  }, [initialProfile, requireLive]);
 
   return {
     appState: getAppState(payload),
@@ -785,6 +827,7 @@ export function useOplAppState(
     loading,
     refreshing,
     error,
+    provenance,
     load,
   };
 }

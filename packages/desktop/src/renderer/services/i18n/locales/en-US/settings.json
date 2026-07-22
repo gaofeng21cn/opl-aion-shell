@@ -1999,6 +1999,11 @@
       "updatedAt": "Updated: {{observedAt}}",
       "stale": "Showing saved data from {{observedAt}}. Refresh when the Gateway is reachable.",
       "unknownObservedAt": "an earlier check",
+      "bootstrap": {
+        "cached": "Showing saved Gateway status while a fresh read is pending.",
+        "refreshFailed": "Gateway status could not be refreshed. Saved data remains display-only.",
+        "projectionUnavailable": "The current App state did not include Gateway status. No account changes are available."
+      },
       "groupPlaceholder": "Select an access group",
       "actionSuccess": "OPL Gateway account updated.",
       "actionFailed": "Could not update the OPL Gateway account.",

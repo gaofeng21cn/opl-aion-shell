@@ -23,6 +23,8 @@ type AccessSettingsTestMocks = {
   modelAccessReady: boolean;
   appStateAvailable: boolean;
   appStateLoading: boolean;
+  appStateError: string | null;
+  appStateProvenance: 'none' | 'derived_bootstrap' | 'live';
   gatewayAccount: Record<string, unknown> | null;
 };
 
@@ -40,6 +42,8 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   modelAccessReady: true,
   appStateAvailable: true,
   appStateLoading: false,
+  appStateError: null,
+  appStateProvenance: 'live',
   gatewayAccount: null,
 }));
 
@@ -489,6 +493,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
       load: accessSettingsMocks.load,
       loading: accessSettingsMocks.appStateLoading,
       refreshing: false,
+      error: accessSettingsMocks.appStateError,
+      provenance: accessSettingsMocks.appStateProvenance,
     };
   },
 }));
@@ -658,6 +664,12 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.statusLabels.refs_only': 'Refs only',
         'settings.accessPage.statusLabels.unknown': 'Not read',
         'settings.accessPage.actions.recheck': 'Recheck',
+        'settings.accessPage.gatewayAccount.bootstrap.cached':
+          'Showing saved Gateway status while a fresh read is pending.',
+        'settings.accessPage.gatewayAccount.bootstrap.refreshFailed':
+          'Gateway status could not be refreshed. Saved data remains display-only.',
+        'settings.accessPage.gatewayAccount.bootstrap.projectionUnavailable':
+          'The current App state did not include Gateway status. No account changes are available.',
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.accessPage.modelPreference.autoCurrent': `Auto (current: ${options?.model})`,
         'common.cancel': 'Cancel',
@@ -681,7 +693,9 @@ describe('AccessSettingsContent', () => {
     mocks.modelAccessReady = true;
     mocks.appStateAvailable = true;
     mocks.appStateLoading = false;
-    mocks.gatewayAccount = null;
+    mocks.appStateError = null;
+    mocks.appStateProvenance = 'live';
+    mocks.gatewayAccount = makeGatewayAccount();
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
@@ -822,6 +836,69 @@ describe('AccessSettingsContent', () => {
 
     expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
     expect(view.queryByTestId('settings-gateway-account')).toBeNull();
+  });
+
+  it('keeps a cached Gateway projection display-only and refreshes it through a live read', async () => {
+    const mocks = getMocks();
+    mocks.appStateProvenance = 'derived_bootstrap';
+    mocks.gatewayAccount = makeGatewayAccount({
+      status: 'setup_required',
+      connection_mode: 'account',
+      account_card_visible: true,
+      account: {
+        display_name: 'Feng',
+        email: 'feng@example.com',
+        status: 'active',
+        balance: { amount: 1, currency: 'CNY' },
+      },
+      available_groups: [{ group_id: 'group-codex', label: 'Codex' }],
+      actions: {
+        complete_setup: 'gateway_account_complete_setup',
+        refresh: 'gateway_account_refresh',
+        repair: 'gateway_account_repair',
+        use_for_model_access: 'gateway_account_use_for_model_access',
+        disconnect: 'gateway_account_disconnect',
+      },
+    });
+
+    const view = render(<AccessSettingsContent surface='gateway' />);
+
+    expect(view.getByTestId('settings-gateway-cached-bootstrap')).toHaveTextContent(
+      'Showing saved Gateway status while a fresh read is pending.'
+    );
+    expect(view.queryByTestId('settings-gateway-disconnect')).toBeNull();
+    expect(view.queryByRole('button', { name: 'Refresh' })).toBeNull();
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
+
+    fireEvent.click(view.getByRole('button', { name: 'Recheck' }));
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
+  });
+
+  it('shows live refresh failures on the Gateway surface', () => {
+    const mocks = getMocks();
+    mocks.appStateProvenance = 'derived_bootstrap';
+    mocks.appStateError = 'offline';
+
+    const view = render(<AccessSettingsContent surface='gateway' />);
+
+    expect(view.getByTestId('settings-gateway-refresh-error')).toHaveTextContent(
+      'Gateway status could not be refreshed. Saved data remains display-only.'
+    );
+  });
+
+  it('does not infer Gateway mutation availability when a live payload omits the projection', () => {
+    const mocks = getMocks();
+    mocks.appStateProvenance = 'live';
+    mocks.gatewayAccount = null;
+
+    const view = render(<AccessSettingsContent surface='gateway' />);
+
+    expect(view.getByTestId('settings-gateway-projection-unavailable')).toHaveTextContent(
+      'The current App state did not include Gateway status. No account changes are available.'
+    );
+    expect(view.queryByTestId('opl-settings-show-gateway-config-button')).toBeNull();
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('does not promote OPL Gateway configuration when only Codex CLI needs attention', () => {
