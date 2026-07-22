@@ -247,25 +247,17 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
 
 export type OplAgentReferenceAdmissionPolicy = {
   active_agent_package_cardinality: 'zero_or_one';
-  selection_authority: 'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch';
+  selection_authority: 'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_pre_send_at_mention_agent_selection';
   at_mention_agent_selection_allowed: true;
-  at_mention_semantics: 'explicit_session_owner_switch_not_prompt_only_reference';
+  at_mention_semantics: 'explicit_new_session_agent_selection_before_first_send_plain_text_references_remain_prompt_context';
   at_mention_requires_user_selection: true;
   plain_text_agent_reference_changes_active_package: false;
-  multiple_agent_reference_policy: 'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context';
+  multiple_agent_reference_policy: 'latest_explicit_pre_send_at_mention_selection_sets_the_new_session_agent_plain_text_references_remain_prompt_context';
   cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request';
   deterministic_cross_agent_routing_allowed: false;
   oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required';
   deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering';
-  existing_conversation_rebinding_allowed: true;
-  existing_conversation_rebinding_contract: {
-    transport: 'aioncore_atomic_conversation_owner_rebind_api';
-    allowed_state: 'conversation_idle_and_no_queued_messages';
-    preserve: string[];
-    runtime_transition: 'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime';
-    readback: 'authoritative_conversation_readback_required_before_ui_commit';
-    forbidden_implementations: string[];
-  };
+  existing_conversation_rebinding_allowed: false;
 };
 
 export type OplOrdinaryCapabilitySelectorPolicy = {
@@ -853,11 +845,19 @@ const REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS = [
   'session_mcp_servers entries matching forbidden_mcp_matchers',
   'scrub_extra_keys',
 ];
-const REQUIRED_AGENT_REBIND_PRESERVE = ['conversation_id', 'messages', 'artifacts'];
-const REQUIRED_AGENT_REBIND_FORBIDDEN_IMPLEMENTATIONS = [
-  'metadata_patch',
-  'conversation_reset',
-  'client_only_projection',
+const REQUIRED_AGENT_REFERENCE_ADMISSION_POLICY_KEYS = [
+  'active_agent_package_cardinality',
+  'at_mention_agent_selection_allowed',
+  'at_mention_requires_user_selection',
+  'at_mention_semantics',
+  'cross_agent_semantic_admission_owner',
+  'deliverable_failure_policy',
+  'deterministic_cross_agent_routing_allowed',
+  'existing_conversation_rebinding_allowed',
+  'multiple_agent_reference_policy',
+  'oma_engineering_admission',
+  'plain_text_agent_reference_changes_active_package',
+  'selection_authority',
 ];
 const REQUIRED_ORDINARY_MCP_PRESERVATION_TARGETS = [
   'mcp directory entries not matching forbidden_mcp_matchers',
@@ -1935,20 +1935,23 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     throw new Error('Invalid OPL product profile: gui.ordinary_capability_selector_policy must be an object');
   }
   const agentReferenceAdmissionPolicy = value.agent_reference_admission_policy;
-  const existingConversationRebindingContract = isRecord(agentReferenceAdmissionPolicy)
-    ? agentReferenceAdmissionPolicy.existing_conversation_rebinding_contract
-    : undefined;
+  const agentReferenceAdmissionPolicyKeys = isRecord(agentReferenceAdmissionPolicy)
+    ? Object.keys(agentReferenceAdmissionPolicy).toSorted()
+    : [];
   if (
     !isRecord(agentReferenceAdmissionPolicy) ||
+    JSON.stringify(agentReferenceAdmissionPolicyKeys) !==
+      JSON.stringify(REQUIRED_AGENT_REFERENCE_ADMISSION_POLICY_KEYS) ||
     agentReferenceAdmissionPolicy.active_agent_package_cardinality !== 'zero_or_one' ||
     agentReferenceAdmissionPolicy.selection_authority !==
-      'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch' ||
+      'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_pre_send_at_mention_agent_selection' ||
     agentReferenceAdmissionPolicy.at_mention_agent_selection_allowed !== true ||
-    agentReferenceAdmissionPolicy.at_mention_semantics !== 'explicit_session_owner_switch_not_prompt_only_reference' ||
+    agentReferenceAdmissionPolicy.at_mention_semantics !==
+      'explicit_new_session_agent_selection_before_first_send_plain_text_references_remain_prompt_context' ||
     agentReferenceAdmissionPolicy.at_mention_requires_user_selection !== true ||
     agentReferenceAdmissionPolicy.plain_text_agent_reference_changes_active_package !== false ||
     agentReferenceAdmissionPolicy.multiple_agent_reference_policy !==
-      'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context' ||
+      'latest_explicit_pre_send_at_mention_selection_sets_the_new_session_agent_plain_text_references_remain_prompt_context' ||
     agentReferenceAdmissionPolicy.cross_agent_semantic_admission_owner !==
       'target_primary_skill_over_complete_current_user_request' ||
     agentReferenceAdmissionPolicy.deterministic_cross_agent_routing_allowed !== false ||
@@ -1956,35 +1959,10 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
       'explicit_target_agent_and_explicit_agent_engineering_objective_required' ||
     agentReferenceAdmissionPolicy.deliverable_failure_policy !==
       'repair_current_deliverable_never_authorize_agent_engineering' ||
-    agentReferenceAdmissionPolicy.existing_conversation_rebinding_allowed !== true ||
-    !isRecord(existingConversationRebindingContract)
+    agentReferenceAdmissionPolicy.existing_conversation_rebinding_allowed !== false
   ) {
     throw new Error(
       'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent reference admission is unsupported'
-    );
-  }
-  const rebindPreserve = readStringArray(
-    existingConversationRebindingContract,
-    'preserve',
-    'gui.ordinary_capability_selector_policy.agent_reference_admission_policy.existing_conversation_rebinding_contract'
-  );
-  const rebindForbiddenImplementations = readStringArray(
-    existingConversationRebindingContract,
-    'forbidden_implementations',
-    'gui.ordinary_capability_selector_policy.agent_reference_admission_policy.existing_conversation_rebinding_contract'
-  );
-  if (
-    existingConversationRebindingContract.transport !== 'aioncore_atomic_conversation_owner_rebind_api' ||
-    existingConversationRebindingContract.allowed_state !== 'conversation_idle_and_no_queued_messages' ||
-    JSON.stringify(rebindPreserve) !== JSON.stringify(REQUIRED_AGENT_REBIND_PRESERVE) ||
-    existingConversationRebindingContract.runtime_transition !==
-      'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime' ||
-    existingConversationRebindingContract.readback !==
-      'authoritative_conversation_readback_required_before_ui_commit' ||
-    JSON.stringify(rebindForbiddenImplementations) !== JSON.stringify(REQUIRED_AGENT_REBIND_FORBIDDEN_IMPLEMENTATIONS)
-  ) {
-    throw new Error(
-      'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent rebind contract is unsupported'
     );
   }
   const forbiddenSkillExamples = readStringArray(
@@ -2049,26 +2027,19 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     agent_reference_admission_policy: {
       active_agent_package_cardinality: 'zero_or_one',
       selection_authority:
-        'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch',
+        'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_pre_send_at_mention_agent_selection',
       at_mention_agent_selection_allowed: true,
-      at_mention_semantics: 'explicit_session_owner_switch_not_prompt_only_reference',
+      at_mention_semantics:
+        'explicit_new_session_agent_selection_before_first_send_plain_text_references_remain_prompt_context',
       at_mention_requires_user_selection: true,
       plain_text_agent_reference_changes_active_package: false,
       multiple_agent_reference_policy:
-        'latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context',
+        'latest_explicit_pre_send_at_mention_selection_sets_the_new_session_agent_plain_text_references_remain_prompt_context',
       cross_agent_semantic_admission_owner: 'target_primary_skill_over_complete_current_user_request',
       deterministic_cross_agent_routing_allowed: false,
       oma_engineering_admission: 'explicit_target_agent_and_explicit_agent_engineering_objective_required',
       deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering',
-      existing_conversation_rebinding_allowed: true,
-      existing_conversation_rebinding_contract: {
-        transport: 'aioncore_atomic_conversation_owner_rebind_api',
-        allowed_state: 'conversation_idle_and_no_queued_messages',
-        preserve: rebindPreserve,
-        runtime_transition: 'terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime',
-        readback: 'authoritative_conversation_readback_required_before_ui_commit',
-        forbidden_implementations: rebindForbiddenImplementations,
-      },
+      existing_conversation_rebinding_allowed: false,
     },
     skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids',
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
@@ -3641,13 +3612,6 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
     ...policy,
     agent_reference_admission_policy: {
       ...policy.agent_reference_admission_policy,
-      existing_conversation_rebinding_contract: {
-        ...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract,
-        preserve: [...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract.preserve],
-        forbidden_implementations: [
-          ...policy.agent_reference_admission_policy.existing_conversation_rebinding_contract.forbidden_implementations,
-        ],
-      },
     },
     forbidden_skill_examples: [...policy.forbidden_skill_examples],
     forbidden_mcp_examples: [...policy.forbidden_mcp_examples],

@@ -210,19 +210,6 @@ export const conversation = {
     httpGet<TChatConversation, { id: string }>((p) => `/api/conversations/${p.id}`, { silentStatuses: [404] }),
     fromApiConversation
   ),
-  rebindAssistant: withResponseMap(
-    httpPost<TChatConversation, IRebindConversationAssistantParams>(
-      (p) => `/api/conversations/${encodeURIComponent(p.id)}/assistant/rebind`,
-      (p) => {
-        const model = toApiModelOptional(p.model);
-        return {
-          assistant: p.assistant,
-          ...(model ? { model } : {}),
-        };
-      }
-    ),
-    fromApiConversation
-  ),
   getAssociateConversation: withResponseMap(
     httpGet<TChatConversation[], { conversation_id: string }>(
       (p) => `/api/conversations/${p.conversation_id}/associated`
@@ -2157,12 +2144,6 @@ export interface ICreateConversationParams {
     extra_skill_paths?: string[];
     team_id?: string;
   };
-}
-
-export interface IRebindConversationAssistantParams {
-  id: string;
-  assistant: NonNullable<ICreateConversationParams['assistant']>;
-  model?: TProviderWithModel;
 }
 
 interface IResetConversationParams {

@@ -578,7 +578,7 @@
           },
           {
             "id": "agent_packages",
-            "scope": "session_owner_selection",
+            "scope": "new_session_configuration_only",
             "label_i18n": {
               "zh-CN": "专业智能体",
               "en-US": "Professional agents"
@@ -589,11 +589,10 @@
             "catalog_order_policy": "stable_professional_agent_packages_order",
             "home_shortcut_independence_policy": "render_the_complete_professional_agent_catalog_regardless_of_home_shortcut_visibility_or_order",
             "availability_policy": "show_only_real_app_allowlisted_packages_supported_by_the_active_adapter",
-            "existing_session_rebinding_allowed": true,
-            "existing_session_rebinding_transport": "aioncore_atomic_conversation_owner_rebind_api",
+            "existing_session_rebinding_allowed": false,
             "surface_actions": {
               "home_new_session": ["select_new_session_agent_package"],
-              "existing_conversation": ["explicit_at_mention_owner_rebind_via_core_atomic_api"]
+              "existing_conversation": []
             }
           },
           {
@@ -639,7 +638,7 @@
         },
         "surface_behavior": {
           "home_new_session": "configure_only_real_new_session_capabilities_supported_by_the_active_adapter",
-          "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_change_adapter_reported_nonduplicate_modes_and_explicitly_rebind_the_single_agent_owner_via_at_mention",
+          "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_change_adapter_reported_nonduplicate_modes_without_rebinding",
           "settings_route_policy": "management_entries_are_explicit_fallbacks_not_fake_session_selection"
         },
         "authority_policy": "render_only_real_picker_actions_App_allowlisted_skills_and_non_forbidden_configured_session_connections_supported_by_the_active_adapter",
@@ -866,25 +865,17 @@
       "agent_owned_skill_deduplication_policy": "exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills",
       "agent_reference_admission_policy": {
         "active_agent_package_cardinality": "zero_or_one",
-        "selection_authority": "home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_at_mention_owner_switch",
+        "selection_authority": "home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_pre_send_at_mention_agent_selection",
         "at_mention_agent_selection_allowed": true,
-        "at_mention_semantics": "explicit_session_owner_switch_not_prompt_only_reference",
+        "at_mention_semantics": "explicit_new_session_agent_selection_before_first_send_plain_text_references_remain_prompt_context",
         "at_mention_requires_user_selection": true,
         "plain_text_agent_reference_changes_active_package": false,
-        "multiple_agent_reference_policy": "latest_explicit_at_mention_selection_sets_the_single_owner_plain_text_references_remain_prompt_context",
+        "multiple_agent_reference_policy": "latest_explicit_pre_send_at_mention_selection_sets_the_new_session_agent_plain_text_references_remain_prompt_context",
         "cross_agent_semantic_admission_owner": "target_primary_skill_over_complete_current_user_request",
         "deterministic_cross_agent_routing_allowed": false,
         "oma_engineering_admission": "explicit_target_agent_and_explicit_agent_engineering_objective_required",
         "deliverable_failure_policy": "repair_current_deliverable_never_authorize_agent_engineering",
-        "existing_conversation_rebinding_allowed": true,
-        "existing_conversation_rebinding_contract": {
-          "transport": "aioncore_atomic_conversation_owner_rebind_api",
-          "allowed_state": "conversation_idle_and_no_queued_messages",
-          "preserve": ["conversation_id", "messages", "artifacts"],
-          "runtime_transition": "terminate_old_runtime_update_complete_owner_snapshot_then_warm_new_runtime",
-          "readback": "authoritative_conversation_readback_required_before_ui_commit",
-          "forbidden_implementations": ["metadata_patch", "conversation_reset", "client_only_projection"]
-        }
+        "existing_conversation_rebinding_allowed": false
       },
       "skill_source_ref": "gui.professional_agent_packages.required_skill_ids + optional_skill_ids",
       "skill_menu_policy": "assistant_scoped_required_checked_optional_visible",

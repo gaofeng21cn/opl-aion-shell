@@ -106,23 +106,6 @@ describe('ipcBridge managed agents adapter', () => {
     });
   });
 
-  it('uses the dedicated atomic assistant rebind endpoint without metadata updates', async () => {
-    const { conversation } = await import('@/common/adapter/ipcBridge');
-
-    await conversation.rebindAssistant.invoke({
-      id: 'conversation/one',
-      assistant: { id: 'assistant-mas', locale: 'zh-CN' },
-    });
-
-    expect(httpBridgeMocks.calls.at(-1)).toEqual({
-      method: 'POST',
-      path: '/api/conversations/conversation%2Fone/assistant/rebind',
-      body: {
-        assistant: { id: 'assistant-mas', locale: 'zh-CN' },
-      },
-    });
-  });
-
   it('uses dedicated Channel assistant settings endpoints with canonical identity only', async () => {
     const { channel } = await import('@/common/adapter/ipcBridge');
 

@@ -208,13 +208,6 @@ export interface IEnvStorageRefer {
 export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'weixin' | 'wecom' | (string & {});
 
 export type TChatConversationStatus = 'pending' | 'running' | 'finished';
-export type TConversationAssistantIdentity = {
-  id: string;
-  source: string;
-  name: string;
-  avatar: string;
-  backend: string;
-};
 export type TConversationArchiveExtra = {
   /** Hidden from active history until explicitly restored. */
   archived?: boolean;
@@ -265,8 +258,6 @@ interface IChatConversation<T, Extra> {
   model: TProviderWithModel;
   status?: TChatConversationStatus | undefined;
   runtime?: TConversationRuntimeSummary;
-  /** Authoritative assistant owner returned by AionCore. */
-  assistant?: TConversationAssistantIdentity;
   /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
