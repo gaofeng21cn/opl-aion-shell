@@ -1215,7 +1215,7 @@
         "pending": "Confirming model access.",
         "checking": "Checking model access.",
         "ready": "Model access is available.",
-        "needsAction": "Enter the OPL Gateway access key."
+        "needsAction": "Sign in to OPL Gateway, or use an API Key."
       },
       "domainModules": {
         "pending": "Domain modules will prepare in the background.",
@@ -1239,7 +1239,7 @@
     "nextSteps": {
       "workspaceRoot": "Choose a local workspace folder.",
       "codex": "Wait for the local assistant to finish setup, or retry from technical details.",
-      "codexConfig": "Ask your administrator for the OPL Gateway access key, then complete setup below; existing Codex model access can skip first launch setup.",
+      "codexConfig": "Sign in with your OPL Gateway account, switch to an API Key, or check an existing Codex setup again.",
       "domainModules": "Domain modules can continue preparing after you enter OPL.",
       "familyRuntimeProvider": "The runtime provider can continue preparing after you enter OPL.",
       "recommendedSkills": "Recommended skills can continue preparing after you enter OPL.",
@@ -1266,7 +1266,7 @@
     },
     "codex": {
       "title": "OPL Gateway",
-      "prompt": "Enter the OPL Gateway access key from your administrator. If Codex model access already works, you can skip first launch setup and switch to OPL Gateway later in Settings.",
+      "prompt": "When using an API Key, enter the OPL Gateway access key here. You can also switch back to account sign-in or check an existing Codex setup again.",
       "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for OPL Gateway access when needed.",
       "apiKeyLabel": "OPL Gateway access key",
       "apiKeyPlaceholder": "Enter OPL Gateway access key",
@@ -1288,7 +1288,7 @@
       "retry": "Check again",
       "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
       "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
-      "codexConfig": "Model access is not configured yet. Enter the access key from your administrator to continue.",
+      "codexConfig": "Model access is not configured yet. Sign in to OPL Gateway, use an API Key, or check an existing setup again.",
       "workspace": "OPL could not access or save the workspace folder. Check access again or choose another writable folder; technical details have the diagnostic."
     }
   },

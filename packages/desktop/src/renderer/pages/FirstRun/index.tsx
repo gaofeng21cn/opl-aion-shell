@@ -352,7 +352,7 @@ const FirstRun: React.FC = () => {
   const [gatewayPassword, setGatewayPassword] = useState('');
   const [gatewayModelAccessConfirmationAvailable, setGatewayModelAccessConfirmationAvailable] = useState(false);
   const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
-  const [accessMethod, setAccessMethod] = useState<AccessMethod>(isDesktopRuntime ? 'gateway_account' : 'api_key');
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>('gateway_account');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
@@ -511,7 +511,7 @@ const FirstRun: React.FC = () => {
 
   const loginGatewayAccount = useCallback(async () => {
     const email = gatewayEmail.trim();
-    if (!isDesktopRuntime || !email || !gatewayPassword) {
+    if (!email || !gatewayPassword) {
       setError({
         source: 'gateway_account',
         detail: 'invalid_request',
@@ -541,7 +541,7 @@ const FirstRun: React.FC = () => {
       setGatewayPassword('');
       setActionLoading(null);
     }
-  }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword, isDesktopRuntime, refreshInitialize]);
+  }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword, refreshInitialize]);
 
   const confirmGatewayModelAccess = useCallback(async () => {
     setActionLoading('gateway_model_access');
@@ -951,26 +951,24 @@ const FirstRun: React.FC = () => {
                         <span>{t('settings.firstRun.modelAccess.oneStepRemaining')}</span>
                       </div>
 
-                      {isDesktopRuntime && (
-                        <Radio.Group
-                          type='button'
-                          value={accessMethod}
-                          onChange={changeAccessMethod}
-                          disabled={requestInFlight}
-                          aria-label={t('settings.firstRun.modelAccess.methodLabel')}
-                          className={styles.firstRunAccessMethods}
-                          data-testid='opl-first-run-access-methods'
-                        >
-                          <Radio value='gateway_account' data-testid='opl-first-run-gateway-account-method'>
-                            {t('settings.firstRun.modelAccess.gatewayAccount')}
-                          </Radio>
-                          <Radio value='api_key' data-testid='opl-first-run-gateway-key-method'>
-                            {t('settings.firstRun.modelAccess.apiKey')}
-                          </Radio>
-                        </Radio.Group>
-                      )}
+                      <Radio.Group
+                        type='button'
+                        value={accessMethod}
+                        onChange={changeAccessMethod}
+                        disabled={requestInFlight}
+                        aria-label={t('settings.firstRun.modelAccess.methodLabel')}
+                        className={styles.firstRunAccessMethods}
+                        data-testid='opl-first-run-access-methods'
+                      >
+                        <Radio value='gateway_account' data-testid='opl-first-run-gateway-account-method'>
+                          {t('settings.firstRun.modelAccess.gatewayAccount')}
+                        </Radio>
+                        <Radio value='api_key' data-testid='opl-first-run-gateway-key-method'>
+                          {t('settings.firstRun.modelAccess.apiKey')}
+                        </Radio>
+                      </Radio.Group>
 
-                      {accessMethod === 'gateway_account' && isDesktopRuntime ? (
+                      {accessMethod === 'gateway_account' ? (
                         <div className={styles.firstRunAccessForm}>
                           <div className={styles.firstRunAccessFields}>
                             <div className={styles.firstRunAccessField}>

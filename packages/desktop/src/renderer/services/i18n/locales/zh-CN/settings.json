@@ -1216,7 +1216,7 @@
         "pending": "正在确认模型访问。",
         "checking": "正在检查模型访问。",
         "ready": "模型访问已可用。",
-        "needsAction": "请输入 OPL Gateway 访问密钥。"
+        "needsAction": "请登录 OPL Gateway，或使用 API Key。"
       },
       "domainModules": {
         "pending": "智能体模块会在后台准备。",
@@ -1240,7 +1240,7 @@
     "nextSteps": {
       "workspaceRoot": "选择一个本机工作目录。",
       "codex": "等待本机助手准备完成，或在技术详情中重试。",
-      "codexConfig": "可向本团队获取 OPL Gateway 访问密钥，并在下方完成配置；已有可用 Codex 配置时可跳过。",
+      "codexConfig": "使用 OPL Gateway 账户登录；也可切换到 API Key，或重新检测已有 Codex 配置。",
       "domainModules": "进入 OPL 后后台继续准备智能体模块。",
       "familyRuntimeProvider": "进入 OPL 后后台继续准备运行底座。",
       "recommendedSkills": "进入 OPL 后后台继续准备推荐能力。",
@@ -1267,7 +1267,7 @@
     },
     "codex": {
       "title": "OPL Gateway",
-      "prompt": "如需使用 OPL Gateway，可向本团队获取访问密钥。已有可用 Codex 配置时可以跳过首启配置，之后仍可在设置中切换到 OPL Gateway。",
+      "prompt": "选择 API Key 时，在这里填写 OPL Gateway 访问密钥。也可以切回账户登录，或重新检测已有 Codex 配置。",
       "defaults": "服务商和模型细节保留在诊断信息中；首次配置页只展示 OPL Gateway 访问步骤。",
       "apiKeyLabel": "OPL Gateway 访问密钥",
       "apiKeyPlaceholder": "输入 OPL Gateway 访问密钥",
@@ -1289,7 +1289,7 @@
       "retry": "重新检查",
       "general": "OPL 暂时无法完成启动检查。打开技术详情可以重试或查看诊断信息。",
       "blocked": "还有一个设置项需要处理。按下方下一步完成后，可在技术详情中重试。",
-      "codexConfig": "模型访问还未配置。如需使用 OPL Gateway，可向本团队获取访问密钥后继续。",
+      "codexConfig": "模型访问还未配置。请登录 OPL Gateway、使用 API Key，或重新检测已有配置。",
       "workspace": "OPL 无法访问或保存工作目录。请重新检查权限或选择其他可写目录；技术详情中保留了诊断信息。"
     }
   },

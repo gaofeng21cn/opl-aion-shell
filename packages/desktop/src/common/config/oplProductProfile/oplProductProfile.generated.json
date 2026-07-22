@@ -1809,7 +1809,7 @@
       "current_task_policy": "one_current_task_panel",
       "current_task_selection_policy": "first_unready_core_item_in_fixed_step_order_then_completion",
       "progress_display_policy": "completed_step_count_no_percentage",
-      "model_access_choice_policy": "desktop_gateway_account_default_with_api_key_compatibility_and_secondary_existing_codex_recheck",
+      "model_access_choice_policy": "gateway_account_default_on_desktop_and_webui_with_api_key_compatibility_and_secondary_existing_codex_recheck",
       "model_access_inflight_policy": "disable_method_switch_and_alternate_action_until_current_request_settles",
       "model_access_setup": {
         "desktop_default_method": "gateway_account",
@@ -1852,8 +1852,11 @@
           "mutates_configuration": false
         },
         "webui": {
-          "allowed_methods": ["api_key"],
-          "gateway_password_login": false
+          "default_method": "gateway_account",
+          "allowed_methods": ["gateway_account", "api_key"],
+          "gateway_password_login": true,
+          "gateway_login_route": "/api/opl-runtime/gateway-account-login",
+          "transport": "existing_opl_runtime_http_proxy_to_credentials_stdin"
         }
       },
       "completion_transition_policy": "replace_current_task_in_place",
@@ -3417,14 +3420,13 @@
             "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
             "forbidden_sources": [
               "secret bodies in App state or generic action payloads",
-              "browser WebUI password login",
               "Gateway account duplication on Models or Resources"
             ],
             "opl_gateway_account_source": "app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
             "opl_gateway_account_projection_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_projection",
             "opl_gateway_account_secret_bridge_ref": "contracts/app-runtime-bridge.json#opl_gateway_account_secret_bridge",
-            "secret_boundary": "account_password_only_through_typed_desktop_ipc_and_dedicated_stdin_never_generic_action_payload",
-            "webui_boundary": "status_and_manual_api_key_only_no_gateway_account_password_login"
+            "secret_boundary": "account_password_only_through_runtime_provider_and_dedicated_stdin_never_generic_action_payload",
+            "webui_boundary": "gateway_account_and_manual_api_key_via_existing_runtime_http_proxy"
           },
           "access": {
             "route_id": "access",
@@ -4993,7 +4995,7 @@
               "disconnect_placement": "identity_row_trailing_adjacent_to_display_name_email_and_connection_status",
               "disconnect_detached_footer_or_page_edge_allowed": false,
               "exception_action_policy": "complete_connection_retry_connection_or_sign_in_again_only_when_required",
-              "webui_password_login_allowed": false,
+              "webui_password_login_allowed": true,
               "generic_action_secret_payload_allowed": false
             },
             "surface_rules": {

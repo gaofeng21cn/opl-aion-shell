@@ -26,7 +26,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import type { OplGatewayAccountActionId, OplGatewayAccountReadModel } from '@/common/types/opl/appState';
 import type { IOplGatewayAccountErrorCode } from '@/common/adapter/ipcBridge';
-import { isElectronDesktop } from '@/renderer/utils/platform';
 import { formatOplCodexModelDisplay } from '@/renderer/utils/model/oplCodexModelDisplay';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
@@ -138,9 +137,8 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
   const gatewayAccount = readGatewayAccountProjection(appStateQuery.appState);
   const gatewayMutationAuthority = appStateQuery.provenance === 'live' && gatewayAccount !== null;
-  const isDesktopApp = isElectronDesktop();
   const accountLoginSupported = Boolean(
-    gatewayMutationAuthority && isDesktopApp && gatewayAccount?.capabilities.account_login_supported === true
+    gatewayMutationAuthority && gatewayAccount?.capabilities.account_login_supported === true
   );
   const manualKeySupported = Boolean(
     gatewayMutationAuthority && gatewayAccount?.capabilities.manual_key_supported !== false

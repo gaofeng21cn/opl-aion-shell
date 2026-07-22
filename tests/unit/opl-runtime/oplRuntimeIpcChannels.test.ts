@@ -64,7 +64,7 @@ describe('OPL runtime IPC channel contract', () => {
     );
   });
 
-  it('exposes one desktop-only Gateway secret channel without parallel mutation channels', async () => {
+  it('exposes one runtime-provider Gateway secret channel without parallel mutation channels', async () => {
     vi.resetModules();
     platformMocks.buildProvider.mockClear();
 
@@ -80,6 +80,38 @@ describe('OPL runtime IPC channel contract', () => {
         'opl-runtime.disconnect-gateway-account',
       ])
     );
+  });
+
+  it('routes WebUI Gateway login through the existing OPL runtime HTTP proxy', async () => {
+    vi.resetModules();
+    platformMocks.buildProvider.mockClear();
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('document', {});
+    const password = 'webui-gateway-secret';
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { ok: true, stateRefreshRequired: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+    try {
+      const { oplRuntime } = await import('@/common/adapter/ipcBridge');
+      await oplRuntime.loginGatewayAccount.invoke({ email: 'user@example.com', password });
+
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(fetchSpy.mock.calls[0][0]).toBe('/api/opl-runtime/gateway-account-login');
+      expect(fetchSpy.mock.calls[0][1]).toMatchObject({
+        method: 'POST',
+        body: JSON.stringify({ email: 'user@example.com', password }),
+      });
+      expect(debugSpy.mock.calls.flat().join('\n')).not.toContain(password);
+    } finally {
+      debugSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('declares local data lifecycle channels for Storage inventory, receipts, and dry-run execution', async () => {

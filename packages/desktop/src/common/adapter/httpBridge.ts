@@ -152,7 +152,8 @@ export type HttpRequestOptions = {
   silentStatuses?: number[];
 };
 
-const SENSITIVE_LOG_KEY_PATTERN = /api[_-]?key|authorization|auth[_-]?token|access[_-]?token|refresh[_-]?token|secret/i;
+const SENSITIVE_LOG_KEY_PATTERN =
+  /api[_-]?key|authorization|auth[_-]?token|access[_-]?token|refresh[_-]?token|password|passwd|secret/i;
 
 function redactForLog(value: unknown, depth = 0): unknown {
   if (depth > 8 || value === null || typeof value !== 'object') {
@@ -204,9 +205,9 @@ export async function httpRequest<T>(
       errorBody = rawText;
     }
     if (options?.silentStatuses?.includes(response.status)) {
-      console.debug(`[httpBridge] ${method} ${path} → ${response.status} (silenced)`, errorBody);
+      console.debug(`[httpBridge] ${method} ${path} → ${response.status} (silenced)`, redactForLog(errorBody));
     } else {
-      console.error(`[httpBridge] ${method} ${path} → ${response.status}`, errorBody);
+      console.error(`[httpBridge] ${method} ${path} → ${response.status}`, redactForLog(errorBody));
     }
     throw new BackendHttpError({ method, path, status: response.status, body: errorBody });
   }

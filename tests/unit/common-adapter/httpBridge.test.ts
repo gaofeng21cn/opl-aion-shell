@@ -138,6 +138,27 @@ describe('httpBridge', () => {
 
       expect(fetchSpy.mock.calls[0][1]?.body).toBe('{"wrapped":"raw"}');
     });
+
+    it('redacts passwords from request logs without changing the transmitted body', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: { ok: true } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      vi.stubGlobal('fetch', fetchSpy);
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const password = 'gateway-account-secret';
+
+      await httpPost('/api/opl-runtime/gateway-account-login').invoke({
+        email: 'user@example.com',
+        password,
+      });
+
+      expect(fetchSpy.mock.calls[0][1]?.body).toContain(password);
+      expect(debugSpy.mock.calls.flat().join('\n')).not.toContain(password);
+      expect(debugSpy.mock.calls.flat().join('\n')).toContain('[REDACTED]');
+    });
   });
 
   describe('path as function', () => {

@@ -24,6 +24,51 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
     );
   });
 
+  it('uses the existing WebUI runtime proxy and credentials stdin for Gateway account login', () => {
+    const password = 'gateway-account-secret';
+    const spec = __oplRuntimeProxyTest.buildCommandFromRequest('gateway-account-login', {
+      email: ' user@example.com ',
+      password,
+      deviceLabel: ' WebUI ',
+    });
+
+    expect(spec).toEqual({
+      surface: 'gateway_account',
+      args: ['connect', 'gateway', 'login', '--credentials-stdin', '--json'],
+      stdin: `${JSON.stringify({ email: 'user@example.com', password, device_label: 'WebUI' })}\n`,
+      redactedCommand: 'opl connect gateway login --credentials-stdin --json',
+    });
+    expect(JSON.stringify(spec.args)).not.toContain(password);
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('gateway-account-login', {
+        email: 'user@example.com',
+        password,
+        rawSecret: password,
+      })
+    ).toThrow('Invalid Gateway account login request.');
+  });
+
+  it('returns only the typed Gateway mutation result and rejects secret-bearing CLI output', () => {
+    expect(
+      __oplRuntimeProxyTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '{"ok":true,"account":"user@example.com"}',
+        parsed: { ok: true, account: 'user@example.com' },
+        ok: true,
+      })
+    ).toEqual({ ok: true, stateRefreshRequired: true });
+    expect(
+      __oplRuntimeProxyTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '{"ok":true,"password":"echoed-secret"}',
+        parsed: { ok: true, password: 'echoed-secret' },
+        ok: true,
+      })
+    ).toEqual({ ok: false, errorCode: 'internal_contract_violation', stateRefreshRequired: false });
+  });
+
   it('keeps the Web proxy command identical to the Desktop item-scoped detail read', () => {
     expect(
       __oplRuntimeProxyTest.buildCommandFromRequest('domain-detail-view', {

@@ -717,9 +717,9 @@ export const oplRuntime = {
     'opl-runtime.configure-codex',
     '/api/opl-runtime/configure-codex'
   ),
-  // Desktop-only secret channel. Browser WebUI must never receive the user's Gateway password.
-  loginGatewayAccount: bridge.buildProvider<IOplGatewayAccountMutationResult, IOplGatewayAccountLoginRequest>(
-    'opl-runtime.login-gateway-account'
+  loginGatewayAccount: runtimeProvider<IOplGatewayAccountMutationResult, IOplGatewayAccountLoginRequest>(
+    'opl-runtime.login-gateway-account',
+    '/api/opl-runtime/gateway-account-login'
   ),
   runStartupMaintenance: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.run-startup-maintenance',

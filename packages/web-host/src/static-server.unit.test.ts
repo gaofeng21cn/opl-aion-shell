@@ -553,6 +553,77 @@ describe('static-server', () => {
     }
   });
 
+  it('/api/opl-runtime/gateway-account-login reuses the runtime proxy and returns only sanitized fields', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    const password = 'webui-gateway-account-secret';
+    const logged: string[] = [];
+    await fs.mkdir(resourcesPath, { recursive: true });
+
+    const consoleSpies = [
+      vi.spyOn(console, 'log').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+      vi.spyOn(console, 'warn').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+      vi.spyOn(console, 'error').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+    ];
+
+    try {
+      const stdinEnd = vi.fn();
+      vi.mocked(spawn).mockImplementationOnce((command, args, options) => {
+        const child = new EventEmitter() as ReturnType<typeof spawn> & {
+          stdin: { end: ReturnType<typeof vi.fn> };
+          stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+          stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        };
+        child.stdin = { end: stdinEnd };
+        child.stdout = new EventEmitter() as typeof child.stdout;
+        child.stderr = new EventEmitter() as typeof child.stderr;
+        child.stdout.setEncoding = () => {};
+        child.stderr.setEncoding = () => {};
+        child.kill = vi.fn() as typeof child.kill;
+        queueMicrotask(() => {
+          child.stdout.emit('data', JSON.stringify({ ok: true, account: 'user@example.com' }));
+          child.emit('close', 0);
+        });
+        expect(command).toBe('opl');
+        expect(args).toEqual(['connect', 'gateway', 'login', '--credentials-stdin', '--json']);
+        expect(JSON.stringify(args)).not.toContain(password);
+        expect((options as { stdio?: unknown[] }).stdio?.[0]).toBe('pipe');
+        return child;
+      });
+
+      handle = await startStaticServer({
+        staticDir,
+        backendPort: backend.port,
+        port: 0,
+        oplRuntimeProxy: { dataDir, projectsDir, resourcesPath },
+      });
+
+      const r = await fetch(`${handle.localUrl}/api/opl-runtime/gateway-account-login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: ' user@example.com ', password }),
+      });
+      expect(r.status).toBe(200);
+      const json = (await r.json()) as {
+        success: boolean;
+        data: { ok: boolean; stateRefreshRequired: boolean };
+      };
+      expect(json).toEqual({ success: true, data: { ok: true, stateRefreshRequired: true } });
+      expect(stdinEnd).toHaveBeenCalledWith(`${JSON.stringify({ email: 'user@example.com', password })}\n`);
+      expect(JSON.stringify(json)).not.toContain(password);
+      expect(JSON.stringify(json)).not.toContain('stdout');
+      expect(logged.join('\n')).not.toContain(password);
+    } finally {
+      for (const spy of consoleSpies) spy.mockRestore();
+    }
+  });
+
   it('/api/opl-runtime/* passes packaged image manifest and seed env to OPL commands', async () => {
     const backend = await startMockBackend((_req, res) => {
       res.writeHead(500, { 'content-type': 'application/json' });

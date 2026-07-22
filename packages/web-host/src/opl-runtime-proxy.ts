@@ -15,6 +15,7 @@ export type OplRuntimeSurface =
   | 'system_initialize'
   | 'install_prep'
   | 'configure_codex'
+  | 'gateway_account'
   | 'startup_maintenance'
   | 'reconcile_modules'
   | 'update_status'
@@ -37,6 +38,29 @@ export type OplRuntimeCommandResult = {
     exitCode?: number | null;
     timedOut?: boolean;
   };
+};
+
+type OplGatewayAccountErrorCode =
+  | 'invalid_credentials'
+  | 'account_disabled'
+  | 'mfa_or_challenge_required'
+  | 'session_not_persistable'
+  | 'group_selection_required'
+  | 'auth_expired'
+  | 'network_unreachable'
+  | 'rate_limited'
+  | 'managed_key_missing'
+  | 'managed_key_conflict'
+  | 'managed_key_identity_drift'
+  | 'disconnect_pending'
+  | 'invalid_request'
+  | 'internal_contract_violation'
+  | 'gateway_account_failed';
+
+type OplGatewayAccountMutationResult = {
+  ok: boolean;
+  errorCode?: OplGatewayAccountErrorCode;
+  stateRefreshRequired: boolean;
 };
 
 type RuntimeCommandSpec = {
@@ -172,6 +196,85 @@ function assertManagedUpdateTarget(body: JsonRecord): 'opl_base' | 'opl_packages
   return lifecycleId;
 }
 
+const GATEWAY_ACCOUNT_ERROR_CODES = new Set<OplGatewayAccountErrorCode>([
+  'invalid_credentials',
+  'account_disabled',
+  'mfa_or_challenge_required',
+  'session_not_persistable',
+  'group_selection_required',
+  'auth_expired',
+  'network_unreachable',
+  'rate_limited',
+  'managed_key_missing',
+  'managed_key_conflict',
+  'managed_key_identity_drift',
+  'disconnect_pending',
+  'invalid_request',
+  'internal_contract_violation',
+  'gateway_account_failed',
+]);
+
+const GATEWAY_SECRET_FIELD_NAMES = new Set([
+  'password',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'apikey',
+  'key',
+  'keyvalue',
+  'keyplaintext',
+  'plaintextkey',
+  'secret',
+]);
+
+function containsGatewaySecretField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsGatewaySecretField);
+  if (!isRecord(value)) return false;
+  return Object.entries(value).some(([field, nested]) => {
+    const normalized = field.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    return GATEWAY_SECRET_FIELD_NAMES.has(normalized) || containsGatewaySecretField(nested);
+  });
+}
+
+function readGatewayAccountErrorCode(value: unknown): OplGatewayAccountErrorCode | null {
+  if (!isRecord(value)) return null;
+  const direct = typeof value.error_code === 'string' ? value.error_code : null;
+  const nested = isRecord(value.error) && typeof value.error.code === 'string' ? value.error.code : null;
+  const candidate = direct ?? nested;
+  return candidate && GATEWAY_ACCOUNT_ERROR_CODES.has(candidate as OplGatewayAccountErrorCode)
+    ? (candidate as OplGatewayAccountErrorCode)
+    : null;
+}
+
+function inferGatewayAccountErrorCode(result: OplRuntimeCommandResult): OplGatewayAccountErrorCode {
+  const parsedCode = readGatewayAccountErrorCode(result.parsed);
+  if (parsedCode) return parsedCode;
+  const text = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`.toLowerCase();
+  if (/invalid credentials|invalid password|unauthorized|401/.test(text)) return 'invalid_credentials';
+  if (/disabled|suspended/.test(text)) return 'account_disabled';
+  if (/turnstile|captcha|totp|two-factor|mfa|challenge/.test(text)) return 'mfa_or_challenge_required';
+  if (/429|rate limit/.test(text)) return 'rate_limited';
+  if (/network|enotfound|econn|timeout|timed out/.test(text)) return 'network_unreachable';
+  return 'gateway_account_failed';
+}
+
+function sanitizeGatewayAccountResult(result: OplRuntimeCommandResult): OplGatewayAccountMutationResult {
+  if (!isRecord(result.parsed)) {
+    if (result.ok === false) {
+      return { ok: false, errorCode: inferGatewayAccountErrorCode(result), stateRefreshRequired: false };
+    }
+    return { ok: false, errorCode: 'internal_contract_violation', stateRefreshRequired: false };
+  }
+  if (containsGatewaySecretField(result.parsed)) {
+    return { ok: false, errorCode: 'internal_contract_violation', stateRefreshRequired: false };
+  }
+  const parsedOk = typeof result.parsed.ok === 'boolean' ? result.parsed.ok : null;
+  if (result.ok === false || parsedOk === false) {
+    return { ok: false, errorCode: inferGatewayAccountErrorCode(result), stateRefreshRequired: false };
+  }
+  return { ok: true, stateRefreshRequired: true };
+}
+
 function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeCommandSpec {
   switch (route) {
     case 'app-state': {
@@ -216,6 +319,22 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
         args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
         stdin: `${apiKey}\n`,
         redactedCommand: 'opl system configure-codex --api-key-stdin --json',
+      };
+    }
+    case 'gateway-account-login': {
+      const allowedFields = new Set(['email', 'password', 'deviceLabel']);
+      if (Object.keys(body).some((field) => !allowedFields.has(field))) {
+        throw new Error('Invalid Gateway account login request.');
+      }
+      const email = typeof body.email === 'string' ? body.email.trim() : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+      const deviceLabel = typeof body.deviceLabel === 'string' ? body.deviceLabel.trim() : '';
+      if (!email || !password) throw new Error('Invalid Gateway account login request.');
+      return {
+        surface: 'gateway_account',
+        args: ['connect', 'gateway', 'login', '--credentials-stdin', '--json'],
+        stdin: `${JSON.stringify({ email, password, ...(deviceLabel ? { device_label: deviceLabel } : {}) })}\n`,
+        redactedCommand: 'opl connect gateway login --credentials-stdin --json',
       };
     }
     case 'startup-maintenance':
@@ -677,7 +796,12 @@ export async function handleOplRuntimeProxyRequest(
     const route = req.url.slice('/api/opl-runtime/'.length).split('?', 1)[0] ?? '';
     const spec = buildCommandFromRequest(route, await readJsonBody(req));
     const result = await runOplCommand(spec, opts);
-    writeJson(res, 200, { success: result.ok !== false, data: result });
+    if (route === 'gateway-account-login') {
+      const sanitized = sanitizeGatewayAccountResult(result);
+      writeJson(res, 200, { success: sanitized.ok, data: sanitized });
+    } else {
+      writeJson(res, 200, { success: result.ok !== false, data: result });
+    }
   } catch (error) {
     writeJson(res, 400, {
       success: false,
@@ -692,6 +816,7 @@ export const __oplRuntimeProxyTest = {
   buildOplEnv,
   buildStandardBootstrapCommand,
   commandFailureResult,
+  sanitizeGatewayAccountResult,
   MAINTENANCE_TIMEOUT_MS,
   normalizeOplRuntimeProxyOptions,
   resetOplAppProcessInstanceIdForTest,

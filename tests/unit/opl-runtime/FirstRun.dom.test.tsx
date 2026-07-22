@@ -1172,19 +1172,26 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
   });
 
-  it('keeps Gateway password login out of WebUI while retaining API Key compatibility', async () => {
+  it('defaults WebUI to Gateway account login while retaining API Key compatibility', async () => {
     platformMocks.isElectronDesktop.mockReturnValue(false);
     bridgeMocks.getInitializeInvoke.mockResolvedValue(blockedInitializeResult);
 
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
-    expect(screen.queryByTestId('opl-first-run-access-methods')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-first-run-gateway-email-input')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-first-run-gateway-password-input')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-first-run-gateway-login-button')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-access-methods')).toBeInTheDocument();
+    expect(within(screen.getByTestId('opl-first-run-gateway-account-method')).getByRole('radio')).toBeChecked();
+    expect(screen.getByTestId('opl-first-run-gateway-email-input')).toBeInTheDocument();
+    const password = screen.getByTestId('opl-first-run-gateway-password-input');
+    expect(password).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-gateway-login-button')).toBeInTheDocument();
+    fireEvent.change(password, { target: { value: 'webui-account-secret' } });
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-key-method'));
     expect(screen.getByTestId('opl-first-run-codex-api-key-input')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('opl-first-run-gateway-account-method'));
+    expect(screen.getByTestId('opl-first-run-gateway-password-input')).toHaveValue('');
     expect(bridgeMocks.loginGatewayAccountInvoke).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain('webui-account-secret');
   });
 
   it('configures Codex through the narrow bridge when the Codex config blocks Core readiness', async () => {

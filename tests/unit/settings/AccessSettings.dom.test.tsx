@@ -923,6 +923,7 @@ describe('AccessSettingsContent', () => {
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
+    fireEvent.click(view.getByText('Access key'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
     fireEvent.input(input, { target: { value: '  sk-opl-secret-value  ' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
@@ -949,6 +950,7 @@ describe('AccessSettingsContent', () => {
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
+    fireEvent.click(view.getByText('Access key'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'sk-opl-secret-value' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
@@ -963,6 +965,7 @@ describe('AccessSettingsContent', () => {
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
+    fireEvent.click(view.getByText('Access key'));
     fireEvent.input(view.getByTestId('opl-settings-codex-api-key-input'), { target: { value: '   ' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
 
@@ -972,8 +975,7 @@ describe('AccessSettingsContent', () => {
     expect(await view.findByText('Enter an OPL Gateway access key.')).toBeTruthy();
   });
 
-  it('uses the desktop-only account bridge and clears the password after a failed login', async () => {
-    Object.defineProperty(window, 'electronAPI', { value: {}, configurable: true });
+  it('uses the runtime-provider account bridge in WebUI and clears the password after a failed login', async () => {
     const mocks = getMocks();
     mocks.gatewayAccount = makeGatewayAccount();
     mocks.loginGatewayAccountInvoke.mockResolvedValueOnce({
