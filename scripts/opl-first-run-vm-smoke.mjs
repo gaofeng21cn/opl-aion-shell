@@ -1305,6 +1305,9 @@ function inspectPackagedPythonBytecode(appPath) {
 
 function verifyPackagedRuntimeIntegrity(appPath, artifactsDir, hooks = {}) {
   const runCommand = hooks.spawnSync ?? spawnSync;
+  const phase = hooks.phase ?? 'post_runtime_smoke';
+  const receiptName = hooks.receiptName ?? 'packaged-runtime-integrity.json';
+  const checkedAfterRuntimeSmoke = hooks.checkedAfterRuntimeSmoke ?? true;
   const pythonBytecode = inspectPackagedPythonBytecode(appPath);
   const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     encoding: 'utf8',
@@ -1317,6 +1320,7 @@ function verifyPackagedRuntimeIntegrity(appPath, artifactsDir, hooks = {}) {
   const receipt = {
     schema: 'opl_packaged_runtime_integrity.v1',
     app_path: appPath,
+    phase,
     status:
       pythonBytecode.errors.length === 0 && pythonBytecode.paths.length === 0 && codesign.status === 0
         ? 'passed'
@@ -1337,19 +1341,23 @@ function verifyPackagedRuntimeIntegrity(appPath, artifactsDir, hooks = {}) {
       stdout: spctl.stdout ?? '',
       stderr: spctl.stderr ?? spctl.error?.message ?? '',
     },
-    checked_after_runtime_smoke: true,
+    checked_after_configure_codex: phase === 'post_configure_pre_launch',
+    checked_before_first_launch: phase === 'post_configure_pre_launch' || phase === 'pre_launch',
+    checked_after_runtime_smoke: checkedAfterRuntimeSmoke,
+    checked_after_restart: phase === 'post_runtime_and_restart',
   };
   fs.mkdirSync(artifactsDir, { recursive: true });
-  writeJsonArtifact(path.join(artifactsDir, 'packaged-runtime-integrity.json'), receipt);
+  const receiptPath = path.join(artifactsDir, receiptName);
+  writeJsonArtifact(receiptPath, receipt);
   if (receipt.status !== 'passed') {
     throw new Error(
       [
-        'Packaged Full runtime integrity gate failed after runtime smoke.',
+        `Packaged Full runtime integrity gate failed during ${phase}.`,
         `forbidden_python_bytecode=${pythonBytecode.paths.length}`,
         `inspection_errors=${pythonBytecode.errors.length}`,
         `codesign status=${codesign.status}`,
         `spctl status=${spctl.status}`,
-        `receipt=${path.join(artifactsDir, 'packaged-runtime-integrity.json')}`,
+        `receipt=${receiptPath}`,
         pythonBytecode.paths.length ? `forbidden paths:\n${pythonBytecode.paths.join('\n')}` : '',
         pythonBytecode.errors.length ? `inspection errors:\n${JSON.stringify(pythonBytecode.errors)}` : '',
       ]
@@ -6778,6 +6786,7 @@ async function main() {
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
     options.appPath = appPath;
     const installedAppOptions = { ...options, appPath };
+    let preLaunchPackagedRuntimeIntegrity = null;
 
     await runSmokePhase(writeSmokeEvent, 'verify_packaged_main_bootstrap', () =>
       assertPackagedMainBootstrap(appPath, options.artifacts)
@@ -6824,6 +6833,29 @@ async function main() {
         reason: 'require_codex_config_wizard',
         source: 'gui_wizard',
       });
+    }
+
+    if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
+      const phase =
+        codexApiKey && !options.bootstrapLaunchDiagnostics && !options.requireCodexConfigWizard
+          ? 'post_configure_pre_launch'
+          : 'pre_launch';
+      preLaunchPackagedRuntimeIntegrity = await runSmokePhase(
+        writeSmokeEvent,
+        'packaged_runtime_integrity_pre_launch',
+        () =>
+          verifyPackagedRuntimeIntegrity(appPath, options.artifacts, {
+            phase,
+            receiptName: 'packaged-runtime-integrity-pre-launch.json',
+            checkedAfterRuntimeSmoke: false,
+          }),
+        {
+          phase,
+          blocking_release_gate: true,
+          checks: ['no_packaged_python_bytecode', 'deep_codesign', 'spctl'],
+          timeout_ms: options.timeoutMs,
+        }
+      );
     }
 
     if (shouldTerminateExistingApp()) {
@@ -7208,8 +7240,13 @@ async function main() {
       packagedRuntimeIntegrity = await runSmokePhase(
         writeSmokeEvent,
         'packaged_runtime_integrity',
-        () => verifyPackagedRuntimeIntegrity(appPath, options.artifacts),
+        () =>
+          verifyPackagedRuntimeIntegrity(appPath, options.artifacts, {
+            phase: 'post_runtime_and_restart',
+            checkedAfterRuntimeSmoke: true,
+          }),
         {
+          phase: 'post_runtime_and_restart',
           blocking_release_gate: true,
           checks: ['no_packaged_python_bytecode', 'deep_codesign', 'spctl'],
           timeout_ms: options.timeoutMs,
@@ -7279,6 +7316,7 @@ async function main() {
       codex_ai_self_check: codexAiSelfCheck,
       app_release_runtime_evidence: appReleaseRuntimeEvidence,
       temporal_service_supervisor_proof: temporalServiceSupervisorProof,
+      packaged_runtime_integrity_pre_launch: preLaunchPackagedRuntimeIntegrity,
       packaged_runtime_integrity: packagedRuntimeIntegrity,
       guide_screenshots: guideScreenshots,
     };
@@ -7292,6 +7330,7 @@ async function main() {
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
       app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
       temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
+      packaged_runtime_integrity_pre_launch: summary.packaged_runtime_integrity_pre_launch?.status ?? null,
       packaged_runtime_integrity: summary.packaged_runtime_integrity?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
