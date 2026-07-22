@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Message, Modal, Radio, Select, Typography } from '@arco-design/web-react';
-import { CheckOne, Key, Terminal, UpdateRotation } from '@icon-park/react';
+import { CheckOne, Key, Terminal } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
 import { getOplCodexModelDisplayOptions } from '@/common/config/oplProductProfile';
@@ -467,14 +467,12 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                 </div>
               </div>
               <div className='opl-settings-row__meta'>
-                <Button
-                  type='text'
-                  icon={<UpdateRotation theme='outline' size='16' fill='currentColor' />}
+                <OplRefreshIconButton
+                  data-testid='settings-models-recheck'
+                  label={t('settings.accessPage.actions.recheck')}
                   loading={appStateQuery.refreshing}
                   onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
-                >
-                  {t('settings.accessPage.actions.recheck')}
-                </Button>
+                />
               </div>
             </div>
           </section>

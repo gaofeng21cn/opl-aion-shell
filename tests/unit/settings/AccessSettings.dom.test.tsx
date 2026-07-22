@@ -766,6 +766,9 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-models-preferred-reasoning')).toBeDisabled();
     expect(view.getByTestId('settings-models-gateway-link')).toBeTruthy();
     expect(view.queryByTestId('settings-gateway-primary')).toBeNull();
+    const recheck = view.getByRole('button', { name: 'Recheck' });
+    expect(recheck).toHaveTextContent('');
+    expect(recheck.querySelector('svg')).not.toBeNull();
   });
 
   it('persists a fixed built-in model and reasoning preference for new conversations', async () => {
