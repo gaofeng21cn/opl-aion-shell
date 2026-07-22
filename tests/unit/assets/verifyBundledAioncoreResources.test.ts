@@ -18,8 +18,8 @@ function writeAioncoreManifest(resourcesDir: string, runtimeKey: string): void {
     JSON.stringify({
       platform,
       arch,
-      version: 'v0.1.49',
-      compatibility: { reportedVersion: '0.1.49' },
+      version: 'v0.1.50',
+      compatibility: { reportedVersion: '0.1.50' },
     })
   );
 }
@@ -62,6 +62,18 @@ function writeManagedCodexContract(
         'node_modules/@agentclientprotocol/codex-acp': {
           version: managedAcpVersion,
           integrity: 'sha512-fixture',
+        },
+        'node_modules/@openai/codex': {
+          version: CODEX_VERSION,
+          integrity: 'sha512-codex-fixture',
+          optionalDependencies: {
+            [platformPackageName]: `npm:@openai/codex@${CODEX_VERSION}-${runtimeKey}`,
+          },
+        },
+        [`node_modules/${platformPackageName}`]: {
+          name: '@openai/codex',
+          version: `${CODEX_VERSION}-${runtimeKey}`,
+          integrity: 'sha512-codex-platform-fixture',
         },
       },
     })
@@ -465,13 +477,13 @@ describe('verifyBundledAioncoreResources', () => {
 
     expect(result.invalid).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('expected AionCore v0.1.49'),
+        expect.stringContaining('expected AionCore v0.1.50'),
         'bundled-aioncore/win32-x64/managed-resources/manifest.json: invalid maintained Codex ACP identity',
       ])
     );
   });
 
-  it('rejects managed Codex versions other than the AionCore 0.1.49 payload', () => {
+  it('rejects an installed Codex package that drifts from the AionCore managed lock', () => {
     const codexPackagePath = join(codexRoot, 'node_modules', '@openai', 'codex', 'package.json');
     const codexPackage = JSON.parse(readFileSync(codexPackagePath, 'utf8'));
     codexPackage.version = '0.143.0';
@@ -484,7 +496,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/node_modules/@openai/codex/package.json: expected Codex ${CODEX_VERSION} for win32-x64`
+      `bundled-aioncore/win32-x64/managed-resources/acp/codex-acp/${CODEX_ACP_FIXTURE_VERSION}/win32-x64/node_modules/@openai/codex/package.json: expected locked Codex ${CODEX_VERSION} for win32-x64`
     );
   });
 

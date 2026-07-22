@@ -48,34 +48,34 @@ describe('prepare-aioncore compatibility gate', () => {
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 
-    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
+    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
       execFileSync(_command: string, args: string[]) {
         calls.push(args);
         return args[0] === '--version'
-          ? 'aioncore 0.1.49\n'
+          ? 'aioncore 0.1.50\n'
           : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
       },
     });
 
-    expect(result.version).toBe('0.1.49');
+    expect(result.version).toBe('0.1.50');
     expect(calls).toEqual([['--version'], ['--help']]);
   });
 
   it('rejects a binary whose reported version does not match the package pin', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
         execFileSync() {
           return 'aioncore 0.1.28\n';
         },
       })
-    ).toThrow(/expected 0\.1\.49, reported 0\.1\.28/);
+    ).toThrow(/expected 0\.1\.50, reported 0\.1\.28/);
   });
 
   it('rejects a binary that does not expose database recovery', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.49', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
         execFileSync(_command: string, args: string[]) {
-          return args[0] === '--version' ? 'aioncore 0.1.49\n' : 'Options:\n  -V, --version\n';
+          return args[0] === '--version' ? 'aioncore 0.1.50\n' : 'Options:\n  -V, --version\n';
         },
       })
     ).toThrow(/missing required option --recover-corrupted-database/);
@@ -259,7 +259,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
       path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore')
     );
 
-    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.49');
+    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.50');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
   });
 
@@ -267,7 +267,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.49', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.50', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
 
     fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
@@ -279,8 +279,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
       JSON.stringify({
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.49',
-        compatibility: { reportedVersion: '0.1.49' },
+        version: 'v0.1.50',
+        compatibility: { reportedVersion: '0.1.50' },
       })
     );
     fs.writeFileSync(
@@ -322,6 +322,18 @@ describe('prepare-aioncore prepared runtime cache', () => {
           'node_modules/@agentclientprotocol/codex-acp': {
             version: '1.1.2',
             integrity: 'sha512-fixture',
+          },
+          'node_modules/@openai/codex': {
+            version: '0.144.6',
+            integrity: 'sha512-codex-fixture',
+            optionalDependencies: {
+              '@openai/codex-darwin-arm64': 'npm:@openai/codex@0.144.6-darwin-arm64',
+            },
+          },
+          'node_modules/@openai/codex-darwin-arm64': {
+            name: '@openai/codex',
+            version: '0.144.6-darwin-arm64',
+            integrity: 'sha512-codex-platform-fixture',
           },
         },
       })
@@ -388,10 +400,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.49',
+        version: 'v0.1.50',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.49\n'
+            ? 'aioncore 0.1.50\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });

@@ -1,9 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_AIONCORE_VERSION = 'v0.1.49';
-const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.49';
-const REQUIRED_CODEX_VERSION = '0.144.6';
+const REQUIRED_AIONCORE_VERSION = 'v0.1.50';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.50';
 const MANAGED_CODEX_ACP_PACKAGE = '@agentclientprotocol/codex-acp';
 const LEGACY_CODEX_ACP_PACKAGE = '@zed-industries/codex-acp';
 const MANAGED_CODEX_ACP_ENTRYPOINT = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
@@ -365,6 +364,12 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
 
   const packageLock = readManifest(path.join(toolRoot, 'package-lock.json'));
   const lockedAcpPackage = packageLock?.packages?.[`node_modules/${MANAGED_CODEX_ACP_PACKAGE}`];
+  const lockedCodexPackage = packageLock?.packages?.['node_modules/@openai/codex'];
+  const lockedPlatformPackage = packageLock?.packages?.[platformPackageRoot];
+  const lockedCodexVersion =
+    typeof lockedCodexPackage?.version === 'string' && /^\d+\.\d+\.\d+$/.test(lockedCodexPackage.version)
+      ? lockedCodexPackage.version
+      : '';
   if (
     !Number.isInteger(packageLock?.lockfileVersion) ||
     packageLock.lockfileVersion < 2 ||
@@ -375,6 +380,21 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   ) {
     invalid.push(
       `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package-lock.json')}: package/version lock mismatch`
+    );
+  }
+  if (
+    !lockedCodexVersion ||
+    typeof lockedCodexPackage?.integrity !== 'string' ||
+    !lockedCodexPackage.integrity.startsWith('sha512-') ||
+    lockedCodexPackage?.optionalDependencies?.[platformPackageName] !==
+      `npm:@openai/codex@${lockedCodexVersion}-${runtimeKey}` ||
+    lockedPlatformPackage?.name !== '@openai/codex' ||
+    lockedPlatformPackage?.version !== `${lockedCodexVersion}-${runtimeKey}` ||
+    typeof lockedPlatformPackage?.integrity !== 'string' ||
+    !lockedPlatformPackage.integrity.startsWith('sha512-')
+  ) {
+    invalid.push(
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package-lock.json')}: Codex lock contract mismatch`
     );
   }
 
@@ -394,12 +414,13 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   const codexPackageJson = readManifest(path.join(toolRoot, 'node_modules', '@openai', 'codex', 'package.json'));
   if (
     codexPackageJson?.name !== '@openai/codex' ||
-    codexPackageJson?.version !== REQUIRED_CODEX_VERSION ||
+    !lockedCodexVersion ||
+    codexPackageJson?.version !== lockedCodexVersion ||
     codexPackageJson?.optionalDependencies?.[platformPackageName] !==
-      `npm:@openai/codex@${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+      `npm:@openai/codex@${lockedCodexVersion}-${runtimeKey}`
   ) {
     invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', '@openai/codex', 'package.json')}: expected Codex ${REQUIRED_CODEX_VERSION} for ${runtimeKey}`
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', '@openai/codex', 'package.json')}: expected locked Codex ${lockedCodexVersion || '<missing>'} for ${runtimeKey}`
     );
   }
 
@@ -408,10 +429,11 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   );
   if (
     platformPackageJson?.name !== '@openai/codex' ||
-    platformPackageJson?.version !== `${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+    !lockedCodexVersion ||
+    platformPackageJson?.version !== `${lockedCodexVersion}-${runtimeKey}`
   ) {
     invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, platformPackageRoot, 'package.json')}: expected Codex platform package ${REQUIRED_CODEX_VERSION}-${runtimeKey}`
+      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, platformPackageRoot, 'package.json')}: expected locked Codex platform package ${lockedCodexVersion || '<missing>'}-${runtimeKey}`
     );
   }
 
