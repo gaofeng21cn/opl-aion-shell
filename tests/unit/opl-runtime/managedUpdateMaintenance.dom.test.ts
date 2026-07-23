@@ -21,7 +21,6 @@ const bridgeMocks = vi.hoisted(() => ({
   applyUpdatePlanInvoke: vi.fn(),
   applyUpdateComponentInvoke: vi.fn(),
   repairUpdateInvoke: vi.fn(),
-  rollbackUpdateComponentInvoke: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -33,7 +32,6 @@ vi.mock('@/common', () => ({
       applyUpdatePlan: { invoke: bridgeMocks.applyUpdatePlanInvoke },
       applyUpdateComponent: { invoke: bridgeMocks.applyUpdateComponentInvoke },
       repairUpdate: { invoke: bridgeMocks.repairUpdateInvoke },
-      rollbackUpdateComponent: { invoke: bridgeMocks.rollbackUpdateComponentInvoke },
     },
   },
 }));
@@ -99,7 +97,7 @@ const managedUpdatePlanResult = {
           auto_apply: {
             eligible: true,
             app_background_safe: true,
-            command_ref: 'opl packages update --json',
+            command_ref: 'opl update apply --json',
             blocked_reasons: [],
           },
         },
@@ -166,21 +164,19 @@ describe('managed update background maintenance scheduler', () => {
         },
       },
     });
-    bridgeMocks.applyUpdateComponentInvoke.mockImplementation(({ componentId }: { componentId: string }) =>
-      Promise.resolve({
-        surface: 'update_apply',
-        command: componentId === 'opl_base' ? 'opl update apply --json' : 'opl packages update --package-id oma --json',
-        stdout: '{}',
-        parsed: {
-          managed_update: {
-            operation: 'apply',
-            idempotency_lock: { status: 'released' },
-            execution: { status: 'completed' },
-            components: [{ component_id: componentId, state: 'needs_reload', needs_reload: true }],
-          },
+    bridgeMocks.applyUpdateComponentInvoke.mockResolvedValue({
+      surface: 'update_apply',
+      command: 'opl update apply --json',
+      stdout: '{}',
+      parsed: {
+        managed_update: {
+          operation: 'apply',
+          idempotency_lock: { status: 'released' },
+          execution: { status: 'completed' },
+          components: [{ component_id: 'opl_base', state: 'needs_reload', needs_reload: true }],
         },
-      })
-    );
+      },
+    });
   });
 
   it('publishes status before startup check, plan, and one Framework-owned apply', async () => {
@@ -305,29 +301,22 @@ describe('managed update background maintenance scheduler', () => {
     });
   });
 
-  it('routes Base and explicitly targeted Packages mutations while rejecting App', async () => {
+  it('routes only Base mutations and rejects Packages, App, and legacy ids', async () => {
     await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
-    await executeManagedUpdateMutation('apply', { componentId: 'opl_packages', packageId: 'oma' });
 
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenNthCalledWith(1, { componentId: 'opl_base' });
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenNthCalledWith(2, {
-      componentId: 'opl_packages',
-      packageId: 'oma',
-    });
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'opl_base' });
 
-    const result = await executeManagedUpdateMutation('apply', { componentId: 'opl_app' });
-    expect(result?.ok).toBe(false);
-    expect(result?.error?.message).toContain('host or carrier updater');
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(2);
-  });
-
-  it('rejects package mutations without a package id and rejects legacy ids', async () => {
-    const missingPackage = await executeManagedUpdateMutation('repair', { componentId: 'opl_packages' });
+    const packageResult = await executeManagedUpdateMutation('repair', { componentId: 'opl_packages' });
+    const appResult = await executeManagedUpdateMutation('apply', { componentId: 'opl_app' });
     const legacy = await executeManagedUpdateMutation('repair', { componentId: 'capability_packages' });
 
-    expect(missingPackage?.ok).toBe(false);
+    expect(packageResult?.ok).toBe(false);
+    expect(packageResult?.error?.message).toMatch(/Framework projected action.*opl app action execute/);
+    expect(appResult?.ok).toBe(false);
+    expect(appResult?.error?.message).toContain('host or carrier updater');
     expect(legacy?.ok).toBe(false);
     expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
   });
 
   it('does not turn package profile migration diagnostics into a separate maintenance target', async () => {

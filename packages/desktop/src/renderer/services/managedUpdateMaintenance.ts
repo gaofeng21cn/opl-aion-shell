@@ -61,7 +61,6 @@ const DAILY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
-const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base', 'opl_packages']);
 
 let retryCount = 0;
 let schedulerStarted = false;
@@ -450,12 +449,15 @@ function projectBackgroundPlan(result: IOplRuntimeCommandResult): ReturnType<typ
 }
 
 function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
-  const message = `OPL Settings ${kind} accepts only opl_base and explicitly targeted opl_packages. opl_app uses its host or carrier updater.`;
+  const packageMutation = componentId === 'opl_packages';
+  const message = packageMutation
+    ? 'Package lifecycle mutations require a Framework projected action through opl app action execute'
+    : `OPL Settings ${kind} accepts only opl_base. opl_app uses its host or carrier updater.`;
   const command =
     componentId === 'opl_base'
       ? `opl update ${kind} --json`
       : componentId === 'opl_packages'
-        ? `opl packages ${kind === 'apply' ? 'update' : kind} --package-id <package_id> --json`
+        ? 'opl app action execute --action <package-action-id> --json'
         : componentId === 'opl_app'
           ? 'host or carrier updater'
           : `unsupported managed update lifecycle id: ${componentId}`;
@@ -695,18 +697,11 @@ export async function executeManagedUpdateMutation(
   kind: ManagedUpdateMutationKind,
   input: {
     componentId: string;
-    packageId?: string;
     receiptId?: string;
   }
 ): Promise<IOplRuntimeCommandResult | null> {
   const componentId = canonicalManagedUpdateComponentId(input.componentId);
-  if (
-    !componentId ||
-    componentId !== input.componentId ||
-    (kind === 'apply' && !USER_APPLY_COMPONENT_IDS.has(componentId)) ||
-    componentId === 'opl_app' ||
-    (componentId === 'opl_packages' && !input.packageId)
-  ) {
+  if (!componentId || componentId !== input.componentId || componentId !== 'opl_base') {
     const result = mutationForbiddenResult(kind, input.componentId);
     emit({
       running: false,
@@ -742,11 +737,9 @@ export async function executeManagedUpdateMutation(
 
   const request: IOplUpdateComponentRequest = {
     componentId,
-    ...(input.packageId ? { packageId: input.packageId } : {}),
   };
   const repairRequest: IOplUpdateRepairRequest = {
     componentId,
-    ...(input.packageId ? { packageId: input.packageId } : {}),
     receiptId: input.receiptId,
   };
 

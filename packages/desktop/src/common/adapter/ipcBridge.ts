@@ -582,13 +582,11 @@ export type IOplGatewayAccountMutationResult = {
 export type IOplManagedUpdateLifecycleId = 'opl_base' | 'opl_app' | 'opl_packages';
 
 export type IOplUpdateComponentRequest = {
-  componentId: IOplManagedUpdateLifecycleId;
-  packageId?: string;
+  componentId: 'opl_base';
 };
 
 export type IOplUpdateRepairRequest = {
-  componentId: IOplManagedUpdateLifecycleId;
-  packageId?: string;
+  componentId: 'opl_base';
   receiptId?: string;
 };
 

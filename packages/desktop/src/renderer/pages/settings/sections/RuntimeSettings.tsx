@@ -183,7 +183,7 @@ function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate):
 }
 
 function componentApplyAllowed(component: ManagedUpdateComponent): boolean {
-  return (component.id === 'opl_base' || component.id === 'opl_packages') && component.safeToApply;
+  return component.id === 'opl_base' && component.safeToApply;
 }
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
@@ -989,7 +989,9 @@ function ManagedUpdatesPanel({
   const visibleComponents = hideFrameworkApp
     ? plane.components.filter((component) => component.id !== 'opl_app')
     : plane.components;
-  const recommendedAction = findRecommendedUpdateAction(visibleComponents);
+  const recommendedAction = findRecommendedUpdateAction(
+    visibleComponents.filter((component) => component.id === 'opl_base')
+  );
   const recommendedActionLoading =
     recommendedAction.kind === 'check'
       ? checkLoading
@@ -1253,7 +1255,7 @@ function ManagedUpdatesPanel({
                             {t('settings.oplEnvironmentPage.updates.actions.applyUpdate')}
                           </Button>
                         )}
-                        {component.repairAllowed && (
+                        {component.id === 'opl_base' && component.repairAllowed && (
                           <Button
                             data-testid={`opl-managed-update-repair-${component.id}`}
                             size='small'
@@ -1262,17 +1264,6 @@ function ManagedUpdatesPanel({
                             onClick={() => onRequestAction('repair', component)}
                           >
                             {t('settings.oplEnvironmentPage.updates.actions.repair')}
-                          </Button>
-                        )}
-                        {component.rollbackAllowed && (
-                          <Button
-                            data-testid={`opl-managed-update-rollback-${component.id}`}
-                            size='small'
-                            loading={busyAction === `rollback:${component.id}`}
-                            disabled={maintenanceOperationBusy}
-                            onClick={() => onRequestAction('rollback', component)}
-                          >
-                            {t('settings.oplEnvironmentPage.updates.actions.rollback')}
                           </Button>
                         )}
                       </Space>
@@ -1578,7 +1569,6 @@ const RuntimeSettingsContent: React.FC = () => {
         const translate = tRef.current;
         const result = await executeManagedUpdateMutation(kind, {
           componentId: component.id,
-          packageId: component.packageId,
           receiptId: component.repairReceiptId,
         });
         if (!bridgeResultSucceeded(result)) {

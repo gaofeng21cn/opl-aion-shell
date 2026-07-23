@@ -18,7 +18,6 @@ const bridgeMocks = vi.hoisted(() => ({
   getUpdatePlanInvoke: vi.fn(),
   applyUpdateComponentInvoke: vi.fn(),
   repairUpdateInvoke: vi.fn(),
-  rollbackUpdateComponentInvoke: vi.fn(),
   autoUpdateGetStatusSnapshotInvoke: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
   systemInfoInvoke: vi.fn(),
@@ -49,7 +48,6 @@ vi.mock('@/common', () => ({
       getUpdatePlan: { invoke: bridgeMocks.getUpdatePlanInvoke },
       applyUpdateComponent: { invoke: bridgeMocks.applyUpdateComponentInvoke },
       repairUpdate: { invoke: bridgeMocks.repairUpdateInvoke },
-      rollbackUpdateComponent: { invoke: bridgeMocks.rollbackUpdateComponentInvoke },
     },
     shell: {
       openFolderWith: { invoke: vi.fn() },
@@ -425,12 +423,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     bridgeMocks.repairUpdateInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_repair',
-      command: 'opl packages repair --package-id oma --json',
-    });
-    bridgeMocks.rollbackUpdateComponentInvoke.mockResolvedValue({
-      ...managedUpdateStatusResult,
-      surface: 'update_rollback',
-      command: 'opl update rollback --json',
+      command: 'opl update repair --json',
     });
     bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
@@ -622,12 +615,18 @@ describe('RuntimeSettings app state bridge usage', () => {
       screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement
     );
     const oplBaseRow = screen.getByTestId('opl-managed-update-opl_base');
+    expect(screen.getByTestId('opl-managed-update-apply-opl_base')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-apply-opl_packages')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-repair-opl_packages')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-rollback-opl_base')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-rollback-opl_packages')).not.toBeInTheDocument();
     const componentDetails = within(oplBaseRow).getByRole('button', {
       name: 'settings.oplEnvironmentPage.updates.diagnostics.componentDetails',
     });
     expect(componentDetails).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(componentDetails);
     expect(componentDetails).toHaveAttribute('aria-expanded', 'true');
+    expect(oplBaseRow).toHaveTextContent('rollback://opl_base/previous');
     expect(screen.getByTestId('opl-base-dependency-catalog')).toBeInTheDocument();
     expect(screen.getAllByTestId('opl-base-dependency-codex-cli')).toHaveLength(1);
     expect(screen.getByTestId('opl-base-dependency-codex-cli')).toHaveTextContent('1.2.3');

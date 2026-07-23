@@ -113,7 +113,7 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
     ).toThrow(/Invalid OPL domain detail revision/);
   });
 
-  it('routes only the three public update lifecycle ids to their owning CLI surfaces', () => {
+  it('keeps Base updates on the managed update surface and rejects direct Package lifecycle commands', () => {
     expect(__oplRuntimeProxyTest.buildCommandFromRequest('update-plan-apply', {})).toMatchObject({
       surface: 'update_apply',
       args: ['update', 'apply', '--json'],
@@ -122,15 +122,14 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
       surface: 'update_apply',
       args: ['update', 'apply', '--json'],
     });
-    expect(
-      __oplRuntimeProxyTest.buildCommandFromRequest('update-repair', {
-        componentId: 'opl_packages',
-        packageId: 'oma',
-      })
-    ).toMatchObject({
-      surface: 'update_repair',
-      args: ['packages', 'repair', '--package-id', 'oma', '--json'],
-    });
+    for (const route of ['update-apply', 'update-repair', 'update-rollback']) {
+      expect(() =>
+        __oplRuntimeProxyTest.buildCommandFromRequest(route, {
+          componentId: 'opl_packages',
+          packageId: 'oma',
+        })
+      ).toThrow(/Framework projected action.*opl app action execute/);
+    }
     expect(() => __oplRuntimeProxyTest.buildCommandFromRequest('update-apply', { componentId: 'opl_app' })).toThrow(
       /host or carrier updater/
     );

@@ -96,7 +96,7 @@ let cachedDeveloperModeGithubIdentity: {
   value: DeveloperModeGithubIdentity;
 } | null = null;
 const MANAGED_UPDATE_COMPONENT_IDS = new Set(['opl_base', 'opl_app', 'opl_packages']);
-const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['opl_base', 'opl_packages']);
+const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['opl_base']);
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   adapterId: 'aionui',
@@ -157,10 +157,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl update apply --json',
     'opl update repair [--receipt <receipt_id>] --json',
     'opl update rollback --json',
-    'opl packages update --package-id <package_id> --json',
     'opl packages optimize opl-flow --json',
-    'opl packages repair --package-id <package_id> --json',
-    'opl packages rollback --package-id <package_id> --json',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
@@ -278,6 +275,11 @@ function assertUpdateComponentId(componentId: string): string {
 function assertApplyUpdateComponentId(componentId: string): string {
   const normalized = assertUpdateComponentId(componentId);
   if (!APPLY_ALLOWED_UPDATE_COMPONENT_IDS.has(normalized)) {
+    if (normalized === 'opl_packages') {
+      throw new Error(
+        'Package lifecycle mutations require a Framework projected action through opl app action execute'
+      );
+    }
     throw new Error('opl_app updates must use the host or carrier updater');
   }
   return normalized;
@@ -287,14 +289,6 @@ function assertUpdateReceiptId(receiptId: string): string {
   const normalized = receiptId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
     throw new Error('Invalid OPL update receipt id');
-  }
-  return normalized;
-}
-
-function assertPackageId(packageId: string | undefined): string {
-  const normalized = packageId?.trim() ?? '';
-  if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
-    throw new Error('Invalid OPL package id');
   }
   return normalized;
 }
@@ -551,26 +545,14 @@ function buildUpdateApplyPlanCommand(): RuntimeCommandSpec {
 }
 
 function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
-  const componentId = assertApplyUpdateComponentId(request.componentId);
-  if (componentId === 'opl_packages') {
-    return {
-      surface: 'update_apply',
-      args: ['packages', 'update', '--package-id', assertPackageId(request.packageId), '--json'],
-    };
-  }
+  assertApplyUpdateComponentId(request.componentId);
   return {
     ...buildUpdateApplyPlanCommand(),
   };
 }
 
 function buildUpdateRepairCommand(request: IOplUpdateRepairRequest): RuntimeCommandSpec {
-  const componentId = assertApplyUpdateComponentId(request.componentId);
-  if (componentId === 'opl_packages') {
-    return {
-      surface: 'update_repair',
-      args: ['packages', 'repair', '--package-id', assertPackageId(request.packageId), '--json'],
-    };
-  }
+  assertApplyUpdateComponentId(request.componentId);
   return {
     surface: 'update_repair',
     args: request.receiptId
@@ -580,13 +562,7 @@ function buildUpdateRepairCommand(request: IOplUpdateRepairRequest): RuntimeComm
 }
 
 function buildUpdateRollbackCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
-  const componentId = assertApplyUpdateComponentId(request.componentId);
-  if (componentId === 'opl_packages') {
-    return {
-      surface: 'update_rollback',
-      args: ['packages', 'rollback', '--package-id', assertPackageId(request.packageId), '--json'],
-    };
-  }
+  assertApplyUpdateComponentId(request.componentId);
   return {
     surface: 'update_rollback',
     args: ['update', 'rollback', '--json'],

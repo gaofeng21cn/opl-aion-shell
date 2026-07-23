@@ -116,10 +116,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl update apply --json',
         'opl update repair [--receipt <receipt_id>] --json',
         'opl update rollback --json',
-        'opl packages update --package-id <package_id> --json',
         'opl packages optimize opl-flow --json',
-        'opl packages repair --package-id <package_id> --json',
-        'opl packages rollback --package-id <package_id> --json',
       ],
       forbiddenTruthSources: [
         'direct_domain_repo_reads',
@@ -310,21 +307,19 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'update_repair',
       args: ['update', 'repair', '--receipt', 'receipt://opl_base/latest', '--json'],
     });
-    expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_packages', packageId: 'oma' })).toEqual({
-      surface: 'update_apply',
-      args: ['packages', 'update', '--package-id', 'oma', '--json'],
-    });
-    expect(__oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'opl_packages', packageId: 'oma' })).toEqual({
-      surface: 'update_repair',
-      args: ['packages', 'repair', '--package-id', 'oma', '--json'],
-    });
     expect(__oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'opl_base' })).toEqual({
       surface: 'update_rollback',
       args: ['update', 'rollback', '--json'],
     });
     expect(() =>
-      __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_packages', packageId: 'oma;rm -rf /' })
-    ).toThrow(/Invalid OPL package id/);
+      __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_packages', packageId: 'oma' } as never)
+    ).toThrow(/Framework projected action.*opl app action execute/);
+    expect(() =>
+      __oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'opl_packages', packageId: 'oma' } as never)
+    ).toThrow(/Framework projected action.*opl app action execute/);
+    expect(() =>
+      __oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'opl_packages', packageId: 'oma' } as never)
+    ).toThrow(/Framework projected action.*opl app action execute/);
     expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_substrate' as never })).toThrow(
       /managed update lifecycle id/
     );
@@ -337,9 +332,6 @@ describe('OPL runtime bridge command whitelist', () => {
         receiptId: 'receipt://runtime latest',
       })
     ).toThrow(/Invalid OPL update receipt id/);
-    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'opl_packages' })).toThrow(
-      /Invalid OPL package id/
-    );
   });
 
   it('limits App-managed bootstrap to first-run and maintenance command surfaces', () => {
