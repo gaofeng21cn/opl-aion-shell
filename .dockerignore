@@ -24,5 +24,6 @@ data
 *.zip
 *.tar.gz
 *.tgz
+!.opl-frozen-inputs/codex-cli.tgz
 *.app
 ${env.ELECTRON_CACHE}
