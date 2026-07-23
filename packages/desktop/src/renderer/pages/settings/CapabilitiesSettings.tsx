@@ -31,7 +31,6 @@ import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import {
   canonicalizeOplProfessionalAgentId,
-  getOplAgentPackageRegistryUrl,
   getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
 import { oplProjectedRequirementAlternatives } from '@/common/types/opl/appState';
@@ -1021,7 +1020,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const catalogLoading = appStateQuery.loading && purposeCapabilities.length === 0;
   const catalogRefreshing = appStateQuery.refreshing;
   const catalogEmpty = !catalogLoading && !catalogError && purposeCapabilities.length === 0;
-  const agentPackageRegistryUrl = getOplAgentPackageRegistryUrl();
   const professionalAgentOrder = React.useMemo(() => {
     const order = new Map<string, number>();
     getOplProfessionalAgentPackages().forEach((agentPackage, index) => {
@@ -1825,7 +1823,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   label={t('settings.capabilitiesPage.packageManager.refreshRegistry')}
                   loading={busyAction === 'refresh_registry' || catalogRefreshing}
                   disabled={packageMutationBusy}
-                  onClick={() => executePackageAction('refresh_registry', { registry_url: agentPackageRegistryUrl })}
+                  onClick={() => executePackageAction('refresh_registry')}
                   data-testid='agent-package-refresh-registry'
                 />
               </span>

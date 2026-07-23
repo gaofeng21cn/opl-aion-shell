@@ -972,12 +972,13 @@
       }
     },
     "agent_package_registry": {
-      "default_registry_url": "https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json",
-      "source_ref": "contracts/agent-package-registry.json#registry_url",
-      "registry_scope": "external_discovery_only",
-      "empty_default_registry_allowed": true,
-      "first_party_runtime_authority": "one-person-lab-framework#built_in_release_set",
-      "canonical_first_party_package_ids": ["mas", "mag", "rca", "oma", "obf", "mas-scholar-skills", "opl-flow"],
+      "directory_lifecycle_authority": "app_state.agent_packages.directory+status_index+actions",
+      "resolver_currentness_authority": "one-person-lab#package_repository_resolver",
+      "installed_truth_authority": "one-person-lab#exact_installed_lock",
+      "external_registry_role": "optional_candidate_source_adapter",
+      "bundled_default_registry_allowed": false,
+      "external_registry_policy_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.agent_registry_policy",
+      "starter_package_ids": ["mas", "mag", "rca", "oma", "obf", "mas-scholar-skills", "opl-flow"],
       "external_first_party_identity_claims_allowed": false,
       "external_first_party_trust_claims_allowed": false,
       "collision_failure_code": "agent_package_registry_first_party_identity_collision",
@@ -1022,7 +1023,7 @@
           "ordinary_catalog_remains_visible_when_collapsed": true
         }
       },
-      "first_party_release_set_metadata": [
+      "starter_package_metadata": [
         {
           "package_id": "mas",
           "package_kind": "domain_agent_package",
@@ -1464,6 +1465,13 @@
       "recommendation_authority": "opl-flow",
       "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json#codex_model_policy",
       "app_role": "display_live_catalog_and_submit_user_override",
+      "resolution_precedence": [
+        "explicit_user_selection",
+        "installed_opl_flow_recommendation",
+        "fresh_codex_live_default",
+        "app_fallback_when_flow_unavailable"
+      ],
+      "app_fallback_role": "availability_only_when_installed_opl_flow_recommendation_is_unavailable",
       "configured_default": {
         "model": "gpt-5.6-sol",
         "reasoning_effort": "max"
@@ -1515,8 +1523,8 @@
       "delivery": "package_installed_user_profile_only",
       "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
       "language_policy": "follow_ui_locale_zh_only_when_ui_zh",
-      "app_role": "install_sync_diagnose_user_profile_only",
-      "dependency_policy": "full_bundles_opl_flow_requires_and_recommends_closure",
+      "app_role": "display_framework_projection_and_execute_projected_actions_only",
+      "dependency_policy": "framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite",
       "migration_policy": "framework_executes_conflict_retirement_with_backup_receipt_and_rollback"
     },
     "opl_app_session_context": {
@@ -1616,12 +1624,10 @@
       "ready_to_launch_blocking": false
     },
     "full_runtime_package_qualification": {
-      "source": "framework_bundled_full_runtime_catalog",
-      "reconciliation": "idempotent_local_payload_install_before_full_readiness",
-      "required_installed_package_count": 7,
-      "canonical_package_ids": ["mas", "mag", "rca", "oma", "obf", "mas-scholar-skills", "opl-flow"],
-      "global_codex_exposure_package_ids": ["mas", "mag", "rca", "oma", "obf", "opl-flow"],
-      "workspace_scoped_package_ids": ["mas-scholar-skills"],
+      "source": "framework_resolved_selected_package_set",
+      "reconciliation": "idempotent_selected_capability_reconciliation",
+      "composition_policy": "open_composition_no_fixed_package_set",
+      "readiness_policy": "selected_capabilities_gate_only_their_dependent_features",
       "workspace_scoped_materialization_policy": "package_cache_without_global_marketplace_registration_until_mas_workspace_binding",
       "global_workspace_scoped_exposure": "forbidden"
     },
@@ -3720,7 +3726,7 @@
               "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[]",
               "directory_collection_source": "app_state.agent_packages.directory.entries",
               "directory_collection_policy": "render every canonical entry including uninstalled, OMA, all first-party, framework capability, and workflow profile packages",
-              "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.agent_package_registry.first_party_release_set_metadata",
+              "static_metadata_overlay_source": "contracts/app-product-profile.json#gui.agent_package_registry.starter_package_metadata",
               "static_metadata_overlay_policy": "package_id keyed optional UI enrichment only; never collection membership, seed, status, readiness, or action authority",
               "static_metadata_overlay_fields": ["display_name_i18n", "description_i18n"],
               "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
@@ -3745,7 +3751,7 @@
               "status_model": {
                 "policy": "multi_axis_package_status_no_single_repair_bucket",
                 "user_facing_projection_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.user_facing_status_projection",
-                "localized_metadata_source_ref": "contracts/app-product-profile.json#gui.agent_package_registry.first_party_release_set_metadata",
+                "localized_metadata_source_ref": "contracts/app-product-profile.json#gui.agent_package_registry.starter_package_metadata",
                 "axes": [
                   "install_state",
                   "activation_state",
@@ -5350,7 +5356,7 @@
               "dedicated package catalog search with package role, availability status, and source filters",
               "visible registry refresh and projected per-row non-activation lifecycle actions",
               "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
-              "first_party_release_set_metadata as package_id-keyed localized UI metadata only, never directory membership or status truth",
+              "starter_package_metadata as replaceable package_id-keyed UI metadata only, never directory membership or status truth",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
               "Developer Mode auto activation state, authorized repository scope, and dirty-worktree protection",
               "per-package automatic, managed, or developer source selection in package details",
@@ -6689,7 +6695,7 @@
       "officecli": {
         "owner": "iOfficeAI/OfficeCLI",
         "source_policy": "latest_stable_at_full_build",
-        "release_lock_policy": "resolve_latest_then_pin_exact_version_commit_and_digest",
+        "selected_input_provenance_policy": "when_selected_record_exact_version_commit_and_digest",
         "package_unit": "atomic_upstream_release",
         "skill_ids": [
           "officecli",
@@ -6727,8 +6733,6 @@
     },
     "default_packaged_codex_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "additional_package_skill_ids": ["opl-meta-agent"],
-    "opl_flow_dependency_policy_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json#requires+recommends",
-    "full_dependency_closure_policy": "bundle_requires_and_recommends_with_offline_bundle_full",
     "domain_plugin_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "domain_exposure": [
@@ -6775,32 +6779,7 @@
     ],
     "class": "opl_base_integrations",
     "opl_packages_projection_ref": "contracts/app-install-exposure-policy.json#exposure_classes.codex_surface",
-    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_package_distribution",
-    "packaged_not_default_visible_codex_skill_ids": [
-      "opl-meta-agent",
-      "officecli",
-      "officecli-docx",
-      "officecli-pptx",
-      "officecli-xlsx",
-      "officecli-academic-paper",
-      "officecli-data-dashboard",
-      "officecli-financial-model",
-      "officecli-pitch-deck",
-      "mineru-document-extractor",
-      "ui-ux-pro-max"
-    ],
-    "companion_skill_sync_default_ids": [
-      "officecli",
-      "officecli-docx",
-      "officecli-pptx",
-      "officecli-xlsx",
-      "officecli-academic-paper",
-      "officecli-data-dashboard",
-      "officecli-financial-model",
-      "officecli-pitch-deck",
-      "mineru-document-extractor",
-      "ui-ux-pro-max"
-    ]
+    "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_package_distribution"
   },
   "boundary": {
     "app_owns": [

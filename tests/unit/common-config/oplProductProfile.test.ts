@@ -8,7 +8,6 @@ import {
   getOplCodexModelDisplayOptions,
   getOplFlowContextPolicy,
   getOplAgentPackageInvocationReceiptPolicy,
-  getOplAgentPackageRegistryUrl,
   getOplProductDisplayName,
   getOplOrdinaryChromeName,
   getOplGlobalFeedbackIssueUrl,
@@ -459,9 +458,6 @@ describe('OPL generated product profile', () => {
       'opl-meta-agent',
       'app',
     ]);
-    expect(getOplAgentPackageRegistryUrl()).toBe(
-      'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json'
-    );
     expect(getOplDeveloperProfileSettings()).toMatchObject({
       default_profile: 'standard_user',
       opt_in_policy: 'automatic_for_matching_identity_and_authorized_repositories_with_explicit_off',
@@ -774,8 +770,8 @@ describe('OPL generated product profile', () => {
       delivery: 'package_installed_user_profile_only',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-      app_role: 'install_sync_diagnose_user_profile_only',
-      dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
+      app_role: 'display_framework_projection_and_execute_projected_actions_only',
+      dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite',
       migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
     });
 

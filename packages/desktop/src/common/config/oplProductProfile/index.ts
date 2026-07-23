@@ -299,8 +299,8 @@ export type OplFlowContextPolicy = {
   delivery: 'package_installed_user_profile_only';
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
-  app_role: 'install_sync_diagnose_user_profile_only';
-  dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure';
+  app_role: 'display_framework_projection_and_execute_projected_actions_only';
+  dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite';
   migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback';
 };
 
@@ -641,10 +641,8 @@ export type OplSettingsControlPlaneActionContract = {
 };
 
 export type OplAgentPackageRegistry = {
-  default_registry_url: string;
-  source_ref: string;
   shell_consumption_policy: string;
-  first_party_release_set_metadata: OplFirstPartyPackagePresentation[];
+  starter_package_metadata: OplFirstPartyPackagePresentation[];
 };
 
 export type OplNativeAutomationPolicy = {
@@ -1537,29 +1535,21 @@ function readAgentPackageRegistry(gui: Record<string, unknown>): OplAgentPackage
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: gui.agent_package_registry must be an object');
   }
-  const defaultRegistryUrl = readString(value, 'default_registry_url', 'gui.agent_package_registry');
-  try {
-    if (new URL(defaultRegistryUrl).protocol !== 'https:') throw new Error('unsupported protocol');
-  } catch {
-    throw new Error('Invalid OPL product profile: gui.agent_package_registry.default_registry_url must be HTTPS');
-  }
-  const metadata = value.first_party_release_set_metadata;
+  const metadata = value.starter_package_metadata;
   if (!Array.isArray(metadata)) {
     throw new Error(
-      'Invalid OPL product profile: gui.agent_package_registry.first_party_release_set_metadata must be an array'
+      'Invalid OPL product profile: gui.agent_package_registry.starter_package_metadata must be an array'
     );
   }
   return {
-    default_registry_url: defaultRegistryUrl,
-    source_ref: readString(value, 'source_ref', 'gui.agent_package_registry'),
     shell_consumption_policy: readString(value, 'shell_consumption_policy', 'gui.agent_package_registry'),
-    first_party_release_set_metadata: metadata.map((entry, index) => {
+    starter_package_metadata: metadata.map((entry, index) => {
       if (!isRecord(entry)) {
         throw new Error(
-          `Invalid OPL product profile: gui.agent_package_registry.first_party_release_set_metadata[${index}] must be an object`
+          `Invalid OPL product profile: gui.agent_package_registry.starter_package_metadata[${index}] must be an object`
         );
       }
-      const context = `gui.agent_package_registry.first_party_release_set_metadata[${index}]`;
+      const context = `gui.agent_package_registry.starter_package_metadata[${index}]`;
       const packageId = readString(entry, 'package_id', context);
       const displayName = readString(entry, 'display_name', context);
       const description = readString(entry, 'description', context);
@@ -2078,8 +2068,8 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     value.delivery !== 'package_installed_user_profile_only' ||
     value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
     value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh' ||
-    value.app_role !== 'install_sync_diagnose_user_profile_only' ||
-    value.dependency_policy !== 'full_bundles_opl_flow_requires_and_recommends_closure' ||
+    value.app_role !== 'display_framework_projection_and_execute_projected_actions_only' ||
+    value.dependency_policy !== 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite' ||
     value.migration_policy !== 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback'
   ) {
     throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
@@ -2091,8 +2081,8 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     delivery: 'package_installed_user_profile_only',
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-    app_role: 'install_sync_diagnose_user_profile_only',
-    dependency_policy: 'full_bundles_opl_flow_requires_and_recommends_closure',
+    app_role: 'display_framework_projection_and_execute_projected_actions_only',
+    dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite',
     migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
   };
 }
@@ -3519,12 +3509,8 @@ export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
   }));
 }
 
-export function getOplAgentPackageRegistryUrl(): string {
-  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.default_registry_url;
-}
-
 export function getOplFirstPartyPackagePresentations(): OplFirstPartyPackagePresentation[] {
-  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.first_party_release_set_metadata.map((entry) => ({
+  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.starter_package_metadata.map((entry) => ({
     ...entry,
     display_name_i18n: { ...entry.display_name_i18n },
     description_i18n: { ...entry.description_i18n },

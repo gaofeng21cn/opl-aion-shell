@@ -768,8 +768,6 @@ vi.mock('@/common/config/oplProductProfile', () => {
     getOplAssistantSkillProfile: () => null,
     getOplDefaultExecutorAgentKey: () => 'codex',
     getOplDefaultHomeAssistants: () => [],
-    getOplAgentPackageRegistryUrl: () =>
-      'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
     getOplFirstPartyPackagePresentations: () => firstPartyPackagePresentations,
     getOplHomeAgentShortcuts: () => homeAgentShortcuts,
     getOplProfessionalAgentPackage: (id: string) =>
@@ -2550,10 +2548,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'refresh_registry',
         dryRun: false,
-        payloadRefsOnlyJson: {
-          registry_url:
-            'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
-        },
+        payloadRefsOnlyJson: undefined,
       })
     );
 

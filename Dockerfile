@@ -23,22 +23,6 @@ RUN mkdir -p /opt/opl-framework \
   && printf '%s\n' "${OPL_FRAMEWORK_REPO}" > /opt/opl-framework/OPL_FRAMEWORK_REPO \
   && printf '%s\n' "${OPL_FRAMEWORK_REF}" > /opt/opl-framework/OPL_FRAMEWORK_REF
 
-FROM node:22-bookworm-slim AS opl-flow
-ARG OPL_FLOW_REPO=https://github.com/gaofeng21cn/opl-flow.git
-ARG OPL_FLOW_REF=5ae0625f5240a13fa820b4c92362f1d06bdce857
-WORKDIR /opt/opl-flow
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates git \
-  && rm -rf /var/lib/apt/lists/*
-
-RUN git init \
-  && git remote add origin "${OPL_FLOW_REPO}" \
-  && git fetch --depth 1 origin "${OPL_FLOW_REF}" \
-  && git checkout --detach FETCH_HEAD \
-  && git rev-parse HEAD > OPL_FLOW_COMMIT \
-  && rm -rf .git
-
 FROM node:22-bookworm-slim AS codex-cli
 ARG OPL_CODEX_NPM_SPEC=@openai/codex@latest
 WORKDIR /opt/codex-cli
@@ -94,8 +78,6 @@ COPY --from=builder /app/dist-web-cli/staging/aionui-web ./aionui-web
 COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-image-manifest.json /opt/opl/image-manifest.json
 COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-image-seed /opt/opl/seed
 COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-webui-entrypoint.sh /opt/opl/entrypoint.sh
-COPY --from=opl-flow /opt/opl-flow /opt/opl-flow
-
 ENV PORT=3000
 ENV NODE_ENV=production
 ENV AIONUI_ALLOW_REMOTE=1
@@ -108,7 +90,6 @@ ENV OPL_WEBUI_RECOVERY_DIR=/recovery
 ENV OPL_WEBUI_IMAGE_PROFILE=${OPL_WEBUI_IMAGE_PROFILE}
 ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
 ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
-ENV OPL_FLOW_REPO_ROOT=/opt/opl-flow
 ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli/bin:${PATH}
 
 RUN set -eu; \
@@ -142,10 +123,6 @@ RUN set -eu; \
   if [ ! -x /opt/opl/seed/payload/codex_cli/bin/codex ]; then \
     printf '%s\n' 'Codex CLI seed executable missing or not executable: /opt/opl/seed/payload/codex_cli/bin/codex' >&2; \
     find /opt/opl/seed/payload/codex_cli -maxdepth 5 -print >&2; \
-    exit 1; \
-  fi; \
-  if [ ! -f /opt/opl-flow/scripts/install_local_plugin.py ] || ! command -v python3 >/dev/null 2>&1; then \
-    printf '%s\n' 'OPL Flow installer or Python runtime is missing from the WebUI image.' >&2; \
     exit 1; \
   fi; \
   printf '%s\n' '#!/usr/bin/env sh' \
