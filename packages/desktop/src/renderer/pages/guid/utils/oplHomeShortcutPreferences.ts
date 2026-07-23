@@ -16,41 +16,22 @@ const EMPTY_PREFERENCES: OplHomeShortcutPreferences = {
   orderedShortcutIds: [],
 };
 let currentPreferences: OplHomeShortcutPreferences | null = null;
-let observedStoredRaw: string | null = null;
 let observedAppStateRaw: string | null = null;
 const preferenceListeners = new Set<() => void>();
 
-function readStoredPreferences(): OplHomeShortcutPreferences {
-  if (typeof localStorage === 'undefined') return EMPTY_PREFERENCES;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_PREFERENCES;
-    const value = JSON.parse(raw) as Partial<OplHomeShortcutPreferences>;
-    return {
-      hiddenShortcutIds: Array.isArray(value.hiddenShortcutIds) ? value.hiddenShortcutIds.filter(isString) : [],
-      visibleShortcutIds: Array.isArray(value.visibleShortcutIds) ? value.visibleShortcutIds.filter(isString) : [],
-      orderedShortcutIds: Array.isArray(value.orderedShortcutIds) ? value.orderedShortcutIds.filter(isString) : [],
-    };
-  } catch {
-    return EMPTY_PREFERENCES;
-  }
-}
-
-function writeStoredPreferences(preferences: OplHomeShortcutPreferences): void {
+function removeLegacyStoredPreferences(): void {
   if (typeof localStorage === 'undefined') return;
-  observedStoredRaw = JSON.stringify(preferences);
-  localStorage.setItem(STORAGE_KEY, observedStoredRaw);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Framework App-state remains authoritative when localStorage is unavailable.
+  }
 }
 
 function publishPreferences(preferences: OplHomeShortcutPreferences): OplHomeShortcutPreferences {
   currentPreferences = preferences;
-  writeStoredPreferences(preferences);
   preferenceListeners.forEach((listener) => listener());
   return preferences;
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -64,6 +45,21 @@ function recordList(value: unknown): Record<string, unknown>[] {
 function appStateRecord(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return {};
   return isRecord(value.app_state) ? value.app_state : value;
+}
+
+function shortcutPreferenceRecords(appState: unknown): Record<string, unknown>[] {
+  const state = appStateRecord(appState);
+  const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
+  const statusIndex = isRecord(agentPackages.status_index) ? agentPackages.status_index : {};
+  const legacyPackages = isRecord(state.opl_agent_packages) ? state.opl_agent_packages : {};
+  const legacyPackageStatus = isRecord(state.opl_agent_package_status) ? state.opl_agent_package_status : {};
+  const projectedSurfaces = [
+    recordList(statusIndex.home_shortcut_preferences),
+    recordList(agentPackages.home_shortcut_preferences),
+    recordList(legacyPackages.home_shortcut_preferences),
+    recordList(legacyPackageStatus.home_shortcut_preferences),
+  ];
+  return projectedSurfaces.find((records) => records.length > 0) ?? [];
 }
 
 function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): OplHomeShortcutPreferences | null {
@@ -95,12 +91,29 @@ function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): Opl
 }
 
 export function getOplHomeShortcutPreferencesFromAppState(appState: unknown): OplHomeShortcutPreferences | null {
-  const state = appStateRecord(appState);
-  const packages = isRecord(state.opl_agent_packages) ? state.opl_agent_packages : {};
-  const packageStatus = isRecord(state.opl_agent_package_status) ? state.opl_agent_package_status : {};
-  return shortcutPreferencesFromRecords(
-    recordList(packages.home_shortcut_preferences).concat(recordList(packageStatus.home_shortcut_preferences))
+  return shortcutPreferencesFromRecords(shortcutPreferenceRecords(appState));
+}
+
+export type OplHomeShortcutPreferenceReadback = {
+  shortcutId: string;
+  visible: boolean;
+  sortOrder: number;
+};
+
+export function getOplHomeShortcutPreferenceReadback(
+  appState: unknown,
+  shortcutId: string
+): OplHomeShortcutPreferenceReadback | null {
+  const record = shortcutPreferenceRecords(appState).find(
+    (entry) => entry.source === 'user_preference' && entry.shortcut_id === shortcutId
   );
+  if (!record || typeof record.visible !== 'boolean') return null;
+  if (typeof record.sort_order !== 'number' || !Number.isFinite(record.sort_order)) return null;
+  return {
+    shortcutId,
+    visible: record.visible,
+    sortOrder: record.sort_order,
+  };
 }
 
 function readCachedAppStatePreferences(): OplHomeShortcutPreferences | null {
@@ -128,16 +141,15 @@ function sortShortcuts(shortcuts: OplHomeAgentShortcut[], orderedShortcutIds: st
 }
 
 export function getOplHomeShortcutPreferences(): OplHomeShortcutPreferences {
+  removeLegacyStoredPreferences();
   if (typeof localStorage !== 'undefined') {
-    const storedRaw = localStorage.getItem(STORAGE_KEY);
     const appStateRaw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
-    if (storedRaw !== observedStoredRaw || appStateRaw !== observedAppStateRaw) {
-      observedStoredRaw = storedRaw;
+    if (appStateRaw !== observedAppStateRaw) {
       observedAppStateRaw = appStateRaw;
-      currentPreferences = readCachedAppStatePreferences() ?? readStoredPreferences();
+      currentPreferences = readCachedAppStatePreferences() ?? currentPreferences;
     }
   }
-  currentPreferences ??= readCachedAppStatePreferences() ?? readStoredPreferences();
+  currentPreferences ??= readCachedAppStatePreferences() ?? EMPTY_PREFERENCES;
   return currentPreferences;
 }
 

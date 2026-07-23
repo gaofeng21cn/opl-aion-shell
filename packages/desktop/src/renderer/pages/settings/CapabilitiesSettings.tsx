@@ -45,6 +45,7 @@ import {
 } from '@/renderer/hooks/system/useOplAppState';
 import {
   getOplHomeShortcutPreferences,
+  getOplHomeShortcutPreferenceReadback,
   getOplHomeShortcutPreferencesFromAppState,
   getOplOrderedHomeAgentShortcuts,
   isOplHomeShortcutVisible,
@@ -1524,12 +1525,14 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     item: CapabilityPurposeViewModel,
     shortcutId: string,
     preferences: OplHomeShortcutPreferences
-  ): Promise<boolean> => {
-    if (packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return false;
+  ): Promise<{ verified: boolean; authoritativePreferences: OplHomeShortcutPreferences | null }> => {
+    if (packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) {
+      return { verified: false, authoritativePreferences: null };
+    }
     const shortcutOrder = getOplOrderedHomeAgentShortcuts();
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
     const action = item.availableActions.agent_package_preferences_set;
-    if (!shortcut || !action) return false;
+    if (!shortcut || !action) return { verified: false, authoritativePreferences: null };
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
     const payload = projectedActionPayload(action, {
       shortcut_id: shortcut.shortcut_id,
@@ -1539,7 +1542,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           ? preferenceSortOrder
           : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
     });
-    if (projectedActionMissingFields(action, payload).length > 0) return false;
+    if (projectedActionMissingFields(action, payload).length > 0) {
+      return { verified: false, authoritativePreferences: null };
+    }
     const actionToken = Symbol(shortcutId);
     shortcutActionTokensRef.current.set(shortcutId, actionToken);
     setPendingShortcutIds((current) => new Set(current).add(shortcutId));
@@ -1550,12 +1555,19 @@ export const AgentPackagesSettingsContent: React.FC = () => {
         payloadRefsOnlyJson: payload,
       });
       if (result.ok === false) throw new Error(result.error?.message || result.command);
-      await appStateQuery.load('fast', { background: true });
+      const freshPayload = await appStateQuery.load('fast', { background: true, forceFresh: true });
+      const freshAppState = getAppState(freshPayload);
+      const authoritativePreferences = getOplHomeShortcutPreferencesFromAppState(freshAppState);
+      if (authoritativePreferences) replaceOplHomeShortcutPreferences(authoritativePreferences);
+      const readback = getOplHomeShortcutPreferenceReadback(freshAppState, shortcutId);
+      if (!readback || readback.visible !== payload.visible || readback.sortOrder !== payload.sort_order) {
+        return { verified: false, authoritativePreferences };
+      }
       Message.success(t('settings.capabilitiesPage.packageManager.actionQueued'));
-      return true;
+      return { verified: true, authoritativePreferences };
     } catch (error) {
       Message.error(error instanceof Error ? error.message : String(error));
-      return false;
+      return { verified: false, authoritativePreferences: null };
     } finally {
       if (shortcutActionTokensRef.current.get(shortcutId) === actionToken) {
         shortcutActionTokensRef.current.delete(shortcutId);
@@ -1573,8 +1585,8 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     const previousPreferences = getOplHomeShortcutPreferences();
     const wasHidden = previousPreferences.hiddenShortcutIds.includes(shortcutId);
     const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
-    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((succeeded) => {
-      if (!succeeded) setOplHomeShortcutHidden(shortcutId, wasHidden);
+    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((result) => {
+      if (!result.verified && !result.authoritativePreferences) setOplHomeShortcutHidden(shortcutId, wasHidden);
     });
   };
 
@@ -1582,8 +1594,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     const previousPreferences = getOplHomeShortcutPreferences();
     const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
-    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((succeeded) => {
-      if (!succeeded) replaceOplHomeShortcutPreferences(previousPreferences);
+    void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((result) => {
+      if (!result.verified && !result.authoritativePreferences) {
+        replaceOplHomeShortcutPreferences(previousPreferences);
+      }
     });
   };
 

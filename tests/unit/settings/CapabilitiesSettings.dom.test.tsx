@@ -8,6 +8,10 @@ import CapabilitiesSettings, {
   type CapabilitiesTab,
 } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import {
+  replaceOplHomeShortcutPreferences,
+  setOplHomeShortcutHidden,
+} from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
 const appStateOverrides = vi.hoisted(() => ({
@@ -60,6 +64,23 @@ const appStateWithDirectory = (
       entries,
     },
     status_index: { packages: options.statusEntries ?? [] },
+  },
+});
+
+const homeShortcutReadback = (shortcutId: string, visible: boolean, sortOrder: number) => ({
+  app_state: {
+    agent_packages: {
+      status_index: {
+        home_shortcut_preferences: [
+          {
+            shortcut_id: shortcutId,
+            visible,
+            sort_order: sortOrder,
+            source: 'user_preference',
+          },
+        ],
+      },
+    },
   },
 });
 
@@ -1142,6 +1163,23 @@ describe('Agents and capabilities settings', () => {
           if (sourcePolicy) sourcePolicy.source_preference = payload.developerSupervisorModuleSource;
         }
       }
+      const preferenceCall = bridgeMocks.executeActionInvoke.mock.calls
+        .toReversed()
+        .map(([input]) => input as { actionId?: string; payloadRefsOnlyJson?: Record<string, unknown> })
+        .find((input) => input.actionId === 'agent_package_preferences_set' && input.payloadRefsOnlyJson?.shortcut_id);
+      const preferencePayload = preferenceCall?.payloadRefsOnlyJson;
+      if (
+        preferencePayload &&
+        typeof preferencePayload.shortcut_id === 'string' &&
+        typeof preferencePayload.visible === 'boolean' &&
+        typeof preferencePayload.sort_order === 'number'
+      ) {
+        return homeShortcutReadback(
+          preferencePayload.shortcut_id,
+          preferencePayload.visible,
+          preferencePayload.sort_order
+        );
+      }
       return { app_state: snapshot };
     });
     bridgeMocks.modalConfirm.mockClear();
@@ -1149,6 +1187,11 @@ describe('Agents and capabilities settings', () => {
     bridgeMocks.messageError.mockReset();
     bridgeMocks.currentAppState = {};
     localStorage.clear();
+    replaceOplHomeShortcutPreferences({
+      hiddenShortcutIds: [],
+      visibleShortcutIds: [],
+      orderedShortcutIds: [],
+    });
   });
 
   it('shows runnable agent packages without embedding skills and tools', async () => {
@@ -2463,11 +2506,11 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
+  it('verifies Home shortcut visibility/order and routes registry/install through App actions', async () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toContain('research');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2480,10 +2523,14 @@ describe('Agents and capabilities settings', () => {
         },
       })
     );
+    await waitFor(() =>
+      expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true })
+    );
+    await waitFor(() => expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Action routed to OPL'));
 
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     fireEvent.click(screen.getByTestId('agent-package-home-down-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toContain('grant');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2599,7 +2646,32 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(homeSwitch);
 
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).not.toContain('research');
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
+  });
+
+  it('rolls Home visibility back when fresh Framework readback is unavailable', async () => {
+    bridgeMocks.loadAppState.mockResolvedValueOnce(null);
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const homeSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
+    fireEvent.click(homeSwitch);
+
+    await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true });
+    expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
+  });
+
+  it('replaces optimistic Home visibility with a mismatched Framework projection', async () => {
+    bridgeMocks.loadAppState.mockResolvedValueOnce(homeShortcutReadback('research', true, 0));
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const homeSwitch = screen.getByTestId('agent-package-home-toggle-details-mas');
+    fireEvent.click(homeSwitch);
+
+    await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
+    expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
   it('stops manifest installation when dry-run does not return a package identity', async () => {
@@ -2690,7 +2762,7 @@ describe('Agents and capabilities settings', () => {
     });
 
     await waitFor(() => expect(researchSwitch).not.toBeDisabled());
-    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true });
   });
 
   it('routes package lifecycle management actions through App action refs', async () => {
@@ -2961,7 +3033,7 @@ describe('Agents and capabilities settings', () => {
     });
   });
 
-  it('uses persisted shortcut preferences when building Home agents', () => {
+  it('clears and ignores legacy locally persisted shortcut preferences', () => {
     localStorage.setItem(
       'opl.homeAgentShortcutPreferences.v2',
       JSON.stringify({
@@ -2972,14 +3044,16 @@ describe('Agents and capabilities settings', () => {
     );
 
     expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual([
-      'opl-bookforge',
       'med-autoscience',
+      'med-autogrant',
       'redcube-ai',
+      'opl-bookforge',
       'opl-meta-agent',
     ]);
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
-  it('uses Framework app-state shortcut preference readback before the local fallback', () => {
+  it('uses the persisted Framework App-state projection instead of the legacy local value', () => {
     localStorage.setItem(
       'opl.homeAgentShortcutPreferences.v2',
       JSON.stringify({
@@ -2992,44 +3066,46 @@ describe('Agents and capabilities settings', () => {
       JSON.stringify({
         payload: {
           app_state: {
-            opl_agent_packages: {
-              home_shortcut_preferences: [
-                {
-                  package_id: 'opl-bookforge',
-                  shortcut_id: 'book',
-                  visible: true,
-                  sort_order: 0,
-                  source: 'user_preference',
-                },
-                {
-                  package_id: 'med-autoscience',
-                  shortcut_id: 'research',
-                  visible: true,
-                  sort_order: 1,
-                  source: 'user_preference',
-                },
-                {
-                  package_id: 'med-autogrant',
-                  shortcut_id: 'grant',
-                  visible: false,
-                  sort_order: 2,
-                  source: 'user_preference',
-                },
-                {
-                  package_id: 'redcube-ai',
-                  shortcut_id: 'ppt',
-                  visible: true,
-                  sort_order: 3,
-                  source: 'user_preference',
-                },
-                {
-                  package_id: 'opl-meta-agent',
-                  shortcut_id: 'oma',
-                  visible: true,
-                  sort_order: 4,
-                  source: 'user_preference',
-                },
-              ],
+            agent_packages: {
+              status_index: {
+                home_shortcut_preferences: [
+                  {
+                    package_id: 'opl-bookforge',
+                    shortcut_id: 'book',
+                    visible: true,
+                    sort_order: 0,
+                    source: 'user_preference',
+                  },
+                  {
+                    package_id: 'med-autoscience',
+                    shortcut_id: 'research',
+                    visible: true,
+                    sort_order: 1,
+                    source: 'user_preference',
+                  },
+                  {
+                    package_id: 'med-autogrant',
+                    shortcut_id: 'grant',
+                    visible: false,
+                    sort_order: 2,
+                    source: 'user_preference',
+                  },
+                  {
+                    package_id: 'redcube-ai',
+                    shortcut_id: 'ppt',
+                    visible: true,
+                    sort_order: 3,
+                    source: 'user_preference',
+                  },
+                  {
+                    package_id: 'opl-meta-agent',
+                    shortcut_id: 'oma',
+                    visible: true,
+                    sort_order: 4,
+                    source: 'user_preference',
+                  },
+                ],
+              },
             },
           },
         },
@@ -3043,5 +3119,21 @@ describe('Agents and capabilities settings', () => {
       'redcube-ai',
       'opl-meta-agent',
     ]);
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
+  });
+
+  it('lets a Framework App-state projection replace an in-memory optimistic preference', () => {
+    setOplHomeShortcutHidden('research', true);
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).not.toContain('med-autoscience');
+
+    localStorage.setItem(
+      'opl.appState.fast.v1',
+      JSON.stringify({
+        payload: homeShortcutReadback('research', true, 0),
+        loadedAt: '12:00:00',
+      })
+    );
+
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toContain('med-autoscience');
   });
 });
