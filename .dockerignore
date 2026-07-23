@@ -23,7 +23,7 @@ data
 *.dmg
 *.zip
 *.tar.gz
-*.tgz
+**/*.tgz
 !.opl-frozen-inputs/codex-cli.tgz
 *.app
 ${env.ELECTRON_CACHE}

@@ -13,20 +13,6 @@ function readDockerIgnoreEntries(): string[] {
     .filter(Boolean);
 }
 
-function resolveTgzContextDisposition(entries: readonly string[], relativePath: string): 'included' | 'excluded' {
-  let disposition: 'included' | 'excluded' = 'included';
-
-  for (const entry of entries) {
-    if (entry === '*.tgz' && path.posix.basename(relativePath).endsWith('.tgz')) {
-      disposition = 'excluded';
-    } else if (entry === `!${relativePath}`) {
-      disposition = 'included';
-    }
-  }
-
-  return disposition;
-}
-
 describe('Docker WebUI build context', () => {
   it('excludes local worktrees and generated release artifacts', () => {
     const entries = new Set(readDockerIgnoreEntries());
@@ -49,24 +35,29 @@ describe('Docker WebUI build context', () => {
     }
   });
 
-  it('includes only the frozen Codex archive among tgz files', () => {
+  it('places the only frozen archive exception immediately after the recursive tgz rule', () => {
     const entries = readDockerIgnoreEntries();
-    const tgzIgnoreIndex = entries.indexOf('*.tgz');
+    const recursiveTgzRule = '**/*.tgz';
     const frozenCodexException = '!.opl-frozen-inputs/codex-cli.tgz';
+    const tgzIgnoreIndex = entries.indexOf(recursiveTgzRule);
 
     expect(tgzIgnoreIndex).toBeGreaterThanOrEqual(0);
     expect(entries[tgzIgnoreIndex + 1]).toBe(frozenCodexException);
-    expect(entries.filter((entry) => entry.startsWith('!') && entry.endsWith('.tgz'))).toEqual([frozenCodexException]);
-    expect(resolveTgzContextDisposition(entries, '.opl-frozen-inputs/codex-cli.tgz')).toBe('included');
+    expect(entries).not.toContain('*.tgz');
+    expect(entries.filter((entry) => entry.includes('.tgz'))).toEqual([recursiveTgzRule, frozenCodexException]);
+    expect(entries.filter((entry) => entry.startsWith('!'))).toEqual([frozenCodexException]);
+  });
 
-    for (const relativePath of [
-      'codex-cli.tgz',
-      'other.tgz',
-      'nested/other.tgz',
-      '.opl-frozen-inputs/other.tgz',
-      '.opl-frozen-inputs/nested/codex-cli.tgz',
-    ]) {
-      expect(resolveTgzContextDisposition(entries, relativePath), relativePath).toBe('excluded');
-    }
+  it.each([
+    'codex-cli.tgz',
+    'other.tgz',
+    'nested/other.tgz',
+    '.opl-frozen-inputs/other.tgz',
+    '.opl-frozen-inputs/nested/codex-cli.tgz',
+  ])('does not exempt the representative tgz path %s', (relativePath) => {
+    const entries = readDockerIgnoreEntries();
+
+    expect(entries).toContain('**/*.tgz');
+    expect(entries).not.toContain(`!${relativePath}`);
   });
 });
