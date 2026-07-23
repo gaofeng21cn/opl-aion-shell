@@ -1547,6 +1547,622 @@ describe('OPL first-run VM smoke scripts', () => {
     });
   });
 
+  it('retains a failed Tart stop after delete succeeds and exact VM absence is proven', () => {
+    const actions: string[] = [];
+    const cleanup = tartSmoke.stopAndDeleteVm(
+      { vmName: 'opl-cleanup-stop-failure', keepVm: false },
+      {
+        runAction(action: string) {
+          actions.push(action);
+          if (action === 'stop') throw Object.assign(new Error('stop failed'), { code: 'STOP_FAILED' });
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'absent' };
+        },
+      }
+    );
+
+    expect(actions).toEqual(['stop', 'delete']);
+    expect(cleanup.receipt).toMatchObject({
+      status: 'failed',
+      classification: 'vm_cleanup_failure',
+      required_final_state: 'absent',
+      actions: {
+        stop: {
+          status: 'failed',
+          failure: {
+            classification: 'vm_cleanup_stop_failure',
+            code: 'STOP_FAILED',
+            message: 'stop failed',
+          },
+        },
+        delete: { status: 'passed' },
+      },
+      inspection: { status: 'passed', present: false, state: 'absent' },
+      failure_reasons: ['stop_action_failed'],
+      cleanup_finished: false,
+    });
+    expect(cleanup.error).toMatchObject({ code: 'VM_CLEANUP_FAILURE' });
+    expect(tartSmoke.selectFirstRunTartTerminalError(null, null, cleanup.error)).toBe(cleanup.error);
+  });
+
+  it('fails closed when Tart delete fails even if the final inventory is already absent', () => {
+    const cleanup = tartSmoke.stopAndDeleteVm(
+      { vmName: 'opl-cleanup-delete-failure', keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'delete') throw Object.assign(new Error('delete failed'), { code: 'DELETE_FAILED' });
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'absent' };
+        },
+      }
+    );
+
+    expect(cleanup.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { status: 'passed' }, delete: { status: 'failed' } },
+      inspection: { present: false },
+      failure_reasons: ['delete_action_failed'],
+      cleanup_finished: false,
+    });
+  });
+
+  it('requires independent exact VM absence and a successful inventory readback', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-tart-smoke.mjs'), 'utf8');
+    const stillPresent = tartSmoke.stopAndDeleteVm(
+      { vmName: 'opl-cleanup-present', keepVm: false },
+      {
+        runAction() {},
+        inspectVm() {
+          return { present: true, running: false, state: 'stopped' };
+        },
+      }
+    );
+    const unreadable = tartSmoke.stopAndDeleteVm(
+      { vmName: 'opl-cleanup-unreadable', keepVm: false },
+      {
+        runAction() {},
+        inspectVm() {
+          throw Object.assign(new Error('tart list --source local --format json timed out'), { code: 'ETIMEDOUT' });
+        },
+      }
+    );
+
+    expect(stillPresent.receipt.failure_reasons).toEqual(['vm_still_present']);
+    expect(stillPresent.receipt.inspection).toMatchObject({ status: 'passed', present: true });
+    expect(unreadable.receipt.failure_reasons).toEqual(['final_state_inspection_failed']);
+    expect(unreadable.receipt.inspection).toMatchObject({
+      status: 'failed',
+      failure: {
+        classification: 'vm_cleanup_inspection_failure',
+        code: 'ETIMEDOUT',
+        message: 'tart list --source local --format json timed out',
+      },
+    });
+    expect(scriptSource).toContain('const TART_CLEANUP_COMMAND_TIMEOUT_MS = 30_000;');
+    expect(scriptSource).toContain('timeout: TART_CLEANUP_COMMAND_TIMEOUT_MS');
+  });
+
+  it('keeps the primary failure terminal while persisting typed cleanup evidence', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-primary-cleanup-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const primaryError = new Error('primary smoke failure');
+    const artifactPullError = new Error('artifact pull failure');
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({
+        options,
+        stage: 'run_guest_smoke',
+        vmLogPath,
+        cleanupStarted: false,
+        cleanupResult: null,
+      });
+      const cleanup = await tartSmoke.cleanupRuntime({
+        copyGuestArtifacts: false,
+        reason: 'test_primary_failure',
+        vmCleanupDependencies: {
+          runAction(action: string) {
+            if (action === 'delete') throw new Error('delete failed');
+          },
+          inspectVm() {
+            return { present: true, running: false, state: 'stopped' };
+          },
+        },
+      });
+      expect(tartSmoke.selectFirstRunTartTerminalError(primaryError, artifactPullError, cleanup.cleanupError)).toBe(
+        primaryError
+      );
+      expect(tartSmoke.selectFirstRunTartTerminalError(null, artifactPullError, cleanup.cleanupError)).toBe(
+        artifactPullError
+      );
+      tartSmoke.writeFailedSummary(options, '', '', primaryError, {
+        primaryError,
+        artifactPullError,
+        cleanupError: cleanup.cleanupError,
+      });
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-smoke-summary.json'), 'utf8'));
+      const cleanupReceipt = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-vm-cleanup-receipt.json'), 'utf8'));
+      const runtimeLog = fs.readFileSync(vmLogPath, 'utf8');
+      expect(summary).toMatchObject({
+        status: 'failed',
+        error: 'primary smoke failure',
+        error_classification: { classification: 'qualification_stage_failure' },
+        primary_error: { message: 'primary smoke failure' },
+        artifact_pull_error: { message: 'artifact pull failure' },
+        cleanup_error: {
+          classification: 'vm_cleanup_failure',
+          code: 'VM_CLEANUP_FAILURE',
+          message: expect.stringContaining('delete failed'),
+        },
+        vm_cleanup: {
+          status: 'failed',
+          failure_reasons: ['delete_action_failed', 'vm_still_present'],
+        },
+      });
+      expect(cleanupReceipt).toEqual(cleanup.vmCleanupReceipt);
+      expect(runtimeLog).toContain('vm_cleanup_result status=failed required_final_state=absent');
+      expect(runtimeLog).not.toContain('cleanup_finished');
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('shares in-flight cleanup across reentry until VM absence is proven', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-cleanup-reentry-'));
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--vm-name',
+      'opl-cleanup-reentry-fixture',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const actions: string[] = [];
+    let releaseCopy = () => {};
+    const copyBarrier = new Promise<void>((resolve) => {
+      releaseCopy = resolve;
+    });
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({
+        options,
+        ip: '192.168.64.10',
+        guestArtifactDir: '/tmp/guest/artifacts',
+        copiedArtifacts: false,
+        cleanupStarted: false,
+        cleanupPromise: null,
+        cleanupResult: null,
+      });
+      const cleanupOptions = {
+        copyGuestArtifacts: true,
+        reason: 'test_cleanup_reentry',
+        copyArtifacts: () => copyBarrier,
+        vmCleanupDependencies: {
+          runAction(action: string) {
+            actions.push(action);
+          },
+          inspectVm() {
+            actions.push('inspect');
+            return { present: false, running: false, state: 'absent' };
+          },
+        },
+      };
+      const firstCleanup = tartSmoke.cleanupRuntime(cleanupOptions);
+      const reentrantCleanup = tartSmoke.cleanupRuntime({
+        copyGuestArtifacts: false,
+        reason: 'signal:SIGTERM',
+      });
+      let reentrantSettled = false;
+      void reentrantCleanup.finally(() => {
+        reentrantSettled = true;
+      });
+
+      await Promise.resolve();
+      expect(firstCleanup).toBe(reentrantCleanup);
+      expect(reentrantSettled).toBe(false);
+      expect(actions).toEqual([]);
+
+      releaseCopy();
+      const [firstResult, reentrantResult] = await Promise.all([firstCleanup, reentrantCleanup]);
+      expect(firstResult).toBe(reentrantResult);
+      expect(actions).toEqual(['stop', 'delete', 'inspect']);
+      expect(reentrantResult.vmCleanupReceipt).toMatchObject({
+        status: 'passed',
+        required_final_state: 'absent',
+        inspection: { status: 'passed', present: false, state: 'absent' },
+        cleanup_finished: true,
+      });
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('continues through Tart absence verification after ancillary credential cleanup fails', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-ancillary-cleanup-failure-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const credentialTempDir = path.join(artifacts, 'credential-temp');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--vm-name',
+      'opl-ancillary-cleanup-failure-fixture',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const actions: string[] = [];
+    const credentialError = Object.assign(new Error(`EACCES: cannot remove '${credentialTempDir}'`), {
+      code: 'EACCES',
+      path: credentialTempDir,
+    });
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({
+        options,
+        vmLogPath,
+        codexApiKeyFile: { temporary: true, tempDir: credentialTempDir },
+        cleanupStarted: false,
+        cleanupPromise: null,
+        cleanupResult: null,
+      });
+      const cleanup = await tartSmoke.cleanupRuntime({
+        copyGuestArtifacts: false,
+        reason: 'test_ancillary_cleanup_failure',
+        ancillaryCleanupDependencies: {
+          removeCredentialTemp() {
+            throw credentialError;
+          },
+        },
+        vmCleanupDependencies: {
+          runAction(action: string) {
+            actions.push(action);
+          },
+          inspectVm() {
+            actions.push('inspect');
+            return { present: false, running: false, state: 'absent' };
+          },
+        },
+      });
+      tartSmoke.writeFailedSummary(options, '', '', cleanup.cleanupError, {
+        cleanupError: cleanup.cleanupError,
+      });
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-smoke-summary.json'), 'utf8'));
+
+      expect(actions).toEqual(['stop', 'delete', 'inspect']);
+      expect(cleanup.cleanupError).toMatchObject({
+        code: 'VM_CLEANUP_FAILURE',
+        message: expect.stringContaining(credentialError.message),
+      });
+      expect(tartSmoke.selectFirstRunTartTerminalError(null, null, cleanup.cleanupError)).toBe(cleanup.cleanupError);
+      expect(cleanup.vmCleanupReceipt).toMatchObject({
+        status: 'failed',
+        classification: 'vm_cleanup_failure',
+        ancillary_actions: {
+          credential_temp_cleanup: {
+            status: 'failed',
+            failure: {
+              classification: 'vm_cleanup_credential_temp_failure',
+              code: 'EACCES',
+              path: credentialTempDir,
+              message: credentialError.message,
+            },
+          },
+        },
+        actions: { stop: { status: 'passed' }, delete: { status: 'passed' } },
+        inspection: { status: 'passed', present: false, state: 'absent' },
+        failure_reasons: ['credential_temp_cleanup_failed'],
+        cleanup_finished: false,
+      });
+      expect(summary).toMatchObject({
+        status: 'failed',
+        cleanup_error: {
+          classification: 'vm_cleanup_failure',
+          message: expect.stringContaining(credentialError.message),
+        },
+        vm_cleanup: cleanup.vmCleanupReceipt,
+      });
+      expect(fs.readFileSync(vmLogPath, 'utf8')).toContain(
+        `credential_temp_cleanup_failed code=EACCES path=${credentialTempDir} message=${credentialError.message}`
+      );
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the VM by stopping only and writes a secret-free successful cleanup receipt', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-keep-vm-cleanup-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--vm-name',
+      'opl-keep-vm-fixture',
+      '--artifacts',
+      artifacts,
+      '--keep-vm',
+      '--dry-run',
+    ]);
+    const actions: string[] = [];
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({ options, vmLogPath, cleanupStarted: false, cleanupResult: null });
+      const cleanup = await tartSmoke.cleanupRuntime({
+        copyGuestArtifacts: false,
+        reason: 'test_keep_vm',
+        vmCleanupDependencies: {
+          runAction(action: string) {
+            actions.push(action);
+          },
+          inspectVm() {
+            return { present: true, running: false, state: 'stopped' };
+          },
+        },
+      });
+      const receiptPath = path.join(artifacts, 'tart-vm-cleanup-receipt.json');
+      const receiptBytes = fs.readFileSync(receiptPath, 'utf8');
+
+      expect(actions).toEqual(['stop']);
+      expect(cleanup.cleanupError).toBeNull();
+      expect(cleanup.vmCleanupReceipt).toMatchObject({
+        schema: 'opl_tart_vm_cleanup_receipt.v1',
+        status: 'passed',
+        keep_vm: true,
+        required_final_state: 'stopped_and_present',
+        actions: { stop: { status: 'passed' }, delete: { status: 'skipped_keep_vm', attempted: false } },
+        inspection: { present: true, running: false, state: 'stopped' },
+        failure_reasons: [],
+        cleanup_finished: true,
+      });
+      expect(JSON.parse(receiptBytes)).toEqual(cleanup.vmCleanupReceipt);
+      expect(receiptBytes).not.toMatch(/api[_-]?key|token|secret/i);
+      expect(fs.readFileSync(vmLogPath, 'utf8')).toContain(
+        'vm_cleanup_result status=passed required_final_state=stopped_and_present'
+      );
+      expect(fs.readFileSync(vmLogPath, 'utf8')).toContain('cleanup_finished');
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('retains typed filesystem diagnostics when the VM cleanup receipt cannot be written', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-cleanup-receipt-write-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--vm-name',
+      'opl-cleanup-receipt-write-fixture',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const receiptPath = path.join(artifacts, 'tart-vm-cleanup-receipt.json');
+    const writeError = Object.assign(new Error(`EACCES: permission denied, open '${receiptPath}'`), {
+      code: 'EACCES',
+      path: receiptPath,
+    });
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({ options, vmLogPath, cleanupStarted: false, cleanupResult: null });
+      const cleanup = await tartSmoke.cleanupRuntime({
+        copyGuestArtifacts: false,
+        reason: 'test_cleanup_receipt_write_failure',
+        vmCleanupDependencies: {
+          runAction() {},
+          inspectVm() {
+            return { present: false, running: false, state: 'absent' };
+          },
+        },
+        writeCleanupReceipt() {
+          throw writeError;
+        },
+      });
+      tartSmoke.writeFailedSummary(options, '', '', cleanup.cleanupError, {
+        cleanupError: cleanup.cleanupError,
+      });
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-smoke-summary.json'), 'utf8'));
+      const runtimeLog = fs.readFileSync(vmLogPath, 'utf8');
+
+      expect(cleanup.cleanupError).toMatchObject({
+        code: 'VM_CLEANUP_FAILURE',
+        message: expect.stringContaining(writeError.message),
+      });
+      expect(tartSmoke.selectFirstRunTartTerminalError(null, null, cleanup.cleanupError)).toBe(cleanup.cleanupError);
+      expect(cleanup.vmCleanupReceipt).toMatchObject({
+        status: 'failed',
+        receipt_write: {
+          status: 'failed',
+          failure: {
+            classification: 'vm_cleanup_receipt_write_failure',
+            code: 'EACCES',
+            path: receiptPath,
+            message: writeError.message,
+          },
+        },
+        failure_reasons: ['cleanup_receipt_write_failed'],
+        cleanup_finished: false,
+      });
+      expect(summary).toMatchObject({
+        status: 'failed',
+        failure_stage: expect.any(String),
+        cleanup_error: {
+          classification: 'vm_cleanup_failure',
+          code: 'VM_CLEANUP_FAILURE',
+          message: expect.stringContaining(writeError.message),
+        },
+        vm_cleanup: cleanup.vmCleanupReceipt,
+      });
+      expect(runtimeLog).toContain(
+        `vm_cleanup_receipt_write_failed code=EACCES path=${receiptPath} message=${writeError.message}`
+      );
+      expect(fs.existsSync(receiptPath)).toBe(false);
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a failed summary after terminal success-summary I/O fails and preserves cleanup evidence', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-terminal-summary-write-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--vm-name',
+      'opl-terminal-summary-write-fixture',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const summaryPath = path.join(artifacts, 'tart-smoke-summary.json');
+    const summaryError = Object.assign(new Error(`EIO: output failed, write '${summaryPath}'`), {
+      code: 'EIO',
+      path: summaryPath,
+    });
+    const vmCleanupReceipt = {
+      schema: 'opl_tart_vm_cleanup_receipt.v1',
+      status: 'passed',
+      cleanup_finished: true,
+    };
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({ options, vmLogPath, vmCleanupReceipt });
+      expect(() =>
+        tartSmoke.writeTerminalSummary(options, '', '', {
+          writeSuccessSummary() {
+            throw summaryError;
+          },
+        })
+      ).toThrow(summaryError);
+      const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+      const runtimeLog = fs.readFileSync(vmLogPath, 'utf8');
+
+      expect(summary).toMatchObject({
+        status: 'failed',
+        failure_stage: 'write_summary',
+        error: summaryError.message,
+        error_classification: {
+          classification: 'qualification_stage_failure',
+          code: 'EIO',
+          path: summaryPath,
+          message: summaryError.message,
+        },
+        vm_cleanup: vmCleanupReceipt,
+      });
+      expect(runtimeLog).toContain(`write_summary_failed code=EIO path=${summaryPath} message=${summaryError.message}`);
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('does not let failed-summary I/O replace the original success-summary error', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-terminal-summary-fallback-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const summaryError = Object.assign(new Error('terminal summary failed'), { code: 'EIO' });
+    const fallbackError = Object.assign(new Error('failed summary also failed'), { code: 'ENOSPC' });
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({ options, vmLogPath });
+      expect(() =>
+        tartSmoke.writeTerminalSummary(options, '', '', {
+          writeSuccessSummary() {
+            throw summaryError;
+          },
+          writeFailureSummary() {
+            throw fallbackError;
+          },
+        })
+      ).toThrow(summaryError);
+      const runtimeLog = fs.readFileSync(vmLogPath, 'utf8');
+      expect(runtimeLog).toContain('write_summary_failed code=EIO path=none message=terminal summary failed');
+      expect(runtimeLog).toContain(
+        'write_failed_summary_failed code=ENOSPC path=none message=failed summary also failed'
+      );
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('does not let failed-summary I/O replace a selected primary terminal error', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-primary-summary-fallback-'));
+    const vmLogPath = path.join(artifacts, 'tart-run.log');
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+    const primaryError = Object.assign(new Error('primary smoke failure'), { code: 'PRIMARY_FAILED' });
+    const summaryError = Object.assign(new Error('failed summary write failed'), { code: 'ENOSPC' });
+
+    try {
+      tartSmoke.__setRuntimeStateForTest({ options, vmLogPath });
+      let observedError: unknown = null;
+      try {
+        throw tartSmoke.writeTerminalFailureSummary(
+          options,
+          '',
+          '',
+          primaryError,
+          { primaryError },
+          {
+            writeFailureSummary() {
+              throw summaryError;
+            },
+          }
+        );
+      } catch (error) {
+        observedError = error;
+      }
+      expect(observedError).toBe(primaryError);
+      expect(fs.readFileSync(vmLogPath, 'utf8')).toContain(
+        'write_failed_summary_failed code=ENOSPC path=none message=failed summary write failed'
+      );
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('requires the guest Codex functional check receipt when requested', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

@@ -64,6 +64,7 @@ const HOMEBREW_INSTALL_RETRYABLE_PATTERNS = [
 const DEFAULT_HOMEBREW_INSTALL_MAX_ATTEMPTS = 3;
 const DEFAULT_HOMEBREW_INSTALL_RETRY_DELAY_MS = 15_000;
 const SIGNAL_GUEST_ARTIFACT_COPY_TIMEOUT_MS = 30_000;
+const TART_CLEANUP_COMMAND_TIMEOUT_MS = 30_000;
 
 const runtimeState = {
   options: null,
@@ -78,6 +79,9 @@ const runtimeState = {
   guestNodeStaging: null,
   copiedArtifacts: false,
   cleanupStarted: false,
+  cleanupPromise: null,
+  cleanupResult: null,
+  vmCleanupReceipt: null,
   homebrewInstallAttempts: [],
 };
 
@@ -863,7 +867,11 @@ function prepareHostCodexApiKeyFile(options) {
 
 function appendRuntimeLog(message) {
   const line = `[${new Date().toISOString()}] ${message}\n`;
-  process.stdout.write(`[tart-smoke] ${message}\n`);
+  try {
+    process.stdout.write(`[tart-smoke] ${message}\n`);
+  } catch (_) {
+    // Keep file-backed diagnostics available when the host stdout stream fails.
+  }
   const options = runtimeState.options;
   if (!options) return;
   try {
@@ -895,6 +903,10 @@ function appendRuntimeLog(message) {
 function summarizeError(error) {
   const message = error instanceof Error ? error.message : String(error);
   return {
+    classification: error instanceof TartVmCleanupError ? 'vm_cleanup_failure' : 'qualification_stage_failure',
+    type: error instanceof Error ? error.name : typeof error,
+    code: error && typeof error === 'object' && 'code' in error ? String(error.code) : null,
+    path: error && typeof error === 'object' && 'path' in error ? String(error.path) : null,
     message,
     retryable_homebrew_transport: isRetryableHomebrewInstallError(error),
   };
@@ -1476,11 +1488,184 @@ function startVm(options, vmLogPath) {
   return child;
 }
 
-function stopAndDeleteVm(options) {
-  spawnSync('tart', ['stop', options.vmName], { stdio: 'ignore' });
-  if (!options.keepVm) {
-    spawnSync('tart', ['delete', options.vmName], { stdio: 'ignore' });
+class TartVmCleanupError extends Error {
+  constructor(receipt) {
+    const diagnostics = [
+      ...Object.values(receipt.ancillary_actions ?? {}).map((action) => action?.failure?.message),
+      receipt.actions?.stop?.failure?.message,
+      receipt.actions?.delete?.failure?.message,
+      receipt.inspection?.failure?.message,
+      receipt.receipt_write?.failure?.message,
+    ].filter(Boolean);
+    super(
+      `Tart VM cleanup failed (${receipt.failure_reasons.join(', ')})${diagnostics.length > 0 ? `: ${diagnostics.join(' | ')}` : '.'}`
+    );
+    this.name = 'TartVmCleanupError';
+    this.code = 'VM_CLEANUP_FAILURE';
+    this.receipt = receipt;
   }
+}
+
+function cleanupActionFailure(error, classification) {
+  return {
+    classification,
+    type: error instanceof Error ? error.name : typeof error,
+    code: error && typeof error === 'object' && 'code' in error ? String(error.code) : null,
+    path: error && typeof error === 'object' && 'path' in error ? String(error.path) : null,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack || null : null,
+  };
+}
+
+function runTartCleanupCommand(args) {
+  const result = spawnSync('tart', args, {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    timeout: TART_CLEANUP_COMMAND_TIMEOUT_MS,
+  });
+  if (result.status === 0 && !result.error) return result.stdout ?? '';
+  const error = new Error(
+    [
+      `tart ${args.join(' ')} exited with ${result.status}`,
+      result.error ? `spawn error: ${result.error.message}` : '',
+      result.stdout ? `stdout:\n${result.stdout}` : '',
+      result.stderr ? `stderr:\n${result.stderr}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+  if (result.error && typeof result.error === 'object' && 'code' in result.error) {
+    error.code = String(result.error.code);
+  }
+  throw error;
+}
+
+function attemptTartCleanupAction(action, runAction) {
+  try {
+    runAction(action);
+    return { action, attempted: true, status: 'passed', failure: null };
+  } catch (error) {
+    return {
+      action,
+      attempted: true,
+      status: 'failed',
+      failure: cleanupActionFailure(error, `vm_cleanup_${action}_failure`),
+    };
+  }
+}
+
+function attemptAncillaryCleanupAction(action, required, runAction, classification) {
+  if (!required) {
+    return { action, attempted: false, status: 'skipped_not_required', failure: null };
+  }
+  try {
+    runAction();
+    return { action, attempted: true, status: 'passed', failure: null };
+  } catch (error) {
+    return {
+      action,
+      attempted: true,
+      status: 'failed',
+      failure: cleanupActionFailure(error, classification),
+    };
+  }
+}
+
+function inspectLocalTartVm(vmName) {
+  const raw = runTartCleanupCommand(['list', '--source', 'local', '--format', 'json']);
+  let entries;
+  try {
+    entries = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('Tart local VM inventory is not valid JSON.');
+  }
+  if (!Array.isArray(entries)) {
+    throw new Error('Tart local VM inventory must be an array.');
+  }
+  const matches = entries.filter((entry) => entry && typeof entry === 'object' && entry.Name === vmName);
+  if (matches.length > 1) {
+    throw new Error('Tart local VM inventory contains duplicate exact VM names.');
+  }
+  if (matches.length === 0) {
+    return { present: false, running: false, state: 'absent' };
+  }
+  const entry = matches[0];
+  return {
+    present: true,
+    running: entry.Running === true,
+    state: typeof entry.State === 'string' ? entry.State.toLowerCase() : 'unknown',
+  };
+}
+
+function stopAndDeleteVm(options, dependencies = {}) {
+  const runAction = dependencies.runAction ?? ((action) => runTartCleanupCommand([action, options.vmName]));
+  const inspectVm = dependencies.inspectVm ?? (() => inspectLocalTartVm(options.vmName));
+  const stop = attemptTartCleanupAction('stop', runAction);
+  const deletion = options.keepVm
+    ? { action: 'delete', attempted: false, status: 'skipped_keep_vm', failure: null }
+    : attemptTartCleanupAction('delete', runAction);
+
+  let inspection;
+  try {
+    const observed = inspectVm();
+    inspection = {
+      status: 'passed',
+      present: observed?.present === true,
+      running: observed?.running === true,
+      state: typeof observed?.state === 'string' ? observed.state : 'unknown',
+      failure: null,
+    };
+  } catch (error) {
+    inspection = {
+      status: 'failed',
+      present: null,
+      running: null,
+      state: 'unknown',
+      failure: cleanupActionFailure(error, 'vm_cleanup_inspection_failure'),
+    };
+  }
+
+  const failureReasons = [];
+  if (stop.status === 'failed') failureReasons.push('stop_action_failed');
+  if (deletion.status === 'failed') failureReasons.push('delete_action_failed');
+  if (inspection.status === 'failed') {
+    failureReasons.push('final_state_inspection_failed');
+  } else if (options.keepVm) {
+    if (!inspection.present) failureReasons.push('kept_vm_missing');
+    if (inspection.present && (inspection.running || inspection.state !== 'stopped')) {
+      failureReasons.push('kept_vm_not_stopped');
+    }
+  } else if (inspection.present) {
+    failureReasons.push('vm_still_present');
+  }
+
+  const cleanupFinished = failureReasons.length === 0;
+  const receipt = {
+    schema: 'opl_tart_vm_cleanup_receipt.v1',
+    status: cleanupFinished ? 'passed' : 'failed',
+    classification: cleanupFinished ? null : 'vm_cleanup_failure',
+    vm_name: options.vmName,
+    keep_vm: options.keepVm,
+    required_final_state: options.keepVm ? 'stopped_and_present' : 'absent',
+    actions: { stop, delete: deletion },
+    inspection,
+    failure_reasons: failureReasons,
+    cleanup_finished: cleanupFinished,
+    completed_at: new Date().toISOString(),
+  };
+  return {
+    receipt,
+    error: cleanupFinished ? null : new TartVmCleanupError(receipt),
+  };
+}
+
+function writeVmCleanupReceipt(options, receipt) {
+  const receiptPath = path.join(options.artifacts, 'tart-vm-cleanup-receipt.json');
+  fs.mkdirSync(options.artifacts, { recursive: true });
+  fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  return receiptPath;
 }
 
 function writeInterruptedSummary(signal) {
@@ -1502,6 +1687,7 @@ function writeInterruptedSummary(signal) {
       copied_guest_artifacts: runtimeState.copiedArtifacts,
       codex_install_preseed: codexInstallPreseedPlan(options),
       guest_node_staging: runtimeState.guestNodeStaging,
+      vm_cleanup: runtimeState.vmCleanupReceipt,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
       temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
       guest_summary: guestSummary,
@@ -1512,34 +1698,121 @@ function writeInterruptedSummary(signal) {
   }
 }
 
-async function cleanupRuntime({ copyGuestArtifacts, reason } = { copyGuestArtifacts: true, reason: 'cleanup' }) {
+function cleanupRuntime({
+  copyGuestArtifacts = true,
+  reason = 'cleanup',
+  copyArtifacts = scpFromGuest,
+  ancillaryCleanupDependencies = {},
+  vmCleanupDependencies,
+  writeCleanupReceipt = writeVmCleanupReceipt,
+} = {}) {
   const options = runtimeState.options;
-  if (!options || runtimeState.cleanupStarted) return;
+  if (!options) {
+    return Promise.resolve({ artifactPullError: null, cleanupError: null, vmCleanupReceipt: null });
+  }
+  if (runtimeState.cleanupPromise) return runtimeState.cleanupPromise;
+  if (runtimeState.cleanupResult) return Promise.resolve(runtimeState.cleanupResult);
   runtimeState.cleanupStarted = true;
-  appendRuntimeLog(`cleanup_started reason=${reason || 'cleanup'}`);
+  runtimeState.cleanupPromise = (async () => {
+    appendRuntimeLog(`cleanup_started reason=${reason || 'cleanup'}`);
+    let artifactPullError = null;
 
-  if (copyGuestArtifacts && runtimeState.ip && runtimeState.guestArtifactDir && !runtimeState.copiedArtifacts) {
-    try {
-      await scpFromGuest(options, runtimeState.ip, runtimeState.guestArtifactDir, options.artifacts);
-      runtimeState.copiedArtifacts = true;
-      appendRuntimeLog('copied_guest_artifacts_after_failure');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      appendRuntimeLog(`artifact_copy_after_failure_failed ${message}`);
+    if (copyGuestArtifacts && runtimeState.ip && runtimeState.guestArtifactDir && !runtimeState.copiedArtifacts) {
+      try {
+        await copyArtifacts(options, runtimeState.ip, runtimeState.guestArtifactDir, options.artifacts);
+        runtimeState.copiedArtifacts = true;
+        appendRuntimeLog('copied_guest_artifacts_after_failure');
+      } catch (error) {
+        artifactPullError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        appendRuntimeLog(`artifact_copy_after_failure_failed ${message}`);
+      }
     }
-  }
 
-  if (runtimeState.codexApiKeyFile?.temporary && runtimeState.codexApiKeyFile.tempDir) {
-    fs.rmSync(runtimeState.codexApiKeyFile.tempDir, { recursive: true, force: true });
-  }
-  if (runtimeState.currentChild && !runtimeState.currentChild.killed) {
-    runtimeState.currentChild.kill('SIGTERM');
-  }
-  if (runtimeState.tartProcess && !runtimeState.tartProcess.killed) {
-    runtimeState.tartProcess.kill('SIGTERM');
-  }
-  stopAndDeleteVm(options);
-  appendRuntimeLog('cleanup_finished');
+    const removeCredentialTemp =
+      ancillaryCleanupDependencies.removeCredentialTemp ??
+      ((tempDir) => fs.rmSync(tempDir, { recursive: true, force: true }));
+    const terminateCurrentChild =
+      ancillaryCleanupDependencies.terminateCurrentChild ?? ((child) => child.kill('SIGTERM'));
+    const terminateTartProcess =
+      ancillaryCleanupDependencies.terminateTartProcess ?? ((child) => child.kill('SIGTERM'));
+    const credentialTempRequired = Boolean(
+      runtimeState.codexApiKeyFile?.temporary && runtimeState.codexApiKeyFile.tempDir
+    );
+    const currentChildRequired = Boolean(runtimeState.currentChild && !runtimeState.currentChild.killed);
+    const tartProcessRequired = Boolean(runtimeState.tartProcess && !runtimeState.tartProcess.killed);
+    const ancillaryActions = {
+      credential_temp_cleanup: attemptAncillaryCleanupAction(
+        'credential_temp_cleanup',
+        credentialTempRequired,
+        () => removeCredentialTemp(runtimeState.codexApiKeyFile.tempDir),
+        'vm_cleanup_credential_temp_failure'
+      ),
+      current_child_termination: attemptAncillaryCleanupAction(
+        'current_child_termination',
+        currentChildRequired,
+        () => terminateCurrentChild(runtimeState.currentChild),
+        'vm_cleanup_current_child_termination_failure'
+      ),
+      tart_process_termination: attemptAncillaryCleanupAction(
+        'tart_process_termination',
+        tartProcessRequired,
+        () => terminateTartProcess(runtimeState.tartProcess),
+        'vm_cleanup_tart_process_termination_failure'
+      ),
+    };
+    const ancillaryFailureReasons = Object.entries(ancillaryActions)
+      .filter(([, action]) => action.status === 'failed')
+      .map(([action]) => `${action}_failed`);
+    for (const action of Object.values(ancillaryActions)) {
+      if (action.status !== 'failed') continue;
+      appendRuntimeLog(
+        `${action.action}_failed code=${action.failure.code ?? 'none'} path=${action.failure.path ?? 'none'} message=${action.failure.message}`
+      );
+    }
+    const vmCleanup = stopAndDeleteVm(options, vmCleanupDependencies);
+    const receipt = {
+      ...vmCleanup.receipt,
+      status: ancillaryFailureReasons.length === 0 && vmCleanup.receipt.status === 'passed' ? 'passed' : 'failed',
+      classification:
+        ancillaryFailureReasons.length === 0 && vmCleanup.receipt.status === 'passed' ? null : 'vm_cleanup_failure',
+      ancillary_actions: ancillaryActions,
+      failure_reasons: [...ancillaryFailureReasons, ...vmCleanup.receipt.failure_reasons],
+      cleanup_finished: ancillaryFailureReasons.length === 0 && vmCleanup.receipt.cleanup_finished,
+    };
+    let cleanupError = receipt.cleanup_finished ? null : new TartVmCleanupError(receipt);
+    runtimeState.vmCleanupReceipt = receipt;
+    try {
+      writeCleanupReceipt(options, receipt);
+    } catch (error) {
+      const receiptWriteFailure = cleanupActionFailure(error, 'vm_cleanup_receipt_write_failure');
+      const failedReceipt = {
+        ...receipt,
+        status: 'failed',
+        classification: 'vm_cleanup_failure',
+        receipt_write: {
+          status: 'failed',
+          failure: receiptWriteFailure,
+        },
+        failure_reasons: [...receipt.failure_reasons, 'cleanup_receipt_write_failed'],
+        cleanup_finished: false,
+      };
+      runtimeState.vmCleanupReceipt = failedReceipt;
+      cleanupError = new TartVmCleanupError(failedReceipt);
+      appendRuntimeLog(
+        `vm_cleanup_receipt_write_failed code=${receiptWriteFailure.code ?? 'none'} path=${receiptWriteFailure.path ?? 'none'} message=${receiptWriteFailure.message}`
+      );
+    }
+    const finalReceipt = runtimeState.vmCleanupReceipt;
+    appendRuntimeLog(
+      `vm_cleanup_result status=${finalReceipt.status} required_final_state=${finalReceipt.required_final_state} stop=${finalReceipt.actions.stop.status} delete=${finalReceipt.actions.delete.status} inspection=${finalReceipt.inspection.status}`
+    );
+    if (finalReceipt.cleanup_finished) appendRuntimeLog('cleanup_finished');
+    const result = { artifactPullError, cleanupError, vmCleanupReceipt: finalReceipt };
+    runtimeState.cleanupResult = result;
+    return result;
+  })();
+  return runtimeState.cleanupPromise;
 }
 
 if (process.env.NODE_ENV !== 'test') {
@@ -1548,10 +1821,10 @@ if (process.env.NODE_ENV !== 'test') {
       appendRuntimeLog(`received_signal signal=${signal}`);
       copyGuestArtifactsForSignal(runtimeState.options)
         .finally(() => {
-          writeInterruptedSummary(signal);
           return cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` });
         })
         .finally(() => {
+          writeInterruptedSummary(signal);
           process.exit(SIGNAL_EXIT_CODES.get(signal));
         });
     });
@@ -1896,6 +2169,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
+    vm_cleanup: runtimeState.vmCleanupReceipt,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
@@ -1903,7 +2177,13 @@ function writeSummary(options, ip, guestArtifactDir) {
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
-function writeFailedSummary(options, ip, guestArtifactDir, error) {
+function writeFailedSummary(
+  options,
+  ip,
+  guestArtifactDir,
+  error,
+  { primaryError = null, artifactPullError = null, cleanupError = null } = {}
+) {
   const guestSummary = readGuestSmokeSummary(options.artifacts);
   const summary = {
     surface_id: 'opl_tart_gui_first_run_smoke',
@@ -1944,10 +2224,48 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
     error_classification: summarizeError(error),
+    primary_error: primaryError ? summarizeError(primaryError) : null,
+    artifact_pull_error: artifactPullError ? summarizeError(artifactPullError) : null,
+    cleanup_error: cleanupError ? summarizeError(cleanupError) : null,
+    vm_cleanup: runtimeState.vmCleanupReceipt,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
+}
+
+function writeTerminalSummary(options, ip, guestArtifactDir, dependencies = {}) {
+  const writeSuccessSummary = dependencies.writeSuccessSummary ?? writeSummary;
+  setStage('write_summary');
+  try {
+    writeSuccessSummary(options, ip, guestArtifactDir);
+  } catch (error) {
+    const failure = cleanupActionFailure(error, 'write_summary_failure');
+    appendRuntimeLog(
+      `write_summary_failed code=${failure.code ?? 'none'} path=${failure.path ?? 'none'} message=${failure.message}`
+    );
+    throw writeTerminalFailureSummary(options, ip, guestArtifactDir, error, {}, dependencies);
+  }
+}
+
+function writeTerminalFailureSummary(
+  options,
+  ip,
+  guestArtifactDir,
+  terminalError,
+  failureContext = {},
+  dependencies = {}
+) {
+  const writeFailureSummary = dependencies.writeFailureSummary ?? writeFailedSummary;
+  try {
+    writeFailureSummary(options, ip, guestArtifactDir, terminalError, failureContext);
+  } catch (error) {
+    const failure = cleanupActionFailure(error, 'write_failed_summary_failure');
+    appendRuntimeLog(
+      `write_failed_summary_failed code=${failure.code ?? 'none'} path=${failure.path ?? 'none'} message=${failure.message}`
+    );
+  }
+  return terminalError;
 }
 
 async function main() {
@@ -1972,7 +2290,7 @@ async function main() {
   let ip = '';
   let guestArtifactDir = '';
   let copiedArtifacts = false;
-  let failure = null;
+  let primaryError = null;
   try {
     setStage('clone_vm');
     run('tart', ['clone', options.sourceVm, options.vmName]);
@@ -2063,20 +2381,33 @@ async function main() {
     await scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
     copiedArtifacts = true;
     runtimeState.copiedArtifacts = true;
-    setStage('write_summary');
-    writeSummary(options, ip, guestArtifactDir);
+    setStage('validate_guest_summary');
+    assertGuestSmokeSummary(options, readGuestSmokeSummary(options.artifacts));
   } catch (error) {
-    failure = error;
-    throw error;
-  } finally {
-    runtimeState.ip = ip;
-    runtimeState.guestArtifactDir = guestArtifactDir;
-    runtimeState.copiedArtifacts = copiedArtifacts || runtimeState.copiedArtifacts;
-    await cleanupRuntime({ copyGuestArtifacts: true, reason: 'finally' });
-    if (failure) {
-      writeFailedSummary(options, ip, guestArtifactDir, failure);
-    }
+    primaryError = error;
   }
+
+  runtimeState.ip = ip;
+  runtimeState.guestArtifactDir = guestArtifactDir;
+  runtimeState.copiedArtifacts = copiedArtifacts || runtimeState.copiedArtifacts;
+  const cleanupResult = await cleanupRuntime({ copyGuestArtifacts: true, reason: 'finally' });
+  const terminalError = selectFirstRunTartTerminalError(
+    primaryError,
+    cleanupResult.artifactPullError,
+    cleanupResult.cleanupError
+  );
+  if (terminalError) {
+    throw writeTerminalFailureSummary(options, ip, guestArtifactDir, terminalError, {
+      primaryError,
+      artifactPullError: cleanupResult.artifactPullError,
+      cleanupError: cleanupResult.cleanupError,
+    });
+  }
+  writeTerminalSummary(options, ip, guestArtifactDir);
+}
+
+function selectFirstRunTartTerminalError(primaryError, artifactPullError, cleanupError) {
+  return primaryError || artifactPullError || cleanupError || null;
 }
 
 function isMainModule(moduleUrl, argvPath = process.argv[1]) {
@@ -2120,8 +2451,14 @@ export const __test =
         recordStageEvent,
         resolveGuestSmokeScriptPath,
         runAsync,
+        cleanupRuntime,
+        selectFirstRunTartTerminalError,
+        stopAndDeleteVm,
         writeInterruptedSummary,
         writeFailedSummary,
+        writeTerminalFailureSummary,
+        writeTerminalSummary,
+        writeVmCleanupReceipt,
         writeSummary,
       }
     : undefined;
