@@ -15,12 +15,12 @@ describe('Docker WebUI image profile contract', () => {
     expect(dockerfile).toContain('\'exec /opt/opl/seed/payload/codex_cli/bin/codex "$@"\'');
   });
 
-  it('packages the OPL Flow installer required by configure-codex', () => {
-    expect(dockerfile).toContain('ARG OPL_FLOW_REF=5ae0625f5240a13fa820b4c92362f1d06bdce857');
-    expect(dockerfile).toContain('COPY --from=opl-flow /opt/opl-flow /opt/opl-flow');
-    expect(dockerfile).toContain('ENV OPL_FLOW_REPO_ROOT=/opt/opl-flow');
-    expect(dockerfile).toContain('python3 tini');
-    expect(dockerfile).toContain('/opt/opl-flow/scripts/install_local_plugin.py');
+  it('keeps unselected OPL Flow out of WebUI build inputs', () => {
+    expect(dockerfile).not.toContain('ARG OPL_FLOW_REF');
+    expect(dockerfile).not.toContain('AS opl-flow');
+    expect(dockerfile).not.toContain('COPY --from=opl-flow');
+    expect(dockerfile).not.toContain('ENV OPL_FLOW_REPO_ROOT=');
+    expect(dockerfile).not.toContain('/opt/opl-flow/scripts/install_local_plugin.py');
   });
 
   it('keeps lifecycle recovery on a volume separate from App data and projects', () => {

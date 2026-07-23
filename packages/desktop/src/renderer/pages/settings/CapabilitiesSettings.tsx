@@ -29,10 +29,7 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import {
-  canonicalizeOplProfessionalAgentId,
-  getOplProfessionalAgentPackages,
-} from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId, getOplProfessionalAgentPackages } from '@/common/config/oplProductProfile';
 import { oplProjectedRequirementAlternatives } from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
