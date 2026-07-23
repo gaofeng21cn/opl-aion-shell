@@ -61,6 +61,15 @@ const DAILY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
+const MANAGED_UPDATE_COMPONENT_STATES = new Set([
+  'current',
+  'update_available',
+  'staged',
+  'needs_restart',
+  'needs_reload',
+  'failed_with_repair',
+  'skipped_manual_required',
+]);
 
 let retryCount = 0;
 let schedulerStarted = false;
@@ -243,6 +252,28 @@ function terminalStatusReadbackError(result: IOplRuntimeCommandResult | null | u
   const commandError = resultErrorMessage(result);
   if (commandError) return commandError;
   if (!result || result.surface !== 'update_status' || !isRecord(result.parsed)) {
+    return 'Framework status readback unavailable';
+  }
+  const root = nestedRecord(result.parsed, 'managed_update');
+  if (
+    !root ||
+    stringValue(root.surface_id) !== 'opl_managed_updater_kernel' ||
+    stringValue(root.operation) !== 'status' ||
+    !Array.isArray(root.components) ||
+    root.components.length === 0
+  ) {
+    return 'Framework status readback unavailable';
+  }
+  const componentIds = root.components.flatMap((component) => {
+    if (!isRecord(component)) return [];
+    const rawComponentId = stringValue(component.component_id);
+    const componentId = canonicalManagedUpdateComponentId(rawComponentId);
+    const state = stringValue(component.state);
+    return rawComponentId && componentId === rawComponentId && state && MANAGED_UPDATE_COMPONENT_STATES.has(state)
+      ? [componentId]
+      : [];
+  });
+  if (componentIds.length !== root.components.length || new Set(componentIds).size !== componentIds.length) {
     return 'Framework status readback unavailable';
   }
   return null;

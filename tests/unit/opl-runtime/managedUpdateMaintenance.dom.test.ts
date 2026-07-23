@@ -112,6 +112,7 @@ const managedUpdateStatusResult = {
   stdout: '{}',
   parsed: {
     managed_update: {
+      surface_id: 'opl_managed_updater_kernel',
       operation: 'status',
       idempotency_lock: { status: 'released' },
       execution: { status: 'completed' },
@@ -405,6 +406,24 @@ describe('managed update background maintenance scheduler', () => {
     });
   });
 
+  it('does not report a manual mutation as completed for a malformed terminal status envelope', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      surface: 'update_status',
+      command: 'opl update status --json',
+      stdout: '{}',
+      parsed: {},
+    });
+
+    const result = await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
+
+    expect(result?.surface).toBe('update_status');
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'failed',
+      lastAction: null,
+      lastFailure: 'Framework status readback unavailable',
+    });
+  });
+
   it('does not turn package profile migration diagnostics into a separate maintenance target', async () => {
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
       ...managedUpdatePlanResult,
@@ -505,6 +524,30 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastAction).toBeNull();
     expect(snapshot.lastFailure).toBe('Framework status readback unavailable');
     expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
+    stop();
+  });
+
+  it('keeps the carrier checkpoint pending when terminal readback has the wrong operation', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce(managedUpdateStatusResult).mockResolvedValueOnce({
+      ...managedUpdateStatusResult,
+      parsed: {
+        managed_update: {
+          ...managedUpdateStatusResult.parsed.managed_update,
+          operation: 'plan',
+        },
+      },
+    });
+
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().running).toBe(false));
+
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'failed',
+      lastAction: null,
+      lastFailure: 'Framework status readback unavailable',
+      lastReconciledCarrierCheckpoint: null,
+    });
     stop();
   });
 
