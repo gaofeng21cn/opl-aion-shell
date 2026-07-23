@@ -316,8 +316,12 @@ Options:
                          The standard profile verifies core launch readiness without requiring
                          Full-only bundled modules.
   --codex-api-key-file <path>
-                         File containing a test Codex API key. The key is read from disk,
-                         entered through the GUI wizard, and never passed as a CLI argument.
+                         File containing a test Codex API key for the explicit Provider
+                         compatibility lane. The key is never passed as a CLI argument.
+  --codex-provider-base-url <url>
+                         Expected Provider Base URL resolved from the host Codex config.
+  --provider-credential-source <source>
+                         Non-secret credential provenance recorded in the smoke receipt.
   --require-codex-config-wizard
                          Fail unless the Codex configuration wizard is seen and submitted.
                          Use this only for Full/runtime first-run flows that intentionally
@@ -361,6 +365,8 @@ function parseArgs(argv) {
       : null,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
+    codexProviderBaseUrl: null,
+    providerCredentialSource: null,
     requireCodexConfigWizard: false,
     assertClean: false,
     guideScreenshots: false,
@@ -431,6 +437,8 @@ function parseArgs(argv) {
     else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
     else if (arg === '--host-deadline-epoch-ms') options.hostDeadlineEpochMs = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
+    else if (arg === '--codex-provider-base-url') options.codexProviderBaseUrl = value;
+    else if (arg === '--provider-credential-source') options.providerCredentialSource = value;
     else throw new Error(`Unsupported argument: ${arg}`);
   }
 
@@ -463,6 +471,9 @@ function parseArgs(argv) {
   }
   if (!Number.isFinite(options.codexAiSelfCheckTimeoutMs) || options.codexAiSelfCheckTimeoutMs <= 0) {
     throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
+  }
+  if (options.requireCodexConfigWizard && !options.codexApiKeyFile) {
+    throw new Error('--require-codex-config-wizard requires --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.');
   }
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -2328,10 +2339,53 @@ function configureCodexApiKeyForSmoke(options, codexApiKey) {
     input: `${codexApiKey}\n`,
   });
   const parsed = parseOplJsonResult(raw, args);
+  const configuredBaseUrl = parsed?.codex_config?.bootstrap?.provider_base_url ?? parsed?.provider_base_url ?? null;
+  if (
+    options.codexProviderBaseUrl &&
+    normalizeProviderBaseUrl(configuredBaseUrl) !== normalizeProviderBaseUrl(options.codexProviderBaseUrl)
+  ) {
+    throw new Error('Configured Codex Provider Base URL does not match the developer host Codex selection.');
+  }
   return {
     status: 'configured',
     command: 'opl system configure-codex --api-key-stdin --json',
+    provider_base_url_matches_host: options.codexProviderBaseUrl ? true : null,
     result: parsed,
+  };
+}
+
+function normalizeProviderBaseUrl(value) {
+  return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+}
+
+function buildProviderConfigurationSummary(options, codexApiKey, evidence = {}) {
+  const requested = Boolean(options.codexApiKeyFile);
+  if (!requested) {
+    return {
+      status: 'not_requested',
+      requested: false,
+      authentication_default: 'opl_gateway_account_password',
+      api_key_role: 'explicit_compatibility_only',
+      credential_source: null,
+      credential_present: false,
+      provider_base_url_matches_host: null,
+      manual_user_input_required: false,
+      mutation_performed: false,
+      blocking_release_gate: false,
+    };
+  }
+  const mutationPerformed = evidence.programmaticConfigured === true || evidence.wizardSubmitted === true;
+  return {
+    status: mutationPerformed ? 'configured' : 'requested',
+    requested: true,
+    authentication_default: 'opl_gateway_account_password',
+    api_key_role: 'explicit_compatibility_only',
+    credential_source: options.providerCredentialSource ?? 'explicit_api_key_file',
+    credential_present: Boolean(codexApiKey),
+    provider_base_url_matches_host: evidence.providerBaseUrlMatched ?? null,
+    manual_user_input_required: false,
+    mutation_performed: mutationPerformed,
+    blocking_release_gate: false,
   };
 }
 
@@ -3391,8 +3445,12 @@ function createCodexWizardState() {
   };
 }
 
-function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state) {
-  state.lastTree = queryAccessibility(processName);
+function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state, hooks = {}) {
+  const queryAccessibilityImpl = hooks.queryAccessibility ?? queryAccessibility;
+  const writeJsonArtifactImpl = hooks.writeJsonArtifact ?? writeJsonArtifact;
+  const captureMacScreenArtifactImpl = hooks.captureMacScreenArtifact ?? captureMacScreenArtifact;
+  const submitCodexWizardImpl = hooks.submitCodexWizard ?? submitCodexWizard;
+  state.lastTree = queryAccessibilityImpl(processName);
   const hasCodexWizard =
     treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyMethod) ||
     (treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
@@ -3402,17 +3460,13 @@ function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state)
   state.sawCodexWizard = true;
   if (!state.capturedCodexWizard) {
     const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
-    writeJsonArtifact(wizardTreePath, state.lastTree, codexApiKey);
-    captureMacScreenArtifact(path.join(artifactsDir, 'codex-config-wizard.png'));
+    writeJsonArtifactImpl(wizardTreePath, state.lastTree, codexApiKey);
+    captureMacScreenArtifactImpl(path.join(artifactsDir, 'codex-config-wizard.png'));
     state.capturedCodexWizard = true;
   }
+  if (!codexApiKey) return state;
   if (!state.submittedCodexWizard || Date.now() - state.lastCodexSubmitAt > 10_000) {
-    if (!codexApiKey) {
-      throw new Error(
-        'Codex configuration wizard is visible; provide --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.'
-      );
-    }
-    submitCodexWizard(processName, codexApiKey);
+    submitCodexWizardImpl(processName, codexApiKey);
     state.submittedCodexWizard = true;
     state.lastCodexSubmitAt = Date.now();
   }
@@ -6902,6 +6956,8 @@ async function main() {
     options.appPath = appPath;
     const installedAppOptions = { ...options, appPath };
     let preLaunchPackagedRuntimeIntegrity = null;
+    let providerConfigurationMutationPerformed = false;
+    let providerConfigurationBaseUrlMatched = null;
 
     await runSmokePhase(writeSmokeEvent, 'verify_packaged_main_bootstrap', () =>
       assertPackagedMainBootstrap(appPath, options.artifacts)
@@ -6933,6 +6989,8 @@ async function main() {
           timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
       );
+      providerConfigurationMutationPerformed = codexConfigure.status === 'configured';
+      providerConfigurationBaseUrlMatched = codexConfigure.provider_base_url_matches_host;
       writeJsonArtifact(codexConfigurePath, codexConfigure, codexApiKey);
     } else if (codexApiKey && options.requireCodexConfigWizard) {
       writeJsonArtifact(
@@ -7034,6 +7092,10 @@ async function main() {
           codex_config_wizard_seen: false,
           codex_config_wizard_submitted: false,
           codex_api_key_present: Boolean(codexApiKey),
+          provider_configuration: buildProviderConfigurationSummary(options, codexApiKey, {
+            programmaticConfigured: providerConfigurationMutationPerformed,
+            providerBaseUrlMatched: providerConfigurationBaseUrlMatched,
+          }),
           codex_install_preseed: codexInstallPreseed,
           timeouts: {
             smoke_ms: options.timeoutMs,
@@ -7069,6 +7131,10 @@ async function main() {
         codex_config_wizard_seen: false,
         codex_config_wizard_submitted: false,
         codex_api_key_present: Boolean(codexApiKey),
+        provider_configuration: buildProviderConfigurationSummary(options, codexApiKey, {
+          programmaticConfigured: providerConfigurationMutationPerformed,
+          providerBaseUrlMatched: providerConfigurationBaseUrlMatched,
+        }),
         codex_install_preseed: codexInstallPreseed,
         timeouts: {
           smoke_ms: options.timeoutMs,
@@ -7398,6 +7464,11 @@ async function main() {
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
+      provider_configuration: buildProviderConfigurationSummary(options, codexApiKey, {
+        programmaticConfigured: providerConfigurationMutationPerformed,
+        providerBaseUrlMatched: providerConfigurationBaseUrlMatched,
+        wizardSubmitted: firstRun.submittedCodexWizard,
+      }),
       codex_install_preseed: codexInstallPreseed,
       timeouts: {
         smoke_ms: options.timeoutMs,
@@ -7443,6 +7514,7 @@ async function main() {
       assistant_route_smoke: summary.assistant_route_smoke?.status ?? null,
       codex_functional_check: summary.codex_functional_check?.status ?? null,
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
+      provider_configuration: summary.provider_configuration.status,
       app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
       temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
       packaged_runtime_integrity_pre_launch: summary.packaged_runtime_integrity_pre_launch?.status ?? null,
@@ -7494,6 +7566,9 @@ export const __test =
         waitForFullFirstRunEquivalence,
         shouldWaitForCoreFirstLaunchReady,
         configureCodexApiKeyForSmoke,
+        buildProviderConfigurationSummary,
+        createCodexWizardState,
+        observeCodexConfigWizard,
         shouldCaptureFullReleaseScreenshot,
         shouldCaptureFirstRunBeginnerScreenshot,
         shouldCheckFirstRunBeginnerUx,

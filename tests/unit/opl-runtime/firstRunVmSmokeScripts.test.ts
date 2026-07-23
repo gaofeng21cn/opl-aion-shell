@@ -174,6 +174,26 @@ function createPassedTemporalServiceSupervisorProof() {
   };
 }
 
+function assertGuestSmokeSummary(options: Record<string, unknown>, summary: Record<string, unknown>): void {
+  const requested = Boolean(options.providerCredentialPresent || options.codexApiKeyFile);
+  const source = requested
+    ? options.providerCredentialSource || (options.codexApiKeyFile ? 'explicit_api_key_file' : null)
+    : null;
+  tartSmoke.assertGuestSmokeSummary(options, {
+    provider_configuration: {
+      status: requested ? 'requested' : 'not_requested',
+      requested,
+      credential_source: source,
+      credential_present: requested,
+      provider_base_url_matches_host: options.codexProviderBaseUrl ? true : null,
+      manual_user_input_required: false,
+      mutation_performed: false,
+      blocking_release_gate: false,
+    },
+    ...summary,
+  });
+}
+
 function writeRuntimeModule(
   runtimeHome: string,
   input: {
@@ -743,6 +763,20 @@ describe('OPL first-run VM smoke scripts', () => {
       '--dry-run',
     ]);
     expect(options.requireCodexConfigWizard).toBe(false);
+    expect(options.codexApiKeyFile).toBe('');
+    expect(tartSmoke.prepareHostCodexApiKeyFile(options)).toBeNull();
+    expect(tartSmoke.buildDryRunPlan(options).provider_configuration).toEqual({
+      status: 'not_requested',
+      requested: false,
+      credential_present: false,
+      credential_source: null,
+      credential_resolution_status: 'not_requested',
+      credential_resolution_reason: 'connected_provider_smoke_not_requested',
+      base_url_matches_opl_gateway: null,
+      manual_user_input_required: false,
+      mutation_performed: false,
+      blocking_release_gate: false,
+    });
 
     const command = tartSmoke.guestSmokeCommand(
       options,
@@ -752,9 +786,11 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/guest/codex-api-key.txt'
     );
     expect(command).not.toContain('--require-codex-config-wizard');
+    expect(command).not.toContain('--codex-api-key-file');
+    expect(command).toContain('unset OPL_FIRST_RUN_CODEX_API_KEY_FILE');
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'standard',
         codex_config_wizard_submitted: false,
@@ -864,7 +900,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).toContain('--cdp-port');
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'standard',
         codex_config_wizard_submitted: false,
@@ -874,7 +910,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'standard',
         codex_config_wizard_submitted: false,
@@ -1523,7 +1559,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ]);
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1541,7 +1577,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1564,7 +1600,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ]);
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1774,9 +1810,10 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/guest/codex-api-key.txt'
     );
     expect(command).not.toContain('--require-codex-config-wizard');
+    expect(command).not.toContain('--codex-api-key-file');
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1798,7 +1835,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ]);
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1816,6 +1853,8 @@ describe('OPL first-run VM smoke scripts', () => {
       '--runtime-profile',
       'full',
       '--require-codex-config-wizard',
+      '--codex-api-key-file',
+      '/tmp/explicit-provider-compatibility-key.txt',
       '--dry-run',
     ]);
     expect(options.requireCodexConfigWizard).toBe(true);
@@ -1828,9 +1867,10 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/guest/codex-api-key.txt'
     );
     expect(command).toContain('--require-codex-config-wizard');
+    expect(command).toContain('--codex-api-key-file');
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -1838,6 +1878,158 @@ describe('OPL first-run VM smoke scripts', () => {
         temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
       })
     ).toThrow(/Codex configuration wizard/);
+  });
+
+  it('rejects a targeted Codex wizard smoke without an explicit credential file', () => {
+    expect(() =>
+      tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab-Full.dmg',
+        '--runtime-profile',
+        'full',
+        '--require-codex-config-wizard',
+        '--dry-run',
+      ])
+    ).toThrow(/requires --codex-api-key-file/);
+  });
+
+  it('copies only an explicitly supplied Provider compatibility credential', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-provider-compatibility-'));
+    const sourcePath = path.join(root, 'codex-api-key.txt');
+    fs.writeFileSync(sourcePath, 'explicit-test-credential\n', 'utf8');
+    let prepared: { path: string; tempDir: string } | null = null;
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab-Full.dmg',
+        '--codex-api-key-file',
+        sourcePath,
+        '--dry-run',
+      ]);
+      prepared = tartSmoke.prepareHostCodexApiKeyFile(options);
+      expect(prepared).not.toBeNull();
+      expect(fs.readFileSync(prepared!.path, 'utf8')).toBe('explicit-test-credential\n');
+      expect(tartSmoke.buildDryRunPlan(options).provider_configuration).toMatchObject({
+        status: 'requested',
+        requested: true,
+        credential_present: true,
+        mutation_performed: false,
+        blocking_release_gate: false,
+      });
+    } finally {
+      if (prepared) fs.rmSync(prepared.tempDir, { recursive: true, force: true });
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('stages a requested connected VM credential from the selected developer host Codex Provider', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-host-codex-provider-'));
+    const configPath = path.join(root, 'config.toml');
+    writeFile(
+      configPath,
+      [
+        'model_provider = "gflab"',
+        '[model_providers.gflab]',
+        'name = "OPL Gateway"',
+        'base_url = "https://gflabtoken.cn/v1/"',
+        'experimental_bearer_token = "host-selected-test-credential"',
+        'wire_api = "responses"',
+        '',
+      ].join('\n'),
+      0o600
+    );
+    let prepared: { path: string; tempDir: string } | null = null;
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--codex-ai-self-check',
+        '--host-codex-config',
+        configPath,
+        '--dry-run',
+      ]);
+      prepared = tartSmoke.prepareHostCodexApiKeyFile(options);
+      expect(prepared).toMatchObject({
+        source: 'developer_host_codex_selected_provider',
+        providerBaseUrl: 'https://gflabtoken.cn/v1/',
+      });
+      expect(fs.readFileSync(prepared!.path, 'utf8')).toBe('host-selected-test-credential\n');
+      expect(fs.statSync(prepared!.path).mode & 0o777).toBe(0o600);
+      expect(options.providerCredentialPresent).toBe(true);
+      expect(options.providerCredentialResolution).toMatchObject({
+        status: 'available',
+        source: 'developer_host_codex_selected_provider',
+        base_url_matches_opl_gateway: true,
+        credential_present: true,
+      });
+
+      const command = tartSmoke.guestSmokeCommand(
+        options,
+        '/tmp/guest/One-Person-Lab.dmg',
+        '/tmp/guest/opl-first-run-vm-smoke.mjs',
+        '/tmp/guest/artifacts',
+        '/tmp/guest/codex-api-key.txt'
+      );
+      expect(command).toContain("--codex-provider-base-url 'https://gflabtoken.cn/v1/'");
+      expect(command).toContain("--provider-credential-source 'developer_host_codex_selected_provider'");
+      expect(command).toContain('--codex-api-key-file');
+      expect(command).not.toContain('host-selected-test-credential');
+      expect(tartSmoke.buildDryRunPlan(options).provider_configuration).toMatchObject({
+        status: 'requested',
+        credential_source: 'developer_host_codex_selected_provider',
+        base_url_matches_opl_gateway: true,
+        manual_user_input_required: false,
+      });
+    } finally {
+      if (prepared) fs.rmSync(prepared.tempDir, { recursive: true, force: true });
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to reuse a selected host Codex key for a different Provider Base URL', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-host-codex-provider-mismatch-'));
+    const configPath = path.join(root, 'config.toml');
+    try {
+      writeFile(
+        configPath,
+        [
+          'model_provider = "custom"',
+          '[model_providers.custom]',
+          'base_url = "https://provider.example/v1"',
+          'experimental_bearer_token = "must-not-be-staged"',
+          '',
+        ].join('\n'),
+        0o600
+      );
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--codex-ai-self-check',
+        '--host-codex-config',
+        configPath,
+        '--dry-run',
+      ]);
+      expect(tartSmoke.prepareHostCodexApiKeyFile(options)).toBeNull();
+      expect(options.providerCredentialResolution).toMatchObject({
+        status: 'unavailable',
+        reason: 'selected_host_codex_provider_base_url_mismatch',
+        credential_present: true,
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('checks Full companion skills through packaged runtime payloads before Codex skill mirrors exist', () => {
@@ -2541,7 +2733,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ]);
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
@@ -2552,7 +2744,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
 
     expect(() =>
-      tartSmoke.assertGuestSmokeSummary(options, {
+      assertGuestSmokeSummary(options, {
         status: 'passed',
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,

@@ -801,6 +801,7 @@ describe('packaged first-run VM smoke helpers', () => {
       {
         timeoutMs: 12_000,
         appPath: '/Applications/One Person Lab.app',
+        codexProviderBaseUrl: 'https://gflabtoken.cn/v1/',
         __testHooks: {
           runOplJson: (args: string[], options: Record<string, unknown>) => {
             calls.push({ args, options });
@@ -818,11 +819,29 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(result).toMatchObject({
       status: 'configured',
       command: 'opl system configure-codex --api-key-stdin --json',
+      provider_base_url_matches_host: true,
       result: {
         status: 'configured',
         provider_base_url: 'https://gflabtoken.cn/v1',
       },
     });
+  });
+
+  it('rejects a host credential when configure-codex selects a different Base URL', () => {
+    expect(() =>
+      __test.configureCodexApiKeyForSmoke(
+        {
+          codexProviderBaseUrl: 'https://provider.example/v1',
+          __testHooks: {
+            runOplJson: () =>
+              JSON.stringify({
+                codex_config: { bootstrap: { provider_base_url: 'https://gflabtoken.cn/v1' } },
+              }),
+          },
+        },
+        'host-selected-test-credential'
+      )
+    ).toThrow(/does not match the developer host Codex selection/);
   });
 
   it('skips programmatic Codex configuration when no VM smoke API key is available', () => {
@@ -841,6 +860,83 @@ describe('packaged first-run VM smoke helpers', () => {
       status: 'skipped',
       reason: 'missing_codex_api_key',
     });
+  });
+
+  it('records Provider configuration as not requested for ordinary release smoke', () => {
+    const options = __test.parseArgs(['--app', '/Applications/One Person Lab.app', '--runtime-profile', 'full']);
+
+    expect(__test.buildProviderConfigurationSummary(options, null)).toEqual({
+      status: 'not_requested',
+      requested: false,
+      authentication_default: 'opl_gateway_account_password',
+      api_key_role: 'explicit_compatibility_only',
+      credential_source: null,
+      credential_present: false,
+      provider_base_url_matches_host: null,
+      manual_user_input_required: false,
+      mutation_performed: false,
+      blocking_release_gate: false,
+    });
+  });
+
+  it('observes and defers the Provider wizard when release smoke has no credential', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-provider-wizard-defer-'));
+    const submitCodexWizard = vi.fn();
+    try {
+      const state = __test.observeCodexConfigWizard(
+        'One Person Lab',
+        null,
+        artifacts,
+        __test.createCodexWizardState(),
+        {
+          queryAccessibility: () => [{ name: 'opl-first-run-gateway-key-method' }],
+          writeJsonArtifact: vi.fn(),
+          captureMacScreenArtifact: vi.fn(),
+          submitCodexWizard,
+        }
+      );
+
+      expect(state).toMatchObject({
+        sawCodexWizard: true,
+        submittedCodexWizard: false,
+        capturedCodexWizard: true,
+      });
+      expect(submitCodexWizard).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('records explicit API Key configuration as a non-blocking compatibility lane', () => {
+    const options = __test.parseArgs([
+      '--app',
+      '/Applications/One Person Lab.app',
+      '--codex-api-key-file',
+      '/tmp/explicit-provider-compatibility-key.txt',
+    ]);
+
+    expect(
+      __test.buildProviderConfigurationSummary(options, 'explicit-test-credential', {
+        programmaticConfigured: true,
+      })
+    ).toEqual({
+      status: 'configured',
+      requested: true,
+      authentication_default: 'opl_gateway_account_password',
+      api_key_role: 'explicit_compatibility_only',
+      credential_source: 'explicit_api_key_file',
+      credential_present: true,
+      provider_base_url_matches_host: null,
+      manual_user_input_required: false,
+      mutation_performed: true,
+      blocking_release_gate: false,
+    });
+  });
+
+  it('rejects a required Provider compatibility wizard without an explicit credential file', () => {
+    expect(() =>
+      __test.parseArgs(['--app', '/Applications/One Person Lab.app', '--require-codex-config-wizard'])
+    ).toThrow(/requires --codex-api-key-file/);
   });
 
   it('maps clean Full first-run screenshots to release evidence paths only for Full gates', () => {

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parse as parseToml } from 'smol-toml';
 
 const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
 const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
@@ -15,6 +16,9 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGTERM', 143],
 ]);
 const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
+const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
+const HOST_CODEX_PROVIDER_SOURCE = 'developer_host_codex_selected_provider';
+const EXPLICIT_API_KEY_FILE_SOURCE = 'explicit_api_key_file';
 const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];
 const SMOKE_PROFILES = new Map([
   [
@@ -163,8 +167,14 @@ Options:
                            Do not require the Codex config wizard even when runtime-profile is full.
   --guide-screenshots      Accept the release workflow guide screenshot toggle as a host-side flag.
   --codex-api-key-file <path>
-                           Optional host file containing the test Codex API key.
-                           If omitted, an ephemeral non-secret smoke key is generated.
+                           Optional host file containing a test Codex API key for
+                           the explicit Provider compatibility lane. This overrides
+                           automatic host Codex config discovery.
+  --host-codex-config <path>
+                           Host Codex config.toml used for a requested AI self-check.
+                           Defaults to $CODEX_HOME/config.toml or ~/.codex/config.toml.
+                           The selected Provider Base URL and bearer token are staged
+                           privately; neither value is written to plans or receipts.
   --guest-node-root <path> Copy a host Node.js runtime directory into the guest workdir and use it for the smoke.
   --guest-node-command <cmd>
                            Existing Node.js command in the guest. Skips Node download/probe install.
@@ -218,6 +228,13 @@ function parseArgs(argv) {
     homebrewCask: 'one-person-lab',
     requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
+    hostCodexConfig:
+      process.env.OPL_FIRST_RUN_HOST_CODEX_CONFIG ||
+      path.join(process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex'), 'config.toml'),
+    providerCredentialPresent: false,
+    providerCredentialSource: null,
+    providerCredentialResolution: null,
+    codexProviderBaseUrl: null,
     guestNodeRoot: '',
     guestNodeCommand: '',
     frameworkSourceArchive: '',
@@ -383,6 +400,9 @@ function parseArgs(argv) {
     } else if (arg === '--codex-api-key-file') {
       options.codexApiKeyFile = path.resolve(value);
       explicit.add('codexApiKeyFile');
+    } else if (arg === '--host-codex-config') {
+      options.hostCodexConfig = path.resolve(value);
+      explicit.add('hostCodexConfig');
     } else if (arg === '--guest-node-root') {
       options.guestNodeRoot = path.resolve(value);
       explicit.add('guestNodeRoot');
@@ -467,6 +487,9 @@ function parseArgs(argv) {
     throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
   }
   if (options.requireCodexConfigWizard === null) options.requireCodexConfigWizard = false;
+  if (options.requireCodexConfigWizard && !options.codexApiKeyFile) {
+    throw new Error('--require-codex-config-wizard requires --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.');
+  }
   resolveMasProvisioningTransport(options, !options.dryRun);
   if (
     options.bootstrapLaunchDiagnostics &&
@@ -528,6 +551,8 @@ function resolveMasProvisioningTransport(options, requireFiles = true) {
 }
 
 function buildDryRunPlan(options) {
+  const providerResolution = options.providerCredentialResolution ?? resolveHostCodexProviderCredential(options);
+  const providerCredentialPresent = providerResolution.status === 'available';
   return {
     surface_id: 'opl_tart_gui_first_run_smoke_plan',
     status: 'dry_run',
@@ -567,6 +592,18 @@ function buildDryRunPlan(options) {
         : null,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
+    provider_configuration: {
+      status: providerCredentialPresent ? 'requested' : 'not_requested',
+      requested: providerCredentialPresent,
+      credential_present: providerCredentialPresent,
+      credential_source: providerResolution.source,
+      credential_resolution_status: providerResolution.status,
+      credential_resolution_reason: providerResolution.reason,
+      base_url_matches_opl_gateway: providerResolution.base_url_matches_opl_gateway,
+      manual_user_input_required: false,
+      mutation_performed: false,
+      blocking_release_gate: false,
+    },
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
     guest_node_staging: guestNodeStagingPlan(options),
@@ -678,23 +715,150 @@ function frameworkInstallScriptFinalizeCommand(options) {
   return [`mv ${shellQuote(copiedPath)} ${shellQuote(guestPath)}`, `chmod +x ${shellQuote(guestPath)}`].join(' && ');
 }
 
-function prepareHostCodexApiKeyFile(options) {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-codex-key-'));
-  const keyPath = path.join(tempDir, 'codex-api-key.txt');
+function normalizeProviderBaseUrl(value) {
+  return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+}
+
+function publicProviderCredentialResolution(resolution) {
+  return {
+    status: resolution.status,
+    source: resolution.source,
+    reason: resolution.reason,
+    config_path: resolution.config_path,
+    selected_provider: resolution.selected_provider,
+    base_url_present: resolution.base_url_present,
+    base_url_matches_opl_gateway: resolution.base_url_matches_opl_gateway,
+    credential_present: resolution.credential_present,
+  };
+}
+
+function resolveHostCodexProviderCredential(options, includeSecret = false) {
   if (options.codexApiKeyFile) {
     if (!fs.existsSync(options.codexApiKeyFile)) {
-      throw new Error(`Codex API key file does not exist: ${options.codexApiKeyFile}`);
+      return {
+        status: 'unavailable',
+        source: EXPLICIT_API_KEY_FILE_SOURCE,
+        reason: 'explicit_api_key_file_absent',
+        config_path: options.codexApiKeyFile,
+        selected_provider: null,
+        base_url: OPL_GATEWAY_BASE_URL,
+        base_url_present: true,
+        base_url_matches_opl_gateway: true,
+        credential_present: false,
+      };
     }
-    const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
-    if (!key) {
-      throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
-    }
-    fs.writeFileSync(keyPath, `${key}\n`, 'utf8');
-    return { path: keyPath, temporary: true, tempDir };
+    const apiKey = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
+    return {
+      status: apiKey ? 'available' : 'unavailable',
+      source: EXPLICIT_API_KEY_FILE_SOURCE,
+      reason: apiKey ? null : 'explicit_api_key_file_empty',
+      config_path: options.codexApiKeyFile,
+      selected_provider: null,
+      base_url: OPL_GATEWAY_BASE_URL,
+      base_url_present: true,
+      base_url_matches_opl_gateway: true,
+      credential_present: Boolean(apiKey),
+      ...(includeSecret && apiKey ? { api_key: apiKey } : {}),
+    };
   }
 
-  fs.writeFileSync(keyPath, `opl-first-run-smoke-${randomUUID()}\n`, 'utf8');
-  return { path: keyPath, temporary: true, tempDir };
+  if (!options.codexAiSelfCheck) {
+    return {
+      status: 'not_requested',
+      source: null,
+      reason: 'connected_provider_smoke_not_requested',
+      config_path: null,
+      selected_provider: null,
+      base_url: null,
+      base_url_present: false,
+      base_url_matches_opl_gateway: null,
+      credential_present: false,
+    };
+  }
+
+  const configPath = options.hostCodexConfig;
+  if (!configPath || !fs.existsSync(configPath) || !fs.statSync(configPath).isFile()) {
+    return {
+      status: 'unavailable',
+      source: HOST_CODEX_PROVIDER_SOURCE,
+      reason: 'host_codex_config_absent',
+      config_path: configPath || null,
+      selected_provider: null,
+      base_url: null,
+      base_url_present: false,
+      base_url_matches_opl_gateway: null,
+      credential_present: false,
+    };
+  }
+
+  let config;
+  try {
+    config = parseToml(fs.readFileSync(configPath, 'utf8'));
+  } catch (_) {
+    return {
+      status: 'unavailable',
+      source: HOST_CODEX_PROVIDER_SOURCE,
+      reason: 'host_codex_config_invalid',
+      config_path: configPath,
+      selected_provider: null,
+      base_url: null,
+      base_url_present: false,
+      base_url_matches_opl_gateway: null,
+      credential_present: false,
+    };
+  }
+  const selectedProvider = typeof config.model_provider === 'string' ? config.model_provider.trim() : '';
+  const providers = config.model_providers && typeof config.model_providers === 'object' ? config.model_providers : {};
+  const provider =
+    selectedProvider && providers[selectedProvider] && typeof providers[selectedProvider] === 'object'
+      ? providers[selectedProvider]
+      : null;
+  const baseUrl = typeof provider?.base_url === 'string' ? provider.base_url.trim() : '';
+  const apiKey =
+    typeof provider?.experimental_bearer_token === 'string' ? provider.experimental_bearer_token.trim() : '';
+  const baseUrlMatches = normalizeProviderBaseUrl(baseUrl) === normalizeProviderBaseUrl(OPL_GATEWAY_BASE_URL);
+  let reason = null;
+  if (!selectedProvider || !provider) reason = 'selected_host_codex_provider_absent';
+  else if (!baseUrl) reason = 'selected_host_codex_provider_base_url_absent';
+  else if (!baseUrlMatches) reason = 'selected_host_codex_provider_base_url_mismatch';
+  else if (!apiKey) reason = 'selected_host_codex_provider_api_key_absent';
+
+  return {
+    status: reason ? 'unavailable' : 'available',
+    source: HOST_CODEX_PROVIDER_SOURCE,
+    reason,
+    config_path: configPath,
+    selected_provider: selectedProvider || null,
+    base_url: baseUrl || null,
+    base_url_present: Boolean(baseUrl),
+    base_url_matches_opl_gateway: baseUrl ? baseUrlMatches : null,
+    credential_present: Boolean(apiKey),
+    ...(includeSecret && !reason ? { api_key: apiKey } : {}),
+  };
+}
+
+function prepareHostCodexApiKeyFile(options) {
+  const resolution = resolveHostCodexProviderCredential(options, true);
+  options.providerCredentialResolution = publicProviderCredentialResolution(resolution);
+  options.providerCredentialPresent = resolution.status === 'available';
+  options.providerCredentialSource = resolution.source;
+  options.codexProviderBaseUrl = resolution.status === 'available' ? resolution.base_url : null;
+  if (resolution.status !== 'available') {
+    if (resolution.source === EXPLICIT_API_KEY_FILE_SOURCE) {
+      throw new Error(`Explicit Codex API key file is unavailable: ${resolution.reason}.`);
+    }
+    return null;
+  }
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-codex-key-'));
+  const keyPath = path.join(tempDir, 'codex-api-key.txt');
+  fs.writeFileSync(keyPath, `${resolution.api_key}\n`, { encoding: 'utf8', mode: 0o600 });
+  return {
+    path: keyPath,
+    temporary: true,
+    tempDir,
+    source: resolution.source,
+    providerBaseUrl: resolution.base_url,
+  };
 }
 
 function appendRuntimeLog(message) {
@@ -1414,6 +1578,10 @@ function guestSmokeCommand(
   guestFrameworkInstallScriptPath = null,
   guestHostDeadlineEpochMs = guestSmokeHostDeadlineEpochMs(options)
 ) {
+  const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
+  const providerCredentialSource =
+    options.providerCredentialSource ?? (options.codexApiKeyFile ? EXPLICIT_API_KEY_FILE_SOURCE : null);
+  const providerBaseUrl = options.codexProviderBaseUrl ?? (options.codexApiKeyFile ? OPL_GATEWAY_BASE_URL : null);
   const nodeCommand = shellQuote(options.guestNodeCommand);
   const sourceArchiveUrl = guestFrameworkSourceArchivePath ? `file://${guestFrameworkSourceArchivePath}` : null;
   const installScriptUrl = guestFrameworkInstallScriptPath ? `file://${guestFrameworkInstallScriptPath}` : null;
@@ -1436,7 +1604,13 @@ function guestSmokeCommand(
       ? `--app ${shellQuote('/Applications/One Person Lab.app')}`
       : `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
-    `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`,
+    providerCredentialRequested && guestCodexApiKeyPath
+      ? `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`
+      : '',
+    providerCredentialRequested && providerBaseUrl ? `--codex-provider-base-url ${shellQuote(providerBaseUrl)}` : '',
+    providerCredentialRequested && providerCredentialSource
+      ? `--provider-credential-source ${shellQuote(providerCredentialSource)}`
+      : '',
     options.requireCodexConfigWizard ? '--require-codex-config-wizard' : '',
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
@@ -1472,6 +1646,7 @@ function guestSmokeCommand(
   ].join(' ');
   return [
     'set -euo pipefail',
+    providerCredentialRequested ? '' : 'unset OPL_FIRST_RUN_CODEX_API_KEY_FILE',
     ...sourceArchiveEnv,
     compiledExpectationsPath
       ? `export OPL_FIRST_RUN_COMPILED_EXPECTATIONS=${shellQuote(compiledExpectationsPath)}`
@@ -1583,6 +1758,26 @@ function assertGuestSmokeSummary(options, guestSummary) {
       }`
     );
   }
+  const providerConfiguration = guestSummary.provider_configuration;
+  const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
+  const expectedCredentialSource = providerCredentialRequested
+    ? (options.providerCredentialSource ?? (options.codexApiKeyFile ? EXPLICIT_API_KEY_FILE_SOURCE : null))
+    : null;
+  if (
+    providerConfiguration?.blocking_release_gate !== false ||
+    providerConfiguration?.requested !== providerCredentialRequested ||
+    providerConfiguration?.credential_present !== providerCredentialRequested ||
+    providerConfiguration?.credential_source !== expectedCredentialSource ||
+    providerConfiguration?.manual_user_input_required !== false
+  ) {
+    throw new Error('Guest Provider configuration summary does not match the resolved host credential request');
+  }
+  if (
+    !providerCredentialRequested &&
+    (providerConfiguration.status !== 'not_requested' || providerConfiguration.mutation_performed !== false)
+  ) {
+    throw new Error('Guest release smoke must leave Provider configuration not_requested without credentials');
+  }
   if (options.runtimeProfile === 'full' && !options.bootstrapLaunchDiagnostics) {
     const proof = guestSummary.temporal_service_supervisor_proof;
     if (
@@ -1689,6 +1884,8 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
     codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
     codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
+    provider_configuration: guestSummary?.provider_configuration ?? null,
+    provider_credential_resolution: options.providerCredentialResolution ?? null,
     diagnostic_scope: guestSummary?.diagnostic_scope ?? null,
     bootstrap_launch_diagnostics_result: guestSummary?.bootstrap_launch_diagnostics ?? null,
     labels: guestSummary?.labels ?? [],
@@ -1734,6 +1931,8 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     copied_guest_artifacts: runtimeState.copiedArtifacts,
     codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
     codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
+    provider_configuration: guestSummary?.provider_configuration ?? null,
+    provider_credential_resolution: options.providerCredentialResolution ?? null,
     diagnostic_scope: guestSummary?.diagnostic_scope ?? null,
     bootstrap_launch_diagnostics_result: guestSummary?.bootstrap_launch_diagnostics ?? null,
     labels: guestSummary?.labels ?? [],
@@ -1794,7 +1993,7 @@ async function main() {
     runtimeState.guestArtifactDir = guestArtifactDir;
     const guestDmgPath = options.dmg ? `${options.guestWorkdir}/${path.basename(options.dmg)}` : null;
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
-    const guestCodexApiKeyPath = `${options.guestWorkdir}/codex-api-key.txt`;
+    const guestCodexApiKeyPath = codexApiKeyFile ? `${options.guestWorkdir}/codex-api-key.txt` : null;
     setStage('prepare_guest_workdir');
     await ssh(
       options,
@@ -1804,7 +2003,8 @@ async function main() {
     setStage('copy_inputs_to_guest');
     const guestFrameworkArchivePath = guestFrameworkSourceArchivePath(options);
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
-    const guestInputs = [resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
+    const guestInputs = [resolveGuestSmokeScriptPath()];
+    if (codexApiKeyFile) guestInputs.push(codexApiKeyFile.path);
     if (options.compiledExpectations) guestInputs.push(options.compiledExpectations);
     if (options.dmg) guestInputs.unshift(options.dmg);
     if (options.codexPackageTarball) guestInputs.push(options.codexPackageTarball);
@@ -1910,6 +2110,8 @@ export const __test =
         isRetryableHomebrewInstallError,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
+        prepareHostCodexApiKeyFile,
+        resolveHostCodexProviderCredential,
         copyMasProvisioningWorkspaceToGuest,
         homebrewTrustedCaskRefs,
         isMainModule,
