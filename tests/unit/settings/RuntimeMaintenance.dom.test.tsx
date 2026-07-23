@@ -1814,22 +1814,22 @@ describe('RuntimeSettings maintenance structure', () => {
     fireEvent.click(
       screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement
     );
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-opl_base'));
+    const baseApplyButton = screen.getByTestId('opl-managed-update-apply-opl_base');
+    fireEvent.click(baseApplyButton);
     const confirmButton = screen
       .getByTestId('opl-managed-update-confirmation')
       .querySelector('.arco-btn-primary') as HTMLButtonElement;
-    const repairButton = screen.getByTestId('opl-managed-update-repair-opl_packages');
 
     act(() => {
       confirmButton.click();
       confirmButton.click();
-      repairButton.click();
     });
 
     expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('opl-managed-update-confirmation')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-managed-update-refresh')).toBeDisabled();
-    expect(repairButton).toBeDisabled();
+    expect(baseApplyButton).toBeDisabled();
+    expect(screen.queryByTestId('opl-managed-update-repair-opl_packages')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).toBeDisabled();
 
     await act(async () => {
@@ -1839,7 +1839,8 @@ describe('RuntimeSettings maintenance structure', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('opl-managed-update-refresh')).not.toBeDisabled();
-      expect(screen.getByTestId('opl-managed-update-repair-opl_packages')).not.toBeDisabled();
+      expect(screen.getByTestId('opl-managed-update-apply-opl_base')).not.toBeDisabled();
+      expect(screen.queryByTestId('opl-managed-update-repair-opl_packages')).not.toBeInTheDocument();
       expect(screen.getByTestId('opl-maintenance-action-runtimeEnvironment')).not.toBeDisabled();
     });
     expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);
