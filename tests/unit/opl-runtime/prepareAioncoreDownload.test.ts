@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -247,6 +248,34 @@ describe('prepare-aioncore managed resources preparation', () => {
 });
 
 describe('prepare-aioncore prepared runtime cache', () => {
+  it('writes byte-identical root manifests for independent materializations', () => {
+    const manifestBytes = [makeTempDir(), makeTempDir()].map((projectRoot) => {
+      const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
+      fs.mkdirSync(targetDir, { recursive: true });
+      __test__.writePreparedRuntimeManifest(targetDir, {
+        platform: 'darwin',
+        arch: 'arm64',
+        version: 'v0.1.50',
+        sourceType: 'download',
+        sourceDetail: {
+          url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.50/aioncore-v0.1.50-aarch64-apple-darwin.tar.gz',
+        },
+        compatibility: {
+          version: '0.1.50',
+          requiredOptions: ['--recover-corrupted-database'],
+        },
+        binaryName: 'aioncore',
+      });
+      return fs.readFileSync(path.join(targetDir, 'manifest.json'));
+    });
+
+    expect(manifestBytes[0].equals(manifestBytes[1])).toBe(true);
+    expect(crypto.createHash('sha256').update(manifestBytes[0]).digest('hex')).toBe(
+      crypto.createHash('sha256').update(manifestBytes[1]).digest('hex')
+    );
+    expect(JSON.parse(manifestBytes[0].toString('utf8'))).not.toHaveProperty('generatedAt');
+  });
+
   it('defaults the prepared runtime cache outside the project out directory', () => {
     const dir = makeTempDir();
     const homeDir = path.join(dir, 'home');

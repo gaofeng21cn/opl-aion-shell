@@ -121,6 +121,24 @@ function writeJson(filePath, payload) {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
+function writePreparedRuntimeManifest(targetDir, input) {
+  const manifest = {
+    platform: input.platform,
+    arch: input.arch,
+    version: input.version,
+    sourceType: input.sourceType,
+    source: input.sourceDetail,
+    compatibility: {
+      reportedVersion: input.compatibility.version,
+      requiredOptions: input.compatibility.requiredOptions,
+    },
+    files: [input.binaryName, 'managed-resources/'],
+  };
+
+  writeJson(path.join(targetDir, 'manifest.json'), manifest);
+  return manifest;
+}
+
 function safeCacheSegment(value) {
   return String(value).replace(/[^0-9A-Za-z._-]/g, '_');
 }
@@ -949,21 +967,15 @@ function prepareAioncore(options) {
     }
     const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir);
 
-    const manifest = {
+    writePreparedRuntimeManifest(targetDir, {
       platform,
       arch,
       version: tag || compatibility.version,
-      generatedAt: new Date().toISOString(),
       sourceType,
-      source: sourceDetail,
-      compatibility: {
-        reportedVersion: compatibility.version,
-        requiredOptions: compatibility.requiredOptions,
-      },
-      files: [binaryName, 'managed-resources/'],
-    };
-
-    writeJson(path.join(targetDir, 'manifest.json'), manifest);
+      sourceDetail,
+      compatibility,
+      binaryName,
+    });
     const verification = verifyBundledAioncoreResources({
       resourcesDir: path.join(projectRoot, 'resources'),
       electronPlatformName: platform,
@@ -1009,5 +1021,6 @@ module.exports = {
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,
+    writePreparedRuntimeManifest,
   },
 };
