@@ -179,6 +179,49 @@ describe('managed update background maintenance scheduler', () => {
     });
   });
 
+  it('restores only scheduler hints from localStorage and starts lifecycle state as idle', async () => {
+    localStorage.setItem(
+      'opl.managedUpdateMaintenance.v1',
+      JSON.stringify({
+        lastRunAt: '2026-07-22T01:00:00.000Z',
+        nextRunAt: '2026-07-23T01:00:00.000Z',
+        lastReconciledCarrierCheckpoint: '26.5.27:2.1.5',
+        lastTrigger: 'component_action',
+        executionStatus: 'completed',
+        lastFailure: 'stale failure',
+        lastAction: {
+          kind: 'apply',
+          componentId: 'opl_base',
+          status: 'completed',
+          at: '2026-07-22T01:00:00.000Z',
+          receiptRef: 'receipt://stale',
+        },
+        lastSkipReason: 'stale skip',
+        reloadGuidance: 'stale reload guidance',
+        restartRequired: true,
+        lockStatus: 'released',
+      })
+    );
+    vi.resetModules();
+
+    const reloaded = await import('@/renderer/services/managedUpdateMaintenance');
+    expect(reloaded.getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'idle',
+      lastRunAt: '2026-07-22T01:00:00.000Z',
+      nextRunAt: '2026-07-23T01:00:00.000Z',
+      lastReconciledCarrierCheckpoint: '26.5.27:2.1.5',
+      lastTrigger: null,
+      lastFailure: null,
+      lastAction: null,
+      lastSkipReason: null,
+      reloadGuidance: null,
+      restartRequired: false,
+      lockStatus: null,
+      result: null,
+    });
+    reloaded.resetManagedUpdateMaintenanceForTest();
+  });
+
   it('publishes status before startup check, plan, and one Framework-owned apply', async () => {
     const stop = startManagedUpdateMaintenanceScheduler();
 
@@ -305,6 +348,29 @@ describe('managed update background maintenance scheduler', () => {
     await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
 
     expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'opl_base' });
+    expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledOnce();
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'completed',
+      lastAction: expect.objectContaining({ componentId: 'opl_base', status: 'completed' }),
+      result: managedUpdateStatusResult,
+    });
+
+    const persisted = JSON.parse(localStorage.getItem('opl.managedUpdateMaintenance.v1') ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    for (const lifecycleOutcome of [
+      'executionStatus',
+      'lastAction',
+      'lastFailure',
+      'lastSkipReason',
+      'reloadGuidance',
+      'restartRequired',
+      'lockStatus',
+      'result',
+    ]) {
+      expect(persisted).not.toHaveProperty(lifecycleOutcome);
+    }
 
     const packageResult = await executeManagedUpdateMutation('repair', { componentId: 'opl_packages' });
     const appResult = await executeManagedUpdateMutation('apply', { componentId: 'opl_app' });
@@ -317,6 +383,26 @@ describe('managed update background maintenance scheduler', () => {
     expect(legacy?.ok).toBe(false);
     expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report a manual mutation as completed when terminal status readback fails', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      ok: false,
+      surface: 'update_status',
+      command: 'opl update status --json',
+      stdout: '',
+      parsed: null,
+      error: { message: 'Framework status readback unavailable' },
+    });
+
+    const result = await executeManagedUpdateMutation('apply', { componentId: 'opl_base' });
+
+    expect(result?.ok).toBe(false);
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'failed',
+      lastAction: null,
+      lastFailure: 'Framework status readback unavailable',
+    });
   });
 
   it('does not turn package profile migration diagnostics into a separate maintenance target', async () => {
@@ -416,7 +502,7 @@ describe('managed update background maintenance scheduler', () => {
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('failed');
-    expect(snapshot.lastAction?.status).toBe('completed');
+    expect(snapshot.lastAction).toBeNull();
     expect(snapshot.lastFailure).toBe('Framework status readback unavailable');
     expect(snapshot.lastReconciledCarrierCheckpoint).toBeNull();
     stop();

@@ -239,6 +239,15 @@ function resultErrorMessage(result: IOplRuntimeCommandResult | null | undefined)
   return null;
 }
 
+function terminalStatusReadbackError(result: IOplRuntimeCommandResult | null | undefined): string | null {
+  const commandError = resultErrorMessage(result);
+  if (commandError) return commandError;
+  if (!result || result.surface !== 'update_status' || !isRecord(result.parsed)) {
+    return 'Framework status readback unavailable';
+  }
+  return null;
+}
+
 function summarizeResultStatus(
   result: IOplRuntimeCommandResult | null | undefined
 ): ManagedUpdateMaintenanceAction['status'] {
@@ -265,38 +274,6 @@ function managedUpdateAction(input: {
   };
 }
 
-function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | null {
-  if (!isRecord(value)) return null;
-  const kind = stringValue(value.kind);
-  const rawComponentId = stringValue(value.componentId);
-  const componentId = canonicalManagedUpdateComponentId(rawComponentId);
-  const status = stringValue(value.status);
-  const at = stringValue(value.at);
-  if (
-    !kind ||
-    !componentId ||
-    componentId !== rawComponentId ||
-    !at ||
-    !['apply', 'repair', 'rollback', 'auto_apply'].includes(kind) ||
-    !['completed', 'failed', 'skipped'].includes(status ?? '')
-  ) {
-    return null;
-  }
-  return managedUpdateAction({
-    kind: kind as ManagedUpdateMaintenanceAction['kind'],
-    componentId,
-    status: status as ManagedUpdateMaintenanceAction['status'],
-    at,
-    receiptRef: stringValue(value.receiptRef),
-    reloadGuidance: stringValue(value.reloadGuidance),
-    componentIds: Array.isArray(value.componentIds)
-      ? value.componentIds
-          .map(canonicalManagedUpdateComponentId)
-          .filter((entry): entry is ManagedUpdateComponentId => Boolean(entry))
-      : undefined,
-  });
-}
-
 function readPersistedSnapshot(): Partial<ManagedUpdateMaintenanceSnapshot> {
   try {
     const raw = localStorage.getItem(SNAPSHOT_STORAGE_KEY);
@@ -305,16 +282,7 @@ function readPersistedSnapshot(): Partial<ManagedUpdateMaintenanceSnapshot> {
     return {
       lastRunAt: stringValue(parsed.lastRunAt),
       nextRunAt: stringValue(parsed.nextRunAt),
-      lastFailure: stringValue(parsed.lastFailure),
-      lastAction: readPersistedAction(parsed.lastAction),
-      lastSkipReason: stringValue(parsed.lastSkipReason),
-      reloadGuidance: stringValue(parsed.reloadGuidance),
-      restartRequired: booleanValue(parsed.restartRequired),
       lastReconciledCarrierCheckpoint: stringValue(parsed.lastReconciledCarrierCheckpoint),
-      lockStatus: stringValue(parsed.lockStatus),
-      lastTrigger: stringValue(parsed.lastTrigger) as ManagedUpdateMaintenanceTrigger | null,
-      executionStatus:
-        parsed.executionStatus === 'completed' || parsed.executionStatus === 'failed' ? parsed.executionStatus : 'idle',
     };
   } catch {
     return {};
@@ -328,15 +296,7 @@ function persistSnapshot(): void {
       JSON.stringify({
         lastRunAt: snapshot.lastRunAt,
         nextRunAt: snapshot.nextRunAt,
-        lastFailure: snapshot.lastFailure,
-        lastAction: snapshot.lastAction,
-        lastSkipReason: snapshot.lastSkipReason,
-        reloadGuidance: snapshot.reloadGuidance,
-        restartRequired: snapshot.restartRequired,
         lastReconciledCarrierCheckpoint: snapshot.lastReconciledCarrierCheckpoint,
-        lockStatus: snapshot.lockStatus,
-        lastTrigger: snapshot.lastTrigger,
-        executionStatus: snapshot.executionStatus,
       })
     );
   } catch {
@@ -576,7 +536,8 @@ export async function executeManagedUpdateReconciliation(
     busyAction: null,
     executionStatus: 'running',
     lastTrigger: trigger,
-    lastFailure: snapshot.lastFailure,
+    lastFailure: null,
+    lastAction: null,
   });
 
   inflight = (async (): Promise<IOplRuntimeCommandResult | null> => {
@@ -625,47 +586,48 @@ export async function executeManagedUpdateReconciliation(
       applyResult = await ipcBridge.oplRuntime.applyUpdatePlan.invoke();
       result = applyResult;
       lastFailure = resultErrorMessage(applyResult);
-      const actionAt = isoNow();
-      const reloadGuidance =
-        readReloadGuidance(applyResult) ?? readReloadGuidance(planResult) ?? snapshot.reloadGuidance;
-      emit({
-        lastAction: managedUpdateAction({
-          kind: 'auto_apply',
-          componentId: eligibleComponentIds[0],
-          componentIds: eligibleComponentIds,
-          status: summarizeResultStatus(applyResult),
-          at: actionAt,
-          receiptRef: eligibleComponentIds.map((componentId) => readReceiptRef(applyResult, componentId)).find(Boolean),
-          reloadGuidance,
-        }),
-        reloadGuidance,
-      });
     }
 
     if (!lastFailure && applyResult) {
       emit({ operation: 'status', busyAction: null });
       result = await invokeRead('status');
-      lastFailure = resultErrorMessage(result);
+      lastFailure = terminalStatusReadbackError(result);
       if (!lastFailure) projectionResult = result;
     }
 
     retryCount = lastFailure ? retryCount + 1 : 0;
+    const applyActionStatus = applyResult ? summarizeResultStatus(applyResult) : null;
+    const verifiedAction =
+      applyResult && (applyActionStatus === 'failed' || !lastFailure)
+        ? managedUpdateAction({
+            kind: 'auto_apply',
+            componentId: eligibleComponentIds[0],
+            componentIds: eligibleComponentIds,
+            status: applyActionStatus ?? 'failed',
+            at: isoNow(),
+            receiptRef: eligibleComponentIds
+              .map((componentId) => readReceiptRef(result, componentId) ?? readReceiptRef(applyResult, componentId))
+              .find(Boolean),
+            reloadGuidance:
+              readReloadGuidance(result) ?? readReloadGuidance(applyResult) ?? readReloadGuidance(planResult),
+          })
+        : null;
     const restartRequired =
-      readRestartRequired(result) || readRestartRequired(applyResult) || readRestartRequired(planResult);
+      Boolean(verifiedAction) &&
+      (readRestartRequired(result) || readRestartRequired(applyResult) || readRestartRequired(planResult));
     emit({
       running: false,
       operation: null,
       busyAction: null,
-      executionStatus: readExecutionStatus(result),
+      executionStatus: lastFailure ? 'failed' : readExecutionStatus(result),
       lastRunAt: isoNow(),
       lastFailure,
-      ...(lastFailure || applyResult ? {} : { lastAction: null }),
+      lastAction: verifiedAction,
       lockStatus: readLockStatus(result),
       reloadGuidance:
-        readReloadGuidance(result) ??
-        readReloadGuidance(applyResult) ??
-        readReloadGuidance(planResult) ??
-        snapshot.reloadGuidance,
+        verifiedAction || !applyResult
+          ? (readReloadGuidance(result) ?? readReloadGuidance(applyResult) ?? readReloadGuidance(planResult))
+          : null,
       restartRequired,
       ...(lastFailure ? {} : { lastReconciledCarrierCheckpoint: currentCarrierCheckpoint() }),
       result: projectionResult ?? result,
@@ -682,6 +644,7 @@ export async function executeManagedUpdateReconciliation(
         executionStatus: 'failed',
         lastRunAt: isoNow(),
         lastFailure: error instanceof Error ? error.message : String(error),
+        lastAction: null,
       });
       scheduleNextRun(retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
       return null;
@@ -733,6 +696,7 @@ export async function executeManagedUpdateMutation(
     executionStatus: 'running',
     lastTrigger: 'component_action',
     lastFailure: null,
+    lastAction: null,
   });
 
   const request: IOplUpdateComponentRequest = {
@@ -750,29 +714,43 @@ export async function executeManagedUpdateMutation(
         ? ipcBridge.oplRuntime.rollbackUpdateComponent.invoke(request)
         : ipcBridge.oplRuntime.repairUpdate.invoke(repairRequest)
   )
-    .then((result): IOplRuntimeCommandResult | null => {
-      const lastFailure = resultErrorMessage(result);
+    .then(async (mutationResult): Promise<IOplRuntimeCommandResult | null> => {
+      const mutationFailure = resultErrorMessage(mutationResult);
+      let result = mutationResult;
+      let lastFailure = mutationFailure;
+      if (!mutationFailure) {
+        emit({ operation: 'status', busyAction: null });
+        result = await invokeRead('status');
+        lastFailure = terminalStatusReadbackError(result);
+      }
       const actionAt = isoNow();
-      const reloadGuidance = readReloadGuidance(result) ?? snapshot.reloadGuidance;
+      const mutationVerified = !mutationFailure && !lastFailure;
+      const actionFailed = Boolean(mutationFailure);
+      const reloadGuidance =
+        mutationVerified || actionFailed ? (readReloadGuidance(result) ?? readReloadGuidance(mutationResult)) : null;
       retryCount = lastFailure ? retryCount + 1 : 0;
       emit({
         running: false,
         operation: null,
         busyAction: null,
-        executionStatus: readExecutionStatus(result),
+        executionStatus: lastFailure ? 'failed' : readExecutionStatus(result),
         lastRunAt: actionAt,
         lastFailure,
-        lastAction: managedUpdateAction({
-          kind,
-          componentId,
-          status: summarizeResultStatus(result),
-          at: actionAt,
-          receiptRef: readReceiptRef(result, componentId) ?? input.receiptId,
-          reloadGuidance,
-        }),
-        lockStatus: readLockStatus(result),
+        lastAction:
+          mutationVerified || actionFailed
+            ? managedUpdateAction({
+                kind,
+                componentId,
+                status: actionFailed ? 'failed' : 'completed',
+                at: actionAt,
+                receiptRef:
+                  readReceiptRef(result, componentId) ?? readReceiptRef(mutationResult, componentId) ?? input.receiptId,
+                reloadGuidance,
+              })
+            : null,
+        lockStatus: lastFailure ? null : readLockStatus(result),
         reloadGuidance,
-        restartRequired: readRestartRequired(result),
+        restartRequired: mutationVerified && (readRestartRequired(result) || readRestartRequired(mutationResult)),
         result,
       });
       scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
@@ -787,6 +765,7 @@ export async function executeManagedUpdateMutation(
         executionStatus: 'failed',
         lastRunAt: isoNow(),
         lastFailure: error instanceof Error ? error.message : String(error),
+        lastAction: null,
       });
       scheduleNextRun(retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);
       return null;
