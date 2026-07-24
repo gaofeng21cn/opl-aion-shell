@@ -174,6 +174,58 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items).toHaveLength(9);
   });
 
+  it('preserves an empty project when its agent descriptor is unavailable', () => {
+    const projection = createRuntimeV2Projection();
+    projection.project_catalog.push({
+      ...projection.project_catalog[0]!,
+      project_id: 'unavailable-agent-project',
+      agent_id: 'unavailable-agent',
+      display_name: 'Unavailable Agent Project',
+    });
+    projection.diagnostics = {
+      count: 1,
+      items: [{ reason: 'agent_descriptor_unavailable' }],
+      detail_policy: 'included',
+    };
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.projects).toContainEqual({
+      id: 'unavailable-agent-project',
+      agentId: 'unavailable-agent',
+      displayName: 'Unavailable Agent Project',
+    });
+    expect(result.projection?.agents.some((agent) => agent.id === 'unavailable-agent')).toBe(false);
+    expect(result.projection?.items).toHaveLength(9);
+    expect(result.projection?.diagnostics).toEqual([{ reason: 'agent_descriptor_unavailable' }]);
+  });
+
+  it('rejects every broken item to project to agent identity chain', () => {
+    const missingProject = createRuntimeV2Projection();
+    missingProject.items[0]!.identity.project_id = 'missing-project';
+    missingProject.items[0]!.item_id = `missing-project:${missingProject.items[0]!.identity.work_item_id}`;
+
+    const mismatchedProjectAgent = createRuntimeV2Projection();
+    mismatchedProjectAgent.project_catalog[0]!.agent_id = 'mag';
+
+    const missingItemAgent = createRuntimeV2Projection();
+    missingItemAgent.project_catalog[0]!.agent_id = 'unavailable-agent';
+    missingItemAgent.items
+      .filter((item) => item.identity.project_id === missingItemAgent.project_catalog[0]!.project_id)
+      .forEach((item) => {
+        item.identity.agent_id = 'unavailable-agent';
+      });
+
+    for (const projection of [missingProject, mismatchedProjectAgent, missingItemAgent]) {
+      expect(
+        readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: projection } } })
+      ).toEqual({ state: 'invalid', projection: null });
+    }
+  });
+
   it('does not claim system handling when the responsibility envelope is incomplete', () => {
     const projection = createRuntimeV2Projection();
     projection.items[0]!.lifecycle.primary_state = 'system_attention';

@@ -559,8 +559,14 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
 
   const agentIds = new Set(agents.map((agent) => agent.id));
   const projectsById = new Map(projects.map((project) => [project.id, project]));
-  if (projects.some((project) => !agentIds.has(project.agentId))) return null;
-  if (items.some((item) => projectsById.get(item.projectId)?.agentId !== item.agentId)) return null;
+  if (
+    items.some((item) => {
+      const project = projectsById.get(item.projectId);
+      return !project || project.agentId !== item.agentId || !agentIds.has(item.agentId);
+    })
+  ) {
+    return null;
+  }
 
   const diagnostics: RuntimeProjectionDiagnostic[] = [];
   for (const entry of diagnosticItems) {
