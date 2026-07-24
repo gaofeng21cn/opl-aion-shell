@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const {
   buildOplImageManifest,
   buildOplImageSeedMetadata,
+  buildOfficialProfileApplyHelper,
   copyBundledAioncoreForTarball,
+  readOfficialProfileRoots,
   writeOplImageResources,
 } = require('../../../scripts/pack-web-cli.js');
 
@@ -26,6 +28,40 @@ describe('pack-web-cli OPL image resources', () => {
 
     expect(dockerfile).toContain('exec /opt/opl/seed/payload/opl_framework/bin/opl "$@"');
     expect(dockerfile).not.toContain('exec node /opt/opl/seed/payload/opl_framework/bin/opl "$@"');
+  });
+
+  it('builds a standalone first-install Official Profile helper from the generated App profile', () => {
+    const projectRoot = path.join(tmp, 'repo');
+    const stagingDir = path.join(tmp, 'staging');
+    const resourcesDir = path.join(projectRoot, 'resources');
+    const profileDir = path.join(projectRoot, 'packages/desktop/src/common/config/oplProductProfile');
+    fs.mkdirSync(resourcesDir, { recursive: true });
+    fs.mkdirSync(profileDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(profileDir, 'oplProductProfile.generated.json'),
+      JSON.stringify({ official_profile: { desired_root_package_ids: ['mas', 'opl-flow'] } })
+    );
+    fs.writeFileSync(
+      path.join(resourcesDir, 'official-profile-package-apply.ts'),
+      `import { readAppProductProfile } from './app-product-profile/profile-contract.ts';\n` +
+        `process.stdout.write(JSON.stringify(readAppProductProfile()));\n`
+    );
+    const executablePath = path.join(tmp, 'opl-official-profile-apply');
+
+    buildOfficialProfileApplyHelper({
+      projectRoot,
+      stagingDir,
+      executablePath,
+      bunTarget: `bun-${process.platform}-${process.arch === 'x64' ? 'x64' : 'arm64'}`,
+    });
+
+    expect(readOfficialProfileRoots(projectRoot)).toEqual(['mas', 'opl-flow']);
+    const result = require('node:child_process').spawnSync(executablePath, [], { encoding: 'utf8' });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout).official_profile).toEqual({
+      apply_on: ['first_install', 'explicit_restore'],
+      desired_root_package_ids: ['mas', 'opl-flow'],
+    });
   });
 
   it('builds the Docker/WebUI image manifest contract', () => {

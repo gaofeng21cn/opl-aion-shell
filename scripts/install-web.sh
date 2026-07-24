@@ -25,6 +25,13 @@ MIRROR="${MIRROR:-${OFFICIAL_RELEASE_BASE}}"
 CREATE_SYMLINK="${CREATE_SYMLINK:-1}"
 UPDATE_PATH="${UPDATE_PATH:-1}"
 PROBE_ARTIFACT="${PROBE_ARTIFACT:-0}"
+ROLLBACK="${ROLLBACK:-0}"
+TEMP_DIR=""
+VERSIONS_DIR=""
+CURRENT_LINK=""
+PREVIOUS_LINK=""
+TARGET_DIR=""
+FIRST_INSTALL_MARKER=""
 
 # ─── Color Definitions ──────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -41,6 +48,13 @@ success() { echo -e "${GREEN}[✓]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
 error()   { echo -e "${RED}[✗]${NC} $*" >&2; }
 die()     { error "$*"; exit 1; }
+
+cleanup() {
+    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+        rm -rf "$TEMP_DIR"
+    fi
+}
+trap cleanup EXIT
 
 banner() {
     echo -e "${CYAN}${BOLD}"
@@ -78,6 +92,10 @@ parse_args() {
                 PROBE_ARTIFACT=1
                 shift
                 ;;
+            --rollback)
+                ROLLBACK=1
+                shift
+                ;;
             --help)
                 show_help
                 exit 0
@@ -102,6 +120,7 @@ Options:
   --no-symlink              Do not create symlink in ~/.local/bin
   --no-path                 Do not add PATH to shell profile
   --probe-artifact          Verify that an OPL-owned artifact exists without installing it
+  --rollback                Atomically switch current and previous installed versions
   --help                    Show this help message
 
 Environment Variables:
@@ -174,7 +193,7 @@ resolve_version() {
     # reliable marker of "placeholder". We avoid literal "__VERSION__" here
     # because the CI sed replacement rewrites every occurrence in this file,
     # including the comparison string.
-    if [[ "$VERSION" == "latest" || "$VERSION" =~ [a-zA-Z_] ]]; then
+    if [[ "$VERSION" == "latest" || "$VERSION" == "__VERSION__" ]]; then
         info "Resolving the latest OPL Shell version from GitHub API..."
 
         if command -v curl &>/dev/null; then
@@ -199,6 +218,12 @@ resolve_version() {
     # Rebuild tarball name (VERSION may have changed)
     TARBALL_NAME="one-person-lab-webui-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
     CHECKSUM_NAME="${TARBALL_NAME}.sha256"
+}
+
+validate_version_identity() {
+    if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){2}([+-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+        die "Version must be a path-safe semantic version, got: $VERSION"
+    fi
 }
 
 validate_distribution_base() {
@@ -293,6 +318,8 @@ verify_artifact_metadata() {
     require_artifact_field platform "$PLATFORM"
     require_artifact_field architecture "$ARCH"
     require_artifact_field entrypoint "aionui-web"
+    require_artifact_field bootstrap_entrypoint "opl-install.sh"
+    require_artifact_field official_profile_entrypoint "opl-official-profile-apply"
     require_artifact_field container_adapter "opl-webui-entrypoint.sh"
     require_artifact_field tarball "$TARBALL_NAME"
     require_artifact_field sha256 "$metadata_checksum"
@@ -354,80 +381,174 @@ verify_checksum() {
     success "Checksum verified: ${EXPECTED_CHECKSUM:0:16}..."
 }
 
-extract_tarball() {
-    info "Installing to ${BOLD}${INSTALL_DIR}${NC}..."
+configure_install_layout() {
+    VERSIONS_DIR="${INSTALL_DIR}/versions"
+    CURRENT_LINK="${INSTALL_DIR}/current"
+    PREVIOUS_LINK="${INSTALL_DIR}/previous"
+    TARGET_DIR="${VERSIONS_DIR}/${VERSION}"
+    FIRST_INSTALL_MARKER="${INSTALL_DIR}/.official-profile-first-install-complete"
+}
 
-    # If installation directory exists, backup old version
-    if [[ -d "$INSTALL_DIR" ]]; then
-        local backup_dir="${INSTALL_DIR}.backup.$(date +%s)"
-        warn "Installation directory exists, creating backup: $backup_dir"
-        mv "$INSTALL_DIR" "$backup_dir"
+validate_runtime_link() {
+    local link_path="$1"
+    local label="$2"
+    local target
+    [[ -L "$link_path" ]] || die "${label} is not a symlink: $link_path"
+    target="$(readlink "$link_path")"
+    case "$target" in
+        versions/*) ;;
+        *) die "${label} must point inside ${VERSIONS_DIR}: $target" ;;
+    esac
+    [[ -x "${INSTALL_DIR}/${target}/aionui-web" ]] || die "${label} target is not executable: ${INSTALL_DIR}/${target}/aionui-web"
+    printf '%s\n' "$target"
+}
+
+atomic_link() {
+    local target="$1"
+    local link_path="$2"
+    local temp_link="$(dirname "$link_path")/.$(basename "$link_path").$$.tmp"
+    ln -s "$target" "$temp_link"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        mv -fh "$temp_link" "$link_path"
+    else
+        mv -Tf "$temp_link" "$link_path"
+    fi
+}
+
+preflight_activation() {
+    mkdir -p "$VERSIONS_DIR"
+    if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
+        die "Current runtime path exists but is not a symlink: $CURRENT_LINK"
+    fi
+    if [[ -e "$PREVIOUS_LINK" && ! -L "$PREVIOUS_LINK" ]]; then
+        die "Previous runtime path exists but is not a symlink: $PREVIOUS_LINK"
+    fi
+    if [[ -e "${BIN_DIR}/aionui-web" && ! -L "${BIN_DIR}/aionui-web" ]]; then
+        die "File already exists at ${BIN_DIR}/aionui-web (not a symlink). Please remove it manually."
+    fi
+    if [[ "$CREATE_SYMLINK" == "1" ]]; then
+        mkdir -p "$BIN_DIR"
+    fi
+}
+
+extract_tarball() {
+    info "Preparing ${BOLD}${TARGET_DIR}${NC}..."
+
+    if [[ -d "$TARGET_DIR" ]]; then
+        if [[ -f "${TARGET_DIR}/opl-native-webui-artifact.sha256" ]] \
+            && [[ "$(<"$CHECKSUM_PATH")" == "$(<"${TARGET_DIR}/opl-native-webui-artifact.sha256")" ]] \
+            && [[ -x "${TARGET_DIR}/aionui-web" ]] \
+            && [[ -x "${TARGET_DIR}/opl-install.sh" ]] \
+            && [[ -x "${TARGET_DIR}/opl-official-profile-apply" ]]; then
+            success "Version v${VERSION} is already installed with matching immutable metadata"
+            return
+        fi
+        die "Version directory already exists with different or incomplete bytes: $TARGET_DIR"
     fi
 
-    # Create parent directory of installation directory
-    mkdir -p "$(dirname "$INSTALL_DIR")"
-
-    # Extract tarball
-    # Tarball root directory is aionui-web/, rename after extraction to INSTALL_DIR
     local extract_temp="${TEMP_DIR}/extract"
+    local pending_dir="${VERSIONS_DIR}/.${VERSION}.$$.pending"
     mkdir -p "$extract_temp"
 
     info "Extracting tarball..."
     tar -xzf "$TARBALL_PATH" -C "$extract_temp" || die "Failed to extract tarball"
 
-    # Move to final installation location
-    if [[ -d "${extract_temp}/aionui-web" ]]; then
-        mv "${extract_temp}/aionui-web" "$INSTALL_DIR"
-    else
+    if [[ ! -d "${extract_temp}/aionui-web" ]]; then
         die "Tarball structure is invalid (missing aionui-web/ directory)"
     fi
 
-    success "Extracted to $INSTALL_DIR"
-
     # Set executable permission on the bun-compiled standalone binary
-    chmod +x "${INSTALL_DIR}/aionui-web" 2>/dev/null || true
+    chmod +x "${extract_temp}/aionui-web/aionui-web" 2>/dev/null || true
+    chmod +x "${extract_temp}/aionui-web/opl-install.sh" 2>/dev/null || true
+    chmod +x "${extract_temp}/aionui-web/opl-official-profile-apply" 2>/dev/null || true
 
     # On macOS, strip the quarantine xattr Safari/Chrome/curl-downloaded files
     # inherit — otherwise Gatekeeper kills unsigned Mach-O binaries with a
     # "damaged, can't be opened" dialog. This is standard practice for CLI
     # tools distributed as tarballs (bun, deno, rustup do the same).
     if command -v xattr &>/dev/null; then
-        xattr -dr com.apple.quarantine "${INSTALL_DIR}" 2>/dev/null || true
+        xattr -dr com.apple.quarantine "${extract_temp}/aionui-web" 2>/dev/null || true
     fi
 
-    # Verify installation
-    if [[ ! -x "${INSTALL_DIR}/aionui-web" ]]; then
-        die "Installation failed: ${INSTALL_DIR}/aionui-web not found or not executable"
-    fi
-    cp "$CHECKSUM_PATH" "${INSTALL_DIR}/opl-native-webui-artifact.sha256"
-
-    success "Installation completed"
-
-    # Clean up temporary files
-    rm -rf "$TEMP_DIR"
+    [[ -x "${extract_temp}/aionui-web/aionui-web" ]] || die "Artifact entrypoint is missing or not executable"
+    [[ -x "${extract_temp}/aionui-web/opl-install.sh" ]] || die "Artifact Base bootstrap is missing or not executable"
+    [[ -x "${extract_temp}/aionui-web/opl-official-profile-apply" ]] || die "Artifact Official Profile consumer is missing or not executable"
+    cp "$CHECKSUM_PATH" "${extract_temp}/aionui-web/opl-native-webui-artifact.sha256"
+    mv "${extract_temp}/aionui-web" "$pending_dir"
+    mv "$pending_dir" "$TARGET_DIR"
+    success "Prepared version v${VERSION}"
 }
 
 create_symlink() {
     local symlink_path="${BIN_DIR}/aionui-web"
-    local target_path="${INSTALL_DIR}/aionui-web"
+    local target_path="${CURRENT_LINK}/aionui-web"
 
     info "Creating symlink: ${BOLD}${symlink_path}${NC} -> ${target_path}"
 
-    # Create BIN_DIR if not exists
-    mkdir -p "$BIN_DIR"
-
-    # If symlink already exists, remove old symlink
     if [[ -L "$symlink_path" ]]; then
-        warn "Symlink already exists, removing old symlink"
-        rm "$symlink_path"
-    elif [[ -e "$symlink_path" ]]; then
-        die "File already exists at $symlink_path (not a symlink). Please remove it manually."
+        if [[ "$(readlink "$symlink_path")" == "$target_path" ]]; then
+            success "Symlink already points to the active runtime"
+            return
+        fi
     fi
 
-    # Create symlink
-    ln -s "$target_path" "$symlink_path" || die "Failed to create symlink"
+    atomic_link "$target_path" "$symlink_path" || die "Failed to create symlink"
 
     success "Symlink created: $symlink_path"
+}
+
+run_first_install_setup() {
+    if [[ -e "$FIRST_INSTALL_MARKER" ]]; then
+        info "Official Profile first-install marker already exists; preserving user Package choices"
+        return
+    fi
+
+    info "Installing OPL Base for Native WebUI..."
+    bash "${TARGET_DIR}/opl-install.sh" --headless --skip-packages
+
+    local opl_bin="${OPL_BIN:-}"
+    if [[ -z "$opl_bin" ]]; then
+        opl_bin="$(command -v opl 2>/dev/null || true)"
+    fi
+    if [[ -z "$opl_bin" && -x "${HOME}/.local/bin/opl" ]]; then
+        opl_bin="${HOME}/.local/bin/opl"
+    fi
+    [[ -n "$opl_bin" && -x "$opl_bin" ]] || die "OPL Base installed without a callable opl CLI; Official Profile cannot be applied"
+
+    info "Applying the App Official Profile for first install..."
+    "${TARGET_DIR}/opl-official-profile-apply" --intent first_install --profile embedded --opl-bin "$opl_bin"
+    : > "$FIRST_INSTALL_MARKER"
+    success "Official Profile first-install completed"
+}
+
+activate_version() {
+    local old_current=""
+    if [[ -L "$CURRENT_LINK" ]]; then
+        old_current="$(validate_runtime_link "$CURRENT_LINK" "Current runtime")"
+    fi
+    local new_current="versions/${VERSION}"
+    if [[ "$old_current" == "$new_current" ]]; then
+        success "v${VERSION} is already active"
+        return
+    fi
+    if [[ -n "$old_current" ]]; then
+        atomic_link "$old_current" "$PREVIOUS_LINK"
+    fi
+    atomic_link "$new_current" "$CURRENT_LINK"
+    success "Activated v${VERSION}"
+}
+
+rollback_version() {
+    configure_install_layout
+    preflight_activation
+    [[ -L "$CURRENT_LINK" ]] || die "No active Native WebUI version is available to roll back"
+    [[ -L "$PREVIOUS_LINK" ]] || die "No previous Native WebUI version is available to roll back"
+    local current_target previous_target
+    current_target="$(validate_runtime_link "$CURRENT_LINK" "Current runtime")"
+    previous_target="$(validate_runtime_link "$PREVIOUS_LINK" "Previous runtime")"
+    atomic_link "$previous_target" "$CURRENT_LINK"
+    atomic_link "$current_target" "$PREVIOUS_LINK"
+    success "Rolled back to ${previous_target#versions/}; previous now points to ${current_target#versions/}"
 }
 
 update_shell_profile() {
@@ -498,7 +619,8 @@ print_summary() {
     echo -e "${GREEN}${BOLD}  One Person Lab Native WebUI v${VERSION} Installed${NC}"
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "  ${BOLD}📍 Installation directory:${NC}  ${INSTALL_DIR}"
+    echo -e "  ${BOLD}📍 Active runtime:${NC}          ${CURRENT_LINK} -> versions/${VERSION}"
+    echo -e "  ${BOLD}📍 Persistent data:${NC}         ${INSTALL_DIR%/runtime}/data"
     if [[ "$CREATE_SYMLINK" == "1" ]]; then
         echo -e "  ${BOLD}📍 Symlink:${NC}                ${BIN_DIR}/aionui-web"
     fi
@@ -513,13 +635,13 @@ print_summary() {
         echo "    aionui-web version"
     else
         echo "    # Start AionUi WebUI (using full path)"
-        echo "    ${INSTALL_DIR}/aionui-web start"
+        echo "    ${CURRENT_LINK}/aionui-web start"
         echo ""
         echo "    # Or add symlink to PATH:"
         if [[ "$CREATE_SYMLINK" == "1" ]]; then
             echo "    export PATH=\"${BIN_DIR}:\$PATH\""
         else
-            echo "    ln -s ${INSTALL_DIR}/aionui-web ~/.local/bin/aionui-web"
+            echo "    ln -s ${CURRENT_LINK}/aionui-web ~/.local/bin/aionui-web"
             echo "    export PATH=\"~/.local/bin:\$PATH\""
         fi
     fi
@@ -549,6 +671,17 @@ main() {
     banner
     parse_args "$@"
 
+    if [[ "$ROLLBACK" == "1" ]]; then
+        if [[ "$PROBE_ARTIFACT" == "1" ]]; then
+            die "--rollback cannot be combined with --probe-artifact"
+        fi
+        rollback_version
+        if [[ "$CREATE_SYMLINK" == "1" ]]; then
+            create_symlink
+        fi
+        return
+    fi
+
     # Step 1: Reject untrusted or version-qualified artifact bases before any
     # metadata request. prepare_download owns the single version-path append.
     validate_distribution_base
@@ -558,15 +691,17 @@ main() {
 
     # Step 3: Resolve version (if VERSION is __VERSION__ or latest)
     resolve_version
+    validate_version_identity
+    configure_install_layout
 
     # Step 4: Require OPL-owned immutable artifact metadata.
     prepare_download
     verify_artifact_metadata
     probe_tarball
     if [[ "$PROBE_ARTIFACT" == "1" ]]; then
-        rm -rf "$TEMP_DIR"
         return
     fi
+    preflight_activation
 
     # Step 5: Download tarball
     download_tarball
@@ -577,17 +712,27 @@ main() {
     # Step 7: Extract tarball
     extract_tarball
 
-    # Step 8: Create symlink
-    if [[ "$CREATE_SYMLINK" == "1" ]]; then
-        create_symlink
-    fi
-
-    # Step 9: Update shell profile PATH
+    # Step 8: Update shell profile PATH
     if [[ "$UPDATE_PATH" == "1" ]]; then
         update_shell_profile
     fi
 
-    # Step 10: Print summary
+    # Step 9: First install owns Base + Official Profile. Updates preserve the
+    # user's Package choices and never reapply the profile.
+    if [[ ! -L "$CURRENT_LINK" ]]; then
+        run_first_install_setup
+    fi
+
+    # Step 10: Activation is the final runtime mutation so an earlier failure leaves
+    # the previously active version unchanged.
+    activate_version
+
+    # Step 11: Point the stable user command at current/aionui-web.
+    if [[ "$CREATE_SYMLINK" == "1" ]]; then
+        create_symlink
+    fi
+
+    # Step 12: Print summary
     print_summary
 }
 

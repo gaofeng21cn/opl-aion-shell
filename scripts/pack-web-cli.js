@@ -21,6 +21,8 @@ function buildNativeWebuiArtifactMetadata({ version, platform, arch, tarballName
     platform,
     architecture: arch,
     entrypoint: 'aionui-web',
+    bootstrap_entrypoint: 'opl-install.sh',
+    official_profile_entrypoint: 'opl-official-profile-apply',
     container_adapter: 'opl-webui-entrypoint.sh',
     tarball: tarballName,
     sha256,
@@ -39,6 +41,8 @@ function serializeNativeWebuiArtifactMetadata(metadata) {
     `platform=${metadata.platform}`,
     `architecture=${metadata.architecture}`,
     `entrypoint=${metadata.entrypoint}`,
+    `bootstrap_entrypoint=${metadata.bootstrap_entrypoint}`,
+    `official_profile_entrypoint=${metadata.official_profile_entrypoint}`,
     `container_adapter=${metadata.container_adapter}`,
     `tarball=${metadata.tarball}`,
     `sha256=${metadata.sha256}`,
@@ -211,6 +215,43 @@ function copyBundledAioncoreForTarball({ backendSrc, backendDest }) {
   normalizeInternalSymlinks(backendDest, { sourceRootDir: backendSrc });
 }
 
+function readOfficialProfileRoots(projectRoot) {
+  const profilePath = path.join(
+    projectRoot,
+    'packages/desktop/src/common/config/oplProductProfile/oplProductProfile.generated.json'
+  );
+  const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+  const roots = profile?.official_profile?.desired_root_package_ids;
+  if (!Array.isArray(roots) || roots.length === 0 || roots.some((root) => typeof root !== 'string' || !root.trim())) {
+    throw new Error(`Official Profile desired roots are invalid: ${profilePath}`);
+  }
+  return [...new Set(roots.map((root) => root.trim()))];
+}
+
+function buildOfficialProfileApplyHelper({ projectRoot, stagingDir, executablePath, bunTarget }) {
+  const sourceRoot = path.join(stagingDir, 'official-profile-helper-src');
+  const profileContractDir = path.join(sourceRoot, 'app-product-profile');
+  fs.mkdirSync(profileContractDir, { recursive: true });
+  fs.copyFileSync(
+    path.join(projectRoot, 'resources', 'official-profile-package-apply.ts'),
+    path.join(sourceRoot, 'official-profile-package-apply.ts')
+  );
+  const roots = readOfficialProfileRoots(projectRoot);
+  fs.writeFileSync(
+    path.join(profileContractDir, 'profile-contract.ts'),
+    `export function readAppProductProfile() { return ${JSON.stringify({
+      official_profile: {
+        apply_on: ['first_install', 'explicit_restore'],
+        desired_root_package_ids: roots,
+      },
+    })}; }\n`
+  );
+  execSync(
+    `bun build --compile --target=${bunTarget} --outfile="${executablePath}" "${path.join(sourceRoot, 'official-profile-package-apply.ts')}"`,
+    { cwd: projectRoot, stdio: 'inherit' }
+  );
+}
+
 if (require.main !== module) {
   module.exports = {
     buildNativeWebuiArtifactMetadata,
@@ -218,8 +259,10 @@ if (require.main !== module) {
     buildOplImageSeedMetadata,
     copySeedSourceIfPresent,
     copyBundledAioncoreForTarball,
+    buildOfficialProfileApplyHelper,
     normalizeSeedPayloadSymlinks,
     normalizeOplWebuiImageProfile,
+    readOfficialProfileRoots,
     serializeNativeWebuiArtifactMetadata,
     writeOplImageResources,
   };
@@ -316,6 +359,14 @@ if (!fs.existsSync(oplInstallerSrc)) {
 }
 fs.copyFileSync(oplInstallerSrc, path.join(tarballContentDir, 'opl-install.sh'));
 fs.chmodSync(path.join(tarballContentDir, 'opl-install.sh'), 0o755);
+const officialProfileExecutable =
+  platform === 'win32' ? 'opl-official-profile-apply.exe' : 'opl-official-profile-apply';
+buildOfficialProfileApplyHelper({
+  projectRoot,
+  stagingDir,
+  executablePath: path.join(tarballContentDir, officialProfileExecutable),
+  bunTarget,
+});
 writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey, profile: imageProfile });
 
 // 9. Create tarball

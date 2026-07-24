@@ -56,11 +56,17 @@ if [[ ! -d "$INSTALL_DIR" ]]; then
 fi
 echo "✓ Installation directory exists"
 
-if [[ ! -x "${INSTALL_DIR}/aionui-web" ]]; then
-    echo "❌ CLI executable not found or not executable: ${INSTALL_DIR}/aionui-web"
+if [[ ! -x "${INSTALL_DIR}/current/aionui-web" ]]; then
+    echo "❌ CLI executable not found or not executable: ${INSTALL_DIR}/current/aionui-web"
     exit 1
 fi
 echo "✓ CLI executable exists"
+
+if [[ "$(readlink "${INSTALL_DIR}/current")" != "versions/${VERSION}" ]]; then
+    echo "❌ Current runtime does not point to versions/${VERSION}"
+    exit 1
+fi
+echo "✓ Current runtime pointer is versioned"
 
 if [[ ! -L "${BIN_DIR}/aionui-web" ]]; then
     echo "❌ Symlink not found: ${BIN_DIR}/aionui-web"
@@ -78,6 +84,22 @@ if [[ -z "$VERSION_OUTPUT" ]]; then
     exit 1
 fi
 echo "✓ Version: $VERSION_OUTPUT"
+
+# 5. Same-version install is idempotent and does not reapply Official Profile.
+echo ""
+echo "5. Testing idempotent reinstall..."
+PROFILE_MARKER="${INSTALL_DIR}/.official-profile-first-install-complete"
+if [[ ! -f "$PROFILE_MARKER" ]]; then
+    echo "❌ Official Profile first-install marker is missing"
+    exit 1
+fi
+PROFILE_MARKER_MTIME=$(stat -c %Y "$PROFILE_MARKER")
+bash /tmp/install-web.sh --no-path
+if [[ "$(stat -c %Y "$PROFILE_MARKER")" != "$PROFILE_MARKER_MTIME" ]]; then
+    echo "❌ Official Profile first-install marker changed during an ordinary update"
+    exit 1
+fi
+echo "✓ Official Profile remained first-install only"
 
 # Cleanup
 rm -rf "$INSTALL_DIR" "$BIN_DIR" /tmp/install-web.sh
