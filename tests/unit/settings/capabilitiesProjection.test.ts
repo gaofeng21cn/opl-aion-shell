@@ -324,6 +324,30 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.workflowRefs.map((ref) => ref.ref)).toEqual(['opl://workflow/exact-package']);
   });
 
+  it('joins a runtime carrier by its exact projected module id', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [{ package_id: 'synthetic-lab.agent', module_id: 'synthetic-runtime', installed: true }],
+        [],
+        {
+          runtime_source_carriers: {
+            items: [
+              {
+                package_id: 'different-package',
+                carrier_id: 'different-carrier',
+                module_id: 'synthetic-runtime',
+                source_origin: 'owner_projected_module_source',
+              },
+            ],
+          },
+        }
+      ),
+      'en-US'
+    );
+
+    expect(capability.actualSource).toBe('owner_projected_module_source');
+  });
+
   it('applies first-party presentation only to the exact directory package id', () => {
     const [capability] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([

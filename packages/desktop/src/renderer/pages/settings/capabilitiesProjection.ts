@@ -324,7 +324,7 @@ function capabilityModuleRecords(value: unknown): RuntimeModuleItem[] {
 }
 
 function runtimeSourceCarrierIds(carrier: RuntimeSourceCarrierItem): string[] {
-  return [firstString(carrier.carrier_id, carrier.module_id), firstString(carrier.package_id)].filter(
+  return [firstString(carrier.carrier_id), firstString(carrier.module_id), firstString(carrier.package_id)].filter(
     (id): id is string => Boolean(id)
   );
 }
