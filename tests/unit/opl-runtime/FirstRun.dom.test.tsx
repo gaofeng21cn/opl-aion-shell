@@ -578,6 +578,7 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
     expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-window')).toHaveAccessibleName(
       'guid.uiOptimization.firstRun.completion.title'
@@ -585,7 +586,6 @@ describe('FirstRun readiness page', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'guid.uiOptimization.firstRun.completion.title' })
     ).toHaveAttribute('id', 'opl-first-run-setup-title');
-    await waitFor(() => expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument());
     expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
       'guid.uiOptimization.firstRun.completion.summary'
     );
