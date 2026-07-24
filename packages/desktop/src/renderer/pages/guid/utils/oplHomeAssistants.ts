@@ -9,7 +9,6 @@ import {
   getOplProfessionalAgentPackage,
   getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
-import { parseOplProjectedPackageAction, type OplProjectedPackageAction } from '@/common/types/opl/appState';
 import { getOplVisibleHomeAgentShortcuts } from './oplHomeShortcutPreferences';
 
 const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
@@ -28,7 +27,6 @@ export type OplPackageLaunchGate = {
   launchAllowed: boolean | null;
   launchBlockedReason: string | null;
   allowedWhenBlocked: string[];
-  activationRequired: boolean;
 };
 
 const BLOCKED_PACKAGE_ACTIONS = new Set(['status', 'doctor', 'repair']);
@@ -106,37 +104,6 @@ function packageStatusEntry(appState: unknown, packageId: string): Record<string
   );
 }
 
-/** Resolve the owner-projected installed version for the current package selection. */
-export function resolveOplPackageSelectionVersion(appState: unknown, packageId: string): string | null {
-  const status = packageStatusEntry(appState, packageId);
-  const directoryEntry = packageDirectoryEntry(appState, packageId);
-  for (const value of [
-    status?.package_version,
-    status?.installed_version,
-    status?.version,
-    directoryEntry?.package_version,
-    directoryEntry?.installed_version,
-    directoryEntry?.version,
-  ]) {
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-/** Resolve the exact owner-projected activation action for one package. */
-export function resolveOplPackageActivationAction(
-  appState: unknown,
-  packageId: string
-): OplProjectedPackageAction | null {
-  const entry = packageDirectoryEntry(appState, packageId);
-  const actions = Array.isArray(entry?.available_actions) ? entry.available_actions : [];
-  for (const candidate of actions) {
-    const action = parseOplProjectedPackageAction(candidate);
-    if (action?.actionId === 'agent_package_activate') return action;
-  }
-  return null;
-}
-
 export function resolveOplPackageLaunchGate(appState: unknown, packageId: string): OplPackageLaunchGate {
   const status = packageStatusEntry(appState, packageId);
   const directoryEntry = packageDirectoryEntry(appState, packageId);
@@ -167,7 +134,6 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
         ? null
         : directoryReason
       : (statusReason ?? directoryReason);
-  const activationRequired = resolveOplPackageActivationAction(appState, packageId) !== null;
   const degradedReason = Boolean(
     launchBlockedReason &&
     (DEGRADED_PACKAGE_REASONS.has(launchBlockedReason) ||
@@ -189,7 +155,6 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
           (action): action is string => typeof action === 'string' && BLOCKED_PACKAGE_ACTIONS.has(action)
         )
       : [],
-    activationRequired,
   };
 }
 

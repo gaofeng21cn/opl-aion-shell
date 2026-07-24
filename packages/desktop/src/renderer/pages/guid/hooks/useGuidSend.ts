@@ -185,7 +185,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         launchAllowed: null,
         launchBlockedReason: null,
         allowedWhenBlocked: [],
-        activationRequired: false,
       };
   const packageLaunchHardBlocked = selectedPackageLaunchGate.state === 'package_unavailable';
   const launchBlockedMessage = () =>
@@ -543,7 +542,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchAllowed,
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
-    selectedPackageLaunchGate.activationRequired,
     selectedPackageId,
     packageLaunchHardBlocked,
   ]);
@@ -600,7 +598,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchAllowed,
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
-    selectedPackageLaunchGate.activationRequired,
     selectedPackageId,
     dir,
     packageLaunchHardBlocked,

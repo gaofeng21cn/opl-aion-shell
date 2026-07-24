@@ -9,9 +9,7 @@ import {
 import {
   resolveOplHomeAssistants,
   resolveOplProfessionalAgentAssistants,
-  resolveOplPackageActivationAction,
   resolveOplPackageLaunchGate,
-  resolveOplPackageSelectionVersion,
 } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import { getOplHomeShortcutPreferencesFromAppState } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
@@ -30,18 +28,6 @@ const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): 
   prompts_i18n: {},
   models: [],
   ...input,
-});
-
-const activationAction = (
-  packageId: string,
-  payload: Record<string, unknown> = { package_id: packageId },
-  requiredPayloadFields: string[] = ['package_id']
-) => ({
-  action_id: 'agent_package_activate',
-  action_ref: 'app_state.actions#agent_package_activate',
-  payload,
-  required_payload_fields: requiredPayloadFields,
-  confirmation_required: false,
 });
 
 describe('OPL home assistants', () => {
@@ -198,28 +184,13 @@ describe('OPL home assistants', () => {
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
-      activationRequired: false,
     });
   });
 
-  it('treats a missing workspace materialization as a pre-launch activation requirement', () => {
+  it('keeps a missing workspace materialization local to launch readiness', () => {
     const gate = resolveOplPackageLaunchGate(
       {
         agent_packages: {
-          directory: {
-            entries: [
-              {
-                package_id: 'mas',
-                available_actions: [
-                  activationAction('mas', { package_id: 'mas', scope: 'workspace' }, [
-                    'package_id',
-                    'scope',
-                    'target_workspace or target_quest',
-                  ]),
-                ],
-              },
-            ],
-          },
           status_index: {
             packages: {
               mas: {
@@ -241,7 +212,6 @@ describe('OPL home assistants', () => {
       launchAllowed: false,
       launchBlockedReason: 'scope_materialization_scope_required',
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
-      activationRequired: true,
     });
   });
 
@@ -253,14 +223,12 @@ describe('OPL home assistants', () => {
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],
-      activationRequired: false,
     });
     expect(resolveOplPackageLaunchGate({}, 'unknown-agent')).toEqual({
       state: 'degraded',
       launchAllowed: null,
       launchBlockedReason: null,
       allowedWhenBlocked: [],
-      activationRequired: false,
     });
   });
 
@@ -302,7 +270,6 @@ describe('OPL home assistants', () => {
                   launch_allowed: true,
                   reason: 'use_boundary_reconciliation_ready',
                 },
-                available_actions: [activationAction('mas')],
               },
             ],
           },
@@ -327,7 +294,6 @@ describe('OPL home assistants', () => {
       launchAllowed: true,
       launchBlockedReason: null,
       allowedWhenBlocked: ['status', 'doctor', 'repair'],
-      activationRequired: true,
     });
   });
 
@@ -363,21 +329,7 @@ describe('OPL home assistants', () => {
     expect(gate).toMatchObject({ state: 'degraded', launchAllowed: false, launchBlockedReason: reason });
   });
 
-  it('reads the selected package version from owner projections without parsing a manifest', () => {
-    expect(
-      resolveOplPackageSelectionVersion(
-        {
-          agent_packages: {
-            directory: { entries: [{ package_id: 'med-autoscience', package_version: null }] },
-            status_index: { packages: { mas: { package_id: 'mas', package_version: '0.2.10' } } },
-          },
-        },
-        'med-autoscience'
-      )
-    ).toBe('0.2.10');
-  });
-
-  it('keeps live verification deferred JIT-eligible from the exact projected action', () => {
+  it('keeps live verification deferred as degraded from canonical directory readiness', () => {
     const appState = {
       agent_packages: {
         directory: {
@@ -391,7 +343,6 @@ describe('OPL home assistants', () => {
                 verification_deferred: true,
                 reason: 'live_verification_deferred',
               },
-              available_actions: [activationAction('med-autoscience')],
             },
           ],
         },
@@ -399,16 +350,10 @@ describe('OPL home assistants', () => {
       },
     };
 
-    expect(resolveOplPackageActivationAction(appState, 'mas')).toMatchObject({
-      actionId: 'agent_package_activate',
-      payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      requiredPayloadFields: ['package_id'],
-    });
     expect(resolveOplPackageLaunchGate(appState, 'mas')).toMatchObject({
       state: 'degraded',
       launchAllowed: false,
       launchBlockedReason: 'live_verification_deferred',
-      activationRequired: true,
     });
   });
 
