@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   ensureBackendMcpCatalog: vi.fn(),
   appState: {
     value: {} as Record<string, unknown>,
+    freshOnRender: { value: false },
   },
   appStateLoad: vi.fn().mockResolvedValue({}),
   appStateLoading: { value: false },
@@ -223,7 +224,7 @@ vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({
-    appState: mocks.appState.value,
+    appState: mocks.appState.freshOnRender.value ? { ...mocks.appState.value } : mocks.appState.value,
     loading: mocks.appStateLoading.value,
     error: mocks.appStateError.value,
     provenance: mocks.appStateProvenance.value,
@@ -428,6 +429,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.i18nLanguage.value = 'zh-CN';
     mocks.locationState.value = { selectedCapabilityId: 'mas' };
     mocks.locationKey.value = 'guid-test';
+    mocks.appState.freshOnRender.value = false;
     mocks.isPresetAgent.value = false;
     mocks.isMobileLayout.value = false;
     mocks.isElectronDesktop.value = false;
@@ -904,6 +906,16 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(screen.getAllByTestId('opl-guid-entry')).toHaveLength(1);
     expect(screen.getAllByTestId('guid-input-card')).toHaveLength(1);
+  });
+
+  it('renders one stable Home when an App state consumer returns a fresh object per render', () => {
+    mocks.appState.freshOnRender.value = true;
+
+    render(<GuidPage />);
+
+    expect(screen.getAllByTestId('opl-guid-entry')).toHaveLength(1);
+    expect(screen.getAllByTestId('guid-input-card')).toHaveLength(1);
+    expect(mocks.setInput).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Home browsable but blocks send with an inline model access recovery action', async () => {

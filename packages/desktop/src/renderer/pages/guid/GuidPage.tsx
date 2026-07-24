@@ -118,6 +118,19 @@ function buildPostInstallSelfCheckPrompt(
   });
 }
 
+function sameActiveShortcut(left: OplActiveShortcut | null, right: OplActiveShortcut | null): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    left.shortcut_id === right.shortcut_id &&
+    left.package_id === right.package_id &&
+    left.package_short_name === right.package_short_name &&
+    left.codex_visible_entry === right.codex_visible_entry &&
+    left.required_skill_ids.length === right.required_skill_ids.length &&
+    left.required_skill_ids.every((skillId, index) => skillId === right.required_skill_ids[index])
+  );
+}
+
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -620,12 +633,18 @@ const GuidPage: React.FC = () => {
   );
   const composerSurface = useMemo(() => resolveOplHomeComposerSurface(activeShortcut), [activeShortcut]);
 
+  useLayoutEffect(() => {
+    if (!navState?.selectedCapabilityId) return;
+    setActiveShortcut((current) => {
+      const next = resolveOplActiveShortcut(navState.selectedCapabilityId, appState);
+      return sameActiveShortcut(current, next) ? current : next;
+    });
+  }, [appState, location.key, navState?.selectedCapabilityId]);
+
   // Reset guid-local UI state before paint so same-route navigations do not
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
-    if (navState?.selectedCapabilityId) {
-      setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId, appState));
-    } else if (resetAssistantRequested) {
+    if (resetAssistantRequested) {
       setActiveShortcut(null);
       setSetupNoticeKind(null);
     }
@@ -649,10 +668,9 @@ const GuidPage: React.FC = () => {
     guidInput.setLoading,
     localeKey,
     location.key,
-    appState,
-    navState?.selectedCapabilityId,
     navState?.workspace,
     postInstallSelfCheckRequested,
+    resetAssistantRequested,
     t,
   ]);
 

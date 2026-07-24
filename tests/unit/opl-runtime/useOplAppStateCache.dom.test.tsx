@@ -139,6 +139,16 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(getAppStateInvoke).not.toHaveBeenCalled();
   });
 
+  it('keeps the empty App state reference stable before a payload is available', () => {
+    const { result, rerender } = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    const initialAppState = result.current.appState;
+
+    rerender();
+
+    expect(result.current.appState).toBe(initialAppState);
+    expect(Object.isFrozen(result.current.appState)).toBe(true);
+  });
+
   it('performs one shared fresh fast-state refresh when startup maintenance completes', async () => {
     seedCachedGateway();
     let resolveRefresh!: (value: unknown) => void;

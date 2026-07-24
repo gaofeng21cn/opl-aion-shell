@@ -33,6 +33,7 @@ export type OplAppStateProvenance = 'none' | typeof DERIVED_BOOTSTRAP_PROVENANCE
 
 const memoryAppStateCaches = new Map<OplAppStateProfile, OplAppStateCache>();
 const automaticAppStateLoadsStarted = new Set<OplAppStateProfile>();
+const EMPTY_OPL_APP_STATE = Object.freeze({}) as OplAppStateRecord;
 
 export function resetOplAppStateLoadsForTest(): void {
   startupMaintenanceRefreshUnsubscribe?.();
@@ -119,7 +120,8 @@ export function oplNumber(value: unknown): number | null {
 }
 
 export function getAppState(payload: OplAppStatePayload | null | undefined): OplAppStateRecord {
-  return oplRecord(payload?.app_state ?? payload);
+  const appState = payload?.app_state ?? payload;
+  return isOplRecord(appState) ? appState : EMPTY_OPL_APP_STATE;
 }
 
 const GATEWAY_ACCOUNT_CACHE_TOP_LEVEL_FIELDS = [
