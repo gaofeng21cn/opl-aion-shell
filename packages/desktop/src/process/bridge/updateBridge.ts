@@ -335,9 +335,7 @@ const fetchWithAllowlistedRedirects = async (rawUrl: string, signal: AbortSignal
   throw new Error((await getI18n()).t('update.errors.tooManyRedirects'));
 };
 
-const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> => {
-  const url = `https://api.github.com/repos/${repo}/releases`;
-
+const fetchGitHubReleasePayload = async (url: string): Promise<unknown> => {
   // 添加超时控制，防止网络问题导致无限等待 / Add timeout to prevent infinite wait on network issues
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 秒超时 / 30 second timeout
@@ -355,11 +353,7 @@ const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> =>
       throw new Error((await getI18n()).t('update.errors.githubApiFailed', { status: res.status }));
     }
 
-    const json = (await res.json()) as unknown;
-    if (!Array.isArray(json)) {
-      throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
-    }
-    return json as GitHubReleaseApi[];
+    return (await res.json()) as unknown;
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error((await getI18n()).t('update.errors.githubApiTimeout'), { cause: err });
@@ -368,6 +362,22 @@ const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> =>
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+const fetchGitHubLatestRelease = async (repo: string): Promise<GitHubReleaseApi> => {
+  const payload = await fetchGitHubReleasePayload(`https://api.github.com/repos/${repo}/releases/latest`);
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
+  }
+  return payload as GitHubReleaseApi;
+};
+
+const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> => {
+  const payload = await fetchGitHubReleasePayload(`https://api.github.com/repos/${repo}/releases`);
+  if (!Array.isArray(payload)) {
+    throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
+  }
+  return payload as GitHubReleaseApi[];
 };
 
 const mapRelease = async (rel: GitHubReleaseApi, requireOplManifest: boolean): Promise<UpdateReleaseInfo | null> => {
@@ -622,7 +632,7 @@ export function initUpdateBridge(): void {
           params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
         const currentVersion = app.getVersion();
 
-        const releases = await fetchGitHubReleases(repo);
+        const releases = includePrerelease ? await fetchGitHubReleases(repo) : [await fetchGitHubLatestRelease(repo)];
         const eligibleReleases = releases
           .filter((r) => r && !r.draft)
           .filter((r) => (includePrerelease ? true : !r.prerelease));

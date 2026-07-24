@@ -217,6 +217,41 @@ const stableRevisionManifest = {
   release_tag: 'v26.7.20-r1',
 };
 
+const previewLatestRelease = {
+  tag_name: 'v26.7.24-preview.r1',
+  name: 'One Person Lab v26.7.24-preview.r1',
+  body: 'qualified preview release notes',
+  html_url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.7.24-preview.r1',
+  published_at: '2026-07-24T00:00:00Z',
+  prerelease: false,
+  draft: false,
+  assets: [
+    {
+      name: 'One-Person-Lab-26.7.24-preview.r1-mac-arm64.zip',
+      browser_download_url:
+        'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.24-preview.r1/One-Person-Lab-26.7.24-preview.r1-mac-arm64.zip',
+      size: 124,
+      content_type: 'application/zip',
+    },
+    {
+      name: 'opl-app-component-manifest.json',
+      browser_download_url:
+        'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.24-preview.r1/opl-app-component-manifest.json',
+      size: 1024,
+      content_type: 'application/json',
+    },
+  ],
+};
+
+const previewLatestManifest = {
+  surface_kind: 'opl_app_component_manifest.v1',
+  component_id: 'opl-app',
+  version: '26.7.24-preview.r1',
+  release_version: '26.7.24-preview.r1',
+  updater_version: '26.7.2401',
+  release_tag: 'v26.7.24-preview.r1',
+};
+
 const getCheckHandler = async () => {
   vi.resetModules();
   const { initUpdateBridge } = await import('@process/bridge/updateBridge');
@@ -277,7 +312,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('checks the One Person Lab App release repo by default', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse(),
+      json: async () => makeGitHubReleaseResponse()[0],
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -286,7 +321,9 @@ describe('updateBridge CDN URL rewriting', () => {
       const result = await handler({});
 
       expect(result.success).toBe(true);
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -295,7 +332,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('rewrites asset.url to the CDN path and keeps GitHub URL in fallbackUrl', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse(),
+      json: async () => makeGitHubReleaseResponse()[0],
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -324,7 +361,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('uses the normalized version (no v prefix) in the CDN path', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse(),
+      json: async () => makeGitHubReleaseResponse()[0],
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -339,10 +376,10 @@ describe('updateBridge CDN URL rewriting', () => {
     }
   });
 
-  it('keeps prerelease releases out of stable update checks', async () => {
+  it('uses the exact GitHub Latest release for default update checks', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeStableAndNightlyReleaseResponse(),
+      json: async () => makeStableAndNightlyReleaseResponse()[0],
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -354,6 +391,36 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.tagName).toBe('v26.5.24');
       expect(result.data?.latest?.prerelease).toBe(false);
       expect(result.data?.latest?.assets.map((asset) => asset.name)).toContain('One-Person-Lab-26.5.24-mac-arm64.zip');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('accepts a qualified Preview when it temporarily owns GitHub Latest', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      return url.endsWith('/opl-app-component-manifest.json')
+        ? { ok: true, json: async () => previewLatestManifest }
+        : { ok: true, json: async () => previewLatestRelease };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({});
+
+      expect(result.success).toBe(true);
+      expect(result.data?.latest?.tagName).toBe('v26.7.24-preview.r1');
+      expect(result.data?.latest?.updaterVersion).toBe('26.7.2401');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+      );
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases'
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -377,6 +444,7 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.recommendedAsset?.url).toMatch(
         /^https:\/\/static\.aionui\.com\/releases\/26\.5\.27-nightly\.20260527\//
       );
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -389,7 +457,7 @@ describe('updateBridge CDN URL rewriting', () => {
       const url = String(input);
       return url.endsWith('/opl-app-component-manifest.json')
         ? { ok: true, json: async () => stableRevisionManifest }
-        : { ok: true, json: async () => makeStableRevisionReleaseResponse() };
+        : { ok: true, json: async () => makeStableRevisionReleaseResponse()[0] };
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -410,7 +478,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('fails closed when a new-scheme OPL release omits its component manifest', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeStableRevisionReleaseResponse(false),
+      json: async () => makeStableRevisionReleaseResponse(false)[0],
     });
     vi.stubGlobal('fetch', fetchMock);
 
