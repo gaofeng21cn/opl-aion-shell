@@ -364,8 +364,8 @@ function buildOfficialProfileApplyCommand(
   request: IOplOfficialProfileApplyRequest,
   resourcesPath?: string
 ): SpawnCommandSpec & { surface: 'app_action'; env: NodeJS.ProcessEnv; timeoutMs: number } {
-  if (request.intent !== 'explicit_restore') {
-    throw new Error('The App may only apply Official Profile from Settings as explicit_restore.');
+  if (request.intent !== 'first_install' && request.intent !== 'explicit_restore') {
+    throw new Error('Official Profile may only be applied for first_install or explicit_restore.');
   }
   const resolvedResourcesPath = resourcesPath ?? (process as ProcessWithResourcesPath).resourcesPath ?? '';
   const scriptPath = path.join(resolvedResourcesPath, 'official-profile-package-apply.ts');
@@ -381,12 +381,12 @@ function buildOfficialProfileApplyCommand(
       '--experimental-strip-types',
       scriptPath,
       '--intent',
-      'explicit_restore',
+      request.intent,
       ...rootPackageIds.flatMap((packageId) => ['--root-package-id', packageId]),
     ],
     env: nodeCommand.env,
     timeoutMs: OPL_STARTUP_MAINTENANCE_TIMEOUT_MS,
-    redactedCommand: 'node <official-profile-package-apply.ts> --intent explicit_restore --root-package-id <profile-roots>',
+    redactedCommand: `node <official-profile-package-apply.ts> --intent ${request.intent} --root-package-id <profile-roots>`,
   };
 }
 

@@ -448,6 +448,24 @@ describe('OPL runtime bridge command whitelist', () => {
     }
   });
 
+  it('builds the first-install Official Profile command from the same packaged consumer', () => {
+    const resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-first-install-'));
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
+    try {
+      const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand(
+        { intent: 'first_install' },
+        resourcesPath
+      );
+      expect(command.args).toContain('first_install');
+      expect(command.args.filter((value) => value === '--root-package-id').length).toBeGreaterThan(0);
+      expect(command.redactedCommand).toBe(
+        'node <official-profile-package-apply.ts> --intent first_install --root-package-id <profile-roots>'
+      );
+    } finally {
+      fs.rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
   it('deduplicates concurrent standard bootstrap requests and retries after failure', async () => {
     __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
     let completeBootstrap!: () => void;

@@ -355,12 +355,14 @@ const FirstRun: React.FC = () => {
   const [accessMethod, setAccessMethod] = useState<AccessMethod>('gateway_account');
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
+  const [initializeRevision, setInitializeRevision] = useState(0);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
   const [actionLoading, setActionLoading] = useState<
     | MaintenanceAction
     | 'configure_codex'
     | 'gateway_account'
     | 'gateway_model_access'
+    | 'official_profile_first_install'
     | 'workspace_root'
     | 'workspace_open'
     | 'workspace_recheck'
@@ -374,6 +376,8 @@ const FirstRun: React.FC = () => {
   const gatewayModelAccessConfirmRef = useRef<HTMLButtonElement>(null);
   const technicalDetailsRef = useRef<HTMLDivElement>(null);
   const workspacePathSequenceRef = useRef(0);
+  const officialProfileAttemptedRevisionRef = useRef(0);
+  const officialProfileCompletedRef = useRef(false);
   const isMacRuntime = isDesktopRuntime && isMacOS();
   const showWindowControls = isDesktopRuntime && !isMacRuntime && Boolean(ipcBridge.windowControls);
 
@@ -411,6 +415,7 @@ const FirstRun: React.FC = () => {
         throw new Error('OPL initialize payload is missing or invalid.');
       }
       setInitializeResult(result);
+      setInitializeRevision((revision) => revision + 1);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError({ source: 'initialize', detail: message });
@@ -692,6 +697,46 @@ const FirstRun: React.FC = () => {
       readyEntryRef.current?.focus({ preventScroll: true });
     }
   }, [readyToLaunch]);
+
+  useEffect(() => {
+    if (
+      !isMacRuntime ||
+      !readyToLaunch ||
+      initialize?.setup_flow?.is_first_run !== true ||
+      !initializeResult ||
+      initializeRevision === 0 ||
+      officialProfileCompletedRef.current ||
+      officialProfileAttemptedRevisionRef.current === initializeRevision
+    ) {
+      return;
+    }
+
+    officialProfileAttemptedRevisionRef.current = initializeRevision;
+    let active = true;
+    setActionLoading('official_profile_first_install');
+    setError(null);
+    void ipcBridge.oplRuntime.applyOfficialProfile
+      .invoke({ intent: 'first_install' })
+      .then((result) => {
+        assertBridgeResultOk(result);
+        officialProfileCompletedRef.current = true;
+        if (active) setActionResult(result);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError({
+          source: 'maintenance',
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        if (active) setActionLoading(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [initialize, initializeResult, initializeRevision, isMacRuntime, readyToLaunch]);
 
   const itemLabels = Object.fromEntries(
     FIRST_RUN_ITEM_IDS.map((itemId) => [itemId, t(ITEM_LABEL_KEYS[itemId])])
@@ -1117,6 +1162,8 @@ const FirstRun: React.FC = () => {
                           icon={<Right />}
                           type='primary'
                           size='large'
+                          loading={actionLoading === 'official_profile_first_install'}
+                          disabled={actionLoading === 'official_profile_first_install'}
                           onClick={() => navigate('/guid', { state: POST_INSTALL_SELF_CHECK_STATE })}
                         >
                           <span data-testid='opl-first-run-ready-entry'>

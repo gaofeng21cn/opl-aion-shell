@@ -13,6 +13,7 @@ const bridgeMocks = vi.hoisted(() => ({
   initializeEventOn: vi.fn(),
   runInstallPrepInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
+  applyOfficialProfileInvoke: vi.fn(),
   configureCodexInvoke: vi.fn(),
   loginGatewayAccountInvoke: vi.fn(),
   runStartupMaintenanceInvoke: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@/common', () => ({
       initializeEvent: { on: bridgeMocks.initializeEventOn },
       runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
+      applyOfficialProfile: { invoke: bridgeMocks.applyOfficialProfileInvoke },
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
       loginGatewayAccount: { invoke: bridgeMocks.loginGatewayAccountInvoke },
       runStartupMaintenance: { invoke: bridgeMocks.runStartupMaintenanceInvoke },
@@ -420,6 +422,13 @@ describe('FirstRun readiness page', () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValue(gatewayFastStateResult);
     bridgeMocks.runStartupMaintenanceInvoke.mockResolvedValue(startupMaintenanceResult);
     bridgeMocks.executeActionInvoke.mockResolvedValue(workspaceActionResult);
+    bridgeMocks.applyOfficialProfileInvoke.mockResolvedValue({
+      surface: 'app_action',
+      command: 'node <official-profile-package-apply.ts> --intent first_install',
+      stdout: '{}',
+      parsed: { official_profile_package_apply: { status: 'completed', intent: 'first_install' } },
+      ok: true,
+    });
     bridgeMocks.configureCodexInvoke.mockResolvedValue(configureCodexResult);
     bridgeMocks.loginGatewayAccountInvoke.mockResolvedValue(gatewayLoginResult);
     bridgeMocks.showOpenInvoke.mockResolvedValue(['/Users/example/workspace']);
@@ -642,6 +651,7 @@ describe('FirstRun readiness page', () => {
   });
 
   it('does not leave first-run automatically when first-run initialize confirms Core launch readiness', async () => {
+    platformMocks.isMacOS.mockReturnValue(true);
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -658,6 +668,13 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledWith({ intent: 'first_install' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
+    fireEvent.click(screen.getByTestId('opl-first-run-retry-button'));
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-first-run-step-rail')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('settings.firstRun.stepProgress');
@@ -665,6 +682,7 @@ describe('FirstRun readiness page', () => {
   });
 
   it('keeps the completion state in place even when initialize reports a non-first-run ready install', async () => {
+    platformMocks.isMacOS.mockReturnValue(true);
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -684,7 +702,49 @@ describe('FirstRun readiness page', () => {
     expect(
       screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })
     ).toBeInTheDocument();
+    expect(bridgeMocks.applyOfficialProfileInvoke).not.toHaveBeenCalled();
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps first-install Official Profile failure local and retries only after an explicit refresh', async () => {
+    platformMocks.isMacOS.mockReturnValue(true);
+    const firstInstallInitialize = {
+      ...initializeResult,
+      parsed: {
+        system_initialize: {
+          ...initializeResult.parsed.system_initialize,
+          setup_flow: {
+            ...initializeResult.parsed.system_initialize.setup_flow,
+            is_first_run: true,
+          },
+        },
+      },
+    };
+    bridgeMocks.getInitializeInvoke.mockResolvedValue(firstInstallInitialize);
+    bridgeMocks.applyOfficialProfileInvoke
+      .mockRejectedValueOnce(new Error('official profile install failed'))
+      .mockResolvedValueOnce({
+        surface: 'app_action',
+        command: 'node <official-profile-package-apply.ts> --intent first_install',
+        stdout: '{}',
+        parsed: { official_profile_package_apply: { status: 'completed', intent: 'first_install' } },
+        ok: true,
+      });
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.blocked')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
+    expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent('official profile install failed');
+    expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId('opl-first-run-retry-button'));
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(2));
   });
 
   it('keeps technical phase and maintenance controls out of the beginner primary area', async () => {

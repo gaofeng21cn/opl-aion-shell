@@ -547,7 +547,7 @@ export type IOplRuntimeActionRequest = {
 };
 
 export type IOplOfficialProfileApplyRequest = {
-  intent: 'explicit_restore';
+  intent: 'first_install' | 'explicit_restore';
 };
 
 export type IOplConfigureCodexRequest = {
