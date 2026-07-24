@@ -962,21 +962,21 @@ export const localDataLifecycle = {
   ),
   executeRuntimePrune: bridge.buildProvider<
     LocalDataLifecycleRuntimePruneReceipt,
-    { plan: LocalDataLifecycleRuntimePrunePlan; planHash?: string }
+    { plan: LocalDataLifecycleRuntimePrunePlan; planHash?: string; selectedPaths: string[] }
   >('local-data-lifecycle.execute-runtime-prune'),
   planLogRotation: bridge.buildProvider<LocalDataLifecycleLogRetentionPlan, void>(
     'local-data-lifecycle.plan-log-rotation'
   ),
   executeLogRotation: bridge.buildProvider<
     LocalDataLifecycleLogRotationReceipt,
-    { plan: LocalDataLifecycleLogRetentionPlan; planHash?: string }
+    { plan: LocalDataLifecycleLogRetentionPlan; planHash?: string; selectedPaths: string[] }
   >('local-data-lifecycle.execute-log-rotation'),
   planUpdaterCacheCleanup: bridge.buildProvider<LocalDataLifecycleUpdaterCachePlan, void>(
     'local-data-lifecycle.plan-updater-cache-cleanup'
   ),
   executeUpdaterCacheCleanup: bridge.buildProvider<
     LocalDataLifecycleUpdaterCacheReceipt,
-    { plan: LocalDataLifecycleUpdaterCachePlan; planHash?: string }
+    { plan: LocalDataLifecycleUpdaterCachePlan; planHash?: string; selectedPaths: string[] }
   >('local-data-lifecycle.execute-updater-cache-cleanup'),
 };
 

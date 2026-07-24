@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Alert, Button, Modal, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Checkbox, Modal, Space, Tabs, Tag, Typography } from '@arco-design/web-react';
 import { Right } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -59,14 +59,15 @@ type AsyncAction =
   | 'webui-execute'
   | 'webui-restore';
 
-type PendingDangerAction =
-  | 'restore-conversations'
-  | 'delete-conversations'
-  | 'runtime-execute'
-  | 'logs-execute'
-  | 'updater-execute'
-  | 'webui-execute'
-  | null;
+type PendingDangerAction = 'restore-conversations' | 'delete-conversations' | 'webui-execute' | null;
+
+type CleanupPreviewKind = 'runtime' | 'logs' | 'updater';
+
+type CleanupCandidate = {
+  path: string;
+  bytes: number;
+  reason: string;
+};
 
 type StorageSettingsProps = {
   withWrapper?: boolean;
@@ -119,6 +120,13 @@ const STORAGE_NAV_ICON_PROPS = {
   size: 16,
   fill: 'currentColor',
   strokeWidth: 2,
+};
+
+const CLEANUP_PREVIEW_KINDS: CleanupPreviewKind[] = ['runtime', 'logs', 'updater'];
+
+const cleanupCandidateName = (candidatePath: string): string => {
+  const segments = candidatePath.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) ?? candidatePath;
 };
 
 const classifyStorageUnavailableReason = (rawError: string | null): StorageUnavailableReason => {
@@ -374,6 +382,13 @@ export const StorageSettingsContent: React.FC = () => {
   const [webuiRestoreReceipt, setWebuiRestoreReceipt] = React.useState<WebuiDataLifecycleRestoreReceipt | null>(null);
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
+  const [cleanupPreviewVisible, setCleanupPreviewVisible] = React.useState(false);
+  const [activeCleanupPreview, setActiveCleanupPreview] = React.useState<CleanupPreviewKind>('runtime');
+  const [selectedCleanupPaths, setSelectedCleanupPaths] = React.useState<Record<CleanupPreviewKind, string[]>>({
+    runtime: [],
+    logs: [],
+    updater: [],
+  });
   const [diagnosticsVisible, setDiagnosticsVisible] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [inventoryReadError, setInventoryReadError] = React.useState<string | null>(null);
@@ -614,66 +629,54 @@ export const StorageSettingsContent: React.FC = () => {
     );
   };
 
-  const dryRunRuntimePrune = () => {
-    void runAction(
-      'runtime-plan',
-      () => ipcBridge.localDataLifecycle.planRuntimePrune.invoke(),
-      (plan) => {
-        setRuntimePlan(plan);
-      }
-    );
-  };
-
   const executeRuntimePrune = () => {
-    if (!runtimePlan) return;
+    const selectedPaths = selectedCleanupPaths.runtime;
+    if (!runtimePlan || selectedPaths.length === 0) return;
     void runAction(
       'runtime-execute',
       () =>
-        ipcBridge.localDataLifecycle.executeRuntimePrune.invoke({ plan: runtimePlan, planHash: runtimePlan.plan_hash }),
+        ipcBridge.localDataLifecycle.executeRuntimePrune.invoke({
+          plan: runtimePlan,
+          planHash: runtimePlan.plan_hash,
+          selectedPaths,
+        }),
       async (receipt) => {
         setLastReceipt(receipt);
         setRuntimePlan(null);
+        setSelectedCleanupPaths((current) => ({ ...current, runtime: [] }));
+        setCleanupPreviewVisible(false);
         await refreshInventory();
-      }
-    );
-  };
-
-  const dryRunLogRotation = () => {
-    void runAction(
-      'logs-plan',
-      () => ipcBridge.localDataLifecycle.planLogRotation.invoke(),
-      (plan) => {
-        setLogsPlan(plan);
       }
     );
   };
 
   const executeLogRotation = () => {
-    if (!logsPlan) return;
+    const selectedPaths = selectedCleanupPaths.logs;
+    if (!logsPlan || selectedPaths.length === 0) return;
     void runAction(
       'logs-execute',
-      () => ipcBridge.localDataLifecycle.executeLogRotation.invoke({ plan: logsPlan, planHash: logsPlan.plan_hash }),
+      () =>
+        ipcBridge.localDataLifecycle.executeLogRotation.invoke({
+          plan: logsPlan,
+          planHash: logsPlan.plan_hash,
+          selectedPaths,
+        }),
       async (receipt) => {
         setLastReceipt(receipt);
         setLogsPlan(null);
+        setSelectedCleanupPaths((current) => ({ ...current, logs: [] }));
+        setCleanupPreviewVisible(false);
         await refreshInventory();
       }
     );
   };
 
-  const dryRunUpdaterCleanup = () => {
+  const previewCleanup = (
+    initialKind: CleanupPreviewKind = 'runtime',
+    action: Extract<AsyncAction, 'cleanup-preview' | 'runtime-plan' | 'logs-plan' | 'updater-plan'> = 'cleanup-preview'
+  ) => {
     void runAction(
-      'updater-plan',
-      () => ipcBridge.localDataLifecycle.planUpdaterCacheCleanup.invoke(),
-      (plan) => {
-        setUpdaterPlan(plan);
-      }
-    );
-  };
-
-  const previewCleanup = () => {
-    void runAction(
-      'cleanup-preview',
+      action,
       () =>
         Promise.all([
           ipcBridge.localDataLifecycle.planRuntimePrune.invoke(),
@@ -684,22 +687,33 @@ export const StorageSettingsContent: React.FC = () => {
         setRuntimePlan(nextRuntimePlan);
         setLogsPlan(nextLogsPlan);
         setUpdaterPlan(nextUpdaterPlan);
+        setSelectedCleanupPaths({
+          runtime: nextRuntimePlan.remove_candidates.map((candidate) => candidate.path),
+          logs: nextLogsPlan.remove_candidates.map((candidate) => candidate.path),
+          updater: nextUpdaterPlan.remove_candidates.map((candidate) => candidate.path),
+        });
+        setActiveCleanupPreview(initialKind);
+        setCleanupPreviewVisible(true);
       }
     );
   };
 
   const executeUpdaterCleanup = () => {
-    if (!updaterPlan) return;
+    const selectedPaths = selectedCleanupPaths.updater;
+    if (!updaterPlan || selectedPaths.length === 0) return;
     void runAction(
       'updater-execute',
       () =>
         ipcBridge.localDataLifecycle.executeUpdaterCacheCleanup.invoke({
           plan: updaterPlan,
           planHash: updaterPlan.plan_hash,
+          selectedPaths,
         }),
       async (receipt) => {
         setLastReceipt(receipt);
         setUpdaterPlan(null);
+        setSelectedCleanupPaths((current) => ({ ...current, updater: [] }));
+        setCleanupPreviewVisible(false);
         await refreshInventory();
       }
     );
@@ -784,18 +798,6 @@ export const StorageSettingsContent: React.FC = () => {
       deleteConversationArtifacts();
       return;
     }
-    if (action === 'runtime-execute') {
-      executeRuntimePrune();
-      return;
-    }
-    if (action === 'logs-execute') {
-      executeLogRotation();
-      return;
-    }
-    if (action === 'updater-execute') {
-      executeUpdaterCleanup();
-      return;
-    }
     if (action === 'webui-execute') executeWebuiCleanup();
   };
 
@@ -810,24 +812,6 @@ export const StorageSettingsContent: React.FC = () => {
         ? t('settings.storagePage.conversations.deleteConfirmation')
         : t('settings.storagePage.conversations.receiptRequired');
     }
-    if (pendingDangerAction === 'runtime-execute') {
-      return t('settings.storagePage.plans.runtime.summary', {
-        count: viewModel.runtimePlan.candidateCount,
-        bytes: formatStorageBytes(viewModel.runtimePlan.removeBytes),
-      });
-    }
-    if (pendingDangerAction === 'logs-execute') {
-      return t('settings.storagePage.plans.logs.summary', {
-        count: viewModel.logsPlan.candidateCount,
-        bytes: formatStorageBytes(viewModel.logsPlan.removeBytes),
-      });
-    }
-    if (pendingDangerAction === 'updater-execute') {
-      return t('settings.storagePage.plans.updater.summary', {
-        count: viewModel.updaterPlan.candidateCount,
-        bytes: formatStorageBytes(viewModel.updaterPlan.removeBytes),
-      });
-    }
     if (pendingDangerAction === 'webui-execute' && webuiPlan) {
       return t('settings.storagePage.plans.runtime.summary', {
         count: webuiPlan.candidate_count,
@@ -840,9 +824,6 @@ export const StorageSettingsContent: React.FC = () => {
   const dangerActionLabel = () => {
     if (pendingDangerAction === 'restore-conversations') return t('common.runtime.archiveTask.restore');
     if (pendingDangerAction === 'delete-conversations') return t('settings.storagePage.actions.deleteWithReceipt');
-    if (pendingDangerAction === 'runtime-execute') return t('settings.storagePage.actions.executeRuntime');
-    if (pendingDangerAction === 'logs-execute') return t('settings.storagePage.actions.executeLogs');
-    if (pendingDangerAction === 'updater-execute') return t('settings.storagePage.actions.executeUpdater');
     if (pendingDangerAction === 'webui-execute') return t('settings.storagePage.actions.executeRuntime');
     return '';
   };
@@ -854,6 +835,75 @@ export const StorageSettingsContent: React.FC = () => {
           bytes: formatStorageBytes(bytes),
         })
       : null;
+
+  const cleanupPlans: Record<
+    CleanupPreviewKind,
+    LocalDataLifecycleRuntimePrunePlan | LocalDataLifecycleLogRetentionPlan | LocalDataLifecycleUpdaterCachePlan | null
+  > = {
+    runtime: runtimePlan,
+    logs: logsPlan,
+    updater: updaterPlan,
+  };
+  const cleanupSectionIds: Record<CleanupPreviewKind, StorageInventorySectionViewModel['id']> = {
+    runtime: 'runtime_substrate',
+    logs: 'logs',
+    updater: 'updater_cache',
+  };
+  const activeCleanupPlan = cleanupPlans[activeCleanupPreview];
+  const activeCleanupCandidates: CleanupCandidate[] = activeCleanupPlan?.remove_candidates ?? [];
+  const activeSelectedPaths = selectedCleanupPaths[activeCleanupPreview];
+  const activeSelectedPathSet = new Set(activeSelectedPaths);
+  const activeCandidateBytes = activeCleanupCandidates.reduce((total, candidate) => total + candidate.bytes, 0);
+  const activeSelectedBytes = activeCleanupCandidates.reduce(
+    (total, candidate) => total + (activeSelectedPathSet.has(candidate.path) ? candidate.bytes : 0),
+    0
+  );
+  const activeCategoryBytes =
+    viewModel.sections.find((section) => section.id === cleanupSectionIds[activeCleanupPreview])?.bytes ?? 0;
+  const activeRetainedBytes = Math.max(0, activeCategoryBytes - activeSelectedBytes);
+  const activeUnselectedCount = Math.max(0, activeCleanupCandidates.length - activeSelectedPaths.length);
+  const allActiveCandidatesSelected =
+    activeCleanupCandidates.length > 0 && activeSelectedPaths.length === activeCleanupCandidates.length;
+  const someActiveCandidatesSelected =
+    activeSelectedPaths.length > 0 && activeSelectedPaths.length < activeCleanupCandidates.length;
+  const activeCleanupLoading = `${activeCleanupPreview}-execute` as Extract<
+    AsyncAction,
+    'runtime-execute' | 'logs-execute' | 'updater-execute'
+  >;
+
+  const toggleCleanupCandidate = (candidatePath: string, checked: boolean) => {
+    setSelectedCleanupPaths((current) => {
+      const currentPaths = current[activeCleanupPreview];
+      const nextPaths = checked
+        ? Array.from(new Set([...currentPaths, candidatePath]))
+        : currentPaths.filter((pathValue) => pathValue !== candidatePath);
+      return { ...current, [activeCleanupPreview]: nextPaths };
+    });
+  };
+
+  const toggleAllCleanupCandidates = (checked: boolean) => {
+    setSelectedCleanupPaths((current) => ({
+      ...current,
+      [activeCleanupPreview]: checked ? activeCleanupCandidates.map((candidate) => candidate.path) : [],
+    }));
+  };
+
+  const executeActiveCleanup = () => {
+    if (activeCleanupPreview === 'runtime') {
+      executeRuntimePrune();
+      return;
+    }
+    if (activeCleanupPreview === 'logs') {
+      executeLogRotation();
+      return;
+    }
+    executeUpdaterCleanup();
+  };
+
+  const cleanupCandidateReason = (kind: CleanupPreviewKind, reason: string): string => {
+    if (kind === 'logs') return t(`settings.storagePage.logs.reasons.${reason}`);
+    return t(`settings.storagePage.cleanupPreview.reasons.${kind}.${reason}`);
+  };
 
   const renderLifecycleRef = (item: ResearchWorkspaceLifecycleRef) => (
     <div key={item.id} className='flex flex-col gap-4px min-w-0'>
@@ -926,23 +976,13 @@ export const StorageSettingsContent: React.FC = () => {
       ) : undefined,
     },
     runtime_substrate: {
-      actions: viewModel.runtimePlan.canExecute ? (
-        <Button
-          htmlType='button'
-          status='danger'
-          disabled={interactionLocked}
-          loading={loading === 'runtime-execute'}
-          onClick={() => requestDangerAction('runtime-execute')}
-          data-testid='storage-runtime-execute'
-        >
-          {t('settings.storagePage.actions.executeRuntime')}
-        </Button>
-      ) : (
+      actions: (
         <Button
           htmlType='button'
           disabled={interactionLocked}
           loading={loading === 'runtime-plan'}
-          onClick={dryRunRuntimePrune}
+          onClick={() => previewCleanup('runtime', 'runtime-plan')}
+          data-testid='storage-runtime-preview'
         >
           {t('settings.storagePage.actions.dryRunRuntime')}
         </Button>
@@ -955,23 +995,13 @@ export const StorageSettingsContent: React.FC = () => {
       ),
     },
     logs: {
-      actions: viewModel.logsPlan.canExecute ? (
-        <Button
-          htmlType='button'
-          status='danger'
-          disabled={interactionLocked}
-          loading={loading === 'logs-execute'}
-          onClick={() => requestDangerAction('logs-execute')}
-          data-testid='storage-logs-execute'
-        >
-          {t('settings.storagePage.actions.executeLogs')}
-        </Button>
-      ) : (
+      actions: (
         <Button
           htmlType='button'
           disabled={interactionLocked}
           loading={loading === 'logs-plan'}
-          onClick={dryRunLogRotation}
+          onClick={() => previewCleanup('logs', 'logs-plan')}
+          data-testid='storage-logs-preview'
         >
           {t('settings.storagePage.actions.dryRunLogs')}
         </Button>
@@ -996,22 +1026,13 @@ export const StorageSettingsContent: React.FC = () => {
           : undefined,
     },
     updater_cache: {
-      actions: viewModel.updaterPlan.canExecute ? (
-        <Button
-          htmlType='button'
-          disabled={interactionLocked}
-          loading={loading === 'updater-execute'}
-          onClick={() => requestDangerAction('updater-execute')}
-          data-testid='storage-updater-execute'
-        >
-          {t('settings.storagePage.actions.executeUpdater')}
-        </Button>
-      ) : (
+      actions: (
         <Button
           htmlType='button'
           disabled={interactionLocked}
           loading={loading === 'updater-plan'}
-          onClick={dryRunUpdaterCleanup}
+          onClick={() => previewCleanup('updater', 'updater-plan')}
+          data-testid='storage-updater-preview'
         >
           {t('settings.storagePage.actions.dryRunUpdater')}
         </Button>
@@ -1281,7 +1302,7 @@ export const StorageSettingsContent: React.FC = () => {
                   type='primary'
                   disabled={interactionLocked}
                   loading={loading === 'cleanup-preview'}
-                  onClick={previewCleanup}
+                  onClick={() => previewCleanup()}
                   data-testid='settings-storage-primary-action'
                 >
                   {t('settings.storagePage.actions.previewAll')}
@@ -1340,6 +1361,174 @@ export const StorageSettingsContent: React.FC = () => {
 
           {desktopCarrier && hasLocalStorageReadback && (
             <span data-testid='storage-research-lifecycle' aria-hidden='true' />
+          )}
+          {desktopCarrier && hasLocalStorageReadback && (
+            <Modal
+              visible={cleanupPreviewVisible}
+              title={t('settings.storagePage.cleanupPreview.title')}
+              onCancel={() => {
+                if (loading === null) setCleanupPreviewVisible(false);
+              }}
+              unmountOnExit
+              maskClosable={loading === null}
+              escToExit={loading === null}
+              style={{ width: 'min(760px, calc(100vw - 32px))' }}
+              footer={
+                <Space>
+                  <Button htmlType='button' disabled={loading !== null} onClick={() => setCleanupPreviewVisible(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    htmlType='button'
+                    type='primary'
+                    status='danger'
+                    disabled={activeSelectedPaths.length === 0 || loading !== null}
+                    loading={loading === activeCleanupLoading}
+                    onClick={executeActiveCleanup}
+                    data-testid='storage-cleanup-preview-execute'
+                  >
+                    {t('settings.storagePage.cleanupPreview.executeSelected')}
+                  </Button>
+                </Space>
+              }
+            >
+              <div className='flex max-h-[72vh] min-w-0 flex-col gap-14px overflow-auto pr-4px'>
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('settings.storagePage.cleanupPreview.description')}
+                </Typography.Text>
+                <Tabs
+                  activeTab={activeCleanupPreview}
+                  onChange={(nextKind) => setActiveCleanupPreview(nextKind as CleanupPreviewKind)}
+                  data-testid='storage-cleanup-preview-tabs'
+                >
+                  {CLEANUP_PREVIEW_KINDS.map((kind) => (
+                    <Tabs.TabPane key={kind} title={t(`settings.storagePage.cleanupPreview.tabs.${kind}`)} />
+                  ))}
+                </Tabs>
+
+                <div
+                  className='grid grid-cols-2 gap-x-20px gap-y-10px border-0 border-b border-solid border-[var(--border-base)] pb-14px'
+                  data-testid={`storage-cleanup-preview-summary-${activeCleanupPreview}`}
+                >
+                  <div className='flex min-w-0 flex-col gap-2px'>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.storagePage.cleanupPreview.summary.total')}
+                    </Typography.Text>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {formatStorageBytes(activeCategoryBytes)}
+                    </Typography.Text>
+                  </div>
+                  <div className='flex min-w-0 flex-col gap-2px'>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.storagePage.cleanupPreview.summary.candidates')}
+                    </Typography.Text>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {t('settings.storagePage.cleanupPreview.summary.itemsAndBytes', {
+                        count: activeCleanupCandidates.length,
+                        bytes: formatStorageBytes(activeCandidateBytes),
+                      })}
+                    </Typography.Text>
+                  </div>
+                  <div className='flex min-w-0 flex-col gap-2px'>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.storagePage.cleanupPreview.summary.selected')}
+                    </Typography.Text>
+                    <Typography.Text className='font-600 text-t-primary' data-testid='storage-cleanup-selected-bytes'>
+                      {formatStorageBytes(activeSelectedBytes)}
+                    </Typography.Text>
+                  </div>
+                  <div className='flex min-w-0 flex-col gap-2px'>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.storagePage.cleanupPreview.summary.retained')}
+                    </Typography.Text>
+                    <Typography.Text className='font-600 text-t-primary' data-testid='storage-cleanup-retained-bytes'>
+                      {formatStorageBytes(activeRetainedBytes)}
+                    </Typography.Text>
+                  </div>
+                </div>
+
+                <Alert
+                  type='info'
+                  title={t('settings.storagePage.cleanupPreview.retainedTitle')}
+                  content={
+                    <div className='flex flex-col gap-4px'>
+                      <span>{t(`settings.storagePage.cleanupPreview.retainedReasons.${activeCleanupPreview}`)}</span>
+                      {activeUnselectedCount > 0 && (
+                        <span>
+                          {t('settings.storagePage.cleanupPreview.unselectedRetained', {
+                            count: activeUnselectedCount,
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  }
+                  data-testid='storage-cleanup-retained-reason'
+                />
+
+                {activeCleanupCandidates.length > 0 ? (
+                  <div className='flex min-w-0 flex-col gap-8px'>
+                    <div className='flex flex-wrap items-center justify-between gap-8px'>
+                      <Checkbox
+                        checked={allActiveCandidatesSelected}
+                        indeterminate={someActiveCandidatesSelected}
+                        onChange={toggleAllCleanupCandidates}
+                        data-testid='storage-cleanup-select-all'
+                      >
+                        {t('settings.storagePage.cleanupPreview.selectAll')}
+                      </Checkbox>
+                      <Typography.Text className='text-12px text-t-secondary'>
+                        {t('settings.storagePage.cleanupPreview.selectedCount', {
+                          selected: activeSelectedPaths.length,
+                          total: activeCleanupCandidates.length,
+                        })}
+                      </Typography.Text>
+                    </div>
+                    <div className='flex min-w-0 flex-col border-0 border-t border-solid border-[var(--border-base)]'>
+                      {activeCleanupCandidates.map((candidate) => (
+                        <div
+                          key={candidate.path}
+                          className='flex min-w-0 items-start gap-10px border-0 border-b border-solid border-[var(--border-base)] py-10px'
+                        >
+                          <Checkbox
+                            checked={activeSelectedPathSet.has(candidate.path)}
+                            onChange={(checked) => toggleCleanupCandidate(candidate.path, checked)}
+                            aria-label={cleanupCandidateName(candidate.path)}
+                            data-testid={`storage-cleanup-candidate-${activeCleanupPreview}`}
+                          />
+                          <div className='flex min-w-0 flex-1 flex-col gap-3px'>
+                            <div className='flex min-w-0 items-start justify-between gap-12px'>
+                              <Typography.Text className='min-w-0 break-words font-500 text-t-primary'>
+                                {t(`settings.storagePage.cleanupPreview.candidateNames.${activeCleanupPreview}`, {
+                                  name: cleanupCandidateName(candidate.path),
+                                })}
+                              </Typography.Text>
+                              <Typography.Text className='shrink-0 text-12px font-600 text-t-primary'>
+                                {formatStorageBytes(candidate.bytes)}
+                              </Typography.Text>
+                            </div>
+                            <Typography.Text className='text-12px text-t-secondary'>
+                              {cleanupCandidateReason(activeCleanupPreview, candidate.reason)}
+                            </Typography.Text>
+                            <details className='min-w-0 text-12px text-t-secondary'>
+                              <summary className='w-fit cursor-pointer'>
+                                {t('settings.storagePage.cleanupPreview.technicalDetails')}
+                              </summary>
+                              <code className='mt-4px block max-w-full break-all text-11px'>{candidate.path}</code>
+                            </details>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <Alert
+                    type='info'
+                    content={t('settings.storagePage.cleanupPreview.empty')}
+                    data-testid='storage-cleanup-preview-empty'
+                  />
+                )}
+              </div>
+            </Modal>
           )}
           {desktopCarrier && hasLocalStorageReadback && (
             <Modal

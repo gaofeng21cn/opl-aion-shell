@@ -208,11 +208,12 @@ export function initLocalDataLifecycleBridge(): void {
     )
   );
 
-  ipcBridge.localDataLifecycle.executeRuntimePrune.provider(({ plan, planHash }) =>
+  ipcBridge.localDataLifecycle.executeRuntimePrune.provider(({ plan, planHash, selectedPaths }) =>
     Promise.resolve(
       executeRuntimePointerPrunePlan({
         plan,
         planHash,
+        selectedPaths,
         receiptRoot: receiptRoot(),
       })
     )
@@ -229,11 +230,12 @@ export function initLocalDataLifecycleBridge(): void {
     )
   );
 
-  ipcBridge.localDataLifecycle.executeLogRotation.provider(({ plan, planHash }) =>
+  ipcBridge.localDataLifecycle.executeLogRotation.provider(({ plan, planHash, selectedPaths }) =>
     Promise.resolve(
       executeLogRetentionPlan({
         plan,
         planHash,
+        selectedPaths,
         receiptRoot: receiptRoot(),
       })
     )
@@ -248,11 +250,12 @@ export function initLocalDataLifecycleBridge(): void {
     )
   );
 
-  ipcBridge.localDataLifecycle.executeUpdaterCacheCleanup.provider(({ plan, planHash }) =>
+  ipcBridge.localDataLifecycle.executeUpdaterCacheCleanup.provider(({ plan, planHash, selectedPaths }) =>
     Promise.resolve(
       executeUpdaterCacheCleanupPlan({
         plan,
         planHash,
+        selectedPaths,
         receiptRoot: receiptRoot(),
       })
     )
