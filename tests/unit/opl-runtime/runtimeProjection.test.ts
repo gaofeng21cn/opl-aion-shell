@@ -63,6 +63,22 @@ describe('runtime visualization projection normalization', () => {
         schema_version: 'opl_app_state.v1',
         operator: {
           workbench: {
+            task_run_projection_v2: {
+              projection_kind: 'task_run_projection_v2',
+              schema_version: 2,
+              tasks: [
+                {
+                  task_id: 'medautoscience:binding:dm-binding:study:002-dm-paper',
+                  runtime_closeout_observed: true,
+                  runtime_closeout_ref: 'runtime://closeout/002-dm-paper',
+                  mas_owner_consumption_status: 'consumed',
+                  mas_owner_consumption_ref: 'mas://consumption/002-dm-paper',
+                  mas_owner_consumed_stage_attempt_id: 'attempt-42',
+                  mas_owner_consumed_closeout_ref: 'mas://closeout/002-dm-paper',
+                  mas_owner_consumption_matches_runtime_closeout: true,
+                },
+              ],
+            },
             runtime_scope: {
               scope_options: [
                 {
@@ -129,7 +145,14 @@ describe('runtime visualization projection normalization', () => {
       workspaceLabel: '糖尿病',
       projectId: '002-dm-paper',
       studyId: '002-dm-paper',
+      runtimeCloseoutObserved: true,
+      runtimeCloseoutRef: 'runtime://closeout/002-dm-paper',
     });
+    expect(model.taskRunProjectionV2.tasks[0]).not.toHaveProperty('masOwnerConsumptionStatus');
+    expect(model.taskRunProjectionV2.tasks[0]).not.toHaveProperty('masOwnerConsumptionRef');
+    expect(model.taskRunProjectionV2.tasks[0]).not.toHaveProperty('masOwnerConsumedStageAttemptId');
+    expect(model.taskRunProjectionV2.tasks[0]).not.toHaveProperty('masOwnerConsumedCloseoutRef');
+    expect(model.taskRunProjectionV2.tasks[0]).not.toHaveProperty('masOwnerConsumptionMatchesRuntimeCloseout');
   });
 
   it('normalizes OPL app state as the summary-first runtime model', () => {

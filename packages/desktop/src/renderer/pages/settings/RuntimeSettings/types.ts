@@ -125,11 +125,6 @@ export type RuntimeTaskDrilldown = {
   typedBlockerResolutionRef?: string;
   runtimeCloseoutObserved?: boolean;
   runtimeCloseoutRef?: string;
-  masOwnerConsumptionStatus?: string;
-  masOwnerConsumptionRef?: string;
-  masOwnerConsumedStageAttemptId?: string;
-  masOwnerConsumedCloseoutRef?: string;
-  masOwnerConsumptionMatchesRuntimeCloseout?: boolean;
   stageAttemptIds: string[];
   paperRouteLensRefCount: number;
   safeActionRefCount: number;

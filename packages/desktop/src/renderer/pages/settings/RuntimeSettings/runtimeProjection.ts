@@ -844,14 +844,6 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
       asString(stageRun?.typed_blocker_resolution_ref) ?? asString(stageRunSummary?.typed_blocker_resolution_ref),
     runtimeCloseoutObserved: entry.runtime_closeout_observed === true,
     runtimeCloseoutRef: asString(entry.runtime_closeout_ref),
-    masOwnerConsumptionStatus: asString(entry.mas_owner_consumption_status),
-    masOwnerConsumptionRef: asString(entry.mas_owner_consumption_ref),
-    masOwnerConsumedStageAttemptId: asString(entry.mas_owner_consumed_stage_attempt_id),
-    masOwnerConsumedCloseoutRef: asString(entry.mas_owner_consumed_closeout_ref),
-    masOwnerConsumptionMatchesRuntimeCloseout:
-      typeof entry.mas_owner_consumption_matches_runtime_closeout === 'boolean'
-        ? entry.mas_owner_consumption_matches_runtime_closeout
-        : undefined,
     stageAttemptIds: asStringArray(entry.stage_attempt_ids),
     paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
     safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? asRecordArray(entry.action_cards).length,
@@ -965,11 +957,6 @@ function readWorkItemProjectionRecord(
     typedBlockerResolutionRef: legacyTask?.typedBlockerResolutionRef,
     runtimeCloseoutObserved: legacyTask?.runtimeCloseoutObserved,
     runtimeCloseoutRef: legacyTask?.runtimeCloseoutRef,
-    masOwnerConsumptionStatus: legacyTask?.masOwnerConsumptionStatus,
-    masOwnerConsumptionRef: legacyTask?.masOwnerConsumptionRef,
-    masOwnerConsumedStageAttemptId: legacyTask?.masOwnerConsumedStageAttemptId,
-    masOwnerConsumedCloseoutRef: legacyTask?.masOwnerConsumedCloseoutRef,
-    masOwnerConsumptionMatchesRuntimeCloseout: legacyTask?.masOwnerConsumptionMatchesRuntimeCloseout,
     stageAttemptIds: legacyTask?.stageAttemptIds ?? (attemptId ? [attemptId] : []),
     paperRouteLensRefCount: legacyTask?.paperRouteLensRefCount ?? 0,
     safeActionRefCount: actionCards.length || legacyTask?.safeActionRefCount || 0,
