@@ -36,12 +36,14 @@ If a shell-local change needs one of those decisions, land the decision in the o
 The OPL ecosystem separates Package identity, carrier, and executor into three
 roles. Publication/currentness is an independent axis, not a fourth runtime
 role. This shell is a GUI implementation and projection consumer; it does not
-own a Package carrier or executor. The current product consumes the Codex-first
-route because that minimizes today's delivery cost, but that choice is not an
-ecosystem-wide identity or storage decision. Codex Plugin Manager may manage
-Plugin, config, and cache bytes as a carrier adapter. It is not the OPL Package
-identity, the complete installed-state authority, or the authority for another
-carrier.
+own a Package carrier or executor. The implementation strategy is
+**Codex-first, OPL-owned boundaries**: maintain one formal Codex route today
+rather than a parallel second executor product, while keeping Package identity,
+preferences, Work Items, and typed views in OPL-owned contracts. That choice
+minimizes today's delivery cost, but it is not an ecosystem-wide identity or
+storage decision. Codex Plugin Manager may manage Plugin, config, and cache
+bytes as a carrier adapter. It is not the OPL Package identity, the complete
+installed-state authority, or the authority for another carrier.
 
 Package owners publish their own official bytes to GHCR and advance their own
 `latest-stable`. A shared Release Set is limited to Full/offline, integration
@@ -164,17 +166,17 @@ the App repository at `docs/product/gui/codex-auto-model-policy.md#维护默认�
 
 The ordinary language surface is Chinese and English unless the App-owned product profile changes that policy. Upstream locale payloads for additional languages are implementation material only; do not add them to `supportedLanguages`, static locale imports, login language choices, or settings language choices as part of upstream intake without an App owner decision.
 
-The `/guid` home path and every Agent/purpose entry must come from the
-Framework/App dynamic projection. Projected Package/capability identity,
-availability, labels, optional companion capabilities, and authorized route
-refs drive rendering and conversation creation; the Shell must not own a fixed
-Agent set or infer a Skill lock. MAS, MAG, and RCA are current migration
-instances, not the ecosystem membership contract. Transitional
-`assistant_skill_profiles` or Codex route fields may be consumed inside the
-Codex compatibility adapter, but they are not Package identity, dependency, or
-purpose-entry authority. The created conversation keeps the projected route
-identity so the selected purpose remains visible without turning a Shell-local
-assistant list into product truth.
+Settings Package rows, the `/guid` home path, and every Agent/purpose entry must
+come from the Framework/App dynamic projection. Projected Package/capability
+identity, availability, labels, optional companion capabilities, preferences,
+and authorized route refs drive rendering and conversation creation; the Shell
+must not own a fixed Agent set or infer a Skill lock. MAS, MAG, and RCA are
+current migration instances, not the ecosystem membership contract.
+Transitional `assistant_skill_profiles` or Codex route fields may be consumed
+inside the Codex compatibility adapter, but they are not Package identity,
+dependency, or purpose-entry authority. The created conversation keeps the
+projected route identity so the selected purpose remains visible without
+turning a Shell-local assistant list into product truth.
 
 ## Upstream Intake Policy
 
