@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { configService } from '@/common/config/configService';
-import { getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
+import { getOplAppSessionContextPolicy, getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
+import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 const model = {
@@ -20,6 +21,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
   });
 
   it('adds App-owned context metadata and prepends localized agent routes without replacing preset context', () => {
+    const appSessionContextPolicy = getOplAppSessionContextPolicy();
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'Research plan',
@@ -47,9 +49,10 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'follow_ui_locale_zh_only_when_ui_zh',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     });
+    expect(appSessionContextPolicy.source).toBe(generatedProfile.codex.opl_app_session_context.source);
     expect(params.extra.opl_app_session_context).toEqual({
       owner: 'one-person-lab-app',
-      source: 'gui.professional_agent_packages.session_routing_summary_i18n',
+      source: appSessionContextPolicy.source,
       additional_instructions: false,
       effect: 'next_new_conversation',
     });

@@ -150,10 +150,9 @@ export type OplHomeAgentShortcut = {
   user_configurable: boolean;
 };
 
-export type OplHomeComposerStateContract = {
+type OplHomeComposerStateContractBase = {
   contract_id: 'opl_home_composer_state.v1';
   executor: 'codex';
-  shortcut_package_ids: Array<string | null>;
   viewports: ['desktop', 'mobile'];
   availability_states: ['available', 'unavailable'];
   invariants: {
@@ -172,6 +171,24 @@ export type OplHomeComposerStateContract = {
     failure_field: 'missing_controls';
   };
 };
+
+export type OplHomeComposerStateContract = OplHomeComposerStateContractBase &
+  (
+    | {
+        shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]';
+        shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]';
+        shortcut_availability_source_ref: 'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence';
+        unknown_standard_agent_allowed: true;
+        shortcut_package_ids?: never;
+      }
+    | {
+        shortcut_package_ids: Array<string | null>;
+        shortcut_package_membership_source_ref?: never;
+        shortcut_preference_source_ref?: never;
+        shortcut_availability_source_ref?: never;
+        unknown_standard_agent_allowed?: never;
+      }
+  );
 
 export type OplNonDefaultAssistant = {
   id: string;
@@ -222,9 +239,8 @@ export type OplFirstPartyPackagePresentation = {
   description_i18n: Record<'zh-CN' | 'en-US', string>;
 };
 
-export type OplAgentPackageInvocationReceiptPolicy = {
+type OplAgentPackageInvocationReceiptPolicyBase = {
   scope: 'package_shortcut_launch_to_codex_conversation';
-  required_for_package_shortcuts: string[];
   route_kind: 'agent_package_shortcut';
   executor: 'codex_cli';
   source: 'opl_app_home';
@@ -233,6 +249,18 @@ export type OplAgentPackageInvocationReceiptPolicy = {
   must_not_govern: string[];
   must_not_depend_on_visible_backend_selection: true;
 };
+
+export type OplAgentPackageInvocationReceiptPolicy = OplAgentPackageInvocationReceiptPolicyBase &
+  (
+    | {
+        required_for_package_shortcuts: string[];
+        required_for_package_shortcuts_source_ref?: never;
+      }
+    | {
+        required_for_package_shortcuts_source_ref: 'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]';
+        required_for_package_shortcuts?: never;
+      }
+  );
 
 export type OplBuiltinAssistantRouteReceiptPolicy = {
   migration_alias_for?: 'agent_package_invocation_receipt_policy';
@@ -264,7 +292,9 @@ export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
   authority: 'app_owned_skill_allowlist_and_mcp_negative_filter';
   agent_reference_admission_policy: OplAgentReferenceAdmissionPolicy;
-  skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids';
+  skill_source_ref:
+    | 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids'
+    | 'owner_or_carrier_projected_capability_metadata_for_the_selected_package';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
   conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
   mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers';
@@ -306,7 +336,9 @@ export type OplFlowContextPolicy = {
 
 export type OplAppSessionContextPolicy = {
   owner: 'one-person-lab-app';
-  source: 'gui.professional_agent_packages.session_routing_summary_i18n';
+  source:
+    | 'gui.professional_agent_packages.session_routing_summary_i18n'
+    | 'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback';
   delivery: 'new_codex_conversation_preset_context';
   generation_policy: 'profile_agent_routes';
   update_policy: 'regenerated_when_app_product_profile_syncs';
@@ -1480,10 +1512,23 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
   const semanticProbe = value.semantic_probe;
   const stateAttributes = semanticProbe.state_attributes;
   const shortcutPackageIds = value.shortcut_package_ids;
+  const legacyShortcutContract =
+    Array.isArray(shortcutPackageIds) &&
+    shortcutPackageIds.every(
+      (packageId) => packageId === null || (typeof packageId === 'string' && packageId.trim().length > 0)
+    ) &&
+    new Set(shortcutPackageIds).size === shortcutPackageIds.length;
+  const dynamicShortcutContract =
+    value.shortcut_package_membership_source_ref ===
+      'app_state.agent_packages.directory.entries[package_role=standard_agent]' &&
+    value.shortcut_preference_source_ref === 'app_state.agent_packages.status_index.home_shortcut_preferences[]' &&
+    value.shortcut_availability_source_ref ===
+      'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence' &&
+    value.unknown_standard_agent_allowed === true;
   if (
     value.contract_id !== 'opl_home_composer_state.v1' ||
     value.executor !== 'codex' ||
-    JSON.stringify(shortcutPackageIds) !== JSON.stringify([null, 'mas', 'mag', 'rca', 'obf', 'oma']) ||
+    legacyShortcutContract === dynamicShortcutContract ||
     JSON.stringify(value.viewports) !== JSON.stringify(['desktop', 'mobile']) ||
     JSON.stringify(value.availability_states) !== JSON.stringify(['available', 'unavailable']) ||
     value.invariants.model_reasoning_visible !== true ||
@@ -1511,10 +1556,9 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
   ) {
     throw new Error('Invalid OPL product profile: Home composer state contract drifted from fixed Codex controls');
   }
-  return {
+  const contractBase: OplHomeComposerStateContractBase = {
     contract_id: 'opl_home_composer_state.v1',
     executor: 'codex',
-    shortcut_package_ids: [...(shortcutPackageIds as Array<string | null>)],
     viewports: ['desktop', 'mobile'],
     availability_states: ['available', 'unavailable'],
     invariants: {
@@ -1532,6 +1576,20 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
       forbidden_controls: [...(semanticProbe.forbidden_controls as string[])],
       failure_field: 'missing_controls',
     },
+  };
+  if (dynamicShortcutContract) {
+    return {
+      ...contractBase,
+      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
+      shortcut_availability_source_ref:
+        'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
+      unknown_standard_agent_allowed: true,
+    };
+  }
+  return {
+    ...contractBase,
+    shortcut_package_ids: [...(shortcutPackageIds as Array<string | null>)],
   };
 }
 
@@ -1783,11 +1841,15 @@ function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): 
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: gui.agent_package_invocation_receipt_policy must be an object');
   }
-  const requiredForShortcuts = readStringArray(
-    value,
-    'required_for_package_shortcuts',
-    'gui.agent_package_invocation_receipt_policy'
-  );
+  const shortcutIds = value.required_for_package_shortcuts;
+  const legacyShortcutPolicy =
+    Array.isArray(shortcutIds) &&
+    shortcutIds.length > 0 &&
+    shortcutIds.every((shortcutId) => typeof shortcutId === 'string' && shortcutId.trim().length > 0) &&
+    new Set(shortcutIds).size === shortcutIds.length;
+  const dynamicShortcutPolicy =
+    value.required_for_package_shortcuts_source_ref ===
+    'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]';
   const requiredFields = readStringArray(value, 'required_fields', 'gui.agent_package_invocation_receipt_policy');
   const mustNotGovern = readStringArray(value, 'must_not_govern', 'gui.agent_package_invocation_receipt_policy');
   if (
@@ -1795,6 +1857,7 @@ function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): 
     value.route_kind !== 'agent_package_shortcut' ||
     value.executor !== 'codex_cli' ||
     value.source !== 'opl_app_home' ||
+    legacyShortcutPolicy === dynamicShortcutPolicy ||
     value.receipt_authority !== 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness' ||
     value.must_not_depend_on_visible_backend_selection !== true
   ) {
@@ -1820,9 +1883,8 @@ function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): 
       );
     }
   }
-  return {
+  const policyBase: OplAgentPackageInvocationReceiptPolicyBase = {
     scope: 'package_shortcut_launch_to_codex_conversation',
-    required_for_package_shortcuts: requiredForShortcuts,
     route_kind: 'agent_package_shortcut',
     executor: 'codex_cli',
     source: 'opl_app_home',
@@ -1830,6 +1892,17 @@ function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): 
     receipt_authority: 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness',
     must_not_govern: mustNotGovern,
     must_not_depend_on_visible_backend_selection: true,
+  };
+  if (dynamicShortcutPolicy) {
+    return {
+      ...policyBase,
+      required_for_package_shortcuts_source_ref:
+        'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]',
+    };
+  }
+  return {
+    ...policyBase,
+    required_for_package_shortcuts: [...(shortcutIds as string[])],
   };
 }
 
@@ -1878,6 +1951,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: gui.ordinary_capability_selector_policy must be an object');
   }
+  const skillSourceRef = value.skill_source_ref;
   const agentReferenceAdmissionPolicy = value.agent_reference_admission_policy;
   const agentReferenceAdmissionPolicyKeys = isRecord(agentReferenceAdmissionPolicy)
     ? Object.keys(agentReferenceAdmissionPolicy).toSorted()
@@ -1933,7 +2007,8 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
     value.authority !== 'app_owned_skill_allowlist_and_mcp_negative_filter' ||
-    value.skill_source_ref !== 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids' ||
+    (skillSourceRef !== 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids' &&
+      skillSourceRef !== 'owner_or_carrier_projected_capability_metadata_for_the_selected_package') ||
     value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
     value.conversation_loaded_skill_display_policy !== 'filter_to_ordinary_skill_allowlist' ||
     value.mcp_server_source_ref !== 'configured_user_and_third_party_mcp_servers' ||
@@ -1985,7 +2060,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
       deliverable_failure_policy: 'repair_current_deliverable_never_authorize_agent_engineering',
       existing_conversation_rebinding_allowed: false,
     },
-    skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids',
+    skill_source_ref: skillSourceRef,
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
     conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
     mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
@@ -2044,10 +2119,13 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
 function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppSessionContextPolicy {
   const value = codex.opl_app_session_context;
   const customization = isRecord(value) && isRecord(value.customization) ? value.customization : null;
+  const source = isRecord(value) ? value.source : null;
   if (
     !isRecord(value) ||
     value.owner !== 'one-person-lab-app' ||
-    value.source !== 'gui.professional_agent_packages.session_routing_summary_i18n' ||
+    (source !== 'gui.professional_agent_packages.session_routing_summary_i18n' &&
+      source !==
+        'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback') ||
     value.delivery !== 'new_codex_conversation_preset_context' ||
     value.generation_policy !== 'profile_agent_routes' ||
     value.update_policy !== 'regenerated_when_app_product_profile_syncs' ||
@@ -2062,7 +2140,7 @@ function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppS
   }
   return {
     owner: 'one-person-lab-app',
-    source: 'gui.professional_agent_packages.session_routing_summary_i18n',
+    source,
     delivery: 'new_codex_conversation_preset_context',
     generation_policy: 'profile_agent_routes',
     update_policy: 'regenerated_when_app_product_profile_syncs',
@@ -2503,11 +2581,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       throw new Error(`Invalid OPL product profile: home shortcut ${shortcut.shortcut_id} is not aligned to package`);
     }
   }
-  for (const requiredShortcut of homeAgentShortcuts.filter((shortcut) => shortcut.default_visible)) {
-    if (!agentPackageInvocationReceiptPolicy.required_for_package_shortcuts.includes(requiredShortcut.shortcut_id)) {
-      throw new Error(
-        `Invalid OPL product profile: package invocation receipt policy missing shortcut ${requiredShortcut.shortcut_id}`
-      );
+  if (Array.isArray(agentPackageInvocationReceiptPolicy.required_for_package_shortcuts)) {
+    for (const requiredShortcut of homeAgentShortcuts.filter((shortcut) => shortcut.default_visible)) {
+      if (!agentPackageInvocationReceiptPolicy.required_for_package_shortcuts.includes(requiredShortcut.shortcut_id)) {
+        throw new Error(
+          `Invalid OPL product profile: package invocation receipt policy missing shortcut ${requiredShortcut.shortcut_id}`
+        );
+      }
     }
   }
   const availableSkillSet = new Set([
@@ -3412,11 +3492,11 @@ export function shouldShowOplHomePermissionModeSelector(): boolean {
 
 export function getOplHomeComposerStateContract(): OplHomeComposerStateContract {
   const contract = OPL_PRODUCT_PROFILE.gui.home.home_composer_state_contract;
-  return {
-    ...contract,
-    shortcut_package_ids: [...contract.shortcut_package_ids],
-    viewports: [...contract.viewports],
-    availability_states: [...contract.availability_states],
+  const clonedBase: OplHomeComposerStateContractBase = {
+    contract_id: contract.contract_id,
+    executor: contract.executor,
+    viewports: [...contract.viewports] as ['desktop', 'mobile'],
+    availability_states: [...contract.availability_states] as ['available', 'unavailable'],
     invariants: { ...contract.invariants },
     semantic_probe: {
       ...contract.semantic_probe,
@@ -3425,6 +3505,17 @@ export function getOplHomeComposerStateContract(): OplHomeComposerStateContract 
       mobile_required_controls: [...contract.semantic_probe.mobile_required_controls],
       forbidden_controls: [...contract.semantic_probe.forbidden_controls],
     },
+  };
+  if (Array.isArray(contract.shortcut_package_ids)) {
+    return { ...clonedBase, shortcut_package_ids: [...contract.shortcut_package_ids] };
+  }
+  const dynamicContract = contract as Extract<OplHomeComposerStateContract, { unknown_standard_agent_allowed: true }>;
+  return {
+    ...clonedBase,
+    shortcut_package_membership_source_ref: dynamicContract.shortcut_package_membership_source_ref,
+    shortcut_preference_source_ref: dynamicContract.shortcut_preference_source_ref,
+    shortcut_availability_source_ref: dynamicContract.shortcut_availability_source_ref,
+    unknown_standard_agent_allowed: true,
   };
 }
 
@@ -3538,11 +3629,26 @@ export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSk
 
 export function getOplAgentPackageInvocationReceiptPolicy(): OplAgentPackageInvocationReceiptPolicy {
   const policy = OPL_PRODUCT_PROFILE.gui.agent_package_invocation_receipt_policy;
-  return {
-    ...policy,
-    required_for_package_shortcuts: [...policy.required_for_package_shortcuts],
+  const clonedBase: OplAgentPackageInvocationReceiptPolicyBase = {
+    scope: policy.scope,
+    route_kind: policy.route_kind,
+    executor: policy.executor,
+    source: policy.source,
+    receipt_authority: policy.receipt_authority,
+    must_not_depend_on_visible_backend_selection: policy.must_not_depend_on_visible_backend_selection,
     required_fields: [...policy.required_fields],
     must_not_govern: [...policy.must_not_govern],
+  };
+  if (Array.isArray(policy.required_for_package_shortcuts)) {
+    return {
+      ...clonedBase,
+      required_for_package_shortcuts: [...policy.required_for_package_shortcuts],
+    };
+  }
+  return {
+    ...clonedBase,
+    required_for_package_shortcuts_source_ref:
+      'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]',
   };
 }
 
