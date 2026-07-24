@@ -129,8 +129,7 @@ const cleanupCandidateName = (candidatePath: string): string => {
   return segments.at(-1) ?? candidatePath;
 };
 
-const comparableStoragePath = (storagePath: string): string =>
-  storagePath.replaceAll('\\', '/').replace(/\/+$/, '');
+const comparableStoragePath = (storagePath: string): string => storagePath.replaceAll('\\', '/').replace(/\/+$/, '');
 
 const classifyStorageUnavailableReason = (rawError: string | null): StorageUnavailableReason => {
   if (rawError) {
