@@ -74,11 +74,11 @@ const appStateWithDirectory = (
 });
 
 const shortcutPackageById: Record<string, string> = {
-  research: 'med-autoscience',
-  grant: 'med-autogrant',
-  ppt: 'redcube-ai',
-  book: 'opl-bookforge',
-  oma: 'opl-meta-agent',
+  research: 'mas',
+  grant: 'mag',
+  ppt: 'rca',
+  book: 'obf',
+  oma: 'oma',
 };
 
 const homeShortcutPreference = (
@@ -339,7 +339,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
             status: 'available',
             entries: [
               {
-                package_id: 'med-autoscience',
+                package_id: 'mas',
+                domain_id: 'medautoscience',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'dirty',
@@ -351,15 +352,12 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   summary: 'First-party release catalog',
                 },
                 available_actions: [
-                  preferenceAction('med-autoscience'),
-                  packageAction('agent_package_update', { package_id: 'med-autoscience' }, [
-                    'package_id',
-                    'manifest_url',
-                  ]),
+                  preferenceAction('mas'),
+                  packageAction('agent_package_update', { package_id: 'mas' }, ['package_id', 'manifest_url']),
                 ],
               },
               {
-                package_id: 'med-autogrant',
+                package_id: 'mag',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'update_available',
@@ -371,18 +369,18 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   summary: 'Public registry',
                 },
                 available_actions: [
-                  preferenceAction('med-autogrant'),
+                  preferenceAction('mag'),
                   packageAction(
                     'agent_package_update',
-                    { package_id: 'med-autogrant', manifest_url: 'https://example.test/mag.json' },
+                    { package_id: 'mag', manifest_url: 'https://example.test/mag.json' },
                     ['package_id', 'manifest_url']
                   ),
-                  packageAction('agent_package_repair', { package_id: 'med-autogrant' }, ['package_id']),
-                  packageAction('agent_package_uninstall', { package_id: 'med-autogrant' }, ['package_id'], true),
+                  packageAction('agent_package_repair', { package_id: 'mag' }, ['package_id']),
+                  packageAction('agent_package_uninstall', { package_id: 'mag' }, ['package_id'], true),
                 ],
               },
               {
-                package_id: 'redcube-ai',
+                package_id: 'rca',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'failed_with_repair',
@@ -392,10 +390,10 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   source: 'third_party',
                   summary: 'Public registry',
                 },
-                available_actions: [preferenceAction('redcube-ai')],
+                available_actions: [preferenceAction('rca')],
               },
               {
-                package_id: 'opl-bookforge',
+                package_id: 'obf',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'ready',
@@ -406,14 +404,14 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   source: 'first_party',
                   summary: 'First-party release catalog',
                 },
-                available_actions: [preferenceAction('opl-bookforge')],
+                available_actions: [preferenceAction('obf')],
               },
               {
-                package_id: 'opl-meta-agent',
+                package_id: 'oma',
                 package_role: 'standard_agent',
                 installed: true,
                 status: 'ready',
-                available_actions: [preferenceAction('opl-meta-agent')],
+                available_actions: [preferenceAction('oma')],
               },
               {
                 package_id: 'example-agent',
@@ -437,7 +435,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
             home_shortcut_preferences: defaultHomeShortcutPreferences(),
             packages: [
               {
-                package_id: 'med-autoscience',
+                package_id: 'mas',
                 capability_exposure: {
                   status: 'visible',
                   last_sync_at: '2026-06-30T01:00:00Z',
@@ -463,7 +461,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 },
               },
               {
-                package_id: 'med-autogrant',
+                package_id: 'mag',
                 capability_exposure: { status: 'disabled' },
                 package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
                 repair_action: {
@@ -479,7 +477,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 },
               },
               {
-                package_id: 'opl-bookforge',
+                package_id: 'obf',
                 capability_exposure: { status: 'visible' },
               },
               {
@@ -523,7 +521,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
         runtime_source_carriers: {
           items: [
             {
-              package_id: 'med-autoscience',
+              package_id: 'mas',
               carrier_id: 'medautoscience',
               source_policy: {
                 effective_install_update_source: 'git_checkout',
@@ -541,7 +539,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
               },
             },
             {
-              package_id: 'opl-bookforge',
+              package_id: 'obf',
               carrier_id: 'oplbookforge',
               source_origin: 'sibling_workspace',
               source_policy: {
@@ -551,7 +549,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
               git: { sync_status: 'behind', dirty: false },
             },
             {
-              package_id: 'opl-meta-agent',
+              package_id: 'oma',
               carrier_id: 'oplmetaagent',
               source_origin: 'sibling_workspace',
               source_policy: {
@@ -566,6 +564,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
           workbench: {
             task_drilldowns: {
               medautoscience: {
+                package_id: 'mas',
                 status: 'blocked',
                 next_owner: 'opl_framework',
                 next_visible_step: 'repair connector',
@@ -620,6 +619,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 },
               },
               medautogrant: {
+                package_id: 'mag',
                 status: 'ready',
                 next_owner: 'grant_owner',
                 next_visible_step: 'review reusable grant workflow first',
@@ -652,35 +652,35 @@ vi.mock('@/common/config/oplProductProfile', () => {
   const homeAgentShortcuts = [
     {
       shortcut_id: 'research',
-      package_id: 'med-autoscience',
+      package_id: 'mas',
       primary_label: 'Research',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'grant',
-      package_id: 'med-autogrant',
+      package_id: 'mag',
       primary_label: 'Grant Writing',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'ppt',
-      package_id: 'redcube-ai',
+      package_id: 'rca',
       primary_label: 'Presentations',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'book',
-      package_id: 'opl-bookforge',
+      package_id: 'obf',
       primary_label: 'Writing books',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'oma',
-      package_id: 'opl-meta-agent',
+      package_id: 'oma',
       primary_label: 'Meta agent',
       user_configurable: true,
       default_visible: true,
@@ -1328,7 +1328,7 @@ describe('Agents and capabilities settings', () => {
       screen.getByTestId('capability-purpose-mag')
     );
     expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
-      screen.getByTestId('capability-purpose-example')
+      screen.getByTestId('capability-purpose-example-agent')
     );
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
@@ -1339,7 +1339,7 @@ describe('Agents and capabilities settings', () => {
         expect.objectContaining({
           actionId: 'agent_package_preferences_set',
           payloadRefsOnlyJson: expect.objectContaining({
-            package_id: 'opl-meta-agent',
+            package_id: 'oma',
             shortcut_id: 'oma',
             visible: false,
           }),
@@ -1543,7 +1543,7 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
-          package_id: 'opl-meta-agent',
+          package_id: 'oma',
           display_name: 'OPL Meta Agent',
           package_role: 'standard_agent',
           installed: true,
@@ -1565,25 +1565,25 @@ describe('Agents and capabilities settings', () => {
           status: 'ready',
         },
         {
-          package_id: 'med-autogrant',
+          package_id: 'mag',
           package_role: 'standard_agent',
           installed: true,
           status: 'ready',
         },
         {
-          package_id: 'med-autoscience',
+          package_id: 'mas',
           package_role: 'standard_agent',
           installed: true,
           status: 'ready',
         },
         {
-          package_id: 'opl-bookforge',
+          package_id: 'obf',
           package_role: 'standard_agent',
           installed: true,
           status: 'ready',
         },
         {
-          package_id: 'redcube-ai',
+          package_id: 'rca',
           package_role: 'standard_agent',
           installed: true,
           status: 'ready',
@@ -1594,7 +1594,7 @@ describe('Agents and capabilities settings', () => {
           {
             package_id: 'mas-scholar-skills',
             dependent_guard: {
-              required_by_package_ids: ['med-autoscience'],
+              required_by_package_ids: ['mas'],
               disable: { allowed: false, reason_code: 'required_by_installed_package' },
               uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
             },
@@ -1637,7 +1637,7 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
-          package_id: 'med-autoscience',
+          package_id: 'mas',
           display_name: 'Med Auto Science',
           package_role: 'standard_agent',
           installed: true,
@@ -1656,7 +1656,7 @@ describe('Agents and capabilities settings', () => {
           {
             package_id: 'mas-scholar-skills',
             dependent_guard: {
-              required_by_package_ids: ['med-autoscience'],
+              required_by_package_ids: ['mas'],
               disable: { allowed: false, reason_code: 'required_by_installed_package' },
               uninstall: { allowed: false, reason_code: 'required_by_installed_package' },
             },
@@ -1686,7 +1686,7 @@ describe('Agents and capabilities settings', () => {
   it('filters canonical package roles, statuses, and source explanation kinds', async () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
-        package_id: 'med-autoscience',
+        package_id: 'mas',
         package_role: 'standard_agent',
         installed: true,
         installed_version: '1.0.0',
@@ -1699,7 +1699,7 @@ describe('Agents and capabilities settings', () => {
         },
       },
       {
-        package_id: 'med-autogrant',
+        package_id: 'mag',
         package_role: 'standard_agent',
         installed: true,
         installed_version: '1.0.0',
@@ -1711,7 +1711,7 @@ describe('Agents and capabilities settings', () => {
         },
       },
       {
-        package_id: 'opl-meta-agent',
+        package_id: 'oma',
         package_role: 'framework_capability_package',
         installed: true,
         installed_version: '1.0.0',
@@ -1778,7 +1778,7 @@ describe('Agents and capabilities settings', () => {
     ]);
     const refreshingView = renderCapabilities(<AgentPackagesSettingsContent />);
     expect(screen.getByTestId('settings-agents-loading')).toHaveAttribute('data-state', 'refreshing');
-    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toBeInTheDocument();
     refreshingView.unmount();
 
     appStateOverrides.refreshing = false;
@@ -1801,7 +1801,7 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
     expect(screen.getByTestId('settings-agents-stale')).toHaveTextContent('app state unavailable');
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toBeInTheDocument();
   });
 
   it('keeps an attention-required directory with rows out of stale and failed catalog states', () => {
@@ -1811,7 +1811,7 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-stale')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
   });
@@ -1832,7 +1832,7 @@ describe('Agents and capabilities settings', () => {
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Available')).toBeInTheDocument();
+    expect(within(screen.getByTestId('capability-purpose-example-agent')).getByText('Available')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-exception')).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-grid')).toHaveTextContent('Available');
   });
@@ -1841,7 +1841,7 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
-          package_id: 'med-autoscience',
+          package_id: 'mas',
           package_role: 'standard_agent',
           installed: true,
           readiness: {
@@ -1855,7 +1855,7 @@ describe('Agents and capabilities settings', () => {
       {
         statusEntries: [
           {
-            package_id: 'med-autoscience',
+            package_id: 'mas',
             status: 'available',
             operational_ready: false,
             launch_allowed: false,
@@ -1881,7 +1881,7 @@ describe('Agents and capabilities settings', () => {
   it('presents deferred local verification as ordinarily available', () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
-        package_id: 'med-autoscience',
+        package_id: 'mas',
         package_role: 'standard_agent',
         installed: true,
         readiness: {
@@ -1925,10 +1925,12 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('capability-purpose-example')).getByText('Repair required')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
-    expect(screen.getByTestId('capability-details-example')).toHaveTextContent('package status unavailable');
+    expect(
+      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Repair required')
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
+    expect(screen.getByTestId('capability-details-example-agent')).toHaveTextContent('package status unavailable');
   });
 
   it('executes install from its exact action but defers activation outside Settings', async () => {
@@ -1956,7 +1958,7 @@ describe('Agents and capabilities settings', () => {
       },
     ]);
     const installView = renderCapabilities(<AgentPackagesSettingsContent />);
-    fireEvent.click(screen.getByTestId('agent-package-install-example'));
+    fireEvent.click(screen.getByTestId('agent-package-install-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'install_from_manifest_url',
@@ -2008,15 +2010,17 @@ describe('Agents and capabilities settings', () => {
       }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
-    expect(screen.getByTestId('capability-advanced-example')).toHaveTextContent(
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
+    expect(screen.getByTestId('capability-advanced-example-agent')).toHaveTextContent(
       'opl app action execute --action agent_package_activate --payload <json> --json'
     );
-    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-activate-example-agent')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-workspace-required')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
-    expect(screen.getByTestId('capability-conversation-example')).toHaveTextContent('Available for conversations');
+    expect(screen.getByTestId('capability-purpose-example-agent')).toHaveTextContent('Available');
+    expect(screen.getByTestId('capability-conversation-example-agent')).toHaveTextContent(
+      'Available for conversations'
+    );
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -2044,20 +2048,20 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
+    expect(screen.queryByTestId('agent-package-activate-example-agent')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toHaveTextContent('Available');
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
   it('renders canonical recommended update, repair, and registry refresh actions on package rows', async () => {
-    const updateAction = actionFixture('agent_package_update', { package_id: 'med-autogrant' }, ['package_id']);
-    const repairAction = actionFixture('agent_package_repair', { package_id: 'redcube-ai' }, ['package_id']);
+    const updateAction = actionFixture('agent_package_update', { package_id: 'mag' }, ['package_id']);
+    const repairAction = actionFixture('agent_package_repair', { package_id: 'rca' }, ['package_id']);
     const refreshAction = actionFixture('refresh_registry', { registry_url: 'https://example.test/registry.json' }, [
       'registry_url',
     ]);
     appStateOverrides.appState = appStateWithDirectory([
       {
-        package_id: 'med-autogrant',
+        package_id: 'mag',
         installed: true,
         status: 'update_available',
         recommended_action: 'agent_package_update',
@@ -2065,7 +2069,7 @@ describe('Agents and capabilities settings', () => {
         available_actions: [updateAction],
       },
       {
-        package_id: 'redcube-ai',
+        package_id: 'rca',
         installed: true,
         status: 'failed_with_repair',
         recommended_action: 'agent_package_repair',
@@ -2088,7 +2092,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_update',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
+        payloadRefsOnlyJson: { package_id: 'mag' },
       })
     );
     fireEvent.click(screen.getByTestId('agent-package-repair-rca'));
@@ -2096,10 +2100,10 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_repair',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'redcube-ai' },
+        payloadRefsOnlyJson: { package_id: 'rca' },
       })
     );
-    fireEvent.click(screen.getByTestId('agent-package-refresh-example'));
+    fireEvent.click(screen.getByTestId('agent-package-refresh-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'refresh_registry',
@@ -2151,9 +2155,9 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-activate-example-agent')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-workspace-required')).not.toBeInTheDocument();
-    expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');
+    expect(screen.getByTestId('capability-purpose-example-agent')).toHaveTextContent('Available');
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -2177,7 +2181,7 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-activate-example-agent')).not.toBeInTheDocument();
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -2215,7 +2219,7 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-activate-example-agent')).not.toBeInTheDocument();
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -2236,8 +2240,8 @@ describe('Agents and capabilities settings', () => {
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
-    expect(screen.queryByTestId('agent-package-install-example')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-example-agent')).not.toBeInTheDocument();
   });
 
   it('rejects the retired agent_package_install action id', () => {
@@ -2253,8 +2257,8 @@ describe('Agents and capabilities settings', () => {
     ]);
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    expect(screen.getByTestId('capability-purpose-example')).toBeInTheDocument();
-    expect(screen.queryByTestId('agent-package-install-example')).not.toBeInTheDocument();
+    expect(screen.getByTestId('capability-purpose-example-agent')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-example-agent')).not.toBeInTheDocument();
   });
 
   it('keeps skills and third-party tools on the capabilities page', async () => {
@@ -2535,8 +2539,8 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    const readiness = screen.getByTestId('capability-readiness-example');
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    const readiness = screen.getByTestId('capability-readiness-example-agent');
     expect(readiness).toHaveTextContent('Framework reported an issue that this App version does not yet recognize.');
     expect(readiness).not.toHaveTextContent('future_framework_reason');
   });
@@ -2546,7 +2550,7 @@ describe('Agents and capabilities settings', () => {
 
     const catalog = screen.getByTestId('agent-package-catalog');
     expect(within(catalog).getByText('OPL Book Forge')).toBeInTheDocument();
-    for (const packageId of ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent']) {
+    for (const packageId of ['mas', 'mag', 'rca', 'obf', 'oma']) {
       expect(within(catalog).queryByText(packageId)).not.toBeInTheDocument();
     }
     for (const token of ['MAS', 'MAG', 'RCA', 'OBF', 'OMA']) {
@@ -2562,7 +2566,7 @@ describe('Agents and capabilities settings', () => {
     expect(panel.tagName).toBe('ASIDE');
     expect(panel).not.toHaveAttribute('role', 'dialog');
     expect(panel).toHaveAccessibleName('Capability details OPL Book Forge');
-    expect(panel).not.toHaveTextContent('opl-bookforge');
+    expect(panel).not.toHaveTextContent('obf');
     expect(panel).not.toHaveTextContent('OBF');
     expect(row).toHaveAttribute('data-selected', 'true');
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
@@ -2601,7 +2605,7 @@ describe('Agents and capabilities settings', () => {
         actionId: 'agent_package_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
-          package_id: 'med-autoscience',
+          package_id: 'mas',
           shortcut_id: 'research',
           visible: false,
           sort_order: 0,
@@ -2621,7 +2625,7 @@ describe('Agents and capabilities settings', () => {
         actionId: 'agent_package_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
-          package_id: 'med-autoscience',
+          package_id: 'mas',
           shortcut_id: 'research',
           visible: true,
           sort_order: 1,
@@ -2922,7 +2926,7 @@ describe('Agents and capabilities settings', () => {
         actionId: 'agent_package_update',
         dryRun: false,
         payloadRefsOnlyJson: {
-          package_id: 'med-autogrant',
+          package_id: 'mag',
           manifest_url: 'https://example.test/mag.json',
         },
       })
@@ -2933,7 +2937,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_repair',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
+        payloadRefsOnlyJson: { package_id: 'mag' },
       })
     );
 
@@ -2942,7 +2946,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autogrant', exposure_action: 'enable' },
+        payloadRefsOnlyJson: { package_id: 'mag', exposure_action: 'enable' },
       })
     );
 
@@ -2952,7 +2956,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_uninstall',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
+        payloadRefsOnlyJson: { package_id: 'mag' },
       })
     );
   });
@@ -2984,12 +2988,12 @@ describe('Agents and capabilities settings', () => {
       );
       renderCapabilities(<AgentPackagesSettingsContent />);
 
-      fireEvent.click(screen.getByTestId('capability-open-details-example'));
-      expect(screen.getByTestId('agent-package-enabled-toggle-example')).toHaveTextContent(enabledLabel);
+      fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+      expect(screen.getByTestId('agent-package-enabled-toggle-example-agent')).toHaveTextContent(enabledLabel);
       if (hiddenLabel) {
-        expect(screen.getByTestId('agent-package-hidden-toggle-example')).toHaveTextContent(hiddenLabel);
+        expect(screen.getByTestId('agent-package-hidden-toggle-example-agent')).toHaveTextContent(hiddenLabel);
       } else {
-        expect(screen.queryByTestId('agent-package-hidden-toggle-example')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('agent-package-hidden-toggle-example-agent')).not.toBeInTheDocument();
       }
     }
   );
@@ -3012,8 +3016,8 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-example'));
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -3026,18 +3030,18 @@ describe('Agents and capabilities settings', () => {
   it('renders generic dependency repair and dependent guards without exposing closure diagnostics by default', async () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    const readiness = screen.getByTestId('capability-readiness-example');
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    const readiness = screen.getByTestId('capability-readiness-example-agent');
     expect(within(readiness).getByText('Repair required')).toBeInTheDocument();
     expect(within(readiness).getAllByText('A required capability export is missing')).toHaveLength(2);
     expect(within(readiness).getByText('consumer-agent')).toBeInTheDocument();
     expect(within(readiness).getAllByText('Required by another installed package')).toHaveLength(2);
     expect(within(readiness).getByText('status, doctor, repair')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-package-enabled-toggle-example')).toBeDisabled();
-    expect(screen.getByTestId('agent-package-uninstall-example')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-enabled-toggle-example-agent')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-uninstall-example-agent')).toBeDisabled();
     expect(screen.queryByText('sha256:example-current')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('agent-package-repair-example'));
+    fireEvent.click(screen.getByTestId('agent-package-repair-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_repair',
@@ -3046,7 +3050,7 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
     expect(screen.getByText('sha256:example-current')).toBeInTheDocument();
     expect(screen.getByText('sha256:example-previous')).toBeInTheDocument();
   });
@@ -3070,8 +3074,8 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    expect(screen.queryByTestId('agent-package-repair-example')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    expect(screen.queryByTestId('agent-package-repair-example-agent')).not.toBeInTheDocument();
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -3098,10 +3102,10 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    fireEvent.click(screen.getByTestId('capability-open-details-example'));
-    expect(screen.getByTestId('agent-package-enabled-toggle-example')).toBeDisabled();
-    expect(screen.getByTestId('agent-package-uninstall-example')).toBeDisabled();
-    expect(screen.getByTestId('agent-package-hidden-toggle-example')).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    expect(screen.getByTestId('agent-package-enabled-toggle-example-agent')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-uninstall-example-agent')).toBeDisabled();
+    expect(screen.getByTestId('agent-package-hidden-toggle-example-agent')).not.toBeDisabled();
   });
 
   it('serializes package state writes until the active action finishes', async () => {
@@ -3132,7 +3136,7 @@ describe('Agents and capabilities settings', () => {
       actionId: 'agent_package_update',
       dryRun: false,
       payloadRefsOnlyJson: {
-        package_id: 'med-autogrant',
+        package_id: 'mag',
         manifest_url: 'https://example.test/mag.json',
       },
     });
@@ -3213,35 +3217,35 @@ describe('Agents and capabilities settings', () => {
               status_index: {
                 home_shortcut_preferences: [
                   {
-                    package_id: 'opl-bookforge',
+                    package_id: 'obf',
                     shortcut_id: 'book',
                     visible: true,
                     sort_order: 0,
                     source: 'user_preference',
                   },
                   {
-                    package_id: 'med-autoscience',
+                    package_id: 'mas',
                     shortcut_id: 'research',
                     visible: true,
                     sort_order: 1,
                     source: 'user_preference',
                   },
                   {
-                    package_id: 'med-autogrant',
+                    package_id: 'mag',
                     shortcut_id: 'grant',
                     visible: false,
                     sort_order: 2,
                     source: 'user_preference',
                   },
                   {
-                    package_id: 'redcube-ai',
+                    package_id: 'rca',
                     shortcut_id: 'ppt',
                     visible: true,
                     sort_order: 3,
                     source: 'user_preference',
                   },
                   {
-                    package_id: 'opl-meta-agent',
+                    package_id: 'oma',
                     shortcut_id: 'oma',
                     visible: true,
                     sort_order: 4,

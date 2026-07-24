@@ -3,41 +3,27 @@ import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabiliti
 import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
-  canonicalizeOplProfessionalAgentId: (value: string) => {
-    const normalized = value
-      .replace(/^builtin-/, '')
-      .trim()
-      .toLowerCase();
-    const aliasMap: Record<string, string> = {
-      mas: 'med-autoscience',
-      medautoscience: 'med-autoscience',
-      mag: 'med-autogrant',
-      medautogrant: 'med-autogrant',
-      rca: 'redcube-ai',
-      redcube: 'redcube-ai',
-      redcubeai: 'redcube-ai',
-      oma: 'opl-meta-agent',
-      oplmetaagent: 'opl-meta-agent',
-      bookforge: 'opl-bookforge',
-      obf: 'opl-bookforge',
-      oplbookforge: 'opl-bookforge',
-    };
-    return aliasMap[normalized.replace(/[^a-z0-9]/g, '')] ?? normalized;
-  },
   getOplHomeAgentShortcuts: () => [
     {
       shortcut_id: 'research',
-      package_id: 'med-autoscience',
+      package_id: 'mas',
       primary_label: 'Research',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'automations',
-      package_id: 'opl-meta-agent',
+      package_id: 'oma',
       primary_label: 'Meta agent',
       user_configurable: true,
       default_visible: true,
+    },
+    {
+      shortcut_id: 'vendor-tool',
+      package_id: 'vendor.tool',
+      primary_label: 'Vendor Tool',
+      user_configurable: true,
+      default_visible: false,
     },
   ],
   getOplFirstPartyPackagePresentations: () => [
@@ -99,26 +85,9 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       },
     },
   ],
-  getOplProfessionalAgentPackages: () => [
-    {
-      package_id: 'med-autoscience',
-      display_name: 'Med Auto Science',
-      short_name: 'MAS',
-      codex_visible_entry: 'mas',
-      default_home_visible: true,
-      required_skill_ids: ['mas'],
-      optional_skill_ids: [],
-    },
-    {
-      package_id: 'opl-meta-agent',
-      display_name: 'OPL Meta Agent',
-      short_name: 'OMA',
-      codex_visible_entry: 'opl-meta-agent',
-      default_home_visible: true,
-      required_skill_ids: ['opl-meta-agent'],
-      optional_skill_ids: [],
-    },
-  ],
+  getOplProfessionalAgentPackages: () => {
+    throw new Error('Capabilities must not read Professional Profile membership');
+  },
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -180,7 +149,7 @@ describe('buildCapabilitiesViewModel', () => {
       capabilities.map((capability) => [capability.packageId, [capability.title, capability.description]])
     );
 
-    expect(localizedByPackageId.get('med-autoscience')).toEqual([
+    expect(localizedByPackageId.get('mas')).toEqual([
       '医学科研智能体',
       '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
     ]);
@@ -194,7 +163,7 @@ describe('buildCapabilitiesViewModel', () => {
 
   it('treats dirty developer checkouts as source instead of repair', () => {
     const [research] = buildCapabilitiesViewModel(
-      appStateWithPackageDirectory([{ package_id: 'med-autoscience', installed: true }], [], {
+      appStateWithPackageDirectory([{ package_id: 'mas', domain_id: 'med-autoscience', installed: true }], [], {
         runtime_source_carriers: {
           items: [
             {
@@ -299,7 +268,80 @@ describe('buildCapabilitiesViewModel', () => {
     );
 
     expect(capabilities.map((item) => item.packageId)).toEqual(['vendor.tool', 'vendortool']);
+    expect(capabilities[0]).toMatchObject({ key: 'vendor.tool', userConfigurable: true, defaultHomeVisible: false });
+    expect(capabilities[1]).toMatchObject({ key: 'vendortool', userConfigurable: false, defaultHomeVisible: null });
     expect(new Set(capabilities.map((item) => item.key)).size).toBe(2);
+  });
+
+  it('keeps an unknown package visible without Profile membership or alias joins', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'synthetic-lab.agent',
+            display_name: 'Synthetic Lab Agent',
+            description: 'Directory-owned description',
+            package_role: 'standard_agent',
+            tags: ['synthetic'],
+            installed: true,
+          },
+        ],
+        [
+          { package_id: 'syntheticlabagent', status: 'repair_required', installed_version: 'wrong' },
+          { package_id: 'synthetic-lab.agent', status: 'ready', installed_version: '1.0.0' },
+        ],
+        {
+          runtime_source_carriers: {
+            items: [
+              { package_id: 'syntheticlabagent', source_origin: 'wrong_alias_source' },
+              { package_id: 'synthetic-lab.agent', source_origin: 'owner_projected_source' },
+            ],
+          },
+          operator: {
+            workbench: {
+              task_drilldowns: {
+                alias: { domain_id: 'syntheticlabagent', workflow_refs: ['opl://workflow/wrong-alias'] },
+                exact: { domain_id: 'synthetic-lab.agent', workflow_refs: ['opl://workflow/exact-package'] },
+              },
+            },
+          },
+        }
+      ),
+      'en-US'
+    );
+
+    expect(capability).toMatchObject({
+      key: 'synthetic-lab.agent',
+      packageId: 'synthetic-lab.agent',
+      packageRole: 'standard_agent',
+      title: 'Synthetic Lab Agent',
+      description: 'Directory-owned description',
+      actualSource: 'owner_projected_source',
+      installedVersion: null,
+      version: '1.0.0',
+      tags: ['synthetic', 'standard_agent'],
+    });
+    expect(capability.workflowRefs.map((ref) => ref.ref)).toEqual(['opl://workflow/exact-package']);
+  });
+
+  it('applies first-party presentation only to the exact directory package id', () => {
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'med-autoscience',
+          display_name: 'Directory Med Auto Science',
+          description: 'Directory description',
+        },
+      ]),
+      'zh-CN'
+    );
+
+    expect(capability).toMatchObject({
+      key: 'med-autoscience',
+      packageId: 'med-autoscience',
+      title: 'Directory Med Auto Science',
+      description: 'Directory description',
+    });
   });
 
   it.each(['repair_required', 'blocked'] as const)(
@@ -605,13 +647,13 @@ describe('buildCapabilitiesViewModel', () => {
     });
   });
 
-  it('deduplicates extra purpose overlays when the package already exists', () => {
+  it('deduplicates only exact extra purpose package ids when the package already exists', () => {
     const capabilities = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([{ package_id: 'opl-meta-agent', status: 'ready', installed: true }]),
       'en-US',
       [
         {
-          key: 'oma',
+          key: 'opl-meta-agent',
           title: 'OPL Meta Agent',
           description: 'Use OMA explicitly.',
           tags: ['OMA', 'Skills', 'Tools'],
@@ -621,7 +663,8 @@ describe('buildCapabilitiesViewModel', () => {
       ]
     );
 
-    expect(capabilities.filter((item) => item.key === 'oma')).toHaveLength(1);
+    expect(capabilities.filter((item) => item.key === 'opl-meta-agent')).toHaveLength(1);
+    expect(capabilities[0].moduleIds).toEqual(['opl-meta-agent']);
   });
 
   it('projects only actions that satisfy the exact five-field ABI', () => {
@@ -1096,13 +1139,14 @@ describe('buildCapabilitiesViewModel', () => {
   it('projects workflow, connector, and export action refs without skill bodies or domain action execution', () => {
     const [research] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory(
-        [{ package_id: 'med-autoscience', status: 'ready', installed: true, codex_visible: true }],
+        [{ package_id: 'mas', domain_id: 'med-autoscience', status: 'ready', installed: true, codex_visible: true }],
         [],
         {
           operator: {
             workbench: {
               task_drilldowns: {
                 medautoscience: {
+                  domain_id: 'med-autoscience',
                   status: 'blocked',
                   next_owner: 'opl_framework',
                   next_visible_step: 'repair connector',

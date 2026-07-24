@@ -4,13 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  canonicalizeOplProfessionalAgentId,
-  getOplFirstPartyPackagePresentations,
-  getOplHomeAgentShortcuts,
-  getOplProfessionalAgentPackages,
-  type OplProfessionalAgentPackage,
-} from '@/common/config/oplProductProfile';
+import { getOplFirstPartyPackagePresentations, getOplHomeAgentShortcuts } from '@/common/config/oplProductProfile';
 import {
   parseOplProjectedPackageAction,
   type OplAppStateRecord,
@@ -285,14 +279,6 @@ export type CapabilityPhysicalSurfaceViewModel = {
   materializedRequiredSkillPaths: string[];
 };
 
-const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
-  'med-autoscience': ['mas', 'medautoscience', 'med-auto-science'],
-  'med-autogrant': ['mag', 'medautogrant', 'med-auto-grant'],
-  'redcube-ai': ['rca', 'redcube', 'redcubeai', 'redcube-ai'],
-  'opl-bookforge': ['obf', 'oplbookforge', 'opl-bookforge'],
-  'opl-meta-agent': ['oma', 'oplmetaagent', 'opl-meta-agent'],
-};
-
 const DISPLAY_TOKEN_LABELS: Record<string, string> = {
   mas: 'MAS',
   mag: 'MAG',
@@ -310,17 +296,6 @@ function normalizeCapabilityModuleId(value: string): string {
   return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
-function capabilityPurposeKey(agentPackage: OplProfessionalAgentPackage): string {
-  const normalized = normalizeCapabilityModuleId(agentPackage.short_name);
-  return normalized || normalizeCapabilityModuleId(agentPackage.package_id);
-}
-
-function canonicalCapabilityPackageId(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const canonical = canonicalizeOplProfessionalAgentId(value);
-  return canonical || null;
-}
-
 export function formatCapabilityDisplayToken(value: string | null | undefined): string {
   if (!value) return '';
   const normalized = normalizeCapabilityModuleId(value);
@@ -331,12 +306,12 @@ export function formatCapabilityDisplayToken(value: string | null | undefined): 
 }
 
 function capabilityModuleId(module: RuntimeModuleItem): string {
-  return normalizeCapabilityModuleId(
+  return (
     oplString(module.module_id) ??
-      oplString(module.id) ??
-      oplString(module.name) ??
-      oplString(module.display_name) ??
-      ''
+    oplString(module.id) ??
+    oplString(module.name) ??
+    oplString(module.display_name) ??
+    ''
   );
 }
 
@@ -349,9 +324,9 @@ function capabilityModuleRecords(value: unknown): RuntimeModuleItem[] {
 }
 
 function runtimeSourceCarrierIds(carrier: RuntimeSourceCarrierItem): string[] {
-  return [firstString(carrier.carrier_id, carrier.module_id), firstString(carrier.package_id)]
-    .filter((id): id is string => Boolean(id))
-    .map(normalizeCapabilityModuleId);
+  return [firstString(carrier.carrier_id, carrier.module_id), firstString(carrier.package_id)].filter(
+    (id): id is string => Boolean(id)
+  );
 }
 
 function mergeRuntimeSourceCarrier(
@@ -382,12 +357,7 @@ function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
 }
 
 function packageStateId(packageState: RuntimePackageStateItem): string {
-  return (
-    canonicalCapabilityPackageId(firstString(packageState.package_id, packageState.id, packageState.module_id)) ??
-    normalizeCapabilityModuleId(
-      firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? ''
-    )
-  );
+  return firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? '';
 }
 
 function packageStateRecords(value: unknown): RuntimePackageStateItem[] {
@@ -417,15 +387,25 @@ function normalizeStatusToken(value: string | null): string | null {
   return value ? value.replace(/[^a-z0-9]/gi, '').toLowerCase() : null;
 }
 
-function capabilityTaskId(task: RuntimeTaskItem): string {
-  return normalizeCapabilityModuleId(
-    oplString(task.task_id) ??
-      oplString(task.domain_id) ??
-      oplString(task.module_id) ??
-      oplString(task.id) ??
-      oplString(task.name) ??
-      ''
-  );
+function capabilityTaskPackageIds(task: RuntimeTaskItem): string[] {
+  return [
+    firstString(task.package_id),
+    firstString(task.owner_package_id),
+    firstString(task.domain_package_id),
+    firstString(task.domain_id),
+    firstString(task.module_id),
+  ].filter((id): id is string => Boolean(id));
+}
+
+function directoryProjectionIds(directoryEntry: RuntimePackageStateItem, packageId: string): string[] {
+  return [
+    packageId,
+    firstString(directoryEntry.owner_package_id),
+    firstString(directoryEntry.domain_package_id),
+    firstString(directoryEntry.domain_id),
+    firstString(directoryEntry.carrier_id),
+    firstString(directoryEntry.module_id),
+  ].filter((id): id is string => Boolean(id));
 }
 
 function firstString(...values: unknown[]): string | null {
@@ -1530,30 +1510,6 @@ function buildCapabilityPurpose(
   };
 }
 
-function agentPackageModuleIds(agentPackage: OplProfessionalAgentPackage): string[] {
-  const canonicalPackageId = canonicalizeOplProfessionalAgentId(agentPackage.package_id);
-  const ids = [
-    canonicalPackageId,
-    agentPackage.short_name,
-    agentPackage.codex_visible_entry,
-    ...agentPackage.required_skill_ids,
-    ...(ASSISTANT_MODULE_ALIASES[canonicalPackageId] ?? []),
-  ];
-  return [...new Set(ids.map(normalizeCapabilityModuleId).filter(Boolean))];
-}
-
-function agentPackageTags(agentPackage: OplProfessionalAgentPackage): string[] {
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const token of [agentPackage.short_name, ...agentPackage.required_skill_ids].filter(Boolean)) {
-    const formatted = formatCapabilityDisplayToken(token);
-    if (!formatted || seen.has(formatted)) continue;
-    seen.add(formatted);
-    tags.push(formatted);
-  }
-  return tags;
-}
-
 export function buildCapabilitiesViewModel(
   appState: OplAppStateRecord,
   localeKey: string,
@@ -1576,41 +1532,25 @@ export function buildCapabilitiesViewModel(
   }
   const tasks = new Map<string, RuntimeTaskItem>();
   for (const task of capabilityTaskRecords(appState)) {
-    tasks.set(capabilityTaskId(task), task);
+    for (const id of capabilityTaskPackageIds(task)) tasks.set(id, task);
   }
 
-  const professionalPackages = getOplProfessionalAgentPackages();
   const normalizedLocaleKey: 'zh-CN' | 'en-US' = localeKey.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
   const firstPartyPresentationById = new Map(
-    getOplFirstPartyPackagePresentations().map((entry) => [canonicalCapabilityPackageId(entry.package_id), entry])
+    getOplFirstPartyPackagePresentations().map((entry) => [entry.package_id, entry])
   );
-  const metadataById = new Map<string, OplProfessionalAgentPackage>();
-  for (const agentPackage of professionalPackages) {
-    for (const alias of agentPackageModuleIds(agentPackage)) metadataById.set(alias, agentPackage);
-    for (const alias of [agentPackage.package_id, agentPackage.short_name, agentPackage.codex_visible_entry]) {
-      const canonicalAlias = canonicalCapabilityPackageId(alias);
-      if (canonicalAlias) metadataById.set(canonicalAlias, agentPackage);
-      metadataById.set(normalizeCapabilityModuleId(alias), agentPackage);
-    }
-  }
-  const metadataForId = (id: string) => metadataById.get(id) ?? metadataById.get(normalizeCapabilityModuleId(id));
 
   const shortcutsByPackageId = new Map(getOplHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut]));
   const defaultPurposes = directoryEntries.flatMap((directoryEntry) => {
     const packageId = packageStateId(directoryEntry);
     if (!packageId) return [];
-    const agentPackage = metadataForId(packageId);
-    const firstPartyPresentation = firstPartyPresentationById.get(canonicalCapabilityPackageId(packageId));
-    const moduleIds = agentPackage
-      ? agentPackageModuleIds(agentPackage)
-      : [packageId, firstString(directoryEntry.module_id), firstString(directoryEntry.codex_visible_entry)]
-          .filter((id): id is string => Boolean(id))
-          .map(normalizeCapabilityModuleId);
+    const firstPartyPresentation = firstPartyPresentationById.get(packageId);
+    const moduleIds = directoryProjectionIds(directoryEntry, packageId);
     const packageStatus = packageStatuses.get(packageId);
     const directoryState: RuntimePackageStateItem = {
       ...directoryEntry,
       package_id: firstString(directoryEntry.package_id, directoryEntry.id) ?? packageId,
-      package_role: firstString(directoryEntry.package_role, directoryEntry.role, agentPackage?.role),
+      package_role: firstString(directoryEntry.package_role, directoryEntry.role),
     };
     const runtimeSourceCarrier = moduleIds
       .concat(packageId)
@@ -1618,42 +1558,31 @@ export function buildCapabilitiesViewModel(
       .find(Boolean);
     const module = runtimeSourceCarrier ? mergeRuntimeSourceCarrier(undefined, runtimeSourceCarrier) : undefined;
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
-    const canonicalPackageId = packageId;
-    const shortcut =
-      shortcutsByPackageId.get(canonicalPackageId) ??
-      (agentPackage ? shortcutsByPackageId.get(agentPackage.package_id) : undefined);
+    const shortcut = shortcutsByPackageId.get(packageId);
     const title =
-      agentPackage?.display_name_i18n?.[normalizedLocaleKey] ??
       firstPartyPresentation?.display_name_i18n[normalizedLocaleKey] ??
       firstString(directoryEntry.display_name, directoryEntry.title, directoryEntry.name) ??
-      agentPackage?.display_name ??
-      canonicalPackageId;
+      packageId;
     const role = firstString(directoryState.package_role, directoryState.role);
-    const tags = [
-      ...(agentPackage ? agentPackageTags(agentPackage) : []),
-      ...listValues(directoryEntry.tags)
-        .map(oplString)
-        .filter((tag): tag is string => Boolean(tag)),
-    ];
+    const tags = listValues(directoryEntry.tags)
+      .map(oplString)
+      .filter((tag): tag is string => Boolean(tag));
     if (role) tags.push(role);
     return [
       buildCapabilityPurpose(
         {
-          key: agentPackage ? capabilityPurposeKey(agentPackage) : canonicalPackageId,
+          key: packageId,
           title,
           description:
-            agentPackage?.description_i18n?.[normalizedLocaleKey] ??
             firstPartyPresentation?.description_i18n[normalizedLocaleKey] ??
             firstString(directoryEntry.description, directoryEntry.summary, directoryEntry.purpose) ??
             shortcut?.primary_label ??
-            agentPackage?.short_name ??
             title,
           tags: [...new Set(tags)],
           moduleIds,
-          packageId: canonicalPackageId,
-          codexVisibleEntry:
-            firstString(directoryEntry.codex_visible_entry) ?? agentPackage?.codex_visible_entry ?? null,
-          defaultHomeVisible: agentPackage?.default_home_visible ?? null,
+          packageId,
+          codexVisibleEntry: firstString(directoryEntry.codex_visible_entry),
+          defaultHomeVisible: shortcut?.default_visible ?? null,
           userConfigurable: shortcut?.user_configurable ?? false,
         },
         directoryState,
@@ -1665,36 +1594,23 @@ export function buildCapabilitiesViewModel(
   });
   const mergedPurposes = new Map(defaultPurposes.map((purpose) => [purpose.packageId ?? purpose.key, purpose]));
   const explicitPurposes = extraPurposes.flatMap((purpose) => {
-    const moduleIds = purpose.moduleIds.map(normalizeCapabilityModuleId);
-    const packageId = canonicalCapabilityPackageId(purpose.packageId ?? purpose.key) ?? '';
-    const existing = [...mergedPurposes.values()].find(
-      (entry) =>
-        entry.packageId === packageId ||
-        entry.key === purpose.key ||
-        entry.moduleIds.some((id) => moduleIds.includes(id))
-    );
+    const packageId = purpose.packageId ?? purpose.key;
+    const existing = mergedPurposes.get(packageId);
     if (!existing) return [];
     return [
       {
         ...existing,
         tags: [...new Set([...existing.tags, ...purpose.tags])],
-        moduleIds: [...new Set([...existing.moduleIds, ...moduleIds])],
       },
     ];
   });
   for (const purpose of explicitPurposes) {
     const packageKey = purpose.packageId ?? purpose.key;
-    const existingEntry = [...mergedPurposes.values()].find(
-      (entry) =>
-        entry.packageId === packageKey ||
-        entry.key === purpose.key ||
-        entry.moduleIds.some((moduleId) => purpose.moduleIds.includes(moduleId))
-    );
+    const existingEntry = mergedPurposes.get(packageKey);
     if (!existingEntry) continue;
-    mergedPurposes.set(existingEntry.packageId ?? existingEntry.key, {
+    mergedPurposes.set(packageKey, {
       ...existingEntry,
       tags: [...new Set([...existingEntry.tags, ...purpose.tags])],
-      moduleIds: [...new Set([...existingEntry.moduleIds, ...purpose.moduleIds])],
     });
   }
   return [...mergedPurposes.values()];
