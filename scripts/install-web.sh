@@ -620,7 +620,7 @@ print_summary() {
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${BOLD}📍 Active runtime:${NC}          ${CURRENT_LINK} -> versions/${VERSION}"
-    echo -e "  ${BOLD}📍 Persistent data:${NC}         ${INSTALL_DIR%/runtime}/data"
+    echo -e "  ${BOLD}📍 Persistent data:${NC}         ${HOME}/.local/share/one-person-lab/webui/data"
     if [[ "$CREATE_SYMLINK" == "1" ]]; then
         echo -e "  ${BOLD}📍 Symlink:${NC}                ${BIN_DIR}/aionui-web"
     fi
