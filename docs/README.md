@@ -26,6 +26,7 @@ and the relevant domain repositories.
 - New to the project? Start with [`architecture/overview.md`](architecture/overview.md).
 - Setting up a dev environment? See [`contributing/development.md`](contributing/development.md).
 - Working on One Person Lab App behavior? Read [`guides/opl-app-shell-boundary.md`](guides/opl-app-shell-boundary.md) before changing shell docs or implementation. This repository is a replaceable App-contract carrier, not the owner of product strategy, runtime truth, model-selection policy, onboarding truth, domain routing, or release/user documentation.
+- Working on OPL Package composition? The Shell only consumes the owner projection and authorized actions. The App SSOT path is `one-person-lab-app/docs/active/opl-package-platform-composition-migration.md`; before its public-main absorption, use the landed [Framework counterpart](https://github.com/gaofeng21cn/one-person-lab/blob/main/docs/active/opl-package-platform-composition-migration.md). Do not create a second Package lifecycle plan here.
 - Writing code? The entry point for code-style, linting, formatting, and commit rules is [`AGENTS.md`](../AGENTS.md) at the repo root.
 - Deploying a server? [`guides/deploy-server.md`](guides/deploy-server.md).
 

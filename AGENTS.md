@@ -10,6 +10,9 @@
 - Upstream intake 留在本仓并保持隔离；fork body 默认只读。OPL-owned adapter/overlay 变更必须以 App contract 为依据，不得把产品 truth 下沉到 Shell。
 - 不得仅为对齐 Codex 或 upstream 删除 OPL 导航入口。入口迁移必须由 App contract 授权，并同时提供可见、键盘可达的替代入口和导航测试。
 - 未来 shell candidate 的声明、门禁和产品取舍仍由 App 仓管理；本仓不是第二个 GUI control plane。
+- Package identity、官方发布、carrier 与 executor 是四个独立边界：本仓当前以 Codex 为优先实现路径，但 Codex Plugin Manager 只是一种 Plugin/config/cache carrier，不是 OPL Package identity 或完整 installed truth。
+- Shell 只渲染 Framework/App projection 并提交已授权 action；不得维护 Package、Agent、Skill、Tool 或 Plugin 固定清单、依赖图、版本解析、lock、payload、receipt 或 source/currentness 镜像。Package owner 独立发布至 GHCR；共享 Release Set 只服务 Full、离线、集成测试和 QA，不是普通更新权威。
+- executor 或 carrier 切换不得要求重装 Package，也不得由 Shell 丢弃 OPL-owned preference、Work Item、依赖关系或 typed view。新增产品语义先进入 App SSOT，再由本仓消费。
 
 ## Engineering Constraints
 

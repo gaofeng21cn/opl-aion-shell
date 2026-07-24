@@ -31,6 +31,38 @@ This repository must not own:
 
 If a shell-local change needs one of those decisions, land the decision in the owner repo first, then copy or consume the resulting contract here. If another shell candidate replaces this repository, that switch is made through the App-owned shell adapter contract and release gate, not by promoting this repository into product ownership.
 
+## Package Composition Boundary
+
+The OPL ecosystem separates Package identity, publication, carrier, and
+executor. This shell is currently a Codex-first carrier and executor adapter;
+that choice minimizes today's delivery cost, but it is not an ecosystem-wide
+identity or storage decision. Codex Plugin Manager may manage Plugin, config,
+and cache bytes for this carrier. It is not the OPL Package identity, the
+complete installed-state authority, or the authority for another carrier.
+
+Package owners publish their own official bytes to GHCR and advance their own
+`latest-stable`. A shared Release Set is limited to Full/offline, integration
+test, and QA snapshots; it does not decide ordinary Package currentness. The
+Shell must not retain a Package/Agent/Skill/Tool/Plugin catalog, dependency
+graph, version solver, lock, payload, receipt, source policy, or currentness
+mirror. It renders the Framework's fresh carrier readback and submits only
+App-authorized actions.
+
+Ordinary Package dependencies mean stable identity presence and entrypoint
+callability. The Shell must neither introduce a cross-Package version check nor
+make a Package unavailable from its own local comparison. Carrier or executor
+migration must not require reinstalling a Package or discard OPL-owned user
+preferences, Work Items, dependency relationships, or typed views. The
+Framework aggregates carrier readback; App owns the product projection and
+preferences; domain Packages own their business state and typed views.
+
+The owner migration SSOT is App path
+`one-person-lab-app/docs/active/opl-package-platform-composition-migration.md`.
+Until that App document reaches public `main`, its landed counterpart is the
+Framework's [OPL Package platform composition migration](https://github.com/gaofeng21cn/one-person-lab/blob/main/docs/active/opl-package-platform-composition-migration.md).
+This guide intentionally records only the Shell consumer boundary, not a second
+migration plan.
+
 ## Runtime Bridge
 
 The shell bridge uses the App/runtime contract surfaces as its primary path:
@@ -43,40 +75,29 @@ The shell bridge uses the App/runtime contract surfaces as its primary path:
 
 ## Managed Update Consumption
 
-The shell consumes the Framework-managed lifecycle; it does not maintain a
-second updater policy. After core readiness on every launch, and again during
-daily background maintenance, the renderer requests this sequence:
+The Shell consumes a Framework/App read model and its authorized actions; it
+does not maintain a second updater policy or local package-management state
+machine. Its normal path reads `opl app state --profile fast --json`, renders
+the returned installed/update/attention state, and sends mutation only through
+`opl app action execute --action <id> [--payload refs-only-json] [--dry-run]
+--json`. The action id, eligibility, source policy, and result semantics stay
+with the owner projection. The Shell must not synthesize per-Package commands,
+background reinstall lists, completion checkpoints, or automatic recovery
+records.
 
-1. `opl update check --json`
-2. `opl update plan --json`
-3. `opl update apply --json`, only when the Framework plan declares at least
-   one OPL Base or OPL Packages component `auto_apply.eligible`,
-   `auto_apply.app_background_safe`, and supplies its command reference.
+Automatic maintenance is a Framework/carrier concern. Where the owner
+projection exposes an authorized background-safe action, the Shell may invoke
+that exact action and then refresh the projection. A Package update failure is
+displayed for that Package; it must not cause the Shell to rebuild, block, or
+mark unrelated Base/App/Package components stale. Explicit developer/local
+carrier choices retain the carrier's native update policy and are never silently
+overwritten by Shell logic.
 
-The apply request is intentionally component-neutral. Framework owns package
-enumeration, dependency closure, receipts, rollback, and the final eligibility
-recheck. The shell must not copy package, Skill, dependency, or conflict lists,
-and it must not translate an OPL Packages plan into per-package commands.
-
-The running App release version and shell version form a carrier-neutral local
-checkpoint. A new checkpoint covers standard-updater activation, DMG or package
-manager replacement, and Full/offline carrier replacement equally. The
-checkpoint is committed only after check and plan, plus apply when eligible,
-complete successfully; a failed run remains pending and is retried. Ordinary
-successful launches still reconcile, so managed lifecycle drift is not tied to
-how the App bytes arrived.
-
-OPL App binary replacement remains on its host/carrier route and is never sent
-through Framework apply. The shell projects Framework attention reasons,
-receipts, reload guidance, and restart-required state. It does not auto-apply a
-component when Framework omits or denies the `auto_apply` declaration.
-
-Each Desktop or Web host process creates one opaque
-`OPL_APP_PROCESS_INSTANCE_ID` and forwards it only in the environment of its OPL
-CLI children. The value stays stable for that process and changes after an App
-process restart, allowing Framework to distinguish same-process maintenance
-from restart activation. It is not a public command argument, user setting,
-persistent shell receipt, renderer state, or IPC response field.
+OPL App binary replacement stays on its host/carrier route. The Shell can
+display returned attention, reload, and restart guidance, but has no persistent
+receipt, rollback, lock, or source-of-currentness of its own. Process-local
+implementation identifiers may be passed to child processes only as opaque
+transport context; they are not product state or Package lifecycle evidence.
 
 ## Renderer Consumption
 
