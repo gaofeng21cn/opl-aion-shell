@@ -1169,7 +1169,10 @@
       "passwordLabel": "Password",
       "passwordPlaceholder": "Enter password",
       "loginButton": "Sign in and continue",
-      "securityNote": "Your password is used only for this sign-in and is not stored by the App."
+      "securityNote": "Your password is used only for this sign-in and is not stored by the App.",
+      "successTitle": "Signed in to OPL Gateway",
+      "confirmDescription": "Confirm the model access method to finish setup.",
+      "confirmButton": "Use as model access method"
     },
     "readyPanel": {
       "title": "Everything is ready",

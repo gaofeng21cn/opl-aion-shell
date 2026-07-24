@@ -1170,7 +1170,10 @@
       "passwordLabel": "密码",
       "passwordPlaceholder": "输入密码",
       "loginButton": "登录并继续",
-      "securityNote": "密码仅用于本次登录，不会保存在 App 中。"
+      "securityNote": "密码仅用于本次登录，不会保存在 App 中。",
+      "successTitle": "已登录 OPL Gateway",
+      "confirmDescription": "确认模型访问方式后即可完成设置。",
+      "confirmButton": "设为模型访问方式"
     },
     "readyPanel": {
       "title": "已经准备好了",

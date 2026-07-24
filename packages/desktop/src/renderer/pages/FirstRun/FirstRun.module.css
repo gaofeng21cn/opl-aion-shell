@@ -468,6 +468,44 @@
   border-radius: 6px;
 }
 
+.firstRunGatewayConfirmation {
+  display: flex;
+  min-height: 76px;
+  align-items: flex-start;
+  gap: 10px;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--success-6), 0.24);
+  border-radius: 6px;
+  padding: 14px;
+  background: rgba(var(--success-6), 0.08);
+}
+
+.firstRunGatewayConfirmation svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-top: 1px;
+  color: rgb(var(--success-6));
+}
+
+.firstRunGatewayConfirmation strong,
+.firstRunGatewayConfirmation span {
+  display: block;
+}
+
+.firstRunGatewayConfirmation strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.firstRunGatewayConfirmation span {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .firstRunSecurityNote {
   display: flex;
   min-width: 0;

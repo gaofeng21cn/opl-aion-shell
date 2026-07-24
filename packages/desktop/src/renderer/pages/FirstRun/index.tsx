@@ -371,6 +371,7 @@ const FirstRun: React.FC = () => {
   const taskPanelRef = useRef<HTMLElement>(null);
   const previousActivePrimaryStepRef = useRef<FirstRunItemId | null>(null);
   const readyEntryRef = useRef<HTMLButtonElement>(null);
+  const gatewayModelAccessConfirmRef = useRef<HTMLButtonElement>(null);
   const technicalDetailsRef = useRef<HTMLDivElement>(null);
   const workspacePathSequenceRef = useRef(0);
   const isMacRuntime = isDesktopRuntime && isMacOS();
@@ -754,6 +755,11 @@ const FirstRun: React.FC = () => {
     }
   }, [activePrimaryStepId, initialize, readyToLaunch]);
 
+  useEffect(() => {
+    if (!gatewayModelAccessConfirmationAvailable) return;
+    gatewayModelAccessConfirmRef.current?.focus({ preventScroll: true });
+  }, [gatewayModelAccessConfirmationAvailable, initializeResult]);
+
   const openTechnicalDetails = useCallback(() => {
     setTechnicalDetailsOpen(true);
     window.requestAnimationFrame(() => {
@@ -968,40 +974,59 @@ const FirstRun: React.FC = () => {
 
                       {accessMethod === 'gateway_account' ? (
                         <div className={styles.firstRunAccessForm}>
-                          <div className={styles.firstRunAccessFields}>
-                            <div className={styles.firstRunAccessField}>
-                              <label htmlFor='opl-first-run-gateway-email'>
-                                {t('settings.firstRun.gatewayAccount.emailLabel')}
-                              </label>
-                              <Input
-                                id='opl-first-run-gateway-email'
-                                value={gatewayEmail}
-                                onChange={setGatewayEmail}
-                                disabled={requestInFlight}
-                                autoComplete='email'
-                                placeholder={t('settings.firstRun.gatewayAccount.emailPlaceholder')}
-                                data-testid='opl-first-run-gateway-email-input'
-                              />
+                          {gatewayModelAccessConfirmationAvailable ? (
+                            <div
+                              className={styles.firstRunGatewayConfirmation}
+                              role='status'
+                              aria-live='polite'
+                              data-testid='opl-first-run-gateway-login-success'
+                            >
+                              <CheckOne theme='filled' aria-hidden='true' />
+                              <div>
+                                <strong>{t('settings.firstRun.gatewayAccount.successTitle')}</strong>
+                                <span id='opl-first-run-gateway-confirm-description'>
+                                  {t('settings.firstRun.gatewayAccount.confirmDescription')}
+                                </span>
+                              </div>
                             </div>
-                            <div className={styles.firstRunAccessField}>
-                              <label htmlFor='opl-first-run-gateway-password'>
-                                {t('settings.firstRun.gatewayAccount.passwordLabel')}
-                              </label>
-                              <Input.Password
-                                id='opl-first-run-gateway-password'
-                                value={gatewayPassword}
-                                onChange={setGatewayPassword}
-                                disabled={requestInFlight}
-                                autoComplete='current-password'
-                                placeholder={t('settings.firstRun.gatewayAccount.passwordPlaceholder')}
-                                data-testid='opl-first-run-gateway-password-input'
-                              />
-                            </div>
-                          </div>
-                          <div className={styles.firstRunSecurityNote}>
-                            <Shield aria-hidden='true' />
-                            <span>{t('settings.firstRun.gatewayAccount.securityNote')}</span>
-                          </div>
+                          ) : (
+                            <>
+                              <div className={styles.firstRunAccessFields}>
+                                <div className={styles.firstRunAccessField}>
+                                  <label htmlFor='opl-first-run-gateway-email'>
+                                    {t('settings.firstRun.gatewayAccount.emailLabel')}
+                                  </label>
+                                  <Input
+                                    id='opl-first-run-gateway-email'
+                                    value={gatewayEmail}
+                                    onChange={setGatewayEmail}
+                                    disabled={requestInFlight}
+                                    autoComplete='email'
+                                    placeholder={t('settings.firstRun.gatewayAccount.emailPlaceholder')}
+                                    data-testid='opl-first-run-gateway-email-input'
+                                  />
+                                </div>
+                                <div className={styles.firstRunAccessField}>
+                                  <label htmlFor='opl-first-run-gateway-password'>
+                                    {t('settings.firstRun.gatewayAccount.passwordLabel')}
+                                  </label>
+                                  <Input.Password
+                                    id='opl-first-run-gateway-password'
+                                    value={gatewayPassword}
+                                    onChange={setGatewayPassword}
+                                    disabled={requestInFlight}
+                                    autoComplete='current-password'
+                                    placeholder={t('settings.firstRun.gatewayAccount.passwordPlaceholder')}
+                                    data-testid='opl-first-run-gateway-password-input'
+                                  />
+                                </div>
+                              </div>
+                              <div className={styles.firstRunSecurityNote}>
+                                <Shield aria-hidden='true' />
+                                <span>{t('settings.firstRun.gatewayAccount.securityNote')}</span>
+                              </div>
+                            </>
+                          )}
                           <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
                             {gatewayModelAccessConfirmationAvailable ? (
                               <Button
@@ -1009,10 +1034,14 @@ const FirstRun: React.FC = () => {
                                 size='large'
                                 loading={actionLoading === 'gateway_model_access'}
                                 disabled={requestInFlight}
+                                ref={(node) => {
+                                  gatewayModelAccessConfirmRef.current = node as HTMLButtonElement | null;
+                                }}
+                                aria-describedby='opl-first-run-gateway-confirm-description'
                                 onClick={() => void confirmGatewayModelAccess()}
                                 data-testid='opl-first-run-gateway-model-access-confirm'
                               >
-                                {t('settings.accessPage.gatewayAccount.actions.useForModelAccess')}
+                                {t('settings.firstRun.gatewayAccount.confirmButton')}
                               </Button>
                             ) : (
                               <Button

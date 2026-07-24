@@ -994,7 +994,19 @@ describe('FirstRun readiness page', () => {
       expect.objectContaining({ actionId: 'gateway_account_use_for_model_access' })
     );
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByTestId('opl-first-run-gateway-model-access-confirm'));
+    expect(screen.getByTestId('opl-first-run-gateway-login-success')).toHaveTextContent(
+      'settings.firstRun.gatewayAccount.successTitle'
+    );
+    expect(screen.getByTestId('opl-first-run-gateway-login-success')).toHaveTextContent(
+      'settings.firstRun.gatewayAccount.confirmDescription'
+    );
+    expect(screen.queryByTestId('opl-first-run-gateway-email-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-gateway-password-input')).not.toBeInTheDocument();
+    const modelAccessConfirm = screen.getByTestId('opl-first-run-gateway-model-access-confirm');
+    expect(modelAccessConfirm).toHaveTextContent('settings.firstRun.gatewayAccount.confirmButton');
+    expect(modelAccessConfirm).toHaveFocus();
+    expect(document.body).not.toHaveTextContent('gateway-password');
+    fireEvent.click(modelAccessConfirm);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(4));
     expect(bridgeMocks.executeActionInvoke.mock.calls.map(([input]) => input)).toEqual([
