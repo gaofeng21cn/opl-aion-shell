@@ -716,7 +716,7 @@ describe('GuidPage selected purpose assistant surface', () => {
         })
       )
     );
-    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('BOOK');
+    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('OBF');
     expect(screen.getByText('要让 OPL Book Forge 推进什么？')).toBeInTheDocument();
   });
 
