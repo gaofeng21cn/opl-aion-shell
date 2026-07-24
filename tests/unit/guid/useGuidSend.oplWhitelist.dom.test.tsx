@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   createConversation: vi.fn(),
   activatePackage: vi.fn(),
   navigate: vi.fn(),
+  emit: vi.fn(),
   appState: {} as Record<string, unknown>,
   messageError: vi.fn(),
 }));
@@ -37,7 +38,7 @@ vi.mock('@arco-design/web-react', () => ({
 
 vi.mock('@/renderer/utils/emitter', () => ({
   emitter: {
-    emit: vi.fn(),
+    emit: mocks.emit,
   },
 }));
 
@@ -185,6 +186,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     mocks.createConversation.mockResolvedValue({ id: 'conversation-1' });
     mocks.activatePackage.mockReset();
     mocks.navigate.mockReset();
+    mocks.emit.mockReset();
     mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true });
     mocks.messageError.mockReset();
     sessionStorage.clear();
@@ -215,6 +217,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
         }),
       })
     );
+    expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh', { id: 'conversation-1' });
   });
 
   it('preserves the Home draft when conversation creation returns no conversation', async () => {

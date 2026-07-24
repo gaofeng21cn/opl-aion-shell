@@ -7,6 +7,7 @@
 import EventEmitter from 'eventemitter3';
 import type { DependencyList } from 'react';
 import { useEffect } from 'react';
+import type { TChatConversation } from '@/common/config/storage';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 import type { PreviewContentType } from '@/common/types/office/preview';
 
@@ -29,7 +30,7 @@ interface EventTypes {
   'codex.selected.file.append': [Array<string | FileOrFolderItem>];
   'codex.selected.file.clear': void;
   'codex.workspace.refresh': void;
-  'chat.history.refresh': void;
+  'chat.history.refresh': [createdConversation?: TChatConversation];
   'conversation.reset': [string];
   // 会话删除事件 / Conversation deletion event
   'conversation.deleted': [string]; // conversation_id

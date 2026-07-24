@@ -10,6 +10,7 @@ import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types
 import {
   getSidebarStreamGuardDecision,
   mergeCanonicalThreadDirectory,
+  visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
 
 const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDescriptor => ({
@@ -231,6 +232,37 @@ describe('mergeCanonicalThreadDirectory', () => {
         extra: expect.objectContaining({ canonical_thread_id: 'thread-returned' }),
       }),
     ]);
+  });
+
+  it('keeps a newly created Codex row until its first turn appears in the canonical directory', () => {
+    const pending = {
+      id: 'local-new',
+      name: 'New task',
+      created_at: 1,
+      type: 'acp',
+      status: 'pending',
+      extra: { backend: 'codex', acp_session_id: 'thread-new' },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([pending], directory([]), new Set([pending.id]));
+
+    expect(merged).toEqual([pending]);
+    expect(visibleConversationIds(merged)).toEqual(new Set([pending.id]));
+  });
+
+  it('does not treat a Codex row removed by canonical merge as visible to response streams', () => {
+    const stale = {
+      id: 'local-stale',
+      name: 'Stale task',
+      created_at: 1,
+      type: 'acp',
+      extra: { backend: 'codex', canonical_thread_id: 'thread-missing' },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([stale], directory([]));
+
+    expect(merged).toEqual([]);
+    expect(visibleConversationIds(merged).has(stale.id)).toBe(false);
   });
 
   it('preserves unmatched Codex cache rows when only a bounded recent directory is available', () => {

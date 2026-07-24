@@ -114,6 +114,8 @@ let generatingConversationIdsState = new Set<string>();
 let completionUnreadConversationIdsState = new Set<string>();
 let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
+let pendingCanonicalConversationIdsState = new Set<string>();
+let refreshSequenceState = 0;
 let activeConversationIdState: string | null = null;
 let snapshotState: ConversationListSyncSnapshot = {
   conversations: conversationsState,
@@ -145,7 +147,8 @@ const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snap
  */
 export const mergeCanonicalThreadDirectory = (
   localConversations: TChatConversation[],
-  directory: CodexThreadDirectory | null
+  directory: CodexThreadDirectory | null,
+  preserveLocalConversationIds: ReadonlySet<string> = new Set()
 ): TChatConversation[] => {
   if (!directory) return localConversations;
 
@@ -161,6 +164,7 @@ export const mergeCanonicalThreadDirectory = (
     // Only a complete overview may retire unmatched Codex cache rows. A bounded
     // recent directory remains useful without turning older local rows into ghosts.
     if (!directory.complete) return true;
+    if (preserveLocalConversationIds.has(conversation.id)) return true;
     return conversation.type !== 'acp' || conversation.extra.backend !== 'codex';
   });
 
@@ -184,11 +188,26 @@ export const mergeCanonicalThreadDirectory = (
   ];
 };
 
-const refreshConversations = () => {
+export const visibleConversationIds = (conversations: TChatConversation[]): Set<string> => {
+  return new Set(conversations.map((conversation) => conversation.id));
+};
+
+const refreshConversations = (createdConversation?: TChatConversation) => {
+  if (
+    createdConversation?.type === 'acp' &&
+    createdConversation.extra.backend === 'codex' &&
+    canonicalCodexThreadId(createdConversation)
+  ) {
+    pendingCanonicalConversationIdsState = new Set(pendingCanonicalConversationIdsState).add(createdConversation.id);
+  }
+
+  const refreshSequence = ++refreshSequenceState;
   void Promise.allSettled([
     ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
     ipcBridge.codexThreads.list.invoke({ includeArchived: true }),
   ]).then(([localResult, canonicalResult]) => {
+    if (refreshSequence !== refreshSequenceState) return;
+
     const items =
       localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items) ? localResult.value.items : [];
     if (localResult.status === 'rejected') {
@@ -204,16 +223,24 @@ const refreshConversations = () => {
       const extra = conv.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
       return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
     });
+    const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
     conversationsState = mergeCanonicalThreadDirectory(
       filteredData,
-      canonicalResult.status === 'fulfilled' ? canonicalResult.value : null
+      canonicalDirectory,
+      pendingCanonicalConversationIdsState
     );
-    // Keep local ids for response-stream guards while canonical-only rows use
-    // app-server notifications and are materialized lazily on first open.
-    conversation_idsState = new Set([
-      ...items.map((conversation) => conversation.id),
-      ...conversationsState.map((conversation) => conversation.id),
-    ]);
+    conversation_idsState = visibleConversationIds(conversationsState);
+
+    if (canonicalDirectory) {
+      const returnedThreadIds = new Set(canonicalDirectory.threads.map((thread) => thread.id));
+      const localById = new Map(items.map((conversation) => [conversation.id, conversation]));
+      pendingCanonicalConversationIdsState = new Set(
+        [...pendingCanonicalConversationIdsState].filter((conversationId) => {
+          const threadId = canonicalCodexThreadId(localById.get(conversationId));
+          return Boolean(threadId && !returnedThreadIds.has(threadId));
+        })
+      );
+    }
     emitStoreChange();
   });
 };
@@ -304,6 +331,9 @@ const initializeConversationListSyncStore = () => {
       clearGenerating(event.conversation_id);
       clearCompletionUnreadState(event.conversation_id);
       clearCompleted(event.conversation_id);
+      const nextPendingIds = new Set(pendingCanonicalConversationIdsState);
+      nextPendingIds.delete(event.conversation_id);
+      pendingCanonicalConversationIdsState = nextPendingIds;
     }
     refreshConversations();
   });

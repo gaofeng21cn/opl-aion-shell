@@ -499,7 +499,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           updateWorkspaceTime(finalWorkspace);
         }
 
-        emitter.emit('chat.history.refresh');
+        emitter.emit('chat.history.refresh', conversation);
 
         const initialMessage = {
           input,
