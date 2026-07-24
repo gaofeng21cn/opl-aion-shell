@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildRuntimeEnvironmentProjection,
+  buildRuntimeModules,
   buildRuntimePackages,
   chooseMakeUsableAction,
   findRecommendedUpdateAction,
@@ -8,18 +9,6 @@ import {
 import { formatStatus, isUserUsableStatus } from '@/renderer/pages/settings/sections/runtimeStateView';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
-
-vi.mock('@/common/config/oplProductProfile', () => ({
-  canonicalizeOplProfessionalAgentId: (value: string) =>
-    ({
-      mas: 'med-autoscience',
-      bookforge: 'opl-bookforge',
-    })[value] ?? value,
-  getOplDefaultHomeAssistants: () => [
-    { id: 'mas', display_name: 'MAS' },
-    { id: 'bookforge', display_name: 'BookForge' },
-  ],
-}));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
@@ -60,6 +49,18 @@ const maintenance: ManagedUpdateMaintenanceSnapshot = {
 };
 
 describe('buildRuntimeEnvironmentProjection', () => {
+  it('does not synthesize profile modules when the runtime module projection is empty', () => {
+    expect(buildRuntimeModules({ items: [] })).toEqual([]);
+  });
+
+  it('keeps an unknown runtime module visible without a fixed App allowlist', () => {
+    expect(
+      buildRuntimeModules({
+        items: [{ module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true }],
+      })
+    ).toMatchObject([{ module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true }]);
+  });
+
   it('projects fast app state into summary, readiness, and maintenance counts', () => {
     const plane: ManagedUpdatePlane = {
       operation: 'status',

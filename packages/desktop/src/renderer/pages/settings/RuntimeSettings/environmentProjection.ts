@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { canonicalizeOplProfessionalAgentId, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 import { oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
 import type { DesktopAutoUpdateProjection } from '@/renderer/services/desktopAutoUpdateProjection';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
@@ -25,14 +24,6 @@ import {
   type Translate,
 } from '../sections/runtimeStateView';
 
-const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
-  mas: 'medautoscience',
-  mag: 'medautogrant',
-  rca: 'redcube',
-  obf: 'oplbookforge',
-};
-
-const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
 const MAKE_USABLE_COMPONENT_IDS = new Set(['opl_base', 'opl_packages']);
 const HEALTHY_MANAGED_UPDATE_STATES = new Set(['current', 'ready', 'ok', 'compatible', 'installed']);
 const TEMPORAL_NOT_CONFIGURED_STATES = new Set([
@@ -41,15 +32,6 @@ const TEMPORAL_NOT_CONFIGURED_STATES = new Set([
   'temporal_runtime_not_configured',
 ]);
 const TEMPORAL_UNKNOWN_COMPONENT_STATES = new Set(['', 'unknown', 'not_checked', 'not_reported']);
-
-const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
-  .map((assistant) => {
-    const id = OPL_HOME_ASSISTANT_MODULE_IDS[canonicalizeOplProfessionalAgentId(assistant.id)];
-    return id ? { id, label: assistant.display_name } : null;
-  })
-  .filter((entry): entry is { id: string; label: string } => Boolean(entry));
-
-const OPL_RUNTIME_MODULE_DEFAULTS = [...PROFILE_MODULE_DEFAULTS, ...OPL_EXPLICIT_MODULE_DEFAULTS];
 
 export type EnvironmentHealthSummaryItem = {
   key: string;
@@ -186,30 +168,17 @@ export function chooseMakeUsableAction(component: ManagedUpdateComponent): 'repa
 
 export function buildRuntimeModules(modulesPayload: Record<string, unknown>): RuntimeModuleItem[] {
   const declaredModules = moduleRecords(modulesPayload.items ?? modulesPayload.modules);
-  const byId = new Map(
-    declaredModules.map((item) => {
-      const normalized = normalizeModule(item);
-      return [moduleId(normalized), normalized];
-    })
-  );
   const orderedIds = new Set<string>();
   const orderedModules: RuntimeModuleItem[] = [];
-  for (const profileModule of OPL_RUNTIME_MODULE_DEFAULTS) {
-    orderedIds.add(profileModule.id);
-    const declaredModule = byId.get(profileModule.id);
-    orderedModules.push(
-      normalizeModule({
-        ...declaredModule,
-        module_id: profileModule.id,
-        label: oplString(declaredModule?.label) ?? profileModule.label,
-      })
-    );
-  }
-  for (const module of declaredModules.map(normalizeModule)) {
-    const id = moduleId(module);
+  for (const declaredModule of declaredModules) {
+    const id = moduleId(declaredModule);
     if (!id || orderedIds.has(id)) continue;
     orderedIds.add(id);
-    orderedModules.push(module);
+    const module = normalizeModule(declaredModule);
+    orderedModules.push({
+      ...module,
+      module_id: oplString(declaredModule.module_id) ?? oplString(declaredModule.id) ?? module.module_id,
+    });
   }
   return orderedModules;
 }
