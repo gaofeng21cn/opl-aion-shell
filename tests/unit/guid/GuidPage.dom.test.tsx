@@ -465,6 +465,19 @@ describe('GuidPage selected purpose assistant surface', () => {
             description: assistant.description,
             package_role: 'standard_agent',
             installed: true,
+            capability_metadata: {
+              source: 'normalized_owner_manifest',
+              required_skill_ids: [
+                {
+                  mas: 'med-autoscience',
+                  mag: 'med-autogrant',
+                  rca: 'redcube-ai',
+                  obf: 'opl-bookforge',
+                  oma: 'opl-meta-agent',
+                }[assistant.id] ?? assistant.id,
+              ],
+              optional_skill_refs: assistant.id === 'mas' ? ['officecli-docx'] : [],
+            },
           })),
         },
         status_index: {
@@ -529,7 +542,7 @@ describe('GuidPage selected purpose assistant surface', () => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(
         expect.objectContaining({
           activeShortcut: expect.objectContaining({ package_id: 'mas', shortcut_id: 'research' }),
-          guidEnabledSkills: undefined,
+          guidEnabledSkills: ['med-autoscience'],
           is_presetAgent: false,
           selectedAgent: 'codex',
         })
@@ -560,10 +573,29 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidEnabledSkills: undefined,
+          guidEnabledSkills: ['med-autoscience'],
           guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
           availableMcpServers: filterOplOrdinaryMcpServers(configuredMcpServers()),
           selectedMcpServerIds: [],
+        })
+      );
+    });
+  });
+
+  it('does not borrow another Agent skill scope when selected Package metadata is absent', async () => {
+    const agentPackages = mocks.appState.value.agent_packages as {
+      directory: { entries: Array<Record<string, unknown>> };
+    };
+    const mas = agentPackages.directory.entries.find((entry) => entry.package_id === 'mas');
+    if (mas) delete mas.capability_metadata;
+
+    render(<GuidPage />);
+
+    await waitFor(() => {
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          activeShortcut: expect.objectContaining({ package_id: 'mas' }),
+          guidEnabledSkills: [],
         })
       );
     });
@@ -712,7 +744,7 @@ describe('GuidPage selected purpose assistant surface', () => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
           activeShortcut: expect.objectContaining({ package_id: 'obf', shortcut_id: 'book' }),
-          guidEnabledSkills: undefined,
+          guidEnabledSkills: ['opl-bookforge'],
         })
       )
     );
@@ -739,6 +771,10 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setInput).toHaveBeenCalledTimes(inputCalls);
     expect(mocks.setFiles).toHaveBeenCalledTimes(fileCalls);
     expect(mocks.setDir).toHaveBeenCalledTimes(dirCalls);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    expect(screen.queryByTestId('guid-capability-palette-item-skill-med-autoscience')).not.toBeInTheDocument();
+    expect(screen.getByTestId('guid-capability-palette-item-skill-officecli-docx')).toBeInTheDocument();
   });
 
   it('applies a capability selected through compatibility redirect state', () => {

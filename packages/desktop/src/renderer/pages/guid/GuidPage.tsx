@@ -7,13 +7,13 @@
 import { ipcBridge } from '@/common';
 import { buildGuidSlashCommands } from '@/common/chat/slash/guidSlashCommands';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
-import {
-  filterOplOrdinaryMcpServers,
-  filterOplOrdinarySkillNames,
-  getOplOrdinarySkillAllowlist,
-  getOplOrdinaryCapabilitySelectorPolicy,
-} from '@/common/config/oplProductProfile';
+import { filterOplOrdinaryMcpServers, getOplOrdinaryCapabilitySelectorPolicy } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
+import {
+  getOplDirectorySkillIds,
+  parseOplStandardAgentDirectoryEntries,
+  resolveOplStandardAgentCapabilityMetadata,
+} from '@/common/types/opl/appState';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
@@ -32,7 +32,7 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
-import { buildAssistantScopedSkillMenuItems } from './utils/assistantSkillMenu';
+import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
 import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/activeShortcut';
 import { resolveOplHomeAssistants, resolveOplProfessionalAgentAssistants } from './utils/oplHomeAssistants';
 import { resolveOplHomeComposerSurface } from './utils/composerSurface';
@@ -137,9 +137,8 @@ const GuidPage: React.FC = () => {
   }, []);
 
   // --- Skills state ---
-  // Home skill choices are bounded by the App product packaged skill set.
-  // Upstream AionUI builtin-auto skills are shell candidates, not home catalog
-  // policy.
+  // Home skill choices come from the fresh standard-Agent directory metadata.
+  // Upstream AionUI builtin-auto skills are shell candidates, not Package authority.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(
     DEFAULT_AUTO_SKILL_EXCLUSIONS
@@ -147,14 +146,25 @@ const GuidPage: React.FC = () => {
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
   const [availableMcpServers, setAvailableMcpServers] = useState<IMcpServer[]>([]);
   const [guidSelectedMcpServerIds, setGuidSelectedMcpServerIds] = useState<string[] | undefined>(undefined);
+  const directorySkillIds = useMemo(() => getOplDirectorySkillIds(appState), [appState]);
+  const directoryRequiredSkillIds = useMemo(
+    () =>
+      new Set(
+        parseOplStandardAgentDirectoryEntries(appState).flatMap(
+          (entry) => entry.capabilityMetadata?.requiredSkillIds ?? []
+        )
+      ),
+    [appState]
+  );
 
   useEffect(() => {
+    const directorySkillIdSet = new Set(directorySkillIds);
     ipcBridge.fs.listAvailableSkills
       .invoke()
       .then((availableSkills) => {
         const descriptionByName = new Map(availableSkills.map((skill) => [skill.name, skill.description]));
         setAllSkills(
-          getOplOrdinarySkillAllowlist().map((name) => ({
+          directorySkillIds.map((name) => ({
             name,
             description: descriptionByName.get(name) ?? '',
             isAuto: false,
@@ -162,12 +172,13 @@ const GuidPage: React.FC = () => {
         );
       })
       .catch(() => {
-        setAllSkills(getOplOrdinarySkillAllowlist().map((name) => ({ name, description: '', isAuto: false })));
+        setAllSkills(directorySkillIds.map((name) => ({ name, description: '', isAuto: false })));
       });
-  }, []);
+    setGuidEnabledSkills((current) => current?.filter((name) => directorySkillIdSet.has(name)));
+  }, [directorySkillIds]);
 
   useEffect(() => {
-    const ordinarySkillNames = new Set(getOplOrdinarySkillAllowlist());
+    const ordinarySkillNames = new Set(directorySkillIds);
     ipcBridge.fs.listBuiltinAutoSkills
       .invoke()
       .then((autoSkills) => {
@@ -183,7 +194,7 @@ const GuidPage: React.FC = () => {
       .catch(() => {
         setGuidDisabledBuiltinSkills(DEFAULT_AUTO_SKILL_EXCLUSIONS);
       });
-  }, []);
+  }, [directorySkillIds]);
 
   useEffect(() => {
     void ensureBackendMcpCatalog()
@@ -289,11 +300,33 @@ const GuidPage: React.FC = () => {
     if (!selectedAssistantRecord) return undefined;
     return selectedAssistantRecord.avatar || selectedAssistantRecord.name;
   }, [selectedAssistantRecord]);
-  const effectiveGuidEnabledSkills = guidEnabledSkills;
-  const guidSlashSkillNames = useMemo(
-    () => filterOplOrdinarySkillNames(effectiveGuidEnabledSkills ?? []),
-    [effectiveGuidEnabledSkills]
+  const selectedCapabilityMetadata = useMemo(
+    () => resolveOplStandardAgentCapabilityMetadata(appState, activeShortcut?.package_id),
+    [activeShortcut?.package_id, appState]
   );
+  const selectedSkillProfile = selectedCapabilityMetadata
+    ? {
+        required_skills: selectedCapabilityMetadata.requiredSkillIds,
+        optional_skills: selectedCapabilityMetadata.optionalSkillRefs,
+      }
+    : undefined;
+  const selectedAllowedSkillIds = new Set(
+    selectedCapabilityMetadata
+      ? [...selectedCapabilityMetadata.requiredSkillIds, ...selectedCapabilityMetadata.optionalSkillRefs]
+      : activeShortcut
+        ? []
+        : directorySkillIds
+  );
+  const visibleSkillCatalog = activeShortcut
+    ? selectedCapabilityMetadata
+      ? allSkills.filter((skill) => selectedAllowedSkillIds.has(skill.name))
+      : []
+    : allSkills.filter((skill) => !directoryRequiredSkillIds.has(skill.name));
+  const effectiveGuidEnabledSkills = mergeRequiredSkills(
+    selectedCapabilityMetadata?.requiredSkillIds ?? [],
+    (guidEnabledSkills ?? []).filter((name) => selectedAllowedSkillIds.has(name))
+  );
+  const guidSlashSkillNames = useMemo(() => effectiveGuidEnabledSkills, [effectiveGuidEnabledSkills]);
   const guidSlashSkillDescriptionByName = useMemo(
     () => new Map(allSkills.map((skill) => [skill.name, skill.description])),
     [allSkills]
@@ -397,6 +430,7 @@ const GuidPage: React.FC = () => {
     navigate,
     t,
     language: i18n.language,
+    appState,
   });
 
   const openFirstRunSetup = useCallback(() => {
@@ -771,9 +805,9 @@ const GuidPage: React.FC = () => {
       agentLogo={effectiveAgentLogo}
       agentSwitcherItems={[]}
       showModeSelector={composerSurface.permission_access_visible}
-      allSkills={buildAssistantScopedSkillMenuItems(allSkills, undefined)}
+      allSkills={buildAssistantScopedSkillMenuItems(visibleSkillCatalog, selectedSkillProfile)}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
-      enabledSkills={effectiveGuidEnabledSkills ?? []}
+      enabledSkills={effectiveGuidEnabledSkills}
       onToggleSkill={handleToggleSkill}
       mcpServers={availableMcpServers}
       selectedMcpServerIds={guidSelectedMcpServerIds ?? []}

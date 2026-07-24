@@ -10,19 +10,19 @@ const openCommand: SlashCommandItem = {
 };
 
 describe('buildGuidSlashCommands', () => {
-  it('keeps Guid slash commands inside the OPL ordinary skill allowlist', () => {
+  it('keeps directory-selected skills while excluding only explicit forbidden internal skills', () => {
     const commands = buildGuidSlashCommands({
       builtinCommands: [openCommand],
-      selectedSkills: ['med-autoscience', 'aionui-team', 'official-assistant'],
+      selectedSkills: ['med-autoscience', 'aionui-skills', 'third-party-live-skill'],
       descriptionByName: new Map([
         ['med-autoscience', 'MAS skill'],
-        ['aionui-team', 'Team command'],
-        ['official-assistant', 'Official assistant'],
+        ['aionui-skills', 'Internal AionUI skill'],
+        ['third-party-live-skill', 'Third-party live Skill'],
       ]),
       skillFallbackDescription: 'Skill',
     });
 
-    expect(commands.map((command) => command.name)).toEqual(['open', 'med-autoscience']);
+    expect(commands.map((command) => command.name)).toEqual(['open', 'med-autoscience', 'third-party-live-skill']);
     expect(commands.find((command) => command.name === 'med-autoscience')).toMatchObject({
       description: 'MAS skill',
       kind: 'template',

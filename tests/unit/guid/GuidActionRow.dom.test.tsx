@@ -325,6 +325,34 @@ describe('GuidActionRow composer controls', () => {
     expect(onSelectCapability).toHaveBeenCalledWith('book');
   });
 
+  it('keeps a live required Skill visible, selected, and locked even when the backend assistant also reports it', async () => {
+    const assistantsWithReportedSkill = [...homeAssistants];
+    assistantsWithReportedSkill[0] = Object.assign({}, assistantsWithReportedSkill[0], {
+      enabled_skills: ['med-autoscience'],
+    });
+    render(
+      <GuidActionRow
+        {...buildProps()}
+        assistants={assistantsWithReportedSkill}
+        allSkills={[
+          {
+            name: 'med-autoscience',
+            description: 'Required by live MAS metadata',
+            isAuto: false,
+            required: true,
+            locked: true,
+          },
+        ]}
+        enabledSkills={['med-autoscience']}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const requiredSkill = screen.getByTestId('guid-capability-palette-item-skill-med-autoscience');
+    expect(requiredSkill).toBeInTheDocument();
+    expect(requiredSkill).toBeDisabled();
+  });
+
   it('keeps verification-deferred agents selectable and disables only package-unavailable agents', async () => {
     mocks.appState = {
       agent_packages: {

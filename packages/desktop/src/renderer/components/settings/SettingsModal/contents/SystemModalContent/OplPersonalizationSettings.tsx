@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
-import { getOplCodexSessionContextForLocale } from '@/common/config/oplProductProfile';
+import { resolveEffectiveOplAppSessionContext } from '@/common/utils/buildAgentConversationParams';
 import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Input, Message, Modal } from '@arco-design/web-react';
@@ -17,7 +17,10 @@ const OplPersonalizationSettings: React.FC = () => {
   const appStateQuery = useOplAppState('fast');
   const [savedAdditionalContext] = useConfig('codex.oplAppSessionContextAdditional');
   const locale = i18n.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
-  const generatedContext = useMemo(() => getOplCodexSessionContextForLocale(locale), [locale]);
+  const generatedContext = useMemo(
+    () => resolveEffectiveOplAppSessionContext(locale, { appState: appStateQuery.appState }).content,
+    [appStateQuery.appState, locale]
+  );
 
   const personalization = oplRecord(appStateQuery.appState.codex_personalization);
   const userInstructions = oplRecord(personalization.user_agents);

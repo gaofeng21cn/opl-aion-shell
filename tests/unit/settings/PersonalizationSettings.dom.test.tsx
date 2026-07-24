@@ -54,6 +54,24 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           sha256: 'sha-default',
         },
       },
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'mas',
+              package_role: 'standard_agent',
+              installed: true,
+              display_name: 'Med Auto Science',
+              description: 'Research and paper delivery',
+              capability_metadata: {
+                source: 'normalized_owner_manifest',
+                required_skill_ids: ['med-autoscience'],
+                optional_skill_refs: ['officecli-docx'],
+              },
+            },
+          ],
+        },
+      },
     },
     refreshing: false,
     load: mocks.load,
@@ -116,7 +134,9 @@ describe('OplPersonalizationSettings', () => {
     expect(screen.queryByTestId('settings-generated-context-preview')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-opl-app-context-editor').querySelector('.bg-fill-1')).toBeNull();
     fireEvent.click(screen.getByTestId('settings-generated-context-action'));
-    expect(await screen.findByTestId('settings-generated-context-preview')).toHaveTextContent('MAS (Med Auto Science)');
+    expect(await screen.findByTestId('settings-generated-context-preview')).toHaveTextContent(
+      'Med Auto Science: Research and paper delivery'
+    );
     expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore OPL Flow default' }));

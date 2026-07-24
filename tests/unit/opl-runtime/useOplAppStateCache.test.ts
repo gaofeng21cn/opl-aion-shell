@@ -32,6 +32,20 @@ describe('OPL App state cache privacy boundary', () => {
           stable_release_api: 'https://private.example/api',
         },
         agent_packages: {
+          directory: {
+            entries: [
+              {
+                package_id: 'private-agent',
+                package_role: 'standard_agent',
+                capability_metadata: {
+                  source: 'private-owner-manifest',
+                  required_skill_ids: ['private-skill'],
+                  optional_skill_refs: ['private-optional-skill'],
+                },
+              },
+            ],
+          },
+          status_index: { packages: { 'private-agent': { launch_allowed: true } } },
           storage_inventory: {
             status: 'available',
             observed_at: '2026-07-13T12:00:00.000Z',
@@ -222,6 +236,8 @@ describe('OPL App state cache privacy boundary', () => {
       reason_code: null,
       projected_action: { kind: 'navigate', action_id: null },
     });
+    expect(agentPackages.directory).toBeUndefined();
+    expect(agentPackages.status_index).toBeUndefined();
     expect(storageLifecycle.webui_data_volume).toEqual({
       status: 'unavailable',
       observed_at: null,
@@ -237,7 +253,7 @@ describe('OPL App state cache privacy boundary', () => {
       },
     });
     expect(JSON.stringify(sanitized)).not.toMatch(
-      /private\.package|private\/package-store|private\/webui-data|docker system prune/
+      /private\.package|private-agent|private-skill|private-optional-skill|private\/package-store|private\/webui-data|docker system prune/
     );
     expect(readModel.codex_model_policy).toEqual({
       source_ref: 'app_state.core.codex',

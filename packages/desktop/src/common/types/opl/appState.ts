@@ -14,6 +14,22 @@ export type OplAppStatePayload = {
   app_state?: OplAppStateRecord;
 } & OplAppStateRecord;
 
+export type OplStandardAgentCapabilityMetadata = {
+  source: string;
+  requiredSkillIds: string[];
+  optionalSkillRefs: string[];
+};
+
+export type OplStandardAgentDirectoryEntry = {
+  packageId: string;
+  installed: boolean;
+  displayName: string | null;
+  description: string | null;
+  displayNameI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  descriptionI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  capabilityMetadata: OplStandardAgentCapabilityMetadata | null;
+};
+
 export type OplProjectedPackageAction = {
   actionId: string;
   actionRef: string;
@@ -39,6 +55,85 @@ const OPL_PACKAGE_ACTION_IDS = new Set([
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonBlankString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function uniqueStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const strings = value.map(nonBlankString);
+  if (strings.some((item) => item === null)) return null;
+  return Array.from(new Set(strings as string[]));
+}
+
+function localizedStrings(value: unknown): Partial<Record<'zh-CN' | 'en-US', string>> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    (['zh-CN', 'en-US'] as const).flatMap((locale) => {
+      const text = nonBlankString(value[locale]);
+      return text ? [[locale, text]] : [];
+    })
+  );
+}
+
+function parseCapabilityMetadata(value: unknown): OplStandardAgentCapabilityMetadata | null {
+  if (!isRecord(value)) return null;
+  const source = nonBlankString(value.source);
+  const requiredSkillIds = uniqueStringArray(value.required_skill_ids);
+  const optionalSkillRefs = uniqueStringArray(value.optional_skill_refs);
+  if (!source || !requiredSkillIds || !optionalSkillRefs) return null;
+  return { source, requiredSkillIds, optionalSkillRefs };
+}
+
+/** Parse only the live Framework standard-Agent directory; no cache or Profile fallback is consulted. */
+export function parseOplStandardAgentDirectoryEntries(appState: unknown): OplStandardAgentDirectoryEntry[] {
+  const payload = isRecord(appState) ? appState : {};
+  const state = isRecord(payload.app_state) ? payload.app_state : payload;
+  const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
+  const directory = isRecord(agentPackages.directory) ? agentPackages.directory : {};
+  if (!Array.isArray(directory.entries)) return [];
+
+  return directory.entries.flatMap((value) => {
+    if (!isRecord(value) || value.package_role !== 'standard_agent') return [];
+    const packageId = nonBlankString(value.package_id);
+    if (!packageId) return [];
+    return [
+      {
+        packageId,
+        installed: value.installed === true,
+        displayName: nonBlankString(value.display_name),
+        description: nonBlankString(value.description),
+        displayNameI18n: localizedStrings(value.display_name_i18n),
+        descriptionI18n: localizedStrings(value.description_i18n),
+        capabilityMetadata: parseCapabilityMetadata(value.capability_metadata),
+      },
+    ];
+  });
+}
+
+export function resolveOplStandardAgentCapabilityMetadata(
+  appState: unknown,
+  packageId: string | null | undefined
+): OplStandardAgentCapabilityMetadata | null {
+  const normalizedPackageId = packageId?.trim().toLowerCase();
+  if (!normalizedPackageId) return null;
+  return (
+    parseOplStandardAgentDirectoryEntries(appState).find(
+      (entry) => entry.packageId.toLowerCase() === normalizedPackageId
+    )?.capabilityMetadata ?? null
+  );
+}
+
+export function getOplDirectorySkillIds(appState: unknown): string[] {
+  const skillIds = new Set<string>();
+  for (const entry of parseOplStandardAgentDirectoryEntries(appState)) {
+    if (!entry.installed || !entry.capabilityMetadata) continue;
+    for (const skillId of entry.capabilityMetadata.requiredSkillIds) skillIds.add(skillId);
+    for (const skillId of entry.capabilityMetadata.optionalSkillRefs) skillIds.add(skillId);
+  }
+  return Array.from(skillIds);
 }
 
 function hasPayloadValue(value: unknown): boolean {

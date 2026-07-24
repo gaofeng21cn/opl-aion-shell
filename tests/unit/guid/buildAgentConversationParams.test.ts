@@ -11,6 +11,39 @@ const model = {
   use_model: 'gpt-5.6-sol',
 };
 
+const liveAppState = {
+  agent_packages: {
+    directory: {
+      entries: [
+        {
+          package_id: 'mas',
+          package_role: 'standard_agent',
+          installed: true,
+          display_name: 'Med Auto Science',
+          description: 'Research, papers, and data analysis',
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['med-autoscience'],
+            optional_skill_refs: ['officecli-docx'],
+          },
+        },
+        {
+          package_id: 'oma',
+          package_role: 'standard_agent',
+          installed: true,
+          display_name: 'OPL Meta Agent',
+          description: 'Create, take over, and inspect Foundry Agents',
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['opl-meta-agent'],
+            optional_skill_refs: [],
+          },
+        },
+      ],
+    },
+  },
+};
+
 describe('buildAgentConversationParams OPL flow context', () => {
   beforeEach(() => {
     configService.reset();
@@ -34,14 +67,15 @@ describe('buildAgentConversationParams OPL flow context', () => {
         rules: 'Existing assistant rule.',
       },
       language: 'en-US',
+      appState: liveAppState,
     });
 
     expect(params.extra.preset_context).toContain('## About this conversation');
-    expect(params.extra.preset_context).toContain('MAS (Med Auto Science): research, papers, data analysis');
-    expect(params.extra.preset_context).toContain('OMA (OPL Meta Agent): create, take over, inspect');
+    expect(params.extra.preset_context).toContain('Med Auto Science: Research, papers, and data analysis');
+    expect(params.extra.preset_context).toContain('OPL Meta Agent: Create, take over, and inspect Foundry Agents');
     expect(params.extra.preset_context).not.toContain('本对话由 One Person Lab App 发起');
     expect(params.extra.preset_context).toContain('Existing assistant rule.');
-    expect(params.extra.preset_context).toMatch(/MAS \(Med Auto Science\)[\s\S]+Existing assistant rule\./);
+    expect(params.extra.preset_context).toMatch(/Med Auto Science[\s\S]+Existing assistant rule\./);
     expect(params.extra.opl_flow_context).toEqual({
       flow_id: 'opl-flow',
       source: 'opl-flow-package-policy',
@@ -108,9 +142,10 @@ describe('buildAgentConversationParams OPL flow context', () => {
       workspace: '/Users/example/workspace',
       model,
       language: 'en-US',
+      appState: liveAppState,
     });
 
-    expect(params.extra.preset_context).toContain('MAS (Med Auto Science)');
+    expect(params.extra.preset_context).toContain('Med Auto Science: Research, papers, and data analysis');
     expect(params.extra.preset_context).toContain('## Additional User Instructions');
     expect(params.extra.preset_context).toContain('Prefer concise progress summaries.');
     expect(params.extra.opl_app_session_context?.additional_instructions).toBe(true);

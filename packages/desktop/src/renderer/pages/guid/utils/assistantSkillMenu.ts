@@ -1,9 +1,12 @@
-import type { OplAssistantSkillProfile } from '@/common/config/oplProductProfile';
-
 export type GuidSkillCatalogItem = {
   name: string;
   description: string;
   isAuto: boolean;
+};
+
+export type GuidAssistantSkillProfile = {
+  required_skills: string[];
+  optional_skills: string[];
 };
 
 export type GuidSkillMenuItem = GuidSkillCatalogItem & {
@@ -19,7 +22,7 @@ export function mergeRequiredSkills(requiredSkills: string[], selectedSkills: st
 
 export function buildAssistantScopedSkillMenuItems(
   allSkills: GuidSkillCatalogItem[],
-  skillProfile: OplAssistantSkillProfile | undefined
+  skillProfile: GuidAssistantSkillProfile | undefined
 ): GuidSkillMenuItem[] {
   if (!skillProfile) {
     return allSkills.map((skill) => ({

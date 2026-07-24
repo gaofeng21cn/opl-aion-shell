@@ -381,7 +381,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.queryByTestId('conversation-composer-context-strip')).not.toBeInTheDocument();
   });
 
-  it('shows the mobile permission action for ordinary Codex conversations', () => {
+  it('shows the mobile permission action and live non-forbidden Skills for ordinary Codex conversations', () => {
     isMobileLayout = true;
 
     render(
@@ -399,7 +399,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.getByTestId('mobile-action-sheet-attach')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-active-capability')).toHaveTextContent('guid.home.activeCapability');
-    expect(screen.queryByTestId('mobile-action-sheet-skills')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-skills')).toHaveTextContent('guid.context.skillsGroup 1');
+    expect(screen.getByTestId('mobile-action-sheet-option-skills-arbitrary-skill')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-mcp')).not.toBeInTheDocument();
     expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
   });

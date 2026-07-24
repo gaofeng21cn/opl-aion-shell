@@ -62,6 +62,9 @@ describe('createConversationParams Codex model preference', () => {
     const params = await buildCliAgentParams(codexAgent, '/tmp/opl-workspace');
 
     expect(params.extra.current_model_id).toBe('gpt-5.6-codex');
+    expect(params.extra.preset_context).toContain('关于本次会话');
+    expect(params.extra.preset_context).not.toContain('MAS（Med Auto Science）');
+    expect(params.extra.preset_context).not.toContain('OMA（OPL Meta Agent）');
   });
 
   it('keeps an available allowlisted Codex preferred model', async () => {

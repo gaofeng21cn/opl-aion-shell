@@ -5,8 +5,9 @@
  */
 
 import { ipcBridge } from '@/common';
-import { filterOplOrdinaryMcpServers, filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
+import { filterOplOrdinaryMcpServers } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
+import { getOplDirectorySkillIds, resolveOplStandardAgentCapabilityMetadata } from '@/common/types/opl/appState';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
@@ -19,7 +20,6 @@ import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import {
   buildOplShortcutInvocationReceipt,
@@ -96,6 +96,7 @@ export type GuidSendDeps = {
   navigate: NavigateFunction;
   t: TFunction;
   language: string;
+  appState: unknown;
 };
 
 export type GuidSendResult = {
@@ -144,9 +145,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     navigate,
     t,
     language,
+    appState,
   } = deps;
   const sendingRef = useRef(false);
-  const { appState } = useOplAppState('fast');
   const selectedShortcut =
     activeShortcut ??
     (is_presetAgent && selectedAgentInfo?.custom_agent_id
@@ -161,10 +162,19 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         launchBlockedReason: null,
         allowedWhenBlocked: [],
       };
-  const packageLaunchHardBlocked = selectedPackageLaunchGate.state === 'package_unavailable';
+  const selectedPackageCapabilityMetadata = resolveOplStandardAgentCapabilityMetadata(appState, selectedPackageId);
+  const capabilityMetadataMissing = Boolean(selectedPackageId && !selectedPackageCapabilityMetadata);
+  const packageLaunchHardBlocked =
+    selectedPackageLaunchGate.state === 'package_unavailable' || capabilityMetadataMissing;
+  const effectiveLaunchBlockedReason =
+    selectedPackageLaunchGate.state === 'package_unavailable'
+      ? selectedPackageLaunchGate.launchBlockedReason
+      : capabilityMetadataMissing
+        ? 'capability_metadata_missing'
+        : selectedPackageLaunchGate.launchBlockedReason;
   const launchBlockedMessage = () =>
     t('guid.home.launchBlocked', {
-      reason: selectedPackageLaunchGate.launchBlockedReason ?? t('guid.home.operationalNotReady'),
+      reason: effectiveLaunchBlockedReason ?? t('guid.home.operationalNotReady'),
       actions: selectedPackageLaunchGate.allowedWhenBlocked.join(', '),
     });
   const handleSend = useCallback(async (): Promise<boolean> => {
@@ -172,7 +182,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       showOplAgentPackageLaunchBlocked(
         launchBlockedMessage(),
         selectedPackageId ?? '',
-        selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
+        effectiveLaunchBlockedReason ?? 'package_unavailable',
         selectedPackageLaunchGate.allowedWhenBlocked
       );
       return false;
@@ -194,16 +204,32 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     // agents we still forward the user's selection (the backend accepts
     // `preset_enabled_skills` regardless of `is_preset`).
     const presetEnabledSkillsDefault = resolveEnabledSkills(agentInfo);
-    const enabled_skills = filterOplOrdinarySkillNames(guidEnabledSkills ?? presetEnabledSkillsDefault ?? []);
-    const filteredGuidEnabledSkills = filterOplOrdinarySkillNames(guidEnabledSkills ?? []);
+    const capabilityMetadata = selectedPackageCapabilityMetadata;
+    const allowedSkillIds = new Set(
+      capabilityMetadata
+        ? [...capabilityMetadata.requiredSkillIds, ...capabilityMetadata.optionalSkillRefs]
+        : selectedPackageId
+          ? []
+          : getOplDirectorySkillIds(appState)
+    );
+    const filterEnabledSkills = (skills: string[]) =>
+      Array.from(new Set(skills.filter((name) => allowedSkillIds.has(name))));
+    const requiredSkillIds = capabilityMetadata?.requiredSkillIds ?? [];
+    const enabled_skills = Array.from(
+      new Set([...requiredSkillIds, ...filterEnabledSkills(guidEnabledSkills ?? presetEnabledSkillsDefault ?? [])])
+    );
+    const filteredGuidEnabledSkills = Array.from(
+      new Set([...requiredSkillIds, ...filterEnabledSkills(guidEnabledSkills ?? [])])
+    );
     const enabled_skills_to_send = is_presetAgent
       ? enabled_skills
       : filteredGuidEnabledSkills.length
         ? filteredGuidEnabledSkills
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
-    const oplAgentPackageInvocation: OplAgentPackageInvocationReceipt | undefined = selectedShortcut
-      ? buildOplShortcutInvocationReceipt(selectedShortcut)
+    const baseInvocation = selectedShortcut ? buildOplShortcutInvocationReceipt(selectedShortcut) : undefined;
+    const oplAgentPackageInvocation: OplAgentPackageInvocationReceipt | undefined = baseInvocation
+      ? { ...baseInvocation, required_skill_ids: [...requiredSkillIds] }
       : undefined;
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
     const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
@@ -233,6 +259,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: openclawAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
+        appState,
         extra: {
           default_files: initialFiles,
           runtime_validation: {
@@ -290,6 +317,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: nanobotAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
+        appState,
         extra: {
           default_files: initialFiles,
           preset_enabled_skills: enabled_skills_to_send,
@@ -438,6 +466,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           selectedAcpModel || codexAutoSelection?.modelId || currentAcpCachedModelInfo?.current_model_id || undefined,
         config_options: codexReasoningEffort ? { reasoning_effort: codexReasoningEffort } : undefined,
         language,
+        appState,
         extra: {
           default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,
@@ -507,10 +536,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     navigate,
     t,
     language,
+    appState,
     selectedPackageLaunchGate.launchAllowed,
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
     selectedPackageId,
+    selectedPackageCapabilityMetadata,
+    effectiveLaunchBlockedReason,
     packageLaunchHardBlocked,
   ]);
 
@@ -520,7 +552,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       showOplAgentPackageLaunchBlocked(
         launchBlockedMessage(),
         selectedPackageId ?? '',
-        selectedPackageLaunchGate.launchBlockedReason ?? 'package_unavailable',
+        effectiveLaunchBlockedReason ?? 'package_unavailable',
         selectedPackageLaunchGate.allowedWhenBlocked
       );
       return;
@@ -567,6 +599,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedPackageLaunchGate.launchBlockedReason,
     selectedPackageLaunchGate.allowedWhenBlocked,
     selectedPackageId,
+    effectiveLaunchBlockedReason,
     dir,
     packageLaunchHardBlocked,
   ]);

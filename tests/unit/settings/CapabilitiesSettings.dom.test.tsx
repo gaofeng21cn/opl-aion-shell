@@ -818,7 +818,6 @@ vi.mock('@/common/config/oplProductProfile', () => {
       };
       return aliases[normalized] ?? id;
     },
-    getOplAssistantSkillProfile: () => null,
     getOplDefaultExecutorAgentKey: () => 'codex',
     getOplDefaultHomeAssistants: () => [],
     getOplFirstPartyPackagePresentations: () => firstPartyPackagePresentations,

@@ -146,6 +146,7 @@ function buildDeps(): GuidSendDeps {
     t: ((key: string, options?: Record<string, string>) =>
       key === 'guid.home.launchBlocked' ? `${options?.reason}: ${options?.actions}` : key) as GuidSendDeps['t'],
     language: 'zh-CN',
+    appState: mocks.appState,
   };
 }
 
@@ -175,6 +176,11 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
             display_name: packageId.toUpperCase(),
             package_role: 'standard_agent',
             installed: true,
+            capability_metadata: {
+              source: 'normalized_owner_manifest',
+              required_skill_ids: packageId === 'mas' ? ['med-autoscience'] : ['opl-meta-agent'],
+              optional_skill_refs: packageId === 'mas' ? ['officecli-docx'] : [],
+            },
             package_version: '1.0.0',
             available_actions: [buildActivationAction(packageId, workspaceRequired)],
           },
@@ -317,7 +323,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
       package_id: 'mas',
       shortcut_id: 'research',
       codex_visible_entry: 'med-autoscience',
-      required_skill_ids: [],
+      required_skill_ids: ['med-autoscience'],
       source: 'opl_app_home',
     });
     expect(mocks.activatePackage).not.toHaveBeenCalled();
@@ -344,7 +350,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
       package_id: 'oma',
       shortcut_id: 'oma',
       codex_visible_entry: 'opl-meta-agent',
-      required_skill_ids: [],
+      required_skill_ids: ['opl-meta-agent'],
       source: 'opl_app_home',
     });
     expect(payload.extra.opl_assistant_route).toBeUndefined();
@@ -384,6 +390,25 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(blockedMessage.content.props['data-opl-block-reason']).toBe('package_not_installed');
     expect(blockedMessage.content.props['data-opl-repair-actions']).toBe('status,doctor,repair');
     expect(blockedMessage.content.props.children).toContain('package_not_installed');
+  });
+
+  it('blocks selected Package launch when fresh capability metadata is absent', async () => {
+    mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true });
+    delete mocks.appState.agent_packages.directory.entries[0].capability_metadata;
+    const deps = buildDeps();
+    deps.activeShortcut = resolveOplActiveShortcut('mas', mocks.appState);
+
+    const { result } = renderHook(() => useGuidSend(deps));
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+    expect(mocks.activatePackage).not.toHaveBeenCalled();
+    expect(deps.resolvePresetRulesAndSkills).not.toHaveBeenCalled();
+    const blockedMessage = mocks.messageError.mock.calls[0][0];
+    expect(blockedMessage.content.props['data-opl-package-id']).toBe('mas');
+    expect(blockedMessage.content.props['data-opl-block-reason']).toBe('capability_metadata_missing');
   });
 
   it('continues package launch while its Framework status entry is still loading', async () => {

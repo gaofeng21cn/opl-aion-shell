@@ -6,6 +6,7 @@
 
 import generatedProfile from './oplProductProfile.generated.json';
 import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
+import { parseOplStandardAgentDirectoryEntries } from '@/common/types/opl/appState';
 
 export type OplCodexReasoningEffort = string;
 export type OplCodexAutoModelPolicy = {
@@ -200,15 +201,6 @@ export type OplNonDefaultAssistant = {
   avatar: string;
   description_i18n: Record<string, string>;
   prompts_i18n: Record<string, string[]>;
-};
-
-export type OplAssistantSkillProfile = {
-  assistant_id: string;
-  required_skills: string[];
-  optional_skills: string[];
-  required_skill_policy: 'checked_locked';
-  optional_skill_policy: 'unchecked_user_selectable';
-  skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
 };
 
 export type OplProfessionalAgentPackage = {
@@ -3600,33 +3592,6 @@ export function getOplProfessionalAgentPackage(packageId: string): OplProfession
   };
 }
 
-export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
-  return OPL_PRODUCT_PROFILE.gui.professional_agent_packages
-    .filter((agentPackage) => agentPackage.default_home_visible)
-    .map((agentPackage) => ({
-      assistant_id: agentPackage.package_id,
-      required_skills: [...agentPackage.required_skill_ids],
-      optional_skills: [...agentPackage.optional_skill_ids],
-      required_skill_policy: agentPackage.required_skill_policy,
-      optional_skill_policy: agentPackage.optional_skill_policy,
-      skill_menu_policy: agentPackage.skill_menu_policy,
-    }));
-}
-
-export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSkillProfile | undefined {
-  const normalizedId = canonicalizeOplProfessionalAgentId(assistantId);
-  const agentPackage = getOplProfessionalAgentPackage(normalizedId);
-  if (!agentPackage) return undefined;
-  return {
-    assistant_id: agentPackage.package_id,
-    required_skills: [...agentPackage.required_skill_ids],
-    optional_skills: [...agentPackage.optional_skill_ids],
-    required_skill_policy: agentPackage.required_skill_policy,
-    optional_skill_policy: agentPackage.optional_skill_policy,
-    skill_menu_policy: agentPackage.skill_menu_policy,
-  };
-}
-
 export function getOplAgentPackageInvocationReceiptPolicy(): OplAgentPackageInvocationReceiptPolicy {
   const policy = OPL_PRODUCT_PROFILE.gui.agent_package_invocation_receipt_policy;
   const clonedBase: OplAgentPackageInvocationReceiptPolicyBase = {
@@ -3681,14 +3646,6 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
   };
 }
 
-export function getOplOrdinarySkillAllowlist(): string[] {
-  const skills = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.flatMap((agentPackage) => [
-    ...agentPackage.required_skill_ids,
-    ...agentPackage.optional_skill_ids,
-  ]);
-  return Array.from(new Set(skills));
-}
-
 export function getOplOrdinaryForbiddenCapabilityPolicy(): OplOrdinaryForbiddenCapabilityPolicy {
   const policy = OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy;
   return {
@@ -3700,13 +3657,13 @@ export function getOplOrdinaryForbiddenCapabilityPolicy(): OplOrdinaryForbiddenC
 }
 
 export function filterOplOrdinarySkillNames(names: string[]): string[] {
-  const allowlist = new Set(getOplOrdinarySkillAllowlist());
-  return names.filter((name, index) => allowlist.has(name) && names.indexOf(name) === index);
+  const forbidden = new Set(OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.forbidden_skill_examples);
+  return names.filter((name, index) => Boolean(name.trim()) && !forbidden.has(name) && names.indexOf(name) === index);
 }
 
 export function filterOplOrdinarySkillCatalog<T extends { name: string }>(skills: T[]): T[] {
-  const allowlist = new Set(getOplOrdinarySkillAllowlist());
-  return skills.filter((skill) => allowlist.has(skill.name));
+  const forbidden = new Set(OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.forbidden_skill_examples);
+  return skills.filter((skill) => Boolean(skill.name.trim()) && !forbidden.has(skill.name));
 }
 
 export function filterOplOrdinaryMcpServers<T extends Pick<IMcpServer, 'id' | 'name'>>(servers: T[]): T[] {
@@ -3803,26 +3760,28 @@ export function getOplSkillPriority(): string[] {
   return [...OPL_PRODUCT_PROFILE.codex.skill_priority];
 }
 
-export function getOplCodexSessionContext(): string {
-  return getOplCodexSessionContextForLocale('zh-CN');
-}
-
-export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US'): string {
+export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US', appState?: unknown): string {
   const context = OPL_PRODUCT_PROFILE.codex.session_context_i18n?.[locale];
-  const routeLines = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.map((agentPackage) => {
-    const summary = agentPackage.session_routing_summary_i18n[locale];
-    return locale === 'en-US'
-      ? `- ${agentPackage.short_name} (${agentPackage.display_name}): ${summary}.`
-      : `- ${agentPackage.short_name}（${agentPackage.display_name}）：${summary}。`;
-  });
+  const routeLines = parseOplStandardAgentDirectoryEntries(appState)
+    .filter((entry) => entry.installed)
+    .map((entry) => {
+      const presentation = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.find(
+        (agentPackage) => agentPackage.package_id === entry.packageId
+      );
+      const displayName =
+        entry.displayNameI18n[locale] ??
+        entry.displayName ??
+        presentation?.display_name_i18n[locale] ??
+        presentation?.display_name ??
+        entry.packageId;
+      const description =
+        entry.descriptionI18n[locale] ?? entry.description ?? presentation?.description_i18n[locale] ?? displayName;
+      return `- ${displayName}: ${description}`;
+    });
   return (context ?? OPL_PRODUCT_PROFILE.codex.session_context_lines)
     .flatMap((line) => (line === '{{agent_routes}}' ? routeLines : [line]))
     .join('\n')
     .trim();
-}
-
-export function getOplLegacyCodexSessionContexts(): string[] {
-  return [getOplCodexSessionContext()];
 }
 
 export function getOplDeferredFirstLaunchBlockers(): string[] {

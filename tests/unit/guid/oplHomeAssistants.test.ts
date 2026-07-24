@@ -14,7 +14,7 @@ import {
   getOplHomeAgentShortcutsFromAppState,
   getOplHomeShortcutPreferencesFromAppState,
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
-import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
+import { resolveOplStandardAgentCapabilityMetadata } from '@/common/types/opl/appState';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -49,6 +49,11 @@ const dynamicAppState = () => ({
           description: 'Grants',
           package_role: 'standard_agent',
           installed: true,
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['med-autogrant'],
+            optional_skill_refs: ['officecli-docx', 'officecli-xlsx', 'mineru-document-extractor'],
+          },
         },
         {
           package_id: 'rca',
@@ -590,7 +595,10 @@ describe('OPL home assistants', () => {
   });
 
   it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {
-    const magProfile = getOplAssistantSkillProfile('mag');
+    const metadata = resolveOplStandardAgentCapabilityMetadata(dynamicAppState(), 'mag');
+    const magProfile = metadata
+      ? { required_skills: metadata.requiredSkillIds, optional_skills: metadata.optionalSkillRefs }
+      : undefined;
     const menuItems = buildAssistantScopedSkillMenuItems(
       [
         { name: 'mag', description: 'Grant skill', isAuto: false },
@@ -614,5 +622,32 @@ describe('OPL home assistants', () => {
       'med-autogrant',
       'officecli-docx',
     ]);
+  });
+
+  it('returns no capability metadata when the live directory omits or malforms the owner projection', () => {
+    expect(resolveOplStandardAgentCapabilityMetadata(dynamicAppState(), 'mas')).toBeNull();
+    expect(
+      resolveOplStandardAgentCapabilityMetadata(
+        {
+          agent_packages: {
+            directory: {
+              entries: [
+                {
+                  package_id: 'future-agent',
+                  package_role: 'standard_agent',
+                  installed: true,
+                  capability_metadata: {
+                    source: 'owner',
+                    required_skill_ids: ['future-skill'],
+                    optional_skill_refs: 'not-an-array',
+                  },
+                },
+              ],
+            },
+          },
+        },
+        'future-agent'
+      )
+    ).toBeNull();
   });
 });

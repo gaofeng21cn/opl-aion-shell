@@ -1,5 +1,6 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
+import { parseOplStandardAgentDirectoryEntries } from '@/common/types/opl/appState';
 import {
   getOplHomeAgentShortcutsFromAppState,
   getOplHomeShortcutPreferencesFromAppState,
@@ -161,18 +162,20 @@ export function resolveOplPackageLaunchGate(appState: unknown, packageId: string
 }
 
 function agentPackageDirectoryEntries(appState: unknown): OplAgentPackageDirectoryEntry[] {
+  const parsedByPackageId = new Map(
+    parseOplStandardAgentDirectoryEntries(appState).map((entry) => [entry.packageId, entry])
+  );
   const payload = appStateRecord(appState);
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const directory = appStateRecord(packages.directory);
   return (Array.isArray(directory.entries) ? directory.entries : []).map(appStateRecord).flatMap((entry) => {
     const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
-    if (!packageId || entry.package_role !== 'standard_agent') return [];
-    const displayName =
-      typeof entry.display_name === 'string' && entry.display_name.trim() ? entry.display_name.trim() : packageId;
-    const description =
-      typeof entry.description === 'string' && entry.description.trim() ? entry.description.trim() : displayName;
-    return [{ packageId, displayName, description, installed: entry.installed === true }];
+    const parsed = parsedByPackageId.get(packageId);
+    if (!parsed) return [];
+    const displayName = parsed.displayName ?? packageId;
+    const description = parsed.description ?? displayName;
+    return [{ packageId, displayName, description, installed: parsed.installed }];
   });
 }
 

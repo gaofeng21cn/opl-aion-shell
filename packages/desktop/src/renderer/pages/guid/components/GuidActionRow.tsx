@@ -262,28 +262,21 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       });
     }
 
-    const professionalAgentSkillIds = new Set(
-      assistants
-        .flatMap((assistant) => assistant.enabled_skills ?? [])
-        .map((skillId) => skillId.split(':').at(-1) ?? skillId)
-    );
     const skillItems: ComposerCapabilityPaletteItem[] = [];
     if (allSkills.length > 0) {
-      allSkills
-        .filter((skill) => !professionalAgentSkillIds.has(skill.name.split(':').at(-1) ?? skill.name))
-        .forEach((skill) => {
-          skillItems.push({
-            id: `skill-${skill.name}`,
-            label: skill.name,
-            description: localizedCapabilitySummary([skill.name], skill.name, t),
-            keywords: ['skill', skill.description],
-            icon: <Lightning {...OPL_CHROME_ICON_PROPS} />,
-            active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
-            disabled: skill.locked,
-            closeOnSelect: false,
-            onSelect: () => onToggleSkill(skill.name, skill.isAuto),
-          });
+      allSkills.forEach((skill) => {
+        skillItems.push({
+          id: `skill-${skill.name}`,
+          label: skill.name,
+          description: localizedCapabilitySummary([skill.name], skill.name, t),
+          keywords: ['skill', skill.description],
+          icon: <Lightning {...OPL_CHROME_ICON_PROPS} />,
+          active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),
+          disabled: skill.locked,
+          closeOnSelect: false,
+          onSelect: () => onToggleSkill(skill.name, skill.isAuto),
         });
+      });
     } else {
       skillItems.push({
         id: 'manage-skills',

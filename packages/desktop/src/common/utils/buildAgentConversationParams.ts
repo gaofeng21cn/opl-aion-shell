@@ -40,6 +40,7 @@ export type BuildAgentConversationInput = {
   current_model_id?: string;
   config_options?: Record<string, string>;
   language?: string;
+  appState?: unknown;
   extra?: Partial<ICreateConversationParams['extra']>;
 };
 
@@ -51,10 +52,11 @@ export function resolveEffectiveOplAppSessionContext(
   language: string,
   settings: {
     additionalInstructions?: string;
+    appState?: unknown;
   } = {}
 ): { content: string; hasAdditionalInstructions: boolean } {
   const locale = resolveLocaleKey(language);
-  const automaticContent = getOplCodexSessionContextForLocale(locale);
+  const automaticContent = getOplCodexSessionContextForLocale(locale, settings.appState);
   const additionalInstructions = settings.additionalInstructions?.trim();
   if (!additionalInstructions) return { content: automaticContent, hasAdditionalInstructions: false };
   const heading = locale === 'zh-CN' ? '## 用户附加说明' : '## Additional User Instructions';
@@ -88,6 +90,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     current_model_id,
     config_options,
     language = 'zh-CN',
+    appState,
     extra: extraOverrides,
   } = input;
 
@@ -99,6 +102,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const oplAppSessionContextPolicy = getOplAppSessionContextPolicy();
   const oplAppSessionContext = resolveEffectiveOplAppSessionContext(language, {
     additionalInstructions: configService.get('codex.oplAppSessionContextAdditional'),
+    appState,
   });
   const extra: ICreateConversationParams['extra'] = {
     workspace,

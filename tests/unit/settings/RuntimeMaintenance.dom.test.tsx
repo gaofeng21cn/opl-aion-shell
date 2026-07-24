@@ -333,7 +333,6 @@ vi.mock('@/common/config/oplProductProfile', () => ({
         oma: 'opl-meta-agent',
       }) as Record<string, string>
     )[id] ?? id,
-  getOplCodexSessionContext: () => 'codex session context',
   getOplDefaultHomeAssistants: () => [
     { id: 'mas', display_name: 'MAS' },
     { id: 'mag', display_name: 'MAG' },

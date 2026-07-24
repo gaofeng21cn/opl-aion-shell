@@ -12,22 +12,67 @@ const model = {
   model: 'gpt-4.1',
 };
 
+const liveAppState = {
+  agent_packages: {
+    directory: {
+      entries: [
+        {
+          package_id: 'mas',
+          package_role: 'standard_agent',
+          installed: true,
+          display_name: 'Med Auto Science',
+          description: '科研、论文、数据分析、审稿、返修和投稿',
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['med-autoscience'],
+            optional_skill_refs: [],
+          },
+        },
+        {
+          package_id: 'oma',
+          package_role: 'standard_agent',
+          installed: true,
+          display_name: 'OPL Meta Agent',
+          description: '创建、接管、检查和改进 OPL Foundry Agent',
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['opl-meta-agent'],
+            optional_skill_refs: [],
+          },
+        },
+      ],
+    },
+  },
+};
+
 describe('buildAgentConversationParams agent type policy', () => {
   it('always keeps the generated OPL agent directory as the base session context', () => {
-    const context = resolveEffectiveOplAppSessionContext('zh-CN');
+    const context = resolveEffectiveOplAppSessionContext('zh-CN', { appState: liveAppState });
 
     expect(context.hasAdditionalInstructions).toBe(false);
-    expect(context.content).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
-    expect(context.content).toContain('OMA（OPL Meta Agent）：创建、接管、检查和改进 OPL Foundry Agent');
+    expect(context.content).toContain('Med Auto Science: 科研、论文、数据分析、审稿、返修和投稿');
+    expect(context.content).toContain('OPL Meta Agent: 创建、接管、检查和改进 OPL Foundry Agent');
   });
 
   it('appends user instructions without replacing the generated OPL agent directory', () => {
     const context = resolveEffectiveOplAppSessionContext('en-US', {
       additionalInstructions: 'Prefer concise progress summaries.',
+      appState: {
+        agent_packages: {
+          directory: {
+            entries: [
+              {
+                ...liveAppState.agent_packages.directory.entries[0],
+                description: 'Research, papers, data analysis, and peer review',
+              },
+            ],
+          },
+        },
+      },
     });
 
     expect(context.hasAdditionalInstructions).toBe(true);
-    expect(context.content).toContain('MAS (Med Auto Science): research, papers, data analysis, peer review');
+    expect(context.content).toContain('Med Auto Science: Research, papers, data analysis, and peer review');
     expect(context.content).toContain('## Additional User Instructions');
     expect(context.content).toContain('Prefer concise progress summaries.');
   });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
 import {
-  getOplCodexSessionContext,
+  getOplCodexSessionContextForLocale,
   getOplAppSessionContextPolicy,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
@@ -11,8 +11,6 @@ import {
   getOplProductDisplayName,
   getOplOrdinaryChromeName,
   getOplGlobalFeedbackIssueUrl,
-  getOplAssistantSkillProfile,
-  getOplAssistantSkillProfiles,
   getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
@@ -191,29 +189,14 @@ describe('OPL generated product profile', () => {
     });
   });
 
-  it('loads without the retired assistant skill profile mirror', async () => {
-    const profileWithLegacyMirror = structuredClone(generatedProfile);
-    const { assistant_skill_profiles: _assistantSkillProfiles, ...gui } = profileWithLegacyMirror.gui;
-    const profileWithoutLegacyMirror = { ...profileWithLegacyMirror, gui };
-
-    vi.resetModules();
-    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
-      default: profileWithoutLegacyMirror,
-    }));
+  it('does not export retired Profile-derived Skill or session-route authorities', async () => {
     const profileModule = await import('@/common/config/oplProductProfile');
 
-    expect(profileModule.getOplAssistantSkillProfiles().map((profile) => profile.assistant_id)).toEqual([
-      'mas',
-      'mag',
-      'rca',
-      'obf',
-      'oma',
-    ]);
-    expect(profileModule.getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
-    expect(profileModule.getOplAssistantSkillProfile('redcube-ai')?.optional_skills).toEqual([
-      'officecli-pptx',
-      'ui-ux-pro-max',
-    ]);
+    expect(profileModule).not.toHaveProperty('getOplAssistantSkillProfiles');
+    expect(profileModule).not.toHaveProperty('getOplAssistantSkillProfile');
+    expect(profileModule).not.toHaveProperty('getOplOrdinarySkillAllowlist');
+    expect(profileModule).not.toHaveProperty('getOplCodexSessionContext');
+    expect(profileModule).not.toHaveProperty('getOplLegacyCodexSessionContexts');
   });
 
   it('keeps App-owned GUI defaults for theme, fixed Codex executor, and visible model controls', () => {
@@ -759,43 +742,6 @@ describe('OPL generated product profile', () => {
     expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
   });
 
-  it('exposes assistant-scoped home skill profiles from the App contract', () => {
-    const profiles = getOplAssistantSkillProfiles();
-
-    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
-    expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
-      mas: ['med-autoscience'],
-      mag: ['med-autogrant'],
-      rca: ['redcube-ai'],
-      obf: ['opl-bookforge'],
-      oma: ['opl-meta-agent'],
-    });
-    expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
-    expect(getOplAssistantSkillProfile('mag')?.required_skills).toEqual(['med-autogrant']);
-    expect(getOplAssistantSkillProfile('obf')?.required_skills).toEqual(['opl-bookforge']);
-    expect(getOplAssistantSkillProfile('redcube-ai')?.optional_skills).toEqual(['officecli-pptx', 'ui-ux-pro-max']);
-    expect(profiles.every((profile) => !profile.optional_skills.includes('morph-ppt'))).toBe(true);
-    expect(profiles.every((profile) => profile.required_skill_policy === 'checked_locked')).toBe(true);
-    expect(
-      profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
-    ).toBe(true);
-    const availableSkillIds = new Set([
-      ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
-      ...OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids,
-      ...OPL_PRODUCT_PROFILE.companion_payloads.official_codex_runtime_capabilities.preferred_capability_ids,
-    ]);
-    expect(profiles.every((profile) => profile.required_skills.every((skill) => availableSkillIds.has(skill)))).toBe(
-      true
-    );
-    expect(profiles.some((profile) => profile.optional_skills.some((skill) => !availableSkillIds.has(skill)))).toBe(
-      true
-    );
-    expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
-
-    profiles[0].required_skills.push('caller-local-skill');
-    expect(getOplAssistantSkillProfile('med-autoscience')?.required_skills).toEqual(['med-autoscience']);
-  });
-
   it('exposes the built-in assistant route receipt policy', () => {
     const packagePolicy = getOplAgentPackageInvocationReceiptPolicy();
     const generatedPackagePolicy = generatedProfile.gui.agent_package_invocation_receipt_policy;
@@ -1073,12 +1019,12 @@ describe('OPL generated product profile', () => {
   });
 
   it('exposes the Codex session context without embedded secrets', () => {
-    const context = getOplCodexSessionContext();
+    const context = getOplCodexSessionContextForLocale('zh-CN');
     const policy = getOplAppSessionContextPolicy();
 
     expect(context).toContain('关于本次会话');
-    expect(context).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
-    expect(context).toContain('OMA（OPL Meta Agent）：创建、接管、检查和改进 OPL Foundry Agent');
+    expect(context).not.toContain('MAS（Med Auto Science）');
+    expect(context).not.toContain('OMA（OPL Meta Agent）');
     expect(context).toContain('继续遵循你和当前项目中的 AGENTS.md');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
