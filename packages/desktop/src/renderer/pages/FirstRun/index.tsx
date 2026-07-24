@@ -357,6 +357,7 @@ const FirstRun: React.FC = () => {
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [initializeRevision, setInitializeRevision] = useState(0);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
+  const [officialProfileFirstInstallCompleted, setOfficialProfileFirstInstallCompleted] = useState(false);
   const [actionLoading, setActionLoading] = useState<
     | MaintenanceAction
     | 'configure_codex'
@@ -387,6 +388,12 @@ const FirstRun: React.FC = () => {
   );
   const initializePending = initializeLoading && !initializeResult;
   const readyToLaunch = initialize?.setup_flow?.ready_to_launch === true;
+  const officialProfileFirstInstallRequired =
+    isMacRuntime && readyToLaunch && initialize?.setup_flow?.is_first_run === true;
+  const completionReady =
+    readyToLaunch && (!officialProfileFirstInstallRequired || officialProfileFirstInstallCompleted);
+  const officialProfileFirstInstallPending =
+    officialProfileFirstInstallRequired && !officialProfileFirstInstallCompleted;
   const codexConfigBlocked = hasCodexConfigBlocker(initialize);
   const fullReadinessProgressText = formatFullReadinessProgressText(initialize);
   const maintenanceProgressText = formatMaintenanceProgressText(initialize);
@@ -693,10 +700,10 @@ const FirstRun: React.FC = () => {
   }, [refreshInitialize]);
 
   useEffect(() => {
-    if (readyToLaunch) {
+    if (completionReady) {
       readyEntryRef.current?.focus({ preventScroll: true });
     }
-  }, [readyToLaunch]);
+  }, [completionReady]);
 
   useEffect(() => {
     if (
@@ -720,7 +727,10 @@ const FirstRun: React.FC = () => {
       .then((result) => {
         assertBridgeResultOk(result);
         officialProfileCompletedRef.current = true;
-        if (active) setActionResult(result);
+        if (active) {
+          setOfficialProfileFirstInstallCompleted(true);
+          setActionResult(result);
+        }
       })
       .catch((err: unknown) => {
         if (!active) return;
@@ -859,12 +869,12 @@ const FirstRun: React.FC = () => {
 
       <div className={styles.firstRunScrollArea}>
         <section
-          className={`${styles.firstRunWorkspace} ${readyToLaunch ? styles.firstRunWorkspaceComplete : ''}`}
+          className={`${styles.firstRunWorkspace} ${completionReady ? styles.firstRunWorkspaceComplete : ''}`}
           data-testid='opl-first-run-focused-workspace'
         >
           <div className={styles.firstRunWorkspaceBody} data-testid='opl-first-run-progress'>
             <div
-              className={`${styles.firstRunBeginnerSurface} ${readyToLaunch ? styles.firstRunBeginnerSurfaceComplete : ''}`}
+              className={`${styles.firstRunBeginnerSurface} ${completionReady ? styles.firstRunBeginnerSurfaceComplete : ''}`}
               data-testid='opl-first-run-beginner-primary'
             >
               {!readyToLaunch ? (
@@ -927,8 +937,8 @@ const FirstRun: React.FC = () => {
 
               <section
                 ref={taskPanelRef}
-                className={`${styles.firstRunTaskPanel} ${readyToLaunch ? styles.firstRunTaskPanelComplete : ''}`}
-                data-testid={readyToLaunch ? 'opl-first-run-completion' : 'opl-first-run-task-panel'}
+                className={`${styles.firstRunTaskPanel} ${completionReady ? styles.firstRunTaskPanelComplete : ''}`}
+                data-testid={completionReady ? 'opl-first-run-completion' : 'opl-first-run-task-panel'}
                 aria-live='polite'
                 tabIndex={-1}
               >
@@ -1144,7 +1154,31 @@ const FirstRun: React.FC = () => {
                         </Button>
                       </div>
                     </div>
-                  ) : readyToLaunch ? (
+                  ) : officialProfileFirstInstallPending ? (
+                    <div className={styles.firstRunStatePanel}>
+                      <span className={styles.firstRunStateIcon} aria-hidden='true'>
+                        {actionLoading === 'official_profile_first_install' ? <Spin /> : <Config />}
+                      </span>
+                      <h2>{t('settings.firstRun.blockedPanel.title')}</h2>
+                      <p data-testid='opl-first-run-beginner-summary'>
+                        {actionLoading === 'official_profile_first_install'
+                          ? t('settings.firstRun.beginner.summaryPreparing')
+                          : t('settings.firstRun.error.description')}
+                      </p>
+                      <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
+                        <Button
+                          type='primary'
+                          size='large'
+                          loading={actionLoading === 'official_profile_first_install'}
+                          disabled={requestInFlight}
+                          onClick={() => void refreshInitialize()}
+                          data-testid='opl-first-run-official-profile-retry'
+                        >
+                          {t('settings.firstRun.error.retry')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : completionReady ? (
                     <div className={styles.firstRunStatePanel}>
                       <span
                         className={`${styles.firstRunStateIcon} ${styles.firstRunStateIconReady}`}

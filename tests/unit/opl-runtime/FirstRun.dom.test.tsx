@@ -737,14 +737,18 @@ describe('FirstRun readiness page', () => {
     await waitFor(() =>
       expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.blocked')
     );
+    expect(screen.queryByTestId('opl-first-run-ready-entry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-enter-app')).not.toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent('official profile install failed');
     expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTestId('opl-first-run-retry-button'));
+    fireEvent.click(screen.getByTestId('opl-first-run-official-profile-retry'));
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-ready-entry')).toBeInTheDocument());
   });
 
   it('keeps technical phase and maintenance controls out of the beginner primary area', async () => {
