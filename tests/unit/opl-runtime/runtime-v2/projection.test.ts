@@ -322,6 +322,8 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items[0]?.domainDetailViews[0]).toMatchObject({
       viewId: 'scientific-reasoning',
       viewKind: 'scientific_reasoning_map',
+      title: null,
+      schemaRef: null,
       schemaVersion: 'scientific-reasoning-map.v2',
       availability: 'unread',
       revision: 7,
@@ -373,7 +375,8 @@ describe('Runtime V2 projection boundary', () => {
         item_id: 'diabetes:001',
         view_id: 'future-insight',
         view_kind: 'future_domain_map',
-        schema_version: 'future-domain-map.v1',
+        title: 'Future insight',
+        schema_ref: 'contracts/future-domain-map.schema.json',
         availability: 'unread',
       },
       {
@@ -395,7 +398,9 @@ describe('Runtime V2 projection boundary', () => {
       expect.objectContaining({
         viewId: 'future-insight',
         viewKind: 'future_domain_map',
-        schemaVersion: 'future-domain-map.v1',
+        title: 'Future insight',
+        schemaRef: 'contracts/future-domain-map.schema.json',
+        schemaVersion: null,
       }),
       expect.objectContaining({
         viewId: 'scientific-reasoning',

@@ -120,7 +120,9 @@ export type DomainDetailViewDescriptor = {
   itemId: string;
   viewId: string;
   viewKind: string;
-  schemaVersion: string;
+  title: string | null;
+  schemaRef: string | null;
+  schemaVersion: string | null;
   availability: DomainDetailViewAvailability;
   revision: number | null;
   digest: string | null;

@@ -203,6 +203,10 @@ vi.mock('react-i18next', () => ({
       'common.runtime.executionRecords.restoreSuccess': '执行记录已恢复',
       'common.runtime.researchTrajectory.title': '科研路线',
       'common.runtime.researchTrajectory.open': '查看科研路线',
+      'common.runtime.domainDetailView.title': '任务详情视图',
+      'common.runtime.domainDetailView.unsupportedTitle': '当前应用暂不支持此详情视图',
+      'common.runtime.domainDetailView.unsupportedDescription':
+        '其他运行任务不受影响。更新应用后可使用此详情视图。',
       'common.runtime.researchTrajectory.currentHypothesis': '当前主要假设',
       'common.runtime.researchTrajectory.latestFinding': '最新研究发现',
       'common.runtime.researchTrajectory.currentJudgment': '当前判断',
@@ -908,6 +912,36 @@ describe('Runtime V2 page', () => {
     expect(drawer).toHaveTextContent('下一步动作');
     expect(within(drawer).queryByTestId('runtime-research-summary')).not.toBeInTheDocument();
     expect(routeMocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps core Runtime available when an unknown typed view has no renderer extension', async () => {
+    const payload = createRuntimeV2AppState();
+    const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
+      (candidate) => candidate.identity.work_item_id === '001' && candidate.identity.project_id === 'diabetes'
+    )!;
+    item.domain_detail_views = [
+      {
+        item_id: 'diabetes:001',
+        view_id: 'future-insight',
+        view_kind: 'future_domain_map',
+        title: '未来洞察',
+        schema_ref: 'contracts/future-domain-map.schema.json',
+        availability: 'unread',
+      },
+    ];
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
+
+    render(<RuntimePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /001 DM CVD Mortality Risk/ }));
+
+    const drawer = await screen.findByTestId('runtime-task-detail');
+    expect(drawer).toHaveTextContent('阶段与运行');
+    expect(drawer).toHaveTextContent('下一步动作');
+    const unavailable = within(drawer).getByTestId('runtime-domain-detail-view-unavailable');
+    expect(unavailable).toHaveTextContent('未来洞察');
+    expect(unavailable).toHaveTextContent('当前应用暂不支持此详情视图');
+    expect(unavailable).toHaveTextContent('其他运行任务不受影响');
+    expect(within(drawer).queryByTestId('runtime-research-summary')).not.toBeInTheDocument();
   });
 
   it('shows every system responsibility field only for a complete envelope', async () => {

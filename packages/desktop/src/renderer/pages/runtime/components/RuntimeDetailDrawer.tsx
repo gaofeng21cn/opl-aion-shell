@@ -1,4 +1,4 @@
-import { Button, Drawer, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Drawer, Tag, Typography } from '@arco-design/web-react';
 import { Inbox, Undo } from '@icon-park/react';
 import React from 'react';
 import {
@@ -15,6 +15,7 @@ import type { RuntimeWorkItem } from '../types';
 import styles from '../RuntimePage.module.css';
 import { isScientificReasoningViewDescriptor } from '../scientificReasoning';
 import { ScientificReasoningSummary } from './ScientificReasoningSummary';
+import { resolveDomainDetailViewRenderer } from '../domainDetailViewRegistry';
 
 type RuntimeDetailDrawerProps = {
   item: RuntimeWorkItem | null;
@@ -68,6 +69,9 @@ export function RuntimeDetailDrawer({
   const resolvedAction = item?.action ? resolveRuntimeAction(item.action, t) : null;
   const archived = item?.visibility.state === 'archived';
   const reasoningDescriptor = item?.domainDetailViews.find(isScientificReasoningViewDescriptor);
+  const unsupportedDescriptors = item?.domainDetailViews.filter(
+    (descriptor) => !isScientificReasoningViewDescriptor(descriptor) && !resolveDomainDetailViewRenderer(descriptor)
+  ) ?? [];
   return (
     <Drawer
       visible={Boolean(item)}
@@ -165,6 +169,24 @@ export function RuntimeDetailDrawer({
               onOpen={() => onOpenDomainDetailView(item, reasoningDescriptor.viewId)}
             />
           )}
+
+          {unsupportedDescriptors.map((descriptor) => (
+            <section
+              className={styles.detailSection}
+              data-testid='runtime-domain-detail-view-unavailable'
+              key={descriptor.viewId}
+            >
+              <Typography.Title heading={5}>
+                {descriptor.title ?? t('common.runtime.domainDetailView.title')}
+              </Typography.Title>
+              <Alert
+                type='info'
+                showIcon
+                title={t('common.runtime.domainDetailView.unsupportedTitle')}
+                content={t('common.runtime.domainDetailView.unsupportedDescription')}
+              />
+            </section>
+          ))}
 
           {item.primaryStatus === 'system_attention' && item.systemAttention && (
             <section className={styles.systemAttention} data-testid='runtime-system-attention'>

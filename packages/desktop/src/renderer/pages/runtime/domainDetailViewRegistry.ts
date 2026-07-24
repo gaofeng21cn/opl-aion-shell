@@ -19,16 +19,11 @@ const DOMAIN_DETAIL_VIEW_RENDERERS: Readonly<Record<string, DomainDetailViewRend
 /** Resolves a renderer by the domain-authored view kind, never by agent identity. */
 export function resolveDomainDetailViewRenderer(descriptor: DomainDetailViewDescriptor): ComponentType | null {
   const registered = DOMAIN_DETAIL_VIEW_RENDERERS[descriptor.viewKind];
-  return registered?.viewId === descriptor.viewId && registered.schemaVersions.has(descriptor.schemaVersion)
+  return registered?.viewId === descriptor.viewId &&
+    descriptor.schemaVersion !== null &&
+    registered.schemaVersions.has(descriptor.schemaVersion)
     ? registered.component
     : null;
-}
-
-/** Resolves a registered route after a valid fast projection omits its optional descriptor. */
-export function resolveDomainDetailViewRendererByViewId(viewId: string): ComponentType | null {
-  return (
-    Object.values(DOMAIN_DETAIL_VIEW_RENDERERS).find((registered) => registered.viewId === viewId)?.component ?? null
-  );
 }
 
 export const __domainDetailViewRegistryTest = {

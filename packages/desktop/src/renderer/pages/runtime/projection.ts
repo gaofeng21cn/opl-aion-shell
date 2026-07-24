@@ -90,10 +90,15 @@ const DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS = [
   'item_id',
   'view_id',
   'view_kind',
-  'schema_version',
   'availability',
 ] as const;
-const DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS = ['revision', 'digest'] as const;
+const DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS = [
+  'title',
+  'schema_ref',
+  'schema_version',
+  'revision',
+  'digest',
+] as const;
 const DOMAIN_DETAIL_DESCRIPTOR_FIELDS = new Set<string>([
   ...DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS,
   ...DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS,
@@ -299,7 +304,9 @@ function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string
     const itemId = requiredString(entry.item_id);
     const viewId = requiredString(entry.view_id);
     const viewKind = requiredString(entry.view_kind);
-    const schemaVersion = requiredString(entry.schema_version);
+    const title = optionalString(entry.title);
+    const schemaRef = optionalString(entry.schema_ref);
+    const schemaVersion = optionalString(entry.schema_version);
     const availability = enumValue(entry.availability, DOMAIN_DETAIL_AVAILABILITY);
     const revision = entry.revision === undefined ? null : nonNegativeInteger(entry.revision);
     const digest = entry.digest === undefined ? null : requiredString(entry.digest);
@@ -308,11 +315,14 @@ function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string
       !viewId ||
       !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(viewId) ||
       !viewKind ||
-      !schemaVersion ||
+      (!schemaRef && !schemaVersion) ||
       !availability
     ) {
       return null;
     }
+    if (entry.title !== null && entry.title !== undefined && !title) return null;
+    if (entry.schema_ref !== null && entry.schema_ref !== undefined && !schemaRef) return null;
+    if (entry.schema_version !== null && entry.schema_version !== undefined && !schemaVersion) return null;
     if (entry.revision !== undefined && revision === null) return null;
     if (entry.digest !== undefined && (!digest || !SHA256_DIGEST_PATTERN.test(digest))) {
       return null;
@@ -322,6 +332,8 @@ function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string
       itemId,
       viewId,
       viewKind,
+      title,
+      schemaRef,
       schemaVersion,
       availability,
       revision,
