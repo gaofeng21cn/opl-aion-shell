@@ -49,6 +49,8 @@ const LoginPage: React.FC = () => {
   const passwordRef = useRef<HTMLInputElement | null>(null);
   const messageTimer = useRef<number | undefined>(undefined);
   const focusTimer = useRef<number | undefined>(undefined);
+  const freshLoginAttemptRef = useRef(false);
+  const navigationStartedRef = useRef(false);
 
   useEffect(() => {
     document.body.classList.add('login-page-active');
@@ -100,11 +102,24 @@ const LoginPage: React.FC = () => {
     }, 0);
   }, []);
 
+  const navigateToGuid = useCallback(
+    (postLoginSetupCheck: boolean) => {
+      if (navigationStartedRef.current) return;
+      navigationStartedRef.current = true;
+      if (postLoginSetupCheck) {
+        void navigate('/guid', { replace: true, state: { postLoginSetupCheck: true } });
+        return;
+      }
+      void navigate('/guid', { replace: true });
+    },
+    [navigate]
+  );
+
   useEffect(() => {
     if (status === 'authenticated') {
-      void navigate('/guid', { replace: true });
+      navigateToGuid(freshLoginAttemptRef.current);
     }
-  }, [navigate, status]);
+  }, [navigateToGuid, status]);
 
   const clearMessageLater = useCallback(() => {
     if (messageTimer.current) {
@@ -158,6 +173,7 @@ const LoginPage: React.FC = () => {
 
       setLoading(true);
       setMessage(null);
+      freshLoginAttemptRef.current = true;
 
       try {
         const result = await login({ username: trimmedUsername, password, remember: rememberMe });
@@ -174,8 +190,9 @@ const LoginPage: React.FC = () => {
 
           const successText = t('login.success');
           showMessage({ type: 'success', text: successText });
-          void navigate('/guid', { replace: true });
+          navigateToGuid(true);
         } else {
+          freshLoginAttemptRef.current = false;
           const errorText = (() => {
             switch (result.code) {
               case 'invalidCredentials':
@@ -200,13 +217,14 @@ const LoginPage: React.FC = () => {
           passwordRef.current?.focus();
         }
       } catch {
+        freshLoginAttemptRef.current = false;
         showMessage({ type: 'error', text: t('login.errors.networkError') });
         passwordRef.current?.focus();
       } finally {
         setLoading(false);
       }
     },
-    [loading, login, navigate, password, rememberMe, showMessage, t, username]
+    [loading, login, navigateToGuid, password, rememberMe, showMessage, t, username]
   );
 
   if (status === 'checking') {

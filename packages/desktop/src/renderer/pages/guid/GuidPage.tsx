@@ -44,8 +44,7 @@ import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { Button, ConfigProvider } from '@arco-design/web-react';
-import { Info, Right } from '@icon-park/react';
+import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -60,6 +59,7 @@ type GuidNavigationState = {
   selectedAgentKey?: string;
   workspace?: string;
   postInstallSelfCheck?: boolean;
+  postLoginSetupCheck?: boolean;
   selectedCapabilityId?: string;
 };
 
@@ -227,10 +227,9 @@ const GuidPage: React.FC = () => {
   // Only aionrs uses this provider-based model picker now (Gemini runs as a
   // regular ACP backend with its own model selector).
   const modelSelection = useGuidModelSelection('aionrs');
-  const coreReadiness = useCoreLaunchPrerequisites();
+  const postLoginSetupCheckRequested = navState?.postLoginSetupCheck === true;
+  const coreReadiness = useCoreLaunchPrerequisites({ requireLive: postLoginSetupCheckRequested });
   const workspaceAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
-  const runtimeNeedsAttention =
-    coreReadiness.known && (!coreReadiness.codexCliReady || !coreReadiness.modelAccessReady);
 
   const resetAssistantRequested = navState?.resetAssistant === true;
   const preselectAgentKey = navState?.selectedAgentKey;
@@ -409,10 +408,6 @@ const GuidPage: React.FC = () => {
 
   const openFirstRunSetup = useCallback(() => {
     void navigate('/first-run');
-  }, [navigate]);
-
-  const openRuntimeMaintenance = useCallback(() => {
-    void navigate('/settings/environment?section=diagnostics');
   }, [navigate]);
 
   const sendWithPrerequisiteCheck = useCallback(() => {
@@ -637,8 +632,31 @@ const GuidPage: React.FC = () => {
     t,
   ]);
 
-  // Clear resetAssistant from location.state after the hook has consumed it,
-  // so that re-renders don't re-trigger the reset logic.
+  useEffect(() => {
+    if (!postLoginSetupCheckRequested) return;
+    if (coreReadiness.provenance === 'live' && coreReadiness.known) {
+      if (!coreReadiness.readyToLaunch) {
+        void navigate('/first-run', { replace: true });
+        return;
+      }
+    } else if (coreReadiness.loading) {
+      return;
+    }
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [
+    coreReadiness.known,
+    coreReadiness.loading,
+    coreReadiness.provenance,
+    coreReadiness.readyToLaunch,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate,
+    postLoginSetupCheckRequested,
+  ]);
+
+  // Clear ordinary one-shot navigation state after its owning hook consumes it,
+  // so that re-renders don't re-trigger the action.
   //
   // Must go through React Router's navigate — raw window.history.replaceState
   // with `location.pathname` would write the HashRouter virtual path (e.g.
@@ -646,6 +664,7 @@ const GuidPage: React.FC = () => {
   // next hard reload, the browser would then request '/guid' directly from
   // the dev server (which has no SPA fallback) and 404.
   useEffect(() => {
+    if (postLoginSetupCheckRequested) return;
     if (
       !resetAssistantRequested &&
       !preselectAgentKey &&
@@ -658,6 +677,7 @@ const GuidPage: React.FC = () => {
     resetAssistantRequested,
     preselectAgentKey,
     postInstallSelfCheckRequested,
+    postLoginSetupCheckRequested,
     navState?.selectedCapabilityId,
     location.pathname,
     location.search,
@@ -841,29 +861,6 @@ const GuidPage: React.FC = () => {
           </div>
 
           <div className={styles.guidComposerDock}>
-            {runtimeNeedsAttention && !setupNoticeKind ? (
-              <div
-                className={styles.guidSetupNotice}
-                data-testid='opl-home-runtime-alert'
-                role='status'
-                aria-live='polite'
-              >
-                <Info theme='outline' size='16' fill='currentColor' className={styles.guidSetupNoticeIcon} />
-                <div className={styles.guidSetupNoticeCopy}>
-                  <strong>{t('guid.uiOptimization.home.runtimeAlert.title')}</strong>
-                  <span>{t('guid.uiOptimization.home.runtimeAlert.description')}</span>
-                </div>
-                <Button
-                  type='text'
-                  size='small'
-                  icon={<Right theme='outline' size='14' fill='currentColor' />}
-                  onClick={openRuntimeMaintenance}
-                  data-testid='opl-home-runtime-alert-action'
-                >
-                  {t('guid.uiOptimization.home.runtimeAlert.openMaintenance')}
-                </Button>
-              </div>
-            ) : null}
             <GuidWorkspaceContextBar
               workspaceDir={guidInput.dir}
               onSelectWorkspace={handleWorkspaceSelect}

@@ -98,15 +98,10 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 };
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
-  const { status } = useAuth();
-
   return (
     <HashRouter>
       <Routes>
-        <Route
-          path='/login'
-          element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)}
-        />
+        <Route path='/login' element={withRouteFallback(LoginPage)} />
         <Route
           index
           element={

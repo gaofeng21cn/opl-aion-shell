@@ -127,11 +127,6 @@
         "grant": "撰写基金",
         "book": "创作书稿",
         "agentEngineering": "构建智能体"
-      },
-      "runtimeAlert": {
-        "title": "本机运行环境需要处理",
-        "description": "部分后台能力暂时不可用；普通对话仍可继续。",
-        "openMaintenance": "打开维护"
       }
     }
   }

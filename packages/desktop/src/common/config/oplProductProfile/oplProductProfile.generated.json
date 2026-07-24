@@ -1696,6 +1696,17 @@
       "failure_policy": "show_retryable_initial_message_error_without_losing_user_prompt"
     },
     "ordinary_shell_recovery": {
+      "fresh_webui_login_setup_check": {
+        "trigger": "successful_authenticated_webui_login_only",
+        "route_intent": "postLoginSetupCheck",
+        "state_source": "shared_opl_app_fast_state",
+        "known_incomplete_behavior": "replace_guid_with_first_run",
+        "ready_behavior": "keep_guid",
+        "unknown_timeout_or_read_failure_behavior": "keep_guid_fail_open",
+        "ui_timeout_ms": 5000,
+        "ordinary_startup_refresh_and_deep_link_behavior": "keep_guid_without_automatic_first_run",
+        "consumption_policy": "one_shot"
+      },
       "persistent_setup_entry": {
         "visibility": "core_prerequisites_incomplete_after_guid_entry",
         "surface": "ordinary_sidebar_non_modal_entry",
@@ -1703,6 +1714,7 @@
         "label_policy": "localized_complete_first_setup",
         "must_preserve_current_route_until_clicked": true
       },
+      "persistent_home_composer_runtime_alert": "forbidden_use_sidebar_and_send_scoped_inline_recovery_only",
       "plain_conversation": {
         "required_items": ["codex_cli", "codex_config"],
         "workspace_root_required": false,

@@ -53,7 +53,7 @@ describe('LoginPage', () => {
     expect(navigateMock).not.toHaveBeenCalledWith('/startup-gate', expect.anything());
   });
 
-  it('sends successful login users directly to Guid without an artificial delay', async () => {
+  it('sends successful login users to Guid with a one-shot setup check', async () => {
     authState.status = 'unauthenticated';
 
     render(<LoginPage />);
@@ -66,7 +66,13 @@ describe('LoginPage', () => {
       expect(authState.login).toHaveBeenCalledWith({ username: 'admin', password: 'password', remember: false })
     );
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true }));
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith('/guid', {
+        replace: true,
+        state: { postLoginSetupCheck: true },
+      })
+    );
+    expect(navigateMock).toHaveBeenCalledTimes(1);
     expect(navigateMock).not.toHaveBeenCalledWith('/startup-gate', expect.anything());
   });
 

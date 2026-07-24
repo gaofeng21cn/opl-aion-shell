@@ -127,11 +127,6 @@
         "grant": "Write a grant",
         "book": "Write a book",
         "agentEngineering": "Build an agent"
-      },
-      "runtimeAlert": {
-        "title": "Local runtime needs attention",
-        "description": "Some background capabilities are temporarily unavailable. Regular conversations can continue.",
-        "openMaintenance": "Open Maintenance"
       }
     }
   }

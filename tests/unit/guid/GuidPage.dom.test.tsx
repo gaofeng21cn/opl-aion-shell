@@ -74,6 +74,10 @@ const mocks = vi.hoisted(() => ({
       },
     } as Record<string, unknown>,
   },
+  appStateLoad: vi.fn().mockResolvedValue({}),
+  appStateLoading: { value: false },
+  appStateError: { value: null as string | null },
+  appStateProvenance: { value: 'live' as 'none' | 'derived_bootstrap' | 'live' },
   guidInput: {
     input: '',
     files: [] as string[],
@@ -251,7 +255,13 @@ vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
-  useOplAppState: () => ({ appState: mocks.appState.value }),
+  useOplAppState: () => ({
+    appState: mocks.appState.value,
+    loading: mocks.appStateLoading.value,
+    error: mocks.appStateError.value,
+    provenance: mocks.appStateProvenance.value,
+    load: mocks.appStateLoad,
+  }),
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -491,6 +501,11 @@ describe('GuidPage selected purpose assistant surface', () => {
         },
       },
     };
+    mocks.appStateLoad.mockReset();
+    mocks.appStateLoad.mockResolvedValue({});
+    mocks.appStateLoading.value = false;
+    mocks.appStateError.value = null;
+    mocks.appStateProvenance.value = 'live';
     mocks.guidInput.input = '';
     mocks.guidInput.files = [];
     mocks.guidInput.dir = '';
@@ -787,7 +802,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByTestId('opl-home-runtime-alert')).not.toBeInTheDocument();
   });
 
-  it('shows one compact maintenance alert only when the local runtime is not ready', async () => {
+  it('keeps the persistent composer alert absent when the local runtime is not ready', () => {
     mocks.appState.value = {
       ...mocks.appState.value,
       core: {
@@ -802,12 +817,59 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     render(<GuidPage />);
 
-    expect(screen.getAllByTestId('opl-home-runtime-alert')).toHaveLength(1);
-    expect(screen.getByTestId('opl-home-runtime-alert')).toHaveTextContent(
-      'guid.uiOptimization.home.runtimeAlert.title'
+    expect(screen.queryByTestId('opl-home-runtime-alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
+  });
+
+  it('opens FirstRun after a fresh login confirms incomplete Core readiness', async () => {
+    mocks.locationState.value = { postLoginSetupCheck: true };
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+    };
+
+    render(<GuidPage />);
+
+    await waitFor(() => expect(mocks.appStateLoad).toHaveBeenCalledWith('fast', { forceFresh: true }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/first-run', { replace: true }));
+  });
+
+  it('keeps Guid and consumes the fresh-login intent when Core readiness is complete', async () => {
+    mocks.locationState.value = { postLoginSetupCheck: true };
+
+    render(<GuidPage />);
+
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith('/guid', {
+        replace: true,
+        state: null,
+      })
     );
-    await userEvent.click(screen.getByTestId('opl-home-runtime-alert-action'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=diagnostics');
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/first-run', expect.anything());
+  });
+
+  it('fails open on Guid when the fresh-login readiness read fails', async () => {
+    mocks.locationState.value = { postLoginSetupCheck: true };
+    mocks.appState.value = {};
+    mocks.appStateProvenance.value = 'none';
+    mocks.appStateLoad.mockRejectedValueOnce(new Error('runtime unavailable'));
+
+    render(<GuidPage />);
+
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith('/guid', {
+        replace: true,
+        state: null,
+      })
+    );
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/first-run', expect.anything());
   });
 
   it('renders one Home surface and one composer', () => {
