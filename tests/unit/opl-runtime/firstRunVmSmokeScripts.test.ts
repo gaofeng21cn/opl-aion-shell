@@ -3102,7 +3102,10 @@ describe('OPL first-run VM smoke scripts', () => {
       expect(command).toContain(`Casks/${candidateCase.fileName}`);
       expect(command).toContain(`homebrew_cask_ref=opl-local/cask-candidate/${candidateCase.caskToken}`);
       expect(command).toContain('install --cask "$homebrew_cask_ref"');
-      expect(command).not.toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
+      expect(command).toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
+      expect(command.indexOf('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'')).toBeLessThan(
+        command.indexOf('tap-new opl-local/cask-candidate')
+      );
       expect(command).toContain(`trust --cask 'opl-local/cask-candidate/${candidateCase.caskToken}'`);
       expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/");
       expect(command.indexOf('Standard and Nightly Casks must install Formula opl')).toBeGreaterThan(

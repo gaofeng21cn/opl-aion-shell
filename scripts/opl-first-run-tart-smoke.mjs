@@ -2131,7 +2131,7 @@ export HOMEBREW_NO_INSTALL_CLEANUP=1
 export HOMEBREW_NO_ENV_HINTS=1
 ${
   guestCaskCandidate
-    ? `"$BREW_BIN" tap-new opl-local/cask-candidate
+    ? `${homebrewFormulaRequired ? `"$BREW_BIN" tap ${shellQuote(options.homebrewTap)}\n` : ''}"$BREW_BIN" tap-new opl-local/cask-candidate
 tap_path="$("$BREW_BIN" --repository opl-local/cask-candidate)"
 mkdir -p "$tap_path/Casks"
 cp ${shellQuote(guestCaskCandidate)} "$tap_path/Casks/${candidateProfile.fileName}"
