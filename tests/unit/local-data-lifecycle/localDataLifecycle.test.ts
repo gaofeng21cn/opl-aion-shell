@@ -208,9 +208,14 @@ describe('local data lifecycle service', () => {
     expect(plan.authority_state).toBe('blocked');
     expect(plan.blocked_reason).toBe('current_runtime_pointer_missing_or_invalid');
     expect(plan.remove_candidates).toEqual([]);
-    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
-      /runtime prune is blocked/i
-    );
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [],
+      })
+    ).toThrow(/runtime prune is blocked/i);
   });
 
   it('blocks managed runtime pruning when current points to a runtime without the install marker', () => {
@@ -227,9 +232,14 @@ describe('local data lifecycle service', () => {
     expect(plan.authority_state).toBe('blocked');
     expect(plan.blocked_reason).toBe('current_runtime_install_marker_missing');
     expect(plan.remove_candidates).toEqual([]);
-    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
-      /runtime prune is blocked/i
-    );
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [],
+      })
+    ).toThrow(/runtime prune is blocked/i);
     expect(exists(staleRuntime)).toBe(true);
   });
 
@@ -688,6 +698,7 @@ describe('local data lifecycle service', () => {
         plan: { ...plan, plan_hash: 'wrong' },
         receiptRoot: receiptsRoot,
         planHash: 'wrong',
+        selectedPaths: [staleRuntime],
       })
     ).toThrow(/plan hash/i);
     expect(() =>
@@ -695,13 +706,39 @@ describe('local data lifecycle service', () => {
         plan,
         receiptRoot: receiptsRoot,
         planHash: '',
+        selectedPaths: [staleRuntime],
       })
     ).toThrow(/matching dry-run plan hash/i);
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [],
+      })
+    ).toThrow(/at least one dry-run candidate/i);
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [staleRuntime, staleRuntime],
+      })
+    ).toThrow(/duplicate paths/i);
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [path.join(runtimeRoot, 'not-in-plan')],
+      })
+    ).toThrow(/outside the dry-run candidates/i);
 
     const receipt = executeRuntimePointerPrunePlan({
       plan,
       receiptRoot: receiptsRoot,
       planHash: plan.plan_hash,
+      selectedPaths: [staleRuntime],
       now: new Date('2026-06-18T12:00:00Z'),
     });
 
@@ -711,13 +748,13 @@ describe('local data lifecycle service', () => {
     expect(receipt.protected_paths.sort()).toEqual(
       [currentRuntime, previousRuntime, path.join(runtimeRoot, 'current.json'), path.join(runtimeRoot, 'staged')].sort()
     );
-    expect(receipt.deleted_paths.sort()).toEqual([stagedRuntime, staleRuntime].sort());
-    expect(receipt.deleted_bytes).toBe(Buffer.byteLength('stale') + Buffer.byteLength('staged'));
+    expect(receipt.deleted_paths).toEqual([staleRuntime]);
+    expect(receipt.deleted_bytes).toBe(Buffer.byteLength('stale'));
     expect(exists(receipt.receipt_path)).toBe(true);
     expect(exists(currentRuntime)).toBe(true);
     expect(exists(previousRuntime)).toBe(true);
     expect(exists(staleRuntime)).toBe(false);
-    expect(exists(stagedRuntime)).toBe(false);
+    expect(exists(stagedRuntime)).toBe(true);
   });
 
   it('refuses runtime pruning when pointer authority changes after the dry-run plan', () => {
@@ -733,9 +770,14 @@ describe('local data lifecycle service', () => {
 
     writeFile(pointerPath, `${JSON.stringify({ runtime_home: staleRuntime })}\n`);
 
-    expect(() => executeRuntimePointerPrunePlan({ plan, receiptRoot: receiptsRoot, planHash: plan.plan_hash })).toThrow(
-      /authority changed/i
-    );
+    expect(() =>
+      executeRuntimePointerPrunePlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [staleRuntime],
+      })
+    ).toThrow(/authority changed/i);
     expect(exists(staleRuntime)).toBe(true);
   });
 
@@ -764,6 +806,7 @@ describe('local data lifecycle service', () => {
       plan,
       receiptRoot: receiptsRoot,
       planHash: plan.plan_hash,
+      selectedPaths: [old],
       now: new Date('2026-06-18T12:01:00Z'),
     });
 
@@ -820,15 +863,16 @@ describe('local data lifecycle service', () => {
       plan,
       receiptRoot: receiptsRoot,
       planHash: plan.plan_hash,
+      selectedPaths: [stalePackage],
       now: new Date('2026-06-18T12:01:00Z'),
     });
 
     expect(receipt.schema).toBe('opl_updater_cache_cleanup_receipt.v1');
-    expect(receipt.deleted_paths.sort()).toEqual([retiredPackage, stalePackage].sort());
-    expect(receipt.deleted_bytes).toBe(Buffer.byteLength('legacy') + Buffer.byteLength('stale'));
+    expect(receipt.deleted_paths).toEqual([stalePackage]);
+    expect(receipt.deleted_bytes).toBe(Buffer.byteLength('stale'));
     expect(exists(receipt.receipt_path)).toBe(true);
     expect(exists(stalePackage)).toBe(false);
-    expect(exists(retiredPackage)).toBe(false);
+    expect(exists(retiredPackage)).toBe(true);
     expect(exists(activePackage)).toBe(true);
     expect(exists(metadata)).toBe(true);
     expect(exists(retiredMetadata)).toBe(true);

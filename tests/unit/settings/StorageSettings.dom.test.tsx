@@ -208,6 +208,32 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.cleanupFlow.confirm': 'Review the exact receipt or preview summary.',
     'settings.storagePage.cleanupFlow.step3': '3. Execute',
     'settings.storagePage.cleanupFlow.execute': 'Run only the confirmed plan.',
+    'settings.storagePage.cleanupPreview.title': 'Choose content to clean',
+    'settings.storagePage.cleanupPreview.description': 'Only checked items from this preview will be removed.',
+    'settings.storagePage.cleanupPreview.tabs.runtime': 'Runtime cache',
+    'settings.storagePage.cleanupPreview.tabs.logs': 'App logs',
+    'settings.storagePage.cleanupPreview.tabs.updater': 'Installer cache',
+    'settings.storagePage.cleanupPreview.summary.total': 'Category total',
+    'settings.storagePage.cleanupPreview.summary.candidates': 'Available to clean',
+    'settings.storagePage.cleanupPreview.summary.selected': 'Selected now',
+    'settings.storagePage.cleanupPreview.summary.retained': 'Remaining after cleanup',
+    'settings.storagePage.cleanupPreview.retainedTitle': 'Why this space remains',
+    'settings.storagePage.cleanupPreview.retainedReasons.runtime':
+      'The current and rollback runtimes, runtime tools and tool caches, and directories without pointer-based deletion proof are protected and cannot be selected here.',
+    'settings.storagePage.cleanupPreview.retainedReasons.logs':
+      'Recent logs and files that do not match the log-retention cleanup rules remain available for troubleshooting.',
+    'settings.storagePage.cleanupPreview.retainedReasons.updater':
+      'The active installer package, update metadata, and files that are not stale installer packages remain available for updates.',
+    'settings.storagePage.cleanupPreview.selectAll': 'Select all available items',
+    'settings.storagePage.cleanupPreview.reasons.runtime.unreferenced_runtime_root':
+      'Historical runtime version not referenced by the current or rollback pointer',
+    'settings.storagePage.cleanupPreview.reasons.runtime.unreferenced_staged_runtime':
+      'Staged runtime version not referenced by the current or rollback pointer',
+    'settings.storagePage.cleanupPreview.reasons.updater.stale_installer_package':
+      'Stale installer package not used by the active update',
+    'settings.storagePage.cleanupPreview.technicalDetails': 'Technical details',
+    'settings.storagePage.cleanupPreview.empty': 'No safely removable items were found in this category.',
+    'settings.storagePage.cleanupPreview.executeSelected': 'Clean selected items',
     'settings.storagePage.researchLifecycle.title': 'Work data protection rules',
     'settings.storagePage.researchLifecycle.detail': 'Open only when troubleshooting cleanup boundaries.',
     'settings.storagePage.researchLifecycle.technicalDetails': 'Work data protection details',
@@ -259,6 +285,24 @@ const translate = (key: string, values?: Record<string, string | number>) => {
   };
   if (key === 'settings.storagePage.inventory.freshness') {
     return `Observed ${values?.observedAt} in ${values?.duration} ms · ${values?.state}`;
+  }
+  if (key === 'settings.storagePage.cleanupPreview.summary.itemsAndBytes') {
+    return `${values?.count} item(s) · ${values?.bytes}`;
+  }
+  if (key === 'settings.storagePage.cleanupPreview.selectedCount') {
+    return `${values?.selected} of ${values?.total} selected`;
+  }
+  if (key === 'settings.storagePage.cleanupPreview.unselectedRetained') {
+    return `${values?.count} cleanable item(s) are not selected and will also remain.`;
+  }
+  if (key === 'settings.storagePage.cleanupPreview.candidateNames.runtime') {
+    return `Runtime version ${values?.name}`;
+  }
+  if (
+    key === 'settings.storagePage.cleanupPreview.candidateNames.logs' ||
+    key === 'settings.storagePage.cleanupPreview.candidateNames.updater'
+  ) {
+    return String(values?.name ?? '');
   }
   if (key === 'settings.workspacePage.logs.current') return `Current: ${values?.path}`;
   const renderedValues = Object.values(values ?? {})
@@ -352,8 +396,8 @@ const runtimePlan = {
   plan_hash: 'runtime-hash',
   runtime_root: '/tmp/runtime',
   protected_paths: ['/tmp/runtime/current'],
-  remove_candidates: [{ path: '/tmp/runtime/stale', bytes: 30, reason: 'unreferenced_runtime_root' }],
-  remove_bytes: 30,
+  remove_candidates: [{ path: '/tmp/runtime/stale', bytes: 10, reason: 'unreferenced_runtime_root' }],
+  remove_bytes: 10,
   created_at: '2026-06-18T12:00:00.000Z',
 };
 
@@ -1165,7 +1209,7 @@ describe('StorageSettingsContent', () => {
     expect(diagnostics.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });
 
-  it('reveals delete and execute actions only after receipt or dry-run plan exists', async () => {
+  it('opens an itemized cleanup preview that explains candidates and retained runtime usage', async () => {
     render(<StorageSettingsContent />);
 
     await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
@@ -1183,52 +1227,75 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.planRuntimePrune).toHaveBeenCalledTimes(1));
     expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('storage-runtime-execute')).toBeEnabled();
-    expect(screen.getByTestId('storage-logs-execute')).toBeEnabled();
-    expect(screen.getByTestId('storage-updater-execute')).toBeEnabled();
-  });
+    expect(await screen.findByText('Choose content to clean')).toBeInTheDocument();
+    const runtimeSummary = screen.getByTestId('storage-cleanup-preview-summary-runtime');
+    expect(runtimeSummary).toHaveTextContent('Category total');
+    expect(runtimeSummary).toHaveTextContent('30 B');
+    expect(runtimeSummary).toHaveTextContent('1 item(s) · 10 B');
+    expect(screen.getByTestId('storage-cleanup-selected-bytes')).toHaveTextContent('10 B');
+    expect(screen.getByTestId('storage-cleanup-retained-bytes')).toHaveTextContent('20 B');
+    expect(screen.getByTestId('storage-cleanup-retained-reason')).toHaveTextContent(
+      'The current and rollback runtimes, runtime tools and tool caches'
+    );
+    expect(screen.getByText('Runtime version stale')).toBeInTheDocument();
+    expect(
+      screen.getByText('Historical runtime version not referenced by the current or rollback pointer')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Technical details').closest('details')).not.toHaveAttribute('open');
 
-  it('executes runtime and log cleanup with the dry-run plan object', async () => {
-    render(<StorageSettingsContent />);
-    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+    const runtimeCandidate = screen.getByTestId('storage-cleanup-candidate-runtime');
+    fireEvent.click(runtimeCandidate);
+    expect(screen.getByTestId('storage-cleanup-preview-execute')).toBeDisabled();
+    expect(screen.getByTestId('storage-cleanup-selected-bytes')).toHaveTextContent('0 B');
+    expect(screen.getByTestId('storage-cleanup-retained-bytes')).toHaveTextContent('30 B');
+    expect(screen.getByTestId('storage-cleanup-retained-reason')).toHaveTextContent(
+      '1 cleanable item(s) are not selected'
+    );
 
-    fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
-    await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
-    fireEvent.click(screen.getByTestId('storage-runtime-execute'));
-    expect(bridgeMocks.executeRuntimePrune).not.toHaveBeenCalled();
-    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
-    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' }));
-    expect(screen.getByTestId('storage-action-confirmation')).toHaveFocus();
-    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+    fireEvent.click(runtimeCandidate);
+    fireEvent.click(screen.getByTestId('storage-cleanup-preview-execute'));
     await waitFor(() =>
       expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledWith({
         plan: runtimePlan,
         planHash: runtimePlan.plan_hash,
+        selectedPaths: ['/tmp/runtime/stale'],
       })
-    );
-
-    fireEvent.click(screen.getByTestId('storage-logs-execute'));
-    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
-    fireEvent.click(screen.getByTestId('storage-action-confirm'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeLogRotation).toHaveBeenCalledWith({ plan: logsPlan, planHash: logsPlan.plan_hash })
     );
   });
 
-  it('executes updater cache cleanup only after a dry-run plan is confirmed', async () => {
+  it('switches cleanup categories and executes only the selected log candidates', async () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Review installer cache cleanup'));
-    await waitFor(() => expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled());
-    fireEvent.click(screen.getByTestId('storage-updater-execute'));
-    expect(bridgeMocks.executeUpdaterCacheCleanup).not.toHaveBeenCalled();
-    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
-    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+    fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
+    await screen.findByText('Choose content to clean');
+    fireEvent.click(within(screen.getByTestId('storage-cleanup-preview-tabs')).getByText('App logs'));
+    expect(screen.getByTestId('storage-cleanup-preview-summary-logs')).toHaveTextContent('1 item(s) · 40 B');
+    expect(screen.getByText('old.log')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('storage-cleanup-preview-execute'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeLogRotation).toHaveBeenCalledWith({
+        plan: logsPlan,
+        planHash: logsPlan.plan_hash,
+        selectedPaths: ['/tmp/logs/old.log'],
+      })
+    );
+  });
+
+  it('opens the shared preview on installer cache from the category action', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('storage-updater-preview'));
+    expect(await screen.findByTestId('storage-cleanup-preview-summary-updater')).toHaveTextContent('1 item(s) · 10 B');
+    expect(screen.getByText('pkg.zip')).toBeInTheDocument();
+    expect(screen.getByText('Stale installer package not used by the active update')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('storage-cleanup-preview-execute'));
     await waitFor(() =>
       expect(bridgeMocks.executeUpdaterCacheCleanup).toHaveBeenCalledWith({
         plan: updaterPlan,
         planHash: updaterPlan.plan_hash,
+        selectedPaths: ['/tmp/updater-cache/pkg.zip'],
       })
     );
   });
@@ -1348,27 +1415,26 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
-    await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByTestId('storage-cleanup-preview-execute')).not.toBeDisabled());
 
     const mutation = deferred<typeof receipt>();
     const inventoryRefresh = deferred<typeof inventorySnapshot>();
     bridgeMocks.executeRuntimePrune.mockReturnValueOnce(mutation.promise);
     bridgeMocks.refreshInventory.mockReturnValueOnce(inventoryRefresh.promise);
 
-    fireEvent.click(screen.getByTestId('storage-runtime-execute'));
-    const confirm = screen.getByTestId('storage-action-confirm');
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
+    const execute = screen.getByTestId('storage-cleanup-preview-execute');
+    fireEvent.click(execute);
+    fireEvent.click(execute);
 
     expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('storage-logs-execute')).toBeDisabled();
+    expect(screen.getByTestId('storage-logs-preview')).toBeDisabled();
     expect(screen.getByTestId('storage-refresh')).toBeDisabled();
 
     mutation.resolve(receipt);
     await waitFor(() => expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('settings-storage-primary-action')).toBeDisabled();
-    fireEvent.click(screen.getByTestId('storage-logs-execute'));
+    fireEvent.click(screen.getByTestId('storage-logs-preview'));
     fireEvent.click(screen.getByTestId('storage-refresh'));
     expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.refreshInventory).toHaveBeenCalledTimes(1);

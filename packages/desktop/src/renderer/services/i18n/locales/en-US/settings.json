@@ -1840,6 +1840,48 @@
       "step3": "3. Execute",
       "execute": "Process only confirmed items and keep an operation record."
     },
+    "cleanupPreview": {
+      "title": "Choose content to clean",
+      "description": "Only checked items from this preview will be removed. Current, rollback, active, and unclassified content stays in place.",
+      "tabs": {
+        "runtime": "Runtime cache",
+        "logs": "App logs",
+        "updater": "Installer cache"
+      },
+      "summary": {
+        "total": "Category total",
+        "candidates": "Available to clean",
+        "selected": "Selected now",
+        "retained": "Remaining after cleanup",
+        "itemsAndBytes": "{{count}} item(s) · {{bytes}}"
+      },
+      "retainedTitle": "Why this space remains",
+      "retainedReasons": {
+        "runtime": "The current and rollback runtimes, runtime tools and tool caches, and directories without pointer-based deletion proof are protected and cannot be selected here.",
+        "logs": "Recent logs and files that do not match the log-retention cleanup rules remain available for troubleshooting.",
+        "updater": "The active installer package, update metadata, and files that are not stale installer packages remain available for updates."
+      },
+      "unselectedRetained": "{{count}} cleanable item(s) are not selected and will also remain.",
+      "selectAll": "Select all available items",
+      "selectedCount": "{{selected}} of {{total}} selected",
+      "candidateNames": {
+        "runtime": "Runtime version {{name}}",
+        "logs": "{{name}}",
+        "updater": "{{name}}"
+      },
+      "reasons": {
+        "runtime": {
+          "unreferenced_runtime_root": "Historical runtime version not referenced by the current or rollback pointer",
+          "unreferenced_staged_runtime": "Staged runtime version not referenced by the current or rollback pointer"
+        },
+        "updater": {
+          "stale_installer_package": "Stale installer package not used by the active update"
+        }
+      },
+      "technicalDetails": "Technical details",
+      "empty": "No safely removable items were found in this category. The displayed usage remains protected or outside this cleanup boundary.",
+      "executeSelected": "Clean selected items"
+    },
     "researchLifecycle": {
       "title": "Work data protection rules",
       "detail": "Open only when troubleshooting cleanup boundaries.",

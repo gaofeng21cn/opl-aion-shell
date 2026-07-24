@@ -207,6 +207,7 @@ type ExecuteRuntimePointerPrunePlanInput = {
   plan: RuntimePointerPrunePlan;
   receiptRoot: string;
   planHash: string;
+  selectedPaths: string[];
   now?: Date;
 };
 
@@ -214,6 +215,7 @@ type ExecuteLogRetentionPlanInput = {
   plan: LogRetentionPlan;
   receiptRoot: string;
   planHash: string;
+  selectedPaths: string[];
   now?: Date;
 };
 
@@ -228,6 +230,7 @@ type ExecuteUpdaterCacheCleanupPlanInput = {
   plan: UpdaterCacheCleanupDryRunPlan;
   receiptRoot: string;
   planHash: string;
+  selectedPaths: string[];
   now?: Date;
 };
 
@@ -866,6 +869,32 @@ function isInsideAnyRoot(roots: string[], candidate: string): boolean {
   return roots.some((root) => isSameOrInside(root, candidate));
 }
 
+function selectedPlanCandidates<Candidate extends { path: string }>(
+  candidates: Candidate[],
+  selectedPaths: string[]
+): Candidate[] {
+  if (selectedPaths.length === 0) {
+    throw new Error('At least one dry-run candidate must be selected before cleanup.');
+  }
+  if (selectedPaths.some((candidatePath) => typeof candidatePath !== 'string' || candidatePath.trim().length === 0)) {
+    throw new Error('Cleanup selection contains an invalid path.');
+  }
+
+  const candidatesByPath = new Map(candidates.map((candidate) => [path.resolve(candidate.path), candidate]));
+  const normalizedSelection = selectedPaths.map((candidatePath) => path.resolve(candidatePath));
+  if (new Set(normalizedSelection).size !== normalizedSelection.length) {
+    throw new Error('Cleanup selection contains duplicate paths.');
+  }
+
+  return normalizedSelection.map((candidatePath) => {
+    const candidate = candidatesByPath.get(candidatePath);
+    if (!candidate) {
+      throw new Error('Cleanup selection contains a path outside the dry-run candidates.');
+    }
+    return candidate;
+  });
+}
+
 export function buildLocalDataLifecycleInventory(input: LocalDataLifecycleInventoryInput): LocalDataLifecycleInventory {
   const conversationRoots = input.conversationRoots?.length
     ? input.conversationRoots
@@ -1145,9 +1174,10 @@ export function executeLogRetentionPlan(input: ExecuteLogRetentionPlanInput): Lo
   if (input.planHash !== input.plan.plan_hash) {
     throw new Error('Matching dry-run plan hash is required before log rotation.');
   }
+  const selectedCandidates = selectedPlanCandidates(input.plan.remove_candidates, input.selectedPaths);
   const deletedPaths: string[] = [];
   let deletedBytes = 0;
-  for (const candidate of input.plan.remove_candidates) {
+  for (const candidate of selectedCandidates) {
     if (!isSameOrInside(input.plan.logs_root, candidate.path) || path.extname(candidate.path) !== '.log') {
       throw new Error('Log rotation can only delete .log files inside the logs root.');
     }
@@ -1218,6 +1248,7 @@ export function executeRuntimePointerPrunePlan(input: ExecuteRuntimePointerPrune
   if (input.plan.candidate_marker !== RUNTIME_INSTALL_MARKER) {
     throw new Error('Runtime prune is blocked: managed runtime candidate marker is missing or invalid.');
   }
+  const selectedCandidates = selectedPlanCandidates(input.plan.remove_candidates, input.selectedPaths);
   const liveAuthority = resolveRuntimePruneAuthority(
     input.plan.runtime_root,
     input.plan.pointer_file_names ?? DEFAULT_POINTER_FILE_NAMES
@@ -1231,7 +1262,7 @@ export function executeRuntimePointerPrunePlan(input: ExecuteRuntimePointerPrune
   );
   const deletedPaths: string[] = [];
   let deletedBytes = 0;
-  for (const candidate of input.plan.remove_candidates) {
+  for (const candidate of selectedCandidates) {
     const resolvedCandidate = path.resolve(candidate.path);
     if (!isSameOrInside(input.plan.runtime_root, resolvedCandidate)) {
       throw new Error('Runtime prune can only delete paths inside the runtime root.');
@@ -1298,9 +1329,10 @@ export function executeUpdaterCacheCleanupPlan(input: ExecuteUpdaterCacheCleanup
   if (input.planHash !== input.plan.plan_hash) {
     throw new Error('Matching dry-run plan hash is required before updater cache cleanup.');
   }
+  const selectedCandidates = selectedPlanCandidates(input.plan.remove_candidates, input.selectedPaths);
   const deletedPaths: string[] = [];
   let deletedBytes = 0;
-  for (const candidate of input.plan.remove_candidates) {
+  for (const candidate of selectedCandidates) {
     const resolvedCandidate = path.resolve(candidate.path);
     if (!isInsideAnyRoot(input.plan.cache_roots, resolvedCandidate) || !isUpdatePackage(resolvedCandidate)) {
       throw new Error('Updater cache cleanup can only delete installer packages inside declared cache roots.');
