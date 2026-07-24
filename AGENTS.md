@@ -10,8 +10,8 @@
 - Upstream intake 留在本仓并保持隔离；fork body 默认只读。OPL-owned adapter/overlay 变更必须以 App contract 为依据，不得把产品 truth 下沉到 Shell。
 - 不得仅为对齐 Codex 或 upstream 删除 OPL 导航入口。入口迁移必须由 App contract 授权，并同时提供可见、键盘可达的替代入口和导航测试。
 - 未来 shell candidate 的声明、门禁和产品取舍仍由 App 仓管理；本仓不是第二个 GUI control plane。
-- Package identity、carrier 与 executor 是三个独立角色，官方 publication/currentness 是正交轴：一方 Package owner 各自发布完整 bytes 到 GHCR 并推进自己的 `latest-stable`；本仓只是 GUI implementation/consumer，不是 Package carrier 或 executor owner。当前产品以 Codex 为优先实现路径，但 Codex Plugin Manager 只是一种 Plugin/config/cache carrier，不是 OPL Package identity 或完整 installed truth。
-- Shell 只渲染 Framework/App projection 并提交已授权 action；不得维护 Package、Agent、Skill、Tool 或 Plugin 固定清单、依赖图、版本解析、lock、payload、receipt 或 source/currentness 镜像。Package owner 独立发布至 GHCR；共享 Release Set 只服务 Full、离线、集成测试和 QA，不是普通更新权威。
+- Package identity、carrier 与 executor 是三个独立角色，官方 publication/currentness 是正交轴：一方 Package owner 各自发布完整 bytes 到 GHCR 并推进自己的 `latest-stable`；本仓只是 GUI implementation/consumer，不是 Package carrier 或 executor owner。当前实施遵循 `Codex-first, OPL-owned boundaries`：只维护一条正式 Codex 路径，不平行建设第二套 executor 产品；Codex Plugin Manager 只是一种 Plugin/config/cache carrier，不是 OPL Package identity 或完整 installed truth。
+- Shell 只渲染 Framework/App projection 并提交已授权 action；Settings 与 Home 必须从动态 Package/capability projection 生成，不得维护 Package、Agent、Skill、Tool 或 Plugin 固定清单、依赖图、版本解析、lock、payload、receipt 或 source/currentness 镜像。Package owner 独立发布至 GHCR；共享 Release Set 只服务 Full、离线、集成测试和 QA，不是普通更新权威。
 - 只切换 executor 不得重装 Package。唯一物理 carrier 被移除时必须如实投影 `physical_unavailable`；迁移到另一 carrier 时可以重新 materialize 完整 Package bytes，但不得改变 Package identity、OPL-owned preference、Work Item、依赖关系或 typed view。新增产品语义先进入 App SSOT，再由本仓消费。
 
 ## Engineering Constraints
