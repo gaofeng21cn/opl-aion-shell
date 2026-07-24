@@ -39,6 +39,7 @@ describe('OPL App state cache privacy boundary', () => {
             bytes: 2048,
             reclaimable_bytes: 1024,
             owner_route: '/settings/agents',
+            reason_code: null,
             projected_action: { kind: 'navigate', action_id: null, private_detail: 'private' },
             packages: [{ package_id: 'private.package' }],
             raw_path: '/private/package-store',
@@ -142,6 +143,7 @@ describe('OPL App state cache privacy boundary', () => {
                 bytes: 2048,
                 reclaimable_bytes: 1024,
                 owner_route: '/settings/agents',
+                reason_code: null,
                 projected_action: { kind: 'navigate', action_id: null },
                 packages: [{ package_id: 'private.package' }],
               },
@@ -152,6 +154,7 @@ describe('OPL App state cache privacy boundary', () => {
                 bytes: null,
                 reclaimable_bytes: null,
                 owner_route: '/settings/storage#webui-data',
+                reason_code: 'inventory_cache_missing_or_invalid',
                 projected_action: {
                   kind: 'host_action_required',
                   action_id: null,
@@ -216,6 +219,7 @@ describe('OPL App state cache privacy boundary', () => {
       bytes: 2048,
       reclaimable_bytes: 1024,
       owner_route: '/settings/agents',
+      reason_code: null,
       projected_action: { kind: 'navigate', action_id: null },
     });
     expect(storageLifecycle.webui_data_volume).toEqual({
@@ -225,6 +229,7 @@ describe('OPL App state cache privacy boundary', () => {
       bytes: null,
       reclaimable_bytes: null,
       owner_route: '/settings/storage#webui-data',
+      reason_code: 'inventory_cache_missing_or_invalid',
       projected_action: {
         kind: 'host_action_required',
         action_id: null,

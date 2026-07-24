@@ -294,6 +294,7 @@ const OWNER_STORAGE_CACHE_FIELDS = [
   'bytes',
   'reclaimable_bytes',
   'owner_route',
+  'reason_code',
 ] as const;
 
 const OWNER_STORAGE_ACTION_CACHE_FIELDS = ['kind', 'action_id', 'execution_owner'] as const;

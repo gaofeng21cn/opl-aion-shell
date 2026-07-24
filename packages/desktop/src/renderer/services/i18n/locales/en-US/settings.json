@@ -1803,6 +1803,27 @@
       },
       "noCleanupNeeded": "Nothing to clean"
     },
+    "ownerInventory": {
+      "status": {
+        "notInventoried": "Not inventoried"
+      },
+      "usage": {
+        "awaitingInventory": "Awaiting inventory",
+        "notConfigured": "Not configured",
+        "measurementUnavailable": "Usage unavailable"
+      },
+      "reasons": {
+        "runtimeSourceUnmeasured": "Some adopted runtime directories are not yet included in usage totals.",
+        "webuiDataRootNotConfigured": "The Docker WebUI data directory is not configured.",
+        "pathUnsafe": "The storage path did not pass safety validation, so usage is not measured.",
+        "inventorySourceInvalid": "The storage inventory could not be read, so usage is not measured.",
+        "permissionDenied": "The storage directory cannot be read with the current permissions.",
+        "pathUnavailable": "The storage directory is currently unavailable.",
+        "scanIncomplete": "The inventory did not finish, so usage is not shown.",
+        "cacheWriteFailed": "The inventory completed, but its result could not be saved.",
+        "generic": "Usage could not be measured."
+      }
+    },
     "overview": {
       "total": "Total",
       "categories": "Local data",
