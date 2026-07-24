@@ -181,7 +181,8 @@ function createPassedHomebrewFullCaskProof(desiredRoots: string[]) {
     homebrew: {
       cask: 'one-person-lab-full',
       cask_installed: true,
-      formula_opl_installed: false,
+      formula_opl_installed_before: false,
+      formula_opl_installed_after: false,
     },
     carrier: {
       selected_carrier: 'packaged_full_runtime',
@@ -3035,6 +3036,13 @@ describe('OPL first-run VM smoke scripts', () => {
     const installCommand = tartSmoke.guestHomebrewInstallCommand(options);
     expect(installCommand).toContain('"$BREW_BIN" list --cask \'one-person-lab-full\'');
     expect(installCommand).toContain('"$BREW_BIN" list --formula opl');
+    expect(installCommand.indexOf('requires Formula opl to be absent before installation')).toBeLessThan(
+      installCommand.indexOf('"$BREW_BIN" install --cask')
+    );
+    expect(installCommand.indexOf('must not install Formula opl')).toBeGreaterThan(
+      installCommand.indexOf('"$BREW_BIN" install --cask')
+    );
+    expect(installCommand).toContain('opl_homebrew_formula_state.v1');
     expect(installCommand).toContain('Full Cask must consume embedded Base');
     expect(installCommand).not.toContain('xattr -dr');
 
@@ -3047,6 +3055,9 @@ describe('OPL first-run VM smoke scripts', () => {
     );
     expect(guestCommand).toContain('--install-origin homebrew_full_cask');
     expect(guestCommand).toContain("--homebrew-cask 'one-person-lab-full'");
+    expect(guestCommand).toContain(
+      "--homebrew-formula-state '/tmp/opl-first-run-smoke/homebrew-full-formula-state.json'"
+    );
     for (const root of desiredRoots) expect(guestCommand).toContain(`--official-profile-root '${root}'`);
     expect(guestCommand).not.toContain('restore');
   });
@@ -3101,6 +3112,8 @@ describe('OPL first-run VM smoke scripts', () => {
         'homebrew_full_cask',
         '--homebrew-cask',
         'one-person-lab-full',
+        '--homebrew-formula-state',
+        '/tmp/homebrew-full-formula-state.json',
         '--official-profile-root',
         'mas',
         '--official-profile-root',
@@ -3123,6 +3136,8 @@ describe('OPL first-run VM smoke scripts', () => {
         'homebrew_full_cask',
         '--homebrew-cask',
         'one-person-lab-full',
+        '--homebrew-formula-state',
+        '/tmp/homebrew-full-formula-state.json',
         '--official-profile-root',
         'mas',
       ])
@@ -3162,7 +3177,7 @@ describe('OPL first-run VM smoke scripts', () => {
         ...passed,
         homebrew_full_cask: {
           ...passed.homebrew_full_cask,
-          homebrew: { ...passed.homebrew_full_cask.homebrew, formula_opl_installed: true },
+          homebrew: { ...passed.homebrew_full_cask.homebrew, formula_opl_installed_after: true },
         },
       })
     ).toThrow(/embedded Base and Official Profile convergence/);
@@ -3219,6 +3234,15 @@ describe('OPL first-run VM smoke scripts', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-full-cask-receipt-'));
     try {
       writeFile(path.join(fixture.runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\nexit 0\n', 0o755);
+      const formulaState = path.join(fixture.root, 'homebrew-full-formula-state.json');
+      fs.writeFileSync(
+        formulaState,
+        `${JSON.stringify({
+          schema: 'opl_homebrew_formula_state.v1',
+          formula_opl_installed_before: false,
+          formula_opl_installed_after: false,
+        })}\n`
+      );
       const desiredRoots = ['mas', 'mag'];
       const receipt = vmSmoke.collectHomebrewFullCaskProof(
         {
@@ -3227,6 +3251,7 @@ describe('OPL first-run VM smoke scripts', () => {
           runtimeProfile: 'full',
           installOrigin: 'homebrew_full_cask',
           homebrewCask: 'one-person-lab-full',
+          homebrewFormulaState: formulaState,
           officialProfileRoots: desiredRoots,
           timeoutMs: 10_000,
           __testHooks: {
@@ -3252,7 +3277,11 @@ describe('OPL first-run VM smoke scripts', () => {
 
       expect(receipt).toMatchObject({
         status: 'passed',
-        homebrew: { cask_installed: true, formula_opl_installed: false },
+        homebrew: {
+          cask_installed: true,
+          formula_opl_installed_before: false,
+          formula_opl_installed_after: false,
+        },
         carrier: {
           selected_carrier: 'packaged_full_runtime',
           source: 'packaged_app_resource',

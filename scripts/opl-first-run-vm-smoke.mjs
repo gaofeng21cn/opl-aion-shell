@@ -372,6 +372,7 @@ function parseArgs(argv) {
     runtimeProfile: 'full',
     installOrigin: 'direct_app_or_dmg',
     homebrewCask: null,
+    homebrewFormulaState: null,
     officialProfileRoots: [],
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     codexProviderBaseUrl: null,
@@ -440,6 +441,7 @@ function parseArgs(argv) {
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--install-origin') options.installOrigin = value;
     else if (arg === '--homebrew-cask') options.homebrewCask = value;
+    else if (arg === '--homebrew-formula-state') options.homebrewFormulaState = path.resolve(value);
     else if (arg === '--official-profile-root') options.officialProfileRoots.push(value);
     else if (arg === '--mas-study-provisioning-receipt') {
       options.masStudyProvisioningReceipt = path.resolve(value);
@@ -488,10 +490,11 @@ function parseArgs(argv) {
     options.installOrigin === 'homebrew_full_cask' &&
     (options.runtimeProfile !== 'full' ||
       options.homebrewCask !== 'one-person-lab-full' ||
+      !options.homebrewFormulaState ||
       options.officialProfileRoots.length === 0)
   ) {
     throw new Error(
-      'homebrew_full_cask requires Full runtime, --homebrew-cask one-person-lab-full, and Official Profile roots.'
+      'homebrew_full_cask requires Full runtime, --homebrew-cask one-person-lab-full, --homebrew-formula-state, and Official Profile roots.'
     );
   }
   if (!['diagnose', 'fix'].includes(options.codexAiSelfCheckMode)) {
@@ -2524,6 +2527,18 @@ function collectHomebrewFullCaskProof(options, secret) {
   const formula = homebrewCommandResult(['list', '--formula', 'opl'], options);
   if (cask.status !== 0) throw new Error(`Homebrew Full Cask is not installed: ${cask.stderr || cask.stdout}`);
   if (formula.status === 0) throw new Error('Homebrew Full Cask unexpectedly installed Formula opl.');
+  const formulaStateStat = fs.lstatSync(options.homebrewFormulaState, { throwIfNoEntry: false });
+  if (!formulaStateStat?.isFile() || formulaStateStat.isSymbolicLink()) {
+    throw new Error(`Homebrew Full Cask Formula state must be a physical file: ${options.homebrewFormulaState}`);
+  }
+  const formulaState = JSON.parse(fs.readFileSync(options.homebrewFormulaState, 'utf8'));
+  if (
+    formulaState?.schema !== 'opl_homebrew_formula_state.v1' ||
+    formulaState?.formula_opl_installed_before !== false ||
+    formulaState?.formula_opl_installed_after !== false
+  ) {
+    throw new Error('Homebrew Full Cask did not prove Formula opl was absent before and after installation.');
+  }
   const appStateArgs = ['app', 'state', '--profile', 'fast', '--json'];
   const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
   const appState = parseOplJsonResult(
@@ -2538,7 +2553,8 @@ function collectHomebrewFullCaskProof(options, secret) {
     homebrew: {
       cask: options.homebrewCask,
       cask_installed: true,
-      formula_opl_installed: false,
+      formula_opl_installed_before: false,
+      formula_opl_installed_after: false,
     },
     carrier: {
       selected_carrier: 'packaged_full_runtime',

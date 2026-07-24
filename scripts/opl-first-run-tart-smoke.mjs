@@ -1941,6 +1941,9 @@ function guestSmokeCommand(
     : null;
   const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
   const officialRoots = homebrewFullCaskSmoke ? officialProfileDesiredRoots() : [];
+  const homebrewFormulaStatePath = homebrewFullCaskSmoke
+    ? `${options.guestWorkdir}/homebrew-full-formula-state.json`
+    : null;
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     options.installMode === 'homebrew-cask'
@@ -1987,6 +1990,7 @@ function guestSmokeCommand(
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
     homebrewFullCaskSmoke ? '--install-origin homebrew_full_cask' : '',
     homebrewFullCaskSmoke ? `--homebrew-cask ${shellQuote(homebrewCaskToken(options.homebrewCask))}` : '',
+    homebrewFormulaStatePath ? `--homebrew-formula-state ${shellQuote(homebrewFormulaStatePath)}` : '',
     ...officialRoots.map((root) => `--official-profile-root ${shellQuote(root)}`),
     options.guideScreenshots ? '--guide-screenshots' : '',
   ].join(' ');
@@ -2023,6 +2027,7 @@ fi
 function guestHomebrewInstallCommand(options) {
   const caskToken = homebrewCaskToken(options.homebrewCask);
   const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
+  const homebrewFormulaStatePath = `${options.guestWorkdir}/homebrew-full-formula-state.json`;
   const guestCaskCandidate = options.homebrewCaskFile
     ? `${options.guestWorkdir}/${path.basename(options.homebrewCaskFile)}`
     : null;
@@ -2060,6 +2065,15 @@ homebrew_cask_ref=${shellQuote(options.homebrewCask)}`
 if "$BREW_BIN" trust --help >/dev/null 2>&1; then
 ${trustedCaskRefs.map((caskRef) => `  "$BREW_BIN" trust --cask ${shellQuote(caskRef)}`).join('\n')}
 fi
+${
+  homebrewFullCaskSmoke
+    ? `rm -f ${shellQuote(homebrewFormulaStatePath)}
+if "$BREW_BIN" list --formula opl >/dev/null 2>&1; then
+  echo "Full Cask clean install requires Formula opl to be absent before installation." >&2
+  exit 1
+fi`
+    : ''
+}
 "$BREW_BIN" install --cask "$homebrew_cask_ref"
 test -d "/Applications/One Person Lab.app"
 "$BREW_BIN" list --cask ${shellQuote(caskToken)} >/dev/null
@@ -2068,7 +2082,8 @@ ${
     ? `if "$BREW_BIN" list --formula opl >/dev/null 2>&1; then
   echo "Full Cask must consume embedded Base and must not install Formula opl." >&2
   exit 1
-fi`
+fi
+printf '%s\\n' '{"schema":"opl_homebrew_formula_state.v1","formula_opl_installed_before":false,"formula_opl_installed_after":false}' > ${shellQuote(homebrewFormulaStatePath)}`
     : 'xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true'
 }
 `;
@@ -2186,7 +2201,8 @@ function assertGuestSmokeSummary(options, guestSummary) {
       proof?.status !== 'passed' ||
       proof?.homebrew?.cask !== 'one-person-lab-full' ||
       proof?.homebrew?.cask_installed !== true ||
-      proof?.homebrew?.formula_opl_installed !== false ||
+      proof?.homebrew?.formula_opl_installed_before !== false ||
+      proof?.homebrew?.formula_opl_installed_after !== false ||
       proof?.carrier?.selected_carrier !== 'packaged_full_runtime' ||
       proof?.carrier?.source !== 'packaged_app_resource' ||
       proof?.carrier?.active_framework_count !== 1 ||
