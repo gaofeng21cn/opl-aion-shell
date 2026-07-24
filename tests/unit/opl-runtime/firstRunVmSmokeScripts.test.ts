@@ -3062,7 +3062,58 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(guestCommand).not.toContain('restore');
   });
 
-  it('installs a pre-publication Full Cask candidate from an isolated local tap', () => {
+  it.each([
+    {
+      profile: 'homebrew-standard-cask',
+      caskToken: 'one-person-lab',
+      fileName: 'one-person-lab.rb',
+      runtimeProfile: 'standard',
+    },
+    {
+      profile: 'homebrew-nightly-cask',
+      caskToken: 'one-person-lab-nightly',
+      fileName: 'one-person-lab-nightly.rb',
+      runtimeProfile: 'standard',
+    },
+  ])('installs a pre-publication $profile candidate with Formula opl from an isolated local tap', (candidateCase) => {
+    const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cask-candidate-'));
+    const candidate = path.join(candidateDir, candidateCase.fileName);
+    fs.writeFileSync(candidate, `cask "${candidateCase.caskToken}" do\nend\n`);
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--smoke-profile',
+        candidateCase.profile,
+        '--homebrew-cask-file',
+        candidate,
+        '--dry-run',
+      ]);
+      const command = tartSmoke.guestHomebrewInstallCommand(options);
+      expect(options).toMatchObject({
+        homebrewCaskFile: candidate,
+        homebrewCask: candidateCase.caskToken,
+        runtimeProfile: candidateCase.runtimeProfile,
+      });
+      expect(tartSmoke.buildDryRunPlan(options).homebrew_trusted_casks).toEqual([
+        `opl-local/cask-candidate/${candidateCase.caskToken}`,
+      ]);
+      expect(command).toContain('tap-new opl-local/cask-candidate');
+      expect(command).toContain(`Casks/${candidateCase.fileName}`);
+      expect(command).toContain(`homebrew_cask_ref=opl-local/cask-candidate/${candidateCase.caskToken}`);
+      expect(command).toContain('install --cask "$homebrew_cask_ref"');
+      expect(command).not.toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
+      expect(command).toContain(`trust --cask 'opl-local/cask-candidate/${candidateCase.caskToken}'`);
+      expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/");
+      expect(command.indexOf('Standard and Nightly Casks must install Formula opl')).toBeGreaterThan(
+        command.indexOf('install --cask "$homebrew_cask_ref"')
+      );
+    } finally {
+      fs.rmSync(candidateDir, { recursive: true, force: true });
+    }
+  });
+
+  it('installs a pre-publication Full Cask candidate without Formula opl from an isolated local tap', () => {
     const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-cask-candidate-'));
     const candidate = path.join(candidateDir, 'one-person-lab-full.rb');
     fs.writeFileSync(candidate, 'cask "one-person-lab-full" do\nend\n');
@@ -3077,28 +3128,69 @@ describe('OPL first-run VM smoke scripts', () => {
         '--dry-run',
       ]);
       const command = tartSmoke.guestHomebrewInstallCommand(options);
-      expect(options.homebrewCaskFile).toBe(candidate);
-      expect(command).toContain('tap-new opl-local/full-candidate');
+      expect(command).toContain('tap-new opl-local/cask-candidate');
       expect(command).toContain('Casks/one-person-lab-full.rb');
-      expect(command).toContain('homebrew_cask_ref=opl-local/full-candidate/one-person-lab-full');
-      expect(command).toContain('install --cask "$homebrew_cask_ref"');
+      expect(command).toContain('homebrew_cask_ref=opl-local/cask-candidate/one-person-lab-full');
+      expect(command).toContain('requires Formula opl to be absent before installation');
+      expect(command).toContain('must not install Formula opl');
+      expect(command).not.toContain('Standard and Nightly Casks must install Formula opl');
       expect(command).not.toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
-      expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/one-person-lab-full'");
-
-      expect(() =>
-        tartSmoke.parseArgs([
-          '--source-vm',
-          'clean-vm',
-          '--smoke-profile',
-          'homebrew-standard-cask',
-          '--homebrew-cask-file',
-          candidate,
-          '--dry-run',
-        ])
-      ).toThrow(/accepted only for the homebrew-full-cask profile/);
     } finally {
       fs.rmSync(candidateDir, { recursive: true, force: true });
     }
+  });
+
+  it('rejects mismatched Homebrew Cask candidate profile, token, runtime, and filename combinations', () => {
+    const baseArgs = ['--source-vm', 'clean-vm', '--dry-run'];
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--smoke-profile',
+        'homebrew-standard-cask',
+        '--homebrew-cask-file',
+        '/tmp/one-person-lab-full.rb',
+      ])
+    ).toThrow(/homebrew-standard-cask must be named one-person-lab\.rb/);
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--smoke-profile',
+        'homebrew-nightly-cask',
+        '--homebrew-cask-file',
+        '/tmp/one-person-lab.rb',
+      ])
+    ).toThrow(/homebrew-nightly-cask must be named one-person-lab-nightly\.rb/);
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--smoke-profile',
+        'homebrew-nightly-cask',
+        '--homebrew-cask',
+        'one-person-lab',
+        '--homebrew-cask-file',
+        '/tmp/one-person-lab-nightly.rb',
+      ])
+    ).toThrow(/homebrew-nightly-cask to use --homebrew-cask one-person-lab-nightly/);
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--smoke-profile',
+        'homebrew-nightly-cask',
+        '--runtime-profile',
+        'full',
+        '--homebrew-cask-file',
+        '/tmp/one-person-lab-nightly.rb',
+      ])
+    ).toThrow(/homebrew-nightly-cask to use --runtime-profile standard/);
+    expect(() =>
+      tartSmoke.parseArgs([
+        ...baseArgs,
+        '--install-mode',
+        'homebrew-cask',
+        '--homebrew-cask-file',
+        '/tmp/one-person-lab.rb',
+      ])
+    ).toThrow(/requires one of these smoke profiles/);
   });
 
   it('validates guest Full Cask install-origin arguments as one coherent carrier profile', () => {

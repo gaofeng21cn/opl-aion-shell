@@ -25,6 +25,35 @@ const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
 const HOST_CODEX_PROVIDER_SOURCE = 'developer_host_codex_selected_provider';
 const EXPLICIT_API_KEY_FILE_SOURCE = 'explicit_api_key_file';
 const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];
+const HOMEBREW_CASK_CANDIDATE_PROFILES = new Map([
+  [
+    'homebrew-standard-cask',
+    {
+      caskToken: 'one-person-lab',
+      fileName: 'one-person-lab.rb',
+      runtimeProfile: 'standard',
+      formulaPolicy: 'required',
+    },
+  ],
+  [
+    'homebrew-nightly-cask',
+    {
+      caskToken: 'one-person-lab-nightly',
+      fileName: 'one-person-lab-nightly.rb',
+      runtimeProfile: 'standard',
+      formulaPolicy: 'required',
+    },
+  ],
+  [
+    'homebrew-full-cask',
+    {
+      caskToken: 'one-person-lab-full',
+      fileName: 'one-person-lab-full.rb',
+      runtimeProfile: 'full',
+      formulaPolicy: 'forbidden',
+    },
+  ],
+]);
 const SMOKE_PROFILES = new Map([
   [
     'full-gate',
@@ -49,6 +78,16 @@ const SMOKE_PROFILES = new Map([
       display: '1920x1080px',
       installMode: 'homebrew-cask',
       homebrewCask: 'one-person-lab',
+    },
+  ],
+  [
+    'homebrew-nightly-cask',
+    {
+      runtimeProfile: 'standard',
+      settingsSmoke: true,
+      display: '1920x1080px',
+      installMode: 'homebrew-cask',
+      homebrewCask: 'one-person-lab-nightly',
     },
   ],
   [
@@ -156,7 +195,8 @@ Options:
                            Only run packaged bootstrap and initial renderer/CDP
                            launch diagnostics inside the guest.
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
-  --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
+  --smoke-profile <name>   Host-side smoke profile: ${Array.from(SMOKE_PROFILES.keys()).join(', ')}.
+                           Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
   --assistant-route-smoke  Verify MAS/MAG/RCA App-home assistant route receipts in the guest.
   --codex-functional-check
@@ -179,7 +219,7 @@ Options:
   --homebrew-tap <tap>      Homebrew tap for --install-mode homebrew-cask. Default: gaofeng21cn/one-person-lab.
   --homebrew-cask <name>    Homebrew cask to install. Default: one-person-lab.
   --homebrew-cask-file <path>
-                           Pre-publication one-person-lab-full.rb candidate copied into a local guest tap.
+                           Pre-publication Standard, Nightly, or Full Cask candidate copied into a local guest tap.
   --require-codex-config-wizard
                            Fail unless the guest smoke sees and submits the Codex config wizard.
                            Defaults to false; Full gates still require Codex readiness through
@@ -461,12 +501,7 @@ function parseArgs(argv) {
   if (options.installMode === 'homebrew-cask' && !options.homebrewCask) {
     throw new Error('--homebrew-cask is required for --install-mode homebrew-cask.');
   }
-  if (options.homebrewCaskFile && !isHomebrewFullCaskSmoke(options)) {
-    throw new Error('--homebrew-cask-file is accepted only for the homebrew-full-cask profile.');
-  }
-  if (options.homebrewCaskFile && path.basename(options.homebrewCaskFile) !== 'one-person-lab-full.rb') {
-    throw new Error('--homebrew-cask-file must be named one-person-lab-full.rb.');
-  }
+  if (options.homebrewCaskFile) validateHomebrewCaskCandidateProfile(options);
   if (!options.dryRun && options.homebrewCaskFile && !fs.existsSync(options.homebrewCaskFile)) {
     throw new Error(`Homebrew Cask candidate does not exist: ${options.homebrewCaskFile}`);
   }
@@ -708,6 +743,10 @@ function homebrewQualifiedCaskRef(tap, caskTokenOrRef) {
 
 function homebrewTrustedCaskRefs(options) {
   if (options.installMode !== 'homebrew-cask') return [];
+  if (options.homebrewCaskFile) {
+    const profile = validateHomebrewCaskCandidateProfile(options);
+    return [`opl-local/cask-candidate/${profile.caskToken}`];
+  }
   const caskToken = homebrewCaskToken(options.homebrewCask);
   const relatedCasks = HOMEBREW_CONFLICTING_CASKS.get(caskToken) || [];
   return Array.from(
@@ -716,6 +755,48 @@ function homebrewTrustedCaskRefs(options) {
       ...relatedCasks.map((relatedCask) => homebrewQualifiedCaskRef(options.homebrewTap, relatedCask)),
     ])
   );
+}
+
+function matchingHomebrewCaskCandidateProfile(options) {
+  const profile = HOMEBREW_CASK_CANDIDATE_PROFILES.get(options.smokeProfile);
+  if (
+    !profile ||
+    options.installMode !== 'homebrew-cask' ||
+    homebrewCaskToken(options.homebrewCask) !== profile.caskToken ||
+    options.runtimeProfile !== profile.runtimeProfile
+  ) {
+    return null;
+  }
+  return profile;
+}
+
+function validateHomebrewCaskCandidateProfile(options) {
+  const profile = HOMEBREW_CASK_CANDIDATE_PROFILES.get(options.smokeProfile);
+  if (!profile) {
+    throw new Error(
+      `--homebrew-cask-file requires one of these smoke profiles: ${Array.from(
+        HOMEBREW_CASK_CANDIDATE_PROFILES.keys()
+      ).join(', ')}.`
+    );
+  }
+  if (options.installMode !== 'homebrew-cask') {
+    throw new Error(`--homebrew-cask-file requires ${options.smokeProfile} to use --install-mode homebrew-cask.`);
+  }
+  const caskToken = homebrewCaskToken(options.homebrewCask);
+  if (caskToken !== profile.caskToken) {
+    throw new Error(
+      `--homebrew-cask-file requires ${options.smokeProfile} to use --homebrew-cask ${profile.caskToken}.`
+    );
+  }
+  if (options.runtimeProfile !== profile.runtimeProfile) {
+    throw new Error(
+      `--homebrew-cask-file requires ${options.smokeProfile} to use --runtime-profile ${profile.runtimeProfile}.`
+    );
+  }
+  if (path.basename(options.homebrewCaskFile) !== profile.fileName) {
+    throw new Error(`--homebrew-cask-file for ${options.smokeProfile} must be named ${profile.fileName}.`);
+  }
+  return profile;
 }
 
 function officialProfileDesiredRoots() {
@@ -728,12 +809,7 @@ function officialProfileDesiredRoots() {
 }
 
 function isHomebrewFullCaskSmoke(options) {
-  return (
-    options.smokeProfile === 'homebrew-full-cask' &&
-    options.installMode === 'homebrew-cask' &&
-    homebrewCaskToken(options.homebrewCask) === 'one-person-lab-full' &&
-    options.runtimeProfile === 'full'
-  );
+  return matchingHomebrewCaskCandidateProfile(options)?.formulaPolicy === 'forbidden';
 }
 
 function guestFrameworkSourceArchivePath(options) {
@@ -2026,14 +2102,15 @@ fi
 
 function guestHomebrewInstallCommand(options) {
   const caskToken = homebrewCaskToken(options.homebrewCask);
-  const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
+  const caskProfile = matchingHomebrewCaskCandidateProfile(options);
+  const homebrewFullCaskSmoke = caskProfile?.formulaPolicy === 'forbidden';
+  const homebrewFormulaRequired = caskProfile?.formulaPolicy === 'required';
   const homebrewFormulaStatePath = `${options.guestWorkdir}/homebrew-full-formula-state.json`;
   const guestCaskCandidate = options.homebrewCaskFile
     ? `${options.guestWorkdir}/${path.basename(options.homebrewCaskFile)}`
     : null;
-  const trustedCaskRefs = guestCaskCandidate
-    ? ['opl-local/full-candidate/one-person-lab-full']
-    : homebrewTrustedCaskRefs(options);
+  const candidateProfile = guestCaskCandidate ? validateHomebrewCaskCandidateProfile(options) : null;
+  const trustedCaskRefs = homebrewTrustedCaskRefs(options);
   return `
 set -euo pipefail
 BREW_BIN=""
@@ -2054,11 +2131,11 @@ export HOMEBREW_NO_INSTALL_CLEANUP=1
 export HOMEBREW_NO_ENV_HINTS=1
 ${
   guestCaskCandidate
-    ? `"$BREW_BIN" tap-new opl-local/full-candidate
-tap_path="$("$BREW_BIN" --repository opl-local/full-candidate)"
+    ? `"$BREW_BIN" tap-new opl-local/cask-candidate
+tap_path="$("$BREW_BIN" --repository opl-local/cask-candidate)"
 mkdir -p "$tap_path/Casks"
-cp ${shellQuote(guestCaskCandidate)} "$tap_path/Casks/one-person-lab-full.rb"
-homebrew_cask_ref=opl-local/full-candidate/one-person-lab-full`
+cp ${shellQuote(guestCaskCandidate)} "$tap_path/Casks/${candidateProfile.fileName}"
+homebrew_cask_ref=opl-local/cask-candidate/${candidateProfile.caskToken}`
     : `"$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
 homebrew_cask_ref=${shellQuote(options.homebrewCask)}`
 }
@@ -2084,7 +2161,15 @@ ${
   exit 1
 fi
 printf '%s\\n' '{"schema":"opl_homebrew_formula_state.v1","formula_opl_installed_before":false,"formula_opl_installed_after":false}' > ${shellQuote(homebrewFormulaStatePath)}`
-    : 'xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true'
+    : `${
+        homebrewFormulaRequired
+          ? `if ! "$BREW_BIN" list --formula opl >/dev/null 2>&1; then
+  echo "Standard and Nightly Casks must install Formula opl." >&2
+  exit 1
+fi`
+          : ''
+      }
+xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true`
 }
 `;
 }
