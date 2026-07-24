@@ -120,10 +120,12 @@ describe('OPL home assistants', () => {
 
     const directory = resolveOplProfessionalAgentAssistants([], appState);
     expect(directory.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
-    expect(directory.find((item) => item.id === 'oma')?.description_i18n['zh-CN']).toBe(
-      '用于创建、接管、检查和改进 OPL 专业智能体。'
-    );
+    expect(directory.find((item) => item.id === 'oma')?.description_i18n).toEqual({
+      'zh-CN': 'Agents',
+      'en-US': 'Agents',
+    });
     expect(directory.find((item) => item.id === 'obf')?.enabled_skills).toEqual([]);
+    expect(directory.every((item) => item.agent_id === undefined && item.agent === undefined)).toBe(true);
   });
 
   it('keeps backend assistants as runtime binding without making them membership authority', () => {
@@ -137,6 +139,8 @@ describe('OPL home assistants', () => {
           name: 'Custom MAS',
           name_i18n: { 'zh-CN': '定制 MAS' },
           description_i18n: { 'zh-CN': '用户已有 MAS 配置' },
+          agent_id: 'codex-managed',
+          agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
         }),
       ],
       appState
@@ -145,7 +149,9 @@ describe('OPL home assistants', () => {
     expect(resolved.map((item) => item.id)).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
     expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
-    expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研');
+    expect(resolved[0]?.description_i18n).toEqual({ 'zh-CN': 'Research', 'en-US': 'Research' });
+    expect(resolved[0]).toMatchObject({ agent_id: 'codex-managed', agent: { acp_backend: 'codex' } });
+    expect(resolved.slice(1).every((item) => item.agent_id === undefined && item.agent === undefined)).toBe(true);
     expect(resolved.map((item) => item.id)).not.toEqual(expect.arrayContaining(['cowork', 'mds']));
     expect(resolved.every((item) => item.enabled_skills.length === 0)).toBe(true);
   });
@@ -205,7 +211,7 @@ describe('OPL home assistants', () => {
     expect(resolveOplProfessionalAgentAssistants([], {})).toEqual([]);
   });
 
-  it('supports a future Agent and every shortcut tuple without a Shell id branch', () => {
+  it('supports a future Agent presentation without inventing runtime binding, prompts, or skills', () => {
     const appState = {
       agent_packages: {
         directory: {
@@ -251,11 +257,36 @@ describe('OPL home assistants', () => {
         id: item.id,
         packageId: item.opl_package_id,
         label: item.name,
+        description: item.description,
+        agentId: item.agent_id,
+        runtime: item.agent,
+        status: item.agent_status,
+        prompts: item.prompts,
         skills: item.enabled_skills,
       }))
     ).toEqual([
-      { id: 'future-review', packageId: 'future-agent', label: 'Future Agent', skills: [] },
-      { id: 'future-main', packageId: 'future-agent', label: 'Future Agent', skills: [] },
+      {
+        id: 'future-review',
+        packageId: 'future-agent',
+        label: 'Future Agent',
+        description: 'Future work',
+        agentId: undefined,
+        runtime: undefined,
+        status: 'missing',
+        prompts: [],
+        skills: [],
+      },
+      {
+        id: 'future-main',
+        packageId: 'future-agent',
+        label: 'Future Agent',
+        description: 'Future work',
+        agentId: undefined,
+        runtime: undefined,
+        status: 'missing',
+        prompts: [],
+        skills: [],
+      },
     ]);
   });
 
@@ -308,7 +339,7 @@ describe('OPL home assistants', () => {
     expect(resolved.find((item) => item.opl_package_id === 'mag')?.enabled_skills).toEqual(['officecli-docx']);
   });
 
-  it('binds synthetic OPL entries to the generated default assistant runtime id', () => {
+  it('does not bind directory-only Agents to the generated default assistant runtime id', () => {
     const resolved = resolveOplHomeAssistants(
       [
         assistant({
@@ -322,8 +353,8 @@ describe('OPL home assistants', () => {
       dynamicAppState()
     );
 
-    expect(resolved.every((item) => item.agent_id === '8e1acf31')).toBe(true);
-    expect(resolved.some((item) => item.agent_id === 'codex')).toBe(false);
+    expect(resolved.every((item) => item.agent_id === undefined)).toBe(true);
+    expect(resolved.every((item) => item.agent === undefined && item.agent_status === 'missing')).toBe(true);
   });
 
   it('fails closed for package_not_installed and preserves Framework-projected recovery actions', () => {

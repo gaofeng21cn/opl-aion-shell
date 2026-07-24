@@ -1,26 +1,15 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { assistantRuntimeKey } from '@/common/types/agent/assistantTypes';
-import {
-  canonicalizeOplProfessionalAgentId,
-  getOplDefaultExecutorAgentKey,
-  getOplDefaultHomeAssistants,
-  getOplProfessionalAgentPackage,
-} from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import {
   getOplHomeAgentShortcutsFromAppState,
   getOplHomeShortcutPreferencesFromAppState,
   isOplHomeShortcutVisible,
 } from './oplHomeShortcutPreferences';
 
-const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
-
 type OplHomePackageProfile = {
   id: string;
   display_name: string;
-  short_name: string;
-  avatar: string;
-  description_i18n: Record<string, string>;
-  prompts_i18n: Record<string, string[]>;
+  description: string;
 };
 
 type OplAgentPackageDirectoryEntry = {
@@ -188,56 +177,35 @@ function agentPackageDirectoryEntries(appState: unknown): OplAgentPackageDirecto
 }
 
 function agentPackageProfiles(appState: unknown): OplHomePackageProfile[] {
-  const legacyAssistants = new Map(getOplDefaultHomeAssistants().map((assistant) => [assistant.id, assistant]));
   return agentPackageDirectoryEntries(appState).map((entry) => {
-    const agentPackage = getOplProfessionalAgentPackage(entry.packageId);
-    const canonicalId = canonicalizeOplProfessionalAgentId(entry.packageId);
-    const legacyAssistant = legacyAssistants.get(canonicalId);
     return {
       id: entry.packageId,
       display_name: entry.displayName,
-      short_name: agentPackage?.short_name ?? entry.displayName,
-      avatar: legacyAssistant?.avatar ?? agentPackage?.short_name ?? entry.displayName,
-      description_i18n: agentPackage?.description_i18n ??
-        legacyAssistant?.description_i18n ?? {
-          'zh-CN': entry.description,
-          'en-US': entry.description,
-        },
-      prompts_i18n: legacyAssistant?.prompts_i18n ?? {},
+      description: entry.description,
     };
   });
 }
 
 const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
 
-const buildAssistantFromProfile = (
-  profile: OplHomePackageProfile,
-  sortOrder: number,
-  defaultRuntimeAgentId?: string
-): Assistant => {
+const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: number): Assistant => {
   return {
     id: profile.id,
     source: 'builtin',
     name: profile.display_name,
     name_i18n: { 'zh-CN': profile.display_name, 'en-US': profile.display_name },
-    description: profile.description_i18n['zh-CN'] || profile.description_i18n['en-US'] || profile.display_name,
-    description_i18n: { ...profile.description_i18n },
-    avatar: profile.avatar,
+    description: profile.description,
+    description_i18n: { 'zh-CN': profile.description, 'en-US': profile.description },
     enabled: true,
     sort_order: sortOrder,
-    preset_agent_type: DEFAULT_PRESET_AGENT_TYPE,
-    agent_id: defaultRuntimeAgentId,
-    agent: { type: 'acp', source: 'builtin', acp_backend: DEFAULT_PRESET_AGENT_TYPE },
-    agent_status: 'unchecked',
+    agent_status: 'missing',
     enabled_skills: [],
     custom_skill_names: [],
     disabled_builtin_skills: [],
     context: '',
     context_i18n: {},
     prompts: [],
-    prompts_i18n: Object.fromEntries(
-      Object.entries(profile.prompts_i18n).map(([locale, values]) => [locale, [...values]])
-    ),
+    prompts_i18n: {},
     models: [],
   };
 };
@@ -245,8 +213,7 @@ const buildAssistantFromProfile = (
 const mergeAssistantWithProfile = (
   existing: Assistant,
   profile: OplHomePackageProfile,
-  sortOrder: number,
-  defaultRuntimeAgentId?: string
+  sortOrder: number
 ): Assistant => {
   const merged = Object.assign({}, existing);
   merged.id = profile.id;
@@ -254,14 +221,11 @@ const mergeAssistantWithProfile = (
   merged.sort_order = sortOrder;
   merged.name = profile.display_name;
   merged.name_i18n = { 'zh-CN': profile.display_name, 'en-US': profile.display_name };
-  merged.description = profile.description_i18n['zh-CN'] || profile.description_i18n['en-US'] || profile.display_name;
-  merged.description_i18n = { ...profile.description_i18n };
-  merged.avatar = profile.avatar;
-  merged.preset_agent_type = DEFAULT_PRESET_AGENT_TYPE;
-  merged.agent_id = existing.agent_id || defaultRuntimeAgentId;
-  merged.prompts = [];
+  merged.description = profile.description;
+  merged.description_i18n = { 'zh-CN': profile.description, 'en-US': profile.description };
+  merged.prompts = [...(existing.prompts || [])];
   merged.prompts_i18n = Object.fromEntries(
-    Object.entries(profile.prompts_i18n).map(([locale, values]) => [locale, [...values]])
+    Object.entries(existing.prompts_i18n || {}).map(([locale, values]) => [locale, [...values]])
   );
   merged.enabled_skills = [...(existing.enabled_skills || [])];
   merged.custom_skill_names = existing.custom_skill_names || [];
@@ -279,28 +243,14 @@ function resolveOplAssistantsFromProfiles(
   for (const assistant of backendAssistants) {
     backendById.set(normalizeAssistantId(assistant.id), assistant);
   }
-  const defaultRuntimeAgentIds = Array.from(
-    new Set(
-      backendAssistants
-        .filter(
-          (assistant) =>
-            assistant.enabled !== false &&
-            assistant.source === 'generated' &&
-            assistantRuntimeKey(assistant) === DEFAULT_PRESET_AGENT_TYPE &&
-            Boolean(assistant.agent_id)
-        )
-        .map((assistant) => assistant.agent_id as string)
-    )
-  );
-  const defaultRuntimeAgentId = defaultRuntimeAgentIds.length === 1 ? defaultRuntimeAgentIds[0] : undefined;
 
   return profiles.map((profile, index) => {
     const existing = backendById.get(normalizeAssistantId(profile.id));
     if (!existing) {
-      return buildAssistantFromProfile(profile, index + 1, defaultRuntimeAgentId);
+      return buildAssistantFromProfile(profile, index + 1);
     }
 
-    return mergeAssistantWithProfile(existing, profile, index + 1, defaultRuntimeAgentId);
+    return mergeAssistantWithProfile(existing, profile, index + 1);
   });
 }
 
