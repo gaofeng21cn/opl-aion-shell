@@ -29,7 +29,7 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { canonicalizeOplProfessionalAgentId, getOplProfessionalAgentPackages } from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { oplProjectedRequirementAlternatives } from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
@@ -43,6 +43,7 @@ import {
   getOplHomeShortcutPreferences,
   getOplHomeShortcutPreferenceReadback,
   getOplHomeShortcutPreferencesFromAppState,
+  getOplHomeAgentShortcutsFromAppState,
   getOplOrderedHomeAgentShortcuts,
   isOplHomeShortcutVisible,
   type OplHomeShortcutPreferences,
@@ -368,7 +369,6 @@ function capabilityLocalizedSummary(
 
 function capabilityCatalogGroupKey(
   entry: CapabilityCatalogEntry,
-  professionalAgentOrder: ReadonlyMap<string, number>,
   allCapabilities: CapabilityPurposeViewModel[]
 ): CapabilityCatalogGroupKey {
   const parentIds = new Set(capabilityPackageIdentityValues(entry.item.packageId));
@@ -386,7 +386,7 @@ function capabilityCatalogGroupKey(
   ) {
     return 'needsAttention';
   }
-  if (capabilityPackageIdentityValues(entry.item.packageId).some((id) => professionalAgentOrder.has(id))) {
+  if (entry.item.packageRole === 'standard_agent') {
     return 'frequent';
   }
   return 'other';
@@ -973,11 +973,22 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const shortcutPreferences = useOplHomeShortcutPreferences();
-  const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
-  const shortcutByPackageId = React.useMemo(
-    () => new Map(orderedShortcuts.map((shortcut) => [shortcut.package_id, shortcut])),
-    [orderedShortcuts]
+  const projectedShortcuts = React.useMemo(
+    () => getOplHomeAgentShortcutsFromAppState(appStateQuery.appState),
+    [appStateQuery.appState]
   );
+  const orderedShortcuts = React.useMemo(
+    () => getOplOrderedHomeAgentShortcuts(projectedShortcuts),
+    [projectedShortcuts, shortcutPreferences]
+  );
+  const shortcutsByPackageId = React.useMemo(() => {
+    const shortcuts = new Map<string, typeof orderedShortcuts>();
+    orderedShortcuts.forEach((shortcut) => {
+      const packageId = canonicalizeOplProfessionalAgentId(shortcut.package_id);
+      shortcuts.set(packageId, [...(shortcuts.get(packageId) ?? []), shortcut]);
+    });
+    return shortcuts;
+  }, [orderedShortcuts]);
   const shortcutIndexById = React.useMemo(
     () => new Map(orderedShortcuts.map((shortcut, index) => [shortcut.shortcut_id, index])),
     [orderedShortcuts]
@@ -1017,13 +1028,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const catalogLoading = appStateQuery.loading && purposeCapabilities.length === 0;
   const catalogRefreshing = appStateQuery.refreshing;
   const catalogEmpty = !catalogLoading && !catalogError && purposeCapabilities.length === 0;
-  const professionalAgentOrder = React.useMemo(() => {
-    const order = new Map<string, number>();
-    getOplProfessionalAgentPackages().forEach((agentPackage, index) => {
-      capabilityPackageIdentityValues(agentPackage.package_id).forEach((id) => order.set(id, index));
-    });
-    return order;
-  }, []);
   const roleOptions = React.useMemo(() => {
     const roles = [
       ...new Set(
@@ -1044,11 +1048,11 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     });
   }, [purposeCapabilities]);
   const statusOptions = React.useMemo(
-    () => [...new Set(purposeCapabilities.map(capabilityCatalogStatus))].sort(),
+    () => [...new Set(purposeCapabilities.map(capabilityCatalogStatus))].toSorted(),
     [purposeCapabilities]
   );
   const sourceOptions = React.useMemo(
-    () => [...new Set(purposeCapabilities.map(capabilitySourceCategory))].sort(),
+    () => [...new Set(purposeCapabilities.map(capabilitySourceCategory))].toSorted(),
     [purposeCapabilities]
   );
   const visibleCapabilities = React.useMemo(() => {
@@ -1078,15 +1082,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const catalogGroups = React.useMemo<CapabilityCatalogGroup[]>(() => {
     const compareByTitle = (left: CapabilityPurposeViewModel, right: CapabilityPurposeViewModel) =>
       left.title.localeCompare(right.title, i18n.language);
-    const compareAgents = (left: CapabilityPurposeViewModel, right: CapabilityPurposeViewModel) => {
-      const rank = (item: CapabilityPurposeViewModel) => {
-        const ranks = capabilityPackageIdentityValues(item.packageId)
-          .map((id) => professionalAgentOrder.get(id))
-          .filter((value): value is number => value !== undefined);
-        return ranks.length > 0 ? Math.min(...ranks) : Number.MAX_SAFE_INTEGER;
-      };
-      return rank(left) - rank(right) || compareByTitle(left, right);
-    };
+    const compareAgents = compareByTitle;
 
     const agents = visibleCapabilities
       .filter((item) => capabilityRoleGroupKey(item) === 'agents')
@@ -1128,12 +1124,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     return (['frequent', 'needsAttention', 'other'] as const)
       .map((key) => ({
         key,
-        entries: entries.filter(
-          (entry) => capabilityCatalogGroupKey(entry, professionalAgentOrder, purposeCapabilities) === key
-        ),
+        entries: entries.filter((entry) => capabilityCatalogGroupKey(entry, purposeCapabilities) === key),
       }))
       .filter((group) => group.entries.length > 0);
-  }, [i18n.language, professionalAgentOrder, purposeCapabilities, visibleCapabilities]);
+  }, [i18n.language, purposeCapabilities, visibleCapabilities]);
   const hasActiveCatalogFilters =
     Boolean(catalogSearch.trim()) || roleFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all';
   const catalogFilterEmpty = purposeCapabilities.length > 0 && visibleCapabilities.length === 0;
@@ -1213,16 +1207,22 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     ? (capabilitySourceLabel(selectedCapability, t) ?? t('settings.capabilitiesPage.detailValues.notReported'))
     : '';
   const selectedUninstallAction = selectedCapability?.availableActions.agent_package_uninstall ?? null;
-  const selectedShortcut = selectedCapability?.packageId ? shortcutByPackageId.get(selectedCapability.packageId) : null;
-  const selectedShortcutId = selectedShortcut?.shortcut_id ?? '';
-  const selectedShortcutIndex = selectedShortcutId ? (shortcutIndexById.get(selectedShortcutId) ?? -1) : -1;
-  const selectedHomeLabel = !selectedShortcut
-    ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
-    : !isOplHomeShortcutVisible(selectedShortcut, shortcutPreferences)
-      ? t('settings.capabilitiesPage.packageManager.homeHidden')
-      : t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
-          order: String(selectedShortcutIndex + 1),
-        });
+  const selectedShortcuts = selectedCapability?.packageId
+    ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(selectedCapability.packageId)) ?? [])
+    : [];
+  const selectedHomeLabel =
+    selectedShortcuts.length === 0
+      ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
+      : selectedShortcuts
+          .map((shortcut) => {
+            if (!isOplHomeShortcutVisible(shortcut, shortcutPreferences)) {
+              return `${shortcut.primary_label}: ${t('settings.capabilitiesPage.packageManager.homeHidden')}`;
+            }
+            return `${shortcut.primary_label}: ${t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
+              order: String((shortcutIndexById.get(shortcut.shortcut_id) ?? -1) + 1),
+            })}`;
+          })
+          .join('; ');
   const selectedUserDetailRows = selectedCapability ? capabilityUserDetailRows(selectedCapability, t) : [];
   const selectedReadinessDetailRows = selectedCapability ? capabilityReadinessDetailRows(selectedCapability, t) : [];
   const selectedDiagnosticRows = selectedCapability ? capabilityDiagnosticRows(selectedCapability, t) : [];
@@ -1548,7 +1548,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     if (packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) {
       return { verified: false, authoritativePreferences: null };
     }
-    const shortcutOrder = getOplOrderedHomeAgentShortcuts();
+    const shortcutOrder = getOplOrderedHomeAgentShortcuts(projectedShortcuts);
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
     const action = item.availableActions.agent_package_preferences_set;
     if (!shortcut || !action) return { verified: false, authoritativePreferences: null };
@@ -1603,16 +1603,18 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.has(shortcutId)) return;
     const previousPreferences = getOplHomeShortcutPreferences();
     const wasHidden = previousPreferences.hiddenShortcutIds.includes(shortcutId);
-    const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
+    const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden, projectedShortcuts);
     void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((result) => {
-      if (!result.verified && !result.authoritativePreferences) setOplHomeShortcutHidden(shortcutId, wasHidden);
+      if (!result.verified && !result.authoritativePreferences) {
+        setOplHomeShortcutHidden(shortcutId, wasHidden, projectedShortcuts);
+      }
     });
   };
 
   const moveShortcut = (item: CapabilityPurposeViewModel, shortcutId: string, direction: -1 | 1) => {
     if (!shortcutId || packageActionTokenRef.current || shortcutActionTokensRef.current.size > 0) return;
     const previousPreferences = getOplHomeShortcutPreferences();
-    const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
+    const nextPreferences = moveOplHomeShortcut(shortcutId, direction, projectedShortcuts);
     void executeShortcutPreferenceAction(item, shortcutId, nextPreferences).then((result) => {
       if (!result.verified && !result.authoritativePreferences) {
         replaceOplHomeShortcutPreferences(previousPreferences);
@@ -1644,8 +1646,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     (item) => capabilityRoleGroupKey(item) === 'supporting'
   ).length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
-    const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
-    return shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
+    const shortcuts = item.packageId
+      ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(item.packageId)) ?? [])
+      : [];
+    return shortcuts.some((shortcut) => isOplHomeShortcutVisible(shortcut, shortcutPreferences));
   }).length;
   const resetCatalogFilters = () => {
     setCatalogSearch('');
@@ -1681,8 +1685,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   };
 
   const renderCapabilityRow = (item: CapabilityPurposeViewModel, parent: CapabilityPurposeViewModel | null = null) => {
-    const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
-    const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
+    const shortcuts = item.packageId
+      ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(item.packageId)) ?? [])
+      : [];
     const rowAction = capabilityRowAction(item);
     const rowActionPayload = rowAction ? projectedActionPayload(rowAction) : null;
     const rowActionDisabled = Boolean(
@@ -1749,19 +1754,36 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               <Typography.Text className='text-11px text-t-tertiary'>
                 {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
               </Typography.Text>
-              {shortcut ? (
-                <Switch
-                  size='small'
-                  checked={shortcutVisible}
-                  loading={pendingShortcutIds.has(shortcut.shortcut_id)}
-                  disabled={
-                    packageActionBusy ||
-                    pendingShortcutIds.has(shortcut.shortcut_id) ||
-                    !item.availableActions.agent_package_preferences_set
-                  }
-                  onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
-                  data-testid={`agent-package-home-toggle-details-${item.key}`}
-                />
+              {shortcuts.length > 0 ? (
+                <div className='flex flex-col gap-4px'>
+                  {shortcuts.map((shortcut) => {
+                    const testIdSuffix = shortcuts.length === 1 ? item.key : `${item.key}-${shortcut.shortcut_id}`;
+                    return (
+                      <label
+                        key={`${shortcut.package_id}:${shortcut.shortcut_id}`}
+                        className='flex items-center gap-6px'
+                      >
+                        {shortcuts.length > 1 && (
+                          <Typography.Text className='text-11px text-t-tertiary'>
+                            {shortcut.primary_label}
+                          </Typography.Text>
+                        )}
+                        <Switch
+                          size='small'
+                          checked={isOplHomeShortcutVisible(shortcut, shortcutPreferences)}
+                          loading={pendingShortcutIds.has(shortcut.shortcut_id)}
+                          disabled={
+                            packageActionBusy ||
+                            pendingShortcutIds.has(shortcut.shortcut_id) ||
+                            !item.availableActions.agent_package_preferences_set
+                          }
+                          onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
+                          data-testid={`agent-package-home-toggle-details-${testIdSuffix}`}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
               ) : (
                 <Typography.Text className='text-12px text-t-secondary'>
                   {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
@@ -2246,30 +2268,45 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   </Button>
                 )}
 
-                {selectedShortcut && (
-                  <Space wrap size={6}>
-                    <Button
-                      size='mini'
-                      disabled={packageMutationBusy || selectedShortcutIndex <= 0}
-                      onClick={() => moveShortcut(selectedCapability, selectedShortcutId, -1)}
-                      data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
+                {selectedShortcuts.map((shortcut) => {
+                  const shortcutIndex = shortcutIndexById.get(shortcut.shortcut_id) ?? -1;
+                  const testIdSuffix =
+                    selectedShortcuts.length === 1
+                      ? selectedCapability.key
+                      : `${selectedCapability.key}-${shortcut.shortcut_id}`;
+                  return (
+                    <div
+                      key={`${shortcut.package_id}:${shortcut.shortcut_id}`}
+                      className='flex flex-wrap items-center gap-6px'
                     >
-                      {t('settings.capabilitiesPage.packageManager.moveUp')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      disabled={
-                        packageMutationBusy ||
-                        selectedShortcutIndex < 0 ||
-                        selectedShortcutIndex >= orderedShortcuts.length - 1
-                      }
-                      onClick={() => moveShortcut(selectedCapability, selectedShortcutId, 1)}
-                      data-testid={`agent-package-home-down-details-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.moveDown')}
-                    </Button>
-                  </Space>
-                )}
+                      {selectedShortcuts.length > 1 && (
+                        <Typography.Text className='text-12px text-t-secondary'>
+                          {shortcut.primary_label}
+                        </Typography.Text>
+                      )}
+                      <Space wrap size={6}>
+                        <Button
+                          size='mini'
+                          disabled={packageMutationBusy || shortcutIndex <= 0}
+                          onClick={() => moveShortcut(selectedCapability, shortcut.shortcut_id, -1)}
+                          data-testid={`agent-package-home-up-details-${testIdSuffix}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.moveUp')}
+                        </Button>
+                        <Button
+                          size='mini'
+                          disabled={
+                            packageMutationBusy || shortcutIndex < 0 || shortcutIndex >= orderedShortcuts.length - 1
+                          }
+                          onClick={() => moveShortcut(selectedCapability, shortcut.shortcut_id, 1)}
+                          data-testid={`agent-package-home-down-details-${testIdSuffix}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.moveDown')}
+                        </Button>
+                      </Space>
+                    </div>
+                  );
+                })}
 
                 {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
 

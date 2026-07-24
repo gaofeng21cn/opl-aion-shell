@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GuidActionRow from '@/renderer/pages/guid/components/GuidActionRow';
+import type { OplHomeAssistant } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
@@ -15,6 +16,43 @@ const mocks = vi.hoisted(() => ({
   recentWorkspaces: [] as string[],
   appState: {} as Record<string, unknown>,
 }));
+
+const shortcutByPackage: Record<string, string> = {
+  mas: 'research',
+  rca: 'ppt',
+  mag: 'grant',
+  obf: 'book',
+  oma: 'oma',
+};
+
+const homeAssistant = (packageId: string, name: string): OplHomeAssistant => ({
+  id: shortcutByPackage[packageId] ?? packageId,
+  opl_package_id: packageId,
+  opl_shortcut_id: shortcutByPackage[packageId] ?? packageId,
+  source: 'builtin',
+  name,
+  name_i18n: { 'en-US': name },
+  description: name,
+  description_i18n: { 'en-US': name },
+  enabled: true,
+  sort_order: 1,
+  preset_agent_type: 'codex',
+  enabled_skills: [],
+  custom_skill_names: [],
+  disabled_builtin_skills: [],
+  context_i18n: {},
+  prompts: [],
+  prompts_i18n: {},
+  models: [],
+});
+
+const homeAssistants = [
+  homeAssistant('mas', 'Med Auto Science'),
+  homeAssistant('mag', 'Med Auto Grant'),
+  homeAssistant('rca', 'RedCube AI'),
+  homeAssistant('obf', 'OPL Book Forge'),
+  homeAssistant('oma', 'OPL Meta Agent'),
+];
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -169,7 +207,7 @@ const buildProps = () => ({
   onModeSelect: vi.fn(),
   is_presetAgent: true,
   selectedAgentInfo: { agent_type: 'codex', name: 'Codex', is_preset: true },
-  assistants: [],
+  assistants: homeAssistants,
   localeKey: 'en-US',
   onClosePresetTag: vi.fn(),
   allSkills: [{ name: 'arbitrary-skill', description: 'Not mobile', isAuto: false }],
@@ -261,7 +299,7 @@ describe('GuidActionRow composer controls', () => {
     expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
   });
 
-  it('shows every professional agent independently from Home shortcuts and removes owned skills', async () => {
+  it('shows every dynamic Home shortcut and keeps optional skills independent from Package membership', async () => {
     const onSelectCapability = vi.fn();
     render(
       <GuidActionRow
@@ -276,15 +314,15 @@ describe('GuidActionRow composer controls', () => {
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
-    for (const name of ['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Book Forge', 'OPL Meta Agent']) {
-      expect(screen.getByText(name)).toBeInTheDocument();
+    for (const shortcutId of ['research', 'grant', 'ppt', 'book', 'oma']) {
+      expect(screen.getByTestId(`guid-capability-palette-item-agent-${shortcutId}`)).toBeInTheDocument();
     }
-    expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
-    expect(screen.queryByText('plugin:opl-bookforge')).not.toBeInTheDocument();
+    expect(screen.getByTestId('guid-capability-palette-item-skill-med-autoscience')).toBeInTheDocument();
+    expect(screen.getByTestId('guid-capability-palette-item-skill-plugin:opl-bookforge')).toBeInTheDocument();
     expect(screen.getByText('arbitrary-skill')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('OPL Book Forge').closest('button')!);
-    expect(onSelectCapability).toHaveBeenCalledWith('obf');
+    fireEvent.click(screen.getByTestId('guid-capability-palette-item-agent-book'));
+    expect(onSelectCapability).toHaveBeenCalledWith('book');
   });
 
   it('keeps verification-deferred agents selectable and disables only package-unavailable agents', async () => {
@@ -309,8 +347,8 @@ describe('GuidActionRow composer controls', () => {
     render(<GuidActionRow {...buildProps()} onSelectCapability={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
-    expect(screen.getByText('Med Auto Science').closest('button')).toBeEnabled();
-    expect(screen.getByText('Med Auto Grant').closest('button')).toBeDisabled();
+    expect(screen.getByTestId('guid-capability-palette-item-agent-research')).toBeEnabled();
+    expect(screen.getByTestId('guid-capability-palette-item-agent-grant')).toBeDisabled();
   });
 
   it('keeps working-directory selection out of the action row and capability palette', async () => {

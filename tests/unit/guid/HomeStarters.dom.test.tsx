@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
+import type { OplHomeAssistant } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import HomeStarters from '@/renderer/pages/guid/components/HomeStarters';
 import PresetAgentTag from '@/renderer/pages/guid/components/PresetAgentTag';
 
@@ -10,6 +10,14 @@ const mocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
   packageIds: ['mas', 'rca', 'mag', 'obf', 'oma'],
 }));
+
+const shortcutByPackage: Record<string, string> = {
+  mas: 'research',
+  rca: 'ppt',
+  mag: 'grant',
+  obf: 'book',
+  oma: 'oma',
+};
 
 const readyAppState = () => ({
   agent_packages: {
@@ -30,14 +38,6 @@ const readyAppState = () => ({
   },
 });
 
-vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/renderer/pages/guid/utils/oplHomeAssistants')>();
-  return {
-    ...actual,
-    getOplHomePurposeAssistantIds: () => mocks.packageIds,
-  };
-});
-
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState }),
 }));
@@ -49,11 +49,13 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const assistant = (id: string): Assistant => ({
-  id,
+const assistant = (packageId: string): OplHomeAssistant => ({
+  id: shortcutByPackage[packageId] ?? packageId,
+  opl_package_id: packageId,
+  opl_shortcut_id: shortcutByPackage[packageId] ?? packageId,
   source: 'builtin',
-  name: id.toUpperCase(),
-  name_i18n: { 'en-US': id.toUpperCase() },
+  name: packageId.toUpperCase(),
+  name_i18n: { 'en-US': packageId.toUpperCase() },
   description_i18n: {},
   enabled: true,
   sort_order: 1,
@@ -77,26 +79,26 @@ describe('HomeStarters', () => {
 
     expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(5);
     expect(screen.getAllByTestId(/^home-starter-/).map((item) => item.dataset.testid)).toEqual([
-      'home-starter-mas',
-      'home-starter-rca',
-      'home-starter-mag',
-      'home-starter-obf',
+      'home-starter-research',
+      'home-starter-ppt',
+      'home-starter-grant',
+      'home-starter-book',
       'home-starter-oma',
     ]);
     expect(screen.getByTestId('home-starter-oma')).toBeInTheDocument();
     expect(screen.getAllByTestId(/^home-starter-/).map((item) => item.textContent)).toEqual([
-      'guid.uiOptimization.home.shortcuts.research',
-      'guid.uiOptimization.home.shortcuts.presentation',
-      'guid.uiOptimization.home.shortcuts.grant',
-      'guid.uiOptimization.home.shortcuts.book',
-      'guid.uiOptimization.home.shortcuts.agentEngineering',
+      'MAS',
+      'RCA',
+      'MAG',
+      'OBF',
+      'OMA',
     ]);
-    expect(screen.getByTestId('starter-icon-mas').querySelector('svg')).not.toBeNull();
-    expect(screen.queryByTestId('starter-next-mag')).not.toBeInTheDocument();
-    expect(screen.getByTestId('home-starter-mag')).toHaveAttribute('data-opl-launch-ready', 'true');
+    expect(screen.getByTestId('starter-icon-research').querySelector('svg')).not.toBeNull();
+    expect(screen.queryByTestId('starter-next-grant')).not.toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-grant')).toHaveAttribute('data-opl-launch-ready', 'true');
 
-    await userEvent.click(screen.getByTestId('home-starter-mag'));
-    expect(onSelect).toHaveBeenCalledWith('mag');
+    await userEvent.click(screen.getByTestId('home-starter-grant'));
+    expect(onSelect).toHaveBeenCalledWith('grant');
   });
 
   it('keeps an active capability visible and clears it from the same starter without selecting another', async () => {
@@ -107,6 +109,7 @@ describe('HomeStarters', () => {
         assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
         localeKey='en-US'
         activeCapabilityId='oma'
+        activeShortcutId='oma'
         onSelect={onSelect}
         onClear={onClear}
       />
@@ -127,6 +130,7 @@ describe('HomeStarters', () => {
         assistants={['mas', 'mag', 'rca', 'obf', 'oma'].map(assistant)}
         localeKey='en-US'
         activeCapabilityId='oma'
+        activeShortcutId='oma'
         onSelect={vi.fn()}
       />
     );
@@ -153,12 +157,12 @@ describe('HomeStarters', () => {
     const onSelect = vi.fn();
     render(<HomeStarters assistants={['mas', 'mag'].map(assistant)} localeKey='en-US' onSelect={onSelect} />);
 
-    const blockedStarter = screen.getByTestId('home-starter-mag');
+    const blockedStarter = screen.getByTestId('home-starter-grant');
     expect(blockedStarter).not.toBeDisabled();
     expect(blockedStarter).toHaveAttribute('data-opl-launch-ready', 'false');
     expect(blockedStarter).toHaveAttribute('title', expect.stringContaining('required_export_missing'));
     await userEvent.click(blockedStarter);
-    expect(onSelect).toHaveBeenCalledWith('mag');
+    expect(onSelect).toHaveBeenCalledWith('grant');
   });
 
   it('keeps a scope-materialization package selectable while Stage runtime owns activation', async () => {
@@ -174,12 +178,12 @@ describe('HomeStarters', () => {
     const onSelect = vi.fn();
     render(<HomeStarters assistants={[assistant('mas')]} localeKey='en-US' onSelect={onSelect} />);
 
-    const activationStarter = screen.getByTestId('home-starter-mas');
+    const activationStarter = screen.getByTestId('home-starter-research');
     expect(activationStarter).not.toBeDisabled();
     expect(activationStarter).toHaveAttribute('aria-pressed', 'false');
     expect(activationStarter).toHaveAttribute('data-opl-launch-ready', 'true');
     await userEvent.click(activationStarter);
-    expect(onSelect).toHaveBeenCalledWith('mas');
+    expect(onSelect).toHaveBeenCalledWith('research');
   });
 
   it('does not expose stale status diagnostics when directory readiness allows launch', () => {
@@ -214,7 +218,7 @@ describe('HomeStarters', () => {
 
     render(<HomeStarters assistants={[assistant('mas')]} localeKey='en-US' onSelect={vi.fn()} />);
 
-    const starter = screen.getByTestId('home-starter-mas');
+    const starter = screen.getByTestId('home-starter-research');
     expect(starter).toHaveAttribute('data-opl-launch-ready', 'true');
     expect(starter).not.toHaveAttribute('title');
   });
@@ -232,12 +236,12 @@ describe('HomeStarters', () => {
     const onSelect = vi.fn();
     render(<HomeStarters assistants={[assistant('mag')]} localeKey='en-US' onSelect={onSelect} />);
 
-    const unavailableStarter = screen.getByTestId('home-starter-mag');
+    const unavailableStarter = screen.getByTestId('home-starter-grant');
     expect(unavailableStarter).not.toBeDisabled();
     expect(unavailableStarter).toHaveAttribute('data-opl-launch-ready', 'false');
     expect(unavailableStarter).toHaveAttribute('title', expect.stringContaining('package_not_installed'));
     await userEvent.click(unavailableStarter);
-    expect(onSelect).toHaveBeenCalledWith('mag');
+    expect(onSelect).toHaveBeenCalledWith('grant');
   });
 
   it('keeps starters selectable while package state is still loading', async () => {

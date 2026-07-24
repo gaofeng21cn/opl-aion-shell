@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { filterOplFoundryAssistants, withOplFoundryAssistantDefaults } from '@/renderer/pages/guid/oplGuidProfile';
 import {
   buildAssistantScopedSkillMenuItems,
   isGuidSkillChecked,
@@ -11,7 +10,10 @@ import {
   resolveOplProfessionalAgentAssistants,
   resolveOplPackageLaunchGate,
 } from '@/renderer/pages/guid/utils/oplHomeAssistants';
-import { getOplHomeShortcutPreferencesFromAppState } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
+import {
+  getOplHomeAgentShortcutsFromAppState,
+  getOplHomeShortcutPreferencesFromAppState,
+} from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
@@ -30,71 +32,230 @@ const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): 
   ...input,
 });
 
-describe('OPL home assistants', () => {
-  it('keeps Home shortcuts separate from the complete professional-agent directory', () => {
-    expect(resolveOplHomeAssistants([]).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+const dynamicAppState = () => ({
+  agent_packages: {
+    directory: {
+      entries: [
+        {
+          package_id: 'mas',
+          display_name: 'Med Auto Science',
+          description: 'Research',
+          package_role: 'standard_agent',
+          installed: true,
+        },
+        {
+          package_id: 'mag',
+          display_name: 'Med Auto Grant',
+          description: 'Grants',
+          package_role: 'standard_agent',
+          installed: true,
+        },
+        {
+          package_id: 'rca',
+          display_name: 'RedCube AI',
+          description: 'Presentations',
+          package_role: 'standard_agent',
+          installed: true,
+        },
+        {
+          package_id: 'obf',
+          display_name: 'OPL Book Forge',
+          description: 'Books',
+          package_role: 'standard_agent',
+          installed: true,
+        },
+        {
+          package_id: 'oma',
+          display_name: 'OPL Meta Agent',
+          description: 'Agents',
+          package_role: 'standard_agent',
+          installed: true,
+        },
+        {
+          package_id: 'opl-flow',
+          display_name: 'OPL Flow',
+          description: 'Workflow',
+          package_role: 'workflow_profile',
+          installed: true,
+        },
+      ],
+    },
+    status_index: {
+      home_shortcut_preferences: [
+        {
+          package_id: 'mas',
+          shortcut_id: 'research',
+          visible: true,
+          sort_order: 0,
+          source: 'default',
+          installed: true,
+        },
+        { package_id: 'rca', shortcut_id: 'ppt', visible: true, sort_order: 1, source: 'default', installed: true },
+        { package_id: 'mag', shortcut_id: 'grant', visible: true, sort_order: 2, source: 'default', installed: true },
+        { package_id: 'obf', shortcut_id: 'book', visible: true, sort_order: 3, source: 'default', installed: true },
+        { package_id: 'oma', shortcut_id: 'oma', visible: true, sort_order: 4, source: 'default', installed: true },
+        {
+          package_id: 'opl-flow',
+          shortcut_id: 'flow',
+          visible: true,
+          sort_order: 5,
+          source: 'default',
+          installed: true,
+        },
+      ],
+    },
+  },
+});
 
-    const directory = resolveOplProfessionalAgentAssistants([]);
+describe('OPL home assistants', () => {
+  it('uses the Framework directory as membership and excludes workflow packages', () => {
+    const appState = dynamicAppState();
+    expect(resolveOplHomeAssistants([], appState).map((item) => item.id)).toEqual([
+      'research',
+      'ppt',
+      'grant',
+      'book',
+      'oma',
+    ]);
+
+    const directory = resolveOplProfessionalAgentAssistants([], appState);
     expect(directory.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'obf', 'oma']);
     expect(directory.find((item) => item.id === 'oma')?.description_i18n['zh-CN']).toBe(
       '用于创建、接管、检查和改进 OPL 专业智能体。'
     );
-    expect(directory.find((item) => item.id === 'obf')?.enabled_skills).toEqual(['opl-bookforge']);
+    expect(directory.find((item) => item.id === 'obf')?.enabled_skills).toEqual([]);
   });
 
-  it('filters historical AionUI assistants and exposes the configured home entries', () => {
-    const resolved = resolveOplHomeAssistants([
-      assistant({ id: 'cowork', name: 'Cowork' }),
-      assistant({ id: 'mds', name: 'Med Deep Scientist' }),
-      assistant({
-        id: 'mas',
-        name: 'Custom MAS',
-        name_i18n: { 'zh-CN': '定制 MAS' },
-        description_i18n: { 'zh-CN': '用户已有 MAS 配置' },
-      }),
-    ]);
+  it('keeps backend assistants as runtime binding without making them membership authority', () => {
+    const appState = dynamicAppState();
+    const resolved = resolveOplHomeAssistants(
+      [
+        assistant({ id: 'cowork', name: 'Cowork' }),
+        assistant({ id: 'mds', name: 'Med Deep Scientist' }),
+        assistant({
+          id: 'mas',
+          name: 'Custom MAS',
+          name_i18n: { 'zh-CN': '定制 MAS' },
+          description_i18n: { 'zh-CN': '用户已有 MAS 配置' },
+        }),
+      ],
+      appState
+    );
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    expect(resolved.map((item) => item.id)).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
     expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
-    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
-      'Med Auto Science',
-      'RedCube AI',
-      'Med Auto Grant',
-      'OPL Book Forge',
-      'OPL Meta Agent',
-    ]);
-    expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
+    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
+    expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研');
     expect(resolved.map((item) => item.id)).not.toEqual(expect.arrayContaining(['cowork', 'mds']));
-    expect(Object.fromEntries(resolved.map((item) => [item.id, item.enabled_skills]))).toEqual({
-      mas: ['med-autoscience'],
-      mag: ['med-autogrant'],
-      rca: ['redcube-ai'],
-      obf: ['opl-bookforge'],
-      oma: ['opl-meta-agent'],
+    expect(resolved.every((item) => item.enabled_skills.length === 0)).toBe(true);
+  });
+
+  it('joins long directory identities to short backend and presentation aliases without changing membership', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'med-autoscience',
+              display_name: 'Med Auto Science',
+              description: 'Research',
+              package_role: 'standard_agent',
+              installed: true,
+            },
+          ],
+        },
+        status_index: {
+          home_shortcut_preferences: [
+            {
+              package_id: 'med-autoscience',
+              shortcut_id: 'research',
+              visible: true,
+              sort_order: 0,
+              source: 'default',
+              installed: true,
+            },
+          ],
+        },
+      },
+    };
+    const resolved = resolveOplHomeAssistants(
+      [
+        assistant({
+          id: 'mas',
+          name: 'Backend MAS',
+          agent_id: 'codex-managed',
+          agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
+        }),
+      ],
+      appState
+    );
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({
+      id: 'research',
+      opl_package_id: 'med-autoscience',
+      opl_shortcut_id: 'research',
+      name: '科研',
+      agent_id: 'codex-managed',
     });
   });
 
-  it('adds the default-visible Book Forge and OMA shortcuts when merging shell defaults for the Guid page', () => {
-    const resolved = withOplFoundryAssistantDefaults([
-      assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
-    ]);
+  it('does not synthesize fixed agents when the directory is absent', () => {
+    expect(resolveOplHomeAssistants([], {})).toEqual([]);
+    expect(resolveOplProfessionalAgentAssistants([], {})).toEqual([]);
+  });
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '演示', '基金', '写书', '元智能体']);
-    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
-      'Med Auto Science',
-      'RedCube AI',
-      'Med Auto Grant',
-      'OPL Book Forge',
-      'OPL Meta Agent',
+  it('supports a future Agent and every shortcut tuple without a Shell id branch', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'future-agent',
+              display_name: 'Future Agent',
+              description: 'Future work',
+              package_role: 'standard_agent',
+              installed: true,
+            },
+          ],
+        },
+        status_index: {
+          home_shortcut_preferences: [
+            {
+              package_id: 'future-agent',
+              shortcut_id: 'future-main',
+              visible: true,
+              sort_order: 1,
+              source: 'default',
+              installed: true,
+            },
+            {
+              package_id: 'future-agent',
+              shortcut_id: 'future-review',
+              visible: true,
+              sort_order: 0,
+              source: 'user_preference',
+              installed: true,
+            },
+          ],
+        },
+      },
+    };
+
+    expect(getOplHomeAgentShortcutsFromAppState(appState).map((item) => [item.package_id, item.shortcut_id])).toEqual([
+      ['future-agent', 'future-review'],
+      ['future-agent', 'future-main'],
     ]);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
-    expect(resolved.map((item) => item.enabled_skills)).toEqual([
-      ['med-autoscience'],
-      ['redcube-ai'],
-      ['med-autogrant'],
-      ['opl-bookforge'],
-      ['opl-meta-agent'],
+    expect(
+      resolveOplHomeAssistants([], appState).map((item) => ({
+        id: item.id,
+        packageId: item.opl_package_id,
+        label: item.name,
+        skills: item.enabled_skills,
+      }))
+    ).toEqual([
+      { id: 'future-review', packageId: 'future-agent', label: 'Future Agent', skills: [] },
+      { id: 'future-main', packageId: 'future-agent', label: 'Future Agent', skills: [] },
     ]);
   });
 
@@ -132,34 +293,40 @@ describe('OPL home assistants', () => {
     });
   });
 
-  it('keeps caller-added assistant skills while forcing the required profile skill', () => {
-    const resolved = resolveOplHomeAssistants([
-      assistant({
-        id: 'mag',
-        name: 'Custom MAG',
-        enabled_skills: ['officecli-docx'],
-      }),
-    ]);
+  it('keeps backend-provided skills without injecting fixed Profile requirements', () => {
+    const resolved = resolveOplHomeAssistants(
+      [
+        assistant({
+          id: 'mag',
+          name: 'Custom MAG',
+          enabled_skills: ['officecli-docx'],
+        }),
+      ],
+      dynamicAppState()
+    );
 
-    expect(resolved.find((item) => item.id === 'mag')?.enabled_skills).toEqual(['med-autogrant', 'officecli-docx']);
+    expect(resolved.find((item) => item.opl_package_id === 'mag')?.enabled_skills).toEqual(['officecli-docx']);
   });
 
   it('binds synthetic OPL entries to the generated default assistant runtime id', () => {
-    const resolved = resolveOplHomeAssistants([
-      assistant({
-        id: 'generated-codex',
-        source: 'generated',
-        name: 'Codex',
-        agent_id: '8e1acf31',
-        agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
-      }),
-    ]);
+    const resolved = resolveOplHomeAssistants(
+      [
+        assistant({
+          id: 'generated-codex',
+          source: 'generated',
+          name: 'Codex',
+          agent_id: '8e1acf31',
+          agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
+        }),
+      ],
+      dynamicAppState()
+    );
 
     expect(resolved.every((item) => item.agent_id === '8e1acf31')).toBe(true);
     expect(resolved.some((item) => item.agent_id === 'codex')).toBe(false);
   });
 
-  it('fails closed for package_not_installed and keeps only maintenance actions', () => {
+  it('fails closed for package_not_installed and preserves Framework-projected recovery actions', () => {
     const gate = resolveOplPackageLaunchGate(
       {
         agent_packages: {
@@ -183,7 +350,7 @@ describe('OPL home assistants', () => {
       state: 'package_unavailable',
       launchAllowed: false,
       launchBlockedReason: 'package_not_installed',
-      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+      allowedWhenBlocked: ['status', 'doctor', 'repair', 'launch', 'uninstall'],
     });
   });
 
@@ -255,6 +422,40 @@ describe('OPL home assistants', () => {
     expect(gate.launchAllowed).toBe(true);
     expect(gate.allowedWhenBlocked).toEqual(['status', 'doctor', 'repair']);
   });
+
+  it.each(['package_version_mismatch', 'incompatible_package_version'])(
+    'does not restore a Shell-side SemVer launch gate for %s',
+    (reason) => {
+      const gate = resolveOplPackageLaunchGate(
+        {
+          agent_packages: {
+            directory: {
+              entries: [
+                {
+                  package_id: 'future-agent',
+                  package_role: 'standard_agent',
+                  installed: true,
+                },
+              ],
+            },
+            status_index: {
+              packages: [
+                {
+                  package_id: 'future-agent',
+                  operational_ready: false,
+                  launch_allowed: false,
+                  launch_blocked_reason: reason,
+                },
+              ],
+            },
+          },
+        },
+        'future-agent'
+      );
+
+      expect(gate).toMatchObject({ state: 'degraded', launchAllowed: false, launchBlockedReason: reason });
+    }
+  );
 
   it('keeps directory launch readiness authoritative over stale status diagnostics', () => {
     const gate = resolveOplPackageLaunchGate(

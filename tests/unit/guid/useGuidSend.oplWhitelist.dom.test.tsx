@@ -92,7 +92,10 @@ function buildDeps(): GuidSendDeps {
       avatar: 'MAS',
     },
     is_presetAgent: true,
-    activeShortcut: resolveOplActiveShortcut('mas'),
+    activeShortcut: resolveOplActiveShortcut(
+      'mas',
+      buildPackageAppState('mas', { operational_ready: true, launch_allowed: true })
+    ),
     selectedMode: 'default',
     selectedAcpModel: null,
     selectedReasoningEffort: null,
@@ -162,12 +165,16 @@ function buildActivationAction(packageId: string, workspaceRequired = true) {
 }
 
 function buildPackageAppState(packageId: string, status: Record<string, unknown> | null, workspaceRequired = true) {
+  const shortcutIdByPackage: Record<string, string> = { mas: 'research', oma: 'oma' };
   return {
     agent_packages: {
       directory: {
         entries: [
           {
             package_id: packageId,
+            display_name: packageId.toUpperCase(),
+            package_role: 'standard_agent',
+            installed: true,
             package_version: '1.0.0',
             available_actions: [buildActivationAction(packageId, workspaceRequired)],
           },
@@ -175,6 +182,16 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
       },
       status_index: {
         packages: status ? { [packageId]: { package_id: packageId, ...status } } : {},
+        home_shortcut_preferences: [
+          {
+            package_id: packageId,
+            shortcut_id: shortcutIdByPackage[packageId] ?? packageId,
+            visible: true,
+            sort_order: 0,
+            source: 'default',
+            installed: true,
+          },
+        ],
       },
     },
   };
@@ -300,25 +317,19 @@ describe('useGuidSend OPL ordinary capability policy', () => {
       package_id: 'mas',
       shortcut_id: 'research',
       codex_visible_entry: 'med-autoscience',
-      required_skill_ids: ['med-autoscience'],
+      required_skill_ids: [],
       source: 'opl_app_home',
     });
     expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(payload.extra.opl_agent_package_activation).toBeUndefined();
-    expect(payload.extra.opl_assistant_route).toMatchObject({
-      route_kind: 'builtin_capability',
-      executor: 'codex_cli',
-      assistant_id: 'mas',
-      assistant_short_name: 'MAS',
-      source: 'opl_app_home',
-    });
+    expect(payload.extra.opl_assistant_route).toBeUndefined();
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
   });
 
   it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {
     mocks.appState = buildPackageAppState('oma', { operational_ready: true, launch_allowed: true });
     const deps = buildDeps();
-    deps.activeShortcut = resolveOplActiveShortcut('oma');
+    deps.activeShortcut = resolveOplActiveShortcut('oma', mocks.appState);
     deps.guidEnabledSkills = ['opl-meta-agent'];
 
     const { result } = renderHook(() => useGuidSend(deps));
@@ -333,7 +344,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
       package_id: 'oma',
       shortcut_id: 'oma',
       codex_visible_entry: 'opl-meta-agent',
-      required_skill_ids: ['opl-meta-agent'],
+      required_skill_ids: [],
       source: 'opl_app_home',
     });
     expect(payload.extra.opl_assistant_route).toBeUndefined();

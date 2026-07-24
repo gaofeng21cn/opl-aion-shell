@@ -5,10 +5,8 @@
  */
 
 import {
-  canonicalizeOplProfessionalAgentId,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
-  getOplProfessionalAgentPackages,
   isOplCodexCliFixedExecutor,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
@@ -42,9 +40,8 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import type { AcpModelInfo, AvailableAgent } from '../types';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
-import { resolveOplPackageLaunchGate, resolveOplProfessionalAgentAssistants } from '../utils/oplHomeAssistants';
+import { resolveOplPackageLaunchGate, type OplHomeAssistant } from '../utils/oplHomeAssistants';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Message, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Lightning, Link, MagicHat, Paperclip, Plus, Refresh, Shield } from '@icon-park/react';
@@ -80,7 +77,7 @@ type GuidActionRowProps = {
    * Backend-merged preset catalog — drives the preset tag label lookup. Not
    * the ACP engine-config list (custom agents from the AgentRegistry).
    */
-  assistants: Assistant[];
+  assistants: OplHomeAssistant[];
   localeKey: string;
   onClosePresetTag: () => void;
   agentLogo?: string | null;
@@ -240,21 +237,18 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     }
 
     const agentPackageItems: ComposerCapabilityPaletteItem[] = [];
-    resolveOplProfessionalAgentAssistants(assistants)
+    assistants
       .filter(() => Boolean(onSelectCapability))
       .forEach((assistant) => {
-        const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
+        const launchGate = resolveOplPackageLaunchGate(appState, assistant.opl_package_id);
         agentPackageItems.push({
           id: `agent-${assistant.id}`,
           label: assistant.name_i18n?.[localeKey] || assistant.name,
           description: assistant.description_i18n?.[localeKey] || assistant.description,
           icon: <MagicHat {...OPL_CHROME_ICON_PROPS} />,
-          active:
-            Boolean(activeCapabilityId) &&
-            canonicalizeOplProfessionalAgentId(activeCapabilityId as string) ===
-              canonicalizeOplProfessionalAgentId(assistant.id),
+          active: Boolean(activeCapabilityId) && activeCapabilityId === assistant.opl_shortcut_id,
           disabled: launchGate.state === 'package_unavailable',
-          onSelect: () => onSelectCapability?.(assistant.id),
+          onSelect: () => onSelectCapability?.(assistant.opl_shortcut_id),
         });
       });
 
@@ -269,8 +263,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     }
 
     const professionalAgentSkillIds = new Set(
-      getOplProfessionalAgentPackages()
-        .flatMap((agentPackage) => agentPackage.required_skill_ids)
+      assistants
+        .flatMap((assistant) => assistant.enabled_skills ?? [])
         .map((skillId) => skillId.split(':').at(-1) ?? skillId)
     );
     const skillItems: ComposerCapabilityPaletteItem[] = [];

@@ -25,7 +25,7 @@ import {
 import { usePresetAssistantResolver } from './usePresetAssistantResolver';
 import { useAgentAvailability } from './useAgentAvailability';
 import { useCustomAgentsLoader } from './useCustomAgentsLoader';
-import { resolveOplDefaultAgentKey, withOplFoundryAssistantDefaults } from '../oplGuidProfile';
+import { resolveOplDefaultAgentKey } from '../oplGuidProfile';
 
 export type GuidAgentSelectionResult = {
   selectedAgentKey: string;
@@ -219,15 +219,8 @@ export const useGuidAgentSelection = ({
 
   // --- Sub-hooks ---
   const { assistants, catalogAssistants, customAgentAvatarMap } = useCustomAgentsLoader();
-  const oplAssistants = useMemo(() => withOplFoundryAssistantDefaults(assistants), [assistants]);
   const managedAgentRuntimeCatalog = useManagedAgentRuntimeCatalog();
-  const businessAssistants = useMemo(() => {
-    const oplIds = new Set(oplAssistants.map((assistant) => assistant.id));
-    const nonOplAssistants = catalogAssistants.filter(
-      (assistant) => !oplIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
-    );
-    return [...nonOplAssistants, ...oplAssistants];
-  }, [catalogAssistants, oplAssistants]);
+  const businessAssistants = assistants;
   const backendAssistantIdByCanonicalId = useMemo(
     () =>
       new Map(
@@ -593,7 +586,7 @@ export const useGuidAgentSelection = ({
     selectedAgentInfo,
     is_presetAgent,
     availableAgents,
-    assistants: oplAssistants,
+    assistants,
     selectedMode,
     setSelectedMode,
     selectedAcpModel,

@@ -5,11 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import {
-  canonicalizeOplProfessionalAgentId,
-  filterOplOrdinaryMcpServers,
-  filterOplOrdinarySkillNames,
-} from '@/common/config/oplProductProfile';
+import { filterOplOrdinaryMcpServers, filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
@@ -27,11 +23,9 @@ import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import {
   buildOplShortcutInvocationReceipt,
-  buildOplShortcutRouteReceipt,
   resolveOplActiveShortcut,
   type OplAgentPackageInvocationReceipt,
   type OplActiveShortcut,
-  type OplAssistantRouteReceipt,
 } from '../utils/activeShortcut';
 
 function showOplAgentPackageLaunchBlocked(message: string, packageId: string, reason: string, actions: string[]) {
@@ -110,25 +104,6 @@ export type GuidSendResult = {
   isButtonDisabled: boolean;
 };
 
-function buildLegacyOplAssistantRouteReceipt(
-  isPreset: boolean,
-  agentInfo: { custom_agent_id?: string } | undefined
-): OplAssistantRouteReceipt | undefined {
-  if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
-  const assistantId = canonicalizeOplProfessionalAgentId(agentInfo.custom_agent_id);
-  const shortcut = resolveOplActiveShortcut(assistantId);
-  if (shortcut) return buildOplShortcutRouteReceipt(shortcut);
-  return undefined;
-}
-
-function buildLegacyOplAgentPackageInvocationReceipt(
-  isPreset: boolean,
-  agentInfo: { custom_agent_id?: string } | undefined
-): OplAgentPackageInvocationReceipt | undefined {
-  if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
-  return buildOplShortcutInvocationReceipt(resolveOplActiveShortcut(agentInfo.custom_agent_id));
-}
-
 /**
  * Hook that manages the send logic for ACP and Aion CLI conversations.
  */
@@ -175,7 +150,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const selectedShortcut =
     activeShortcut ??
     (is_presetAgent && selectedAgentInfo?.custom_agent_id
-      ? resolveOplActiveShortcut(selectedAgentInfo.custom_agent_id)
+      ? resolveOplActiveShortcut(selectedAgentInfo.custom_agent_id, appState)
       : null);
   const selectedPackageId = selectedShortcut?.package_id ?? null;
   const selectedPackageLaunchGate = selectedPackageId
@@ -227,12 +202,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         ? filteredGuidEnabledSkills
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
-    const oplAssistantRoute = activeShortcut
-      ? buildOplShortcutRouteReceipt(activeShortcut)
-      : buildLegacyOplAssistantRouteReceipt(is_preset, agentInfo);
-    const oplAgentPackageInvocation = activeShortcut
-      ? buildOplShortcutInvocationReceipt(activeShortcut)
-      : buildLegacyOplAgentPackageInvocationReceipt(is_preset, agentInfo);
+    const oplAgentPackageInvocation: OplAgentPackageInvocationReceipt | undefined = selectedShortcut
+      ? buildOplShortcutInvocationReceipt(selectedShortcut)
+      : undefined;
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
     const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
     const selectedUserMcpServerIds = visibleMcpServers
@@ -274,7 +246,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_assistant_route: oplAssistantRoute,
         },
       });
 
@@ -324,7 +295,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_assistant_route: oplAssistantRoute,
         },
       });
 
@@ -378,7 +348,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
             opl_agent_package_invocation: oplAgentPackageInvocation,
-            opl_assistant_route: oplAssistantRoute,
             selected_mcp_server_ids: selectedUserMcpServerIds,
             // aionrs should consume the authoritative session snapshot, just
             // like team MCP does, instead of reloading only user servers from
@@ -473,7 +442,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_agent_package_invocation: oplAgentPackageInvocation,
-          opl_assistant_route: oplAssistantRoute,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,
           // Non-preset agents still forward user-selected custom skills via the

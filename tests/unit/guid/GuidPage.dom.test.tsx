@@ -39,41 +39,7 @@ const mocks = vi.hoisted(() => ({
   onDrop: vi.fn(),
   ensureBackendMcpCatalog: vi.fn(),
   appState: {
-    value: {
-      schema_version: 'opl_app_state.v1',
-      core: {
-        codex: {
-          installed: true,
-          model_access_ready: true,
-          version_status: 'compatible',
-          health_status: 'ready',
-        },
-      },
-      paths: {
-        workspace_root: {
-          selected_path: '/Users/example/OPL Workspace',
-          exists: true,
-          writable: true,
-          health_status: 'ready',
-        },
-      },
-      agent_packages: {
-        status_index: {
-          packages: Object.fromEntries(
-            ['mas', 'mag', 'rca', 'obf'].map((packageId) => [
-              packageId,
-              {
-                package_id: packageId,
-                operational_ready: true,
-                launch_allowed: true,
-                launch_blocked_reason: null,
-                allowed_when_blocked: ['status', 'doctor', 'repair'],
-              },
-            ])
-          ),
-        },
-      },
-    } as Record<string, unknown>,
+    value: {} as Record<string, unknown>,
   },
   appStateLoad: vi.fn().mockResolvedValue({}),
   appStateLoading: { value: false },
@@ -492,6 +458,15 @@ describe('GuidPage selected purpose assistant surface', () => {
         },
       },
       agent_packages: {
+        directory: {
+          entries: shortcutAssistants.map((assistant) => ({
+            package_id: assistant.id,
+            display_name: assistant.name,
+            description: assistant.description,
+            package_role: 'standard_agent',
+            installed: true,
+          })),
+        },
         status_index: {
           packages: {
             mas: { package_id: 'mas', operational_ready: true, launch_allowed: true },
@@ -500,6 +475,20 @@ describe('GuidPage selected purpose assistant surface', () => {
             obf: { package_id: 'obf', operational_ready: true, launch_allowed: true },
             oma: { package_id: 'oma', operational_ready: true, launch_allowed: true },
           },
+          home_shortcut_preferences: [
+            ['mas', 'research'],
+            ['rca', 'ppt'],
+            ['mag', 'grant'],
+            ['obf', 'book'],
+            ['oma', 'oma'],
+          ].map(([packageId, shortcutId], sortOrder) => ({
+            package_id: packageId,
+            shortcut_id: shortcutId,
+            visible: true,
+            sort_order: sortOrder,
+            source: 'default',
+            installed: true,
+          })),
         },
       },
     };
@@ -526,13 +515,13 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
-    expect(screen.getByTestId('home-starter-mas')).toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-research')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-active-capability')).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
-    expect(screen.getByText('要让 科研 推进什么？')).toBeInTheDocument();
+    expect(screen.getByText('要让 Med Auto Science 推进什么？')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-home-model-status')).not.toBeInTheDocument();
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
-    expect(screen.getByTestId('home-starter-mas')).toHaveTextContent('guid.uiOptimization.home.shortcuts.research');
+    expect(screen.getByTestId('home-starter-research')).toHaveTextContent('科研');
     expect(screen.queryByText('推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
@@ -540,7 +529,7 @@ describe('GuidPage selected purpose assistant surface', () => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(
         expect.objectContaining({
           activeShortcut: expect.objectContaining({ package_id: 'mas', shortcut_id: 'research' }),
-          guidEnabledSkills: ['med-autoscience'],
+          guidEnabledSkills: undefined,
           is_presetAgent: false,
           selectedAgent: 'codex',
         })
@@ -571,7 +560,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidEnabledSkills: ['med-autoscience'],
+          guidEnabledSkills: undefined,
           guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
           availableMcpServers: filterOplOrdinaryMcpServers(configuredMcpServers()),
           selectedMcpServerIds: [],
@@ -702,7 +691,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     render(<GuidPage />);
     mocks.setSelectedAgentKey.mockClear();
 
-    await userEvent.click(screen.getByTestId('home-starter-mas'));
+    await userEvent.click(screen.getByTestId('home-starter-research'));
 
     expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
     await waitFor(() =>
@@ -717,18 +706,18 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.locationState.value = null;
     render(<GuidPage />);
 
-    await userEvent.click(screen.getByTestId('home-starter-obf'));
+    await userEvent.click(screen.getByTestId('home-starter-book'));
 
     await waitFor(() =>
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
           activeShortcut: expect.objectContaining({ package_id: 'obf', shortcut_id: 'book' }),
-          guidEnabledSkills: ['opl-bookforge'],
+          guidEnabledSkills: undefined,
         })
       )
     );
-    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('OBF');
-    expect(screen.getByText('要让 写书 推进什么？')).toBeInTheDocument();
+    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('BOOK');
+    expect(screen.getByText('要让 OPL Book Forge 推进什么？')).toBeInTheDocument();
   });
 
   it('clears the active capability without clearing the draft, attachments, or workspace', async () => {
@@ -741,7 +730,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     const dirCalls = mocks.setDir.mock.calls.length;
     mocks.setSelectedAgentKey.mockClear();
 
-    await userEvent.click(screen.getByTestId('home-starter-mas'));
+    await userEvent.click(screen.getByTestId('home-starter-research'));
 
     expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
     await waitFor(() =>
@@ -779,7 +768,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   it('loads only App-packaged available skills on the OPL home path', async () => {
     render(<GuidPage />);
 
-    await screen.findByTestId('home-starter-mas');
+    await screen.findByTestId('home-starter-research');
 
     const { ipcBridge } = await import('@/common');
     expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).toHaveBeenCalled();

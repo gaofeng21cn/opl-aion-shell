@@ -4,35 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
 import { BookOpen, Microscope, Robot, Slide, Write } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
-import { getOplHomePurposeAssistantIds } from '../utils/oplHomeAssistants';
-import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
-import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
+import { resolveOplPackageLaunchGate, type OplHomeAssistant } from '../utils/oplHomeAssistants';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import styles from '../index.module.css';
 
 type HomeStartersProps = {
-  assistants: Assistant[];
+  assistants: OplHomeAssistant[];
   localeKey: string;
   activeCapabilityId?: string;
+  activeShortcutId?: string;
   onSelect: (assistantId: string) => void;
   onClear?: () => void;
-};
-
-const STARTER_LABEL_KEYS: Record<string, string> = {
-  mas: 'guid.uiOptimization.home.shortcuts.research',
-  rca: 'guid.uiOptimization.home.shortcuts.presentation',
-  mag: 'guid.uiOptimization.home.shortcuts.grant',
-  obf: 'guid.uiOptimization.home.shortcuts.book',
-  oma: 'guid.uiOptimization.home.shortcuts.agentEngineering',
 };
 
 function starterIcon(packageId: string): React.ReactNode {
@@ -54,19 +43,13 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
   assistants,
   localeKey,
   activeCapabilityId,
+  activeShortcutId,
   onSelect,
   onClear,
 }) => {
   const { t } = useTranslation();
-  const shortcutPreferences = useOplHomeShortcutPreferences();
   const { appState } = useOplAppState('fast');
-  const starters = useMemo(() => {
-    const allowedIds = new Set(getOplHomePurposeAssistantIds());
-    const available = assistants.filter((assistant) =>
-      allowedIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
-    );
-    return available;
-  }, [activeCapabilityId, assistants, shortcutPreferences]);
+  const starters = assistants;
 
   if (starters.length === 0) return null;
 
@@ -74,11 +57,10 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
     <section className={styles.homeStarters} aria-label={t('guid.home.startersLabel')} data-testid='opl-home-starters'>
       <div className={styles.homeStarterGrid}>
         {starters.map((assistant) => {
-          const packageId = canonicalizeOplProfessionalAgentId(assistant.id);
-          const labelKey = STARTER_LABEL_KEYS[packageId];
-          const label = labelKey ? t(labelKey) : assistant.name_i18n?.[localeKey] || assistant.name;
-          const active = assistant.id === activeCapabilityId;
-          const launchGate = resolveOplPackageLaunchGate(appState, assistant.id);
+          const label = assistant.name_i18n?.[localeKey] || assistant.name;
+          const active =
+            assistant.opl_package_id === activeCapabilityId && assistant.opl_shortcut_id === activeShortcutId;
+          const launchGate = resolveOplPackageLaunchGate(appState, assistant.opl_package_id);
           const launchReady = launchGate.state !== 'package_unavailable';
           const blockedTitle = !launchReady
             ? t('guid.home.launchBlocked', {
@@ -91,15 +73,20 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               key={assistant.id}
               type='text'
               className={classNames(styles.homeStarter, active && styles.homeStarterActive)}
-              onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
+              onClick={() => (active && onClear ? onClear() : onSelect(assistant.opl_shortcut_id))}
               title={blockedTitle}
               aria-pressed={active}
               data-opl-active={String(active)}
               data-opl-launch-ready={String(launchReady)}
-              data-testid={`home-starter-${assistant.id}`}
+              data-opl-package-id={assistant.opl_package_id}
+              data-testid={`home-starter-${assistant.opl_shortcut_id}`}
             >
-              <span className={styles.homeStarterIcon} data-testid={`starter-icon-${assistant.id}`} aria-hidden='true'>
-                {starterIcon(assistant.id)}
+              <span
+                className={styles.homeStarterIcon}
+                data-testid={`starter-icon-${assistant.opl_shortcut_id}`}
+                aria-hidden='true'
+              >
+                {starterIcon(assistant.opl_package_id)}
               </span>
               <span className={styles.homeStarterLabel}>{label}</span>
             </Button>

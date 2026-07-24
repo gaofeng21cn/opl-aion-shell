@@ -8,11 +8,9 @@ import { ipcBridge } from '@/common';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { resolveOplHomeAssistants } from '../utils/oplHomeAssistants';
-import { useOplHomeShortcutPreferences } from '../utils/oplHomeShortcutPreferences';
 
 type UseCustomAgentsLoaderResult = {
-  /** OPL Home projection derived from the backend assistant catalog. */
+  /** Real backend assistant catalog used for executor selection and binding. */
   assistants: Assistant[];
   /** Unfiltered backend catalog used for assistant-to-managed-agent association. */
   catalogAssistants: Assistant[];
@@ -30,14 +28,10 @@ export const useCustomAgentsLoader = (): UseCustomAgentsLoaderResult => {
     }
   });
   const catalogAssistants = assistantList ?? [];
-  const shortcutPreferences = useOplHomeShortcutPreferences();
-  const assistants = useMemo(
-    () => resolveOplHomeAssistants(catalogAssistants),
-    [catalogAssistants, shortcutPreferences]
-  );
+  const assistants = catalogAssistants;
   const customAgentAvatarMap = useMemo(
-    () => new Map([...catalogAssistants, ...assistants].map((assistant) => [assistant.id, assistant.avatar])),
-    [assistants, catalogAssistants]
+    () => new Map(catalogAssistants.map((assistant) => [assistant.id, assistant.avatar])),
+    [catalogAssistants]
   );
 
   return { assistants, catalogAssistants, customAgentAvatarMap };

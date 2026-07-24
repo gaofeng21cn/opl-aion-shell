@@ -9,6 +9,7 @@ import CapabilitiesSettings, {
 } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 import {
+  getOplHomeShortcutPreferences,
   replaceOplHomeShortcutPreferences,
   setOplHomeShortcutHidden,
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
@@ -55,6 +56,7 @@ const appStateWithDirectory = (
     directoryStatus?: string;
     directoryStatusReadError?: unknown;
     statusEntries?: Record<string, unknown>[];
+    homeShortcutPreferences?: Record<string, unknown>[];
   } = {}
 ) => ({
   paths: options.workspaceRootPath === null ? {} : { workspace_root_path: options.workspaceRootPath ?? '/workspace' },
@@ -64,22 +66,70 @@ const appStateWithDirectory = (
       status_read_error: options.directoryStatusReadError ?? null,
       entries,
     },
-    status_index: { packages: options.statusEntries ?? [] },
+    status_index: {
+      packages: options.statusEntries ?? [],
+      home_shortcut_preferences: options.homeShortcutPreferences ?? [],
+    },
+  },
+});
+
+const shortcutPackageById: Record<string, string> = {
+  research: 'med-autoscience',
+  grant: 'med-autogrant',
+  ppt: 'redcube-ai',
+  book: 'opl-bookforge',
+  oma: 'opl-meta-agent',
+};
+
+const homeShortcutPreference = (
+  shortcutId: string,
+  visible: boolean,
+  sortOrder: number,
+  source: 'default' | 'user_preference' = 'default'
+) => ({
+  package_id: shortcutPackageById[shortcutId] ?? shortcutId,
+  shortcut_id: shortcutId,
+  visible,
+  sort_order: sortOrder,
+  source,
+  installed: true,
+});
+
+const defaultHomeShortcutPreferences = () =>
+  ['research', 'grant', 'ppt', 'book', 'oma'].map((shortcutId, sortOrder) =>
+    homeShortcutPreference(shortcutId, true, sortOrder)
+  );
+
+const homeShortcutDirectoryEntries = () =>
+  Object.entries(shortcutPackageById).map(([shortcutId, packageId]) => ({
+    package_id: packageId,
+    display_name: shortcutId,
+    package_role: 'standard_agent',
+    installed: true,
+  }));
+
+const homeShortcutAppState = (preferences = defaultHomeShortcutPreferences()) => ({
+  agent_packages: {
+    directory: { entries: homeShortcutDirectoryEntries() },
+    status_index: { home_shortcut_preferences: preferences },
   },
 });
 
 const homeShortcutReadback = (shortcutId: string, visible: boolean, sortOrder: number) => ({
   app_state: {
     agent_packages: {
-      status_index: {
-        home_shortcut_preferences: [
+      directory: {
+        entries: [
           {
-            shortcut_id: shortcutId,
-            visible,
-            sort_order: sortOrder,
-            source: 'user_preference',
+            package_id: shortcutPackageById[shortcutId] ?? shortcutId,
+            display_name: shortcutPackageById[shortcutId] ?? shortcutId,
+            package_role: 'standard_agent',
+            installed: true,
           },
         ],
+      },
+      status_index: {
+        home_shortcut_preferences: [homeShortcutPreference(shortcutId, visible, sortOrder, 'user_preference')],
       },
     },
   },
@@ -384,6 +434,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
             ],
           },
           status_index: {
+            home_shortcut_preferences: defaultHomeShortcutPreferences(),
             packages: [
               {
                 package_id: 'med-autoscience',
@@ -1488,7 +1539,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
-  it('orders professional agents, separates workflows, and nests Framework-reported dependencies', async () => {
+  it('orders dynamic agents by projected title, separates workflows, and nests Framework-reported dependencies', async () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
@@ -1557,7 +1608,7 @@ describe('Agents and capabilities settings', () => {
     const rowOrder = Array.from(groups.querySelectorAll<HTMLElement>("[data-testid^='capability-purpose-']")).map(
       (row) => row.dataset.testid?.replace('capability-purpose-', '')
     );
-    expect(rowOrder).toEqual(['mas', 'mas-scholar-skills', 'mag', 'rca', 'obf', 'oma', 'opl-flow']);
+    expect(rowOrder).toEqual(['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'rca', 'opl-flow']);
     expect(screen.getByTestId('settings-agents-group-frequent')).toHaveTextContent('Frequent5');
     expect(screen.getByTestId('settings-agents-group-other')).toHaveTextContent('Other1');
     expect(screen.queryByTestId('settings-agents-group-needsAttention')).not.toBeInTheDocument();
@@ -2572,7 +2623,7 @@ describe('Agents and capabilities settings', () => {
         payloadRefsOnlyJson: {
           package_id: 'med-autoscience',
           shortcut_id: 'research',
-          visible: false,
+          visible: true,
           sort_order: 1,
         },
       })
@@ -2662,6 +2713,65 @@ describe('Agents and capabilities settings', () => {
     );
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true });
     expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Example Agent installed and verified: Available.');
+  });
+
+  it('renders and routes every projected Home shortcut for one future Agent Package', async () => {
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'future-agent',
+          display_name: 'Future Agent',
+          package_role: 'standard_agent',
+          installed: true,
+          status: 'ready',
+          available_actions: [
+            actionFixture('agent_package_preferences_set', { package_id: 'future-agent' }, [
+              'package_id',
+              'exposure_action or shortcut_id',
+            ]),
+          ],
+        },
+      ],
+      {
+        homeShortcutPreferences: [
+          {
+            package_id: 'future-agent',
+            shortcut_id: 'future-main',
+            visible: true,
+            sort_order: 0,
+            source: 'user_preference',
+            installed: true,
+          },
+          {
+            package_id: 'future-agent',
+            shortcut_id: 'future-review',
+            visible: true,
+            sort_order: 1,
+            source: 'user_preference',
+            installed: true,
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    expect(screen.getByTestId('agent-package-home-toggle-details-future-agent-future-main')).toBeInTheDocument();
+    const reviewSwitch = screen.getByTestId('agent-package-home-toggle-details-future-agent-future-review');
+    expect(reviewSwitch).toBeInTheDocument();
+
+    fireEvent.click(reviewSwitch);
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: 'future-agent',
+          shortcut_id: 'future-review',
+          visible: false,
+          sort_order: 1,
+        },
+      })
+    );
   });
 
   it('rolls Home visibility back when the App action fails', async () => {
@@ -3074,13 +3184,14 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'opl-meta-agent',
+    expect(resolveOplHomeAssistants([], homeShortcutAppState()).map((assistant) => assistant.id)).toEqual([
+      'research',
+      'grant',
+      'ppt',
+      'book',
+      'oma',
     ]);
+    getOplHomeShortcutPreferences();
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
@@ -3098,6 +3209,7 @@ describe('Agents and capabilities settings', () => {
         payload: {
           app_state: {
             agent_packages: {
+              directory: { entries: homeShortcutDirectoryEntries() },
               status_index: {
                 home_shortcut_preferences: [
                   {
@@ -3144,18 +3256,20 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual([
-      'opl-bookforge',
-      'med-autoscience',
-      'redcube-ai',
-      'opl-meta-agent',
+    const projectedState = JSON.parse(localStorage.getItem('opl.appState.fast.v1') ?? '{}').payload;
+    expect(resolveOplHomeAssistants([], projectedState).map((assistant) => assistant.id)).toEqual([
+      'book',
+      'research',
+      'ppt',
+      'oma',
     ]);
+    getOplHomeShortcutPreferences();
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
-  it('lets a Framework App-state projection replace an in-memory optimistic preference', () => {
+  it('keeps the Framework App-state projection authoritative over an in-memory optimistic preference', () => {
     setOplHomeShortcutHidden('research', true);
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).not.toContain('med-autoscience');
+    expect(resolveOplHomeAssistants([], homeShortcutAppState()).map((assistant) => assistant.id)).toContain('research');
 
     localStorage.setItem(
       'opl.appState.fast.v1',
@@ -3165,6 +3279,7 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toContain('med-autoscience');
+    const projectedState = JSON.parse(localStorage.getItem('opl.appState.fast.v1') ?? '{}').payload;
+    expect(resolveOplHomeAssistants([], projectedState).map((assistant) => assistant.id)).toContain('research');
   });
 });

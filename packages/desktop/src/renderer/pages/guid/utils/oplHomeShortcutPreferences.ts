@@ -1,4 +1,5 @@
 import { getOplHomeAgentShortcuts, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v2';
@@ -8,6 +9,27 @@ export type OplHomeShortcutPreferences = {
   hiddenShortcutIds: string[];
   visibleShortcutIds: string[];
   orderedShortcutIds: string[];
+};
+
+export type OplHomeShortcutDescriptor = Pick<
+  OplHomeAgentShortcut,
+  | 'shortcut_id'
+  | 'package_id'
+  | 'primary_label'
+  | 'package_short_name'
+  | 'codex_visible_entry'
+  | 'required_skill_ids'
+  | 'source'
+  | 'executor'
+  | 'display_policy'
+  | 'home_entry_policy'
+  | 'default_visible'
+  | 'user_configurable'
+> & {
+  visible: boolean;
+  installed: boolean;
+  preference_source: 'default' | 'user_preference';
+  sort_order: number | null;
 };
 
 const EMPTY_PREFERENCES: OplHomeShortcutPreferences = {
@@ -29,6 +51,17 @@ function removeLegacyStoredPreferences(): void {
 }
 
 function publishPreferences(preferences: OplHomeShortcutPreferences): OplHomeShortcutPreferences {
+  if (
+    currentPreferences &&
+    currentPreferences.hiddenShortcutIds.length === preferences.hiddenShortcutIds.length &&
+    currentPreferences.hiddenShortcutIds.every((value, index) => value === preferences.hiddenShortcutIds[index]) &&
+    currentPreferences.visibleShortcutIds.length === preferences.visibleShortcutIds.length &&
+    currentPreferences.visibleShortcutIds.every((value, index) => value === preferences.visibleShortcutIds[index]) &&
+    currentPreferences.orderedShortcutIds.length === preferences.orderedShortcutIds.length &&
+    currentPreferences.orderedShortcutIds.every((value, index) => value === preferences.orderedShortcutIds[index])
+  ) {
+    return currentPreferences;
+  }
   currentPreferences = preferences;
   preferenceListeners.forEach((listener) => listener());
   return preferences;
@@ -62,10 +95,76 @@ function shortcutPreferenceRecords(appState: unknown): Record<string, unknown>[]
   return projectedSurfaces.find((records) => records.length > 0) ?? [];
 }
 
+export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHomeShortcutDescriptor[] {
+  const records = shortcutPreferenceRecords(appState);
+  const state = appStateRecord(appState);
+  const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
+  const directory = isRecord(agentPackages.directory) ? agentPackages.directory : {};
+  const directoryEntries = new Map(
+    recordList(directory.entries).flatMap((entry) => {
+      const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
+      return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), entry] as const] : [];
+    })
+  );
+  const presentationByTuple = new Map<string, OplHomeAgentShortcut>(
+    getOplHomeAgentShortcuts().map(
+      (shortcut) =>
+        [`${canonicalizeOplProfessionalAgentId(shortcut.package_id)}\n${shortcut.shortcut_id}`, shortcut] as const
+    )
+  );
+  const descriptors = new Map<string, OplHomeShortcutDescriptor>();
+  for (const entry of records) {
+    const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
+    const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';
+    const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
+    const directoryEntry = directoryEntries.get(canonicalPackageId);
+    if (!packageId || !shortcutId || !directoryEntry || directoryEntry.package_role !== 'standard_agent') continue;
+    const tuple = `${canonicalPackageId}\n${shortcutId}`;
+    const existing = descriptors.get(tuple);
+    if (existing && existing.preference_source === 'user_preference') continue;
+    const presentation = presentationByTuple.get(tuple);
+    const displayName =
+      typeof directoryEntry.display_name === 'string' && directoryEntry.display_name.trim()
+        ? directoryEntry.display_name.trim()
+        : packageId;
+    const preferenceSource = entry.source === 'user_preference' ? 'user_preference' : 'default';
+    descriptors.set(tuple, {
+      shortcut_id: shortcutId,
+      package_id: packageId,
+      primary_label: presentation?.primary_label ?? displayName,
+      package_short_name: presentation?.package_short_name ?? displayName,
+      codex_visible_entry:
+        (typeof directoryEntry.codex_visible_entry === 'string' && directoryEntry.codex_visible_entry.trim()) ||
+        presentation?.codex_visible_entry ||
+        packageId,
+      required_skill_ids: [],
+      source: 'opl_app_home',
+      executor: 'codex_cli',
+      display_policy: 'purpose_first',
+      home_entry_policy: 'visible_click_to_start',
+      default_visible:
+        preferenceSource === 'default' ? entry.visible === true : (presentation?.default_visible ?? false),
+      visible: entry.visible === true,
+      installed: entry.installed !== false && directoryEntry.installed !== false,
+      preference_source: preferenceSource,
+      user_configurable: true,
+      sort_order: typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order) ? entry.sort_order : null,
+    });
+  }
+  return [...descriptors.values()].toSorted(
+    (left, right) =>
+      (left.sort_order ?? Number.MAX_SAFE_INTEGER) - (right.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+      left.package_id.localeCompare(right.package_id) ||
+      left.shortcut_id.localeCompare(right.shortcut_id)
+  );
+}
+
 function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): OplHomeShortcutPreferences | null {
   if (records.length === 0) return null;
 
-  const validShortcutIds = new Set(getOplHomeAgentShortcuts().map((shortcut) => shortcut.shortcut_id));
+  const validShortcutIds = new Set(
+    records.map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '')).filter(Boolean)
+  );
   const userPreferences = records.filter((entry) => entry.source === 'user_preference');
   const hiddenShortcutIds = userPreferences
     .filter((entry) => entry.visible === false)
@@ -79,7 +178,7 @@ function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): Opl
 
   const orderedShortcutIds = userPreferences
     .filter((entry) => typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order))
-    .sort((a, b) => (a.sort_order as number) - (b.sort_order as number))
+    .toSorted((a, b) => (a.sort_order as number) - (b.sort_order as number))
     .map((entry) => (typeof entry.shortcut_id === 'string' ? entry.shortcut_id : null))
     .filter((shortcutId): shortcutId is string => Boolean(shortcutId && validShortcutIds.has(shortcutId)));
 
@@ -128,14 +227,22 @@ function readCachedAppStatePreferences(): OplHomeShortcutPreferences | null {
   }
 }
 
-function sortShortcuts(shortcuts: OplHomeAgentShortcut[], orderedShortcutIds: string[]): OplHomeAgentShortcut[] {
+function sortShortcuts<T extends Pick<OplHomeAgentShortcut, 'shortcut_id'>>(
+  shortcuts: T[],
+  orderedShortcutIds: string[]
+): T[] {
   const order = new Map(orderedShortcutIds.map((id, index) => [id, index]));
-  return [...shortcuts].sort((a, b) => {
+  return [...shortcuts].toSorted((a, b) => {
     const aOrder = order.get(a.shortcut_id);
     const bOrder = order.get(b.shortcut_id);
     if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
     if (aOrder !== undefined) return -1;
     if (bOrder !== undefined) return 1;
+    const aProjectedOrder = 'sort_order' in a && typeof a.sort_order === 'number' ? a.sort_order : null;
+    const bProjectedOrder = 'sort_order' in b && typeof b.sort_order === 'number' ? b.sort_order : null;
+    if (aProjectedOrder !== null || bProjectedOrder !== null) {
+      return (aProjectedOrder ?? Number.MAX_SAFE_INTEGER) - (bProjectedOrder ?? Number.MAX_SAFE_INTEGER);
+    }
     return shortcuts.indexOf(a) - shortcuts.indexOf(b);
   });
 }
@@ -168,13 +275,15 @@ export function useOplHomeShortcutPreferences(): OplHomeShortcutPreferences {
   );
 }
 
-export function getOplOrderedHomeAgentShortcuts(): OplHomeAgentShortcut[] {
+export function getOplOrderedHomeAgentShortcuts<T extends Pick<OplHomeAgentShortcut, 'shortcut_id'>>(
+  shortcuts?: T[]
+): T[] {
   const preferences = getOplHomeShortcutPreferences();
-  return sortShortcuts(getOplHomeAgentShortcuts(), preferences.orderedShortcutIds);
+  return sortShortcuts(shortcuts ?? (getOplHomeAgentShortcuts() as unknown as T[]), preferences.orderedShortcutIds);
 }
 
 export function isOplHomeShortcutVisible(
-  shortcut: OplHomeAgentShortcut,
+  shortcut: Pick<OplHomeAgentShortcut, 'shortcut_id' | 'default_visible'> & { visible?: boolean },
   preferences: OplHomeShortcutPreferences = getOplHomeShortcutPreferences()
 ): boolean {
   if (preferences.hiddenShortcutIds.includes(shortcut.shortcut_id)) return false;
@@ -189,11 +298,15 @@ export function getOplVisibleHomeAgentShortcuts(): OplHomeAgentShortcut[] {
   );
 }
 
-export function setOplHomeShortcutHidden(shortcutId: string, hidden: boolean): OplHomeShortcutPreferences {
+export function setOplHomeShortcutHidden(
+  shortcutId: string,
+  hidden: boolean,
+  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id' | 'default_visible'>> = getOplHomeAgentShortcuts()
+): OplHomeShortcutPreferences {
   const preferences = getOplHomeShortcutPreferences();
   const hiddenIds = new Set(preferences.hiddenShortcutIds);
   const visibleIds = new Set(preferences.visibleShortcutIds);
-  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.shortcut_id === shortcutId);
+  const shortcut = availableShortcuts.find((entry) => entry.shortcut_id === shortcutId);
   if (hidden) {
     hiddenIds.add(shortcutId);
     visibleIds.delete(shortcutId);
@@ -209,8 +322,12 @@ export function setOplHomeShortcutHidden(shortcutId: string, hidden: boolean): O
   return publishPreferences(next);
 }
 
-export function moveOplHomeShortcut(shortcutId: string, direction: -1 | 1): OplHomeShortcutPreferences {
-  const shortcuts = getOplOrderedHomeAgentShortcuts();
+export function moveOplHomeShortcut(
+  shortcutId: string,
+  direction: -1 | 1,
+  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id'>> = getOplHomeAgentShortcuts()
+): OplHomeShortcutPreferences {
+  const shortcuts = getOplOrderedHomeAgentShortcuts(availableShortcuts);
   const ids = shortcuts.map((shortcut) => shortcut.shortcut_id);
   const index = ids.indexOf(shortcutId);
   const target = index + direction;

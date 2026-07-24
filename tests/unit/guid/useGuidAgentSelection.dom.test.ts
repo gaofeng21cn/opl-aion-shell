@@ -40,6 +40,25 @@ const {
       prompts_i18n: {},
       models: [],
     },
+    {
+      id: 'future-runtime-assistant',
+      source: 'builtin',
+      name: 'Future Runtime Assistant',
+      name_i18n: {},
+      description_i18n: {},
+      enabled: true,
+      sort_order: 1,
+      agent_id: 'claude-managed',
+      agent: { type: 'acp', source: 'builtin', acp_backend: 'claude' },
+      agent_status: 'online',
+      enabled_skills: [],
+      custom_skill_names: [],
+      disabled_builtin_skills: [],
+      context_i18n: {},
+      prompts: [],
+      prompts_i18n: {},
+      models: [],
+    },
   ],
   managedAgents: [
     {
@@ -70,7 +89,7 @@ vi.mock('@/common/config/configService', () => ({
 
 vi.mock('@/renderer/pages/guid/hooks/useCustomAgentsLoader', () => ({
   useCustomAgentsLoader: () => ({
-    assistants: [],
+    assistants: catalogAssistants,
     catalogAssistants,
     customAgentAvatarMap: new Map(),
   }),
@@ -228,7 +247,7 @@ describe('useGuidAgentSelection', () => {
     });
   });
 
-  it('builds business candidates from assistants while using managed rows only for runtime metadata', () => {
+  it('builds executor candidates only from backend assistants and uses managed rows for runtime metadata', () => {
     const { result } = renderHook(() =>
       useGuidAgentSelection({
         modelList: [],
@@ -244,10 +263,11 @@ describe('useGuidAgentSelection', () => {
       backend: 'codex',
       name: 'Codex',
     });
-    expect(result.current.availableAgents?.map((agent) => agent.assistant_id)).toEqual(
-      expect.arrayContaining(['mas', 'mag', 'rca', 'obf', 'oma'])
-    );
-    expect(result.current.availableAgents?.some((agent) => agent.assistant_id === 'obf')).toBe(true);
+    expect(result.current.availableAgents?.map((agent) => agent.assistant_id)).toEqual([
+      'generated-codex',
+      'future-runtime-assistant',
+    ]);
+    expect(result.current.availableAgents?.some((agent) => agent.assistant_id === 'mas')).toBe(false);
     expect(result.current.availableAgents?.some((agent) => agent.name === 'Managed Codex')).toBe(false);
     expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(
       expect.arrayContaining(['gpt-5.5', 'gpt-5.6-sol'])
@@ -293,19 +313,19 @@ describe('useGuidAgentSelection', () => {
     expect(result.current.is_presetAgent).toBe(false);
   });
 
-  it('honors an explicitly preselected professional agent route', async () => {
+  it('honors an explicitly preselected backend assistant route', async () => {
     const { result } = renderHook(() =>
       useGuidAgentSelection({
         modelList: [],
         isGoogleAuth: false,
         localeKey: 'zh-CN',
-        preselectAgentKey: 'custom:mas',
+        preselectAgentKey: 'custom:future-runtime-assistant',
       })
     );
 
-    await waitFor(() => expect(result.current.selectedAgentKey).toBe('custom:mas'));
+    await waitFor(() => expect(result.current.selectedAgentKey).toBe('custom:future-runtime-assistant'));
     expect(result.current.is_presetAgent).toBe(true);
-    expect(configSetMock).toHaveBeenCalledWith('guid.lastSelectedAgent', 'custom:mas');
+    expect(configSetMock).toHaveBeenCalledWith('guid.lastSelectedAgent', 'custom:future-runtime-assistant');
   });
 });
 

@@ -12,7 +12,6 @@ import {
   filterOplOrdinarySkillNames,
   getOplOrdinarySkillAllowlist,
   getOplOrdinaryCapabilitySelectorPolicy,
-  getOplAssistantSkillProfile,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
@@ -33,9 +32,9 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
-import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
+import { buildAssistantScopedSkillMenuItems } from './utils/assistantSkillMenu';
 import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/activeShortcut';
-import { resolveOplProfessionalAgentAssistants } from './utils/oplHomeAssistants';
+import { resolveOplHomeAssistants, resolveOplProfessionalAgentAssistants } from './utils/oplHomeAssistants';
 import { resolveOplHomeComposerSurface } from './utils/composerSurface';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
@@ -43,6 +42,7 @@ import SpeechInputButton from '@/renderer/components/chat/composer/SpeechInputBu
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -50,7 +50,6 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
 
-const EMPTY_GUID_SKILLS: string[] = [];
 const DEFAULT_AUTO_SKILL_EXCLUSIONS = getOplOrdinaryCapabilitySelectorPolicy().forbidden_skill_examples;
 const AGENT_REFERENCE_ADMISSION_POLICY = getOplOrdinaryCapabilitySelectorPolicy().agent_reference_admission_policy;
 
@@ -128,9 +127,8 @@ const GuidPage: React.FC = () => {
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
-  const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(() =>
-    resolveOplActiveShortcut(navState?.selectedCapabilityId)
-  );
+  const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(null);
+  const { appState } = useOplAppState('fast');
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -259,20 +257,22 @@ const GuidPage: React.FC = () => {
   });
 
   const professionalAssistants = useMemo(
-    () => resolveOplProfessionalAgentAssistants(agentSelection.assistants),
-    [agentSelection.assistants]
+    () => resolveOplProfessionalAgentAssistants(agentSelection.assistants, appState),
+    [agentSelection.assistants, appState]
+  );
+  const homeAssistants = useMemo(
+    () => resolveOplHomeAssistants(agentSelection.assistants, appState),
+    [agentSelection.assistants, appState]
   );
   const selectedAssistantRecord = useMemo(() => {
     if (!activeShortcut) return undefined;
-    return professionalAssistants.find(
-      (item) => resolveOplActiveShortcut(item.id)?.package_id === activeShortcut.package_id
-    );
+    return professionalAssistants.find((item) => item.id === activeShortcut.package_id);
   }, [activeShortcut, professionalAssistants]);
 
   useLayoutEffect(() => {
     if (!preselectAgentKey || !agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id)
       return;
-    const legacyShortcut = resolveOplActiveShortcut(agentSelection.selectedAgentInfo.custom_agent_id);
+    const legacyShortcut = resolveOplActiveShortcut(agentSelection.selectedAgentInfo.custom_agent_id, appState);
     if (!legacyShortcut) return;
     setActiveShortcut((current) => current ?? legacyShortcut);
     agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
@@ -281,6 +281,7 @@ const GuidPage: React.FC = () => {
     agentSelection.is_presetAgent,
     agentSelection.selectedAgentInfo?.custom_agent_id,
     agentSelection.setSelectedAgentKey,
+    appState,
     preselectAgentKey,
   ]);
 
@@ -288,15 +289,7 @@ const GuidPage: React.FC = () => {
     if (!selectedAssistantRecord) return undefined;
     return selectedAssistantRecord.avatar || selectedAssistantRecord.name;
   }, [selectedAssistantRecord]);
-  const selectedAssistantSkillProfile = useMemo(() => {
-    if (!selectedAssistantRecord) return undefined;
-    return getOplAssistantSkillProfile(selectedAssistantRecord.id);
-  }, [selectedAssistantRecord]);
-  const selectedAssistantRequiredSkills = selectedAssistantSkillProfile?.required_skills ?? EMPTY_GUID_SKILLS;
-  const effectiveGuidEnabledSkills = useMemo(() => {
-    if (selectedAssistantRequiredSkills.length === 0 && !guidEnabledSkills?.length) return undefined;
-    return mergeRequiredSkills(selectedAssistantRequiredSkills, guidEnabledSkills ?? []);
-  }, [guidEnabledSkills, selectedAssistantRequiredSkills]);
+  const effectiveGuidEnabledSkills = guidEnabledSkills;
   const guidSlashSkillNames = useMemo(
     () => filterOplOrdinarySkillNames(effectiveGuidEnabledSkills ?? []),
     [effectiveGuidEnabledSkills]
@@ -545,7 +538,7 @@ const GuidPage: React.FC = () => {
 
   const handleSelectShortcut = useCallback(
     (assistantId: string | null) => {
-      setActiveShortcut(resolveOplActiveShortcut(assistantId));
+      setActiveShortcut(resolveOplActiveShortcut(assistantId, appState));
       mention.setMentionOpen(false);
       mention.setMentionQuery(null);
       mention.setMentionSelectorOpen(false);
@@ -553,6 +546,7 @@ const GuidPage: React.FC = () => {
       mention.setMentionActiveIndex(0);
     },
     [
+      appState,
       mention.setMentionOpen,
       mention.setMentionQuery,
       mention.setMentionSelectorOpen,
@@ -577,14 +571,8 @@ const GuidPage: React.FC = () => {
   );
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
-    if (selectedAssistantRecord) {
-      setGuidEnabledSkills(
-        mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
-      );
-    } else {
-      setGuidEnabledSkills(undefined);
-    }
-  }, [selectedAssistantRecord, selectedAssistantRequiredSkills]);
+    setGuidEnabledSkills(undefined);
+  }, [activeShortcut?.shortcut_id]);
 
   const activeCapabilityLabel = useMemo(() => {
     return selectedAssistantRecord?.name_i18n?.[localeKey] || selectedAssistantRecord?.name;
@@ -602,7 +590,7 @@ const GuidPage: React.FC = () => {
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
     if (navState?.selectedCapabilityId) {
-      setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId));
+      setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId, appState));
     } else if (resetAssistantRequested) {
       setActiveShortcut(null);
       setSetupNoticeKind(null);
@@ -627,6 +615,7 @@ const GuidPage: React.FC = () => {
     guidInput.setLoading,
     localeKey,
     location.key,
+    appState,
     navState?.selectedCapabilityId,
     navState?.workspace,
     postInstallSelfCheckRequested,
@@ -767,7 +756,7 @@ const GuidPage: React.FC = () => {
             }
           : undefined
       }
-      activeCapabilityId={activeShortcut?.package_id}
+      activeCapabilityId={activeShortcut?.shortcut_id}
       activeCapabilityLabel={activeCapabilityLabel}
       onSelectCapability={handleSelectShortcut}
       selectedAgent={agentSelection.selectedAgent}
@@ -776,13 +765,13 @@ const GuidPage: React.FC = () => {
       onModeSelect={agentSelection.setSelectedMode}
       is_presetAgent={agentSelection.is_presetAgent}
       selectedAgentInfo={agentSelection.selectedAgentInfo}
-      assistants={professionalAssistants}
+      assistants={homeAssistants}
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey)}
       agentLogo={effectiveAgentLogo}
       agentSwitcherItems={[]}
       showModeSelector={composerSurface.permission_access_visible}
-      allSkills={buildAssistantScopedSkillMenuItems(allSkills, selectedAssistantSkillProfile)}
+      allSkills={buildAssistantScopedSkillMenuItems(allSkills, undefined)}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
       enabledSkills={effectiveGuidEnabledSkills ?? []}
       onToggleSkill={handleToggleSkill}
@@ -847,9 +836,10 @@ const GuidPage: React.FC = () => {
             </div>
 
             <HomeStarters
-              assistants={agentSelection.assistants}
+              assistants={homeAssistants}
               localeKey={localeKey}
               activeCapabilityId={activeShortcut?.package_id}
+              activeShortcutId={activeShortcut?.shortcut_id}
               onSelect={(assistantId) => {
                 handleSelectShortcut(assistantId);
                 guidInput.handleTextareaFocus();

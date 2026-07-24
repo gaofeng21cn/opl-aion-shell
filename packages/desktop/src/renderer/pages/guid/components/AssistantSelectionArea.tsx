@@ -11,14 +11,12 @@ import AssistantEditDrawer from '@/renderer/pages/settings/AssistantSettings/Ass
 import DeleteAssistantModal from '@/renderer/pages/settings/AssistantSettings/DeleteAssistantModal';
 import SkillConfirmModals from '@/renderer/pages/settings/AssistantSettings/SkillConfirmModals';
 import { resolveAvatarImageSrc } from '@/renderer/pages/settings/AssistantSettings/assistantUtils';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
 import styles from '../index.module.css';
 import type { AvailableAgent, EffectiveAgentInfo } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { filterOplFoundryAssistants } from '../oplGuidProfile';
 
 type AssistantSelectionAreaProps = {
   is_presetAgent: boolean;
@@ -211,9 +209,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
     return () => observer.disconnect();
   }, [assistants]);
 
-  const foundryAssistants = useMemo(() => filterOplFoundryAssistants(assistants), [assistants]);
-
-  if ((!assistants || assistants.length === 0) && foundryAssistants.length === 0) return null;
+  const visibleAssistants = assistants.filter((assistant) => assistant.enabled !== false);
+  if (visibleAssistants.length === 0) return null;
   const selectedAssistantId = selectedAgentInfo?.custom_agent_id?.replace(/^builtin-/, '');
   const selectedAssistant = selectedAssistantId
     ? assistants.find((assistant) => resolveAssistantCandidateIds(selectedAssistantId).includes(assistant.id))
@@ -262,7 +259,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
           className={styles.assistantCardGrid}
           style={{ gridTemplateColumns: `repeat(${assistantColumnCount}, minmax(0, 1fr))` }}
         >
-          {foundryAssistants.map((assistant) => {
+          {visibleAssistants.map((assistant) => {
             const description =
               assistant.description_i18n?.[localeKey] ||
               assistant.description_i18n?.['en-US'] ||

@@ -59,15 +59,19 @@ vi.mock('@/common', () => ({
 import { useCustomAgentsLoader } from '@/renderer/pages/guid/hooks/useCustomAgentsLoader';
 
 describe('useCustomAgentsLoader', () => {
-  it('derives OPL Home assistants from the assistant catalog without an agent-list facade', () => {
+  it('keeps the backend assistant catalog as executor/runtime binding input', () => {
     const { result } = renderHook(() => useCustomAgentsLoader());
 
     expect(result.current.catalogAssistants).toBe(assistantCatalog);
-    expect(result.current.assistants.map((assistant) => assistant.id)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    expect(result.current.assistants).toBe(assistantCatalog);
     expect(result.current.assistants[0]).toMatchObject({
       id: 'mas',
       agent_id: 'codex-managed',
       agent: { acp_backend: 'codex' },
+    });
+    expect(result.current.assistants[1]).toMatchObject({
+      id: 'unrelated-upstream-assistant',
+      agent: { acp_backend: 'claude' },
     });
     expect(result.current).not.toHaveProperty('refreshCustomAgents');
   });
