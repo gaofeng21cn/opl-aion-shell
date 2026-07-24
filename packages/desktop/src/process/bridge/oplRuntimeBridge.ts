@@ -10,12 +10,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ipcBridge } from '@/common';
+import { OPL_PRODUCT_PROFILE } from '@/common/config/oplProductProfile';
 import type {
   IOplConfigureCodexRequest,
   IOplDomainDetailViewRequest,
   IOplGatewayAccountErrorCode,
   IOplGatewayAccountLoginRequest,
   IOplGatewayAccountMutationResult,
+  IOplOfficialProfileApplyRequest,
   IOplRuntimeActionRequest,
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
@@ -355,6 +357,36 @@ function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSp
           redactedCommand: `opl app action execute --action ${assertActionId(request.actionId)} --payload-stdin --json`,
         }
       : {}),
+  };
+}
+
+function buildOfficialProfileApplyCommand(
+  request: IOplOfficialProfileApplyRequest,
+  resourcesPath?: string
+): SpawnCommandSpec & { surface: 'app_action'; env: NodeJS.ProcessEnv; timeoutMs: number } {
+  if (request.intent !== 'explicit_restore') {
+    throw new Error('The App may only apply Official Profile from Settings as explicit_restore.');
+  }
+  const resolvedResourcesPath = resourcesPath ?? (process as ProcessWithResourcesPath).resourcesPath ?? '';
+  const scriptPath = path.join(resolvedResourcesPath, 'official-profile-package-apply.ts');
+  if (!resolvedResourcesPath || !pathExistsFile(scriptPath)) {
+    throw new Error('Packaged Official Profile apply script is missing.');
+  }
+  const rootPackageIds = OPL_PRODUCT_PROFILE.official_profile.desired_root_package_ids;
+  const nodeCommand = resolveNodeCommand(buildOplCommandEnv());
+  return {
+    surface: 'app_action',
+    command: nodeCommand.command,
+    args: [
+      '--experimental-strip-types',
+      scriptPath,
+      '--intent',
+      'explicit_restore',
+      ...rootPackageIds.flatMap((packageId) => ['--root-package-id', packageId]),
+    ],
+    env: nodeCommand.env,
+    timeoutMs: OPL_STARTUP_MAINTENANCE_TIMEOUT_MS,
+    redactedCommand: 'node <official-profile-package-apply.ts> --intent explicit_restore --root-package-id <profile-roots>',
   };
 }
 
@@ -1812,6 +1844,9 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
+  ipcBridge.oplRuntime.applyOfficialProfile.provider((request) =>
+    runSpawnJsonCommand(buildOfficialProfileApplyCommand(request))
+  );
   ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
   ipcBridge.oplRuntime.runUpdateCheck.provider(() => runOplCommand(buildUpdateCheckCommand()));
   ipcBridge.oplRuntime.getUpdatePlan.provider(() => runOplCommand(buildUpdatePlanCommand()));
@@ -1833,6 +1868,7 @@ export const __oplRuntimeBridgeTest = {
   assertApplyUpdateComponentId,
   assertUpdateReceiptId,
   buildActionCommand,
+  buildOfficialProfileApplyCommand,
   buildAppStateCommand,
   buildDomainDetailViewCommand,
   buildConfigureCodexCommand,

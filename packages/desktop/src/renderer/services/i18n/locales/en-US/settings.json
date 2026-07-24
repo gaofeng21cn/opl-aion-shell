@@ -2393,7 +2393,11 @@
   "agentsPage": {
     "title": "Agents",
     "description": "Manage runnable OPL agent packages, their Home entries, runtime source, and dependencies.",
-    "addAgent": "Add agent"
+    "addAgent": "Add agent",
+    "restoreOfficialProfile": "Restore official set",
+    "restoreOfficialProfileConfirmTitle": "Restore the official package set?",
+    "restoreOfficialProfileConfirmContent": "Install missing official packages and required dependencies. Packages you removed remain removed until you confirm this action.",
+    "restoreOfficialProfileComplete": "Official package set restored."
   },
   "capabilitiesPage": {
     "title": "Capabilities",

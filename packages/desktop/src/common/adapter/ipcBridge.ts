@@ -546,6 +546,10 @@ export type IOplRuntimeActionRequest = {
   payloadJson?: Record<string, unknown>;
 };
 
+export type IOplOfficialProfileApplyRequest = {
+  intent: 'explicit_restore';
+};
+
 export type IOplConfigureCodexRequest = {
   apiKey: string;
 };
@@ -729,6 +733,10 @@ export const oplRuntime = {
   executeAction: runtimeProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>(
     'opl-runtime.execute-action',
     '/api/opl-runtime/execute-action'
+  ),
+  applyOfficialProfile: runtimeProvider<IOplRuntimeCommandResult, IOplOfficialProfileApplyRequest>(
+    'opl-runtime.apply-official-profile',
+    '/api/opl-runtime/official-profile/apply'
   ),
   getUpdateStatus: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.get-managed-update-status',

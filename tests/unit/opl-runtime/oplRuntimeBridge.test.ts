@@ -430,6 +430,24 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
+  it('builds an explicit user-authorized Official Profile restore command', () => {
+    const resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-resource-'));
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
+    try {
+      const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand(
+        { intent: 'explicit_restore' },
+        resourcesPath
+      );
+      expect(command.args).toContain('explicit_restore');
+      expect(command.args.filter((value) => value === '--root-package-id').length).toBeGreaterThan(0);
+      expect(command.redactedCommand).toBe(
+        'node <official-profile-package-apply.ts> --intent explicit_restore --root-package-id <profile-roots>'
+      );
+    } finally {
+      fs.rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
   it('deduplicates concurrent standard bootstrap requests and retries after failure', async () => {
     __oplRuntimeBridgeTest.resetStandardBootstrapForTest();
     let completeBootstrap!: () => void;

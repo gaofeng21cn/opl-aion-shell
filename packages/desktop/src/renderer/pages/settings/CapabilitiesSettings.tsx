@@ -1292,6 +1292,30 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
   };
 
+  const restoreOfficialProfile = () => {
+    if (packageMutationBusy) return;
+    Modal.confirm({
+      title: t('settings.agentsPage.restoreOfficialProfileConfirmTitle'),
+      content: t('settings.agentsPage.restoreOfficialProfileConfirmContent'),
+      okText: t('settings.agentsPage.restoreOfficialProfile'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        const actionToken = beginPackageAction('restore_official_profile');
+        if (!actionToken) return;
+        try {
+          const result = await ipcBridge.oplRuntime.applyOfficialProfile.invoke({ intent: 'explicit_restore' });
+          if (result.ok === false) throw new Error(result.error?.message || result.command);
+          await appStateQuery.load('fast', { showRefreshing: true, forceFresh: true });
+          Message.success(t('settings.agentsPage.restoreOfficialProfileComplete'));
+        } catch (error) {
+          Message.error(error instanceof Error ? error.message : String(error));
+        } finally {
+          finishPackageAction(actionToken);
+        }
+      },
+    });
+  };
+
   const projectedActionPayload = (
     action: CapabilityPackageActionViewModel,
     explicitInput: Record<string, unknown> = {}
@@ -1824,6 +1848,15 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   data-testid='agent-package-refresh-registry'
                 />
               </span>
+              <Button
+                size='small'
+                onClick={restoreOfficialProfile}
+                loading={busyAction === 'restore_official_profile'}
+                disabled={packageMutationBusy}
+                data-testid='settings-agents-restore-official-profile'
+              >
+                {t('settings.agentsPage.restoreOfficialProfile')}
+              </Button>
               <Button
                 type='primary'
                 size='small'

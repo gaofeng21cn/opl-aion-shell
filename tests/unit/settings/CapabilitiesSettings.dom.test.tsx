@@ -27,6 +27,7 @@ const translationMocks = vi.hoisted(() => ({ language: 'en-US' }));
 
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
+  applyOfficialProfileInvoke: vi.fn(),
   loadAppState: vi.fn(),
   modalConfirm: vi.fn((config: { onOk?: () => unknown }) => config.onOk?.()),
   messageSuccess: vi.fn(),
@@ -88,6 +89,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
+      applyOfficialProfile: { invoke: bridgeMocks.applyOfficialProfileInvoke },
     },
   },
 }));
@@ -784,6 +786,10 @@ vi.mock('react-i18next', () => ({
         'settings.agentsPage.title': 'Agents',
         'settings.agentsPage.description': 'Manage runnable agents.',
         'settings.agentsPage.addAgent': 'Add agent',
+        'settings.agentsPage.restoreOfficialProfile': 'Restore official set',
+        'settings.agentsPage.restoreOfficialProfileConfirmTitle': 'Restore the official package set?',
+        'settings.agentsPage.restoreOfficialProfileConfirmContent': 'Install missing official packages.',
+        'settings.agentsPage.restoreOfficialProfileComplete': 'Official package set restored.',
         'settings.capabilitiesPage.title': 'Capabilities',
         'settings.capabilitiesPage.description': 'Manage skills and plugins.',
         'settings.capabilitiesPage.groups.manualAndThirdParty.title': 'Manual and third-party capabilities',
@@ -1124,6 +1130,11 @@ describe('Agents and capabilities settings', () => {
       ok: true,
       command: 'opl app action execute --action test --json',
     });
+    bridgeMocks.applyOfficialProfileInvoke.mockReset();
+    bridgeMocks.applyOfficialProfileInvoke.mockResolvedValue({
+      ok: true,
+      command: 'node <official-profile-package-apply.ts> --intent explicit_restore',
+    });
     bridgeMocks.loadAppState.mockReset();
     bridgeMocks.loadAppState.mockImplementation(async () => {
       const snapshot = structuredClone(bridgeMocks.currentAppState);
@@ -1393,6 +1404,26 @@ describe('Agents and capabilities settings', () => {
 
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tools-detail')).not.toBeInTheDocument();
+  });
+
+  it('restores the Official Profile only after explicit Settings confirmation', async () => {
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    fireEvent.click(screen.getByTestId('settings-agents-restore-official-profile'));
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Restore the official package set?',
+        okText: 'Restore official set',
+      })
+    );
+    await waitFor(() => {
+      expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledWith({ intent: 'explicit_restore' });
+    });
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', {
+      showRefreshing: true,
+      forceFresh: true,
+    });
+    expect(bridgeMocks.messageSuccess).toHaveBeenCalledWith('Official package set restored.');
   });
 
   it('searches the canonical directory, reports visible counts, and resets a filter-empty result', () => {

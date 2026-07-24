@@ -2394,7 +2394,11 @@
   "agentsPage": {
     "title": "智能体",
     "description": "管理可运行的 OPL 智能体包、首页入口、运行来源和依赖详情。",
-    "addAgent": "添加智能体"
+    "addAgent": "添加智能体",
+    "restoreOfficialProfile": "恢复官方组合",
+    "restoreOfficialProfileConfirmTitle": "恢复官方 Package 组合？",
+    "restoreOfficialProfileConfirmContent": "补齐缺失的官方 Package 和必要依赖。你卸载的 Package 只会在确认本操作后重新安装。",
+    "restoreOfficialProfileComplete": "官方 Package 组合已恢复。"
   },
   "capabilitiesPage": {
     "title": "能力",

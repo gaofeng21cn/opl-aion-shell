@@ -664,6 +664,9 @@ type AppProductProfile = {
   purpose: 'app_owned_product_profile';
   state: string;
   app_repo: 'gaofeng21cn/one-person-lab-app';
+  official_profile: {
+    desired_root_package_ids: string[];
+  };
   product: {
     id: 'one_person_lab_app';
     display_name: 'One Person Lab App';
@@ -2173,6 +2176,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
 
   const product = readProductProfile(value);
   const defaultSession = value.default_session_profile;
+  const officialProfile = value.official_profile;
   const gui = value.gui;
   const codex = value.codex;
   const firstRun = value.first_run;
@@ -2180,6 +2184,17 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const commandLineTools = isRecord(firstRun) ? firstRun.command_line_tools : null;
   const settings = value.settings;
   const boundary = value.boundary;
+  if (!isRecord(officialProfile)) {
+    throw new Error('Invalid OPL product profile: official_profile must be an object');
+  }
+  const officialRootPackageIds = readStringArray(
+    officialProfile,
+    'desired_root_package_ids',
+    'official_profile',
+  );
+  if (officialRootPackageIds.length === 0) {
+    throw new Error('Invalid OPL product profile: official_profile must declare desired root Package identities');
+  }
   if (
     !isRecord(defaultSession) ||
     !isRecord(gui) ||
@@ -2601,6 +2616,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     purpose: 'app_owned_product_profile',
     state: typeof value.state === 'string' ? value.state : '',
     app_repo: 'gaofeng21cn/one-person-lab-app',
+    official_profile: {
+      desired_root_package_ids: officialRootPackageIds,
+    },
     product,
     default_session_profile: {
       provider: 'gflab',
