@@ -1,11 +1,11 @@
 # OPL App Shell Boundary
 
-`opl-aion-shell` is the mainline GUI shell implementation carrier for One Person Lab App. It implements App-owned contracts and consumes App/root canonical state; it does not own product strategy, runtime truth, package truth, model-selection policy, onboarding truth, domain route authority, release gates, screenshots, owner receipts, or release/user documentation. Those decisions and evidence surfaces are owned by `one-person-lab-app`, One Person Lab Framework/root, and the OPL/domain repositories behind the App contracts.
+`opl-aion-shell` is the mainline GUI shell implementation for One Person Lab App. It implements App-owned contracts and consumes App/root canonical state; it does not own product strategy, runtime truth, package truth, model-selection policy, onboarding truth, domain route authority, release gates, screenshots, owner receipts, or release/user documentation. Those decisions and evidence surfaces are owned by `one-person-lab-app`, One Person Lab Framework/root, and the OPL/domain repositories behind the App contracts.
 
 Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
 
 Current GUI policy is fixed at the App layer: this repository is the active
-AionUI mainline implementation carrier. `opl-native-workbench` is the
+AionUI mainline implementation. `opl-native-workbench` is the
 foreground/developer backup candidate and is developed in its own candidate
 shell repo. Hermes Desktop / `hermes-codex` is retained as a prior-candidate
 reference. AGUI / `agui-codex` is archived technical proof only; do not port it
@@ -33,12 +33,15 @@ If a shell-local change needs one of those decisions, land the decision in the o
 
 ## Package Composition Boundary
 
-The OPL ecosystem separates Package identity, publication, carrier, and
-executor. This shell is currently a Codex-first carrier and executor adapter;
-that choice minimizes today's delivery cost, but it is not an ecosystem-wide
-identity or storage decision. Codex Plugin Manager may manage Plugin, config,
-and cache bytes for this carrier. It is not the OPL Package identity, the
-complete installed-state authority, or the authority for another carrier.
+The OPL ecosystem separates Package identity, carrier, and executor into three
+roles. Publication/currentness is an independent axis, not a fourth runtime
+role. This shell is a GUI implementation and projection consumer; it does not
+own a Package carrier or executor. The current product consumes the Codex-first
+route because that minimizes today's delivery cost, but that choice is not an
+ecosystem-wide identity or storage decision. Codex Plugin Manager may manage
+Plugin, config, and cache bytes as a carrier adapter. It is not the OPL Package
+identity, the complete installed-state authority, or the authority for another
+carrier.
 
 Package owners publish their own official bytes to GHCR and advance their own
 `latest-stable`. A shared Release Set is limited to Full/offline, integration
@@ -50,16 +53,17 @@ App-authorized actions.
 
 Ordinary Package dependencies mean stable identity presence and entrypoint
 callability. The Shell must neither introduce a cross-Package version check nor
-make a Package unavailable from its own local comparison. Carrier or executor
-migration must not require reinstalling a Package or discard OPL-owned user
-preferences, Work Items, dependency relationships, or typed views. The
-Framework aggregates carrier readback; App owns the product projection and
-preferences; domain Packages own their business state and typed views.
+make a Package unavailable from its own local comparison. Switching only the
+executor route must not reinstall a Package. If the only physical carrier is
+removed, Framework must report `physical_unavailable`; a migration to another
+carrier may materialize the complete Package bytes again. Neither operation may
+rename the Package or discard OPL-owned user preferences, Work Items,
+dependency relationships, or typed views. Framework aggregates carrier
+readback; App owns the product projection and preferences; domain Packages own
+their business state and typed views.
 
-The owner migration SSOT is App path
-`one-person-lab-app/docs/active/opl-package-platform-composition-migration.md`.
-Until that App document reaches public `main`, its landed counterpart is the
-Framework's [OPL Package platform composition migration](https://github.com/gaofeng21cn/one-person-lab/blob/main/docs/active/opl-package-platform-composition-migration.md).
+The canonical owner migration SSOT is the App
+[OPL Package platform composition migration](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/active/opl-package-platform-composition-migration.md).
 This guide intentionally records only the Shell consumer boundary, not a second
 migration plan.
 
@@ -160,7 +164,17 @@ the App repository at `docs/product/gui/codex-auto-model-policy.md#维护默认�
 
 The ordinary language surface is Chinese and English unless the App-owned product profile changes that policy. Upstream locale payloads for additional languages are implementation material only; do not add them to `supportedLanguages`, static locale imports, login language choices, or settings language choices as part of upstream intake without an App owner decision.
 
-The `/guid` home path treats MAS, MAG, and RCA as App-owned purpose assistants over the fixed Codex executor. Their `assistant_skill_profiles` decide the domain skill behavior: the matching skill (`mas`, `mag`, or `rca`) is selected and locked by default, optional companion skills are shown only for that assistant, and AionUI-internal skills stay out of the home skill menu. Built-in assistant sends also persist the App route receipt (`route_kind=builtin_capability`, `executor=codex_cli`, assistant id/short name, and `source=opl_app_home`) so the selected purpose is visible after the conversation is created.
+The `/guid` home path and every Agent/purpose entry must come from the
+Framework/App dynamic projection. Projected Package/capability identity,
+availability, labels, optional companion capabilities, and authorized route
+refs drive rendering and conversation creation; the Shell must not own a fixed
+Agent set or infer a Skill lock. MAS, MAG, and RCA are current migration
+instances, not the ecosystem membership contract. Transitional
+`assistant_skill_profiles` or Codex route fields may be consumed inside the
+Codex compatibility adapter, but they are not Package identity, dependency, or
+purpose-entry authority. The created conversation keeps the projected route
+identity so the selected purpose remains visible without turning a Shell-local
+assistant list into product truth.
 
 ## Upstream Intake Policy
 
