@@ -1586,6 +1586,161 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(tartSmoke.selectFirstRunTartTerminalError(null, null, cleanup.error)).toBe(cleanup.error);
   });
 
+  it('accepts an exact already-stopped result only after delete and exact absence both pass', () => {
+    const vmName = 'opl-cleanup-already-stopped';
+    const stopDiagnostic = [`tart stop ${vmName} exited with 2`, 'stderr:', `VM "${vmName}" is not running`].join('\n');
+    const actions: string[] = [];
+    const cleanup = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          actions.push(action);
+          if (action === 'stop') throw new Error(stopDiagnostic);
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'absent' };
+        },
+      }
+    );
+
+    expect(actions).toEqual(['stop', 'delete']);
+    expect(cleanup.receipt).toMatchObject({
+      status: 'passed',
+      actions: {
+        stop: {
+          status: 'failed',
+          already_stopped: true,
+          accepted_as_idempotent: true,
+          failure: {
+            classification: 'vm_cleanup_stop_failure',
+            message: stopDiagnostic,
+          },
+        },
+        delete: { status: 'passed' },
+      },
+      inspection: { status: 'passed', present: false, state: 'absent' },
+      failure_reasons: [],
+      cleanup_finished: true,
+    });
+    expect(cleanup.error).toBeNull();
+  });
+
+  it('rejects already-stopped idempotency unless every cleanup proof is exact and successful', () => {
+    const vmName = 'opl-cleanup-idempotency-rejected';
+    const exactDiagnostic = [`tart stop ${vmName} exited with 2`, 'stderr:', `VM "${vmName}" is not running`].join(
+      '\n'
+    );
+    const alreadyStoppedError = () => new Error(exactDiagnostic);
+
+    const deleteFailed = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'stop') throw alreadyStoppedError();
+          throw new Error('delete failed');
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'absent' };
+        },
+      }
+    );
+    const inspectionFailed = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'stop') throw alreadyStoppedError();
+        },
+        inspectVm() {
+          throw new Error('inventory unavailable');
+        },
+      }
+    );
+    const stillPresent = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'stop') throw alreadyStoppedError();
+        },
+        inspectVm() {
+          return { present: true, running: false, state: 'stopped' };
+        },
+      }
+    );
+    const unknownState = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'stop') throw alreadyStoppedError();
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'unknown' };
+        },
+      }
+    );
+    const keptVm = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: true },
+      {
+        runAction() {
+          throw alreadyStoppedError();
+        },
+        inspectVm() {
+          return { present: true, running: false, state: 'stopped' };
+        },
+      }
+    );
+    const nonExactDiagnostic = tartSmoke.stopAndDeleteVm(
+      { vmName, keepVm: false },
+      {
+        runAction(action: string) {
+          if (action === 'stop') {
+            throw new Error(`tart stop ${vmName} exited with 2\nstderr:\nVM is not running`);
+          }
+        },
+        inspectVm() {
+          return { present: false, running: false, state: 'absent' };
+        },
+      }
+    );
+
+    expect(deleteFailed.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: true, accepted_as_idempotent: false } },
+      failure_reasons: ['stop_action_failed', 'delete_action_failed'],
+      cleanup_finished: false,
+    });
+    expect(inspectionFailed.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: true, accepted_as_idempotent: false } },
+      inspection: { status: 'failed', state: 'unknown' },
+      failure_reasons: ['stop_action_failed', 'final_state_inspection_failed'],
+      cleanup_finished: false,
+    });
+    expect(stillPresent.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: true, accepted_as_idempotent: false } },
+      failure_reasons: ['stop_action_failed', 'vm_still_present'],
+      cleanup_finished: false,
+    });
+    expect(unknownState.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: true, accepted_as_idempotent: false } },
+      failure_reasons: ['stop_action_failed', 'vm_final_state_not_absent'],
+      cleanup_finished: false,
+    });
+    expect(keptVm.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: true, accepted_as_idempotent: false } },
+      failure_reasons: ['stop_action_failed'],
+      cleanup_finished: false,
+    });
+    expect(nonExactDiagnostic.receipt).toMatchObject({
+      status: 'failed',
+      actions: { stop: { already_stopped: false, accepted_as_idempotent: false } },
+      failure_reasons: ['stop_action_failed'],
+      cleanup_finished: false,
+    });
+  });
+
   it('fails closed when Tart delete fails even if the final inventory is already absent', () => {
     const cleanup = tartSmoke.stopAndDeleteVm(
       { vmName: 'opl-cleanup-delete-failure', keepVm: false },

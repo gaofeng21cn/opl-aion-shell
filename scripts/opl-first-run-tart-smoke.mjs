@@ -1556,6 +1556,12 @@ function attemptTartCleanupAction(action, runAction) {
   }
 }
 
+function isExactAlreadyStoppedFailure(stop, vmName) {
+  if (stop.status !== 'failed' || typeof stop.failure?.message !== 'string') return false;
+  const expectedMessage = [`tart stop ${vmName} exited with 2`, 'stderr:', `VM "${vmName}" is not running`].join('\n');
+  return stop.failure.message.trimEnd() === expectedMessage;
+}
+
 function attemptAncillaryCleanupAction(action, required, runAction, classification) {
   if (!required) {
     return { action, attempted: false, status: 'skipped_not_required', failure: null };
@@ -1603,6 +1609,7 @@ function stopAndDeleteVm(options, dependencies = {}) {
   const runAction = dependencies.runAction ?? ((action) => runTartCleanupCommand([action, options.vmName]));
   const inspectVm = dependencies.inspectVm ?? (() => inspectLocalTartVm(options.vmName));
   const stop = attemptTartCleanupAction('stop', runAction);
+  const alreadyStopped = isExactAlreadyStoppedFailure(stop, options.vmName);
   const deletion = options.keepVm
     ? { action: 'delete', attempted: false, status: 'skipped_keep_vm', failure: null }
     : attemptTartCleanupAction('delete', runAction);
@@ -1627,8 +1634,18 @@ function stopAndDeleteVm(options, dependencies = {}) {
     };
   }
 
+  const acceptedAsIdempotent =
+    alreadyStopped &&
+    options.keepVm === false &&
+    deletion.status === 'passed' &&
+    inspection.status === 'passed' &&
+    inspection.present === false &&
+    inspection.state === 'absent';
+  stop.already_stopped = alreadyStopped;
+  stop.accepted_as_idempotent = acceptedAsIdempotent;
+
   const failureReasons = [];
-  if (stop.status === 'failed') failureReasons.push('stop_action_failed');
+  if (stop.status === 'failed' && !acceptedAsIdempotent) failureReasons.push('stop_action_failed');
   if (deletion.status === 'failed') failureReasons.push('delete_action_failed');
   if (inspection.status === 'failed') {
     failureReasons.push('final_state_inspection_failed');
@@ -1637,8 +1654,9 @@ function stopAndDeleteVm(options, dependencies = {}) {
     if (inspection.present && (inspection.running || inspection.state !== 'stopped')) {
       failureReasons.push('kept_vm_not_stopped');
     }
-  } else if (inspection.present) {
-    failureReasons.push('vm_still_present');
+  } else {
+    if (inspection.present) failureReasons.push('vm_still_present');
+    if (!inspection.present && inspection.state !== 'absent') failureReasons.push('vm_final_state_not_absent');
   }
 
   const cleanupFinished = failureReasons.length === 0;
