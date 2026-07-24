@@ -10,6 +10,42 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n');
 }
 
+function buildNativeWebuiArtifactMetadata({ version, platform, arch, tarballName, sha256 }) {
+  return {
+    schema: 'dev.onepersonlab.opl-native-webui-artifact.v1',
+    owner: 'one-person-lab-app',
+    producer: 'opl-aion-shell',
+    artifact_role: 'opl_native_webui_runtime',
+    runtime_form: 'native_webui',
+    version,
+    platform,
+    architecture: arch,
+    entrypoint: 'aionui-web',
+    container_adapter: 'opl-webui-entrypoint.sh',
+    tarball: tarballName,
+    sha256,
+  };
+}
+
+function serializeNativeWebuiArtifactMetadata(metadata) {
+  const lines = [
+    `${metadata.sha256}  ${metadata.tarball}`,
+    `schema=${metadata.schema}`,
+    `owner=${metadata.owner}`,
+    `producer=${metadata.producer}`,
+    `artifact_role=${metadata.artifact_role}`,
+    `runtime_form=${metadata.runtime_form}`,
+    `version=${metadata.version}`,
+    `platform=${metadata.platform}`,
+    `architecture=${metadata.architecture}`,
+    `entrypoint=${metadata.entrypoint}`,
+    `container_adapter=${metadata.container_adapter}`,
+    `tarball=${metadata.tarball}`,
+    `sha256=${metadata.sha256}`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 function copySeedSourceIfPresent(projectRoot, seedDir) {
   const sourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
   if (!fs.existsSync(sourceDir)) return false;
@@ -177,12 +213,14 @@ function copyBundledAioncoreForTarball({ backendSrc, backendDest }) {
 
 if (require.main !== module) {
   module.exports = {
+    buildNativeWebuiArtifactMetadata,
     buildOplImageManifest,
     buildOplImageSeedMetadata,
     copySeedSourceIfPresent,
     copyBundledAioncoreForTarball,
     normalizeSeedPayloadSymlinks,
     normalizeOplWebuiImageProfile,
+    serializeNativeWebuiArtifactMetadata,
     writeOplImageResources,
   };
   return;
@@ -200,7 +238,7 @@ const archMap = { arm64: 'arm64', x64: 'x86_64', ia32: 'x86' };
 const normalizedPlatform = platformMap[platform] || platform;
 const normalizedArch = archMap[arch] || arch;
 
-const tarballName = `aionui-web-${version}-${normalizedPlatform}-${normalizedArch}.tar.gz`;
+const tarballName = `one-person-lab-webui-${version}-${normalizedPlatform}-${normalizedArch}.tar.gz`;
 const distDir = path.join(projectRoot, 'dist-web-cli');
 const tarballPath = path.join(distDir, tarballName);
 
@@ -289,13 +327,19 @@ execSync(`tar -czf ${path.basename(tarballPath)} -C ${stagingDir} aionui-web`, {
 
 console.log(`✅ Tarball created: ${tarballPath}`);
 
-// 10. Generate SHA256 checksum (cross-platform: use Node's crypto, not `shasum`)
+// 10. Generate the checksum plus OPL-owned immutable artifact identity.
 const checksumPath = `${tarballPath}.sha256`;
 const hash = crypto.createHash('sha256');
 hash.update(fs.readFileSync(tarballPath));
 const digest = hash.digest('hex');
-// Match shasum format: "<hash>  <filename>\n"
-fs.writeFileSync(checksumPath, `${digest}  ${path.basename(tarballPath)}\n`);
-console.log(`✅ Checksum created: ${checksumPath}`);
+const artifactMetadata = buildNativeWebuiArtifactMetadata({
+  version,
+  platform: normalizedPlatform,
+  arch: normalizedArch,
+  tarballName: path.basename(tarballPath),
+  sha256: digest,
+});
+fs.writeFileSync(checksumPath, serializeNativeWebuiArtifactMetadata(artifactMetadata));
+console.log(`✅ OPL artifact metadata created: ${checksumPath}`);
 
 console.log('Done!');

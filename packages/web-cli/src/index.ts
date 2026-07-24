@@ -59,6 +59,7 @@ const isPackaged = (() => {
 const BACKEND_BINARY = process.platform === 'win32' ? 'aioncore.exe' : 'aioncore';
 const DEFAULT_PORT = 25808;
 const RESET_COMMAND = isPackaged ? 'aionui-web resetpass' : 'bun run resetpass';
+const DEFAULT_NATIVE_ROOT = path.join(os.homedir(), '.local', 'share', 'one-person-lab', 'webui');
 
 let currentHandle: WebHostHandle | StaticServerHandle | null = null;
 
@@ -101,7 +102,7 @@ function resolveDataDir(flags: Map<string, string | true>): string {
   if (typeof override === 'string') return path.resolve(override);
   const envOverride = process.env.AIONUI_DATA_DIR;
   if (envOverride) return path.resolve(envOverride);
-  return path.join(os.homedir(), '.aionui-web');
+  return path.join(DEFAULT_NATIVE_ROOT, 'data');
 }
 
 function resolveLogDir(flags: Map<string, string | true>, dataDir: string): string {
@@ -115,15 +116,13 @@ function resolveLogDir(flags: Map<string, string | true>, dataDir: string): stri
 function resolveImageManifestPath(): string | undefined {
   const envOverride = process.env.OPL_IMAGE_MANIFEST_PATH;
   if (envOverride) return path.resolve(envOverride);
-  const bundled = path.join(cliRoot, 'opl-image-manifest.json');
-  return fs.existsSync(bundled) ? bundled : undefined;
+  return undefined;
 }
 
 function resolveImageSeedDir(): string | undefined {
   const envOverride = process.env.OPL_IMAGE_SEED_DIR;
   if (envOverride) return path.resolve(envOverride);
-  const bundled = path.join(cliRoot, 'opl-image-seed');
-  return fs.existsSync(bundled) ? bundled : undefined;
+  return undefined;
 }
 
 function resolveProjectsDir(flags: Map<string, string | true>): string {
@@ -131,7 +130,7 @@ function resolveProjectsDir(flags: Map<string, string | true>): string {
   if (typeof override === 'string') return path.resolve(override);
   const envOverride = process.env.OPL_PROJECTS_DIR ?? process.env.OPL_WORKSPACE_ROOT;
   if (envOverride) return path.resolve(envOverride);
-  return '/projects';
+  return path.join(os.homedir(), 'OnePersonLab', 'projects');
 }
 
 function resolvePort(flags: Map<string, string | true>): number {
@@ -477,13 +476,14 @@ Options for start:
   --remote                Bind 0.0.0.0 instead of 127.0.0.1
   --open                  Force opening the local URL in a browser
   --no-open               Disable automatic browser opening
-  --data-dir <path>       Override data dir (default: ~/.aionui-web)
+  --data-dir <path>       Override data dir (default: ~/.local/share/one-person-lab/webui/data)
+  --projects-dir <path>   Override projects dir (default: ~/OnePersonLab/projects)
   --log-dir <path>        Override log dir (default: <data-dir>/logs)
   --static-dir <path>     Override static assets dir
   --backend-bin <path>    Override backend binary path
 
 Options for resetpass:
-  --data-dir <path>       Which data dir to reset (default: ~/.aionui-web)
+  --data-dir <path>       Which data dir to reset (default: ~/.local/share/one-person-lab/webui/data)
   --backend-bin <path>    Override backend binary path
 
 Environment variables:

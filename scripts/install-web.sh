@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================================
-# AionUi WebUI — One-Click Installation Script
+# One Person Lab Native WebUI — Host-Native Installation Script
 # ============================================================================
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/iOfficeAI/AionUi/main/scripts/install-web.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/gaofeng21cn/opl-aion-shell/main/scripts/install-web.sh | bash
 #   # Or specify version:
 #   VERSION=1.0.0 bash install-web.sh
 #   # Or install to custom directory:
@@ -18,11 +18,13 @@ VERSION="${VERSION:-__VERSION__}"
 # occurrences above into e.g. "1.9.19". The resolve_version() function uses a
 # regex-based check (looks for letters) to detect the unreplaced placeholder,
 # so never add a literal "__VERSION__" string to any comparison below.
-INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/share/aionui-web}"
+INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/share/one-person-lab/webui/runtime}"
 BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"
-MIRROR="${MIRROR:-https://github.com/iOfficeAI/AionUi/releases/download}"
+OFFICIAL_RELEASE_BASE="https://github.com/gaofeng21cn/one-person-lab-app/releases/download"
+MIRROR="${MIRROR:-${OFFICIAL_RELEASE_BASE}}"
 CREATE_SYMLINK="${CREATE_SYMLINK:-1}"
 UPDATE_PATH="${UPDATE_PATH:-1}"
+PROBE_ARTIFACT="${PROBE_ARTIFACT:-0}"
 
 # ─── Color Definitions ──────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -43,7 +45,7 @@ die()     { error "$*"; exit 1; }
 banner() {
     echo -e "${CYAN}${BOLD}"
     echo "  ╔══════════════════════════════════════════════╗"
-    echo "  ║     AionUi WebUI Installer (No Electron)     ║"
+    echo "  ║   One Person Lab Native WebUI (No Electron)  ║"
     echo "  ╚══════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -72,6 +74,10 @@ parse_args() {
                 UPDATE_PATH=0
                 shift
                 ;;
+            --probe-artifact)
+                PROBE_ARTIFACT=1
+                shift
+                ;;
             --help)
                 show_help
                 exit 0
@@ -92,9 +98,10 @@ Usage: install-web.sh [OPTIONS]
 Options:
   --version <version>       Specify version to install (default: latest or CI-embedded)
   --mirror <url>            Specify mirror URL (default: GitHub releases)
-  --install-dir <path>      Specify installation directory (default: ~/.local/share/aionui-web)
+  --install-dir <path>      Specify installation directory (default: ~/.local/share/one-person-lab/webui/runtime)
   --no-symlink              Do not create symlink in ~/.local/bin
   --no-path                 Do not add PATH to shell profile
+  --probe-artifact          Verify that an OPL-owned artifact exists without installing it
   --help                    Show this help message
 
 Environment Variables:
@@ -104,13 +111,13 @@ Environment Variables:
 
 Examples:
   # Install latest version
-  curl -fsSL https://raw.githubusercontent.com/iOfficeAI/AionUi/main/scripts/install-web.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/gaofeng21cn/opl-aion-shell/main/scripts/install-web.sh | bash
 
   # Install specific version
   VERSION=1.0.0 bash install-web.sh
 
   # Install to custom directory
-  INSTALL_DIR=/opt/aionui-web bash install-web.sh
+  INSTALL_DIR="\$HOME/opt/opl-webui" bash install-web.sh
 
   # Use local file mirror (for offline installation)
   MIRROR=file:///path/to/releases bash install-web.sh
@@ -154,7 +161,7 @@ detect_platform_arch() {
     info "Detected platform: ${BOLD}${PLATFORM}-${ARCH}${NC}"
 
     # Build tarball filename
-    TARBALL_NAME="aionui-web-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
+    TARBALL_NAME="one-person-lab-webui-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
     CHECKSUM_NAME="${TARBALL_NAME}.sha256"
 }
 
@@ -168,13 +175,13 @@ resolve_version() {
     # because the CI sed replacement rewrites every occurrence in this file,
     # including the comparison string.
     if [[ "$VERSION" == "latest" || "$VERSION" =~ [a-zA-Z_] ]]; then
-        info "Resolving latest version from GitHub API..."
+        info "Resolving the latest OPL Shell version from GitHub API..."
 
         if command -v curl &>/dev/null; then
-            VERSION=$(curl -fsSL "https://api.github.com/repos/iOfficeAI/AionUi/releases/latest" \
+            VERSION=$(curl -fsSL "https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest" \
                 | grep '"tag_name"' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/')
         elif command -v wget &>/dev/null; then
-            VERSION=$(wget -qO- "https://api.github.com/repos/iOfficeAI/AionUi/releases/latest" \
+            VERSION=$(wget -qO- "https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest" \
                 | grep '"tag_name"' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/')
         else
             die "curl or wget is required to resolve version. Please install curl or wget."
@@ -190,19 +197,42 @@ resolve_version() {
     fi
 
     # Rebuild tarball name (VERSION may have changed)
-    TARBALL_NAME="aionui-web-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
+    TARBALL_NAME="one-person-lab-webui-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
     CHECKSUM_NAME="${TARBALL_NAME}.sha256"
 }
 
-download_tarball() {
-    # Create temp directory
+validate_distribution_base() {
+    case "$MIRROR" in
+        "$OFFICIAL_RELEASE_BASE"|"$OFFICIAL_RELEASE_BASE/")
+            # Keep URL construction deterministic: prepare_download appends the
+            # immutable release tag exactly once.
+            MIRROR="$OFFICIAL_RELEASE_BASE"
+            ;;
+        file://*)
+            [[ -n "${MIRROR#file://}" ]] || die "file:// development mirror must include a path"
+            # Local file mirrors are a development-only escape hatch. Normalize
+            # one trailing slash so the version directory is still appended once.
+            if [[ "$MIRROR" != "file:///" ]]; then
+                MIRROR="${MIRROR%/}"
+            fi
+            if [[ "$MIRROR" =~ /v[0-9][^/]*$ ]]; then
+                die "Artifact base must not include a version directory; the installer appends the resolved version exactly once"
+            fi
+            ;;
+        *)
+            die "Unsupported artifact base: expected ${OFFICIAL_RELEASE_BASE} (optional trailing slash) or file:// development path"
+            ;;
+    esac
+}
+
+prepare_download() {
     TEMP_DIR="$(mktemp -d)"
     TARBALL_PATH="${TEMP_DIR}/${TARBALL_NAME}"
     CHECKSUM_PATH="${TEMP_DIR}/${CHECKSUM_NAME}"
 
     # Build download URL
     # MIRROR formats:
-    #   - GitHub: https://github.com/iOfficeAI/AionUi/releases/download
+    #   - GitHub: https://github.com/gaofeng21cn/one-person-lab-app/releases/download
     #   - file: file:///path/to/releases
     if [[ "$MIRROR" == file://* ]]; then
         # Local file mirror (for offline installation or testing)
@@ -215,81 +245,113 @@ download_tarball() {
         CHECKSUM_URL="${MIRROR}/v${VERSION}/${CHECKSUM_NAME}"
     fi
 
+    info "Downloading OPL artifact metadata ${BOLD}${CHECKSUM_NAME}${NC}..."
+    if [[ "$CHECKSUM_URL" == file://* ]]; then
+        local src_path="${CHECKSUM_URL#file://}"
+        if [[ ! -f "$src_path" ]]; then
+            die "OPL artifact metadata not found at local mirror: $src_path"
+        fi
+        cp "$src_path" "$CHECKSUM_PATH"
+    else
+        if command -v curl &>/dev/null; then
+            curl -fSL -o "$CHECKSUM_PATH" "$CHECKSUM_URL" || die "OPL artifact metadata download failed"
+        elif command -v wget &>/dev/null; then
+            wget -q -O "$CHECKSUM_PATH" "$CHECKSUM_URL" || die "OPL artifact metadata download failed"
+        fi
+    fi
+}
+
+artifact_field() {
+    local key="$1"
+    awk -F= -v expected="$key" '$1 == expected { print substr($0, index($0, "=") + 1); found += 1 } END { if (found != 1) exit 1 }' "$CHECKSUM_PATH"
+}
+
+require_artifact_field() {
+    local key="$1"
+    local expected="$2"
+    local actual
+    actual="$(artifact_field "$key")" || die "OPL artifact metadata must contain exactly one $key field"
+    if [[ "$actual" != "$expected" ]]; then
+        die "OPL artifact metadata $key mismatch: expected $expected, got $actual"
+    fi
+}
+
+verify_artifact_metadata() {
+    local checksum_line checksum_filename metadata_checksum
+    checksum_line="$(head -n 1 "$CHECKSUM_PATH")"
+    checksum_filename="$(printf '%s\n' "$checksum_line" | awk '{print $2}')"
+    metadata_checksum="$(printf '%s\n' "$checksum_line" | awk '{print $1}')"
+    [[ "$metadata_checksum" =~ ^[a-f0-9]{64}$ ]] || die "OPL artifact metadata checksum is invalid"
+    [[ "$checksum_filename" == "$TARBALL_NAME" ]] || die "OPL artifact metadata filename mismatch"
+
+    require_artifact_field schema "dev.onepersonlab.opl-native-webui-artifact.v1"
+    require_artifact_field owner "one-person-lab-app"
+    require_artifact_field producer "opl-aion-shell"
+    require_artifact_field artifact_role "opl_native_webui_runtime"
+    require_artifact_field runtime_form "native_webui"
+    require_artifact_field version "$VERSION"
+    require_artifact_field platform "$PLATFORM"
+    require_artifact_field architecture "$ARCH"
+    require_artifact_field entrypoint "aionui-web"
+    require_artifact_field container_adapter "opl-webui-entrypoint.sh"
+    require_artifact_field tarball "$TARBALL_NAME"
+    require_artifact_field sha256 "$metadata_checksum"
+    EXPECTED_CHECKSUM="$metadata_checksum"
+    success "Verified OPL-owned artifact metadata"
+}
+
+probe_tarball() {
+    if [[ "$TARBALL_URL" == file://* ]]; then
+        [[ -f "${TARBALL_URL#file://}" ]] || die "Tarball not found at local mirror: ${TARBALL_URL#file://}"
+    elif command -v curl &>/dev/null; then
+        curl -fsSIL "$TARBALL_URL" >/dev/null || die "OPL Native WebUI artifact is not available: $TARBALL_URL"
+    elif command -v wget &>/dev/null; then
+        wget --spider -q "$TARBALL_URL" || die "OPL Native WebUI artifact is not available: $TARBALL_URL"
+    else
+        die "curl or wget is required. Please install curl or wget."
+    fi
+    success "OPL Native WebUI artifact is present for ${PLATFORM}-${ARCH}"
+}
+
+download_tarball() {
     info "Downloading ${BOLD}${TARBALL_NAME}${NC}..."
     info "URL: $TARBALL_URL"
 
-    # Download tarball
     if [[ "$TARBALL_URL" == file://* ]]; then
-        # Local file: copy directly
-        local src_path="${TARBALL_URL#file://}"
-        if [[ ! -f "$src_path" ]]; then
-            die "Tarball not found at local mirror: $src_path"
-        fi
-        cp "$src_path" "$TARBALL_PATH"
+        cp "${TARBALL_URL#file://}" "$TARBALL_PATH"
+    elif command -v curl &>/dev/null; then
+        curl -fSL --progress-bar -o "$TARBALL_PATH" "$TARBALL_URL" || die "Download failed"
+    elif command -v wget &>/dev/null; then
+        wget --show-progress -q -O "$TARBALL_PATH" "$TARBALL_URL" || die "Download failed"
     else
-        # Remote file: use curl or wget
-        if command -v curl &>/dev/null; then
-            curl -fSL --progress-bar -o "$TARBALL_PATH" "$TARBALL_URL" || die "Download failed"
-        elif command -v wget &>/dev/null; then
-            wget --show-progress -q -O "$TARBALL_PATH" "$TARBALL_URL" || die "Download failed"
-        else
-            die "curl or wget is required. Please install curl or wget."
-        fi
+        die "curl or wget is required. Please install curl or wget."
     fi
 
     local size
     size=$(du -h "$TARBALL_PATH" | cut -f1)
     success "Downloaded tarball ($size)"
-
-    # Download SHA256 checksum
-    info "Downloading ${BOLD}${CHECKSUM_NAME}${NC}..."
-    if [[ "$CHECKSUM_URL" == file://* ]]; then
-        local src_path="${CHECKSUM_URL#file://}"
-        if [[ ! -f "$src_path" ]]; then
-            die "Checksum file not found at local mirror: $src_path"
-        fi
-        cp "$src_path" "$CHECKSUM_PATH"
-    else
-        if command -v curl &>/dev/null; then
-            curl -fSL -o "$CHECKSUM_PATH" "$CHECKSUM_URL" || die "Checksum download failed"
-        elif command -v wget &>/dev/null; then
-            wget -q -O "$CHECKSUM_PATH" "$CHECKSUM_URL" || die "Checksum download failed"
-        fi
-    fi
-
-    success "Downloaded checksum"
 }
 
 verify_checksum() {
     info "Verifying SHA256 checksum..."
 
-    # Read expected checksum (from .sha256 file)
-    local expected_checksum
-    expected_checksum=$(awk '{print $1}' "$CHECKSUM_PATH")
-
-    if [[ -z "$expected_checksum" ]]; then
-        die "Failed to read checksum from $CHECKSUM_NAME"
-    fi
-
-    # Calculate actual checksum
     local actual_checksum
     if command -v shasum &>/dev/null; then
         actual_checksum=$(shasum -a 256 "$TARBALL_PATH" | awk '{print $1}')
     elif command -v sha256sum &>/dev/null; then
         actual_checksum=$(sha256sum "$TARBALL_PATH" | awk '{print $1}')
     else
-        warn "shasum/sha256sum not found, skipping checksum verification"
-        return
+        die "shasum or sha256sum is required to verify immutable OPL artifact bytes"
     fi
 
-    if [[ "$actual_checksum" != "$expected_checksum" ]]; then
+    if [[ "$actual_checksum" != "$EXPECTED_CHECKSUM" ]]; then
         error "Checksum mismatch!"
-        error "Expected: $expected_checksum"
+        error "Expected: $EXPECTED_CHECKSUM"
         error "Actual:   $actual_checksum"
         die "Tarball may be corrupted. Please try again."
     fi
 
-    success "Checksum verified: ${expected_checksum:0:16}..."
+    success "Checksum verified: ${EXPECTED_CHECKSUM:0:16}..."
 }
 
 extract_tarball() {
@@ -337,6 +399,7 @@ extract_tarball() {
     if [[ ! -x "${INSTALL_DIR}/aionui-web" ]]; then
         die "Installation failed: ${INSTALL_DIR}/aionui-web not found or not executable"
     fi
+    cp "$CHECKSUM_PATH" "${INSTALL_DIR}/opl-native-webui-artifact.sha256"
 
     success "Installation completed"
 
@@ -368,6 +431,9 @@ create_symlink() {
 }
 
 update_shell_profile() {
+    case "$BIN_DIR" in
+        *$'\n'*|*$'\r'*) die "BIN_DIR must not contain newline or carriage-return characters" ;;
+    esac
     # Check if BIN_DIR is already in PATH
     if [[ ":$PATH:" == *":${BIN_DIR}:"* ]]; then
         info "PATH already contains ${BOLD}${BIN_DIR}${NC}"
@@ -406,19 +472,21 @@ update_shell_profile() {
         return
     fi
 
-    # Add PATH configuration
-    local path_line="export PATH=\"${BIN_DIR}:\$PATH\""
+    # Single-quote the path for POSIX shells so profile sourcing cannot execute
+    # shell syntax embedded in a caller-supplied BIN_DIR.
+    local quoted_bin_dir
+    local path_line
+    quoted_bin_dir=$(printf '%s' "$BIN_DIR" | sed "s/'/'\\\\''/g")
+    path_line="export PATH='${quoted_bin_dir}':\$PATH"
 
     # Check if configuration already exists
-    if grep -q "${BIN_DIR}" "$profile_file" 2>/dev/null; then
+    if grep -Fq -- "$BIN_DIR" "$profile_file" 2>/dev/null; then
         info "PATH configuration already exists in $profile_file"
         return
     fi
 
     # Add to profile
-    echo "" >> "$profile_file"
-    echo "# Added by aionui-web installer" >> "$profile_file"
-    echo "$path_line" >> "$profile_file"
+    printf '\n%s\n%s\n' "# Added by aionui-web installer" "$path_line" >> "$profile_file"
 
     success "Added PATH to $profile_file"
     warn "Please restart your shell or run: source $profile_file"
@@ -427,7 +495,7 @@ update_shell_profile() {
 print_summary() {
     echo ""
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}${BOLD}  🎉 AionUi WebUI v${VERSION} Installed!${NC}"
+    echo -e "${GREEN}${BOLD}  One Person Lab Native WebUI v${VERSION} Installed${NC}"
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${BOLD}📍 Installation directory:${NC}  ${INSTALL_DIR}"
@@ -456,8 +524,8 @@ print_summary() {
         fi
     fi
     echo ""
-    echo -e "  ${BOLD}📖 Documentation:${NC}  https://github.com/iOfficeAI/AionUi"
-    echo -e "  ${BOLD}🐛 Report issues:${NC}  https://github.com/iOfficeAI/AionUi/issues"
+    echo -e "  ${BOLD}Documentation:${NC}  https://github.com/gaofeng21cn/one-person-lab-app"
+    echo -e "  ${BOLD}Report issues:${NC}  https://github.com/gaofeng21cn/opl-aion-shell/issues"
     echo ""
     echo -e "  ${BOLD}🗑️  Uninstall:${NC}"
     echo ""
@@ -481,32 +549,45 @@ main() {
     banner
     parse_args "$@"
 
-    # Step 1: Detect platform and architecture
+    # Step 1: Reject untrusted or version-qualified artifact bases before any
+    # metadata request. prepare_download owns the single version-path append.
+    validate_distribution_base
+
+    # Step 2: Detect platform and architecture
     detect_platform_arch
 
-    # Step 2: Resolve version (if VERSION is __VERSION__ or latest)
+    # Step 3: Resolve version (if VERSION is __VERSION__ or latest)
     resolve_version
 
-    # Step 3: Download tarball
+    # Step 4: Require OPL-owned immutable artifact metadata.
+    prepare_download
+    verify_artifact_metadata
+    probe_tarball
+    if [[ "$PROBE_ARTIFACT" == "1" ]]; then
+        rm -rf "$TEMP_DIR"
+        return
+    fi
+
+    # Step 5: Download tarball
     download_tarball
 
-    # Step 4: Verify SHA256 checksum
+    # Step 6: Verify SHA256 checksum
     verify_checksum
 
-    # Step 5: Extract tarball
+    # Step 7: Extract tarball
     extract_tarball
 
-    # Step 6: Create symlink
+    # Step 8: Create symlink
     if [[ "$CREATE_SYMLINK" == "1" ]]; then
         create_symlink
     fi
 
-    # Step 7: Update shell profile PATH
+    # Step 9: Update shell profile PATH
     if [[ "$UPDATE_PATH" == "1" ]]; then
         update_shell_profile
     fi
 
-    # Step 8: Print summary
+    # Step 10: Print summary
     print_summary
 }
 
