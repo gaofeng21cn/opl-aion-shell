@@ -5992,6 +5992,12 @@
                   "visible_fields": ["friendly_name", "bytes", "localized_reason"],
                   "raw_path": "collapsed_technical_detail_only"
                 },
+                "inventory_composition_presentation": {
+                  "source": "same_inventory_snapshot_as_category_total",
+                  "visible_fields": ["root_friendly_name", "bytes", "cleanup_boundary", "localized_reason"],
+                  "boundary_states": ["covered_by_this_cleanup", "reported_only_not_cleanable_here"],
+                  "raw_path": "collapsed_technical_detail_only"
+                },
                 "retained_presentation": "always_explain_total_minus_candidates_and_why_it_is_not_selectable",
                 "execution_policy": {
                   "selection_scope": "non_empty_subset_of_exact_dry_run_candidates_only",
