@@ -10,6 +10,11 @@ const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
 const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
 const SCRIPT_DIR = path.dirname(fs.realpathSync(new URL(import.meta.url)));
 const GUEST_SMOKE_SCRIPT_PATH = path.join(SCRIPT_DIR, 'opl-first-run-vm-smoke.mjs');
+const PRODUCT_PROFILE_PATH = path.resolve(
+  SCRIPT_DIR,
+  '..',
+  'packages/desktop/src/common/config/oplProductProfile/oplProductProfile.generated.json'
+);
 const SIGNAL_EXIT_CODES = new Map([
   ['SIGHUP', 129],
   ['SIGINT', 130],
@@ -44,6 +49,16 @@ const SMOKE_PROFILES = new Map([
       display: '1920x1080px',
       installMode: 'homebrew-cask',
       homebrewCask: 'one-person-lab',
+    },
+  ],
+  [
+    'homebrew-full-cask',
+    {
+      runtimeProfile: 'full',
+      settingsSmoke: true,
+      display: '1920x1080px',
+      installMode: 'homebrew-cask',
+      homebrewCask: 'one-person-lab-full',
     },
   ],
 ]);
@@ -568,6 +583,8 @@ function buildDryRunPlan(options) {
     homebrew_tap: options.homebrewTap,
     homebrew_cask: options.homebrewCask,
     homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
+    install_origin: isHomebrewFullCaskSmoke(options) ? 'homebrew_full_cask' : options.installMode,
+    official_profile_desired_roots: isHomebrewFullCaskSmoke(options) ? officialProfileDesiredRoots() : [],
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
     mas_study_provisioning: resolveMasProvisioningTransport(options, false),
@@ -683,6 +700,24 @@ function homebrewTrustedCaskRefs(options) {
       homebrewQualifiedCaskRef(options.homebrewTap, options.homebrewCask),
       ...relatedCasks.map((relatedCask) => homebrewQualifiedCaskRef(options.homebrewTap, relatedCask)),
     ])
+  );
+}
+
+function officialProfileDesiredRoots() {
+  const profile = JSON.parse(fs.readFileSync(PRODUCT_PROFILE_PATH, 'utf8'));
+  const roots = profile?.official_profile?.desired_root_package_ids;
+  if (!Array.isArray(roots) || roots.length === 0 || roots.some((root) => typeof root !== 'string' || !root.trim())) {
+    throw new Error(`Official Profile desired roots are missing or invalid: ${PRODUCT_PROFILE_PATH}`);
+  }
+  return Array.from(new Set(roots.map((root) => root.trim())));
+}
+
+function isHomebrewFullCaskSmoke(options) {
+  return (
+    options.smokeProfile === 'homebrew-full-cask' &&
+    options.installMode === 'homebrew-cask' &&
+    homebrewCaskToken(options.homebrewCask) === 'one-person-lab-full' &&
+    options.runtimeProfile === 'full'
   );
 }
 
@@ -1889,6 +1924,8 @@ function guestSmokeCommand(
   const compiledExpectationsPath = options.compiledExpectations
     ? `${options.guestWorkdir}/app-first-run-compiled-expectations.json`
     : null;
+  const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
+  const officialRoots = homebrewFullCaskSmoke ? officialProfileDesiredRoots() : [];
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     options.installMode === 'homebrew-cask'
@@ -1933,6 +1970,9 @@ function guestSmokeCommand(
       ? `--cdp-port ${shellQuote(String(options.cdpPort))}`
       : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
+    homebrewFullCaskSmoke ? '--install-origin homebrew_full_cask' : '',
+    homebrewFullCaskSmoke ? `--homebrew-cask ${shellQuote(homebrewCaskToken(options.homebrewCask))}` : '',
+    ...officialRoots.map((root) => `--official-profile-root ${shellQuote(root)}`),
     options.guideScreenshots ? '--guide-screenshots' : '',
   ].join(' ');
   return [
@@ -1966,6 +2006,8 @@ fi
 }
 
 function guestHomebrewInstallCommand(options) {
+  const caskToken = homebrewCaskToken(options.homebrewCask);
+  const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
   return `
 set -euo pipefail
 BREW_BIN=""
@@ -1992,7 +2034,15 @@ ${homebrewTrustedCaskRefs(options)
 fi
 "$BREW_BIN" install --cask ${shellQuote(options.homebrewCask)}
 test -d "/Applications/One Person Lab.app"
-xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true
+"$BREW_BIN" list --cask ${shellQuote(caskToken)} >/dev/null
+${
+  homebrewFullCaskSmoke
+    ? `if "$BREW_BIN" list --formula opl >/dev/null 2>&1; then
+  echo "Full Cask must consume embedded Base and must not install Formula opl." >&2
+  exit 1
+fi`
+    : 'xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true'
+}
 `;
 }
 
@@ -2086,6 +2136,37 @@ function assertGuestSmokeSummary(options, guestSummary) {
       proof?.persistent_database?.same_file_after_session_reload !== true
     ) {
       throw new Error('Guest Full smoke did not prove the required Temporal service supervisor lifecycle.');
+    }
+  }
+  if (isHomebrewFullCaskSmoke(options)) {
+    const expectedRoots = officialProfileDesiredRoots();
+    const gatekeeper = guestSummary.gatekeeper_launch_policy;
+    const proof = guestSummary.homebrew_full_cask;
+    if (
+      guestSummary.install_origin !== 'homebrew_full_cask' ||
+      gatekeeper?.status !== 'passed' ||
+      gatekeeper?.gatekeeper_required !== true ||
+      gatekeeper?.quarantine_removal_required !== false ||
+      gatekeeper?.quarantine_mutation_performed !== false ||
+      gatekeeper?.codesign?.status !== 0 ||
+      gatekeeper?.spctl?.status !== 0
+    ) {
+      throw new Error('Guest Full Cask smoke did not prove unmodified Homebrew Gatekeeper acceptance.');
+    }
+    if (
+      proof?.schema !== 'opl_homebrew_full_cask_smoke.v1' ||
+      proof?.status !== 'passed' ||
+      proof?.homebrew?.cask !== 'one-person-lab-full' ||
+      proof?.homebrew?.cask_installed !== true ||
+      proof?.homebrew?.formula_opl_installed !== false ||
+      proof?.carrier?.selected_carrier !== 'packaged_full_runtime' ||
+      proof?.carrier?.source !== 'packaged_app_resource' ||
+      proof?.carrier?.active_framework_count !== 1 ||
+      proof?.official_profile?.restore_action_invoked !== false ||
+      JSON.stringify(proof?.official_profile?.desired_root_package_ids) !== JSON.stringify(expectedRoots) ||
+      JSON.stringify(proof?.official_profile?.installed_root_package_ids) !== JSON.stringify(expectedRoots)
+    ) {
+      throw new Error('Guest Full Cask smoke did not prove embedded Base and Official Profile convergence.');
     }
   }
   if (options.bootstrapLaunchDiagnostics) {
@@ -2463,7 +2544,9 @@ export const __test =
         resolveHostCodexProviderCredential,
         copyMasProvisioningWorkspaceToGuest,
         homebrewTrustedCaskRefs,
+        isHomebrewFullCaskSmoke,
         isMainModule,
+        officialProfileDesiredRoots,
         parseArgs,
         resolveMasProvisioningTransport,
         recordStageEvent,

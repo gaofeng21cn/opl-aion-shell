@@ -174,6 +174,28 @@ function createPassedTemporalServiceSupervisorProof() {
   };
 }
 
+function createPassedHomebrewFullCaskProof(desiredRoots: string[]) {
+  return {
+    schema: 'opl_homebrew_full_cask_smoke.v1',
+    status: 'passed',
+    homebrew: {
+      cask: 'one-person-lab-full',
+      cask_installed: true,
+      formula_opl_installed: false,
+    },
+    carrier: {
+      selected_carrier: 'packaged_full_runtime',
+      source: 'packaged_app_resource',
+      active_framework_count: 1,
+    },
+    official_profile: {
+      desired_root_package_ids: desiredRoots,
+      installed_root_package_ids: desiredRoots,
+      restore_action_invoked: false,
+    },
+  };
+}
+
 function assertGuestSmokeSummary(options: Record<string, unknown>, summary: Record<string, unknown>): void {
   const requested = Boolean(options.providerCredentialPresent || options.codexApiKeyFile);
   const source = requested
@@ -624,12 +646,45 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('local_authorization_status: localAuthorizationStatus');
     expect(scriptSource).toContain("'rejected_allowed_unsigned'");
     expect(scriptSource).toContain("'failed_allowed_unsigned'");
-    expect(scriptSource).toContain('if (quarantineAttributeCount !== 0)');
+    expect(scriptSource).toContain('if (!homebrewFullCask && quarantineAttributeCount !== 0)');
     expect(scriptSource).toContain('Stable local authorization failed to clear quarantine before first launch.');
+    expect(scriptSource).toContain('Homebrew Full Cask failed the blocking Gatekeeper assessment before first launch.');
     expect(scriptSource).toContain('const blockingCodesignFailure = codesign.status !== 0;');
     expect(scriptSource).toContain('if (blockingCodesignFailure)');
     expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
     expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
+  });
+
+  it('requires real Gatekeeper acceptance for Full Cask without requiring quarantine removal', () => {
+    const appPath = '/Applications/One Person Lab.app';
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-full-gatekeeper-'));
+    try {
+      const passed = vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, {
+        installOrigin: 'homebrew_full_cask',
+        countQuarantineAttributes: () => 3,
+        spawnSync: (command: string) => ({ status: 0, stdout: '', stderr: command }),
+      });
+      expect(passed).toMatchObject({
+        status: 'passed',
+        install_origin: 'homebrew_full_cask',
+        gatekeeper_required: true,
+        quarantine_removal_required: false,
+        quarantine_mutation_performed: false,
+        quarantine_status: 'present',
+        codesign: { status: 0 },
+        spctl: { status: 0 },
+      });
+
+      expect(() =>
+        vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, {
+          installOrigin: 'homebrew_full_cask',
+          countQuarantineAttributes: () => 1,
+          spawnSync: (command: string) => ({ status: command === 'spctl' ? 1 : 0, stdout: '', stderr: '' }),
+        })
+      ).toThrow(/blocking Gatekeeper assessment/);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('configures Codex from the API key file before the first packaged App launch', () => {
@@ -2954,6 +3009,230 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).not.toContain('"$BREW_BIN" trust gaofeng21cn/one-person-lab');
     expect(command).toContain('"$BREW_BIN" install --cask');
     expect(command).toContain('xattr -dr com.apple.quarantine "/Applications/One Person Lab.app"');
+  });
+
+  it('defines a Full Homebrew Cask profile that preserves quarantine and consumes embedded Base', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--smoke-profile',
+      'homebrew-full-cask',
+      '--dry-run',
+    ]);
+    const desiredRoots = tartSmoke.officialProfileDesiredRoots();
+    const plan = tartSmoke.buildDryRunPlan(options);
+
+    expect(options).toMatchObject({
+      runtimeProfile: 'full',
+      settingsSmoke: true,
+      installMode: 'homebrew-cask',
+      homebrewCask: 'one-person-lab-full',
+    });
+    expect(plan).toMatchObject({
+      install_origin: 'homebrew_full_cask',
+      official_profile_desired_roots: desiredRoots,
+    });
+    const installCommand = tartSmoke.guestHomebrewInstallCommand(options);
+    expect(installCommand).toContain('"$BREW_BIN" list --cask \'one-person-lab-full\'');
+    expect(installCommand).toContain('"$BREW_BIN" list --formula opl');
+    expect(installCommand).toContain('Full Cask must consume embedded Base');
+    expect(installCommand).not.toContain('xattr -dr');
+
+    const guestCommand = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/unused.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(guestCommand).toContain('--install-origin homebrew_full_cask');
+    expect(guestCommand).toContain("--homebrew-cask 'one-person-lab-full'");
+    for (const root of desiredRoots) expect(guestCommand).toContain(`--official-profile-root '${root}'`);
+    expect(guestCommand).not.toContain('restore');
+  });
+
+  it('validates guest Full Cask install-origin arguments as one coherent carrier profile', () => {
+    expect(
+      vmSmoke.parseArgs([
+        '--app',
+        '/Applications/One Person Lab.app',
+        '--runtime-profile',
+        'full',
+        '--install-origin',
+        'homebrew_full_cask',
+        '--homebrew-cask',
+        'one-person-lab-full',
+        '--official-profile-root',
+        'mas',
+        '--official-profile-root',
+        'mas',
+        '--official-profile-root',
+        'mag',
+      ])
+    ).toMatchObject({
+      installOrigin: 'homebrew_full_cask',
+      homebrewCask: 'one-person-lab-full',
+      officialProfileRoots: ['mas', 'mag'],
+    });
+    expect(() =>
+      vmSmoke.parseArgs([
+        '--app',
+        '/Applications/One Person Lab.app',
+        '--runtime-profile',
+        'standard',
+        '--install-origin',
+        'homebrew_full_cask',
+        '--homebrew-cask',
+        'one-person-lab-full',
+        '--official-profile-root',
+        'mas',
+      ])
+    ).toThrow(/requires Full runtime/);
+  });
+
+  it('requires Full Cask Gatekeeper, carrier, Formula absence, and Official Profile evidence', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--smoke-profile',
+      'homebrew-full-cask',
+      '--dry-run',
+    ]);
+    const desiredRoots = tartSmoke.officialProfileDesiredRoots();
+    const passed = {
+      status: 'passed',
+      runtime_profile: 'full',
+      install_origin: 'homebrew_full_cask',
+      codex_config_wizard_submitted: false,
+      settings_smoke: { status: 'passed', pages: ['environment'] },
+      temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
+      gatekeeper_launch_policy: {
+        status: 'passed',
+        gatekeeper_required: true,
+        quarantine_removal_required: false,
+        quarantine_mutation_performed: false,
+        codesign: { status: 0 },
+        spctl: { status: 0 },
+      },
+      homebrew_full_cask: createPassedHomebrewFullCaskProof(desiredRoots),
+    };
+
+    expect(() => assertGuestSmokeSummary(options, passed)).not.toThrow();
+    expect(() =>
+      assertGuestSmokeSummary(options, {
+        ...passed,
+        homebrew_full_cask: {
+          ...passed.homebrew_full_cask,
+          homebrew: { ...passed.homebrew_full_cask.homebrew, formula_opl_installed: true },
+        },
+      })
+    ).toThrow(/embedded Base and Official Profile convergence/);
+    expect(() =>
+      assertGuestSmokeSummary(options, {
+        ...passed,
+        gatekeeper_launch_policy: { ...passed.gatekeeper_launch_policy, spctl: { status: 1 } },
+      })
+    ).toThrow(/unmodified Homebrew Gatekeeper acceptance/);
+  });
+
+  it('fails closed when an Official Profile desired root is not installed', () => {
+    const desiredRoots = ['mas', 'mag'];
+    expect(
+      vmSmoke.officialProfileConvergenceFromFastState(
+        {
+          app_state: {
+            agent_packages: {
+              directory: {
+                entries: desiredRoots.map((package_id) => ({ package_id, installed: true })),
+              },
+            },
+          },
+        },
+        desiredRoots
+      )
+    ).toMatchObject({
+      status: 'passed',
+      desired_root_package_ids: desiredRoots,
+      installed_root_package_ids: desiredRoots,
+      restore_action_invoked: false,
+    });
+    expect(() =>
+      vmSmoke.officialProfileConvergenceFromFastState(
+        {
+          app_state: {
+            agent_packages: {
+              directory: {
+                entries: [
+                  { package_id: 'mas', installed: true },
+                  { package_id: 'mag', installed: false },
+                ],
+              },
+            },
+          },
+        },
+        desiredRoots
+      )
+    ).toThrow(/mag/);
+  });
+
+  it('collects a Full Cask receipt from the embedded runtime without a Formula carrier', () => {
+    const fixture = createPackagedFullRuntimeAppFixture();
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-full-cask-receipt-'));
+    try {
+      writeFile(path.join(fixture.runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\nexit 0\n', 0o755);
+      const desiredRoots = ['mas', 'mag'];
+      const receipt = vmSmoke.collectHomebrewFullCaskProof(
+        {
+          appPath: fixture.appPath,
+          artifacts,
+          runtimeProfile: 'full',
+          installOrigin: 'homebrew_full_cask',
+          homebrewCask: 'one-person-lab-full',
+          officialProfileRoots: desiredRoots,
+          timeoutMs: 10_000,
+          __testHooks: {
+            brewBin: '/fixture/brew',
+            spawnSync: (_command: string, args: string[]) => ({
+              status: args.includes('--formula') ? 1 : 0,
+              stdout: '',
+              stderr: '',
+            }),
+            runOplJson: () => ({
+              app_state: {
+                agent_packages: {
+                  directory: {
+                    entries: desiredRoots.map((package_id) => ({ package_id, installed: true })),
+                  },
+                },
+              },
+            }),
+          },
+        },
+        null
+      );
+
+      expect(receipt).toMatchObject({
+        status: 'passed',
+        homebrew: { cask_installed: true, formula_opl_installed: false },
+        carrier: {
+          selected_carrier: 'packaged_full_runtime',
+          source: 'packaged_app_resource',
+          runtime_home: fixture.runtimeHome,
+          active_framework_count: 1,
+        },
+        official_profile: {
+          desired_root_package_ids: desiredRoots,
+          installed_root_package_ids: desiredRoots,
+          restore_action_invoked: false,
+        },
+      });
+      expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'homebrew-full-cask-smoke.json'), 'utf8'))).toEqual(
+        receipt
+      );
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('classifies transient Homebrew cask download failures for a bounded retry', () => {

@@ -315,6 +315,12 @@ Options:
                          The full profile verifies bundled runtime/module/skill equivalence.
                          The standard profile verifies core launch readiness without requiring
                          Full-only bundled modules.
+  --install-origin <origin>
+                         Install carrier under test. Use homebrew_full_cask only for the
+                         one-person-lab-full Cask path; default is direct_app_or_dmg.
+  --homebrew-cask <token> Homebrew Cask token expected for a Homebrew-origin smoke.
+  --official-profile-root <id>
+                         Desired Official Profile root package id. Repeat for each root.
   --codex-api-key-file <path>
                          File containing a test Codex API key for the explicit Provider
                          compatibility lane. The key is never passed as a CLI argument.
@@ -364,6 +370,9 @@ function parseArgs(argv) {
       ? Number(process.env.OPL_FIRST_RUN_HOST_DEADLINE_EPOCH_MS)
       : null,
     runtimeProfile: 'full',
+    installOrigin: 'direct_app_or_dmg',
+    homebrewCask: null,
+    officialProfileRoots: [],
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     codexProviderBaseUrl: null,
     providerCredentialSource: null,
@@ -429,6 +438,9 @@ function parseArgs(argv) {
     else if (arg === '--codex-npm-cache-dir') options.codexNpmCacheDir = path.resolve(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
+    else if (arg === '--install-origin') options.installOrigin = value;
+    else if (arg === '--homebrew-cask') options.homebrewCask = value;
+    else if (arg === '--official-profile-root') options.officialProfileRoots.push(value);
     else if (arg === '--mas-study-provisioning-receipt') {
       options.masStudyProvisioningReceipt = path.resolve(value);
     } else if (arg === '--assistant-workspace') {
@@ -465,6 +477,22 @@ function parseArgs(argv) {
   }
   if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
+  }
+  if (!['direct_app_or_dmg', 'homebrew_full_cask'].includes(options.installOrigin)) {
+    throw new Error('--install-origin must be one of: direct_app_or_dmg, homebrew_full_cask.');
+  }
+  options.officialProfileRoots = Array.from(new Set(options.officialProfileRoots.map((root) => root.trim()))).filter(
+    Boolean
+  );
+  if (
+    options.installOrigin === 'homebrew_full_cask' &&
+    (options.runtimeProfile !== 'full' ||
+      options.homebrewCask !== 'one-person-lab-full' ||
+      options.officialProfileRoots.length === 0)
+  ) {
+    throw new Error(
+      'homebrew_full_cask requires Full runtime, --homebrew-cask one-person-lab-full, and Official Profile roots.'
+    );
   }
   if (!['diagnose', 'fix'].includes(options.codexAiSelfCheckMode)) {
     throw new Error('--codex-ai-self-check-mode must be one of: diagnose, fix.');
@@ -1236,43 +1264,46 @@ function launchApp(appPath, options) {
 
 function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   const runCommand = hooks.spawnSync ?? spawnSync;
+  const installOrigin = hooks.installOrigin ?? 'direct_app_or_dmg';
+  const homebrewFullCask = installOrigin === 'homebrew_full_cask';
   const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     encoding: 'utf8',
   });
   const spctl = runCommand('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
     encoding: 'utf8',
   });
-  const quarantineAttributeCount = countQuarantineAttributes(appPath);
+  const quarantineAttributeCount = (hooks.countQuarantineAttributes ?? countQuarantineAttributes)(appPath);
   const localAuthorizationStatus =
     codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed_allowed_unsigned';
+  const status =
+    codesign.status === 0 && (homebrewFullCask ? spctl.status === 0 : quarantineAttributeCount === 0)
+      ? 'passed'
+      : 'failed';
+  const receipt = {
+    schema: 'opl_gatekeeper_launch_policy.v1',
+    status,
+    app_path: appPath,
+    install_origin: installOrigin,
+    gatekeeper_required: homebrewFullCask,
+    quarantine_removal_required: !homebrewFullCask,
+    quarantine_mutation_performed: homebrewFullCask ? false : null,
+    quarantine_status: quarantineAttributeCount === 0 ? 'absent' : 'present',
+    quarantine_attribute_count: quarantineAttributeCount,
+    local_authorization_status: localAuthorizationStatus,
+    codesign: {
+      status: codesign.status,
+      stdout: codesign.stdout ?? '',
+      stderr: codesign.stderr ?? codesign.error?.message ?? '',
+    },
+    spctl: {
+      status: spctl.status,
+      stdout: spctl.stdout ?? '',
+      stderr: spctl.stderr ?? spctl.error?.message ?? '',
+    },
+  };
   fs.mkdirSync(artifactsDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(artifactsDir, 'gatekeeper-launch-policy.json'),
-    `${JSON.stringify(
-      {
-        schema: 'opl_gatekeeper_launch_policy.v1',
-        app_path: appPath,
-        gatekeeper_required: false,
-        quarantine_removal_required: true,
-        quarantine_status: quarantineAttributeCount === 0 ? 'absent' : 'present',
-        quarantine_attribute_count: quarantineAttributeCount,
-        local_authorization_status: localAuthorizationStatus,
-        codesign: {
-          status: codesign.status,
-          stdout: codesign.stdout ?? '',
-          stderr: codesign.stderr ?? codesign.error?.message ?? '',
-        },
-        spctl: {
-          status: spctl.status,
-          stdout: spctl.stdout ?? '',
-          stderr: spctl.stderr ?? spctl.error?.message ?? '',
-        },
-      },
-      null,
-      2
-    )}\n`
-  );
-  if (quarantineAttributeCount !== 0) {
+  fs.writeFileSync(path.join(artifactsDir, 'gatekeeper-launch-policy.json'), `${JSON.stringify(receipt, null, 2)}\n`);
+  if (!homebrewFullCask && quarantineAttributeCount !== 0) {
     throw new Error(
       [
         'Stable local authorization failed to clear quarantine before first launch.',
@@ -1302,6 +1333,20 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
         .join('\n')
     );
   }
+  if (homebrewFullCask && spctl.status !== 0) {
+    throw new Error(
+      [
+        'Homebrew Full Cask failed the blocking Gatekeeper assessment before first launch.',
+        `spctl status=${spctl.status}`,
+        spctl.stdout ? `spctl stdout:\n${spctl.stdout}` : '',
+        spctl.stderr ? `spctl stderr:\n${spctl.stderr}` : '',
+        `receipt=${path.join(artifactsDir, 'gatekeeper-launch-policy.json')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+  return receipt;
 }
 
 function inspectPackagedPythonBytecode(appPath) {
@@ -2431,6 +2476,82 @@ function collectAppReleaseRuntimeEvidence(options, secret) {
     action_id: summary.action_id,
     artifacts: written,
   };
+}
+
+function homebrewCommandResult(args, options = {}) {
+  const runCommand = options.__testHooks?.spawnSync ?? spawnSync;
+  const brewBin =
+    options.__testHooks?.brewBin ??
+    ['/opt/homebrew/bin/brew', '/usr/local/bin/brew'].find((candidate) => fs.existsSync(candidate)) ??
+    'brew';
+  const result = runCommand(brewBin, args, { encoding: 'utf8', timeout: 30_000 });
+  return {
+    status: result.status,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? result.error?.message ?? '',
+  };
+}
+
+function officialProfileConvergenceFromFastState(payload, desiredRoots) {
+  const directory = payload?.app_state?.agent_packages?.directory;
+  const entries = Array.isArray(directory?.entries) ? directory.entries : null;
+  if (!entries) throw new Error('Fast App state is missing agent_packages.directory.entries.');
+  const installedRoots = desiredRoots.filter((packageId) =>
+    entries.some((entry) => entry?.package_id === packageId && entry?.installed === true)
+  );
+  const missingRoots = desiredRoots.filter((packageId) => !installedRoots.includes(packageId));
+  if (missingRoots.length > 0) {
+    throw new Error(`Official Profile desired roots are not installed after first launch: ${missingRoots.join(', ')}`);
+  }
+  return {
+    status: 'passed',
+    desired_root_package_ids: desiredRoots,
+    installed_root_package_ids: installedRoots,
+    missing_root_package_ids: [],
+    source_ref: 'app_state.agent_packages.directory.entries',
+    apply_reason: 'first_install',
+    restore_action_invoked: false,
+  };
+}
+
+function collectHomebrewFullCaskProof(options, secret) {
+  if (options.installOrigin !== 'homebrew_full_cask') return null;
+  const fullRuntime = resolveFullRuntimeForSmoke(options);
+  if (fullRuntime.source !== 'packaged_app_resource' || !fullRuntime.runtime_home || !fullRuntime.opl_path) {
+    throw new Error('Homebrew Full Cask did not resolve the App embedded Base runtime.');
+  }
+  const cask = homebrewCommandResult(['list', '--cask', options.homebrewCask], options);
+  const formula = homebrewCommandResult(['list', '--formula', 'opl'], options);
+  if (cask.status !== 0) throw new Error(`Homebrew Full Cask is not installed: ${cask.stderr || cask.stdout}`);
+  if (formula.status === 0) throw new Error('Homebrew Full Cask unexpectedly installed Formula opl.');
+  const appStateArgs = ['app', 'state', '--profile', 'fast', '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const appState = parseOplJsonResult(
+    runOplJsonImpl(appStateArgs, { ...options, timeoutMs: options.timeoutMs }),
+    appStateArgs
+  );
+  const officialProfile = officialProfileConvergenceFromFastState(appState, options.officialProfileRoots);
+  const receipt = {
+    schema: 'opl_homebrew_full_cask_smoke.v1',
+    status: 'passed',
+    install_origin: options.installOrigin,
+    homebrew: {
+      cask: options.homebrewCask,
+      cask_installed: true,
+      formula_opl_installed: false,
+    },
+    carrier: {
+      selected_carrier: 'packaged_full_runtime',
+      source: fullRuntime.source,
+      runtime_home: fullRuntime.runtime_home,
+      opl_path: fullRuntime.opl_path,
+      active_framework_count: 1,
+      active_framework_count_basis: 'embedded runtime executed App state probe while Homebrew Formula opl was absent',
+    },
+    official_profile: officialProfile,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'homebrew-full-cask-smoke.json'), receipt, secret);
+  return receipt;
 }
 
 function isRecord(value) {
@@ -6906,6 +7027,7 @@ async function main() {
     fs.mkdirSync(options.artifacts, { recursive: true });
     writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'started', {
       runtime_profile: options.runtimeProfile,
+      install_origin: options.installOrigin,
       compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
       settings_smoke: options.settingsSmoke,
       assistant_route_smoke: options.assistantRouteSmoke,
@@ -6956,6 +7078,7 @@ async function main() {
     options.appPath = appPath;
     const installedAppOptions = { ...options, appPath };
     let preLaunchPackagedRuntimeIntegrity = null;
+    let gatekeeperLaunchPolicy = null;
     let providerConfigurationMutationPerformed = false;
     let providerConfigurationBaseUrlMatched = null;
 
@@ -7045,8 +7168,8 @@ async function main() {
         }
       );
     }
-    await runSmokePhase(writeSmokeEvent, 'verify_gatekeeper_launch_policy', () =>
-      verifyGatekeeperLaunchPolicy(appPath, options.artifacts)
+    gatekeeperLaunchPolicy = await runSmokePhase(writeSmokeEvent, 'verify_gatekeeper_launch_policy', () =>
+      verifyGatekeeperLaunchPolicy(appPath, options.artifacts, { installOrigin: options.installOrigin })
     );
     const launchStartedAtMs = Date.now() - 1_000;
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
@@ -7384,6 +7507,7 @@ async function main() {
     let appReleaseRuntimeEvidence = null;
     let temporalServiceSupervisorProof = null;
     let packagedRuntimeIntegrity = null;
+    let homebrewFullCask = null;
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
@@ -7434,6 +7558,18 @@ async function main() {
         }
       );
     }
+    if (options.installOrigin === 'homebrew_full_cask') {
+      homebrewFullCask = await runSmokePhase(
+        writeSmokeEvent,
+        'homebrew_full_cask',
+        () => collectHomebrewFullCaskProof(installedAppOptions, codexApiKey),
+        {
+          cask: options.homebrewCask,
+          desired_root_package_ids: options.officialProfileRoots,
+          restore_action_invoked: false,
+        }
+      );
+    }
     captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
@@ -7449,6 +7585,7 @@ async function main() {
       app_path: appPath,
       artifacts: options.artifacts,
       runtime_profile: options.runtimeProfile,
+      install_origin: options.installOrigin,
       compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
       core_first_launch: coreFirstLaunch
         ? summarizeCoreFirstLaunch(coreFirstLaunch.systemInitializeRaw)
@@ -7504,6 +7641,8 @@ async function main() {
       temporal_service_supervisor_proof: temporalServiceSupervisorProof,
       packaged_runtime_integrity_pre_launch: preLaunchPackagedRuntimeIntegrity,
       packaged_runtime_integrity: packagedRuntimeIntegrity,
+      gatekeeper_launch_policy: gatekeeperLaunchPolicy,
+      homebrew_full_cask: homebrewFullCask,
       guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
@@ -7519,6 +7658,8 @@ async function main() {
       temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
       packaged_runtime_integrity_pre_launch: summary.packaged_runtime_integrity_pre_launch?.status ?? null,
       packaged_runtime_integrity: summary.packaged_runtime_integrity?.status ?? null,
+      gatekeeper_launch_policy: summary.gatekeeper_launch_policy?.status ?? null,
+      homebrew_full_cask: summary.homebrew_full_cask?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -7652,7 +7793,9 @@ export const __test =
         buildCodexAiSelfCheckReceipt,
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
+        collectHomebrewFullCaskProof,
         collectTemporalServiceSupervisorProof,
+        officialProfileConvergenceFromFastState,
         reloadTemporalSupervisorSession,
         assertAppActionExecution,
         assertTemporalSupervisorReady,
