@@ -775,68 +775,94 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('uses the packaged Full runtime for App state while keeping updates on the managed carrier', () => {
+  it('keeps ordinary and managed-update commands on the active packaged Full Framework', () => {
     const homeDir = makeTempRoot('opl-update-bridge-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
-    const compatibleRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    const packagedRoot = path.join(runtimeHome, 'opl');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    const formulaRoot = path.join(homeDir, 'formula-opl');
+    const formulaBin = path.join(homeDir, 'opt-homebrew-bin');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
-    makeFrameworkCarrier(path.join(runtimeHome, 'opl'));
+    makeFrameworkCarrier(packagedRoot);
+    makeFrameworkCarrier(managedRoot);
+    makeFrameworkCarrier(formulaRoot);
+    fs.mkdirSync(path.join(packagedRoot, 'dist', 'modules', 'connect'), { recursive: true });
+    fs.writeFileSync(
+      path.join(packagedRoot, 'dist', 'modules', 'connect', 'managed-update-kernel.js'),
+      'export {}\n',
+      'utf8'
+    );
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(compatibleRoot, 'dist', 'entrypoints'), { recursive: true });
-    fs.mkdirSync(path.join(compatibleRoot, 'contracts', 'opl-framework'), { recursive: true });
-    fs.mkdirSync(path.join(compatibleRoot, 'node_modules', '@temporalio', 'common'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'), 'console.log("old")\n', 'utf8');
     fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(compatibleRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'entrypoints', 'cli.js'), 'console.log("new")\n', 'utf8');
-    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'managed-update-kernel.js'), 'export {}\n', 'utf8');
-    fs.writeFileSync(
-      path.join(compatibleRoot, 'package.json'),
-      JSON.stringify({ name: 'opl-framework', version: '26.6.27' }),
-      'utf8'
-    );
-    fs.writeFileSync(
-      path.join(compatibleRoot, 'contracts', 'opl-framework', 'public-surface-index.json'),
-      JSON.stringify({ version: 'p19.stage-runtime' }),
-      'utf8'
-    );
+    fs.mkdirSync(formulaBin, { recursive: true });
+    fs.symlinkSync(path.join(formulaRoot, 'bin', 'opl'), path.join(formulaBin, 'opl'));
+    makeCaskReceipt(caskroomRoot, 'one-person-lab-full');
 
     const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
       baseEnv: {
         HOME: homeDir,
-        PATH: `${path.join(compatibleRoot, 'bin')}:/usr/bin:/bin`,
+        PATH: `${formulaBin}:/usr/bin:/bin`,
         OPL_FULL_RUNTIME_HOME: runtimeHome,
+        OPL_APP_INSTALL_ORIGIN: 'homebrew_cask',
+        OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+        OPL_HOMEBREW_FORMULA_BIN: formulaBin,
       },
       platform: 'darwin',
       arch: 'arm64',
     });
 
-    const updateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
-      __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
-      env
-    );
-    expect(updateCommand.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
-    expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
-    expect(updateCommand.args).not.toContain(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'));
-    expect(updateCommand.timeoutMs).toBe(MANAGED_UPDATE_READ_TIMEOUT_MS);
-    expect(updateCommand.redactedCommand).toBe('opl update status --json');
-
-    const appStateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+    const specs = [
       __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
-      env
-    );
-    expect(appStateCommand.args).toEqual([
-      path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'),
-      'app',
-      'state',
-      '--profile',
-      'fast',
-      '--json',
-    ]);
-    expect(appStateCommand.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('packaged_full_runtime');
-    expect(appStateCommand.timeoutMs).toBeUndefined();
+      __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+      __oplRuntimeBridgeTest.buildUpdateCheckCommand(),
+      __oplRuntimeBridgeTest.buildUpdatePlanCommand(),
+      __oplRuntimeBridgeTest.buildUpdateApplyPlanCommand(),
+      __oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'opl_base' }),
+      __oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'opl_base' }),
+    ];
+    for (const spec of specs) {
+      const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(spec, env);
+      expect(command.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
+      expect(command.args[0]).toBe(path.join(packagedRoot, 'dist', 'entrypoints', 'cli.js'));
+      expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('packaged_full_runtime');
+      expect(command.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(packagedRoot);
+      expect(command.env.OPL_ACTIVE_FRAMEWORK_COUNT).toBe('1');
+    }
+  });
+
+  it('fails closed instead of switching an active legacy Full runtime to Formula for updates', () => {
+    const homeDir = makeTempRoot('opl-legacy-full-update-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const packagedRoot = path.join(runtimeHome, 'opl');
+    const formulaRoot = path.join(homeDir, 'formula-opl');
+    const formulaBin = path.join(homeDir, 'opt-homebrew-bin');
+    const caskroomRoot = path.join(homeDir, 'Caskroom');
+    makeFrameworkCarrier(packagedRoot);
+    makeFrameworkCarrier(formulaRoot);
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(formulaBin, { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.symlinkSync(path.join(formulaRoot, 'bin', 'opl'), path.join(formulaBin, 'opl'));
+    makeCaskReceipt(caskroomRoot, 'one-person-lab-full');
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: `${formulaBin}:/usr/bin:/bin`,
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+        OPL_APP_INSTALL_ORIGIN: 'homebrew_cask',
+        OPL_HOMEBREW_CASKROOM_ROOTS: caskroomRoot,
+        OPL_HOMEBREW_FORMULA_BIN: formulaBin,
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(() =>
+      __oplRuntimeBridgeTest.buildOplSpawnCommand(__oplRuntimeBridgeTest.buildUpdateStatusCommand(), env)
+    ).toThrow(/Selected OPL Framework carrier does not support update_status/);
   });
 
   it('ignores a retired packaged Full runtime when refreshing after switching to the managed carrier', () => {

@@ -1926,6 +1926,11 @@ describe('Agents and capabilities settings', () => {
       }
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
+    fireEvent.click(screen.getByTestId('capability-open-details-example'));
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example'));
+    expect(screen.getByTestId('capability-advanced-example')).toHaveTextContent(
+      'opl app action execute --action agent_package_activate --payload <json> --json'
+    );
     expect(screen.queryByTestId('agent-package-activate-example')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-workspace-required')).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-purpose-example')).toHaveTextContent('Available');

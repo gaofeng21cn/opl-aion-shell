@@ -23,6 +23,54 @@
     "gui_product": "contracts/app-gui-product-contract.json",
     "settings_control_plane": "contracts/app-settings-control-plane.json"
   },
+  "official_profile": {
+    "profile_id": "opl-official",
+    "authority": "one-person-lab-app",
+    "additional_official_profiles_allowed": false,
+    "user_composed_profiles_allowed": true,
+    "desired_root_package_ids": ["mas", "mag", "rca", "oma", "obf", "opl-flow"],
+    "apply_on": ["first_install", "explicit_restore"],
+    "never_apply_on": ["app_startup", "silent_package_update", "app_update"],
+    "user_removal_policy": {
+      "explicit_uninstall_is_persistent_preference": true,
+      "reinstall_before_explicit_restore_allowed": false
+    },
+    "composition_policy": {
+      "required_dependency_resolution": "expand_required_package_and_capability_identities_by_presence",
+      "optional_dependency_absence_blocks": false,
+      "composition_gate": "identity_presence_only",
+      "forbidden_composition_or_readiness_gates": [
+        "version_range",
+        "abi",
+        "lock",
+        "payload",
+        "digest",
+        "release_set",
+        "fixed_cohort",
+        "global_product_readiness"
+      ]
+    },
+    "distribution_forms": {
+      "standard": {
+        "desired_roots_source": "official_profile.desired_root_package_ids",
+        "offline_seed": false
+      },
+      "full": {
+        "desired_roots_source": "official_profile.desired_root_package_ids",
+        "offline_seed": true
+      },
+      "same_desired_roots_required": true,
+      "full_difference": "offline_seed_only",
+      "full_additional_desired_roots_allowed": false
+    },
+    "package_currentness_policy": {
+      "published_current_stable_authority": "package_owner_per_package_ghcr_latest_stable",
+      "installed_callable_authority": "framework_fresh_aggregation_of_configured_carrier_readback",
+      "app_carrier_authority": false,
+      "app_release_authority": false,
+      "shared_release_set_ordinary_update_authority": false
+    }
+  },
   "default_session_profile": {
     "provider": "gflab",
     "provider_name": "OPL Gateway",
@@ -973,12 +1021,9 @@
     },
     "agent_package_registry": {
       "directory_lifecycle_authority": "app_state.agent_packages.directory+status_index+actions",
-      "resolver_currentness_authority": "one-person-lab#package_repository_resolver",
-      "installed_truth_authority": "one-person-lab#exact_installed_lock",
       "external_registry_role": "optional_candidate_source_adapter",
       "bundled_default_registry_allowed": false,
       "external_registry_policy_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.agent_registry_policy",
-      "starter_package_ids": ["mas", "mag", "rca", "oma", "obf", "mas-scholar-skills", "opl-flow"],
       "external_first_party_identity_claims_allowed": false,
       "external_first_party_trust_claims_allowed": false,
       "collision_failure_code": "agent_package_registry_first_party_identity_collision",
@@ -5932,6 +5977,28 @@
               "diagnostics_entry": "explicit_modal_action",
               "zero_byte_policy": "show_nothing_to_clean_and_hide_actions",
               "cleanup_action_policy": "single_progressive_action_preview_then_confirm",
+              "cleanup_preview_interaction": {
+                "presentation": "modal_item_selector_before_confirmation",
+                "required_summary_fields": [
+                  "category_total_bytes",
+                  "candidate_count",
+                  "candidate_bytes",
+                  "selected_bytes",
+                  "retained_bytes",
+                  "retained_reason"
+                ],
+                "candidate_presentation": {
+                  "selection": "checkbox_per_candidate_default_selected",
+                  "visible_fields": ["friendly_name", "bytes", "localized_reason"],
+                  "raw_path": "collapsed_technical_detail_only"
+                },
+                "retained_presentation": "always_explain_total_minus_candidates_and_why_it_is_not_selectable",
+                "execution_policy": {
+                  "selection_scope": "non_empty_subset_of_exact_dry_run_candidates_only",
+                  "empty_selection": "disabled",
+                  "revalidation": "full_plan_hash_live_authority_and_selected_subset_membership_before_delete"
+                }
+              },
               "conversation_archive_policy": "archive_receipt_is_required_before_delete_and_the_same_archive_exposes_a_confirmed_restore_action",
               "restore_collision_policy": "never_overwrite_an_existing_conversation_without_an_explicit_collision_decision",
               "inventory_initial_state": "last_persisted_snapshot_or_loading_placeholder_never_synthetic_zero_bytes",
