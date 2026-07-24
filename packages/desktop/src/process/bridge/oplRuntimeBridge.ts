@@ -1184,11 +1184,9 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
     return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout', 'active', spec);
   }
 
-  if (spec && !spec.surface.startsWith('update_')) {
-    const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
-    if (packagedFullRuntime) {
-      return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
-    }
+  const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
+  if (packagedFullRuntime) {
+    return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
   }
 
   const explicitInstallOrigin = normalizeOptionalString(env.OPL_APP_INSTALL_ORIGIN);
@@ -1307,6 +1305,7 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
   const prefilledNodeModulesDir = path.join(runtimeHome, 'opl', 'node_modules');
   return {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
+    OPL_FRAMEWORK_UPDATE_TARGET_ROOT: path.join(runtimeHome, 'opl'),
     OPL_PACKAGED_SKILLS_ROOT: baseEnv.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(runtimeHome, 'skills'),
     OPL_CODEX_BIN: baseEnv.OPL_CODEX_BIN?.trim() || path.join(runtimeHome, 'bin', 'codex'),
     OPL_FAMILY_RUNTIME_PROVIDER: baseEnv.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',

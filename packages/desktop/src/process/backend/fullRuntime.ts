@@ -70,6 +70,7 @@ function existingFileEnv(name: string, filePath: string): NodeJS.ProcessEnv {
 
 function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
   const pythonBin = resolvePythonBin(runtimeHome);
+  const frameworkRoot = path.join(runtimeHome, 'opl');
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
     path.join(runtimeHome, 'node', 'bin'),
@@ -81,6 +82,7 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
   return buildOplHostToolEnv({
     runtimeEnv: {
       OPL_FULL_RUNTIME_HOME: runtimeHome,
+      OPL_FRAMEWORK_UPDATE_TARGET_ROOT: frameworkRoot,
       OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
       OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
       OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
@@ -337,6 +339,7 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
 
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(normalized)}`,
+    `export OPL_FRAMEWORK_UPDATE_TARGET_ROOT=${shellQuote(path.join(normalized, 'opl'))}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(normalized, 'skills'))}`,
     'export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"',
     'if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ] && [ -z "${TEMPORAL_ADDRESS:-}" ] && [ -z "${OPL_TEMPORAL_SERVICE_START_COMMAND:-}" ]; then export OPL_TEMPORAL_ADDRESS="127.0.0.1:7233"; export OPL_TEMPORAL_ADDRESS_SOURCE="packaged_local_default"; elif [ "${OPL_TEMPORAL_ADDRESS_SOURCE:-}" = "packaged_local_default" ] && [ "${OPL_TEMPORAL_ADDRESS:-}" != "127.0.0.1:7233" ]; then unset OPL_TEMPORAL_ADDRESS_SOURCE; fi',

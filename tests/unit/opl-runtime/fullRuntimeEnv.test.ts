@@ -102,6 +102,7 @@ describe('ensurePackagedOplFullRuntime', () => {
       );
     }
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
+    expect(installed?.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(path.join(expectedHome, 'opl'));
     expect(installed?.env.CODEX_HOME).toBeUndefined();
     expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));
     expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
@@ -156,6 +157,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(activated?.version).toBe('26.5.1');
     expect(activated?.runtimeHome).toBe(runtimeHome);
     expect(activated?.env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
+    expect(activated?.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(path.join(runtimeHome, 'opl'));
     expect(activated?.env.CODEX_HOME).toBe('/managed/codex');
     expect(activated?.env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
     expect(activated?.env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
@@ -196,6 +198,7 @@ describe('ensurePackagedOplFullRuntime', () => {
 
     expect(prefix).toContain('export OPL_TEMPORAL_ADDRESS="127.0.0.1:7233"');
     expect(prefix).toContain('export OPL_TEMPORAL_ADDRESS_SOURCE="packaged_local_default"');
+    expect(prefix).toContain(`export OPL_FRAMEWORK_UPDATE_TARGET_ROOT='${path.join(runtimeHome, 'opl')}'`);
     expect(prefix).toContain('if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ]');
     expect(prefix).toContain('unset OPL_TEMPORAL_ADDRESS_SOURCE');
   });
