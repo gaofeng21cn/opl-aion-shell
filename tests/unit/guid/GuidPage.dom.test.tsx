@@ -965,11 +965,18 @@ describe('GuidPage selected purpose assistant surface', () => {
     render(<GuidPage />);
 
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('安装后智能自检'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('程序化初始化已经完成'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('OPL Flow'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('用户已有工作区规则可以共存'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA/OMA/OBF'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('后台维护'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('首次设置的核心阶段已经完成'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl app state --profile fast --json'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('App 核心可用'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('presence-only'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('用户主动卸载'));
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('opl packages status --package-id <id> --json')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('OPL Flow 缺失或被用户卸载时不得阻断 App 核心功能')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('本轮只诊断'));
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 
@@ -980,11 +987,22 @@ describe('GuidPage selected purpose assistant surface', () => {
     render(<GuidPage />);
 
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Post-install intelligent self-check'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Programmatic initialization has completed'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('OPL Flow'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('existing workspace rules'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA/OMA/OBF'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('background maintenance'));
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('The core first-run setup stage has completed')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl app state --profile fast --json'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('App core usable'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('presence-only'));
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('Packages explicitly removed by the user are not failures')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('opl packages status --package-id <id> --json')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(
+      expect.stringContaining('Missing or user-uninstalled OPL Flow must not block App core functionality')
+    );
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('This turn is diagnostic only'));
     expect(mocks.setInput).not.toHaveBeenCalledWith(expect.stringContaining('始终用中文'));
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });

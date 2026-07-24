@@ -375,7 +375,7 @@ type OplPostInstallAiSelfCheckEntry = {
   trigger: string;
   target_route: '/guid';
   route_state: 'postInstallSelfCheck';
-  prompt_policy: 'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path';
+  prompt_policy: 'localized Codex CLI post-install diagnostic prompt using canonical Framework state and package-scoped readback';
   target_state_checks: string[];
   mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation';
   release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt';
@@ -917,33 +917,36 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
     entry.target_route !== '/guid' ||
     entry.route_state !== 'postInstallSelfCheck' ||
     entry.prompt_policy !==
-      'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path' ||
+      'localized Codex CLI post-install diagnostic prompt using canonical Framework state and package-scoped readback' ||
     entry.mutation_policy !== 'diagnose_first_no_file_mutation_without_user_confirmation' ||
     entry.release_gate_policy !== 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt'
   ) {
     throw new Error(`Invalid OPL product profile: ${context} has invalid route or policy`);
   }
   const targetStateChecks = readStringArray(entry, 'target_state_checks', context);
-  for (const required of [
-    'codex_cli_callable',
+  const requiredTargetStateChecks = [
+    'framework_fast_state_first',
+    'codex_cli_and_model_access_core_state',
+    'core_ready_separate_from_background_maintenance',
     'ui_language_policy',
     'session_scoped_opl_app_context',
-    'user_agents_md_respected_no_overwrite',
-    'mas_mag_rca_routes_visible',
-    'opl_meta_agent_capability_visible',
-    'codex_skills_plugins_visible',
-    'module_update_skill_plugin_continuity',
-  ]) {
-    if (!targetStateChecks.includes(required)) {
-      throw new Error(`Invalid OPL product profile: ${context}.target_state_checks missing ${required}`);
-    }
+    'user_and_repo_agents_md_respected_no_overwrite',
+    'official_profile_user_preferences_and_presence_only_package_scope',
+    'installed_or_selected_package_configured_carrier_readback',
+    'required_dependencies_and_routes_checked_per_package',
+    'opl_flow_context_only_when_installed',
+    'user_removed_or_optional_package_absence_not_global_failure',
+    'post_maintenance_fresh_state_continuity',
+  ];
+  if (JSON.stringify(targetStateChecks) !== JSON.stringify(requiredTargetStateChecks)) {
+    throw new Error(`Invalid OPL product profile: ${context}.target_state_checks must match the App contract`);
   }
   return {
     trigger: typeof entry.trigger === 'string' ? entry.trigger : '',
     target_route: '/guid',
     route_state: 'postInstallSelfCheck',
     prompt_policy:
-      'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path',
+      'localized Codex CLI post-install diagnostic prompt using canonical Framework state and package-scoped readback',
     target_state_checks: targetStateChecks,
     mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation',
     release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt',

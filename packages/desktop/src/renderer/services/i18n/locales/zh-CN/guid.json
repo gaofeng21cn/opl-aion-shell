@@ -39,7 +39,7 @@
     "settings": "设置"
   },
   "postInstallSelfCheck": {
-    "prompt": "安装后智能自检\n\n程序化初始化已经完成。请检查当前环境，确认 One Person Lab App 是否已经进入可用的安装后工作模式；如发现问题，请给出可执行的修复路径。\n\n目标态：\n1. Codex CLI 可以被 App 正常调用。\n2. App 创建的 Codex 会话已接入 OPL Flow 会话上下文，并跟随当前界面语言。\n3. OPL Flow 与用户已有工作区规则可以共存：不要覆盖用户已有的 AGENTS.md，不改写用户文件；如发现规则冲突，只报告冲突和影响。\n4. MAS/MAG/RCA/OMA/OBF 智能体入口或能力，以及 Codex skill/plugin 在安装后可见可用。\n5. 模块自动更新或后台维护后，Codex 插件和 skill 仍然注册并可调用。\n\n请先给结论，再列证据、发现的问题和建议动作。如果需要修改文件或执行修复命令，请先说明原因、影响范围和具体命令，等我确认后再执行。"
+    "prompt": "安装后智能自检\n\n首次设置的核心阶段已经完成；Package 安装、依赖补齐和后台维护可能仍在继续。请以 OPL Framework 的机器状态为准，检查当前环境是否已进入可用工作模式。不要根据目录、缓存或固定 Package 清单猜测结果。\n\n检查顺序：\n1. 先运行 `opl app state --profile fast --json`，确认 Codex CLI、模型访问和首次设置核心状态。分别报告“App 核心可用”和“后台维护完成”，不要混为一个结论。\n2. 确认新建 Codex 会话已获得 OPL App 会话上下文、跟随当前界面语言，并遵守用户及仓库的 AGENTS.md；不得覆盖规则或改写用户文件。\n3. 按当前 Official Profile、用户偏好和实际安装状态检查 OPL Package。组合采用 presence-only：用户主动卸载的 Package 不算故障，缺少可选 Package 只影响依赖它的功能。\n4. 对已安装或本次明确选择的 Package，按照状态返回的 detail_surface，或运行 `opl packages status --package-id <id> --json` 做 fresh 检查，确认 configured carrier readback、required dependencies 和对应入口是否可见、可调用。\n5. OPL Flow 缺失或被用户卸载时不得阻断 App 核心功能；如果已安装，则检查其会话上下文、语言策略和工作区规则共存情况。\n6. 自动更新或后台维护后重新读取 fast state 和相关 Package 状态；不能仅凭插件目录、Skill 缓存或历史 receipt 声称连续性成立。\n\n请先给出：\n- App 核心状态\n- 各相关 Package 的局部状态\n- 后台维护状态\n- 证据与实际执行的只读命令\n- 发现的问题及建议动作\n\n本轮只诊断，不修改文件、不安装、不更新、不修复。如需执行 mutation，请引用 Framework 返回的 action，说明原因、影响范围和具体命令，等待我确认。"
   },
   "context": {
     "addContext": "添加上下文",
