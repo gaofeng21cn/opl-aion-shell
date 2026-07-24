@@ -821,6 +821,32 @@ describe('local data lifecycle service', () => {
     expect(exists(notes)).toBe(true);
   });
 
+  it('rejects log cleanup when a selected candidate changes after preview', () => {
+    const logsRoot = path.join(tempRoot, 'logs');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const old = path.join(logsRoot, 'old.log');
+    writeFile(old, 'old');
+    touchFile(old, new Date('2026-05-01T11:00:00Z'));
+    const plan = resolveLogRetentionPlan({
+      logsRoot,
+      now: new Date('2026-06-18T12:00:00Z'),
+      retainDays: 30,
+      retainFiles: 0,
+      maxTotalBytes: 1,
+    });
+    writeFile(old, 'changed after preview');
+
+    expect(() =>
+      executeLogRetentionPlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [old],
+      })
+    ).toThrow(/changed after the dry-run plan/i);
+    expect(exists(old)).toBe(true);
+  });
+
   it('plans and executes updater cache cleanup with a receipt while preserving active metadata and retired roots', () => {
     const cacheRoot = path.join(tempRoot, 'one-person-lab-aion-shell-updater');
     const retiredCacheRoot = path.join(tempRoot, 'aionui-updater');
@@ -878,5 +904,24 @@ describe('local data lifecycle service', () => {
     expect(exists(retiredMetadata)).toBe(true);
     expect(exists(notes)).toBe(true);
     expect(exists(retiredNotes)).toBe(true);
+  });
+
+  it('rejects updater cleanup when a selected package changes after preview', () => {
+    const cacheRoot = path.join(tempRoot, 'updater');
+    const receiptsRoot = path.join(tempRoot, 'receipts');
+    const stalePackage = path.join(cacheRoot, 'stale.zip');
+    writeFile(stalePackage, 'stale');
+    const plan = resolveUpdaterCacheCleanupDryRunPlan({ cacheRoots: [cacheRoot] });
+    writeFile(stalePackage, 'changed after preview');
+
+    expect(() =>
+      executeUpdaterCacheCleanupPlan({
+        plan,
+        receiptRoot: receiptsRoot,
+        planHash: plan.plan_hash,
+        selectedPaths: [stalePackage],
+      })
+    ).toThrow(/changed after the dry-run plan/i);
+    expect(exists(stalePackage)).toBe(true);
   });
 });

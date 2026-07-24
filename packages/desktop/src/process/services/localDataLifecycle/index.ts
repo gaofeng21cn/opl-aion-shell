@@ -1182,7 +1182,11 @@ export function executeLogRetentionPlan(input: ExecuteLogRetentionPlanInput): Lo
       throw new Error('Log rotation can only delete .log files inside the logs root.');
     }
     if (!fs.existsSync(candidate.path)) continue;
-    deletedBytes += fs.statSync(candidate.path).size;
+    const liveStat = fs.lstatSync(candidate.path);
+    if (!liveStat.isFile() || liveStat.isSymbolicLink() || liveStat.size !== candidate.bytes) {
+      throw new Error('Log cleanup candidate changed after the dry-run plan; create a fresh plan.');
+    }
+    deletedBytes += liveStat.size;
     fs.rmSync(candidate.path, { force: false });
     deletedPaths.push(candidate.path);
   }
@@ -1338,7 +1342,11 @@ export function executeUpdaterCacheCleanupPlan(input: ExecuteUpdaterCacheCleanup
       throw new Error('Updater cache cleanup can only delete installer packages inside declared cache roots.');
     }
     if (!fs.existsSync(resolvedCandidate)) continue;
-    deletedBytes += fs.statSync(resolvedCandidate).size;
+    const liveStat = fs.lstatSync(resolvedCandidate);
+    if (!liveStat.isFile() || liveStat.isSymbolicLink() || liveStat.size !== candidate.bytes) {
+      throw new Error('Updater cache cleanup candidate changed after the dry-run plan; create a fresh plan.');
+    }
+    deletedBytes += liveStat.size;
     fs.rmSync(resolvedCandidate, { force: false });
     deletedPaths.push(resolvedCandidate);
   }

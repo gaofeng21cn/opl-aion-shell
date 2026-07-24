@@ -129,6 +129,9 @@ const cleanupCandidateName = (candidatePath: string): string => {
   return segments.at(-1) ?? candidatePath;
 };
 
+const comparableStoragePath = (storagePath: string): string =>
+  storagePath.replaceAll('\\', '/').replace(/\/+$/, '');
+
 const classifyStorageUnavailableReason = (rawError: string | null): StorageUnavailableReason => {
   if (rawError) {
     if (/\b(?:EACCES|EPERM)\b|permission denied|access denied|not authorized|forbidden/i.test(rawError)) {
@@ -858,8 +861,11 @@ export const StorageSettingsContent: React.FC = () => {
     (total, candidate) => total + (activeSelectedPathSet.has(candidate.path) ? candidate.bytes : 0),
     0
   );
-  const activeCategoryBytes =
-    viewModel.sections.find((section) => section.id === cleanupSectionIds[activeCleanupPreview])?.bytes ?? 0;
+  const activeCleanupSection = viewModel.sections.find(
+    (section) => section.id === cleanupSectionIds[activeCleanupPreview]
+  );
+  const activeCategoryBytes = activeCleanupSection?.bytes ?? 0;
+  const activeInventoryRoots = activeCleanupSection?.section?.roots.filter((root) => root.exists) ?? [];
   const activeRetainedBytes = Math.max(0, activeCategoryBytes - activeSelectedBytes);
   const activeUnselectedCount = Math.max(0, activeCleanupCandidates.length - activeSelectedPaths.length);
   const allActiveCandidatesSelected =
@@ -903,6 +909,36 @@ export const StorageSettingsContent: React.FC = () => {
   const cleanupCandidateReason = (kind: CleanupPreviewKind, reason: string): string => {
     if (kind === 'logs') return t(`settings.storagePage.logs.reasons.${reason}`);
     return t(`settings.storagePage.cleanupPreview.reasons.${kind}.${reason}`);
+  };
+
+  const cleanupRootCoveredByPlan = (rootPath: string): boolean => {
+    if (!activeCleanupPlan) return false;
+    const comparableRoot = comparableStoragePath(rootPath);
+    if (activeCleanupPreview === 'runtime' && 'runtime_root' in activeCleanupPlan) {
+      return comparableStoragePath(activeCleanupPlan.runtime_root) === comparableRoot;
+    }
+    if (activeCleanupPreview === 'logs' && 'logs_root' in activeCleanupPlan) {
+      return comparableStoragePath(activeCleanupPlan.logs_root) === comparableRoot;
+    }
+    return 'cache_roots' in activeCleanupPlan
+      ? activeCleanupPlan.cache_roots.some((cacheRoot) => comparableStoragePath(cacheRoot) === comparableRoot)
+      : false;
+  };
+
+  const cleanupRootName = (rootPath: string, covered: boolean): string => {
+    if (activeCleanupPreview === 'runtime') {
+      return t(
+        covered
+          ? 'settings.storagePage.cleanupPreview.composition.names.runtimeManaged'
+          : 'settings.storagePage.cleanupPreview.composition.names.runtimeShell'
+      );
+    }
+    if (activeCleanupPreview === 'logs') {
+      return t('settings.storagePage.cleanupPreview.composition.names.logs');
+    }
+    return t('settings.storagePage.cleanupPreview.composition.names.updater', {
+      name: cleanupCandidateName(rootPath),
+    });
   };
 
   const renderLifecycleRef = (item: ResearchWorkspaceLifecycleRef) => (
@@ -1444,6 +1480,60 @@ export const StorageSettingsContent: React.FC = () => {
                     <Typography.Text className='font-600 text-t-primary' data-testid='storage-cleanup-retained-bytes'>
                       {formatStorageBytes(activeRetainedBytes)}
                     </Typography.Text>
+                  </div>
+                </div>
+
+                <div className='flex min-w-0 flex-col gap-8px' data-testid='storage-cleanup-composition'>
+                  <div className='flex min-w-0 flex-col gap-2px'>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {t('settings.storagePage.cleanupPreview.composition.title')}
+                    </Typography.Text>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.storagePage.cleanupPreview.composition.description')}
+                    </Typography.Text>
+                  </div>
+                  <div className='flex min-w-0 flex-col border-0 border-t border-solid border-[var(--border-base)]'>
+                    {activeInventoryRoots.map((root) => {
+                      const covered = cleanupRootCoveredByPlan(root.path);
+                      return (
+                        <div
+                          key={root.path}
+                          className='flex min-w-0 items-start justify-between gap-12px border-0 border-b border-solid border-[var(--border-base)] py-10px'
+                          data-testid='storage-cleanup-composition-root'
+                        >
+                          <div className='flex min-w-0 flex-1 flex-col gap-3px'>
+                            <div className='flex flex-wrap items-center gap-6px'>
+                              <Typography.Text className='font-500 text-t-primary'>
+                                {cleanupRootName(root.path, covered)}
+                              </Typography.Text>
+                              <Tag color={covered ? 'green' : 'gray'}>
+                                {t(
+                                  covered
+                                    ? 'settings.storagePage.cleanupPreview.composition.boundary.covered'
+                                    : 'settings.storagePage.cleanupPreview.composition.boundary.reportedOnly'
+                                )}
+                              </Tag>
+                            </div>
+                            <Typography.Text className='text-12px text-t-secondary'>
+                              {t(
+                                covered
+                                  ? 'settings.storagePage.cleanupPreview.composition.reasons.covered'
+                                  : 'settings.storagePage.cleanupPreview.composition.reasons.reportedOnly'
+                              )}
+                            </Typography.Text>
+                            <details className='min-w-0 text-12px text-t-secondary'>
+                              <summary className='w-fit cursor-pointer'>
+                                {t('settings.storagePage.cleanupPreview.technicalDetails')}
+                              </summary>
+                              <code className='mt-4px block max-w-full break-all text-11px'>{root.path}</code>
+                            </details>
+                          </div>
+                          <Typography.Text className='shrink-0 text-12px font-600 text-t-primary'>
+                            {formatStorageBytes(root.bytes)}
+                          </Typography.Text>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
