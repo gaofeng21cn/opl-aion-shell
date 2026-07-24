@@ -65,10 +65,7 @@ describe.skipIf(process.platform === 'win32')('OPL Native WebUI distribution', (
     const binDir = path.join(tmp, 'fake-bin');
     const logPath = path.join(tmp, 'download.log');
     fs.mkdirSync(binDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(binDir, 'curl'),
-      '#!/usr/bin/env sh\nprintf "%s\\n" "$@" > "$DOWNLOAD_LOG"\nexit 42\n'
-    );
+    fs.writeFileSync(path.join(binDir, 'curl'), '#!/usr/bin/env sh\nprintf "%s\\n" "$@" > "$DOWNLOAD_LOG"\nexit 42\n');
     fs.chmodSync(path.join(binDir, 'curl'), 0o755);
     return { binDir, logPath };
   }
@@ -77,20 +74,16 @@ describe.skipIf(process.platform === 'win32')('OPL Native WebUI distribution', (
     const { binDir, logPath } = createRecordingDownloader();
     const home = path.join(tmp, 'remote-home');
     fs.mkdirSync(home, { recursive: true });
-    const result = spawnSync(
-      'bash',
-      [installerPath, '--mirror', mirror, '--version', '9.8.7', '--probe-artifact'],
-      {
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          DOWNLOAD_LOG: logPath,
-          HOME: home,
-          PATH: `${binDir}${path.delimiter}/usr/bin${path.delimiter}/bin`,
-          SHELL: '/bin/bash',
-        },
-      }
-    );
+    const result = spawnSync('bash', [installerPath, '--mirror', mirror, '--version', '9.8.7', '--probe-artifact'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DOWNLOAD_LOG: logPath,
+        HOME: home,
+        PATH: `${binDir}${path.delimiter}/usr/bin${path.delimiter}/bin`,
+        SHELL: '/bin/bash',
+      },
+    });
     return { result, logPath };
   }
 
