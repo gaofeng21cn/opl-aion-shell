@@ -1804,6 +1804,27 @@
       },
       "noCleanupNeeded": "无需清理"
     },
+    "ownerInventory": {
+      "status": {
+        "notInventoried": "尚未盘点"
+      },
+      "usage": {
+        "awaitingInventory": "等待盘点",
+        "notConfigured": "未配置",
+        "measurementUnavailable": "占用无法计算"
+      },
+      "reasons": {
+        "runtimeSourceUnmeasured": "部分已采用的运行时目录尚未纳入占用统计。",
+        "webuiDataRootNotConfigured": "尚未配置 Docker WebUI 数据目录。",
+        "pathUnsafe": "存储路径未通过安全校验，暂不统计占用。",
+        "inventorySourceInvalid": "存储清单无法读取，暂不统计占用。",
+        "permissionDenied": "没有权限读取存储目录，暂不统计占用。",
+        "pathUnavailable": "存储目录当前无法读取。",
+        "scanIncomplete": "本次盘点未完成，暂不显示占用。",
+        "cacheWriteFailed": "盘点已完成，但结果未能保存。",
+        "generic": "当前无法完成占用统计。"
+      }
+    },
     "overview": {
       "total": "共占用",
       "categories": "本机数据",

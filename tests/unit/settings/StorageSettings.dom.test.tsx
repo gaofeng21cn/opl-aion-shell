@@ -167,6 +167,28 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.awaitingSnapshot': 'Waiting for the cached inventory',
     'settings.storagePage.inventory.stale': 'Out of date',
     'settings.storagePage.inventory.current': 'Current',
+    'settings.storagePage.ownerInventory.status.notInventoried': 'Not inventoried',
+    'settings.storagePage.ownerInventory.usage.awaitingInventory': 'Awaiting inventory',
+    'settings.storagePage.ownerInventory.usage.notConfigured': 'Not configured',
+    'settings.storagePage.ownerInventory.usage.measurementUnavailable': 'Usage unavailable',
+    'settings.storagePage.ownerInventory.reasons.runtimeSourceUnmeasured':
+      'Some adopted runtime directories are not yet included in usage totals.',
+    'settings.storagePage.ownerInventory.reasons.webuiDataRootNotConfigured':
+      'The Docker WebUI data directory is not configured.',
+    'settings.storagePage.ownerInventory.reasons.pathUnsafe':
+      'The storage path did not pass safety validation, so usage is not measured.',
+    'settings.storagePage.ownerInventory.reasons.inventorySourceInvalid':
+      'The storage inventory could not be read, so usage is not measured.',
+    'settings.storagePage.ownerInventory.reasons.permissionDenied':
+      'The storage directory cannot be read with the current permissions.',
+    'settings.storagePage.ownerInventory.reasons.pathUnavailable': 'The storage directory is currently unavailable.',
+    'settings.storagePage.ownerInventory.reasons.scanIncomplete':
+      'The inventory did not finish, so usage is not shown.',
+    'settings.storagePage.ownerInventory.reasons.cacheWriteFailed':
+      'The inventory completed, but its result could not be saved.',
+    'settings.storagePage.ownerInventory.reasons.generic': 'Usage could not be measured.',
+    'settings.resourcesPage.statusLabels.attention_required': 'Needs attention',
+    'settings.resourcesPage.statusLabels.not_configured': 'Not configured',
     'settings.storagePage.inventory.silentDeleteAllowed': 'Ready to clean',
     'settings.storagePage.inventory.silentDeleteBlocked': 'Preparation required',
     'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Ready to clean',
@@ -437,6 +459,7 @@ describe('StorageSettingsContent', () => {
               stale: true,
               bytes: null,
               reclaimable_bytes: null,
+              reason_code: 'inventory_cache_missing_or_invalid',
               owner_route: '/settings/storage#webui-data',
               projected_action: {
                 kind: 'host_action_required',
@@ -456,7 +479,10 @@ describe('StorageSettingsContent', () => {
     const webuiData = screen.getByTestId('storage-owner-webui_data_volume');
     expect(agentStore).toHaveTextContent('2.0 KB');
     expect(agentStore).not.toHaveTextContent('1 KB');
-    expect(webuiData).toHaveTextContent('Size unavailable');
+    expect(webuiData).toHaveTextContent('Not inventoried');
+    expect(webuiData).toHaveTextContent('Awaiting inventory');
+    expect(webuiData).not.toHaveTextContent('Out of date');
+    expect(webuiData).not.toHaveTextContent('Size unavailable');
     expect(webuiData).not.toHaveTextContent('0 B');
     expect(webuiData).toHaveTextContent('settings.resourcesPage.resourceSources.management.selfManaged');
     expect(within(webuiData).queryByRole('button')).not.toBeInTheDocument();
@@ -464,6 +490,57 @@ describe('StorageSettingsContent', () => {
 
     fireEvent.click(within(agentStore).getByRole('button', { name: 'settings.agentsPage.title' }));
     expect(bridgeMocks.navigate).toHaveBeenCalledWith('/settings/agents');
+  });
+
+  it('distinguishes an unmeasured Agent store from an unconfigured Docker WebUI data root', async () => {
+    bridgeMocks.appState = {
+      agent_packages: {
+        storage_inventory: {
+          status: 'attention_required',
+          observed_at: '2026-07-24T04:35:52.130Z',
+          stale: false,
+          bytes: null,
+          reclaimable_bytes: null,
+          reason_code: 'runtime_source_unmeasured',
+          owner_route: '/settings/agents',
+          projected_action: { kind: 'navigate', action_id: null },
+        },
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            webui_data_volume: {
+              status: 'not_configured',
+              observed_at: '2026-07-24T04:35:52.130Z',
+              stale: false,
+              bytes: null,
+              reclaimable_bytes: null,
+              reason_code: 'webui_data_root_not_configured',
+              owner_route: '/settings/storage#webui-data',
+              projected_action: {
+                kind: 'host_action_required',
+                action_id: null,
+                execution_owner: 'carrier_host',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventorySnapshot).toHaveBeenCalledTimes(1));
+
+    const agentStore = screen.getByTestId('storage-owner-agent_package_store');
+    expect(agentStore).toHaveTextContent('Needs attention');
+    expect(agentStore).toHaveTextContent('Usage unavailable');
+    expect(agentStore).toHaveTextContent('Some adopted runtime directories are not yet included in usage totals.');
+    expect(agentStore).not.toHaveTextContent('Out of date');
+
+    const webuiData = screen.getByTestId('storage-owner-webui_data_volume');
+    expect(webuiData).toHaveTextContent('Not configured');
+    expect(webuiData).toHaveTextContent('The Docker WebUI data directory is not configured.');
+    expect(webuiData).not.toHaveTextContent('Out of date');
   });
 
   it('keeps the WebUI Storage core route fail-open without invoking desktop local lifecycle', async () => {

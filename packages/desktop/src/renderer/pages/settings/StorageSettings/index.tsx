@@ -216,12 +216,54 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({
   );
 };
 
-const ownerStorageStatusLabelKey = (status: string): string => {
-  if (status === 'available') return 'settings.resourcesPage.statusLabels.available';
-  if (status === 'attention_required') return 'settings.resourcesPage.statusLabels.attention_required';
-  if (status === 'not_configured') return 'settings.resourcesPage.statusLabels.not_configured';
-  if (status === 'unavailable') return 'settings.unavailable';
+const ownerStorageNeverObserved = (item: OwnerStorageInventoryViewModel): boolean =>
+  item.observedAt === null && item.reasonCode === 'inventory_cache_missing_or_invalid';
+
+const ownerStorageStatusLabelKey = (item: OwnerStorageInventoryViewModel): string => {
+  if (ownerStorageNeverObserved(item)) return 'settings.storagePage.ownerInventory.status.notInventoried';
+  if (item.status === 'available') return 'settings.resourcesPage.statusLabels.available';
+  if (item.status === 'attention_required') return 'settings.resourcesPage.statusLabels.attention_required';
+  if (item.status === 'not_configured') return 'settings.resourcesPage.statusLabels.not_configured';
+  if (item.status === 'unavailable') return 'settings.unavailable';
   return 'settings.accessPage.statusLabels.unknown';
+};
+
+const ownerStorageUsageLabelKey = (item: OwnerStorageInventoryViewModel): string => {
+  if (ownerStorageNeverObserved(item)) return 'settings.storagePage.ownerInventory.usage.awaitingInventory';
+  if (item.status === 'not_configured') return 'settings.storagePage.ownerInventory.usage.notConfigured';
+  if (item.status === 'attention_required') {
+    return 'settings.storagePage.ownerInventory.usage.measurementUnavailable';
+  }
+  return 'settings.storagePage.inventory.unknownSize';
+};
+
+const ownerStorageReasonLabelKey = (reasonCode: string | null): string | null => {
+  if (!reasonCode || reasonCode === 'inventory_cache_missing_or_invalid') return null;
+  if (reasonCode === 'runtime_source_unmeasured') {
+    return 'settings.storagePage.ownerInventory.reasons.runtimeSourceUnmeasured';
+  }
+  if (reasonCode === 'webui_data_root_not_configured') {
+    return 'settings.storagePage.ownerInventory.reasons.webuiDataRootNotConfigured';
+  }
+  if (['path_unsafe', 'path_not_absolute', 'webui_data_root_unsafe'].includes(reasonCode)) {
+    return 'settings.storagePage.ownerInventory.reasons.pathUnsafe';
+  }
+  if (reasonCode === 'inventory_source_invalid') {
+    return 'settings.storagePage.ownerInventory.reasons.inventorySourceInvalid';
+  }
+  if (reasonCode === 'permission_denied') {
+    return 'settings.storagePage.ownerInventory.reasons.permissionDenied';
+  }
+  if (['path_missing', 'path_not_directory', 'path_symlink', 'path_changed_during_scan'].includes(reasonCode)) {
+    return 'settings.storagePage.ownerInventory.reasons.pathUnavailable';
+  }
+  if (['deadline_exceeded', 'entry_limit_exceeded'].includes(reasonCode)) {
+    return 'settings.storagePage.ownerInventory.reasons.scanIncomplete';
+  }
+  if (reasonCode === 'inventory_cache_write_failed') {
+    return 'settings.storagePage.ownerInventory.reasons.cacheWriteFailed';
+  }
+  return 'settings.storagePage.ownerInventory.reasons.generic';
 };
 
 const ownerStorageStatusColor = (status: string): string => {
@@ -245,6 +287,7 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({
 }) => {
   const { t } = useTranslation();
   const isAgentPackageStore = item.id === 'agent_package_store';
+  const inventoryReasonLabelKey = item.bytes === null ? ownerStorageReasonLabelKey(item.reasonCode) : null;
   return (
     <div
       className='opl-settings-row'
@@ -260,18 +303,23 @@ const OwnerStorageInventoryRow: React.FC<OwnerStorageInventoryRowProps> = ({
         </Typography.Text>
         <div className='flex flex-wrap items-center gap-6px text-12px text-t-secondary'>
           <Tag size='small' color={ownerStorageStatusColor(item.status)}>
-            {t(ownerStorageStatusLabelKey(item.status))}
+            {t(ownerStorageStatusLabelKey(item))}
           </Tag>
-          {item.stale && <Tag size='small'>{t('settings.storagePage.inventory.stale')}</Tag>}
+          {item.stale && item.observedAt !== null && (
+            <Tag size='small'>{t('settings.storagePage.inventory.stale')}</Tag>
+          )}
           {!isAgentPackageStore && item.projectedAction.kind === 'host_action_required' && !actions && (
             <span>{t('settings.resourcesPage.resourceSources.management.selfManaged')}</span>
           )}
         </div>
+        {inventoryReasonLabelKey && (
+          <div className='text-12px text-t-secondary break-words'>{t(inventoryReasonLabelKey)}</div>
+        )}
         {statusDetail && <div className='text-12px text-t-secondary break-words'>{statusDetail}</div>}
       </div>
       <div className='opl-settings-row__meta'>
         <Typography.Text className='text-13px font-600 text-t-primary whitespace-nowrap'>
-          {item.bytes === null ? t('settings.storagePage.inventory.unknownSize') : formatStorageBytes(item.bytes)}
+          {item.bytes === null ? t(ownerStorageUsageLabelKey(item)) : formatStorageBytes(item.bytes)}
         </Typography.Text>
         {isAgentPackageStore && (
           <Button

@@ -75,6 +75,7 @@ export type OwnerStorageInventoryViewModel = {
   stale: boolean;
   bytes: number | null;
   reclaimableBytes: number | null;
+  reasonCode: string | null;
   ownerRoute: '/settings/agents' | '/settings/storage#webui-data';
   projectedAction: OwnerStorageProjectedAction;
 };
@@ -120,6 +121,7 @@ function ownerStorageProjection(id: OwnerStorageSectionId, value: unknown): Owne
   const observedAt = nullableObservedAt(value.observed_at);
   const bytes = nullableStorageBytes(value.bytes);
   const reclaimableBytes = nullableStorageBytes(value.reclaimable_bytes);
+  const reasonCode = value.reason_code === undefined ? null : nullableObservedAt(value.reason_code);
   const action = value.projected_action;
 
   if (
@@ -127,6 +129,7 @@ function ownerStorageProjection(id: OwnerStorageSectionId, value: unknown): Owne
     observedAt === undefined ||
     bytes === undefined ||
     reclaimableBytes === undefined ||
+    reasonCode === undefined ||
     typeof value.stale !== 'boolean' ||
     value.owner_route !== expectedOwnerRoute ||
     action.kind !== expectedActionKind ||
@@ -143,6 +146,7 @@ function ownerStorageProjection(id: OwnerStorageSectionId, value: unknown): Owne
     stale: value.stale,
     bytes,
     reclaimableBytes,
+    reasonCode,
     ownerRoute: expectedOwnerRoute,
     projectedAction: {
       kind: expectedActionKind,
