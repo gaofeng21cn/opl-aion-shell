@@ -191,6 +191,31 @@ describe('OPL generated product profile', () => {
     });
   });
 
+  it('loads without the retired assistant skill profile mirror', async () => {
+    const profileWithLegacyMirror = structuredClone(generatedProfile);
+    const { assistant_skill_profiles: _assistantSkillProfiles, ...gui } = profileWithLegacyMirror.gui;
+    const profileWithoutLegacyMirror = { ...profileWithLegacyMirror, gui };
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: profileWithoutLegacyMirror,
+    }));
+    const profileModule = await import('@/common/config/oplProductProfile');
+
+    expect(profileModule.getOplAssistantSkillProfiles().map((profile) => profile.assistant_id)).toEqual([
+      'mas',
+      'mag',
+      'rca',
+      'obf',
+      'oma',
+    ]);
+    expect(profileModule.getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
+    expect(profileModule.getOplAssistantSkillProfile('redcube-ai')?.optional_skills).toEqual([
+      'officecli-pptx',
+      'ui-ux-pro-max',
+    ]);
+  });
+
   it('keeps App-owned GUI defaults for theme, fixed Codex executor, and visible model controls', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
     expect(getOplGuiDefaultCssThemeId()).toBe('default-theme');

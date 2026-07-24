@@ -750,7 +750,6 @@ type AppProductProfile = {
     agent_package_registry: OplAgentPackageRegistry;
     professional_agent_packages: OplProfessionalAgentPackage[];
     default_assistants: OplHomeAssistant[];
-    assistant_skill_profiles: OplAssistantSkillProfile[];
     non_default_assistants: OplNonDefaultAssistant[];
   };
   codex: {
@@ -1779,57 +1778,6 @@ function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAs
   return assistants;
 }
 
-function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantSkillProfile[] {
-  const value = gui.assistant_skill_profiles;
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Invalid OPL product profile: gui.assistant_skill_profiles must be a non-empty array');
-  }
-
-  const profiles = value.map((entry, index): OplAssistantSkillProfile => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.assistant_skill_profiles[${index}] must be an object`);
-    }
-    const assistantId = typeof entry.assistant_id === 'string' ? entry.assistant_id.trim() : '';
-    if (!assistantId) {
-      throw new Error(`Invalid OPL product profile: gui.assistant_skill_profiles[${index}] must have assistant_id`);
-    }
-    if (
-      entry.required_skill_policy !== 'checked_locked' ||
-      entry.optional_skill_policy !== 'unchecked_user_selectable' ||
-      entry.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible'
-    ) {
-      throw new Error(`Invalid OPL product profile: assistant skill profile ${assistantId} has unsupported policy`);
-    }
-    return {
-      assistant_id: assistantId,
-      required_skills: readStringArray(entry, 'required_skills', `gui.assistant_skill_profiles.${assistantId}`),
-      optional_skills: readStringArray(entry, 'optional_skills', `gui.assistant_skill_profiles.${assistantId}`),
-      required_skill_policy: 'checked_locked',
-      optional_skill_policy: 'unchecked_user_selectable',
-      skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
-    };
-  });
-
-  if (profiles.map((profile) => profile.assistant_id).join(',') !== ['mas', 'mag', 'rca', 'obf'].join(',')) {
-    throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, RCA, and BookForge');
-  }
-  for (const profile of profiles) {
-    const requiredSkillsByAssistant: Record<string, string[]> = {
-      mas: ['med-autoscience'],
-      mag: ['med-autogrant'],
-      rca: ['redcube-ai'],
-      obf: ['opl-bookforge'],
-    };
-    if (profile.required_skills.join(',') !== (requiredSkillsByAssistant[profile.assistant_id] ?? []).join(',')) {
-      throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must require its matching skill`);
-    }
-    if ('hidden_home_skill_names' in profile) {
-      throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must not carry UI hiding policy`);
-    }
-  }
-  return profiles;
-}
-
 function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): OplAgentPackageInvocationReceiptPolicy {
   const value = gui.agent_package_invocation_receipt_policy;
   if (!isRecord(value)) {
@@ -2535,7 +2483,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: default packaged skills must be default visible');
   }
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
-  const assistantSkillProfiles = readAssistantSkillProfiles(gui);
   const professionalAgentPackages = readProfessionalAgentPackages(gui);
   const professionalPackageById = new Map(
     professionalAgentPackages.map((agentPackage) => [agentPackage.package_id, agentPackage])
@@ -2727,7 +2674,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       agent_package_registry: agentPackageRegistry,
       professional_agent_packages: professionalAgentPackages,
       default_assistants: defaultHomeAssistants,
-      assistant_skill_profiles: assistantSkillProfiles,
       non_default_assistants: nonDefaultAssistants,
     },
     codex: {
