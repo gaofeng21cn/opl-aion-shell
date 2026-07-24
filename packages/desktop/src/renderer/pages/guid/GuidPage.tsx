@@ -605,6 +605,7 @@ const GuidPage: React.FC = () => {
       setActiveShortcut(resolveOplActiveShortcut(navState.selectedCapabilityId));
     } else if (resetAssistantRequested) {
       setActiveShortcut(null);
+      setSetupNoticeKind(null);
     }
     if (postInstallSelfCheckRequested) {
       guidInput.setInput(buildPostInstallSelfCheckPrompt(t, localeKey));

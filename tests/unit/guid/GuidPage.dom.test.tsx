@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
           key)
     ),
   locationState: { value: null as Record<string, unknown> | null },
+  locationKey: { value: 'guid-test' },
   navigate: vi.fn(),
   setSelectedAgentKey: vi.fn(),
   setCodexModelSelection: vi.fn(),
@@ -229,7 +230,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
   useLocation: () => ({
-    key: 'guid-test',
+    key: mocks.locationKey.value,
     pathname: '/guid',
     search: '',
     hash: '',
@@ -460,6 +461,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   beforeEach(() => {
     mocks.i18nLanguage.value = 'zh-CN';
     mocks.locationState.value = { selectedCapabilityId: 'mas' };
+    mocks.locationKey.value = 'guid-test';
     mocks.isPresetAgent.value = false;
     mocks.isMobileLayout.value = false;
     mocks.isElectronDesktop.value = false;
@@ -905,6 +907,33 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     await userEvent.click(screen.getByTestId('opl-guid-setup-notice-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/first-run');
+  });
+
+  it('clears a send-blocked setup notice when a new task resets Home', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.guidInput.input = '保留到当前任务的草稿';
+    mocks.sendDisabled.value = false;
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+    };
+
+    const { rerender } = render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    expect(screen.getByTestId('opl-guid-setup-notice')).toBeInTheDocument();
+
+    mocks.locationState.value = { resetAssistant: true };
+    mocks.locationKey.value = 'new-task';
+    rerender(<GuidPage />);
+
+    expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
   });
 
   it('keeps explicit local files available when canonical App state has no workspace root', async () => {
