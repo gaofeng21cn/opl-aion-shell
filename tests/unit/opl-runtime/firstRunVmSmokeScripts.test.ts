@@ -3051,6 +3051,45 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(guestCommand).not.toContain('restore');
   });
 
+  it('installs a pre-publication Full Cask candidate from an isolated local tap', () => {
+    const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-cask-candidate-'));
+    const candidate = path.join(candidateDir, 'one-person-lab-full.rb');
+    fs.writeFileSync(candidate, 'cask "one-person-lab-full" do\nend\n');
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--smoke-profile',
+        'homebrew-full-cask',
+        '--homebrew-cask-file',
+        candidate,
+        '--dry-run',
+      ]);
+      const command = tartSmoke.guestHomebrewInstallCommand(options);
+      expect(options.homebrewCaskFile).toBe(candidate);
+      expect(command).toContain('tap-new opl-local/full-candidate');
+      expect(command).toContain('Casks/one-person-lab-full.rb');
+      expect(command).toContain('homebrew_cask_ref=opl-local/full-candidate/one-person-lab-full');
+      expect(command).toContain('install --cask "$homebrew_cask_ref"');
+      expect(command).not.toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
+      expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/one-person-lab-full'");
+
+      expect(() =>
+        tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--smoke-profile',
+          'homebrew-standard-cask',
+          '--homebrew-cask-file',
+          candidate,
+          '--dry-run',
+        ])
+      ).toThrow(/accepted only for the homebrew-full-cask profile/);
+    } finally {
+      fs.rmSync(candidateDir, { recursive: true, force: true });
+    }
+  });
+
   it('validates guest Full Cask install-origin arguments as one coherent carrier profile', () => {
     expect(
       vmSmoke.parseArgs([

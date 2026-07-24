@@ -178,6 +178,8 @@ Options:
   --install-mode <mode>     Install mode: dmg or homebrew-cask. Default: dmg.
   --homebrew-tap <tap>      Homebrew tap for --install-mode homebrew-cask. Default: gaofeng21cn/one-person-lab.
   --homebrew-cask <name>    Homebrew cask to install. Default: one-person-lab.
+  --homebrew-cask-file <path>
+                           Pre-publication one-person-lab-full.rb candidate copied into a local guest tap.
   --require-codex-config-wizard
                            Fail unless the guest smoke sees and submits the Codex config wizard.
                            Defaults to false; Full gates still require Codex readiness through
@@ -245,6 +247,7 @@ function parseArgs(argv) {
     installMode: 'dmg',
     homebrewTap: 'gaofeng21cn/one-person-lab',
     homebrewCask: 'one-person-lab',
+    homebrewCaskFile: '',
     requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     hostCodexConfig:
@@ -410,6 +413,9 @@ function parseArgs(argv) {
     } else if (arg === '--homebrew-cask') {
       options.homebrewCask = value;
       explicit.add('homebrewCask');
+    } else if (arg === '--homebrew-cask-file') {
+      options.homebrewCaskFile = path.resolve(value);
+      explicit.add('homebrewCaskFile');
     } else if (arg === '--codex-ai-self-check-mode') {
       options.codexAiSelfCheckMode = value;
       explicit.add('codexAiSelfCheckMode');
@@ -454,6 +460,15 @@ function parseArgs(argv) {
   if (options.installMode === 'dmg' && !options.dmg) throw new Error('--dmg is required for --install-mode dmg.');
   if (options.installMode === 'homebrew-cask' && !options.homebrewCask) {
     throw new Error('--homebrew-cask is required for --install-mode homebrew-cask.');
+  }
+  if (options.homebrewCaskFile && !isHomebrewFullCaskSmoke(options)) {
+    throw new Error('--homebrew-cask-file is accepted only for the homebrew-full-cask profile.');
+  }
+  if (options.homebrewCaskFile && path.basename(options.homebrewCaskFile) !== 'one-person-lab-full.rb') {
+    throw new Error('--homebrew-cask-file must be named one-person-lab-full.rb.');
+  }
+  if (!options.dryRun && options.homebrewCaskFile && !fs.existsSync(options.homebrewCaskFile)) {
+    throw new Error(`Homebrew Cask candidate does not exist: ${options.homebrewCaskFile}`);
   }
   if (!options.dryRun && options.dmg && !fs.existsSync(options.dmg))
     throw new Error(`DMG does not exist: ${options.dmg}`);
@@ -2008,6 +2023,12 @@ fi
 function guestHomebrewInstallCommand(options) {
   const caskToken = homebrewCaskToken(options.homebrewCask);
   const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
+  const guestCaskCandidate = options.homebrewCaskFile
+    ? `${options.guestWorkdir}/${path.basename(options.homebrewCaskFile)}`
+    : null;
+  const trustedCaskRefs = guestCaskCandidate
+    ? ['opl-local/full-candidate/one-person-lab-full']
+    : homebrewTrustedCaskRefs(options);
   return `
 set -euo pipefail
 BREW_BIN=""
@@ -2026,13 +2047,20 @@ eval "$("$BREW_BIN" shellenv)"
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_INSTALL_CLEANUP=1
 export HOMEBREW_NO_ENV_HINTS=1
-"$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
+${
+  guestCaskCandidate
+    ? `"$BREW_BIN" tap-new opl-local/full-candidate
+tap_path="$("$BREW_BIN" --repository opl-local/full-candidate)"
+mkdir -p "$tap_path/Casks"
+cp ${shellQuote(guestCaskCandidate)} "$tap_path/Casks/one-person-lab-full.rb"
+homebrew_cask_ref=opl-local/full-candidate/one-person-lab-full`
+    : `"$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
+homebrew_cask_ref=${shellQuote(options.homebrewCask)}`
+}
 if "$BREW_BIN" trust --help >/dev/null 2>&1; then
-${homebrewTrustedCaskRefs(options)
-  .map((caskRef) => `  "$BREW_BIN" trust --cask ${shellQuote(caskRef)}`)
-  .join('\n')}
+${trustedCaskRefs.map((caskRef) => `  "$BREW_BIN" trust --cask ${shellQuote(caskRef)}`).join('\n')}
 fi
-"$BREW_BIN" install --cask ${shellQuote(options.homebrewCask)}
+"$BREW_BIN" install --cask "$homebrew_cask_ref"
 test -d "/Applications/One Person Lab.app"
 "$BREW_BIN" list --cask ${shellQuote(caskToken)} >/dev/null
 ${
@@ -2428,6 +2456,7 @@ async function main() {
     if (options.codexPlatformPackageTarball) guestInputs.push(options.codexPlatformPackageTarball);
     if (options.frameworkSourceArchive) guestInputs.push(options.frameworkSourceArchive);
     if (options.frameworkInstallScript) guestInputs.push(options.frameworkInstallScript);
+    if (options.homebrewCaskFile) guestInputs.push(options.homebrewCaskFile);
     await scpToGuest(options, ip, guestInputs, options.guestWorkdir);
     if (options.codexNpmCacheDir) {
       setStage('copy_codex_npm_cache_dir');
