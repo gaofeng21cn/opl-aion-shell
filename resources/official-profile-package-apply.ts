@@ -26,15 +26,17 @@ function isRecord(value: unknown): value is JsonRecord {
 function parseJsonResult(result: OplExecution, args: string[]) {
   if (result.error || result.status !== 0) {
     throw new Error(
-      result.error?.message
-      ?? result.stderr.trim()
-      ?? `opl ${args.join(' ')} exited with status ${String(result.status)}`,
+      result.error?.message ??
+        result.stderr.trim() ??
+        `opl ${args.join(' ')} exited with status ${String(result.status)}`
     );
   }
   try {
     return JSON.parse(result.stdout) as JsonRecord;
   } catch (error) {
-    throw new Error(`opl ${args.join(' ')} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `opl ${args.join(' ')} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -49,8 +51,9 @@ function packageStatus(runtime: OfficialProfileApplyRuntime, packageId: string) 
 function rootPresence(status: JsonRecord) {
   const installed = Number(status.installed_package_count ?? 0) > 0;
   const dependencies = Array.isArray(status.package_dependency_readiness?.dependencies)
-    ? status.package_dependency_readiness.dependencies.filter((entry: unknown) =>
-      isRecord(entry) && entry.required !== false)
+    ? status.package_dependency_readiness.dependencies.filter(
+        (entry: unknown) => isRecord(entry) && entry.required !== false
+      )
     : [];
   const absenceReasons = new Set([
     'dependency_lock_missing',
@@ -58,10 +61,14 @@ function rootPresence(status: JsonRecord) {
     'required_exports_missing',
     'required_modules_missing',
   ]);
-  const requiredClosurePresent = dependencies.every((dependency: JsonRecord) =>
-    dependency.status !== 'missing'
-    && !(Array.isArray(dependency.reasons)
-      && dependency.reasons.some((reason: unknown) => typeof reason === 'string' && absenceReasons.has(reason))));
+  const requiredClosurePresent = dependencies.every(
+    (dependency: JsonRecord) =>
+      dependency.status !== 'missing' &&
+      !(
+        Array.isArray(dependency.reasons) &&
+        dependency.reasons.some((reason: unknown) => typeof reason === 'string' && absenceReasons.has(reason))
+      )
+  );
   return { installed, requiredClosurePresent };
 }
 
@@ -197,11 +204,12 @@ async function main() {
     rootPackageIds,
     dryRun: options.dryRun,
     runtime: {
-      execute: (args) => spawnSync(options.oplBin, args, {
-        encoding: 'utf8',
-        env: process.env,
-        maxBuffer: 32 * 1024 * 1024,
-      }),
+      execute: (args) =>
+        spawnSync(options.oplBin, args, {
+          encoding: 'utf8',
+          env: process.env,
+          maxBuffer: 32 * 1024 * 1024,
+        }),
     },
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

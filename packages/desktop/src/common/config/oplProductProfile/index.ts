@@ -2187,11 +2187,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(officialProfile)) {
     throw new Error('Invalid OPL product profile: official_profile must be an object');
   }
-  const officialRootPackageIds = readStringArray(
-    officialProfile,
-    'desired_root_package_ids',
-    'official_profile',
-  );
+  const officialRootPackageIds = readStringArray(officialProfile, 'desired_root_package_ids', 'official_profile');
   if (officialRootPackageIds.length === 0) {
     throw new Error('Invalid OPL product profile: official_profile must declare desired root Package identities');
   }
