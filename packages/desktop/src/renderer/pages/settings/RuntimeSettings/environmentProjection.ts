@@ -222,18 +222,20 @@ export function buildRuntimePackages(appState: Record<string, unknown>): {
   const agentPackages = oplRecord(appState.agent_packages);
   const statusIndex = oplRecord(agentPackages.status_index);
   const statusAvailable = oplString(statusIndex.status) === 'available' || 'packages' in statusIndex;
-  if (!statusAvailable) {
-    const legacyModules = buildRuntimeModules(oplRecord(appState.modules));
+  const directory = oplRecord(agentPackages.directory);
+  const directoryEntriesAvailable = 'entries' in directory;
+  const statusPackages = moduleRecords(statusIndex.packages);
+  if (!directoryEntriesAvailable) {
     return {
-      modules: legacyModules,
-      installedCount: legacyModules.filter(moduleInstalled).length,
+      modules: [],
+      installedCount: 0,
       statusAvailable: false,
     };
   }
 
-  const directory = oplRecord(agentPackages.directory);
-  const locksById = new Map(
-    moduleRecords(directory.installed_packages).map((lock) => [oplString(lock.package_id) ?? moduleId(lock), lock])
+  const directoryEntries = moduleRecords(directory.entries);
+  const statusById = new Map(
+    statusPackages.map((status) => [oplString(status.package_id) ?? moduleId(status), status])
   );
   const runtimeSourceCarriers = oplRecord(appState.runtime_source_carriers);
   const carriersById = new Map(
@@ -242,29 +244,33 @@ export function buildRuntimePackages(appState: Record<string, unknown>): {
       carrier,
     ])
   );
-  const modules = moduleRecords(statusIndex.packages).map((status) => {
-    const packageId = oplString(status.package_id) ?? moduleId(status);
-    const lock = locksById.get(packageId) ?? {};
+  const modules = directoryEntries.map((directoryEntry) => {
+    const packageId = oplString(directoryEntry.package_id) ?? moduleId(directoryEntry);
+    const status = statusById.get(packageId) ?? {};
     const carrier = carriersById.get(packageId) ?? {};
+    const installed = directoryEntry.installed === true;
     const operationalReady = status.operational_ready === true;
     return normalizeModule({
       ...carrier,
-      ...lock,
+      ...directoryEntry,
       ...status,
       module_id: packageId,
-      display_name: oplString(carrier.label) ?? oplString(lock.display_name) ?? packageId,
-      installed: true,
-      status: operationalReady ? 'ready' : (oplString(status.status) ?? 'attention_needed'),
-      source: oplString(carrier.source_origin) ?? oplString(lock.source),
-      path: oplString(carrier.source_path) ?? oplString(lock.path),
+      display_name: oplString(carrier.label) ?? oplString(directoryEntry.display_name) ?? packageId,
+      installed,
+      status: installed
+        ? operationalReady
+          ? 'ready'
+          : (oplString(status.status) ?? 'attention_needed')
+        : 'notInstalled',
+      source: oplString(carrier.source_origin) ?? oplString(directoryEntry.source),
+      path: oplString(carrier.source_path) ?? oplString(directoryEntry.path),
       checkout_dirty: oplRecord(carrier.git).dirty === true,
     });
   });
   return {
     modules,
-    installedCount:
-      typeof statusIndex.installed_package_count === 'number' ? statusIndex.installed_package_count : modules.length,
-    statusAvailable: true,
+    installedCount: modules.filter((module) => module.installed === true).length,
+    statusAvailable,
   };
 }
 
@@ -323,9 +329,12 @@ export function buildRuntimeEnvironmentProjection({
   const moduleInstalledCount = packageProjection.installedCount;
   const componentById = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
   const moduleManualMaintenanceCount =
-    managedUpdatePlane.packageManualRequiredTargetCount ?? modules.filter(moduleHasLocalChanges).length;
+    managedUpdatePlane.packageManualRequiredTargetCount ??
+    modules.filter(moduleInstalled).filter(moduleHasLocalChanges).length;
   const packagesOperationalReady =
-    modules.every((module) => isUserUsableStatus(moduleStatus(module))) && moduleManualMaintenanceCount === 0;
+    packageProjection.statusAvailable &&
+    modules.filter(moduleInstalled).every((module) => isUserUsableStatus(moduleStatus(module))) &&
+    moduleManualMaintenanceCount === 0;
   const moduleValue =
     modules.length === 0
       ? t('settings.oplEnvironmentPage.noInstalledPackages')

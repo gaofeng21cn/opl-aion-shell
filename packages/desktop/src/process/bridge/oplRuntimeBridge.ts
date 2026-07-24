@@ -150,14 +150,12 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl system configure-codex --api-key-stdin --json',
     'opl connect gateway login --credentials-stdin --json',
     'opl system startup-maintenance --json',
-    'opl system reconcile-modules --json',
     'opl update status --json',
     'opl update check --json',
     'opl update plan --json',
     'opl update apply --json',
     'opl update repair [--receipt <receipt_id>] --json',
     'opl update rollback --json',
-    'opl packages optimize opl-flow --json',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
@@ -508,10 +506,6 @@ function buildStartupMaintenanceCommand(): RuntimeCommandSpec {
   };
 }
 
-function buildReconcileModulesCommand(): RuntimeCommandSpec {
-  return { surface: 'reconcile_modules', args: ['system', 'reconcile-modules', '--json'] };
-}
-
 function buildUpdateStatusCommand(): RuntimeCommandSpec {
   return {
     surface: 'update_status',
@@ -646,9 +640,7 @@ function isNoSuchOplCommandError(error: unknown): boolean {
 }
 
 function shouldAutoBootstrapOplCommand(spec: RuntimeCommandSpec): boolean {
-  return ['system_initialize', 'install_prep', 'configure_codex', 'startup_maintenance', 'reconcile_modules'].includes(
-    spec.surface
-  );
+  return ['system_initialize', 'install_prep', 'configure_codex', 'startup_maintenance'].includes(spec.surface);
 }
 
 function isLegacyManagedUpdatePassthroughError(spec: RuntimeCommandSpec, error: unknown): boolean {
@@ -1819,7 +1811,6 @@ export function initOplRuntimeBridge(): void {
     runGatewayAccountCommand(buildGatewayAccountLoginCommand(request))
   );
   ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
-  ipcBridge.oplRuntime.runReconcileModules.provider(() => runOplCommand(buildReconcileModulesCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
   ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
@@ -1854,7 +1845,6 @@ export const __oplRuntimeBridgeTest = {
   sanitizeGatewayAccountResult,
   buildInstallPrepCommand,
   buildUpdateApplyPlanCommand,
-  buildReconcileModulesCommand,
   buildUpdateApplyCommand,
   buildUpdateCheckCommand,
   buildUpdatePlanCommand,

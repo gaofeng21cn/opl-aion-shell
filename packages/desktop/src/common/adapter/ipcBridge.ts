@@ -603,7 +603,6 @@ export type IOplRuntimeCommandResult = {
     | 'configure_codex'
     | 'gateway_account'
     | 'startup_maintenance'
-    | 'reconcile_modules'
     | 'update_status'
     | 'update_check'
     | 'update_plan'
@@ -722,10 +721,6 @@ export const oplRuntime = {
   runStartupMaintenance: runtimeProvider<IOplRuntimeCommandResult, void>(
     'opl-runtime.run-startup-maintenance',
     '/api/opl-runtime/startup-maintenance'
-  ),
-  runReconcileModules: runtimeProvider<IOplRuntimeCommandResult, void>(
-    'opl-runtime.run-reconcile-modules',
-    '/api/opl-runtime/reconcile-modules'
   ),
   getDrilldown: runtimeProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
     'opl-runtime.get-drilldown',

@@ -62,6 +62,25 @@ const appState = {
       { module_id: 'oplmetaagent', label: 'OMA', status: 'ready' },
     ],
   },
+  agent_packages: {
+    directory: {
+      entries: [
+        { package_id: 'mas', display_name: 'MAS', installed: true },
+        { package_id: 'mag', display_name: 'MAG', installed: true },
+        { package_id: 'rca', display_name: 'RCA', installed: true },
+        { package_id: 'oma', display_name: 'OMA', installed: true },
+      ],
+    },
+    status_index: {
+      status: 'available',
+      packages: {
+        mas: { package_id: 'mas', status: 'ready', operational_ready: true },
+        mag: { package_id: 'mag', status: 'ready', operational_ready: true },
+        rca: { package_id: 'rca', status: 'ready', operational_ready: true },
+        oma: { package_id: 'oma', status: 'ready', operational_ready: true },
+      },
+    },
+  },
   release: {
     channel: 'nightly',
     repo: 'gaofeng21cn/one-person-lab-app',

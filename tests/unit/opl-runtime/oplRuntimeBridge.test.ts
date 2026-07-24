@@ -109,14 +109,12 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl system configure-codex --api-key-stdin --json',
         'opl connect gateway login --credentials-stdin --json',
         'opl system startup-maintenance --json',
-        'opl system reconcile-modules --json',
         'opl update status --json',
         'opl update check --json',
         'opl update plan --json',
         'opl update apply --json',
         'opl update repair [--receipt <receipt_id>] --json',
         'opl update rollback --json',
-        'opl packages optimize opl-flow --json',
       ],
       forbiddenTruthSources: [
         'direct_domain_repo_reads',
@@ -266,10 +264,6 @@ describe('OPL runtime bridge command whitelist', () => {
       args: ['system', 'startup-maintenance', '--json'],
       timeoutMs: 120_000,
     });
-    expect(__oplRuntimeBridgeTest.buildReconcileModulesCommand()).toEqual({
-      surface: 'reconcile_modules',
-      args: ['system', 'reconcile-modules', '--json'],
-    });
   });
 
   it('builds the managed update command surface without allowing arbitrary update arguments', () => {
@@ -348,9 +342,6 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toBe(true);
     expect(
       __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand())
-    ).toBe(true);
-    expect(
-      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildReconcileModulesCommand())
     ).toBe(true);
     expect(
       __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildAppStateCommand('fast'))

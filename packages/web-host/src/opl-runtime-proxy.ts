@@ -17,7 +17,6 @@ export type OplRuntimeSurface =
   | 'configure_codex'
   | 'gateway_account'
   | 'startup_maintenance'
-  | 'reconcile_modules'
   | 'update_status'
   | 'update_check'
   | 'update_plan'
@@ -344,12 +343,6 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
       return {
         surface: 'startup_maintenance',
         args: ['system', 'startup-maintenance', '--json'],
-        timeoutMs: MAINTENANCE_TIMEOUT_MS,
-      };
-    case 'reconcile-modules':
-      return {
-        surface: 'reconcile_modules',
-        args: ['system', 'reconcile-modules', '--json'],
         timeoutMs: MAINTENANCE_TIMEOUT_MS,
       };
     case 'drilldown': {

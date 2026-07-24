@@ -160,14 +160,16 @@ const appStateResult = {
       },
       agent_packages: {
         directory: {
-          installed_packages: [
+          entries: [
             {
               package_id: 'mas',
               version: 'mas-1.0.0',
+              installed: true,
             },
             {
               package_id: 'obf',
               version: 'bookforge-1.0.0',
+              installed: true,
             },
           ],
         },

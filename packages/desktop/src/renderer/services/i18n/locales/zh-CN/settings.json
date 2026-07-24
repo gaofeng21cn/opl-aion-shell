@@ -1280,8 +1280,7 @@
       "title": "维护操作",
       "description": "这些操作可以在核心可用后继续运行，用于更新干净的托管运行面，并保持进度可重试。",
       "installPrep": "准备安装",
-      "startupMaintenance": "运行启动维护",
-      "reconcileModules": "同步模块"
+      "startupMaintenance": "运行启动维护"
     },
     "error": {
       "title": "启动检查未完成",

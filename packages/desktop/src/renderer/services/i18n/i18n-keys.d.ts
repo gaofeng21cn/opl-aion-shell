@@ -2898,7 +2898,6 @@ export type I18nKey =
   | 'settings.firstRun.lastAction'
   | 'settings.firstRun.maintenance.description'
   | 'settings.firstRun.maintenance.installPrep'
-  | 'settings.firstRun.maintenance.reconcileModules'
   | 'settings.firstRun.maintenance.startupMaintenance'
   | 'settings.firstRun.maintenance.title'
   | 'settings.firstRun.maintenanceProgress'

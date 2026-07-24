@@ -1279,8 +1279,7 @@
       "title": "Maintenance actions",
       "description": "These actions can run after Core is usable. They update clean managed surfaces and keep progress retryable.",
       "installPrep": "Prepare install",
-      "startupMaintenance": "Run startup maintenance",
-      "reconcileModules": "Reconcile modules"
+      "startupMaintenance": "Run startup maintenance"
     },
     "error": {
       "title": "Startup check incomplete",

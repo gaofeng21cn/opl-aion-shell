@@ -30,7 +30,7 @@ import type {
 } from './types';
 import styles from './FirstRun.module.css';
 
-type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
+type MaintenanceAction = 'install_prep' | 'startup_maintenance';
 type AccessMethod = 'gateway_account' | 'api_key';
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 type FirstRunError = {
@@ -426,9 +426,7 @@ const FirstRun: React.FC = () => {
         const result =
           action === 'install_prep'
             ? await ipcBridge.oplRuntime.runInstallPrep.invoke()
-            : action === 'startup_maintenance'
-              ? await ipcBridge.oplRuntime.runStartupMaintenance.invoke()
-              : await ipcBridge.oplRuntime.runReconcileModules.invoke();
+            : await ipcBridge.oplRuntime.runStartupMaintenance.invoke();
         assertBridgeResultOk(result);
         setActionResult(result);
         await refreshInitialize();
@@ -1297,14 +1295,6 @@ const FirstRun: React.FC = () => {
                     data-testid='opl-first-run-open-environment-button'
                   >
                     {t('settings.firstRun.maintenance.startupMaintenance')}
-                  </Button>
-                  <Button
-                    loading={actionLoading === 'reconcile_modules'}
-                    disabled={requestInFlight}
-                    onClick={() => void runMaintenanceAction('reconcile_modules')}
-                    data-testid='opl-first-run-open-modules-button'
-                  >
-                    {t('settings.firstRun.maintenance.reconcileModules')}
                   </Button>
                 </div>
               </section>

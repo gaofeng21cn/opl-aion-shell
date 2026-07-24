@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildRuntimeEnvironmentProjection,
+  buildRuntimePackages,
   chooseMakeUsableAction,
   findRecommendedUpdateAction,
 } from '@/renderer/pages/settings/RuntimeSettings/environmentProjection';
@@ -159,7 +160,10 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         agent_packages: {
           directory: {
-            installed_packages: [{ package_id: 'mas' }, { package_id: 'obf' }],
+            entries: [
+              { package_id: 'mas', installed: true },
+              { package_id: 'obf', installed: true },
+            ],
           },
           status_index: {
             status: 'available',
@@ -215,7 +219,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
       },
       paths: { workspace_root_path: '/Users/example/workspace' },
       agent_packages: {
-        directory: { installed_packages: packageIds.map((package_id) => ({ package_id })) },
+        directory: { entries: packageIds.map((package_id) => ({ package_id, installed: true })) },
         status_index: {
           status: 'available',
           installed_package_count: packageIds.length,
@@ -346,11 +350,11 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         agent_packages: {
           directory: {
-            installed_packages: [
-              { package_id: 'mas' },
-              { package_id: 'mag' },
-              { package_id: 'rca' },
-              { package_id: 'oma' },
+            entries: [
+              { package_id: 'mas', installed: true },
+              { package_id: 'mag', installed: true },
+              { package_id: 'rca', installed: true },
+              { package_id: 'oma', installed: true },
             ],
           },
           status_index: {
@@ -389,7 +393,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         paths: { workspace_root_path: '/Users/example/workspace' },
         agent_packages: {
-          directory: { installed_packages: [] },
+          directory: { entries: [] },
           status_index: { status: 'available', installed_package_count: 0, packages: {} },
         },
         runtime_source_carriers: {
@@ -412,6 +416,75 @@ describe('buildRuntimeEnvironmentProjection', () => {
     });
   });
 
+  it('takes installed truth and collection membership only from directory entries', () => {
+    const statusIndex = {
+      status: 'available',
+      installed_package_count: 3,
+      packages: {
+        mas: { package_id: 'mas', operational_ready: true, status: 'available', installed: true },
+        obf: { package_id: 'obf', operational_ready: true, status: 'available' },
+        'status-only': { package_id: 'status-only', operational_ready: true, status: 'available', installed: true },
+      },
+    };
+    const canonical = buildRuntimePackages({
+      agent_packages: {
+        directory: {
+          entries: [
+            { package_id: 'mas', installed: false },
+            { package_id: 'obf', installed: true },
+          ],
+        },
+        status_index: statusIndex,
+      },
+    });
+
+    expect(canonical.modules.map((module) => module.module_id)).toEqual(['mas', 'obf']);
+    expect(canonical.modules.map((module) => module.installed)).toEqual([false, true]);
+    expect(canonical.modules.map((module) => module.status)).toEqual(['notInstalled', 'ready']);
+    expect(canonical.installedCount).toBe(1);
+
+    const legacy = buildRuntimePackages({
+      agent_packages: { status_index: statusIndex },
+    });
+    expect(legacy.modules).toEqual([]);
+    expect(legacy.installedCount).toBe(0);
+    expect(legacy.statusAvailable).toBe(false);
+
+    const legacyModules = buildRuntimePackages({
+      modules: {
+        items: [{ module_id: 'legacy-ready', installed: true, status: 'ready' }],
+      },
+    });
+    expect(legacyModules.modules).toEqual([]);
+    expect(legacyModules.installedCount).toBe(0);
+    expect(legacyModules.statusAvailable).toBe(false);
+
+    const projection = buildRuntimeEnvironmentProjection({
+      appState: {
+        agent_packages: {
+          directory: { entries: [{ package_id: 'mas', installed: false }] },
+          status_index: statusIndex,
+        },
+      },
+      managedUpdatePlane: { components: [] },
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+    expect(projection.packagesOperationalReady).toBe(true);
+
+    const missingDirectoryProjection = buildRuntimeEnvironmentProjection({
+      appState: {
+        agent_packages: { status_index: statusIndex },
+      },
+      managedUpdatePlane: { components: [] },
+      managedUpdateMaintenance: maintenance,
+      t,
+    });
+    expect(missingDirectoryProjection.modules).toEqual([]);
+    expect(missingDirectoryProjection.packageStatusAvailable).toBe(false);
+    expect(missingDirectoryProjection.packagesOperationalReady).toBe(false);
+  });
+
   it('separates desktop App update attention from runtime attention and managed App fallback', () => {
     const readyState = {
       core: { codex: { status: 'ready' } },
@@ -426,7 +499,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
       },
       paths: { workspace_root_path: '/Users/example/workspace' },
       agent_packages: {
-        directory: { installed_packages: [] },
+        directory: { entries: [] },
         status_index: { status: 'available', installed_package_count: 0, packages: {} },
       },
       runtime_source_carriers: { items: [] },
@@ -512,7 +585,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         paths: { workspace_root_path: '/Users/example/workspace' },
         agent_packages: {
-          directory: { installed_packages: [] },
+          directory: { entries: [] },
           status_index: { status: 'available', installed_package_count: 0, packages: {} },
         },
         runtime_source_carriers: { items: [] },
@@ -550,7 +623,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         paths: { workspace_root_path: '/Users/example/workspace' },
         agent_packages: {
-          directory: { installed_packages: [] },
+          directory: { entries: [] },
           status_index: { status: 'available', installed_package_count: 0, packages: {} },
         },
         runtime_source_carriers: { items: [] },

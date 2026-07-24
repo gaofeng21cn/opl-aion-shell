@@ -16,7 +16,6 @@ const bridgeMocks = vi.hoisted(() => ({
   configureCodexInvoke: vi.fn(),
   loginGatewayAccountInvoke: vi.fn(),
   runStartupMaintenanceInvoke: vi.fn(),
-  runReconcileModulesInvoke: vi.fn(),
   showOpenInvoke: vi.fn(),
   openFolderWithInvoke: vi.fn(),
 }));
@@ -47,7 +46,6 @@ vi.mock('@/common', () => ({
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
       loginGatewayAccount: { invoke: bridgeMocks.loginGatewayAccountInvoke },
       runStartupMaintenance: { invoke: bridgeMocks.runStartupMaintenanceInvoke },
-      runReconcileModules: { invoke: bridgeMocks.runReconcileModulesInvoke },
     },
     dialog: {
       showOpen: { invoke: bridgeMocks.showOpenInvoke },
@@ -567,7 +565,6 @@ describe('FirstRun readiness page', () => {
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runStartupMaintenanceInvoke).not.toHaveBeenCalled();
-    expect(bridgeMocks.runReconcileModulesInvoke).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveInitialize?.(initializeResult);
@@ -1221,7 +1218,6 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-retry-button')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-install-button')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-open-environment-button')).toBeDisabled();
-    expect(screen.getByTestId('opl-first-run-open-modules-button')).toBeDisabled();
     act(() =>
       resolveConfigure?.({
         ...configureCodexResult,
@@ -1303,7 +1299,6 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-recheck-existing')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-retry-button')).toBeDisabled();
     expect(screen.getByTestId('opl-first-run-install-button')).toBeDisabled();
-    expect(screen.getByTestId('opl-first-run-open-modules-button')).toBeDisabled();
 
     act(() => resolveMaintenance?.(startupMaintenanceResult));
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
