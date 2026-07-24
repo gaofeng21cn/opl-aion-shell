@@ -772,6 +772,7 @@ type AppProductProfile = {
     native_automation: OplNativeAutomationPolicy;
   };
   first_run: {
+    post_login_setup_check_timeout_ms: number;
     readiness_layers: string[];
     ready_to_launch_gate: {
       id: 'ready_to_launch';
@@ -2154,6 +2155,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const firstRun = value.first_run;
   const companionPayloads = value.companion_payloads;
   const commandLineTools = isRecord(firstRun) ? firstRun.command_line_tools : null;
+  const ordinaryShellRecovery = isRecord(firstRun) ? firstRun.ordinary_shell_recovery : null;
+  const freshWebuiLoginSetupCheck = isRecord(ordinaryShellRecovery)
+    ? ordinaryShellRecovery.fresh_webui_login_setup_check
+    : null;
   const settings = value.settings;
   const boundary = value.boundary;
   if (!isRecord(officialProfile)) {
@@ -2169,9 +2174,16 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     !isRecord(codex) ||
     !isRecord(firstRun) ||
     !isRecord(companionPayloads) ||
-    !isRecord(commandLineTools)
+    !isRecord(commandLineTools) ||
+    !isRecord(freshWebuiLoginSetupCheck)
   ) {
     throw new Error('Invalid OPL product profile: missing default session, codex, or first-run section');
+  }
+  const postLoginSetupCheckTimeoutMs = freshWebuiLoginSetupCheck.ui_timeout_ms;
+  if (!Number.isInteger(postLoginSetupCheckTimeoutMs) || Number(postLoginSetupCheckTimeoutMs) <= 0) {
+    throw new Error(
+      'Invalid OPL product profile: first_run.ordinary_shell_recovery.fresh_webui_login_setup_check.ui_timeout_ms must be a positive integer'
+    );
   }
   if (!isRecord(settings) || !isRecord(boundary)) {
     throw new Error('Invalid OPL product profile: missing settings or boundary section');
@@ -2713,6 +2725,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       native_automation: nativeAutomation,
     },
     first_run: {
+      post_login_setup_check_timeout_ms: Number(postLoginSetupCheckTimeoutMs),
       readiness_layers: ['core'],
       ready_to_launch_gate: {
         id: 'ready_to_launch',
@@ -3703,6 +3716,10 @@ export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US', ap
 
 export function getOplDeferredFirstLaunchBlockers(): string[] {
   return [...OPL_PRODUCT_PROFILE.first_run.deferred_blockers];
+}
+
+export function getOplPostLoginSetupCheckTimeoutMs(): number {
+  return OPL_PRODUCT_PROFILE.first_run.post_login_setup_check_timeout_ms;
 }
 
 export function getOplReadyToLaunchCoreItems(): string[] {

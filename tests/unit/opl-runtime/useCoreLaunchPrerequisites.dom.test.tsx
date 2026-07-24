@@ -40,6 +40,7 @@ describe('useCoreLaunchPrerequisites', () => {
   });
 
   it('fails open after a bounded post-login live check', () => {
+    expect(POST_LOGIN_SETUP_CHECK_TIMEOUT_MS).toBe(20_000);
     const { result } = renderHook(() => useCoreLaunchPrerequisites({ requireLive: true }));
 
     expect(mocks.useOplAppState).toHaveBeenCalledWith('fast', { autoLoad: false, requireLive: true });

@@ -1710,7 +1710,7 @@
         "known_incomplete_behavior": "replace_guid_with_first_run",
         "ready_behavior": "keep_guid",
         "unknown_timeout_or_read_failure_behavior": "keep_guid_fail_open",
-        "ui_timeout_ms": 5000,
+        "ui_timeout_ms": 20000,
         "ordinary_startup_refresh_and_deep_link_behavior": "keep_guid_without_automatic_first_run",
         "consumption_policy": "one_shot"
       },

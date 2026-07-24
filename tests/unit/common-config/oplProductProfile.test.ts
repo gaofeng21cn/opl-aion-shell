@@ -29,6 +29,7 @@ import {
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
   getOplPackagedCodexSkills,
+  getOplPostLoginSetupCheckTimeoutMs,
   getOplSettingsControlPlaneActionContract,
   getOplSettingsUserNavigationProjection,
   getOplHomeModelStatusLabel,
@@ -86,6 +87,10 @@ describe('OPL generated product profile', () => {
     expect(
       OPL_PRODUCT_PROFILE.first_run.beginner_presentation.post_install_ai_self_check_entry.target_state_checks
     ).toContain('session_scoped_opl_app_context');
+  });
+
+  it('exposes the App-owned post-login setup check timeout', () => {
+    expect(getOplPostLoginSetupCheckTimeoutMs()).toBe(20_000);
   });
 
   it('exposes one App-owned Scheduled Tasks policy without a second scheduler or executor selector', () => {

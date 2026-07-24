@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getOplPostLoginSetupCheckTimeoutMs } from '@/common/config/oplProductProfile';
 import {
   readCoreLaunchPrerequisiteState,
   type CoreLaunchPrerequisiteState,
 } from '@/renderer/pages/FirstRun/initializeModel';
 import { useOplAppState, type OplAppStateProvenance } from './useOplAppState';
 
-export const POST_LOGIN_SETUP_CHECK_TIMEOUT_MS = 5_000;
+export const POST_LOGIN_SETUP_CHECK_TIMEOUT_MS = getOplPostLoginSetupCheckTimeoutMs();
 
 type CoreLaunchPrerequisiteOptions = {
   requireLive?: boolean;
