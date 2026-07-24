@@ -216,6 +216,11 @@ describe('OPL generated product profile', () => {
     expect(getOplHomeComposerStateContract()).toMatchObject({
       contract_id: 'opl_home_composer_state.v1',
       executor: 'codex',
+      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
+      shortcut_availability_source_ref:
+        'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
+      unknown_standard_agent_allowed: true,
       invariants: {
         model_reasoning_visible: true,
         permission_access_visible: true,
@@ -318,52 +323,95 @@ describe('OPL generated product profile', () => {
     ]);
   });
 
-  it('uses App state directory and status projections as Home shortcut authority', async () => {
-    const dynamicProfile = structuredClone(generatedProfile);
-    const homeComposerStateContract = dynamicProfile.gui.home.home_composer_state_contract as Record<string, unknown>;
-    delete homeComposerStateContract.shortcut_package_ids;
-    Object.assign(homeComposerStateContract, {
+  it('uses App state directory, status, and capability metadata as dynamic Agent authority', () => {
+    expect(getOplHomeComposerStateContract()).toMatchObject({
       shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
       shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
       shortcut_availability_source_ref:
         'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
       unknown_standard_agent_allowed: true,
     });
-    const invocationPolicy = dynamicProfile.gui.agent_package_invocation_receipt_policy as Record<string, unknown>;
-    delete invocationPolicy.required_for_package_shortcuts;
-    invocationPolicy.required_for_package_shortcuts_source_ref =
-      'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]';
-    const selectorPolicy = dynamicProfile.gui.ordinary_capability_selector_policy as Record<string, unknown>;
-    selectorPolicy.skill_source_ref = 'owner_or_carrier_projected_capability_metadata_for_the_selected_package';
-    dynamicProfile.codex.opl_app_session_context.source =
-      'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback';
-
-    vi.resetModules();
-    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
-      default: dynamicProfile,
-    }));
-    const profileModule = await import('@/common/config/oplProductProfile');
-    const contract = profileModule.getOplHomeComposerStateContract();
-
-    expect(contract).toMatchObject({
-      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
-      shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
-      shortcut_availability_source_ref:
-        'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
-      unknown_standard_agent_allowed: true,
-    });
-    expect('shortcut_package_ids' in contract).toBe(false);
-    expect(profileModule.getOplAgentPackageInvocationReceiptPolicy()).toMatchObject({
+    expect(getOplHomeComposerStateContract()).not.toHaveProperty('shortcut_package_ids');
+    expect(getOplAgentPackageInvocationReceiptPolicy()).toMatchObject({
       required_for_package_shortcuts_source_ref:
         'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]',
     });
-    expect(profileModule.getOplOrdinaryCapabilitySelectorPolicy()).toMatchObject({
+    expect(getOplAgentPackageInvocationReceiptPolicy()).not.toHaveProperty('required_for_package_shortcuts');
+    expect(getOplOrdinaryCapabilitySelectorPolicy()).toMatchObject({
+      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
+      palette_agent_availability_policy:
+        'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable',
+      palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
+      palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
       skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
     });
-    expect(profileModule.getOplAppSessionContextPolicy()).toMatchObject({
+    expect(getOplOrdinaryCapabilitySelectorPolicy()).not.toHaveProperty('palette_required_agent_package_ids');
+    expect(getOplAppSessionContextPolicy()).toMatchObject({
       source:
         'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback',
     });
+  });
+
+  it.each([
+    [
+      'Home fixed Package membership',
+      (profile: typeof generatedProfile) => {
+        (profile.gui.home.home_composer_state_contract as Record<string, unknown>).shortcut_package_ids = [null, 'mas'];
+      },
+      'Home composer state contract drifted from fixed Codex controls',
+    ],
+    [
+      'Home invocation fixed shortcut list',
+      (profile: typeof generatedProfile) => {
+        (
+          profile.gui.agent_package_invocation_receipt_policy as Record<string, unknown>
+        ).required_for_package_shortcuts = ['research'];
+      },
+      'agent package invocation receipt policy is unsupported',
+    ],
+    [
+      'palette fixed Package membership',
+      (profile: typeof generatedProfile) => {
+        const policy = profile.gui.ordinary_capability_selector_policy as Record<string, unknown>;
+        policy.palette_agent_catalog_source_ref = 'professional_agent_packages';
+        policy.palette_required_agent_package_ids = ['mas'];
+      },
+      'ordinary capability selector policy is unsupported',
+    ],
+    [
+      'Profile-derived Skill source',
+      (profile: typeof generatedProfile) => {
+        profile.gui.ordinary_capability_selector_policy.skill_source_ref =
+          'gui.professional_agent_packages.required_skill_ids + optional_skill_ids';
+      },
+      'ordinary capability selector policy is unsupported',
+    ],
+    [
+      'Profile-derived session route source',
+      (profile: typeof generatedProfile) => {
+        profile.codex.opl_app_session_context.source = 'gui.professional_agent_packages.session_routing_summary_i18n';
+      },
+      'codex.opl_app_session_context is unsupported',
+    ],
+    [
+      'palette availability without fresh presence and callability',
+      (profile: typeof generatedProfile) => {
+        profile.gui.ordinary_capability_selector_policy.palette_agent_availability_policy =
+          'show_only_real_app_allowlisted_packages_supported_by_the_active_adapter';
+      },
+      'ordinary capability selector policy is unsupported',
+    ],
+  ])('rejects legacy fixed authority drift: %s', async (_name, mutateProfile, expectedMessage) => {
+    const driftedProfile = structuredClone(generatedProfile);
+    mutateProfile(driftedProfile);
+
+    vi.resetModules();
+    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+      default: driftedProfile,
+    }));
+
+    await expect(import('@/common/config/oplProductProfile')).rejects.toThrow(expectedMessage);
   });
 
   it('rejects a generated Home composer contract that hides executor-owned controls', async () => {
@@ -556,7 +604,13 @@ describe('OPL generated product profile', () => {
     const selectorPolicy = getOplOrdinaryCapabilitySelectorPolicy();
     expect(selectorPolicy).toMatchObject({
       authority: 'app_owned_skill_allowlist_and_mcp_negative_filter',
-      skill_source_ref: generatedProfile.gui.ordinary_capability_selector_policy.skill_source_ref,
+      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
+      palette_agent_availability_policy:
+        'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable',
+      palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
+      palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
+      skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
       mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
       mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers',
       conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers',
@@ -744,16 +798,10 @@ describe('OPL generated product profile', () => {
 
   it('exposes the built-in assistant route receipt policy', () => {
     const packagePolicy = getOplAgentPackageInvocationReceiptPolicy();
-    const generatedPackagePolicy = generatedProfile.gui.agent_package_invocation_receipt_policy;
-    if ('required_for_package_shortcuts' in generatedPackagePolicy) {
-      expect(packagePolicy.required_for_package_shortcuts).toEqual(
-        generatedPackagePolicy.required_for_package_shortcuts
-      );
-    } else {
-      expect(packagePolicy.required_for_package_shortcuts_source_ref).toBe(
-        generatedPackagePolicy.required_for_package_shortcuts_source_ref
-      );
-    }
+    expect(packagePolicy.required_for_package_shortcuts_source_ref).toBe(
+      'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]'
+    );
+    expect(packagePolicy).not.toHaveProperty('required_for_package_shortcuts');
     expect(packagePolicy.route_kind).toBe('agent_package_shortcut');
     expect(packagePolicy.executor).toBe('codex_cli');
     expect(packagePolicy.source).toBe('opl_app_home');
