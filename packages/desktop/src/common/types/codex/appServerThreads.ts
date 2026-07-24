@@ -48,6 +48,7 @@ export type CodexThreadDirectoryRequest = {
 export type CodexThreadDirectory = {
   schema: 'opl_codex_thread_directory.v1';
   host: string;
+  complete: boolean;
   threads: CodexThreadDescriptor[];
 };
 

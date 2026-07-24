@@ -994,10 +994,10 @@ describe('OPL generated product profile', () => {
     const context = getOplCodexSessionContext();
     const policy = getOplAppSessionContextPolicy();
 
-    expect(context).toContain('OPL App 会话上下文');
+    expect(context).toContain('关于本次会话');
     expect(context).toContain('MAS（Med Auto Science）：科研、论文、数据分析、审稿、返修和投稿');
     expect(context).toContain('OMA（OPL Meta Agent）：创建、接管、检查和改进 OPL Foundry Agent');
-    expect(context).toContain('遵循用户及仓库 AGENTS.md');
+    expect(context).toContain('继续遵循你和当前项目中的 AGENTS.md');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
     expect(policy.customization).toEqual({

@@ -120,6 +120,41 @@ function userInputText(value: unknown): string {
     .join('\n');
 }
 
+const OPL_SESSION_CONTEXT_MARKERS = [
+  '## OPL App 会话上下文',
+  '## OPL App Session Context',
+  '## 关于本次会话',
+  '## About this conversation',
+] as const;
+
+function cleanOplThreadTitleFromTurns(turns: JsonRecord[]): string | null {
+  for (const turn of turns) {
+    const items = Array.isArray(turn.items) ? turn.items : [];
+    for (const value of items) {
+      if (!isRecord(value) || value.type !== 'userMessage') continue;
+      const content = userInputText(value.content).trim();
+      if (!content.startsWith('[Assistant Rules]\n')) continue;
+      const closingTag = '\n[/Assistant Rules]';
+      const closingIndex = content.indexOf(closingTag);
+      if (closingIndex < 0) continue;
+      const rules = content.slice(0, closingIndex);
+      if (!OPL_SESSION_CONTEXT_MARKERS.some((marker) => rules.includes(marker))) continue;
+      const userPrompt = content
+        .slice(closingIndex + closingTag.length)
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (userPrompt) return userPrompt.slice(0, 80);
+    }
+  }
+  return null;
+}
+
+function hasPollutedOplThreadTitle(thread: RawThread): boolean {
+  const title = optionalString(thread.name);
+  if (!title?.startsWith('[Assistant Rules]')) return false;
+  return OPL_SESSION_CONTEXT_MARKERS.some((marker) => title.includes(marker.replace(/^## /, '')));
+}
+
 function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
   const history: CodexThreadHistoryItem[] = [];
   turns.forEach((turn) => {
@@ -397,19 +432,33 @@ export class CodexAppServerAdapter {
   }
 
   async listThreads(request: CodexThreadDirectoryRequest = {}): Promise<CodexThreadDirectory> {
-    const rawThreads = [
-      ...(await this.listPages(false, request.workspace)),
-      ...(request.includeArchived ? await this.listPages(true, request.workspace) : []),
-    ];
+    const activePage = await this.listPages(false, request.workspace);
+    const archivedPage = request.includeArchived
+      ? await this.listPages(true, request.workspace)
+      : { items: [], complete: true };
+    const rawThreads = [...activePage.items, ...archivedPage.items];
     const byId = new Map(rawThreads.map(({ thread }) => [thread.id, thread]));
     const descriptors: CodexThreadDescriptor[] = [];
     for (const { thread, archived } of rawThreads) {
       let hydrated = thread;
-      if (thread.status.type === 'active') {
+      const repairPollutedTitle = hasPollutedOplThreadTitle(thread);
+      if (thread.status.type === 'active' || repairPollutedTitle) {
         try {
           hydrated = await this.readRawThread(thread.id);
         } catch {
           // A list row remains useful when an active thread cannot be hydrated.
+        }
+      }
+      if (repairPollutedTitle) {
+        const cleanTitle = cleanOplThreadTitleFromTurns(hydrated.turns);
+        if (cleanTitle) {
+          try {
+            await this.renameThread(thread.id, cleanTitle);
+            const renamed = await this.readRawThread(thread.id);
+            if (optionalString(renamed.name) === cleanTitle) hydrated = renamed;
+          } catch {
+            // Keep the canonical title unchanged when repair cannot be verified.
+          }
         }
       }
       descriptors.push(mapThread(hydrated, archived, ancestorsFor(thread, byId), this.host));
@@ -417,6 +466,7 @@ export class CodexAppServerAdapter {
     return {
       schema: 'opl_codex_thread_directory.v1',
       host: this.host,
+      complete: activePage.complete && archivedPage.complete,
       threads: request.projectId ? descriptors.filter((thread) => thread.projectId === request.projectId) : descriptors,
     };
   }
@@ -521,9 +571,10 @@ export class CodexAppServerAdapter {
   private async listPages(
     archived: boolean,
     workspace?: string
-  ): Promise<Array<{ thread: RawThread; archived: boolean }>> {
+  ): Promise<{ items: Array<{ thread: RawThread; archived: boolean }>; complete: boolean }> {
     const threads: Array<{ thread: RawThread; archived: boolean }> = [];
     let cursor: string | null = null;
+    const visitedCursors = new Set<string>();
     for (let page = 0; page < this.maxPages; page += 1) {
       const response = requiredRecord(
         await this.rpc.request('thread/list', {
@@ -540,9 +591,11 @@ export class CodexAppServerAdapter {
       if (!Array.isArray(response.data)) throw new Error('Invalid Codex app-server thread list data.');
       response.data.forEach((value) => threads.push({ thread: parseThread(value), archived }));
       cursor = optionalString(response.nextCursor);
-      if (!cursor) return threads;
+      if (!cursor) return { items: threads, complete: true };
+      if (visitedCursors.has(cursor)) return { items: threads, complete: false };
+      visitedCursors.add(cursor);
     }
-    throw new Error('Codex app-server thread list exceeded the pagination safety limit.');
+    return { items: threads, complete: false };
   }
 }
 

@@ -34,10 +34,10 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'en-US',
     });
 
-    expect(params.extra.preset_context).toContain('## OPL App Session Context');
+    expect(params.extra.preset_context).toContain('## About this conversation');
     expect(params.extra.preset_context).toContain('MAS (Med Auto Science): research, papers, data analysis');
     expect(params.extra.preset_context).toContain('OMA (OPL Meta Agent): create, take over, inspect');
-    expect(params.extra.preset_context).not.toContain('你正在 One Person Lab App');
+    expect(params.extra.preset_context).not.toContain('本对话由 One Person Lab App 发起');
     expect(params.extra.preset_context).toContain('Existing assistant rule.');
     expect(params.extra.preset_context).toMatch(/MAS \(Med Auto Science\)[\s\S]+Existing assistant rule\./);
     expect(params.extra.opl_flow_context).toEqual({
@@ -90,10 +90,10 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'zh-CN',
     });
 
-    expect(params.extra.preset_context).toContain('## OPL App 会话上下文');
-    expect(params.extra.preset_context).toContain('你正在 One Person Lab App');
+    expect(params.extra.preset_context).toContain('## 关于本次会话');
+    expect(params.extra.preset_context).toContain('本对话由 One Person Lab App 发起');
     expect(params.extra.preset_context).toContain('已有智能体规则。');
-    expect(params.extra.preset_context).not.toContain('## OPL App Session Context');
+    expect(params.extra.preset_context).not.toContain('## About this conversation');
   });
 
   it('appends saved OPL App instructions without replacing the generated agent directory', () => {

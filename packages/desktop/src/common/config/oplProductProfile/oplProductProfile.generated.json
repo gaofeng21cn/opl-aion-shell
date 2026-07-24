@@ -1590,41 +1590,35 @@
     "default_visible_skills": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "skill_priority": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "session_context_lines": [
-      "## OPL App 会话上下文",
+      "## 关于本次会话",
       "",
-      "你正在 One Person Lab App 启动的 Codex 会话中。",
+      "本对话由 One Person Lab App 发起。你可以直接描述目标；需要时，App 会从以下已安装的专业能力中选择合适的路径：",
       "",
-      "当前可用的 OPL 智能体：",
       "{{agent_routes}}",
       "",
-      "根据任务自动使用最匹配的智能体；用户明确指定时以用户选择为准。",
-      "未匹配时使用普通 Codex 路径。",
-      "遵循用户及仓库 AGENTS.md 和所选智能体技能说明，不改写用户配置。"
+      "如果你明确指定某项能力，以你的选择为准；没有匹配项时，就按普通 Codex 对话处理。",
+      "继续遵循你和当前项目中的 AGENTS.md，以及所选能力的说明；不要擅自改写配置。"
     ],
     "session_context_i18n": {
       "zh-CN": [
-        "## OPL App 会话上下文",
+        "## 关于本次会话",
         "",
-        "你正在 One Person Lab App 启动的 Codex 会话中。",
+        "本对话由 One Person Lab App 发起。你可以直接描述目标；需要时，App 会从以下已安装的专业能力中选择合适的路径：",
         "",
-        "当前可用的 OPL 智能体：",
         "{{agent_routes}}",
         "",
-        "根据任务自动使用最匹配的智能体；用户明确指定时以用户选择为准。",
-        "未匹配时使用普通 Codex 路径。",
-        "遵循用户及仓库 AGENTS.md 和所选智能体技能说明，不改写用户配置。"
+        "如果你明确指定某项能力，以你的选择为准；没有匹配项时，就按普通 Codex 对话处理。",
+        "继续遵循你和当前项目中的 AGENTS.md，以及所选能力的说明；不要擅自改写配置。"
       ],
       "en-US": [
-        "## OPL App Session Context",
+        "## About this conversation",
         "",
-        "You are in a Codex session launched by One Person Lab App.",
+        "This conversation was started from One Person Lab App. Describe your goal normally; when useful, the App can choose an appropriate route from these installed professional capabilities:",
         "",
-        "Available OPL agents:",
         "{{agent_routes}}",
         "",
-        "Use the best matching agent for the task; follow an explicit user selection.",
-        "Use the ordinary Codex path when no agent matches.",
-        "Follow user and repository AGENTS.md files plus the selected agent skill; do not rewrite user configuration."
+        "If you explicitly select a capability, follow that choice. When none matches, handle the request as an ordinary Codex conversation.",
+        "Continue to follow your instructions, the current project's AGENTS.md, and the selected capability's guidance. Do not rewrite configuration without being asked."
       ]
     }
   },

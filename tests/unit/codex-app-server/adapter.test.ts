@@ -112,6 +112,7 @@ describe('CodexAppServerAdapter', () => {
     expect(result).toMatchObject({
       schema: 'opl_codex_thread_directory.v1',
       host: 'local-host',
+      complete: true,
       threads: [
         { id: 'active-1', archived: false },
         { id: 'active-2', archived: false },
@@ -131,6 +132,91 @@ describe('CodexAppServerAdapter', () => {
     );
     expect(request).toHaveBeenNthCalledWith(2, 'thread/list', expect.objectContaining({ cursor: 'next' }));
     expect(request).toHaveBeenNthCalledWith(3, 'thread/list', expect.objectContaining({ archived: true }));
+  });
+
+  it('returns the bounded recent directory instead of clearing history when more pages remain', async () => {
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host', pageSize: 1, maxPages: 2 });
+    request
+      .mockResolvedValueOnce({ data: [rawThread('recent-1')], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ data: [rawThread('recent-2')], nextCursor: 'page-3' });
+
+    const result = await adapter.listThreads({ includeArchived: false });
+
+    expect(result).toMatchObject({
+      complete: false,
+      threads: [{ id: 'recent-1' }, { id: 'recent-2' }],
+    });
+  });
+
+  it('repairs an OPL-injected canonical title from the original user prompt', async () => {
+    const pollutedTitle = '[Assistant Rules] OPL App 会话上下文';
+    const injectedPrompt = '[Assistant Rules]\n## OPL App 会话上下文\n\nOPL routes.\n[/Assistant Rules]\n\n测试';
+    request.mockImplementation(async (method: string, params: Record<string, unknown>) => {
+      if (method === 'thread/list') {
+        return { data: [rawThread('opl-thread', { name: pollutedTitle })], nextCursor: null };
+      }
+      if (method === 'thread/read') {
+        const renamed = request.mock.calls.some(
+          ([calledMethod, calledParams]) =>
+            calledMethod === 'thread/name/set' && (calledParams as Record<string, unknown>).threadId === 'opl-thread'
+        );
+        return {
+          thread: rawThread('opl-thread', {
+            name: renamed ? '测试' : pollutedTitle,
+            turns: [
+              {
+                id: 'turn-1',
+                status: 'completed',
+                items: [{ id: 'message-1', type: 'userMessage', content: [{ type: 'text', text: injectedPrompt }] }],
+              },
+            ],
+          }),
+        };
+      }
+      if (method === 'thread/name/set') return undefined;
+      throw new Error(`Unexpected method: ${method} ${JSON.stringify(params)}`);
+    });
+
+    const result = await adapter.listThreads({ includeArchived: false });
+
+    expect(request).toHaveBeenCalledWith('thread/name/set', { threadId: 'opl-thread', name: '测试' });
+    expect(result.threads[0]?.title).toBe('测试');
+  });
+
+  it('recognizes the localized English session heading before the title reaches the OPL App sentence', async () => {
+    const pollutedTitle = '[Assistant Rules] About this conversation';
+    const injectedPrompt =
+      '[Assistant Rules]\n## About this conversation\n\nThis conversation was started from One Person Lab App.\n[/Assistant Rules]\n\nFix history';
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/list') {
+        return { data: [rawThread('english-opl-thread', { name: pollutedTitle })], nextCursor: null };
+      }
+      if (method === 'thread/read') {
+        const renamed = request.mock.calls.some(([calledMethod]) => calledMethod === 'thread/name/set');
+        return {
+          thread: rawThread('english-opl-thread', {
+            name: renamed ? 'Fix history' : pollutedTitle,
+            turns: [
+              {
+                id: 'turn-1',
+                status: 'completed',
+                items: [{ id: 'message-1', type: 'userMessage', content: [{ type: 'text', text: injectedPrompt }] }],
+              },
+            ],
+          }),
+        };
+      }
+      if (method === 'thread/name/set') return undefined;
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    const result = await adapter.listThreads({ includeArchived: false });
+
+    expect(request).toHaveBeenCalledWith('thread/name/set', {
+      threadId: 'english-opl-thread',
+      name: 'Fix history',
+    });
+    expect(result.threads[0]?.title).toBe('Fix history');
   });
 
   it('keeps directories distinct even when threads share one Git origin', async () => {

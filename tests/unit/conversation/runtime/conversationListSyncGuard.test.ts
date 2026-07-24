@@ -30,9 +30,10 @@ const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDesc
   ...overrides,
 });
 
-const directory = (threads: CodexThreadDescriptor[]): CodexThreadDirectory => ({
+const directory = (threads: CodexThreadDescriptor[], complete = true): CodexThreadDirectory => ({
   schema: 'opl_codex_thread_directory.v1',
   host: 'host-a',
+  complete,
   threads,
 });
 
@@ -230,6 +231,20 @@ describe('mergeCanonicalThreadDirectory', () => {
         extra: expect.objectContaining({ canonical_thread_id: 'thread-returned' }),
       }),
     ]);
+  });
+
+  it('preserves unmatched Codex cache rows when only a bounded recent directory is available', () => {
+    const cached = {
+      id: 'local-older',
+      name: 'Older cached task',
+      created_at: 1,
+      type: 'acp',
+      extra: { backend: 'codex', canonical_thread_id: 'thread-older' },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([cached], directory([thread()], false));
+
+    expect(merged).toEqual([cached, expect.objectContaining({ id: 'thread-1', name: 'Canonical task' })]);
   });
 
   it('retains unmatched non-Codex local rows without title or workspace deduplication', () => {

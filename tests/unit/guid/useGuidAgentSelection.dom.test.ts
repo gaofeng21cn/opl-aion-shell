@@ -4,9 +4,19 @@ import { useGuidAgentSelection } from '@/renderer/pages/guid/hooks/useGuidAgentS
 import { useGuidMention } from '@/renderer/pages/guid/hooks/useGuidMention';
 import type { AvailableAgent } from '@/renderer/pages/guid/types';
 
-const { configGetMock, configSetMock, configStore, catalogAssistants, managedAgents } = vi.hoisted(() => ({
+const {
+  configGetMock,
+  configSetMock,
+  configSubscribeMock,
+  configSubscribers,
+  configStore,
+  catalogAssistants,
+  managedAgents,
+} = vi.hoisted(() => ({
   configGetMock: vi.fn(),
   configSetMock: vi.fn(),
+  configSubscribeMock: vi.fn(),
+  configSubscribers: new Set<(value: unknown) => void>(),
   configStore: {
     acp: {} as Record<string, Record<string, unknown>>,
   },
@@ -54,6 +64,7 @@ vi.mock('@/common/config/configService', () => ({
   configService: {
     get: configGetMock,
     set: configSetMock,
+    subscribe: configSubscribeMock,
   },
 }));
 
@@ -94,6 +105,7 @@ vi.mock('@/renderer/pages/guid/hooks/useAgentAvailability', () => ({
 describe('useGuidAgentSelection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configSubscribers.clear();
     catalogAssistants[0].agent_id = 'codex-managed';
     configStore.acp = {
       codex: {
@@ -109,8 +121,15 @@ describe('useGuidAgentSelection', () => {
       return undefined;
     });
     configSetMock.mockImplementation((key: string, value: Record<string, Record<string, unknown>>) => {
-      if (key === 'acp.config') configStore.acp = value;
+      if (key === 'acp.config') {
+        configStore.acp = value;
+        configSubscribers.forEach((subscriber) => subscriber(value));
+      }
       return Promise.resolve();
+    });
+    configSubscribeMock.mockImplementation((_key: string, callback: (value: unknown) => void) => {
+      configSubscribers.add(callback);
+      return () => configSubscribers.delete(callback);
     });
   });
 
@@ -169,6 +188,43 @@ describe('useGuidAgentSelection', () => {
     await waitFor(() => {
       expect(result.current.selectedAcpModel).toBeNull();
       expect(result.current.selectedReasoningEffort).toBeNull();
+    });
+  });
+
+  it('updates the mounted Home selection when Settings changes the Codex reasoning preference', async () => {
+    configStore.acp = {
+      codex: {
+        preferredMode: 'native',
+        preferredModelId: 'gpt-5.6-sol',
+        preferredReasoningEffort: 'max',
+      },
+    };
+    const { result } = renderHook(() =>
+      useGuidAgentSelection({
+        modelList: [],
+        isGoogleAuth: false,
+        localeKey: 'zh-CN',
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.selectedAcpModel).toBe('gpt-5.6-sol');
+      expect(result.current.selectedReasoningEffort).toBe('max');
+    });
+
+    await act(async () => {
+      await configSetMock('acp.config', {
+        codex: {
+          preferredMode: 'native',
+          preferredModelId: 'gpt-5.6-sol',
+          preferredReasoningEffort: 'xhigh',
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedAcpModel).toBe('gpt-5.6-sol');
+      expect(result.current.selectedReasoningEffort).toBe('xhigh');
     });
   });
 

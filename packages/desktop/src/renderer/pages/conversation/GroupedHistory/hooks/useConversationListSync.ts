@@ -158,8 +158,9 @@ export const mergeCanonicalThreadDirectory = (
       return false;
     }
 
-    // A complete available overview is authoritative for Codex sessions. Local
-    // Codex rows are rebuildable metadata caches and must not become ghost tasks.
+    // Only a complete overview may retire unmatched Codex cache rows. A bounded
+    // recent directory remains useful without turning older local rows into ghosts.
+    if (!directory.complete) return true;
     return conversation.type !== 'acp' || conversation.extra.backend !== 'codex';
   });
 

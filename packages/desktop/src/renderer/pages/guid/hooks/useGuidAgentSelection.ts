@@ -172,6 +172,15 @@ export const useGuidAgentSelection = ({
   const initialRestoreDoneRef = useRef(false);
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
   const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<string | null>(null);
+  const [acpPreferenceRevision, setAcpPreferenceRevision] = useState(0);
+
+  useEffect(
+    () =>
+      configService.subscribe('acp.config', () => {
+        setAcpPreferenceRevision((revision) => revision + 1);
+      }),
+    []
+  );
 
   // Wrap setSelectedAgentKey to also save to storage
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -485,7 +494,7 @@ export const useGuidAgentSelection = ({
 
     _setSelectedAcpModel(selectedRuntimeModelInfo?.current_model_id ?? null);
     setSelectedReasoningEffort(null);
-  }, [runtimeBackend, selectedAgentKey, selectedRuntimeModelInfo]);
+  }, [runtimeBackend, selectedAgentKey, selectedRuntimeModelInfo, acpPreferenceRevision]);
 
   // Read preferred mode or fallback to legacy yoloMode config
   useEffect(() => {
