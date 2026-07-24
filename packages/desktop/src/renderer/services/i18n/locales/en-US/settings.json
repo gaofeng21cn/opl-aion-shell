@@ -1855,6 +1855,24 @@
         "retained": "Remaining after cleanup",
         "itemsAndBytes": "{{count}} item(s) · {{bytes}}"
       },
+      "composition": {
+        "title": "Storage breakdown",
+        "description": "These sizes come from the same inventory snapshot. The boundary label shows whether this cleanup rule covers each location.",
+        "names": {
+          "runtimeManaged": "OPL managed runtime",
+          "runtimeShell": "Shell tools and dependency cache",
+          "logs": "App logs directory",
+          "updater": "Installer cache {{name}}"
+        },
+        "boundary": {
+          "covered": "Cleanable here",
+          "reportedOnly": "Reported only"
+        },
+        "reasons": {
+          "covered": "This location is covered by the current cleanup rule. Only the safe candidates listed below can be selected.",
+          "reportedOnly": "This location contributes to the total but is outside this cleanup action, protecting content still in use or managed elsewhere."
+        }
+      },
       "retainedTitle": "Why this space remains",
       "retainedReasons": {
         "runtime": "The current and rollback runtimes, runtime tools and tool caches, and directories without pointer-based deletion proof are protected and cannot be selected here.",

@@ -217,6 +217,17 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.cleanupPreview.summary.candidates': 'Available to clean',
     'settings.storagePage.cleanupPreview.summary.selected': 'Selected now',
     'settings.storagePage.cleanupPreview.summary.retained': 'Remaining after cleanup',
+    'settings.storagePage.cleanupPreview.composition.title': 'Storage breakdown',
+    'settings.storagePage.cleanupPreview.composition.description': 'These sizes come from the same inventory snapshot.',
+    'settings.storagePage.cleanupPreview.composition.names.runtimeManaged': 'OPL managed runtime',
+    'settings.storagePage.cleanupPreview.composition.names.runtimeShell': 'Shell tools and dependency cache',
+    'settings.storagePage.cleanupPreview.composition.names.logs': 'App logs directory',
+    'settings.storagePage.cleanupPreview.composition.boundary.covered': 'Cleanable here',
+    'settings.storagePage.cleanupPreview.composition.boundary.reportedOnly': 'Reported only',
+    'settings.storagePage.cleanupPreview.composition.reasons.covered':
+      'This location is covered by the current cleanup rule.',
+    'settings.storagePage.cleanupPreview.composition.reasons.reportedOnly':
+      'This location contributes to the total but is outside this cleanup action.',
     'settings.storagePage.cleanupPreview.retainedTitle': 'Why this space remains',
     'settings.storagePage.cleanupPreview.retainedReasons.runtime':
       'The current and rollback runtimes, runtime tools and tool caches, and directories without pointer-based deletion proof are protected and cannot be selected here.',
@@ -298,6 +309,9 @@ const translate = (key: string, values?: Record<string, string | number>) => {
   if (key === 'settings.storagePage.cleanupPreview.candidateNames.runtime') {
     return `Runtime version ${values?.name}`;
   }
+  if (key === 'settings.storagePage.cleanupPreview.composition.names.updater') {
+    return `Installer cache ${values?.name}`;
+  }
   if (
     key === 'settings.storagePage.cleanupPreview.candidateNames.logs' ||
     key === 'settings.storagePage.cleanupPreview.candidateNames.updater'
@@ -341,7 +355,10 @@ const inventory = {
       cleanup_mode: 'pointer_based_dry_run_required',
       silent_delete_allowed: false,
       bytes: 30,
-      roots: [{ path: '/tmp/runtime', exists: true, bytes: 30 }],
+      roots: [
+        { path: '/tmp/shell-runtime', exists: true, bytes: 10 },
+        { path: '/tmp/runtime', exists: true, bytes: 20 },
+      ],
     },
     {
       id: 'logs',
@@ -1237,13 +1254,22 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-cleanup-retained-reason')).toHaveTextContent(
       'The current and rollback runtimes, runtime tools and tool caches'
     );
+    const composition = screen.getByTestId('storage-cleanup-composition');
+    expect(composition).toHaveTextContent('Storage breakdown');
+    expect(composition).toHaveTextContent('OPL managed runtime');
+    expect(composition).toHaveTextContent('20 B');
+    expect(composition).toHaveTextContent('Cleanable here');
+    expect(composition).toHaveTextContent('Shell tools and dependency cache');
+    expect(composition).toHaveTextContent('10 B');
+    expect(composition).toHaveTextContent('Reported only');
+    expect(screen.getAllByTestId('storage-cleanup-composition-root')).toHaveLength(2);
     expect(screen.getByText('Runtime version stale')).toBeInTheDocument();
     expect(
       screen.getByText('Historical runtime version not referenced by the current or rollback pointer')
     ).toBeInTheDocument();
-    expect(screen.getByText('Technical details').closest('details')).not.toHaveAttribute('open');
 
     const runtimeCandidate = screen.getByTestId('storage-cleanup-candidate-runtime');
+    expect(runtimeCandidate.closest('div')?.parentElement?.querySelector('details')).not.toHaveAttribute('open');
     fireEvent.click(runtimeCandidate);
     expect(screen.getByTestId('storage-cleanup-preview-execute')).toBeDisabled();
     expect(screen.getByTestId('storage-cleanup-selected-bytes')).toHaveTextContent('0 B');

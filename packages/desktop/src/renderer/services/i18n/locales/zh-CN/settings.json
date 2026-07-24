@@ -1856,6 +1856,24 @@
         "retained": "清理后仍保留",
         "itemsAndBytes": "{{count}} 项 · {{bytes}}"
       },
+      "composition": {
+        "title": "占用构成",
+        "description": "以下大小来自同一次库存统计；边界标签说明该位置是否受当前清理规则覆盖。",
+        "names": {
+          "runtimeManaged": "OPL 托管运行时",
+          "runtimeShell": "Shell 工具与依赖缓存",
+          "logs": "App 日志目录",
+          "updater": "安装包缓存 {{name}}"
+        },
+        "boundary": {
+          "covered": "本次可清理",
+          "reportedOnly": "仅统计"
+        },
+        "reasons": {
+          "covered": "该位置受当前清理规则覆盖；只有下方列出的安全候选可以勾选。",
+          "reportedOnly": "该位置计入总占用，但不属于本次清理动作，避免误删仍在使用或由其他机制管理的内容。"
+        }
+      },
       "retainedTitle": "为什么这些空间会保留",
       "retainedReasons": {
         "runtime": "当前与回滚运行时、运行工具和工具缓存，以及缺少指针删除依据的目录受保护，不能在这里勾选。",
