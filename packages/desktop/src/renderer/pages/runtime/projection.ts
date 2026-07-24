@@ -86,12 +86,7 @@ const DOMAIN_DETAIL_AVAILABILITY = new Set<DomainDetailViewAvailability>([
   'read_error',
 ]);
 const SHA256_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
-const DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS = [
-  'item_id',
-  'view_id',
-  'view_kind',
-  'availability',
-] as const;
+const DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS = ['item_id', 'view_id', 'view_kind', 'availability'] as const;
 const DOMAIN_DETAIL_DESCRIPTOR_OPTIONAL_FIELDS = [
   'title',
   'schema_ref',

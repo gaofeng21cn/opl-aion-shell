@@ -92,6 +92,11 @@ vi.mock('react-i18next', () => ({
       'common.runtime.researchTrajectory.missingDescription': '尚未读取到本次研究的科研路线记录。',
       'common.runtime.researchTrajectory.emptyTitle': '科研路线正在形成',
       'common.runtime.researchTrajectory.emptyDescription': '尚无可展示的研究对象。',
+      'common.runtime.domainDetailView.loadFailedTitle': '任务详情读取失败',
+      'common.runtime.domainDetailView.loadFailedDescription': '请刷新运行状态后重试。',
+      'common.runtime.domainDetailView.missingTitle': '任务详情暂不可用',
+      'common.runtime.domainDetailView.missingDescription': '该任务尚未提供所请求的详情视图。',
+      'common.runtime.domainDetailView.refresh': '刷新任务详情',
     };
     return {
       t: (key: string) => labels[key] ?? key,
@@ -265,14 +270,12 @@ describe('ScientificReasoningPage', () => {
     expect(screen.getByTestId('runtime-research-map-stale')).toHaveTextContent('当前显示上一次科研路线');
   });
 
-  it('performs lazy recovery when the descriptor is missing or says the snapshot is missing', async () => {
+  it('uses the generic missing state without guessing a renderer when the descriptor is absent', async () => {
     removeDescriptor();
     const first = renderRoute(<DomainDetailViewPage />);
-    expect(await screen.findByTestId('runtime-research-map-canvas')).toBeInTheDocument();
-    expect(bridgeMocks.readDomainDetailView).toHaveBeenCalledWith({
-      itemId: 'diabetes:001',
-      viewId: 'scientific-reasoning',
-    });
+    expect(await screen.findByTestId('runtime-domain-detail-view-state')).toHaveTextContent('任务详情暂不可用');
+    expect(screen.queryByTestId('runtime-research-map-canvas')).not.toBeInTheDocument();
+    expect(bridgeMocks.readDomainDetailView).not.toHaveBeenCalled();
     first.unmount();
 
     resetScientificReasoningCacheForTest();
@@ -308,8 +311,8 @@ describe('ScientificReasoningPage', () => {
 
     renderRoute(<DomainDetailViewPage />);
 
-    expect(await screen.findByTestId('runtime-domain-detail-view-state')).toHaveTextContent('科研路线读取失败');
-    expect(screen.getByTestId('runtime-domain-detail-view-state')).not.toHaveTextContent('科研路线记录尚不可用');
+    expect(await screen.findByTestId('runtime-domain-detail-view-state')).toHaveTextContent('任务详情读取失败');
+    expect(screen.getByTestId('runtime-domain-detail-view-state')).not.toHaveTextContent('任务详情暂不可用');
     expect(bridgeMocks.readDomainDetailView).not.toHaveBeenCalled();
   });
 

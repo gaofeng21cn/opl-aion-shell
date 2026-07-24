@@ -69,9 +69,10 @@ export function RuntimeDetailDrawer({
   const resolvedAction = item?.action ? resolveRuntimeAction(item.action, t) : null;
   const archived = item?.visibility.state === 'archived';
   const reasoningDescriptor = item?.domainDetailViews.find(isScientificReasoningViewDescriptor);
-  const unsupportedDescriptors = item?.domainDetailViews.filter(
-    (descriptor) => !isScientificReasoningViewDescriptor(descriptor) && !resolveDomainDetailViewRenderer(descriptor)
-  ) ?? [];
+  const unsupportedDescriptors =
+    item?.domainDetailViews.filter(
+      (descriptor) => !isScientificReasoningViewDescriptor(descriptor) && !resolveDomainDetailViewRenderer(descriptor)
+    ) ?? [];
   return (
     <Drawer
       visible={Boolean(item)}

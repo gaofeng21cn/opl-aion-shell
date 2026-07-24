@@ -32,6 +32,8 @@ describe('domain detail view renderer registry', () => {
         descriptor({ viewId: 'future-view', viewKind: 'future_domain_map', schemaVersion: 'future.v1' })
       )
     ).toBeNull();
-    expect(resolveDomainDetailViewRenderer(descriptor({ schemaVersion: null, schemaRef: 'future.schema.json' }))).toBeNull();
+    expect(
+      resolveDomainDetailViewRenderer(descriptor({ schemaVersion: null, schemaRef: 'future.schema.json' }))
+    ).toBeNull();
   });
 });

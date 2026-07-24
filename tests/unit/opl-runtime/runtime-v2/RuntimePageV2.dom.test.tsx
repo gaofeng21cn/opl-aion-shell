@@ -205,8 +205,7 @@ vi.mock('react-i18next', () => ({
       'common.runtime.researchTrajectory.open': '查看科研路线',
       'common.runtime.domainDetailView.title': '任务详情视图',
       'common.runtime.domainDetailView.unsupportedTitle': '当前应用暂不支持此详情视图',
-      'common.runtime.domainDetailView.unsupportedDescription':
-        '其他运行任务不受影响。更新应用后可使用此详情视图。',
+      'common.runtime.domainDetailView.unsupportedDescription': '其他运行任务不受影响。更新应用后可使用此详情视图。',
       'common.runtime.researchTrajectory.currentHypothesis': '当前主要假设',
       'common.runtime.researchTrajectory.latestFinding': '最新研究发现',
       'common.runtime.researchTrajectory.currentJudgment': '当前判断',
