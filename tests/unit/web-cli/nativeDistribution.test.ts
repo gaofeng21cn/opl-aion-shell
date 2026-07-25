@@ -107,6 +107,33 @@ describe.skipIf(process.platform === 'win32')('OPL Native WebUI distribution', (
     return { binDir, logPath };
   }
 
+  function createGithubApiAwareDownloader(apiVersion?: string): { binDir: string; logPath: string } {
+    const binDir = path.join(tmp, 'github-api-bin');
+    const logPath = path.join(tmp, 'github-api.log');
+    const resolvedCurl = spawnSync('sh', ['-c', 'command -v curl'], { encoding: 'utf8' });
+    expect(resolvedCurl.status).toBe(0);
+    const realCurl = resolvedCurl.stdout.trim();
+    expect(realCurl).not.toBe('');
+    const apiResult = apiVersion ? `printf '%s\\n' '${JSON.stringify({ tag_name: `v${apiVersion}` })}'` : 'exit 97';
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(binDir, 'curl'),
+      `#!/usr/bin/env sh
+case "$*" in
+  *api.github.com*)
+    printf "%s\\n" "$*" >> "$GITHUB_API_LOG"
+    ${apiResult}
+    ;;
+  *)
+    exec ${JSON.stringify(realCurl)} "$@"
+    ;;
+esac
+`
+    );
+    fs.chmodSync(path.join(binDir, 'curl'), 0o755);
+    return { binDir, logPath };
+  }
+
   function probeRemoteMirror(mirror: string): { result: ReturnType<typeof spawnSync>; logPath: string } {
     const { binDir, logPath } = createRecordingDownloader();
     const home = path.join(tmp, 'remote-home');
@@ -158,6 +185,74 @@ describe.skipIf(process.platform === 'win32')('OPL Native WebUI distribution', (
     expect(fs.readFileSync(bootstrapLog, 'utf8').trim()).toBe('--headless --skip-packages');
     expect(fs.readFileSync(profileLog, 'utf8')).toContain('--intent first_install --profile embedded --opl-bin');
   });
+
+  it('keeps a sed-embedded SemVer prerelease specified by default and by explicit target', () => {
+    const version = '26.7.25-r1';
+    const fixture = createArtifact('one-person-lab-app', version);
+    const renderedInstaller = path.join(tmp, `install-web-${version}.sh`);
+    const sedResult = spawnSync('sed', [`s/__VERSION__/${version}/g`, installerPath], { encoding: 'utf8' });
+    expect(sedResult.status).toBe(0);
+    fs.writeFileSync(renderedInstaller, sedResult.stdout);
+    fs.chmodSync(renderedInstaller, 0o755);
+    const { binDir, logPath } = createGithubApiAwareDownloader();
+
+    for (const versionArgs of [[], ['--version', version]]) {
+      const result = spawnSync(
+        'bash',
+        [renderedInstaller, '--mirror', fixture.mirror, ...versionArgs, '--probe-artifact'],
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            GITHUB_API_LOG: logPath,
+            HOME: fixture.home,
+            PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+            SHELL: '/bin/bash',
+          },
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(`Using specified version:`);
+      expect(result.stdout).toContain(`v${version}`);
+      expect(result.stdout).toContain('OPL Native WebUI artifact is present');
+      expect(fs.existsSync(logPath)).toBe(false);
+    }
+  });
+
+  for (const latestCase of [
+    { label: 'raw placeholder default', versionArgs: [] },
+    { label: 'explicit latest', versionArgs: ['--version', 'latest'] },
+  ]) {
+    it(`keeps ${latestCase.label} on the public latest-resolution path`, () => {
+      const fixture = createArtifact();
+      const { binDir, logPath } = createGithubApiAwareDownloader(fixture.version);
+
+      const result = spawnSync(
+        'bash',
+        [installerPath, '--mirror', fixture.mirror, ...latestCase.versionArgs, '--probe-artifact'],
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            GITHUB_API_LOG: logPath,
+            HOME: fixture.home,
+            PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+            SHELL: '/bin/bash',
+          },
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Resolving the latest OPL Shell version from GitHub API');
+      expect(result.stdout).toContain(`Latest version:`);
+      expect(result.stdout).toContain(`v${fixture.version}`);
+      expect(result.stdout).toContain('OPL Native WebUI artifact is present');
+      expect(fs.readFileSync(logPath, 'utf8')).toContain(
+        'api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+      );
+    });
+  }
 
   it('updates and rolls back atomically without reapplying Official Profile or changing persistent data', () => {
     const first = createArtifact('one-person-lab-app', '9.8.7');
@@ -235,7 +330,7 @@ describe.skipIf(process.platform === 'win32')('OPL Native WebUI distribution', (
     expect(fs.existsSync(logPath)).toBe(false);
   });
 
-  it.each(['../escape', '9.8', '9.8.7/../../escape', 'latest/escape'])(
+  it.each(['../escape', '9.8', '9.8.7/../../escape', 'latest/escape', '__OTHER__'])(
     'rejects a path-unsafe version before creating runtime directories: %s',
     (version) => {
       const fixture = createArtifact();

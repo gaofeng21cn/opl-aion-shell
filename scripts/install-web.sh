@@ -14,10 +14,9 @@ set -euo pipefail
 
 # ─── Default Configuration ──────────────────────────────────────────────────
 VERSION="${VERSION:-__VERSION__}"
-# Note: CI runs `sed "s/__VERSION__/<ver>/g"` on this file, replacing both
-# occurrences above into e.g. "1.9.19". The resolve_version() function uses a
-# regex-based check (looks for letters) to detect the unreplaced placeholder,
-# so never add a literal "__VERSION__" string to any comparison below.
+# Release packaging replaces the default marker above with the exact target
+# version. resolve_version() reconstructs the raw marker from split literals so
+# that packaging cannot rewrite the comparison itself.
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/share/one-person-lab/webui/runtime}"
 BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"
 OFFICIAL_RELEASE_BASE="https://github.com/gaofeng21cn/one-person-lab-app/releases/download"
@@ -187,13 +186,11 @@ detect_platform_arch() {
 resolve_version() {
     # Trigger GitHub API resolution when:
     # - VERSION is "latest" (explicit)
-    # - VERSION still contains the CI placeholder pattern (letters/underscores,
-    #   i.e. sed did NOT run and we have the raw "__VERSION__" token)
-    # Note: a real version number is digits+dots only, so `[a-zA-Z_]` is a
-    # reliable marker of "placeholder". We avoid literal "__VERSION__" here
-    # because the CI sed replacement rewrites every occurrence in this file,
-    # including the comparison string.
-    if [[ "$VERSION" == "latest" || "$VERSION" == "__VERSION__" ]]; then
+    # - VERSION is the exact raw release-template marker
+    # The split literal prevents release packaging from rewriting this sentinel
+    # when it embeds the target version into the default assignment.
+    local version_placeholder="__VER""SION__"
+    if [[ "$VERSION" == "latest" || "$VERSION" == "$version_placeholder" ]]; then
         info "Resolving the latest OPL Shell version from GitHub API..."
 
         if command -v curl &>/dev/null; then
@@ -689,7 +686,7 @@ main() {
     # Step 2: Detect platform and architecture
     detect_platform_arch
 
-    # Step 3: Resolve version (if VERSION is __VERSION__ or latest)
+    # Step 3: Resolve version (if VERSION is the raw template marker or latest)
     resolve_version
     validate_version_identity
     configure_install_layout
