@@ -191,6 +191,7 @@ function loadAssistantRouteSmokeTargets(manifestPath, runtimeProfile = 'standard
 let OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = FALLBACK_OPL_ASSISTANT_ROUTE_SMOKE_TARGETS;
 let COMPILED_EXPECTATION_CONSUMPTION = null;
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
+const DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS = 30_000;
 const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
   'HOME',
   'USER',
@@ -5844,7 +5845,7 @@ async function captureSettingsPage(client, target, options, secret) {
   return pageState;
 }
 
-async function waitForButtonIdle(client, labels, failureMessage) {
+async function waitForButtonIdle(client, labels, failureMessage, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
   const labelPattern = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   return await waitForCdpPredicate(
     client,
@@ -5856,25 +5857,26 @@ async function waitForButtonIdle(client, labels, failureMessage) {
         ? { buttonReady: true, className: button.className, text: button.textContent || '' }
         : false;
     })()`,
-    30_000,
+    timeoutMs,
     failureMessage
   );
 }
 
-async function exerciseRuntimeRefresh(client, targetHash) {
+async function exerciseRuntimeRefresh(client, targetHash, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
   await evaluateCdp(client, `window.location.hash = ${cdpString(targetHash)}`);
   if (targetHash === '#/runtime') {
     await waitForCdpPredicate(
       client,
       runtimeStatusReadinessExpression(),
-      30_000,
+      timeoutMs,
       'Runtime status page did not become ready before refresh'
     );
   }
   await waitForButtonIdle(
     client,
     ['Refresh', '刷新'],
-    `Runtime refresh button stayed loading before click: ${targetHash}`
+    `Runtime refresh button stayed loading before click: ${targetHash}`,
+    timeoutMs
   );
   await evaluateCdp(
     client,
@@ -5889,7 +5891,8 @@ async function exerciseRuntimeRefresh(client, targetHash) {
   return await waitForButtonIdle(
     client,
     ['Refresh', '刷新'],
-    `Runtime refresh button stayed loading after click: ${targetHash}`
+    `Runtime refresh button stayed loading after click: ${targetHash}`,
+    timeoutMs
   );
 }
 
@@ -6045,16 +6048,22 @@ async function runSettingsSmoke(options, secret) {
   const results = [];
   let runtimeActionEvidence = null;
   let runtimeActionEvidenceBlocker = null;
+  const runtimeRefreshTimeoutMs = Math.min(
+    options.timeoutMs,
+    options.codexReadinessPhaseTimeoutMs ?? options.timeoutMs
+  );
+  const settingsPageSmokeTargets = hooks.settingsPageSmokeTargets ?? SETTINGS_PAGE_SMOKE_TARGETS;
   try {
     await client.send('Runtime.enable');
     await client.send('Page.enable');
-    for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
+    for (const pageTarget of settingsPageSmokeTargets) {
       const pageState = await (hooks.captureSettingsPage ?? captureSettingsPage)(client, pageTarget, options, secret);
       const interactions = {};
       if (pageTarget.id === 'runtime') {
         interactions.settingsRuntimeRefresh = await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
           client,
-          '#/settings/runtime'
+          '#/settings/runtime',
+          runtimeRefreshTimeoutMs
         );
       }
       if (pageTarget.id === 'diagnostics') {
@@ -6068,7 +6077,11 @@ async function runSettingsSmoke(options, secret) {
       id: 'runtime-status',
       hash: '#/runtime',
       interactions: {
-        runtimeRefresh: await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(client, '#/runtime'),
+        runtimeRefresh: await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
+          client,
+          '#/runtime',
+          runtimeRefreshTimeoutMs
+        ),
       },
     });
     await captureCdpScreenshot(client, path.join(options.artifacts, 'settings-pages', 'runtime-status.png'));
@@ -7716,6 +7729,7 @@ export const __test =
         RELEASE_EVIDENCE_ACTION_ID,
         RELEASE_EVIDENCE_SCREENSHOTS,
         RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
+        DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS,
         runtimeShellExecutable,
         OPL_CONNECT_MODULES_ARGS,
         OplJsonCommandError,
@@ -7815,6 +7829,7 @@ export const __test =
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
+        exerciseRuntimeRefresh,
         runSettingsSmoke,
         shouldVerifyFullFirstRunEquivalence,
         buildCodexFunctionalCheckReceipt,

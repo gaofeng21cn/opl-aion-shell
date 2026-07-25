@@ -2538,6 +2538,7 @@ describe('packaged first-run VM smoke helpers', () => {
   it('keeps Settings smoke passed when Runtime action evidence is unavailable', async () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-settings-smoke-'));
     const calls: string[] = [];
+    const runtimeRefreshCalls: Array<{ targetHash: string; timeoutMs: number | undefined }> = [];
     const client = {
       send: async () => ({ data: 'iVBORw0KGgo=' }),
       close: () => {
@@ -2547,13 +2548,18 @@ describe('packaged first-run VM smoke helpers', () => {
     const options = {
       artifacts,
       cdpPort: 9230,
-      timeoutMs: 1_000,
+      timeoutMs: 120_000,
+      codexReadinessPhaseTimeoutMs: 98_765,
       __testHooks: {
         waitForCdpPageTarget: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/page/test' }),
         openCdpClient: async () => client,
+        settingsPageSmokeTargets: [{ id: 'runtime', hash: '#/settings/runtime' }],
         captureSettingsPage: async (_client: unknown, pageTarget: { id: string }) => ({ id: pageTarget.id }),
         assertMaintenanceDiagnosticsStatus: async () => ({ diagnosticsVisible: true }),
-        exerciseRuntimeRefresh: async (_client: unknown, targetHash: string) => ({ targetHash }),
+        exerciseRuntimeRefresh: async (_client: unknown, targetHash: string, timeoutMs?: number) => {
+          runtimeRefreshCalls.push({ targetHash, timeoutMs });
+          return { targetHash };
+        },
         captureRuntimeActionEvidence: async () => {
           throw new Error('No safe action routes are currently exposed.');
         },
@@ -2581,9 +2587,39 @@ describe('packaged first-run VM smoke helpers', () => {
         },
       });
       expect(blocker.reason).toContain('No safe action routes');
+      expect(runtimeRefreshCalls).toEqual([
+        { targetHash: '#/settings/runtime', timeoutMs: 98_765 },
+        { targetHash: '#/runtime', timeoutMs: 98_765 },
+      ]);
       expect(calls).toContain('close');
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the Runtime refresh helper bounded to 30 seconds by default', async () => {
+    vi.useFakeTimers();
+    const client = {
+      send: vi.fn(async (method: string) => (method === 'Runtime.evaluate' ? { result: { value: false } } : {})),
+    };
+    const operation = __test.exerciseRuntimeRefresh(client, '#/settings/runtime');
+    let settled = false;
+    void operation.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+
+    try {
+      await vi.advanceTimersByTimeAsync(__test.DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(operation).rejects.toThrow('Runtime refresh button stayed loading before click: #/settings/runtime');
+    } finally {
+      vi.useRealTimers();
     }
   });
 
