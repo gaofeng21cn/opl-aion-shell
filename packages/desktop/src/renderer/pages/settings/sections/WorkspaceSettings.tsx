@@ -182,7 +182,12 @@ function workspaceSurfaceFromHash(): NonNullable<WorkspaceSettingsProps['surface
   if (typeof window === 'undefined') return 'workspace';
   const query = window.location.hash.split('?', 2)[1] ?? '';
   const section = new URLSearchParams(query).get('section');
-  if (section === 'personalization' || section === 'system-agents' || section === 'opl-app-context') {
+  if (
+    section === 'personalization' ||
+    section === 'system-agents' ||
+    section === 'additional-instructions' ||
+    section === 'opl-app-context'
+  ) {
     return 'instructions';
   }
   if (section === 'logs') return 'logs';

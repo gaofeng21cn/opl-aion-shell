@@ -54,24 +54,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           sha256: 'sha-default',
         },
       },
-      agent_packages: {
-        directory: {
-          entries: [
-            {
-              package_id: 'mas',
-              package_role: 'standard_agent',
-              installed: true,
-              display_name: 'Med Auto Science',
-              description: 'Research and paper delivery',
-              capability_metadata: {
-                source: 'normalized_owner_manifest',
-                required_skill_ids: ['med-autoscience'],
-                optional_skill_refs: ['officecli-docx'],
-              },
-            },
-          ],
-        },
-      },
     },
     refreshing: false,
     load: mocks.load,
@@ -95,14 +77,11 @@ vi.mock('react-i18next', () => ({
         'settings.personalization.systemAgentsRestored': 'Restored',
         'settings.personalization.oplFlowDefaultVersion': `Installed OPL Flow default version: ${options?.version}`,
         'settings.personalization.oplFlowDefaultUnavailable': 'Default unavailable',
-        'settings.personalization.sessionContextTitle': 'New conversation additions',
-        'settings.personalization.sessionContextDescription': 'Instructions for new conversations.',
-        'settings.personalization.generatedContextLabel': 'Generated agent guidance',
-        'settings.personalization.generatedContextHelp': 'Read-only, automatic, and project-independent.',
-        'settings.personalization.viewGeneratedContext': 'View',
+        'settings.personalization.additionalInstructionsTitle': 'New conversation instructions',
+        'settings.personalization.additionalInstructionsDescription': 'Instructions for new conversations.',
         'settings.personalization.additionalContextLabel': 'Additional user instructions',
         'settings.personalization.additionalContextPlaceholder': 'Additional instructions',
-        'settings.personalization.restoreDefault': 'Restore default',
+        'settings.personalization.clearAdditionalInstructions': 'Clear',
         'settings.personalization.save': 'Save',
         'settings.personalization.reload': 'Reload',
         'settings.personalization.nextConversationEffect': 'Applies to the next conversation.',
@@ -128,16 +107,27 @@ describe('OplPersonalizationSettings', () => {
     );
     expect(screen.getByTestId('settings-system-agents-editor')).toHaveClass('opl-personalization-group');
     expect(screen.getByTestId('settings-system-agents-editor').querySelector('.border-t')).toBeNull();
-    const contextEditors = screen.getByTestId('settings-opl-app-context-editor').querySelectorAll('textarea');
+    const additionalInstructionsEditor = screen.getByTestId('settings-additional-instructions-editor');
+    const contextEditors = additionalInstructionsEditor.querySelectorAll('textarea');
     expect(contextEditors).toHaveLength(1);
     expect(contextEditors[0]).not.toHaveAttribute('readonly');
+    expect(contextEditors[0]).toHaveValue('Additional context');
+    expect(screen.queryByTestId('settings-generated-context-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-generated-context-preview')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-opl-app-context-editor').querySelector('.bg-fill-1')).toBeNull();
-    fireEvent.click(screen.getByTestId('settings-generated-context-action'));
-    expect(await screen.findByTestId('settings-generated-context-preview')).toHaveTextContent(
-      'Med Auto Science: Research and paper delivery'
-    );
+    expect(additionalInstructionsEditor).not.toHaveTextContent('Generated agent guidance');
     expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+
+    fireEvent.change(contextEditors[0], { target: { value: 'Prefer concise progress summaries.' } });
+    fireEvent.click(screen.getByTestId('settings-additional-instructions-save'));
+    await waitFor(() =>
+      expect(mocks.setConfig).toHaveBeenCalledWith(
+        'codex.oplAppSessionContextAdditional',
+        'Prefer concise progress summaries.'
+      )
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(mocks.setConfig).toHaveBeenCalledWith('codex.oplAppSessionContextAdditional', ''));
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore OPL Flow default' }));
     await waitFor(() =>

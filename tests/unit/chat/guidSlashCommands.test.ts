@@ -10,7 +10,7 @@ const openCommand: SlashCommandItem = {
 };
 
 describe('buildGuidSlashCommands', () => {
-  it('keeps directory-selected skills while excluding only explicit forbidden internal skills', () => {
+  it('keeps owner-projected skills without restoring a fixed Skill denylist', () => {
     const commands = buildGuidSlashCommands({
       builtinCommands: [openCommand],
       selectedSkills: ['med-autoscience', 'aionui-skills', 'third-party-live-skill'],
@@ -22,7 +22,12 @@ describe('buildGuidSlashCommands', () => {
       skillFallbackDescription: 'Skill',
     });
 
-    expect(commands.map((command) => command.name)).toEqual(['open', 'med-autoscience', 'third-party-live-skill']);
+    expect(commands.map((command) => command.name)).toEqual([
+      'open',
+      'med-autoscience',
+      'aionui-skills',
+      'third-party-live-skill',
+    ]);
     expect(commands.find((command) => command.name === 'med-autoscience')).toMatchObject({
       description: 'MAS skill',
       kind: 'template',

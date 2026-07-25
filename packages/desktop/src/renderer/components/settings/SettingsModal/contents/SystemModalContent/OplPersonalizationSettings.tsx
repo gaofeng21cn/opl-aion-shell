@@ -1,11 +1,10 @@
 import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
-import { resolveEffectiveOplAppSessionContext } from '@/common/utils/buildAgentConversationParams';
 import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { Button, Input, Message, Modal } from '@arco-design/web-react';
-import { EditTwo, MessageOne, PreviewOpen, Refresh } from '@icon-park/react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { EditTwo, MessageOne, Refresh } from '@icon-park/react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 function stringOrEmpty(value: unknown) {
@@ -13,14 +12,9 @@ function stringOrEmpty(value: unknown) {
 }
 
 const OplPersonalizationSettings: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   const [savedAdditionalContext] = useConfig('codex.oplAppSessionContextAdditional');
-  const locale = i18n.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
-  const generatedContext = useMemo(
-    () => resolveEffectiveOplAppSessionContext(locale, { appState: appStateQuery.appState }).content,
-    [appStateQuery.appState, locale]
-  );
 
   const personalization = oplRecord(appStateQuery.appState.codex_personalization);
   const userInstructions = oplRecord(personalization.user_agents);
@@ -37,7 +31,6 @@ const OplPersonalizationSettings: React.FC = () => {
   const [instructionsRestoring, setInstructionsRestoring] = useState(false);
   const [additionalContextDraft, setAdditionalContextDraft] = useState(savedAdditionalContext ?? '');
   const [contextSaving, setContextSaving] = useState(false);
-  const [generatedContextVisible, setGeneratedContextVisible] = useState(false);
 
   useEffect(() => {
     setInstructionsDraft(loadedInstructions);
@@ -95,11 +88,11 @@ const OplPersonalizationSettings: React.FC = () => {
     });
   };
 
-  const saveSessionContext = async () => {
+  const saveAdditionalInstructions = async () => {
     setContextSaving(true);
     try {
       await configService.set('codex.oplAppSessionContextAdditional', additionalContextDraft);
-      Message.success(t('settings.personalization.sessionContextSaved'));
+      Message.success(t('settings.personalization.additionalInstructionsSaved'));
     } catch (error) {
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
     } finally {
@@ -107,12 +100,12 @@ const OplPersonalizationSettings: React.FC = () => {
     }
   };
 
-  const restoreSessionContextDefault = async () => {
+  const clearAdditionalInstructions = async () => {
     setContextSaving(true);
     try {
       await configService.set('codex.oplAppSessionContextAdditional', '');
       setAdditionalContextDraft('');
-      Message.success(t('settings.personalization.sessionContextRestored'));
+      Message.success(t('settings.personalization.additionalInstructionsCleared'));
     } catch (error) {
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
     } finally {
@@ -197,7 +190,11 @@ const OplPersonalizationSettings: React.FC = () => {
         </div>
       </section>
 
-      <section className='opl-personalization-group' id='opl-app-context' data-testid='settings-opl-app-context-editor'>
+      <section
+        className='opl-personalization-group'
+        id='additional-instructions'
+        data-testid='settings-additional-instructions-editor'
+      >
         <div className='opl-personalization-group__header'>
           <div className='flex min-w-0 items-start gap-12px'>
             <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
@@ -205,34 +202,16 @@ const OplPersonalizationSettings: React.FC = () => {
             </span>
             <div className='min-w-0'>
               <div className='text-14px font-medium text-t-primary'>
-                {t('settings.personalization.sessionContextTitle')}
+                {t('settings.personalization.additionalInstructionsTitle')}
               </div>
               <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-                {t('settings.personalization.sessionContextDescription')}
+                {t('settings.personalization.additionalInstructionsDescription')}
               </div>
             </div>
           </div>
         </div>
         <div className='opl-personalization-group__body'>
-          <div className='opl-personalization-generated'>
-            <div className='min-w-0'>
-              <div className='text-12px font-medium text-t-secondary'>
-                {t('settings.personalization.generatedContextLabel')}
-              </div>
-              <div className='mt-2px text-12px text-t-tertiary'>
-                {t('settings.personalization.generatedContextHelp')}
-              </div>
-            </div>
-            <Button
-              size='small'
-              icon={<PreviewOpen theme='outline' size='16' fill='currentColor' />}
-              onClick={() => setGeneratedContextVisible(true)}
-              data-testid='settings-generated-context-action'
-            >
-              {t('settings.personalization.viewGeneratedContext')}
-            </Button>
-          </div>
-          <div className='mt-12px text-12px font-medium text-t-secondary'>
+          <div className='text-12px font-medium text-t-secondary'>
             {t('settings.personalization.additionalContextLabel')}
           </div>
           <Input.TextArea
@@ -250,36 +229,23 @@ const OplPersonalizationSettings: React.FC = () => {
                 size='small'
                 loading={contextSaving}
                 disabled={!additionalContextDraft && !savedAdditionalContext}
-                onClick={() => void restoreSessionContextDefault()}
+                onClick={() => void clearAdditionalInstructions()}
               >
-                {t('settings.personalization.restoreDefault')}
+                {t('settings.personalization.clearAdditionalInstructions')}
               </Button>
               <Button
                 size='small'
                 type='primary'
                 loading={contextSaving}
                 disabled={!contextChanged}
-                onClick={() => void saveSessionContext()}
+                onClick={() => void saveAdditionalInstructions()}
+                data-testid='settings-additional-instructions-save'
               >
                 {t('settings.personalization.save')}
               </Button>
             </div>
           </div>
         </div>
-        <Modal
-          visible={generatedContextVisible}
-          title={t('settings.personalization.generatedContextLabel')}
-          footer={null}
-          onCancel={() => setGeneratedContextVisible(false)}
-          unmountOnExit
-        >
-          <pre
-            className='m-0 max-h-520px overflow-auto whitespace-pre-wrap break-words rd-6px bg-fill-2 p-12px text-12px text-t-primary'
-            data-testid='settings-generated-context-preview'
-          >
-            {generatedContext}
-          </pre>
-        </Modal>
       </section>
     </div>
   );

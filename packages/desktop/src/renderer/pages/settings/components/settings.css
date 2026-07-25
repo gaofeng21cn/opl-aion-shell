@@ -598,15 +598,6 @@
   min-width: 0;
 }
 
-.opl-personalization-generated {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  margin-bottom: 14px;
-}
-
 .opl-settings-row__meta.opl-settings-capability-meta {
   display: flex;
   min-width: 220px;
@@ -994,7 +985,7 @@
 [id='artifacts'],
 [id='personalization'],
 [id='system-agents'],
-[id='opl-app-context'],
+[id='additional-instructions'],
 [id='catalog'],
 [id='package-role'],
 [id='availability'],
@@ -1066,8 +1057,7 @@
 @container settings-page (max-width: 620px) {
   .opl-settings-page-header,
   .opl-settings-section__header,
-  .opl-personalization-group__header,
-  .opl-personalization-generated {
+  .opl-personalization-group__header {
     flex-direction: column;
     gap: 10px;
   }

@@ -13,9 +13,7 @@ import {
 } from '../formatters';
 import type { RuntimeWorkItem } from '../types';
 import styles from '../RuntimePage.module.css';
-import { isScientificReasoningViewDescriptor } from '../scientificReasoning';
-import { ScientificReasoningSummary } from './ScientificReasoningSummary';
-import { resolveDomainDetailViewRenderer } from '../domainDetailViewRegistry';
+import { resolveDomainDetailViewRendererExtension } from '../domainDetailViewRegistry';
 
 type RuntimeDetailDrawerProps = {
   item: RuntimeWorkItem | null;
@@ -68,11 +66,13 @@ export function RuntimeDetailDrawer({
 }: RuntimeDetailDrawerProps) {
   const resolvedAction = item?.action ? resolveRuntimeAction(item.action, t) : null;
   const archived = item?.visibility.state === 'archived';
-  const reasoningDescriptor = item?.domainDetailViews.find(isScientificReasoningViewDescriptor);
+  const rendererExtensions =
+    item?.domainDetailViews.flatMap((descriptor) => {
+      const extension = resolveDomainDetailViewRendererExtension(descriptor);
+      return extension ? [{ descriptor, extension }] : [];
+    }) ?? [];
   const unsupportedDescriptors =
-    item?.domainDetailViews.filter(
-      (descriptor) => !isScientificReasoningViewDescriptor(descriptor) && !resolveDomainDetailViewRenderer(descriptor)
-    ) ?? [];
+    item?.domainDetailViews.filter((descriptor) => !resolveDomainDetailViewRendererExtension(descriptor)) ?? [];
   return (
     <Drawer
       visible={Boolean(item)}
@@ -163,13 +163,17 @@ export function RuntimeDetailDrawer({
             )}
           </section>
 
-          {reasoningDescriptor && (
-            <ScientificReasoningSummary
-              descriptor={reasoningDescriptor}
-              t={t}
-              onOpen={() => onOpenDomainDetailView(item, reasoningDescriptor.viewId)}
-            />
-          )}
+          {rendererExtensions.map(({ descriptor, extension }) => {
+            const Summary = extension.summary;
+            return (
+              <Summary
+                descriptor={descriptor}
+                t={t}
+                onOpen={() => onOpenDomainDetailView(item, descriptor.viewId)}
+                key={descriptor.viewId}
+              />
+            );
+          })}
 
           {unsupportedDescriptors.map((descriptor) => (
             <section

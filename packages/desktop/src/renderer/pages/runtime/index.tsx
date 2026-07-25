@@ -404,7 +404,6 @@ const RuntimePage: React.FC = () => {
   );
 
   const projectionMessage = (() => {
-    if (projectionRead.state === 'legacy') return t('common.runtime.projection.legacyDescription');
     if (projectionRead.state === 'invalid') return t('common.runtime.projection.invalidDescription');
     return t('common.runtime.projection.missingDescription');
   })();

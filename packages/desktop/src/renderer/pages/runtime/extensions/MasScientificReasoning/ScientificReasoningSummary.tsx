@@ -1,9 +1,9 @@
 import { Alert, Button, Typography } from '@arco-design/web-react';
 import { MapDraw } from '@icon-park/react';
 import React from 'react';
-import type { RuntimeTranslate } from '../formatters';
-import type { ScientificReasoningViewDescriptor } from '../types';
-import styles from '../RuntimePage.module.css';
+import type { RuntimeTranslate } from '../../formatters';
+import type { ScientificReasoningViewDescriptor } from './types';
+import styles from '../../RuntimePage.module.css';
 
 type ScientificReasoningSummaryProps = {
   descriptor: ScientificReasoningViewDescriptor;

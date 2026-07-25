@@ -1,5 +1,4 @@
 import { ipcBridge } from '@/common';
-import { getOplDefaultPackagedCodexSkills, getOplPackagedCodexSkills } from '@/common/config/oplProductProfile';
 import { Button, Input, Message, Modal, Typography } from '@arco-design/web-react';
 import { Delete, FolderOpen, Lightning, Puzzle, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
@@ -110,6 +109,16 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
     () => new Map(flowManagedSkillDependencies.map((dependency) => [dependency.id, dependency])),
     [flowManagedSkillDependencies]
   );
+  const flowManagedSkillSummary = useCallback(
+    (skillId: string) => {
+      const fallback = localizedCapabilitySummary([skillId], skillId, t);
+      const guidance = flowManagedSkillDependencyById.get(skillId)?.guidance;
+      return guidance
+        ? t(`settings.capabilitiesPage.groups.oplFlowManaged.outcomes.${guidance}`, { defaultValue: fallback })
+        : fallback;
+    },
+    [flowManagedSkillDependencyById, t]
+  );
   const flowManagedCliIdSet = useMemo(
     () => new Set(flowManagedCliDependencies.map((dependency) => dependency.id)),
     [flowManagedCliDependencies]
@@ -146,16 +155,14 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const appVisibleSkills = new Set(getOplPackagedCodexSkills());
       const skills = await ipcBridge.fs.listAvailableSkills.invoke();
-      setAvailableSkills(skills.filter((skill) => skill.source !== 'builtin' || appVisibleSkills.has(skill.name)));
+      setAvailableSkills(skills);
 
       const paths = await ipcBridge.fs.getSkillPaths.invoke();
       setSkillPaths(paths);
 
       const autoSkills = await ipcBridge.fs.listBuiltinAutoSkills.invoke();
-      const appPackagedSkills = new Set(getOplDefaultPackagedCodexSkills());
-      setBuiltinAutoSkills(autoSkills.filter((skill) => appPackagedSkills.has(skill.name)));
+      setBuiltinAutoSkills(autoSkills);
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       Message.error(t('settings.skillsHub.fetchError', { defaultValue: 'Failed to fetch skills' }));
@@ -269,7 +276,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{skill.name}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {localizedCapabilitySummary([skill.name], skill.name, t)}
+                      {flowManagedSkillSummary(skill.name)}
                     </Typography.Text>
                     <FlowCapabilityDetails
                       id={skill.name}
@@ -303,7 +310,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{skillId}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {localizedCapabilitySummary([skillId], skillId, t)}
+                      {flowManagedSkillSummary(skillId)}
                     </Typography.Text>
                     <FlowCapabilityDetails
                       id={skillId}

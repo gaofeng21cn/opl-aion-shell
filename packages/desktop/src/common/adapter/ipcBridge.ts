@@ -2111,12 +2111,6 @@ export interface ICreateConversationParams {
       language: string;
       user_agents_policy: string;
     };
-    opl_app_session_context?: {
-      owner: string;
-      source: string;
-      additional_instructions: boolean;
-      effect: string;
-    };
     /** Transient: MCP server ids selected on the Guid page. Consumed by the
      *  backend create handler and snapshotted into conversation.extra. */
     selected_mcp_server_ids?: string[];

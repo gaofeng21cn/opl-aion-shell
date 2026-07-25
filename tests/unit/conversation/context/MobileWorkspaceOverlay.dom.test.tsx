@@ -39,7 +39,6 @@ describe('MobileWorkspaceOverlay accessibility', () => {
       rightSiderCollapsed: false,
       setRightSiderCollapsed: setCollapsed,
       workspaceWidthPx: 380,
-      mobileWorkspaceHandleRight: 366,
       siderTitle: 'Files & changes',
       sider: <button type='button'>Inside tool</button>,
     };
@@ -47,6 +46,7 @@ describe('MobileWorkspaceOverlay accessibility', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Files & changes' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(within(dialog).getAllByRole('button', { name: 'Close files' })).toHaveLength(1);
     expect(background).toHaveAttribute('inert');
     expect(background).toHaveAttribute('aria-hidden', 'true');
     expect(rail).toHaveAttribute('inert');
@@ -74,6 +74,33 @@ describe('MobileWorkspaceOverlay accessibility', () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it('restores focus to the replacement panel toggle when the opener remounts', async () => {
+    const background = document.createElement('main');
+    background.dataset.testid = 'background';
+    const opener = document.createElement('button');
+    opener.dataset.testid = 'conversation-side-panel-toggle';
+    opener.textContent = 'Open files';
+    background.appendChild(opener);
+    document.body.appendChild(background);
+    opener.focus();
+    const props = {
+      rightSiderCollapsed: false,
+      setRightSiderCollapsed: vi.fn(),
+      workspaceWidthPx: 380,
+      sider: <button type='button'>Inside tool</button>,
+    };
+    const { rerender } = render(<MobileWorkspaceOverlay {...props} />);
+    await waitFor(() => expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true));
+
+    const replacement = document.createElement('button');
+    replacement.dataset.testid = 'conversation-side-panel-toggle';
+    replacement.textContent = 'Open files';
+    opener.replaceWith(replacement);
+    rerender(<MobileWorkspaceOverlay {...props} rightSiderCollapsed />);
+
+    expect(document.activeElement).toBe(replacement);
+  });
+
   it.each([
     [
       'hidden',
@@ -99,7 +126,6 @@ describe('MobileWorkspaceOverlay accessibility', () => {
         rightSiderCollapsed={false}
         setRightSiderCollapsed={vi.fn()}
         workspaceWidthPx={380}
-        mobileWorkspaceHandleRight={366}
         sider={
           <>
             <button type='button'>Visible tool</button>
@@ -129,7 +155,6 @@ describe('MobileWorkspaceOverlay accessibility', () => {
         rightSiderCollapsed={false}
         setRightSiderCollapsed={vi.fn()}
         workspaceWidthPx={380}
-        mobileWorkspaceHandleRight={366}
         sider={<button type='button'>Inside tool</button>}
       />
     );

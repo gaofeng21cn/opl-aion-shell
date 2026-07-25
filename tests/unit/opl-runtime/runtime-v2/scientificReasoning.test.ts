@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readScientificReasoningView } from '@/renderer/pages/runtime/scientificReasoning';
+import { readScientificReasoningView } from '@/renderer/pages/runtime/extensions/MasScientificReasoning/scientificReasoning';
 import { createScientificReasoningViewResponse } from './fixture';
 
 function requirePayload(response: ReturnType<typeof createScientificReasoningViewResponse>) {

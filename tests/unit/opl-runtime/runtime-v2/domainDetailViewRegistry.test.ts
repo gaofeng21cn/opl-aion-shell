@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   __domainDetailViewRegistryTest,
   resolveDomainDetailViewRenderer,
+  resolveDomainDetailViewRendererExtension,
 } from '@/renderer/pages/runtime/domainDetailViewRegistry';
 import type { DomainDetailViewDescriptor } from '@/renderer/pages/runtime/types';
 
@@ -21,9 +22,20 @@ function descriptor(overrides: Partial<DomainDetailViewDescriptor> = {}): Domain
 }
 
 describe('domain detail view renderer registry', () => {
-  it('selects by view kind and schema version without an agent-id branch', () => {
-    expect(__domainDetailViewRegistryTest.registeredViewKinds).toEqual(['scientific_reasoning_map']);
+  it('composes an owner-delivered extension by view kind without an agent-id branch', () => {
+    expect(__domainDetailViewRegistryTest.registeredExtensions).toEqual([
+      {
+        viewKind: 'scientific_reasoning_map',
+        ownerPackageId: 'med-autoscience',
+        rendererId: 'scientific-reasoning-map',
+      },
+    ]);
     expect(resolveDomainDetailViewRenderer(descriptor())).toEqual(expect.any(Function));
+    expect(resolveDomainDetailViewRendererExtension(descriptor())).toMatchObject({
+      viewKind: 'scientific_reasoning_map',
+      ownerPackageId: 'med-autoscience',
+      rendererId: 'scientific-reasoning-map',
+    });
     expect(resolveDomainDetailViewRenderer(descriptor({ schemaVersion: 'scientific-reasoning-map.v2' }))).toEqual(
       expect.any(Function)
     );
@@ -35,5 +47,6 @@ describe('domain detail view renderer registry', () => {
     expect(
       resolveDomainDetailViewRenderer(descriptor({ schemaVersion: null, schemaRef: 'future.schema.json' }))
     ).toBeNull();
+    expect(resolveDomainDetailViewRenderer(descriptor({ schemaVersion: 'scientific-reasoning-map.v3' }))).toBeNull();
   });
 });

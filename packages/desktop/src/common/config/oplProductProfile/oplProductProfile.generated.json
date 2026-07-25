@@ -174,16 +174,16 @@
         "workspace_selector_entry": "home.new_session_context_bar",
         "unselected_workspace_control_visible": true,
         "unselected_workspace_control_policy": "localized_choose_project_directory_action_not_projectless_status_placeholder",
-        "purpose_entry_metadata_source_ref": "gui.home.home_purpose_entries optional migration/display metadata only",
-        "purpose_entry_visibility_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[visible=true]",
-        "purpose_entry_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
+        "home_presentation_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent] + app_state.agent_packages.status_index.home_shortcut_preferences[] + gui.home.home_agent_shortcuts optional migration/display metadata only",
+        "home_shortcut_visibility_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[visible=true]",
+        "home_shortcut_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
         "starter_limit": null,
-        "starter_visibility_policy": "installed_standard_agent_directory_entries_with_visible_home_shortcut_preferences",
+        "starter_visibility_policy": "standard_agent_directory_membership_with_default_or_user_visible_shortcuts_independent_of_installed_state",
         "starter_order_policy": "home_shortcut_preferences_sort_order_then_localized_display_name",
         "shortcut_membership_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent]",
         "shortcut_preference_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
-        "unknown_standard_agent_policy": "render_when_installed_and_preference_visible_without_app_package_id_branch",
+        "unknown_standard_agent_policy": "render_when_default_or_user_preference_visible_without_app_package_id_branch_and_independent_of_installed_state",
         "starter_layout_policy": "compact_inline_wrap",
         "starter_item_width_policy": "content_sized",
         "starter_count_layout_policy": "center_actual_visible_count_and_wrap_without_navigation_chevrons",
@@ -415,40 +415,6 @@
           }
         ]
       },
-      "home_purpose_entries": [
-        {
-          "id": "research",
-          "primary_label": "科研",
-          "target_assistant_id": "mas",
-          "target_assistant_short_name": "MAS",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start"
-        },
-        {
-          "id": "grant",
-          "primary_label": "基金",
-          "target_assistant_id": "mag",
-          "target_assistant_short_name": "MAG",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start"
-        },
-        {
-          "id": "ppt",
-          "primary_label": "演示",
-          "target_assistant_id": "rca",
-          "target_assistant_short_name": "RCA",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start"
-        },
-        {
-          "id": "book",
-          "primary_label": "写书",
-          "target_assistant_id": "obf",
-          "target_assistant_short_name": "OBF",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start"
-        }
-      ],
       "home_agent_shortcuts_metadata_policy": {
         "role": "optional_migration_and_display_metadata",
         "allowed_uses": ["localized_label_fallback", "shortcut_alias_migration"],
@@ -670,12 +636,12 @@
             "id": "skills",
             "scope": "surface_specific_configuration_or_invocation",
             "source_ref": "ordinary_capability_selector_policy",
-            "availability_policy": "show_global_app_allowlisted_skills_without_an_agent_then_scope_to_the_selected_professional_agent_profile",
+            "availability_policy": "show_owner_or_carrier_projected_skills_without_an_agent_then_scope_to_the_selected_agent_package_projection",
             "agent_owned_skill_deduplication_policy": "on_home_new_session_exclude_required_skill_ids_owned_by_rendered_professional_agents_from_the_standalone_skills_group",
             "existing_session_rebinding_allowed": false,
             "surface_actions": {
               "home_new_session": ["configure_new_session_scoped_skill"],
-              "existing_conversation": ["invoke_loaded_allowlisted_skill"]
+              "existing_conversation": ["invoke_loaded_owner_or_carrier_projected_skill"]
             }
           },
           {
@@ -712,7 +678,7 @@
           "existing_conversation": "attach_local_inputs_invoke_loaded_skills_show_loaded_connection_status_change_adapter_reported_nonduplicate_modes_without_rebinding",
           "settings_route_policy": "management_entries_are_explicit_fallbacks_not_fake_session_selection"
         },
-        "authority_policy": "render_only_real_picker_actions_App_allowlisted_skills_and_non_forbidden_configured_session_connections_supported_by_the_active_adapter",
+        "authority_policy": "render_only_real_picker_actions_owner_or_carrier_projected_skills_and_non_forbidden_configured_session_connections_supported_by_the_active_adapter",
         "forbidden_entries": [
           "project_object",
           "workspace_or_initial_cwd",
@@ -838,6 +804,13 @@
       "opens_on_user_or_task_request_only": true,
       "chat_canvas_remains_primary": true,
       "scope": "selected_workspace_and_conversation",
+      "toggle_ownership": {
+        "visible_toggle_count_per_viewport_state": 1,
+        "collapsed_owner": "conversation_header",
+        "expanded_owner": "workspace_panel_header",
+        "global_titlebar_duplicate_allowed": false,
+        "floating_handle_duplicate_allowed": false
+      },
       "workspace_surface": {
         "id": "files_changes",
         "label": "Files / Changes",
@@ -925,7 +898,7 @@
     },
     "ordinary_capability_selector_policy": {
       "scope": "home_composer_and_ordinary_conversation",
-      "authority": "app_owned_skill_allowlist_and_mcp_negative_filter",
+      "authority": "owner_or_carrier_skill_projection_and_mcp_negative_filter",
       "palette_agent_catalog_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent]",
       "palette_agent_status_source_ref": "app_state.agent_packages.status_index.packages[]",
       "palette_agent_availability_policy": "join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable",
@@ -953,11 +926,10 @@
       },
       "skill_source_ref": "owner_or_carrier_projected_capability_metadata_for_the_selected_package",
       "skill_menu_policy": "assistant_scoped_required_checked_optional_visible",
-      "conversation_loaded_skill_display_policy": "filter_to_ordinary_skill_allowlist",
+      "conversation_loaded_skill_display_policy": "preserve_owner_or_carrier_projected_loaded_skills",
       "mcp_server_source_ref": "configured_user_and_third_party_mcp_servers",
       "mcp_menu_policy": "preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers",
       "conversation_loaded_mcp_display_policy": "preserve_non_forbidden_configured_servers",
-      "forbidden_skill_examples": ["aionui-skills", "aionui-webui-setup", "skill-creator", "cron"],
       "forbidden_mcp_policy": "exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers",
       "forbidden_mcp_examples": [
         "aionui-team",
@@ -1237,268 +1209,7 @@
         }
       ],
       "shell_consumption_policy": "generated_product_profile_only_no_renderer_literal"
-    },
-    "professional_agent_packages_metadata_policy": {
-      "role": "optional_migration_and_display_metadata",
-      "allowed_uses": ["localized_display_fallback", "legacy_alias_migration"],
-      "forbidden_authority": [
-        "catalog_membership",
-        "installed",
-        "present",
-        "callable",
-        "visibility",
-        "sort_order",
-        "actions",
-        "skill_scope"
-      ],
-      "runtime_authority_ref": "app_state.agent_packages.directory.entries + app_state.agent_packages.status_index"
-    },
-    "professional_agent_packages": [
-      {
-        "package_id": "mas",
-        "agent_id": "mas",
-        "display_name": "Med Auto Science",
-        "display_name_i18n": {
-          "zh-CN": "Med Auto Science",
-          "en-US": "Med Auto Science"
-        },
-        "description_i18n": {
-          "zh-CN": "用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。",
-          "en-US": "For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission."
-        },
-        "short_name": "MAS",
-        "role": "research_and_paper_agent",
-        "package_kind": "starter_professional_agent_package",
-        "installed_manageable": true,
-        "default_home_visible": true,
-        "codex_visible_entry": "med-autoscience",
-        "home_shortcut_ids": ["research"],
-        "required_skill_ids": ["med-autoscience"],
-        "optional_skill_ids": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
-        "session_routing_summary_i18n": {
-          "zh-CN": "科研、论文、数据分析、审稿、返修和投稿",
-          "en-US": "research, papers, data analysis, peer review, revision, and submission"
-        },
-        "required_skill_policy": "checked_locked",
-        "optional_skill_policy": "unchecked_user_selectable",
-        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
-      },
-      {
-        "package_id": "mag",
-        "agent_id": "mag",
-        "display_name": "Med Auto Grant",
-        "display_name_i18n": {
-          "zh-CN": "Med Auto Grant",
-          "en-US": "Med Auto Grant"
-        },
-        "description_i18n": {
-          "zh-CN": "用于基金选题、标书与申请书撰写、预算说明和评审回复。",
-          "en-US": "For grant topics, proposals and applications, budget narratives, and reviewer responses."
-        },
-        "short_name": "MAG",
-        "role": "grant_authoring_agent",
-        "package_kind": "starter_professional_agent_package",
-        "installed_manageable": true,
-        "default_home_visible": true,
-        "codex_visible_entry": "med-autogrant",
-        "home_shortcut_ids": ["grant"],
-        "required_skill_ids": ["med-autogrant"],
-        "optional_skill_ids": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
-        "session_routing_summary_i18n": {
-          "zh-CN": "基金选题、标书、申请书、预算说明和评审回复",
-          "en-US": "grant topics, proposals, applications, budget narratives, and reviewer responses"
-        },
-        "required_skill_policy": "checked_locked",
-        "optional_skill_policy": "unchecked_user_selectable",
-        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
-      },
-      {
-        "package_id": "rca",
-        "agent_id": "rca",
-        "display_name": "RedCube AI",
-        "display_name_i18n": {
-          "zh-CN": "RedCube AI",
-          "en-US": "RedCube AI"
-        },
-        "description_i18n": {
-          "zh-CN": "用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。",
-          "en-US": "For presentations, reports, charts, and other professional visual deliverables."
-        },
-        "short_name": "RCA",
-        "role": "presentation_and_visual_deliverable_agent",
-        "package_kind": "starter_professional_agent_package",
-        "installed_manageable": true,
-        "default_home_visible": true,
-        "codex_visible_entry": "redcube-ai",
-        "home_shortcut_ids": ["ppt"],
-        "required_skill_ids": ["redcube-ai"],
-        "optional_skill_ids": ["officecli-pptx", "ui-ux-pro-max"],
-        "session_routing_summary_i18n": {
-          "zh-CN": "PPT、汇报、图表、视觉设计和演示材料",
-          "en-US": "slides, reports, charts, visual design, and presentation materials"
-        },
-        "required_skill_policy": "checked_locked",
-        "optional_skill_policy": "unchecked_user_selectable",
-        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
-      },
-      {
-        "package_id": "obf",
-        "agent_id": "obf",
-        "display_name": "OPL Book Forge",
-        "display_name_i18n": {
-          "zh-CN": "OPL Book Forge",
-          "en-US": "OPL Book Forge"
-        },
-        "description_i18n": {
-          "zh-CN": "用于书稿规划、章节写作、插图表格、排版、审校和导出。",
-          "en-US": "For book planning, chapter writing, figures and tables, layout, editing, and export."
-        },
-        "short_name": "OBF",
-        "role": "book_authoring_agent",
-        "package_kind": "starter_professional_agent_package",
-        "installed_manageable": true,
-        "default_home_visible": true,
-        "codex_visible_entry": "opl-bookforge",
-        "home_shortcut_ids": ["book"],
-        "required_skill_ids": ["opl-bookforge"],
-        "optional_skill_ids": ["officecli-docx", "pdf", "mineru-document-extractor"],
-        "session_routing_summary_i18n": {
-          "zh-CN": "写书、章节、插图表格、排版、审校和导出",
-          "en-US": "book writing, chapters, figures and tables, layout, editing, and export"
-        },
-        "required_skill_policy": "checked_locked",
-        "optional_skill_policy": "unchecked_user_selectable",
-        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
-      },
-      {
-        "package_id": "oma",
-        "agent_id": "oma",
-        "display_name": "OPL Meta Agent",
-        "display_name_i18n": {
-          "zh-CN": "OPL Meta Agent",
-          "en-US": "OPL Meta Agent"
-        },
-        "description_i18n": {
-          "zh-CN": "用于创建、接管、检查和改进 OPL 专业智能体。",
-          "en-US": "For creating, taking over, inspecting, and improving OPL professional agents."
-        },
-        "short_name": "OMA",
-        "role": "opl_agent_design_and_testing_agent",
-        "package_kind": "managed_professional_agent_package",
-        "installed_manageable": true,
-        "default_home_visible": true,
-        "codex_visible_entry": "opl-meta-agent",
-        "home_shortcut_ids": ["oma"],
-        "required_skill_ids": ["opl-meta-agent"],
-        "optional_skill_ids": [],
-        "session_routing_summary_i18n": {
-          "zh-CN": "创建、接管、检查和改进 OPL Foundry Agent",
-          "en-US": "create, take over, inspect, and improve OPL Foundry Agents"
-        },
-        "required_skill_policy": "checked_locked",
-        "optional_skill_policy": "unchecked_user_selectable",
-        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
-      }
-    ],
-    "default_assistants": [
-      {
-        "id": "mas",
-        "display_name": "Med Auto Science",
-        "short_name": "MAS",
-        "home_purpose_label": "科研",
-        "home_entry_display_policy": "purpose_first",
-        "role": "research_and_paper_agent",
-        "home_entry_policy": "purpose_entry_target",
-        "avatar": "MAS",
-        "description_i18n": {
-          "zh-CN": "推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。",
-          "en-US": "Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress."
-        },
-        "prompts_i18n": {
-          "zh-CN": ["整理当前课题的研究进度和下一步计划", "帮我推进论文写作和质量检查"],
-          "en-US": ["Organize this study's progress and next plan", "Advance manuscript writing and quality checks"]
-        }
-      },
-      {
-        "id": "mag",
-        "display_name": "Med Auto Grant",
-        "short_name": "MAG",
-        "home_purpose_label": "基金",
-        "home_entry_display_policy": "purpose_first",
-        "role": "grant_authoring_agent",
-        "home_entry_policy": "purpose_entry_target",
-        "avatar": "MAG",
-        "description_i18n": {
-          "zh-CN": "推进基金选题、标书结构、申请书撰写、预算说明和评审意见回应。",
-          "en-US": "Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses."
-        },
-        "prompts_i18n": {
-          "zh-CN": ["把这个基金想法整理成申请书框架", "检查这份标书还缺哪些关键材料"],
-          "en-US": [
-            "Turn this grant idea into an application outline",
-            "Check what key materials this proposal still needs"
-          ]
-        }
-      },
-      {
-        "id": "rca",
-        "display_name": "RedCube AI",
-        "short_name": "RCA",
-        "home_purpose_label": "演示",
-        "home_entry_display_policy": "purpose_first",
-        "role": "presentation_and_visual_deliverable_agent",
-        "home_entry_policy": "purpose_entry_target",
-        "avatar": "RCA",
-        "description_i18n": {
-          "zh-CN": "推进 PPT、汇报、图表、视觉交付物和演示材料制作。",
-          "en-US": "Advance slide decks, reports, figures, visual deliverables, and presentation materials."
-        },
-        "prompts_i18n": {
-          "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
-          "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
-        }
-      },
-      {
-        "id": "obf",
-        "display_name": "OPL Book Forge",
-        "short_name": "OBF",
-        "home_purpose_label": "写书",
-        "home_entry_display_policy": "purpose_first",
-        "role": "book_authoring_agent",
-        "home_entry_policy": "purpose_entry_target",
-        "avatar": "BOOK",
-        "description_i18n": {
-          "zh-CN": "推进书籍故事线、章节写作、插图表格、风格检查、排版验收和导出交接。",
-          "en-US": "Advance book storylines, chapter drafting, figure and table planning, style checks, layout review, and export handoff."
-        },
-        "prompts_i18n": {
-          "zh-CN": ["把这批材料整理成一本书的故事线和章节框架", "把已确认的故事线推进成书稿包并检查图表、风格和排版"],
-          "en-US": [
-            "Turn these materials into a book storyline and chapter outline",
-            "Materialize the approved storyline into a manuscript package and check figures, style, and layout"
-          ]
-        }
-      }
-    ],
-    "non_default_assistants": [
-      {
-        "id": "oma",
-        "display_name": "OPL Meta Agent",
-        "short_name": "OMA",
-        "role": "opl_agent_design_and_testing_agent",
-        "home_entry_policy": "settings_managed_home_shortcut",
-        "home_default_visible": true,
-        "avatar": "OMA",
-        "description_i18n": {
-          "zh-CN": "设计、测试和改进 OPL Agent，梳理能力边界、合同和验证流程。",
-          "en-US": "Design, test, and improve OPL Agents, including capability boundaries, contracts, and verification flows."
-        },
-        "prompts_i18n": {
-          "zh-CN": ["帮我设计一个新的 OPL Agent", "评估这个智能体的合同和测试是否完整"],
-          "en-US": ["Help me design a new OPL Agent", "Evaluate whether this agent's contract and tests are complete"]
-        }
-      }
-    ]
+    }
   },
   "codex": {
     "default_model": "gpt-5.6-sol",
@@ -1579,54 +1290,16 @@
       "dependency_policy": "framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite",
       "migration_policy": "framework_executes_conflict_retirement_with_backup_receipt_and_rollback"
     },
-    "opl_app_session_context": {
-      "owner": "one-person-lab-app",
-      "source": "app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback",
-      "delivery": "new_codex_conversation_preset_context",
-      "generation_policy": "profile_agent_routes",
-      "update_policy": "regenerated_when_app_product_profile_syncs",
-      "user_agents_policy": "codex_reads_user_and_repo_agents_independently",
-      "customization": {
-        "additional_instructions_key": "codex.oplAppSessionContextAdditional",
-        "base_context_edit_policy": "generated_read_only",
-        "user_edit_policy": "append_additional_instructions_only",
-        "reset_behavior": "clear_additional_instructions",
-        "effect": "next_new_conversation"
-      }
-    },
-    "default_visible_skills": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
-    "skill_priority": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
-    "session_context_lines": [
-      "## 关于本次会话",
-      "",
-      "本对话由 One Person Lab App 发起。你可以直接描述目标；需要时，App 会从以下已安装的专业能力中选择合适的路径：",
-      "",
-      "{{agent_routes}}",
-      "",
-      "如果你明确指定某项能力，以你的选择为准；没有匹配项时，就按普通 Codex 对话处理。",
-      "继续遵循你和当前项目中的 AGENTS.md，以及所选能力的说明；不要擅自改写配置。"
-    ],
-    "session_context_i18n": {
-      "zh-CN": [
-        "## 关于本次会话",
-        "",
-        "本对话由 One Person Lab App 发起。你可以直接描述目标；需要时，App 会从以下已安装的专业能力中选择合适的路径：",
-        "",
-        "{{agent_routes}}",
-        "",
-        "如果你明确指定某项能力，以你的选择为准；没有匹配项时，就按普通 Codex 对话处理。",
-        "继续遵循你和当前项目中的 AGENTS.md，以及所选能力的说明；不要擅自改写配置。"
-      ],
-      "en-US": [
-        "## About this conversation",
-        "",
-        "This conversation was started from One Person Lab App. Describe your goal normally; when useful, the App can choose an appropriate route from these installed professional capabilities:",
-        "",
-        "{{agent_routes}}",
-        "",
-        "If you explicitly select a capability, follow that choice. When none matches, handle the request as an ordinary Codex conversation.",
-        "Continue to follow your instructions, the current project's AGENTS.md, and the selected capability's guidance. Do not rewrite configuration without being asked."
-      ]
+    "new_conversation_additional_instructions": {
+      "content_owner": "user",
+      "delivery": "new_conversation_additional_instructions_only",
+      "storage_key": "codex.oplAppSessionContextAdditional",
+      "storage_key_status": "legacy_compatibility_storage_key",
+      "generated_base_context_allowed": false,
+      "agent_route_fallback_allowed": false,
+      "empty_value_policy": "inject_nothing",
+      "reset_behavior": "clear_additional_instructions",
+      "effect": "next_new_conversation"
     }
   },
   "first_run": {
@@ -1946,7 +1619,7 @@
           "codex_cli_and_model_access_core_state",
           "core_ready_separate_from_background_maintenance",
           "ui_language_policy",
-          "session_scoped_opl_app_context",
+          "user_authored_additional_instructions_optional_and_never_generated",
           "user_and_repo_agents_md_respected_no_overwrite",
           "official_profile_user_preferences_and_presence_only_package_scope",
           "installed_or_selected_package_configured_carrier_readback",
@@ -2108,13 +1781,13 @@
           "id": "agents_capabilities",
           "label_zh": "智能体与能力",
           "label_en": "Agents & Capabilities",
-          "role": "agent_package_capability_and_instruction_context_management",
+          "role": "agent_package_capability_and_instruction_management",
           "ordinary_entries": ["settings_agents", "settings_capabilities", "workspace#personalization"],
           "primary_tasks": [
             "agent_packages",
             "capability_directory",
             "codex_user_instructions",
-            "opl_app_session_context"
+            "new_conversation_additional_instructions"
           ]
         },
         {
@@ -2175,8 +1848,8 @@
         "workspace": {
           "label_zh": "工作区",
           "label_en": "Workspace",
-          "role": "selected_workspace_path_writability_and_new_conversation_context",
-          "primary_question": "Where is my current work, can the App write there, and what context should new conversations inherit?",
+          "role": "selected_workspace_path_writability_and_user_authored_new_conversation_instructions",
+          "primary_question": "Where is my current work, can the App write there, and what optional instructions should the next new conversation receive?",
           "ia_group": "workspace",
           "ordinary_entry_policy": "default_destination_under_workspace"
         },
@@ -2660,22 +2333,23 @@
             "editable_reason": "Codex reads this user-owned instruction file for every task; the App provides a safe editor without making OPL Flow the session prompt owner."
           },
           {
-            "stable_id": "settings.configuration.opl_app_session_context",
-            "configuration_id": "opl_app_session_context",
+            "stable_id": "settings.configuration.new_conversation_additional_instructions",
+            "configuration_id": "new_conversation_additional_instructions",
             "owner_class": "app_local",
-            "truth_owner": "one-person-lab-app",
+            "truth_owner": "user",
             "page_id": "workspace",
-            "anchor": "opl-app-context",
+            "anchor": "additional-instructions",
             "lifecycle": "persistent_new_conversation_configuration",
-            "value_type": "generated_markdown_plus_optional_additional_text",
+            "value_type": "optional_user_text",
             "sensitivity": "ordinary",
-            "current_value_source_ref": "app product profile agent routes + desktop client additional instructions",
+            "current_value_source_ref": "desktop client legacy compatibility storage key only",
             "write_route": "configService:codex.oplAppSessionContextAdditional",
+            "storage_key_status": "legacy_compatibility_storage_key",
             "persistence_target_ref": "desktop_client_settings",
-            "verify_ref": "new conversation preset_context",
+            "verify_ref": "new conversation preset_context contains only non-empty user-authored additional instructions; empty injects nothing",
             "risk": "low_next_conversation_only",
             "confirmation_required": false,
-            "editable_reason": "The generated App-owned agent directory stays current while the user may append or clear personal routing notes without replacing it."
+            "editable_reason": "The user may add or clear optional instructions for the next new conversation; the App never generates Agent routes or fallback context."
           },
           {
             "stable_id": "settings.configuration.display_preferences",
@@ -2989,8 +2663,8 @@
             "owner_group_id": "agents_capabilities",
             "route_id": "workspace",
             "anchor": "personalization",
-            "label_zh": "指令与上下文",
-            "label_en": "Instructions & Context",
+            "label_zh": "指令",
+            "label_en": "Instructions",
             "transport_owner_policy": "reuse_workspace_personalization_carrier_without_presenting_the_destination_under_Workspace"
           },
           {
@@ -3034,10 +2708,10 @@
             "anchor": "system-agents"
           },
           {
-            "content_id": "opl_app_session_context",
+            "content_id": "new_conversation_additional_instructions",
             "user_destination_id": "instructions_context",
             "transport_route_id": "workspace",
-            "anchor": "opl-app-context"
+            "anchor": "additional-instructions"
           },
           {
             "content_id": "app_log_directory",
@@ -3864,7 +3538,7 @@
               "completion_boundary": "this control-plane contract requires canonical public directory entries and their projected actions for manageable rows; status_index, runtime_source_carriers, modules, and Home shortcuts may enrich diagnostics only and never define catalog membership, lifecycle, readiness, or actions"
             },
             "forbidden_sources": [
-              "professional_agent_packages, starter_package_metadata, or any App-owned Package id list as directory collection or seed",
+              "any App-owned static Agent presentation overlay, starter_package_metadata, or App-owned Package id list as directory collection or seed",
               "shell-inferred package status or action payload",
               "Team MCP ordinary surface"
             ]
@@ -4367,7 +4041,7 @@
             "goal": "Preferences explains App behavior, timeout, notifications, display, fonts, and themes while Instructions & Context owns personalization.",
             "evidence_required": [
               "preferences anchors contain behavior/notifications/models-performance/display-fonts/themes only",
-              "workspace carrier anchors contain workspace/personalization/system-agents/opl-app-context while visible ownership remains split by destination",
+              "workspace carrier anchors contain workspace/personalization/system-agents/additional-instructions while visible ownership remains split by destination",
               "raw milliseconds and Electron flags stay collapsed",
               "Preferences has inline controls and no page-level primary action",
               "Preferences exposes System, Light, and Dark but no CSS theme preset gallery"
@@ -5206,7 +4880,7 @@
               "permission or trust explanation only when attention is required",
               "where project and task artifacts are stored",
               "system-level Codex user instructions with stale-write protection and backup",
-              "read-only generated new-conversation additions plus editable additional instructions",
+              "optional user-authored additional instructions for the next new conversation; empty means no injected context",
               "open workspace as an inline action and change workspace as the sole page-level primary action"
             ],
             "first_viewport_groups": ["workspace_configuration", "personalization"],
@@ -5221,7 +4895,7 @@
                   "owner": "workspace"
                 },
                 {
-                  "id": "opl_app_session_context",
+                  "id": "new_conversation_additional_instructions",
                   "owner": "workspace"
                 }
               ],
@@ -5271,7 +4945,8 @@
               "desktop_directory_mapping": "project_workspace_is_the_Framework_logical_workspace_root",
               "docker_mapping": "host_projects_directory_is_bound_to_/projects_and_Settings_does_not_rewire_the_bind_mount",
               "docker_volume_rewire_allowed": false,
-              "generated_base_context_editable": false,
+              "generated_base_context_allowed": false,
+              "agent_route_fallback_allowed": false,
               "additional_instructions_editable": true,
               "restore_default_confirmation_required": true,
               "personalization_changes_apply_to": "next_new_conversation",
@@ -5296,7 +4971,7 @@
                 "settings-workspace-primary-action",
                 "settings-personalization-instructions",
                 "settings-system-agents-editor",
-                "settings-opl-app-context-editor"
+                "settings-new-conversation-additional-instructions-editor"
               ],
               "conditional": [
                 {
@@ -5315,14 +4990,14 @@
               "artifacts",
               "personalization",
               "system-agents",
-              "opl-app-context"
+              "additional-instructions"
             ],
             "search_entry_ids": [
               "workspace.current",
               "workspace.permissions",
               "workspace.artifacts",
               "personalization.system_agents",
-              "personalization.opl_app_context"
+              "personalization.additional_instructions"
             ]
           },
           "capabilities": {
@@ -6660,9 +6335,9 @@
               "keywords_en": ["personalization", "instructions"]
             },
             {
-              "id": "personalization.opl_app_context",
+              "id": "personalization.additional_instructions",
               "page_id": "workspace",
-              "anchor": "opl-app-context",
+              "anchor": "additional-instructions",
               "label_zh": "新对话附加说明",
               "label_en": "New conversation additions",
               "keywords_zh": ["附加说明", "新对话"],

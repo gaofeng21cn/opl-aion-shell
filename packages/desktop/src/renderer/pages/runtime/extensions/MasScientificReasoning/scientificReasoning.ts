@@ -2,6 +2,8 @@ import type {
   DomainDetailViewAvailability,
   DomainDetailViewDescriptor,
   DomainDetailViewReadAvailability,
+} from '../../types';
+import type {
   ScientificReasoningEdge,
   ScientificReasoningEdgeKind,
   ScientificReasoningMapPayload,

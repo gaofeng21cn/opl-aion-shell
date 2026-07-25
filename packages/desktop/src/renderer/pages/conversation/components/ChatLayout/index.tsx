@@ -137,7 +137,7 @@ const ChatLayout: React.FC<{
     maxWidth: dynamicChatMaxRatio,
     storageKey: 'chat-preview-split-ratio',
   });
-  const { chatFlex, workspaceWidthPx, titleAreaMaxWidth, mobileWorkspaceHandleRight } = calcLayoutMetrics({
+  const { chatFlex, workspaceWidthPx, titleAreaMaxWidth } = calcLayoutMetrics({
     containerWidth,
     workspaceWidthPx: workspaceWidthPxPref,
     chatSplitRatio,
@@ -195,7 +195,7 @@ const ChatLayout: React.FC<{
   const headerTools = (
     <div className='conversation-header-tools' data-testid='conversation-header-tools'>
       {props.environmentSlot}
-      {workspaceEnabled && panelToggle}
+      {workspaceEnabled && rightSiderCollapsed && panelToggle}
     </div>
   );
 
@@ -359,7 +359,6 @@ const ChatLayout: React.FC<{
             rightSiderCollapsed={rightSiderCollapsed}
             setRightSiderCollapsed={setRightSiderCollapsed}
             workspaceWidthPx={workspaceWidthPx}
-            mobileWorkspaceHandleRight={mobileWorkspaceHandleRight}
             siderTitle={props.siderTitle ?? t('conversation.sidePanel.title')}
             sider={props.sider}
             workspacePath={workspacePath}

@@ -94,6 +94,17 @@ describe('Titlebar OPL App feedback', () => {
     expect(icon).not.toHaveAttribute('data-icon');
   });
 
+  it('leaves the conversation workspace toggle to the conversation surface', () => {
+    render(
+      <MemoryRouter initialEntries={['/conversation/thread-7']}>
+        <Titlebar workspaceAvailable />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('button', { name: 'common.expandMore' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'common.collapse' })).not.toBeInTheDocument();
+  });
+
   it('opens a prefilled OPL App GitHub issue with the current route and release version', async () => {
     render(
       <MemoryRouter initialEntries={['/settings/access?section=gateway']}>

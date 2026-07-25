@@ -1,7 +1,7 @@
 import WorkspacePanelHeader from './WorkspacePanelHeader';
 import { WORKSPACE_HEADER_HEIGHT } from '@/renderer/pages/conversation/utils/layoutCalc';
 import { dispatchWorkspaceToggleEvent } from '@/renderer/utils/workspace/workspaceEvents';
-import { Button, Layout as ArcoLayout } from '@arco-design/web-react';
+import { Layout as ArcoLayout } from '@arco-design/web-react';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,7 +9,6 @@ type MobileWorkspaceOverlayProps = {
   rightSiderCollapsed: boolean;
   setRightSiderCollapsed: (collapsed: boolean) => void;
   workspaceWidthPx: number;
-  mobileWorkspaceHandleRight: number;
   siderTitle?: React.ReactNode;
   sider: React.ReactNode;
   workspacePath?: string;
@@ -30,7 +29,6 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
   rightSiderCollapsed,
   setRightSiderCollapsed,
   workspaceWidthPx,
-  mobileWorkspaceHandleRight,
   siderTitle,
   sider,
   workspacePath,
@@ -115,7 +113,9 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
         if (ariaHidden === null) element.removeAttribute('aria-hidden');
         else element.setAttribute('aria-hidden', ariaHidden);
       }
-      if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+      const replacementToggle = document.querySelector<HTMLElement>('[data-testid="conversation-side-panel-toggle"]');
+      if (replacementToggle) replacementToggle.focus({ preventScroll: true });
+      else if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
     };
   }, [rightSiderCollapsed, setRightSiderCollapsed]);
 
@@ -169,34 +169,6 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
         <ArcoLayout.Content className='bg-1' style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>
           {sider}
         </ArcoLayout.Content>
-        {!rightSiderCollapsed && (
-          <Button
-            type='text'
-            className='fixed z-101 flex items-center justify-center transition-colors workspace-toggle-floating'
-            style={{
-              top: '50%',
-              right: `${mobileWorkspaceHandleRight}px`,
-              transform: 'translateY(-50%)',
-              width: '20px',
-              height: '64px',
-              borderTopLeftRadius: '10px',
-              borderBottomLeftRadius: '10px',
-              borderTopRightRadius: '0',
-              borderBottomRightRadius: '0',
-              borderRight: 'none',
-              backgroundColor: 'var(--bg-2)',
-              boxShadow: '0 8px 20px rgba(0, 0, 0, 0.12)',
-            }}
-            onClick={() => dispatchWorkspaceToggleEvent()}
-            aria-label={t('conversation.sidePanel.close')}
-          >
-            <span className='flex flex-col items-center justify-center gap-5px text-t-secondary'>
-              <span className='block w-8px h-2px rd-999px bg-current opacity-85'></span>
-              <span className='block w-8px h-2px rd-999px bg-current opacity-65'></span>
-              <span className='block w-8px h-2px rd-999px bg-current opacity-45'></span>
-            </span>
-          </Button>
-        )}
       </div>
     </div>
   );

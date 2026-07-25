@@ -259,7 +259,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: openclawAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
-        appState,
         extra: {
           default_files: initialFiles,
           runtime_validation: {
@@ -317,7 +316,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: nanobotAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
-        appState,
         extra: {
           default_files: initialFiles,
           preset_enabled_skills: enabled_skills_to_send,
@@ -466,7 +464,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           selectedAcpModel || codexAutoSelection?.modelId || currentAcpCachedModelInfo?.current_model_id || undefined,
         config_options: codexReasoningEffort ? { reasoning_effort: codexReasoningEffort } : undefined,
         language,
-        appState,
         extra: {
           default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,

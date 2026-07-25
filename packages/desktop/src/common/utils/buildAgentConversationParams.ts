@@ -5,12 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
-import {
-  getOplAppSessionContextPolicy,
-  getOplCodexSessionContextForLocale,
-  getOplDefaultCodexReasoningEffort,
-  getOplFlowContextPolicy,
-} from '@/common/config/oplProductProfile';
+import { getOplDefaultCodexReasoningEffort, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
@@ -40,30 +35,11 @@ export type BuildAgentConversationInput = {
   current_model_id?: string;
   config_options?: Record<string, string>;
   language?: string;
-  appState?: unknown;
   extra?: Partial<ICreateConversationParams['extra']>;
 };
 
-function mergePresetContext(oplFlowContext: string, presetRules?: string): string {
-  return [oplFlowContext.trim(), presetRules?.trim()].filter(Boolean).join('\n\n');
-}
-
-export function resolveEffectiveOplAppSessionContext(
-  language: string,
-  settings: {
-    additionalInstructions?: string;
-    appState?: unknown;
-  } = {}
-): { content: string; hasAdditionalInstructions: boolean } {
-  const locale = resolveLocaleKey(language);
-  const automaticContent = getOplCodexSessionContextForLocale(locale, settings.appState);
-  const additionalInstructions = settings.additionalInstructions?.trim();
-  if (!additionalInstructions) return { content: automaticContent, hasAdditionalInstructions: false };
-  const heading = locale === 'zh-CN' ? '## 用户附加说明' : '## Additional User Instructions';
-  return {
-    content: `${automaticContent}\n\n${heading}\n\n${additionalInstructions}`,
-    hasAdditionalInstructions: true,
-  };
+function mergeNewConversationInstructions(existingRules?: string, additionalInstructions?: string): string {
+  return [existingRules?.trim(), additionalInstructions?.trim()].filter(Boolean).join('\n\n');
 }
 
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
@@ -90,7 +66,6 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     current_model_id,
     config_options,
     language = 'zh-CN',
-    appState,
     extra: extraOverrides,
   } = input;
 
@@ -99,11 +74,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const type = getConversationTypeForBackend(is_preset ? effectivePresetType : backend);
   const effectiveBackend = is_preset ? effectivePresetType : backend;
   const oplFlowContextPolicy = getOplFlowContextPolicy();
-  const oplAppSessionContextPolicy = getOplAppSessionContextPolicy();
-  const oplAppSessionContext = resolveEffectiveOplAppSessionContext(language, {
-    additionalInstructions: configService.get('codex.oplAppSessionContextAdditional'),
-    appState,
-  });
+  const additionalInstructions = configService.get('codex.oplAppSessionContextAdditional')?.trim();
   const extra: ICreateConversationParams['extra'] = {
     workspace,
     custom_workspace,
@@ -113,12 +84,6 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       delivery: oplFlowContextPolicy.delivery,
       language: oplFlowContextPolicy.language_policy,
       user_agents_policy: oplFlowContextPolicy.user_agents_policy,
-    },
-    opl_app_session_context: {
-      owner: oplAppSessionContextPolicy.owner,
-      source: oplAppSessionContextPolicy.source,
-      additional_instructions: oplAppSessionContext.hasAdditionalInstructions,
-      effect: oplAppSessionContextPolicy.customization.effect,
     },
     ...extraOverrides,
   };
@@ -133,14 +98,17 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       extra.exclude_auto_inject_skills = preset_resources.exclude_auto_inject_skills;
     }
     extra.preset_assistant_id = effectivePresetAssistantId;
-    extra.preset_context = mergePresetContext(oplAppSessionContext.content, preset_resources?.rules);
+    const presetContext = mergeNewConversationInstructions(preset_resources?.rules, additionalInstructions);
+    if (presetContext) extra.preset_context = presetContext;
     if (type === 'acp') {
       extra.backend = effectivePresetType as string;
     }
   } else if (type === 'acp') {
     extra.backend = backend as string;
     extra.agent_name = agent_name || name;
-    extra.preset_context = mergePresetContext(oplAppSessionContext.content, extra.preset_context);
+    if (additionalInstructions) {
+      extra.preset_context = mergeNewConversationInstructions(extra.preset_context, additionalInstructions);
+    }
     if (agent_id) extra.agent_id = agent_id;
     if (cli_path) extra.cli_path = cli_path;
     if (custom_agent_id) {

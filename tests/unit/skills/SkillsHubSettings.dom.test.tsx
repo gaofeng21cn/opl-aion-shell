@@ -87,15 +87,15 @@ describe('SkillsHubSettings', () => {
     expect(element.type).toBe(SkillsHubSettings);
   });
 
-  it('filters upstream AionUI auto-injected skills from the App capabilities surface', async () => {
+  it('renders the Skill inventory returned by IPC without an App-packaged allowlist', async () => {
     render(<SkillsHubSettings withWrapper={false} />);
 
     await waitFor(() => {
       expect(screen.getByText('MAS skill')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('aionui-skills')).not.toBeInTheDocument();
-    expect(screen.queryByText('AionUI implementation helper')).not.toBeInTheDocument();
+    expect(screen.getAllByText('aionui-skills').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AionUI implementation helper').length).toBeGreaterThan(0);
     const manualImport = screen.getByTestId('btn-manual-import');
     expect(manualImport).toHaveClass('arco-btn');
     expect(manualImport.querySelector('svg')).toBeNull();

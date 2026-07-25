@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { configService } from '@/common/config/configService';
-import { getOplAppSessionContextPolicy, getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
-import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
+import { getOplDefaultCodexReasoningEffort } from '@/common/config/oplProductProfile';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 const model = {
@@ -9,39 +8,6 @@ const model = {
   platform: 'openai',
   name: 'Codex',
   use_model: 'gpt-5.6-sol',
-};
-
-const liveAppState = {
-  agent_packages: {
-    directory: {
-      entries: [
-        {
-          package_id: 'mas',
-          package_role: 'standard_agent',
-          installed: true,
-          display_name: 'Med Auto Science',
-          description: 'Research, papers, and data analysis',
-          capability_metadata: {
-            source: 'normalized_owner_manifest',
-            required_skill_ids: ['med-autoscience'],
-            optional_skill_refs: ['officecli-docx'],
-          },
-        },
-        {
-          package_id: 'oma',
-          package_role: 'standard_agent',
-          installed: true,
-          display_name: 'OPL Meta Agent',
-          description: 'Create, take over, and inspect Foundry Agents',
-          capability_metadata: {
-            source: 'normalized_owner_manifest',
-            required_skill_ids: ['opl-meta-agent'],
-            optional_skill_refs: [],
-          },
-        },
-      ],
-    },
-  },
 };
 
 describe('buildAgentConversationParams OPL flow context', () => {
@@ -53,8 +19,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     configService.reset();
   });
 
-  it('adds App-owned context metadata and prepends localized agent routes without replacing preset context', () => {
-    const appSessionContextPolicy = getOplAppSessionContextPolicy();
+  it('keeps OPL Flow metadata and preset rules without generated App session context', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'Research plan',
@@ -67,15 +32,9 @@ describe('buildAgentConversationParams OPL flow context', () => {
         rules: 'Existing assistant rule.',
       },
       language: 'en-US',
-      appState: liveAppState,
     });
 
-    expect(params.extra.preset_context).toContain('## About this conversation');
-    expect(params.extra.preset_context).toContain('Med Auto Science: Research, papers, and data analysis');
-    expect(params.extra.preset_context).toContain('OPL Meta Agent: Create, take over, and inspect Foundry Agents');
-    expect(params.extra.preset_context).not.toContain('本对话由 One Person Lab App 发起');
-    expect(params.extra.preset_context).toContain('Existing assistant rule.');
-    expect(params.extra.preset_context).toMatch(/Med Auto Science[\s\S]+Existing assistant rule\./);
+    expect(params.extra.preset_context).toBe('Existing assistant rule.');
     expect(params.extra.opl_flow_context).toEqual({
       flow_id: 'opl-flow',
       source: 'opl-flow-package-policy',
@@ -83,13 +42,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'follow_ui_locale_zh_only_when_ui_zh',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     });
-    expect(appSessionContextPolicy.source).toBe(generatedProfile.codex.opl_app_session_context.source);
-    expect(params.extra.opl_app_session_context).toEqual({
-      owner: 'one-person-lab-app',
-      source: appSessionContextPolicy.source,
-      additional_instructions: false,
-      effect: 'next_new_conversation',
-    });
+    expect(params.extra).not.toHaveProperty('opl_app_session_context');
   });
 
   it('preserves caller-provided OPL flow context overrides', () => {
@@ -113,7 +66,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.opl_flow_context?.language).toBe('en-US');
   });
 
-  it('uses the Chinese OPL flow context for Chinese UI sessions', () => {
+  it('does not generate locale-specific base context', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: '科研计划',
@@ -127,13 +80,11 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'zh-CN',
     });
 
-    expect(params.extra.preset_context).toContain('## 关于本次会话');
-    expect(params.extra.preset_context).toContain('本对话由 One Person Lab App 发起');
-    expect(params.extra.preset_context).toContain('已有智能体规则。');
-    expect(params.extra.preset_context).not.toContain('## About this conversation');
+    expect(params.extra.preset_context).toBe('已有智能体规则。');
+    expect(params.extra).not.toHaveProperty('opl_app_session_context');
   });
 
-  it('appends saved OPL App instructions without replacing the generated agent directory', () => {
+  it('appends saved user instructions directly to existing preset rules', () => {
     configService.setLocal('codex.oplAppSessionContextAdditional', 'Prefer concise progress summaries.');
 
     const params = buildAgentConversationParams({
@@ -141,14 +92,27 @@ describe('buildAgentConversationParams OPL flow context', () => {
       name: 'Additional context',
       workspace: '/Users/example/workspace',
       model,
+      is_preset: true,
+      preset_agent_type: 'codex',
+      preset_resources: { rules: 'Existing assistant rule.' },
       language: 'en-US',
-      appState: liveAppState,
     });
 
-    expect(params.extra.preset_context).toContain('Med Auto Science: Research, papers, and data analysis');
-    expect(params.extra.preset_context).toContain('## Additional User Instructions');
-    expect(params.extra.preset_context).toContain('Prefer concise progress summaries.');
-    expect(params.extra.opl_app_session_context?.additional_instructions).toBe(true);
+    expect(params.extra.preset_context).toBe('Existing assistant rule.\n\nPrefer concise progress summaries.');
+    expect(params.extra).not.toHaveProperty('opl_app_session_context');
+  });
+
+  it('injects nothing when the legacy additional-instructions storage value is empty', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Empty instructions',
+      workspace: '/Users/example/workspace',
+      model,
+      language: 'en-US',
+    });
+
+    expect(params.extra).not.toHaveProperty('preset_context');
+    expect(params.extra).not.toHaveProperty('opl_app_session_context');
   });
 
   it('sets the App-generated Codex reasoning default while preserving user overrides', () => {

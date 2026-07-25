@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { ScientificReasoningMap } from './components/ScientificReasoningMap';
-import { formatTimestamp, type RuntimeTranslate } from './formatters';
-import { readRuntimeWorkItemProjectionV2 } from './projection';
+import { ScientificReasoningMap } from './ScientificReasoningMap';
+import { formatTimestamp, type RuntimeTranslate } from '../../formatters';
+import { readRuntimeWorkItemProjectionV2 } from '../../projection';
 import { isScientificReasoningViewDescriptor, readScientificReasoningView } from './scientificReasoning';
 import type {
   DomainDetailViewAvailability,
@@ -15,7 +15,7 @@ import type {
   ScientificReasoningViewDescriptor,
   ScientificReasoningViewEnvelope,
 } from './types';
-import styles from './RuntimePage.module.css';
+import styles from '../../RuntimePage.module.css';
 
 type ResearchMapMode = 'map' | 'current_branch';
 type ReadState = {

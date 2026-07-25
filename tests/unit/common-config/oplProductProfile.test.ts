@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import generatedProfile from '@/common/config/oplProductProfile/oplProductProfile.generated.json';
 import {
-  getOplCodexSessionContextForLocale,
-  getOplAppSessionContextPolicy,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
   getOplCodexModelDisplayOptions,
@@ -12,15 +10,12 @@ import {
   getOplOrdinaryChromeName,
   getOplGlobalFeedbackIssueUrl,
   getOplBuiltinAssistantRouteReceiptPolicy,
-  getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
   getOplHomeAgentShortcuts,
   getOplHomeComposerStateContract,
-  getOplProfessionalAgentPackages,
   getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
   getOplCodexAutoModelPolicy,
-  getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
   getOplDeveloperProfileSettings,
   getOplGuiDefaultCssThemeId,
@@ -28,7 +23,6 @@ import {
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
-  getOplPackagedCodexSkills,
   getOplPostLoginSetupCheckTimeoutMs,
   getOplSettingsControlPlaneActionContract,
   getOplSettingsUserNavigationProjection,
@@ -37,14 +31,16 @@ import {
   getOplRuntimeEnvironmentItems,
   filterOplOrdinaryMcpServers,
   filterOplOrdinaryMcpStatuses,
+  filterOplOrdinarySkillCatalog,
+  filterOplOrdinarySkillNames,
   filterOplOrdinarySessionMcpServers,
+  getOplNewConversationAdditionalInstructionsPolicy,
   getOplOrdinaryCapabilitySelectorPolicy,
   getOplOrdinaryForbiddenCapabilityPolicy,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
   getOplScheduledTasksPolicy,
-  getOplSkillPriority,
   isOplCodexCliFixedExecutor,
   isOplForbiddenTeamMcpName,
   OPL_PRODUCT_PROFILE,
@@ -86,7 +82,7 @@ describe('OPL generated product profile', () => {
     expect(getOplGlobalFeedbackIssueUrl()).toBe('https://github.com/gaofeng21cn/one-person-lab-app/issues/new');
     expect(
       OPL_PRODUCT_PROFILE.first_run.beginner_presentation.post_install_ai_self_check_entry.target_state_checks
-    ).toContain('session_scoped_opl_app_context');
+    ).toContain('user_authored_additional_instructions_optional_and_never_generated');
   });
 
   it('exposes the App-owned post-login setup check timeout', () => {
@@ -352,9 +348,11 @@ describe('OPL generated product profile', () => {
       skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
     });
     expect(getOplOrdinaryCapabilitySelectorPolicy()).not.toHaveProperty('palette_required_agent_package_ids');
-    expect(getOplAppSessionContextPolicy()).toMatchObject({
-      source:
-        'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback',
+    expect(getOplNewConversationAdditionalInstructionsPolicy()).toMatchObject({
+      content_owner: 'user',
+      generated_base_context_allowed: false,
+      agent_route_fallback_allowed: false,
+      empty_value_policy: 'inject_nothing',
     });
   });
 
@@ -393,11 +391,13 @@ describe('OPL generated product profile', () => {
       'ordinary capability selector policy is unsupported',
     ],
     [
-      'Profile-derived session route source',
+      'Profile-derived session route fallback',
       (profile: typeof generatedProfile) => {
-        profile.codex.opl_app_session_context.source = 'gui.professional_agent_packages.session_routing_summary_i18n';
+        (profile.codex as Record<string, unknown>).opl_app_session_context = {
+          source: 'gui.professional_agent_packages.session_routing_summary_i18n',
+        };
       },
-      'codex.opl_app_session_context is unsupported',
+      'codex.opl_app_session_context is retired static session or Skill authority',
     ],
     [
       'palette availability without fresh presence and callability',
@@ -608,7 +608,7 @@ describe('OPL generated product profile', () => {
   it('preserves user and third-party MCP state while scrubbing AionUI Team state', () => {
     const selectorPolicy = getOplOrdinaryCapabilitySelectorPolicy();
     expect(selectorPolicy).toMatchObject({
-      authority: 'app_owned_skill_allowlist_and_mcp_negative_filter',
+      authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter',
       palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
       palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
       palette_agent_availability_policy:
@@ -616,6 +616,7 @@ describe('OPL generated product profile', () => {
       palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
       palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
       skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
+      conversation_loaded_skill_display_policy: 'preserve_owner_or_carrier_projected_loaded_skills',
       mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
       mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers',
       conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers',
@@ -716,89 +717,20 @@ describe('OPL generated product profile', () => {
     expect(extra).not.toHaveProperty('tl');
   });
 
-  it('exposes App-owned default home assistants without AionUI legacy entries', () => {
-    const assistants = getOplDefaultHomeAssistants();
+  it('keeps optional Home shortcut metadata without restoring fixed presentation membership', () => {
+    const shortcuts = getOplHomeAgentShortcuts();
 
-    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
-    expect(assistants.map((assistant) => assistant.display_name)).toEqual([
-      'Med Auto Science',
-      'Med Auto Grant',
-      'RedCube AI',
-      'OPL Book Forge',
-    ]);
-    expect(assistants.map((assistant) => assistant.short_name)).toEqual(['MAS', 'MAG', 'RCA', 'OBF']);
-    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示', '写书']);
-    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
-      'research',
-      'grant',
-      'ppt',
-      'book',
-    ]);
-    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.target_assistant_id)).toEqual([
-      'mas',
-      'mag',
-      'rca',
-      'obf',
-    ]);
-    expect(
-      OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
-    ).toBe(true);
-    expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.shortcut_id)).toEqual([
-      'research',
-      'ppt',
-      'grant',
-      'book',
-      'oma',
-    ]);
-    expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.package_id)).toEqual([
-      'mas',
-      'rca',
-      'mag',
-      'obf',
-      'oma',
-    ]);
-    expect(getOplHomeAgentShortcuts().every((shortcut) => shortcut.user_configurable)).toBe(true);
-    expect(getOplHomeAgentShortcuts().find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(true);
-    expect(getOplProfessionalAgentPackages().map((agentPackage) => agentPackage.package_id)).toEqual([
-      'mas',
-      'mag',
-      'rca',
-      'obf',
-      'oma',
-    ]);
-    expect(
-      Object.fromEntries(
-        getOplProfessionalAgentPackages().map((agentPackage) => [
-          agentPackage.package_id,
-          agentPackage.codex_visible_entry,
-        ])
-      )
-    ).toMatchObject({
-      mas: 'med-autoscience',
-      mag: 'med-autogrant',
-      rca: 'redcube-ai',
-      obf: 'opl-bookforge',
-      oma: 'opl-meta-agent',
-    });
-    expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
-    expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
-    expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
-    expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(true);
-    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('settings_managed_home_shortcut');
+    expect(shortcuts.map((shortcut) => shortcut.shortcut_id)).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
+    expect(shortcuts.every((shortcut) => shortcut.user_configurable)).toBe(true);
+    expect(shortcuts.find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('professional_agent_packages');
+    expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('default_assistants');
+    expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('non_default_assistants');
+    expect(OPL_PRODUCT_PROFILE.gui.home).not.toHaveProperty('home_purpose_entries');
     expect(OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids).toEqual(['opl-meta-agent']);
-    expect(getOplPackagedCodexSkills()).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'opl-meta-agent',
-    ]);
-    expect(getOplPackagedCodexSkills()).not.toContain('superpowers');
 
-    assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
-    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'obf']);
+    shortcuts.push({ ...shortcuts[0], shortcut_id: 'caller-local-shortcut' });
+    expect(getOplHomeAgentShortcuts()).toHaveLength(5);
   });
 
   it('exposes the built-in assistant route receipt policy', () => {
@@ -1030,20 +962,21 @@ describe('OPL generated product profile', () => {
     expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
   });
 
-  it('exposes default visible skills without allowing caller mutation', () => {
-    const skills = getOplDefaultCodexSkills();
-
-    skills.push('caller-local-skill');
-
-    expect(getOplDefaultCodexSkills()).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
-  });
-
-  it('keeps display priority aligned with default skills without retired morph-ppt wiring', () => {
-    const skillPriority = getOplSkillPriority();
-
-    expect(skillPriority).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
-    expect(skillPriority).toEqual(expect.arrayContaining(getOplDefaultCodexSkills()));
-    expect(skillPriority).not.toContain('morph-ppt');
+  it('preserves owner- or carrier-projected Skill names while trimming blanks and duplicates', () => {
+    expect(filterOplOrdinarySkillNames([' owner-skill ', 'unknown-skill', 'owner-skill', ''])).toEqual([
+      'owner-skill',
+      'unknown-skill',
+    ]);
+    expect(
+      filterOplOrdinarySkillCatalog([
+        { name: ' owner-skill ', source: 'owner' },
+        { name: 'unknown-skill', source: 'carrier' },
+        { name: 'owner-skill', source: 'duplicate' },
+      ])
+    ).toEqual([
+      { name: 'owner-skill', source: 'owner' },
+      { name: 'unknown-skill', source: 'carrier' },
+    ]);
   });
 
   it('exposes first-run deferred blockers and Command Line Tools copy from the generated profile', () => {
@@ -1071,21 +1004,15 @@ describe('OPL generated product profile', () => {
     expect(getOplCommandLineToolsInstallMessage()).toContain('resume them from Settings');
   });
 
-  it('exposes the Codex session context without embedded secrets', () => {
-    const context = getOplCodexSessionContextForLocale('zh-CN');
-    const policy = getOplAppSessionContextPolicy();
-
-    expect(context).toContain('关于本次会话');
-    expect(context).not.toContain('MAS（Med Auto Science）');
-    expect(context).not.toContain('OMA（OPL Meta Agent）');
-    expect(context).toContain('继续遵循你和当前项目中的 AGENTS.md');
-    expect(context).not.toContain('api_key');
-    expect(context).not.toContain('experimental_bearer_token');
-    expect(policy.source).toBe(generatedProfile.codex.opl_app_session_context.source);
-    expect(policy.customization).toEqual({
-      additional_instructions_key: 'codex.oplAppSessionContextAdditional',
-      base_context_edit_policy: 'generated_read_only',
-      user_edit_policy: 'append_additional_instructions_only',
+  it('allows only optional user-authored instructions for new conversations', () => {
+    expect(getOplNewConversationAdditionalInstructionsPolicy()).toEqual({
+      content_owner: 'user',
+      delivery: 'new_conversation_additional_instructions_only',
+      storage_key: 'codex.oplAppSessionContextAdditional',
+      storage_key_status: 'legacy_compatibility_storage_key',
+      generated_base_context_allowed: false,
+      agent_route_fallback_allowed: false,
+      empty_value_policy: 'inject_nothing',
       reset_behavior: 'clear_additional_instructions',
       effect: 'next_new_conversation',
     });

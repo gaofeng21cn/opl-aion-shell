@@ -20,13 +20,13 @@ import {
 import '@xyflow/react/dist/style.css';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RuntimeTranslate } from '../formatters';
+import type { RuntimeTranslate } from '../../formatters';
 import type {
   ScientificReasoningEdge,
   ScientificReasoningNode as ScientificReasoningNodeModel,
   ScientificReasoningNodeKind,
-} from '../types';
-import styles from '../RuntimePage.module.css';
+} from './types';
+import styles from '../../RuntimePage.module.css';
 
 const NODE_WIDTH = 276;
 const NODE_HEIGHT = 152;

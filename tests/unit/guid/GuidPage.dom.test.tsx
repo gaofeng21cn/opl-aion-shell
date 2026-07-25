@@ -569,14 +569,14 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setSelectedAgentKey).not.toHaveBeenCalled();
   });
 
-  it('applies the App-owned skill allowlist and MCP visibility policy on ordinary Home', async () => {
+  it('uses the owner-projected Skill scope and MCP negative-filter policy on ordinary Home', async () => {
     render(<GuidPage />);
 
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
           guidEnabledSkills: ['med-autoscience'],
-          guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
+          guidDisabledBuiltinSkills: ['aionui-skills'],
           availableMcpServers: filterOplOrdinaryMcpServers(configuredMcpServers()),
           selectedMcpServerIds: [],
         })
@@ -803,7 +803,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     );
   });
 
-  it('loads only App-packaged available skills on the OPL home path', async () => {
+  it('disables builtin-auto Skills that are absent from the owner projection', async () => {
     render(<GuidPage />);
 
     await screen.findByTestId('home-starter-research');
@@ -814,7 +814,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() =>
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
+          guidDisabledBuiltinSkills: ['aionui-skills'],
         })
       )
     );

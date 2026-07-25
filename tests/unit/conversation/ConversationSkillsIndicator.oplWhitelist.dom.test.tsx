@@ -27,8 +27,8 @@ vi.mock('swr', () => ({
   default: () => ({ data: [] }),
 }));
 
-describe('ConversationSkillsIndicator OPL ordinary whitelist', () => {
-  it('counts and displays only OPL ordinary skills from the conversation snapshot', () => {
+describe('ConversationSkillsIndicator projected Skill snapshot', () => {
+  it('counts every owner or carrier reported Skill without a fixed name filter', () => {
     render(
       <ConversationSkillsIndicator
         conversation={
@@ -47,10 +47,10 @@ describe('ConversationSkillsIndicator OPL ordinary whitelist', () => {
       />
     );
 
-    expect(screen.getByTestId('skills-indicator-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('skills-indicator-count')).toHaveTextContent('4');
   });
 
-  it('renders nothing when the snapshot only contains AionUI implementation skills', () => {
+  it('renders nothing when the projected snapshot is empty', () => {
     render(
       <ConversationSkillsIndicator
         conversation={
@@ -62,7 +62,7 @@ describe('ConversationSkillsIndicator OPL ordinary whitelist', () => {
             type: 'acp',
             model: {},
             extra: {
-              skills: ['aionui-skills', 'cron', 'skill-creator'],
+              skills: [],
             },
           } as never
         }

@@ -1,31 +1,53 @@
 import type { ComponentType } from 'react';
-import ScientificReasoningPage from './ScientificReasoningPage';
+import { masScientificReasoningRendererExtension } from './extensions/MasScientificReasoning';
+import type { RuntimeTranslate } from './formatters';
 import type { DomainDetailViewDescriptor } from './types';
 
-type DomainDetailViewRenderer = {
-  viewId: string;
-  schemaVersions: ReadonlySet<string>;
+export type DomainDetailViewSummaryProps = {
+  descriptor: DomainDetailViewDescriptor;
+  t: RuntimeTranslate;
+  onOpen: () => void;
+};
+
+/**
+ * Owner-delivered renderer source is composed at build time. Descriptor data
+ * can only select a registered view kind; it cannot supply code or a path.
+ */
+export type DomainDetailViewRendererExtension = {
+  viewKind: string;
+  ownerPackageId: string;
+  rendererId: string;
+  schemaCompatibility: (descriptor: DomainDetailViewDescriptor) => boolean;
   component: ComponentType;
+  summary: ComponentType<DomainDetailViewSummaryProps>;
 };
 
-const DOMAIN_DETAIL_VIEW_RENDERERS: Readonly<Record<string, DomainDetailViewRenderer>> = {
-  scientific_reasoning_map: {
-    viewId: 'scientific-reasoning',
-    schemaVersions: new Set(['scientific-reasoning-map.v1', 'scientific-reasoning-map.v2']),
-    component: ScientificReasoningPage,
-  },
-};
+const DOMAIN_DETAIL_VIEW_RENDERER_EXTENSIONS: readonly DomainDetailViewRendererExtension[] = [
+  masScientificReasoningRendererExtension,
+];
 
-/** Resolves a renderer by the domain-authored view kind, never by agent identity. */
+const DOMAIN_DETAIL_VIEW_RENDERERS = new Map(
+  DOMAIN_DETAIL_VIEW_RENDERER_EXTENSIONS.map((extension) => [extension.viewKind, extension])
+);
+
+/** Resolves only trusted, build-composed extensions by domain-authored view kind. */
+export function resolveDomainDetailViewRendererExtension(
+  descriptor: DomainDetailViewDescriptor
+): DomainDetailViewRendererExtension | null {
+  const extension = DOMAIN_DETAIL_VIEW_RENDERERS.get(descriptor.viewKind);
+  return extension?.schemaCompatibility(descriptor) ? extension : null;
+}
+
 export function resolveDomainDetailViewRenderer(descriptor: DomainDetailViewDescriptor): ComponentType | null {
-  const registered = DOMAIN_DETAIL_VIEW_RENDERERS[descriptor.viewKind];
-  return registered?.viewId === descriptor.viewId &&
-    descriptor.schemaVersion !== null &&
-    registered.schemaVersions.has(descriptor.schemaVersion)
-    ? registered.component
-    : null;
+  return resolveDomainDetailViewRendererExtension(descriptor)?.component ?? null;
 }
 
 export const __domainDetailViewRegistryTest = {
-  registeredViewKinds: Object.freeze(Object.keys(DOMAIN_DETAIL_VIEW_RENDERERS)),
+  registeredExtensions: Object.freeze(
+    DOMAIN_DETAIL_VIEW_RENDERER_EXTENSIONS.map(({ viewKind, ownerPackageId, rendererId }) => ({
+      viewKind,
+      ownerPackageId,
+      rendererId,
+    }))
+  ),
 };

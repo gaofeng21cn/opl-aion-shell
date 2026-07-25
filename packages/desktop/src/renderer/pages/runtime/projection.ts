@@ -23,7 +23,6 @@ import {
   type RuntimeWorkItem,
   type RuntimeWorkItemProjectionV2,
   type RuntimeWorkItemVisibility,
-  type ScientificReasoningViewDescriptor,
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -265,25 +264,6 @@ function parseVisibility(value: unknown): RuntimeWorkItemVisibility | null {
   return { state, source: projectionSource, updatedAt, controlRef, generation };
 }
 
-function parseScientificReasoningDescriptor(
-  base: DomainDetailViewDescriptor,
-  _entry: JsonRecord
-): ScientificReasoningViewDescriptor | null {
-  if (
-    base.viewId !== 'scientific-reasoning' ||
-    base.viewKind !== 'scientific_reasoning_map' ||
-    (base.schemaVersion !== 'scientific-reasoning-map.v1' && base.schemaVersion !== 'scientific-reasoning-map.v2')
-  ) {
-    return null;
-  }
-  return {
-    ...base,
-    viewId: 'scientific-reasoning',
-    viewKind: 'scientific_reasoning_map',
-    schemaVersion: base.schemaVersion,
-  };
-}
-
 function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string): DomainDetailViewDescriptor[] | null {
   if (value === null || value === undefined) return [];
   const source = records(value);
@@ -334,16 +314,7 @@ function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string
       revision,
       digest,
     };
-    if (
-      viewKind === 'scientific_reasoning_map' &&
-      (schemaVersion === 'scientific-reasoning-map.v1' || schemaVersion === 'scientific-reasoning-map.v2')
-    ) {
-      const scientificReasoning = parseScientificReasoningDescriptor(base, entry);
-      if (!scientificReasoning) return null;
-      descriptors.push(scientificReasoning);
-    } else {
-      descriptors.push(base);
-    }
+    descriptors.push(base);
   }
   if (new Set(descriptors.map((descriptor) => descriptor.viewId)).size !== descriptors.length) return null;
   return descriptors;
@@ -604,7 +575,5 @@ export function readRuntimeWorkItemProjectionV2(appStateValue: unknown): Runtime
     const projection = parseProjection(candidate);
     return projection ? { state: 'ready', projection } : { state: 'invalid', projection: null };
   }
-  const legacy = record(workbench?.work_item_projection_v1) ?? record(workbench?.work_item_projection);
-  if (legacy?.schema_version === 'work-item-projection.v1') return { state: 'legacy', projection: null };
   return { state: 'missing', projection: null };
 }

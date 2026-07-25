@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowLeft, ArrowRight, ExpandLeft, ExpandRight, Help, LeftBar, Peoples } from '@icon-park/react';
+import { ArrowLeft, ArrowRight, Help, LeftBar, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -13,8 +13,6 @@ import {
 } from '@/common/config/oplProductProfile';
 import MobileConversationBrand from './MobileConversationBrand';
 import WindowControls from '../WindowControls';
-import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspace/workspaceEvents';
-import type { WorkspaceStateDetail } from '@renderer/utils/workspace/workspaceEvents';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { isElectronDesktop, isMacOS, openExternalUrl } from '@/renderer/utils/platform';
@@ -29,7 +27,6 @@ interface TitlebarProps {
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
   const appTitle = useMemo(() => getOplOrdinaryChromeName(), []);
-  const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
   const [mobileCenterOffset, setMobileCenterOffset] = useState(0);
   const layout = useLayoutContext();
@@ -40,33 +37,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
-  // 监听工作空间折叠状态，保持按钮图标一致 / Sync workspace collapsed state for toggle button
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-    const handler = (event: Event) => {
-      const customEvent = event as CustomEvent<WorkspaceStateDetail>;
-      if (typeof customEvent.detail?.collapsed === 'boolean') {
-        setWorkspaceCollapsed(customEvent.detail.collapsed);
-      }
-    };
-    window.addEventListener(WORKSPACE_STATE_EVENT, handler as EventListener);
-    return () => {
-      window.removeEventListener(WORKSPACE_STATE_EVENT, handler as EventListener);
-    };
-  }, []);
-
   const isDesktopRuntime = isElectronDesktop();
   const isMacRuntime = isDesktopRuntime && isMacOS();
   // Windows/Linux 显示自定义窗口按钮；macOS 在标题栏给工作区一个切换入口
   const showWindowControls = isDesktopRuntime && !isMacRuntime;
-  // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
-  const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime);
-
-  const workspaceTooltip = workspaceCollapsed
-    ? t('common.expandMore', { defaultValue: 'Expand workspace' })
-    : t('common.collapse', { defaultValue: 'Collapse workspace' });
   const backToAppTooltip = t('settings.backToApp');
   const feedbackTooltip = t('settings.githubIssue.tooltip');
   const isSettingsRoute = location.pathname.startsWith('/settings');
@@ -84,13 +58,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const handleSiderToggle = () => {
     if (!showSiderToggle || !layout?.setSiderCollapsed) return;
     layout.setSiderCollapsed(!layout.siderCollapsed);
-  };
-
-  const handleWorkspaceToggle = () => {
-    if (!workspaceAvailable) {
-      return;
-    }
-    dispatchWorkspaceToggleEvent();
   };
 
   const handleBackToChat = () => {
@@ -196,7 +163,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     if (toolbarRef.current) observer.observe(toolbarRef.current);
 
     return () => observer.disconnect();
-  }, [layout?.isMobile, showBackToChatButton, showWorkspaceButton, mobileCenterTitle]);
+  }, [layout?.isMobile, showBackToChatButton, mobileCenterTitle]);
 
   const mobileCenterStyle = layout?.isMobile
     ? ({
@@ -313,21 +280,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         >
           <Help {...OPL_CHROME_ICON_PROPS} data-testid='app-titlebar-help-icon' aria-hidden='true' />
         </button>
-        {showWorkspaceButton && (
-          <button
-            type='button'
-            className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
-            onClick={handleWorkspaceToggle}
-            aria-label={workspaceTooltip}
-            title={workspaceTooltip}
-          >
-            {workspaceCollapsed ? (
-              <ExpandRight aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
-            ) : (
-              <ExpandLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
-            )}
-          </button>
-        )}
         {showWindowControls && <WindowControls />}
       </div>
     </div>

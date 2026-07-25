@@ -81,7 +81,7 @@ describe('Runtime V2 projection boundary', () => {
     ).toBe('ready');
   });
 
-  it('recognizes V1 without consuming its task state', () => {
+  it('treats a V1-only payload as missing without consuming its task state', () => {
     const result = readRuntimeWorkItemProjectionV2({
       operator: {
         workbench: {
@@ -93,7 +93,7 @@ describe('Runtime V2 projection boundary', () => {
       },
     });
 
-    expect(result).toEqual({ state: 'legacy', projection: null });
+    expect(result).toEqual({ state: 'missing', projection: null });
   });
 
   it('rejects an item envelope that does not match its canonical identity', () => {
@@ -362,7 +362,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(JSON.stringify(item)).not.toContain('runtime_token_telemetry_verification');
   });
 
-  it('parses the registered scientific descriptor as a refs-only locator', () => {
+  it('parses a domain-owned descriptor as a generic refs-only locator', () => {
     const projection = createRuntimeV2Projection();
     projection.items[0]!.domain_detail_views = [createScientificReasoningDescriptor()];
 
@@ -402,7 +402,7 @@ describe('Runtime V2 projection boundary', () => {
     ).toEqual({ state: 'invalid', projection: null });
   });
 
-  it('retains v1 scientific descriptor compatibility', () => {
+  it('does not mirror the owner renderer schema compatibility', () => {
     const projection = createRuntimeV2Projection();
     projection.items[0]!.domain_detail_views = [
       createScientificReasoningDescriptor({ schemaVersion: 'scientific-reasoning-map.v1' }),
@@ -418,6 +418,14 @@ describe('Runtime V2 projection boundary', () => {
       schemaVersion: 'scientific-reasoning-map.v1',
       availability: 'unread',
     });
+
+    projection.items[0]!.domain_detail_views = [
+      { ...createScientificReasoningDescriptor(), schema_version: 'scientific-reasoning-map.v3' },
+    ];
+    expect(
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: projection } } }).projection
+        ?.items[0]?.domainDetailViews[0]
+    ).toMatchObject({ schemaVersion: 'scientific-reasoning-map.v3', availability: 'unread' });
   });
 
   it('keeps unknown view kinds bounded without invalidating the runtime projection', () => {

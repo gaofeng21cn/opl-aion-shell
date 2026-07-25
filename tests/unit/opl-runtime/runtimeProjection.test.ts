@@ -69,6 +69,12 @@ describe('runtime visualization projection normalization', () => {
               tasks: [
                 {
                   task_id: 'medautoscience:binding:dm-binding:study:002-dm-paper',
+                  project_scope_id: 'project:medautoscience:dm-binding',
+                  project_display_name: '糖尿病',
+                  workspace_id: 'workspace:dm-binding',
+                  workspace_label: '糖尿病',
+                  project_id: '002-dm-paper',
+                  study_id: '002-dm-paper',
                   runtime_closeout_observed: true,
                   runtime_closeout_ref: 'runtime://closeout/002-dm-paper',
                   mas_owner_consumption_status: 'consumed',
@@ -102,34 +108,6 @@ describe('runtime visualization projection normalization', () => {
                 scope_id: 'all_projects',
                 label: '全部项目',
               },
-            },
-            work_item_projection_v1: {
-              surface_kind: 'opl_work_item_projection',
-              schema_version: 'work-item-projection.v1',
-              items: [
-                {
-                  item_id: 'medautoscience:binding:dm-binding:study:002-dm-paper',
-                  title: '002-dm-paper',
-                  work_item: {
-                    work_item_id: '002-dm-paper',
-                    label: '002-dm-paper',
-                    kind: 'study',
-                    study_id: '002-dm-paper',
-                    project_label: '糖尿病',
-                    project_scope_id: 'project:medautoscience:dm-binding',
-                    workspace_binding_id: 'dm-binding',
-                    workspace_label: '糖尿病',
-                  },
-                  agent: {
-                    agent_id: 'medautoscience',
-                    label: 'Med Auto Science',
-                  },
-                  status: {
-                    primary_state: 'delivered_auto_paused',
-                    automation_state: 'automation_idle',
-                  },
-                },
-              ],
             },
           },
         },

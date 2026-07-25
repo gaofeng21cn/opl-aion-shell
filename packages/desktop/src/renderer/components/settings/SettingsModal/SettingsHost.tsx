@@ -495,7 +495,8 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
 
   const renderSlot = getSettingsRenderSlot(activeTab);
   const workspaceSecondarySurface =
-    activeTab === 'workspace' && ['personalization', 'system-agents', 'opl-app-context'].includes(activeAnchor ?? '')
+    activeTab === 'workspace' &&
+    ['personalization', 'system-agents', 'additional-instructions', 'opl-app-context'].includes(activeAnchor ?? '')
       ? 'instructions'
       : activeTab === 'workspace' && activeAnchor === 'logs'
         ? 'logs'

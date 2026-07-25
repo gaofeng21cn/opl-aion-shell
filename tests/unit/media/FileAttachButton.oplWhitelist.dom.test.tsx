@@ -91,7 +91,7 @@ describe('FileAttachButton OPL ordinary capability policy', () => {
     expect(openDirectorySelector).toHaveBeenCalledOnce();
   });
 
-  it('invokes only loaded allowlisted Skills and keeps non-forbidden MCP snapshot entries read-only', async () => {
+  it('invokes carrier-loaded Skills without a fixed name filter and keeps MCP snapshot entries read-only', async () => {
     const user = userEvent.setup();
     render(
       <FileAttachButton
@@ -111,9 +111,9 @@ describe('FileAttachButton OPL ordinary capability policy', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'guid.context.paletteTitle' });
     expect(moreButton).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.queryByText('aionui-skills')).not.toBeInTheDocument();
-    expect(screen.queryByText('cron')).not.toBeInTheDocument();
-    expect(screen.queryByText('skill-creator')).not.toBeInTheDocument();
+    expect(screen.getByText('aionui-skills')).toBeInTheDocument();
+    expect(screen.getByText('cron')).toBeInTheDocument();
+    expect(screen.getByText('skill-creator')).toBeInTheDocument();
     expect(screen.getByText('Unknown MCP').closest('button')).toBeDisabled();
     expect(screen.getByText('AionUI Image Generation').closest('button')).toBeDisabled();
     expect(screen.queryByText('AionUI Team')).not.toBeInTheDocument();

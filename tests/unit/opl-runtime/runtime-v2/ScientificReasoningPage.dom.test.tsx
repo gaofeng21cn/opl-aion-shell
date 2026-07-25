@@ -6,8 +6,8 @@ import DomainDetailViewPage from '@/renderer/pages/runtime/DomainDetailViewPage'
 import ScientificReasoningPage, {
   __scientificReasoningPageTest,
   resetScientificReasoningCacheForTest,
-} from '@/renderer/pages/runtime/ScientificReasoningPage';
-import { readScientificReasoningView } from '@/renderer/pages/runtime/scientificReasoning';
+} from '@/renderer/pages/runtime/extensions/MasScientificReasoning/ScientificReasoningPage';
+import { readScientificReasoningView } from '@/renderer/pages/runtime/extensions/MasScientificReasoning/scientificReasoning';
 import { createRuntimeV2AppState, createScientificReasoningViewResponse } from './fixture';
 
 const bridgeMocks = vi.hoisted(() => ({ readDomainDetailView: vi.fn() }));
@@ -37,7 +37,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   }),
 }));
 
-vi.mock('@/renderer/pages/runtime/components/ScientificReasoningMap', () => ({
+vi.mock('@/renderer/pages/runtime/extensions/MasScientificReasoning/ScientificReasoningMap', () => ({
   ScientificReasoningMap: ({
     nodes,
     edges,

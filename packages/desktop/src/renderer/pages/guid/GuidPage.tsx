@@ -50,7 +50,6 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
 
-const DEFAULT_AUTO_SKILL_EXCLUSIONS = getOplOrdinaryCapabilitySelectorPolicy().forbidden_skill_examples;
 const AGENT_REFERENCE_ADMISSION_POLICY = getOplOrdinaryCapabilitySelectorPolicy().agent_reference_admission_policy;
 
 type GuidNavigationState = {
@@ -153,9 +152,7 @@ const GuidPage: React.FC = () => {
   // Home skill choices come from the fresh standard-Agent directory metadata.
   // Upstream AionUI builtin-auto skills are shell candidates, not Package authority.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
-  const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(
-    DEFAULT_AUTO_SKILL_EXCLUSIONS
-  );
+  const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
   const [availableMcpServers, setAvailableMcpServers] = useState<IMcpServer[]>([]);
   const [guidSelectedMcpServerIds, setGuidSelectedMcpServerIds] = useState<string[] | undefined>(undefined);
@@ -196,16 +193,11 @@ const GuidPage: React.FC = () => {
       .invoke()
       .then((autoSkills) => {
         setGuidDisabledBuiltinSkills(
-          Array.from(
-            new Set([
-              ...DEFAULT_AUTO_SKILL_EXCLUSIONS,
-              ...autoSkills.map((skill) => skill.name).filter((name) => !ordinarySkillNames.has(name)),
-            ])
-          )
+          Array.from(new Set(autoSkills.map((skill) => skill.name).filter((name) => !ordinarySkillNames.has(name))))
         );
       })
       .catch(() => {
-        setGuidDisabledBuiltinSkills(DEFAULT_AUTO_SKILL_EXCLUSIONS);
+        setGuidDisabledBuiltinSkills(undefined);
       });
   }, [directorySkillIds]);
 

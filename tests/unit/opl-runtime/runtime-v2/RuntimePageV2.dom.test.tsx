@@ -134,7 +134,7 @@ vi.mock('react-i18next', () => ({
       'common.runtime.systemAttention.repairAction': '修复动作',
       'common.runtime.systemAttention.expectedOutcome': '预期结果',
       'common.runtime.projection.unavailableTitle': '运行状态暂不可用',
-      'common.runtime.projection.legacyDescription': 'V1 状态不再用于推断',
+      'common.runtime.projection.missingDescription': 'OPL 尚未发布 V2 工作项投影',
       'common.uiOptimization.runtime.summary.availability': '可用性',
       'common.uiOptimization.runtime.summary.running': '运行中',
       'common.uiOptimization.runtime.summary.needsAttention': '需要处理',
@@ -913,7 +913,7 @@ describe('Runtime V2 page', () => {
     expect(routeMocks.navigate).not.toHaveBeenCalled();
   });
 
-  it('keeps core Runtime available when an unknown typed view has no renderer extension', async () => {
+  it('keeps core Runtime available when a view kind is unknown or an extension schema is incompatible', async () => {
     const payload = createRuntimeV2AppState();
     const item = payload.app_state.operator.workbench.work_item_projection_v2.items.find(
       (candidate) => candidate.identity.work_item_id === '001' && candidate.identity.project_id === 'diabetes'
@@ -927,6 +927,14 @@ describe('Runtime V2 page', () => {
         schema_ref: 'contracts/future-domain-map.schema.json',
         availability: 'unread',
       },
+      {
+        item_id: 'diabetes:001',
+        view_id: 'scientific-reasoning',
+        view_kind: 'scientific_reasoning_map',
+        title: '科研路线',
+        schema_version: 'scientific-reasoning-map.v3',
+        availability: 'invalid',
+      },
     ];
     bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: payload });
 
@@ -936,10 +944,14 @@ describe('Runtime V2 page', () => {
     const drawer = await screen.findByTestId('runtime-task-detail');
     expect(drawer).toHaveTextContent('阶段与运行');
     expect(drawer).toHaveTextContent('下一步动作');
-    const unavailable = within(drawer).getByTestId('runtime-domain-detail-view-unavailable');
-    expect(unavailable).toHaveTextContent('未来洞察');
-    expect(unavailable).toHaveTextContent('当前应用暂不支持此详情视图');
-    expect(unavailable).toHaveTextContent('其他运行任务不受影响');
+    const unavailable = within(drawer).getAllByTestId('runtime-domain-detail-view-unavailable');
+    expect(unavailable).toHaveLength(2);
+    expect(unavailable[0]).toHaveTextContent('未来洞察');
+    expect(unavailable[1]).toHaveTextContent('科研路线');
+    for (const view of unavailable) {
+      expect(view).toHaveTextContent('当前应用暂不支持此详情视图');
+      expect(view).toHaveTextContent('其他运行任务不受影响');
+    }
     expect(within(drawer).queryByTestId('runtime-research-summary')).not.toBeInTheDocument();
   });
 
@@ -969,7 +981,7 @@ describe('Runtime V2 page', () => {
     expect(attention).toHaveTextContent('Automatic execution resumes');
   });
 
-  it('shows V1 as unavailable without rendering legacy task state', async () => {
+  it('treats a V1-only payload as missing without rendering its task state', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       parsed: {
         app_state: {
@@ -987,7 +999,7 @@ describe('Runtime V2 page', () => {
     render(<RuntimePage />);
 
     expect(await screen.findByTestId('runtime-projection-unavailable')).toHaveTextContent('运行状态暂时不可用');
-    expect(document.body).toHaveTextContent('V1 状态不再用于推断');
+    expect(document.body).toHaveTextContent('OPL 尚未发布 V2 工作项投影');
     expect(document.body).not.toHaveTextContent('Legacy running task');
     expect(screen.queryByTestId('runtime-error-state')).not.toBeInTheDocument();
     expect(screen.queryByTestId('runtime-ready-state')).not.toBeInTheDocument();

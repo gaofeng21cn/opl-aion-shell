@@ -63,7 +63,22 @@ vi.mock('@/renderer/pages/conversation/components/ChatTitleEditor', () => ({
 vi.mock('@/renderer/components/agent/AgentBadge', () => ({ AgentLogoIcon: () => <span /> }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout/WorkspacePanelHeader', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  default: ({
+    children,
+    showToggle,
+    collapsed,
+    onToggle,
+  }: {
+    children?: React.ReactNode;
+    showToggle?: boolean;
+    collapsed: boolean;
+    onToggle: () => void;
+  }) => (
+    <div>
+      {children}
+      {showToggle && <button type='button' onClick={onToggle} aria-label={collapsed ? 'Open files' : 'Close files'} />}
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout/MobileWorkspaceOverlay', () => ({
@@ -134,6 +149,19 @@ describe('ChatLayout conversation context surfaces', () => {
     expect(screen.getByTestId('resize-chat-workspace-width-px')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('side-content')).toHaveFocus());
     expect(screen.getByTestId('environment').closest('[data-testid="conversation-header-tools"]')).toBeTruthy();
+  });
+
+  it('renders exactly one panel toggle in each desktop visibility state', () => {
+    render(
+      <ChatLayout title='Conversation' conversation_id='conversation-1' sider={<div>Side content</div>}>
+        <div>Timeline</div>
+      </ChatLayout>
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Open files' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Open files' }));
+    expect(screen.queryByRole('button', { name: 'Open files' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close files' })).toHaveLength(1);
   });
 
   it('uses a closed mobile overlay and opens it from the titlebar action', async () => {

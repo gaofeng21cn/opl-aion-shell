@@ -114,28 +114,6 @@ export function canonicalizeOplProfessionalAgentId(value: string): string {
   return OPL_PROFESSIONAL_AGENT_ID_ALIASES.get(normalizeOplProfessionalAgentAlias(trimmed)) ?? trimmed;
 }
 
-export type OplHomeAssistant = {
-  id: string;
-  display_name: string;
-  short_name: string;
-  home_purpose_label: string;
-  home_entry_display_policy: 'purpose_first';
-  role: string;
-  home_entry_policy: 'purpose_entry_target';
-  avatar: string;
-  description_i18n: Record<string, string>;
-  prompts_i18n: Record<string, string[]>;
-};
-
-export type OplHomePurposeEntry = {
-  id: string;
-  primary_label: string;
-  target_assistant_id: string;
-  target_assistant_short_name: string;
-  display_policy: 'purpose_first';
-  home_entry_policy: 'visible_click_to_start';
-};
-
 export type OplHomeAgentShortcut = {
   shortcut_id: string;
   package_id: string;
@@ -175,38 +153,6 @@ export type OplHomeComposerStateContract = {
     forbidden_controls: string[];
     failure_field: 'missing_controls';
   };
-};
-
-export type OplNonDefaultAssistant = {
-  id: string;
-  display_name: string;
-  short_name: string;
-  role: string;
-  home_entry_policy: 'explicit_or_settings_only' | 'settings_managed_home_shortcut';
-  home_default_visible: boolean;
-  avatar: string;
-  description_i18n: Record<string, string>;
-  prompts_i18n: Record<string, string[]>;
-};
-
-export type OplProfessionalAgentPackage = {
-  package_id: string;
-  display_name: string;
-  display_name_i18n: Record<'zh-CN' | 'en-US', string>;
-  short_name: string;
-  role: string;
-  package_kind: string;
-  installed_manageable: boolean;
-  default_home_visible: boolean;
-  codex_visible_entry: string;
-  home_shortcut_ids: string[];
-  required_skill_ids: string[];
-  optional_skill_ids: string[];
-  description_i18n: Record<'zh-CN' | 'en-US', string>;
-  session_routing_summary_i18n: Record<'zh-CN' | 'en-US', string>;
-  required_skill_policy: 'checked_locked';
-  optional_skill_policy: 'unchecked_user_selectable';
-  skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
 };
 
 export type OplFirstPartyPackagePresentation = {
@@ -257,7 +203,7 @@ export type OplAgentReferenceAdmissionPolicy = {
 
 export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
-  authority: 'app_owned_skill_allowlist_and_mcp_negative_filter';
+  authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter';
   palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]';
   palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]';
   palette_agent_availability_policy: 'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable';
@@ -266,11 +212,10 @@ export type OplOrdinaryCapabilitySelectorPolicy = {
   agent_reference_admission_policy: OplAgentReferenceAdmissionPolicy;
   skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
-  conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
+  conversation_loaded_skill_display_policy: 'preserve_owner_or_carrier_projected_loaded_skills';
   mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers';
   mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers';
   conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers';
-  forbidden_skill_examples: string[];
   forbidden_mcp_policy: 'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers';
   forbidden_mcp_examples: string[];
   conversation_snapshot_policy: 'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations';
@@ -304,25 +249,16 @@ export type OplFlowContextPolicy = {
   migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback';
 };
 
-export type OplAppSessionContextPolicy = {
-  owner: 'one-person-lab-app';
-  source: 'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback';
-  delivery: 'new_codex_conversation_preset_context';
-  generation_policy: 'profile_agent_routes';
-  update_policy: 'regenerated_when_app_product_profile_syncs';
-  user_agents_policy: 'codex_reads_user_and_repo_agents_independently';
-  customization: {
-    additional_instructions_key: 'codex.oplAppSessionContextAdditional';
-    base_context_edit_policy: 'generated_read_only';
-    user_edit_policy: 'append_additional_instructions_only';
-    reset_behavior: 'clear_additional_instructions';
-    effect: 'next_new_conversation';
-  };
-};
-
-type OplCodexSessionContext = {
-  'zh-CN': string[];
-  'en-US': string[];
+export type OplNewConversationAdditionalInstructionsPolicy = {
+  content_owner: 'user';
+  delivery: 'new_conversation_additional_instructions_only';
+  storage_key: 'codex.oplAppSessionContextAdditional';
+  storage_key_status: 'legacy_compatibility_storage_key';
+  generated_base_context_allowed: false;
+  agent_route_fallback_allowed: false;
+  empty_value_policy: 'inject_nothing';
+  reset_behavior: 'clear_additional_instructions';
+  effect: 'next_new_conversation';
 };
 
 export type OplCodexModelDisplayModel = {
@@ -740,7 +676,6 @@ type AppProductProfile = {
         scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body';
       };
       codex_model_display_options: OplCodexModelDisplayOptions;
-      home_purpose_entries: OplHomePurposeEntry[];
       home_agent_shortcuts: OplHomeAgentShortcut[];
       retired_codex_models_must_not_be_exposed: string[];
     };
@@ -748,20 +683,13 @@ type AppProductProfile = {
     builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
     ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
     agent_package_registry: OplAgentPackageRegistry;
-    professional_agent_packages: OplProfessionalAgentPackage[];
-    default_assistants: OplHomeAssistant[];
-    non_default_assistants: OplNonDefaultAssistant[];
   };
   codex: {
     default_model: string;
     default_reasoning_effort: OplCodexReasoningEffort | null;
     auto_model_policy: OplCodexAutoModelPolicy;
     opl_flow_context: OplFlowContextPolicy;
-    opl_app_session_context: OplAppSessionContextPolicy;
-    default_visible_skills: string[];
-    skill_priority: string[];
-    session_context_lines: string[];
-    session_context_i18n?: OplCodexSessionContext;
+    new_conversation_additional_instructions: OplNewConversationAdditionalInstructionsPolicy;
   };
   companion_payloads: {
     default_packaged_codex_skill_ids: string[];
@@ -932,7 +860,7 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
     'codex_cli_and_model_access_core_state',
     'core_ready_separate_from_background_maintenance',
     'ui_language_policy',
-    'session_scoped_opl_app_context',
+    'user_authored_additional_instructions_optional_and_never_generated',
     'user_and_repo_agents_md_respected_no_overwrite',
     'official_profile_user_preferences_and_presence_only_package_scope',
     'installed_or_selected_package_configured_carrier_readback',
@@ -1087,18 +1015,6 @@ function readStringRecord(value: unknown, context: string): Record<string, strin
     Object.entries(value).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0
     )
-  );
-}
-
-function readStringArrayRecord(value: unknown, context: string): Record<string, string[]> {
-  if (!isRecord(value)) {
-    throw new Error(`Invalid OPL product profile: ${context} must be an object`);
-  }
-  return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, string[]] => {
-      if (!Array.isArray(entry[1])) return false;
-      return entry[1].every((item) => typeof item === 'string' && item.trim().length > 0);
-    })
   );
 }
 
@@ -1374,49 +1290,6 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
   };
 }
 
-function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurposeEntry[] {
-  const value = guiHome.home_purpose_entries;
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Invalid OPL product profile: gui.home.home_purpose_entries must be a non-empty array');
-  }
-
-  const entries = value.map((entry, index): OplHomePurposeEntry => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.home.home_purpose_entries[${index}] must be an object`);
-    }
-    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
-    const primaryLabel = typeof entry.primary_label === 'string' ? entry.primary_label.trim() : '';
-    const targetAssistantId = typeof entry.target_assistant_id === 'string' ? entry.target_assistant_id.trim() : '';
-    const targetAssistantShortName =
-      typeof entry.target_assistant_short_name === 'string' ? entry.target_assistant_short_name.trim() : '';
-    if (!id || !primaryLabel || !targetAssistantId || !targetAssistantShortName) {
-      throw new Error(`Invalid OPL product profile: gui.home.home_purpose_entries[${index}] has blank fields`);
-    }
-    if (entry.display_policy !== 'purpose_first' || entry.home_entry_policy !== 'visible_click_to_start') {
-      throw new Error(`Invalid OPL product profile: purpose entry ${id} must be visible purpose-first`);
-    }
-    return {
-      id,
-      primary_label: primaryLabel,
-      target_assistant_id: targetAssistantId,
-      target_assistant_short_name: targetAssistantShortName,
-      display_policy: 'purpose_first',
-      home_entry_policy: 'visible_click_to_start',
-    };
-  });
-
-  if (entries.map((entry) => entry.id).join(',') !== ['research', 'grant', 'ppt', 'book'].join(',')) {
-    throw new Error('Invalid OPL product profile: purpose entries must be research, grant, ppt, and book');
-  }
-  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', '演示', '写书'].join(',')) {
-    throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
-  }
-  if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca', 'obf'].join(',')) {
-    throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, RCA, and BookForge');
-  }
-  return entries;
-}
-
 function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentShortcut[] {
   const value = guiHome.home_agent_shortcuts;
   if (!Array.isArray(value) || value.length === 0) {
@@ -1591,203 +1464,6 @@ function readAgentPackageRegistry(gui: Record<string, unknown>): OplAgentPackage
   };
 }
 
-function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfessionalAgentPackage[] {
-  const value = gui.professional_agent_packages;
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Invalid OPL product profile: gui.professional_agent_packages must be a non-empty array');
-  }
-
-  const packages = value.map((entry, index): OplProfessionalAgentPackage => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] must be an object`);
-    }
-    const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
-    const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
-    const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
-    const role = typeof entry.role === 'string' ? entry.role.trim() : '';
-    const packageKind = typeof entry.package_kind === 'string' ? entry.package_kind.trim() : '';
-    const codexVisibleEntry = typeof entry.codex_visible_entry === 'string' ? entry.codex_visible_entry.trim() : '';
-    const sessionRoutingSummaryI18n = readStringRecord(
-      entry.session_routing_summary_i18n,
-      `gui.professional_agent_packages.${packageId}.session_routing_summary_i18n`
-    );
-    const displayNameI18n = isRecord(entry.display_name_i18n)
-      ? readStringRecord(entry.display_name_i18n, `gui.professional_agent_packages.${packageId}.display_name_i18n`)
-      : { 'zh-CN': displayName, 'en-US': displayName };
-    const descriptionI18n = isRecord(entry.description_i18n)
-      ? readStringRecord(entry.description_i18n, `gui.professional_agent_packages.${packageId}.description_i18n`)
-      : sessionRoutingSummaryI18n;
-    if (!packageId || !displayName || !shortName || !role || !packageKind || !codexVisibleEntry) {
-      throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] has blank fields`);
-    }
-    if (
-      entry.installed_manageable !== true ||
-      entry.required_skill_policy !== 'checked_locked' ||
-      entry.optional_skill_policy !== 'unchecked_user_selectable' ||
-      entry.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible'
-    ) {
-      throw new Error(`Invalid OPL product profile: professional agent package ${packageId} has unsupported policy`);
-    }
-    return {
-      package_id: packageId,
-      display_name: displayName,
-      display_name_i18n: {
-        'zh-CN': displayNameI18n['zh-CN'],
-        'en-US': displayNameI18n['en-US'],
-      },
-      short_name: shortName,
-      role,
-      package_kind: packageKind,
-      installed_manageable: true,
-      default_home_visible: entry.default_home_visible === true,
-      codex_visible_entry: codexVisibleEntry,
-      home_shortcut_ids: readStringArray(entry, 'home_shortcut_ids', `gui.professional_agent_packages.${packageId}`, {
-        allowEmpty: true,
-      }),
-      required_skill_ids: readStringArray(entry, 'required_skill_ids', `gui.professional_agent_packages.${packageId}`),
-      optional_skill_ids: readStringArray(entry, 'optional_skill_ids', `gui.professional_agent_packages.${packageId}`, {
-        allowEmpty: true,
-      }),
-      description_i18n: {
-        'zh-CN': descriptionI18n['zh-CN'],
-        'en-US': descriptionI18n['en-US'],
-      },
-      session_routing_summary_i18n: {
-        'zh-CN': sessionRoutingSummaryI18n['zh-CN'],
-        'en-US': sessionRoutingSummaryI18n['en-US'],
-      },
-      required_skill_policy: 'checked_locked',
-      optional_skill_policy: 'unchecked_user_selectable',
-      skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
-    };
-  });
-  const packageIds = packages.map((agentPackage) => agentPackage.package_id);
-  if (new Set(packageIds).size !== packageIds.length) {
-    throw new Error('Invalid OPL product profile: gui.professional_agent_packages must not contain duplicate ids');
-  }
-  for (const required of ['mas', 'mag', 'rca', 'obf', 'oma']) {
-    if (!packageIds.includes(required)) {
-      throw new Error(`Invalid OPL product profile: professional agent packages must include ${required}`);
-    }
-  }
-  return packages;
-}
-
-function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssistant[] {
-  const value = gui.default_assistants;
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must be a non-empty array');
-  }
-
-  const assistants = value.map((entry, index): OplHomeAssistant => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.default_assistants[${index}] must be an object`);
-    }
-    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
-    const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
-    const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
-    const homePurposeLabel = typeof entry.home_purpose_label === 'string' ? entry.home_purpose_label.trim() : '';
-    const role = typeof entry.role === 'string' ? entry.role.trim() : '';
-    const avatar = typeof entry.avatar === 'string' ? entry.avatar.trim() : '';
-    if (!id || !displayName || !shortName || !homePurposeLabel || !role || !avatar) {
-      throw new Error(`Invalid OPL product profile: gui.default_assistants[${index}] has blank identity fields`);
-    }
-    if (entry.home_entry_display_policy !== 'purpose_first' || entry.home_entry_policy !== 'purpose_entry_target') {
-      throw new Error(`Invalid OPL product profile: default assistant ${id} must target a purpose-first home entry`);
-    }
-    const descriptionI18n = readStringRecord(entry.description_i18n, `gui.default_assistants.${id}.description_i18n`);
-    const promptsI18n = readStringArrayRecord(entry.prompts_i18n, `gui.default_assistants.${id}.prompts_i18n`);
-    if (Object.keys(descriptionI18n).length === 0 || Object.keys(promptsI18n).length === 0) {
-      throw new Error(
-        `Invalid OPL product profile: default assistant ${id} must include localized description and prompts`
-      );
-    }
-    return {
-      id,
-      display_name: displayName,
-      short_name: shortName,
-      home_purpose_label: homePurposeLabel,
-      home_entry_display_policy: 'purpose_first',
-      role,
-      home_entry_policy: 'purpose_entry_target',
-      avatar,
-      description_i18n: descriptionI18n,
-      prompts_i18n: promptsI18n,
-    };
-  });
-
-  const ids = assistants.map((assistant) => assistant.id);
-  if (new Set(ids).size !== ids.length) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must not contain duplicate ids');
-  }
-  for (const required of ['mas', 'mag', 'rca', 'obf']) {
-    if (!ids.includes(required)) {
-      throw new Error(`Invalid OPL product profile: gui.default_assistants must include ${required}`);
-    }
-  }
-  if (ids.includes('oma')) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must not include oma');
-  }
-  if (ids.includes('mds')) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must not include mds');
-  }
-  const purposeLabels = assistants.map((assistant) => assistant.home_purpose_label);
-  if (purposeLabels.join(',') !== ['科研', '基金', '演示', '写书'].join(',')) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must expose purpose-first labels');
-  }
-  return assistants;
-}
-
-function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAssistant[] {
-  const value = gui.non_default_assistants;
-  if (!Array.isArray(value)) {
-    throw new Error('Invalid OPL product profile: gui.non_default_assistants must be an array');
-  }
-
-  const assistants = value.map((entry, index): OplNonDefaultAssistant => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.non_default_assistants[${index}] must be an object`);
-    }
-    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
-    const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
-    const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
-    const role = typeof entry.role === 'string' ? entry.role.trim() : '';
-    const avatar = typeof entry.avatar === 'string' ? entry.avatar.trim() : '';
-    if (!id || !displayName || !shortName || !role || !avatar) {
-      throw new Error(`Invalid OPL product profile: gui.non_default_assistants[${index}] has blank identity fields`);
-    }
-    const homeEntryPolicy = entry.home_entry_policy;
-    const homeDefaultVisible = entry.home_default_visible;
-    const validHomePolicy =
-      id === 'oma'
-        ? homeEntryPolicy === 'settings_managed_home_shortcut' && homeDefaultVisible === true
-        : homeEntryPolicy === 'explicit_or_settings_only' && homeDefaultVisible === false;
-    if (!validHomePolicy) {
-      throw new Error(`Invalid OPL product profile: non-default assistant ${id} has unsupported home policy`);
-    }
-    const normalizedHomeEntryPolicy: OplNonDefaultAssistant['home_entry_policy'] =
-      id === 'oma' ? 'settings_managed_home_shortcut' : 'explicit_or_settings_only';
-    const normalizedHomeDefaultVisible = id === 'oma';
-    return {
-      id,
-      display_name: displayName,
-      short_name: shortName,
-      role,
-      home_entry_policy: normalizedHomeEntryPolicy,
-      home_default_visible: normalizedHomeDefaultVisible,
-      avatar,
-      description_i18n: readStringRecord(entry.description_i18n, `gui.non_default_assistants.${id}.description_i18n`),
-      prompts_i18n: readStringArrayRecord(entry.prompts_i18n, `gui.non_default_assistants.${id}.prompts_i18n`),
-    };
-  });
-
-  const ids = assistants.map((assistant) => assistant.id);
-  if (!ids.includes('oma')) {
-    throw new Error('Invalid OPL product profile: gui.non_default_assistants must include oma');
-  }
-  return assistants;
-}
-
 function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): OplAgentPackageInvocationReceiptPolicy {
   const value = gui.agent_package_invocation_receipt_policy;
   if (!isRecord(value)) {
@@ -1918,11 +1594,6 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
       'Invalid OPL product profile: gui.ordinary_capability_selector_policy Agent reference admission is unsupported'
     );
   }
-  const forbiddenSkillExamples = readStringArray(
-    value,
-    'forbidden_skill_examples',
-    'gui.ordinary_capability_selector_policy'
-  );
   const forbiddenMcpExamples = readStringArray(
     value,
     'forbidden_mcp_examples',
@@ -1941,7 +1612,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   const forbiddenPolicy = readForbiddenCapabilityPolicy(value);
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
-    value.authority !== 'app_owned_skill_allowlist_and_mcp_negative_filter' ||
+    value.authority !== 'owner_or_carrier_skill_projection_and_mcp_negative_filter' ||
     value.palette_agent_catalog_source_ref !==
       'app_state.agent_packages.directory.entries[package_role=standard_agent]' ||
     value.palette_agent_status_source_ref !== 'app_state.agent_packages.status_index.packages[]' ||
@@ -1952,10 +1623,11 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     value.palette_required_agent_package_ids !== undefined ||
     value.skill_source_ref !== 'owner_or_carrier_projected_capability_metadata_for_the_selected_package' ||
     value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
-    value.conversation_loaded_skill_display_policy !== 'filter_to_ordinary_skill_allowlist' ||
+    value.conversation_loaded_skill_display_policy !== 'preserve_owner_or_carrier_projected_loaded_skills' ||
     value.mcp_server_source_ref !== 'configured_user_and_third_party_mcp_servers' ||
     value.mcp_menu_policy !== 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers' ||
     value.conversation_loaded_mcp_display_policy !== 'preserve_non_forbidden_configured_servers' ||
+    value.forbidden_skill_examples !== undefined ||
     value.forbidden_mcp_policy !==
       'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers' ||
     value.conversation_snapshot_policy !==
@@ -1963,11 +1635,6 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     value.unmatched_mcp_policy !== 'preserve_end_to_end_without_app_allowlist_membership'
   ) {
     throw new Error('Invalid OPL product profile: ordinary capability selector policy is unsupported');
-  }
-  for (const forbidden of ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron']) {
-    if (!forbiddenSkillExamples.includes(forbidden)) {
-      throw new Error(`Invalid OPL product profile: ordinary selector forbidden examples must include ${forbidden}`);
-    }
   }
   for (const forbidden of ['aionui-team', 'team_*', 'mcp__aionui-team*', 'team_mcp_stdio_config', 'team_id/teamId']) {
     if (!forbiddenMcpExamples.includes(forbidden)) {
@@ -1984,7 +1651,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   }
   return {
     scope: 'home_composer_and_ordinary_conversation',
-    authority: 'app_owned_skill_allowlist_and_mcp_negative_filter',
+    authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter',
     palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
     palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
     palette_agent_availability_policy:
@@ -2010,11 +1677,10 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     },
     skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
-    conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
+    conversation_loaded_skill_display_policy: 'preserve_owner_or_carrier_projected_loaded_skills',
     mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',
     mcp_menu_policy: 'preserve_configured_user_and_third_party_servers_except_explicit_forbidden_matchers',
     conversation_loaded_mcp_display_policy: 'preserve_non_forbidden_configured_servers',
-    forbidden_skill_examples: forbiddenSkillExamples,
     forbidden_mcp_policy:
       'exclude_only_explicit_team_or_internal_matches_preserve_all_other_user_and_third_party_servers',
     forbidden_mcp_examples: forbiddenMcpExamples,
@@ -2064,41 +1730,34 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
   };
 }
 
-function readOplAppSessionContextPolicy(codex: Record<string, unknown>): OplAppSessionContextPolicy {
-  const value = codex.opl_app_session_context;
-  const customization = isRecord(value) && isRecord(value.customization) ? value.customization : null;
+function readNewConversationAdditionalInstructionsPolicy(
+  codex: Record<string, unknown>
+): OplNewConversationAdditionalInstructionsPolicy {
+  const value = codex.new_conversation_additional_instructions;
   if (
     !isRecord(value) ||
-    value.owner !== 'one-person-lab-app' ||
-    value.source !==
-      'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback' ||
-    value.delivery !== 'new_codex_conversation_preset_context' ||
-    value.generation_policy !== 'profile_agent_routes' ||
-    value.update_policy !== 'regenerated_when_app_product_profile_syncs' ||
-    value.user_agents_policy !== 'codex_reads_user_and_repo_agents_independently' ||
-    customization?.additional_instructions_key !== 'codex.oplAppSessionContextAdditional' ||
-    customization.base_context_edit_policy !== 'generated_read_only' ||
-    customization.user_edit_policy !== 'append_additional_instructions_only' ||
-    customization.reset_behavior !== 'clear_additional_instructions' ||
-    customization.effect !== 'next_new_conversation'
+    value.content_owner !== 'user' ||
+    value.delivery !== 'new_conversation_additional_instructions_only' ||
+    value.storage_key !== 'codex.oplAppSessionContextAdditional' ||
+    value.storage_key_status !== 'legacy_compatibility_storage_key' ||
+    value.generated_base_context_allowed !== false ||
+    value.agent_route_fallback_allowed !== false ||
+    value.empty_value_policy !== 'inject_nothing' ||
+    value.reset_behavior !== 'clear_additional_instructions' ||
+    value.effect !== 'next_new_conversation'
   ) {
-    throw new Error('Invalid OPL product profile: codex.opl_app_session_context is unsupported');
+    throw new Error('Invalid OPL product profile: codex.new_conversation_additional_instructions is unsupported');
   }
   return {
-    owner: 'one-person-lab-app',
-    source:
-      'app_state.agent_packages.directory.entries[package_role=standard_agent] owner-projected localized route summary with optional gui.professional_agent_packages display fallback',
-    delivery: 'new_codex_conversation_preset_context',
-    generation_policy: 'profile_agent_routes',
-    update_policy: 'regenerated_when_app_product_profile_syncs',
-    user_agents_policy: 'codex_reads_user_and_repo_agents_independently',
-    customization: {
-      additional_instructions_key: 'codex.oplAppSessionContextAdditional',
-      base_context_edit_policy: 'generated_read_only',
-      user_edit_policy: 'append_additional_instructions_only',
-      reset_behavior: 'clear_additional_instructions',
-      effect: 'next_new_conversation',
-    },
+    content_owner: 'user',
+    delivery: 'new_conversation_additional_instructions_only',
+    storage_key: 'codex.oplAppSessionContextAdditional',
+    storage_key_status: 'legacy_compatibility_storage_key',
+    generated_base_context_allowed: false,
+    agent_route_fallback_allowed: false,
+    empty_value_policy: 'inject_nothing',
+    reset_behavior: 'clear_additional_instructions',
+    effect: 'next_new_conversation',
   };
 }
 
@@ -2178,6 +1837,28 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     !isRecord(freshWebuiLoginSetupCheck)
   ) {
     throw new Error('Invalid OPL product profile: missing default session, codex, or first-run section');
+  }
+  for (const field of ['professional_agent_packages', 'default_assistants', 'non_default_assistants']) {
+    if (Object.prototype.hasOwnProperty.call(gui, field)) {
+      throw new Error(`Invalid OPL product profile: gui.${field} is retired static presentation authority`);
+    }
+  }
+  const guiHomeCandidate = gui.home;
+  if (isRecord(guiHomeCandidate) && Object.prototype.hasOwnProperty.call(guiHomeCandidate, 'home_purpose_entries')) {
+    throw new Error(
+      'Invalid OPL product profile: gui.home.home_purpose_entries is retired static presentation authority'
+    );
+  }
+  for (const field of [
+    'opl_app_session_context',
+    'default_visible_skills',
+    'skill_priority',
+    'session_context_lines',
+    'session_context_i18n',
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(codex, field)) {
+      throw new Error(`Invalid OPL product profile: codex.${field} is retired static session or Skill authority`);
+    }
   }
   const postLoginSetupCheckTimeoutMs = freshWebuiLoginSetupCheck.ui_timeout_ms;
   if (!Number.isInteger(postLoginSetupCheckTimeoutMs) || Number(postLoginSetupCheckTimeoutMs) <= 0) {
@@ -2461,7 +2142,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   ) {
     throw new Error('Invalid OPL product profile: GUI home Codex model status label must match the App default model');
   }
-  const homePurposeEntries = readHomePurposeEntries(guiHome);
   const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
   const homeComposerStateContract = readHomeComposerStateContract(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
@@ -2470,19 +2150,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
   const agentPackageRegistry = readAgentPackageRegistry(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
-  const oplAppSessionContext = readOplAppSessionContextPolicy(codex);
-  const sessionContextI18n = isRecord(codex.session_context_i18n)
-    ? {
-        'zh-CN': readStringArray(codex.session_context_i18n, 'zh-CN', 'codex.session_context_i18n', {
-          allowBlank: true,
-        }),
-        'en-US': readStringArray(codex.session_context_i18n, 'en-US', 'codex.session_context_i18n', {
-          allowBlank: true,
-        }),
-      }
-    : undefined;
-  const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
-  const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
+  const newConversationAdditionalInstructions = readNewConversationAdditionalInstructionsPolicy(codex);
   const defaultPackagedCodexSkillIds = readStringArray(
     companionPayloads,
     'default_packaged_codex_skill_ids',
@@ -2502,70 +2170,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'preferred_capability_ids',
     'companion_payloads.official_codex_runtime_capabilities'
   );
-  const missingPrioritySkills = defaultVisibleSkills.filter((skill) => !skillPriority.includes(skill));
-  if (missingPrioritySkills.length > 0) {
-    throw new Error('Invalid OPL product profile: skill_priority must include default skills');
-  }
-  const missingPackagedVisibleSkills = defaultVisibleSkills.filter(
-    (skill) => !defaultPackagedCodexSkillIds.includes(skill)
-  );
-  if (missingPackagedVisibleSkills.length > 0) {
-    throw new Error('Invalid OPL product profile: default visible skills must be packaged');
-  }
-  const hiddenDefaultPackagedSkills = defaultPackagedCodexSkillIds.filter(
-    (skill) => !defaultVisibleSkills.includes(skill)
-  );
-  if (hiddenDefaultPackagedSkills.length > 0) {
-    throw new Error('Invalid OPL product profile: default packaged skills must be default visible');
-  }
-  const defaultHomeAssistants = readDefaultHomeAssistants(gui);
-  const professionalAgentPackages = readProfessionalAgentPackages(gui);
-  const professionalPackageById = new Map(
-    professionalAgentPackages.map((agentPackage) => [agentPackage.package_id, agentPackage])
-  );
-  for (const shortcut of homeAgentShortcuts) {
-    const agentPackage = professionalPackageById.get(shortcut.package_id);
-    if (!agentPackage) {
-      throw new Error(
-        `Invalid OPL product profile: home shortcut ${shortcut.shortcut_id} references unknown package ${shortcut.package_id}`
-      );
-    }
-    if (
-      shortcut.codex_visible_entry !== agentPackage.codex_visible_entry ||
-      shortcut.package_short_name !== agentPackage.short_name ||
-      shortcut.required_skill_ids.join(',') !== agentPackage.required_skill_ids.join(',') ||
-      !agentPackage.home_shortcut_ids.includes(shortcut.shortcut_id)
-    ) {
-      throw new Error(`Invalid OPL product profile: home shortcut ${shortcut.shortcut_id} is not aligned to package`);
-    }
-  }
-  const availableSkillSet = new Set([
-    ...defaultPackagedCodexSkillIds,
-    ...additionalPackageSkillIds,
-    ...officialCodexRuntimeCapabilityIds,
-  ]);
-  for (const agentPackage of professionalAgentPackages) {
-    const unpackagedProfileSkills = agentPackage.required_skill_ids.filter((skill) => !availableSkillSet.has(skill));
-    if (unpackagedProfileSkills.length > 0) {
-      throw new Error(
-        `Invalid OPL product profile: agent package ${agentPackage.package_id} references unpackaged skills: ${unpackagedProfileSkills.join(', ')}`
-      );
-    }
-    if (agentPackage.optional_skill_ids.includes('morph-ppt')) {
-      throw new Error(
-        `Invalid OPL product profile: agent package ${agentPackage.package_id} must not expose retired morph-ppt`
-      );
-    }
-  }
-  const nonDefaultAssistants = readNonDefaultAssistants(gui);
   if (!additionalPackageSkillIds.includes('opl-meta-agent')) {
     throw new Error('Invalid OPL product profile: explicit OMA package policy must be declared');
   }
-  if (
-    skillPriority.includes('morph-ppt') ||
-    defaultPackagedCodexSkillIds.includes('morph-ppt') ||
-    additionalPackageSkillIds.includes('morph-ppt')
-  ) {
+  if (defaultPackagedCodexSkillIds.includes('morph-ppt') || additionalPackageSkillIds.includes('morph-ppt')) {
     throw new Error('Invalid OPL product profile: morph-ppt must not be part of App skill wiring');
   }
 
@@ -2693,7 +2301,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body',
         },
         codex_model_display_options: codexModelDisplayOptions,
-        home_purpose_entries: homePurposeEntries,
         home_agent_shortcuts: homeAgentShortcuts,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
@@ -2701,20 +2308,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
       ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
       agent_package_registry: agentPackageRegistry,
-      professional_agent_packages: professionalAgentPackages,
-      default_assistants: defaultHomeAssistants,
-      non_default_assistants: nonDefaultAssistants,
     },
     codex: {
       default_model: codexModel,
       default_reasoning_effort: codexReasoningEffort,
       auto_model_policy: codexAutoModelPolicy,
       opl_flow_context: oplFlowContext,
-      opl_app_session_context: oplAppSessionContext,
-      default_visible_skills: defaultVisibleSkills,
-      skill_priority: skillPriority,
-      session_context_lines: readStringArray(codex, 'session_context_lines', 'codex', { allowBlank: true }),
-      ...(sessionContextI18n ? { session_context_i18n: sessionContextI18n } : {}),
+      new_conversation_additional_instructions: newConversationAdditionalInstructions,
     },
     companion_payloads: {
       default_packaged_codex_skill_ids: defaultPackagedCodexSkillIds,
@@ -3484,16 +3084,6 @@ export function getOplModelStatusDisplayText(localeKey: 'zh-CN' | 'en-US' = 'zh-
   return localeKey === 'en-US' ? `Model: ${label}` : `模型: ${label}`;
 }
 
-export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
-  return OPL_PRODUCT_PROFILE.gui.default_assistants.map((assistant) => ({
-    ...assistant,
-    description_i18n: { ...assistant.description_i18n },
-    prompts_i18n: Object.fromEntries(
-      Object.entries(assistant.prompts_i18n).map(([locale, prompts]) => [locale, [...prompts]])
-    ),
-  }));
-}
-
 export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
   return OPL_PRODUCT_PROFILE.gui.home.home_agent_shortcuts.map((shortcut) => ({
     ...shortcut,
@@ -3507,35 +3097,6 @@ export function getOplFirstPartyPackagePresentations(): OplFirstPartyPackagePres
     display_name_i18n: { ...entry.display_name_i18n },
     description_i18n: { ...entry.description_i18n },
   }));
-}
-
-export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[] {
-  return OPL_PRODUCT_PROFILE.gui.professional_agent_packages.map((agentPackage) => ({
-    ...agentPackage,
-    display_name_i18n: { ...agentPackage.display_name_i18n },
-    home_shortcut_ids: [...agentPackage.home_shortcut_ids],
-    required_skill_ids: [...agentPackage.required_skill_ids],
-    optional_skill_ids: [...agentPackage.optional_skill_ids],
-    description_i18n: { ...agentPackage.description_i18n },
-    session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
-  }));
-}
-
-export function getOplProfessionalAgentPackage(packageId: string): OplProfessionalAgentPackage | undefined {
-  const normalizedId = canonicalizeOplProfessionalAgentId(packageId);
-  const agentPackage = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.find(
-    (entry) => entry.package_id === normalizedId
-  );
-  if (!agentPackage) return undefined;
-  return {
-    ...agentPackage,
-    display_name_i18n: { ...agentPackage.display_name_i18n },
-    home_shortcut_ids: [...agentPackage.home_shortcut_ids],
-    required_skill_ids: [...agentPackage.required_skill_ids],
-    optional_skill_ids: [...agentPackage.optional_skill_ids],
-    description_i18n: { ...agentPackage.description_i18n },
-    session_routing_summary_i18n: { ...agentPackage.session_routing_summary_i18n },
-  };
 }
 
 export function getOplAgentPackageInvocationReceiptPolicy(): OplAgentPackageInvocationReceiptPolicy {
@@ -3563,7 +3124,6 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
     agent_reference_admission_policy: {
       ...policy.agent_reference_admission_policy,
     },
-    forbidden_skill_examples: [...policy.forbidden_skill_examples],
     forbidden_mcp_examples: [...policy.forbidden_mcp_examples],
     forbidden_mcp_matchers: {
       exact: [...policy.forbidden_mcp_matchers.exact],
@@ -3587,13 +3147,23 @@ export function getOplOrdinaryForbiddenCapabilityPolicy(): OplOrdinaryForbiddenC
 }
 
 export function filterOplOrdinarySkillNames(names: string[]): string[] {
-  const forbidden = new Set(OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.forbidden_skill_examples);
-  return names.filter((name, index) => Boolean(name.trim()) && !forbidden.has(name) && names.indexOf(name) === index);
+  const seen = new Set<string>();
+  return names.flatMap((name) => {
+    const normalized = name.trim();
+    if (!normalized || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [normalized];
+  });
 }
 
 export function filterOplOrdinarySkillCatalog<T extends { name: string }>(skills: T[]): T[] {
-  const forbidden = new Set(OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.forbidden_skill_examples);
-  return skills.filter((skill) => Boolean(skill.name.trim()) && !forbidden.has(skill.name));
+  const seen = new Set<string>();
+  return skills.flatMap((skill) => {
+    const normalized = skill.name.trim();
+    if (!normalized || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [{ ...skill, name: normalized }];
+  });
 }
 
 export function filterOplOrdinaryMcpServers<T extends Pick<IMcpServer, 'id' | 'name'>>(servers: T[]): T[] {
@@ -3658,60 +3228,12 @@ export function getOplFlowContextPolicy(): OplFlowContextPolicy {
   return { ...policy };
 }
 
-export function getOplAppSessionContextPolicy(): OplAppSessionContextPolicy {
-  return {
-    ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context,
-    customization: {
-      ...OPL_PRODUCT_PROFILE.codex.opl_app_session_context.customization,
-    },
-  };
-}
-
-export function getOplDefaultCodexSkills(): string[] {
-  return [...OPL_PRODUCT_PROFILE.codex.default_visible_skills];
-}
-
-export function getOplDefaultPackagedCodexSkills(): string[] {
-  return [...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids];
-}
-
-export function getOplPackagedCodexSkills(): string[] {
-  return [
-    ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
-    ...OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids,
-  ];
+export function getOplNewConversationAdditionalInstructionsPolicy(): OplNewConversationAdditionalInstructionsPolicy {
+  return { ...OPL_PRODUCT_PROFILE.codex.new_conversation_additional_instructions };
 }
 
 export function getOplScheduledTasksPolicy(): OplNativeAutomationPolicy {
   return { ...OPL_PRODUCT_PROFILE.companion_payloads.native_automation };
-}
-
-export function getOplSkillPriority(): string[] {
-  return [...OPL_PRODUCT_PROFILE.codex.skill_priority];
-}
-
-export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US', appState?: unknown): string {
-  const context = OPL_PRODUCT_PROFILE.codex.session_context_i18n?.[locale];
-  const routeLines = parseOplStandardAgentDirectoryEntries(appState)
-    .filter((entry) => entry.installed)
-    .map((entry) => {
-      const presentation = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.find(
-        (agentPackage) => agentPackage.package_id === entry.packageId
-      );
-      const displayName =
-        entry.displayNameI18n[locale] ??
-        entry.displayName ??
-        presentation?.display_name_i18n[locale] ??
-        presentation?.display_name ??
-        entry.packageId;
-      const description =
-        entry.descriptionI18n[locale] ?? entry.description ?? presentation?.description_i18n[locale] ?? displayName;
-      return `- ${displayName}: ${description}`;
-    });
-  return (context ?? OPL_PRODUCT_PROFILE.codex.session_context_lines)
-    .flatMap((line) => (line === '{{agent_routes}}' ? routeLines : [line]))
-    .join('\n')
-    .trim();
 }
 
 export function getOplDeferredFirstLaunchBlockers(): string[] {
