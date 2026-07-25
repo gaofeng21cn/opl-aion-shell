@@ -4098,7 +4098,46 @@ function homeAssistantStandardLaunchGateExpression(target) {
     const message = visibleMessages().find((node) =>
       node.getAttribute('data-opl-package-id') === ${cdpString(target.packageId)}
     );
-    if (!message || !window.location.hash.startsWith('#/guid')) return false;
+    if (!window.location.hash.startsWith('#/guid')) return false;
+    if (!message) {
+      const setupNotice = document.querySelector('[data-testid="opl-guid-setup-notice"]');
+      const setupAction = document.querySelector('[data-testid="opl-guid-setup-notice-action"]');
+      const coreReadiness = ${homeAssistantCoreReadinessExpression(false)};
+      const modelAccessPrecondition = Boolean(
+        setupNotice?.textContent?.trim()
+          && setupAction
+          && coreReadiness?.known === true
+          && coreReadiness?.workspace_root_ready === true
+          && coreReadiness?.codex_cli_ready === true
+          && coreReadiness?.model_access_ready === false
+          && Array.isArray(coreReadiness?.blockers)
+          && coreReadiness.blockers.length === 1
+          && coreReadiness.blockers[0] === 'model_access'
+          && input.value === expectedDraft
+      );
+      if (!modelAccessPrecondition) return false;
+      return {
+        status: 'passed',
+        assistant_id: ${cdpString(target.id)},
+        control_testid: card.getAttribute('data-testid'),
+        verification_path: 'model_access_precondition',
+        visible: true,
+        selectable_before_selection: true,
+        selected: true,
+        launch_allowed: false,
+        send_blocked: true,
+        package_id: ${cdpString(target.packageId)},
+        draft_preserved: true,
+        readiness_hint: readinessHint,
+        model_access_setup_visible: true,
+        model_access_preempted_package_message: true,
+        repair_hint_visible: true,
+        package_message_visible: false,
+        message_visible: false,
+        route_receipt_claimed: false,
+        route_hash: window.location.hash,
+      };
+    }
     const typedReason = message.getAttribute('data-opl-block-reason') || '';
     const repairActions = (message.getAttribute('data-opl-repair-actions') || '').split(',').filter(Boolean);
     if (!typedReason || repairActions.length === 0 || !message.textContent?.trim() || input.value !== expectedDraft) return false;

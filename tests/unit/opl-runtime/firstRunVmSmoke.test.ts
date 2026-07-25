@@ -1968,6 +1968,105 @@ describe('packaged first-run VM smoke helpers', () => {
     dom.window.close();
   });
 
+  it('accepts the Standard package repair gate when model access preempts the package message', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
+        <button
+          data-testid="home-starter-research"
+          data-opl-launch-ready="false"
+          aria-pressed="false"
+          title="package_not_installed: status, doctor, repair"
+        >
+          Research
+        </button>
+        <textarea data-testid="guid-input"></textarea>
+        <button data-testid="guid-send-btn">Send</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    for (const node of window.document.querySelectorAll('*')) {
+      Object.defineProperty(node, 'getBoundingClientRect', {
+        value: () => ({ width: 120, height: 32, top: 0, left: 0, right: 120, bottom: 32 }),
+      });
+    }
+    window.localStorage.setItem(
+      'opl.appState.fast.v1',
+      JSON.stringify({
+        loadedAt: '11:22:33',
+        payload: {
+          app_state: {
+            schema_version: 'opl_app_state.v1',
+            core: {
+              codex: {
+                installed: true,
+                version_status: 'compatible',
+                health_status: 'ready',
+                model_access_ready: false,
+              },
+            },
+            paths: {
+              workspace_root: {
+                selected_path: '/Users/opl/OPL-Smoke',
+                exists: true,
+                writable: true,
+                health_status: 'ready',
+              },
+            },
+          },
+        },
+      })
+    );
+
+    const starter = window.document.querySelector<HTMLButtonElement>('[data-testid="home-starter-research"]')!;
+    const composer = window.document.querySelector<HTMLElement>('[data-testid="opl-guid-entry"]')!;
+    const input = window.document.querySelector<HTMLTextAreaElement>('textarea[data-testid="guid-input"]')!;
+    const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    const starterClick = vi.fn(() => {
+      starter.setAttribute('aria-pressed', 'true');
+      composer.setAttribute('data-opl-active-shortcut', 'research');
+    });
+    const sendClick = vi.fn(() => {
+      const notice = window.document.createElement('div');
+      notice.setAttribute('data-testid', 'opl-guid-setup-notice');
+      notice.textContent = 'Complete model access setup';
+      const action = window.document.createElement('button');
+      action.setAttribute('data-testid', 'opl-guid-setup-notice-action');
+      action.textContent = 'Complete setup';
+      notice.append(action);
+      window.document.body.append(notice);
+    });
+    starter.addEventListener('click', starterClick);
+    sendButton.addEventListener('click', sendClick);
+
+    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    expect(window.eval(expression)).toBe(false);
+    expect(starterClick).toHaveBeenCalledOnce();
+    expect(window.eval(expression)).toBe(false);
+    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(window.eval(expression)).toBe(false);
+    expect(sendClick).toHaveBeenCalledOnce();
+    expect(window.eval(expression)).toMatchObject({
+      status: 'passed',
+      assistant_id: 'mas',
+      verification_path: 'model_access_precondition',
+      selectable_before_selection: true,
+      selected: true,
+      launch_allowed: false,
+      send_blocked: true,
+      model_access_setup_visible: true,
+      model_access_preempted_package_message: true,
+      package_message_visible: false,
+      repair_hint_visible: true,
+      route_receipt_claimed: false,
+      route_hash: '#/guid',
+    });
+    expect(window.document.querySelector('[data-testid="opl-agent-package-launch-blocked"]')).toBeNull();
+    dom.window.close();
+  });
+
   it('proves the retired descendant-only input selector cannot match the frozen renderer DOM', () => {
     const dom = new JSDOM('<textarea data-testid="guid-input"></textarea>');
 
