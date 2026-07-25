@@ -2652,12 +2652,23 @@ describe('packaged first-run VM smoke helpers', () => {
       __testHooks: {
         waitForCdpPageTarget: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/page/test' }),
         openCdpClient: async () => client,
-        settingsPageSmokeTargets: [{ id: 'runtime', hash: '#/settings/runtime' }],
-        captureSettingsPage: async (_client: unknown, pageTarget: { id: string }) => ({ id: pageTarget.id }),
+        captureSettingsPage: async (_client: unknown, pageTarget: { id: string; hash: string }) => ({
+          id: pageTarget.id,
+          hash: pageTarget.hash,
+        }),
         assertMaintenanceDiagnosticsStatus: async () => ({ diagnosticsVisible: true }),
         exerciseRuntimeRefresh: async (_client: unknown, targetHash: string, timeoutMs?: number) => {
           runtimeRefreshCalls.push({ targetHash, timeoutMs });
-          return { targetHash };
+          const resolvedHash = targetHash === '#/settings/runtime' ? '#/settings/environment' : '#/runtime';
+          return {
+            requested_hash: targetHash,
+            resolved_hash: resolvedHash,
+            readiness: { hash: resolvedHash, state: 'ready', pageReady: true },
+            refresh: {
+              before_click: { buttonReady: true },
+              after_click: { buttonReady: true },
+            },
+          };
         },
         captureRuntimeActionEvidence: async () => {
           throw new Error('No safe action routes are currently exposed.');
@@ -2670,7 +2681,11 @@ describe('packaged first-run VM smoke helpers', () => {
       const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'settings-smoke-summary.json'), 'utf8'));
       const blocker = JSON.parse(fs.readFileSync(path.join(artifacts, 'runtime-action-evidence-blocker.json'), 'utf8'));
 
-      expect(result.map((page: { id: string }) => page.id)).toContain('runtime-status');
+      expect(result.map((page: { id: string }) => page.id)).toEqual([
+        ...__test.SETTINGS_PAGE_SMOKE_TARGETS.map((target) => target.id),
+        'runtime-settings-alias',
+        'runtime-status',
+      ]);
       expect(result.runtimeActionEvidence).toBeNull();
       expect(result.runtimeActionEvidenceBlocker).toMatchObject({
         status: 'blocked',
@@ -2685,6 +2700,38 @@ describe('packaged first-run VM smoke helpers', () => {
           blocker_kind: 'runtime_action_evidence_unavailable',
         },
       });
+      expect(summary.pages.find((page: { id: string }) => page.id === 'runtime-settings-alias')).toMatchObject({
+        id: 'runtime-settings-alias',
+        requested_hash: '#/settings/runtime',
+        resolved_hash: '#/settings/environment',
+        interactions: {
+          runtimeRefresh: {
+            requested_hash: '#/settings/runtime',
+            resolved_hash: '#/settings/environment',
+            readiness: { state: 'ready', pageReady: true },
+            refresh: {
+              before_click: { buttonReady: true },
+              after_click: { buttonReady: true },
+            },
+          },
+        },
+      });
+      expect(summary.pages.find((page: { id: string }) => page.id === 'runtime-status')).toMatchObject({
+        id: 'runtime-status',
+        requested_hash: '#/runtime',
+        resolved_hash: '#/runtime',
+        interactions: {
+          runtimeRefresh: {
+            requested_hash: '#/runtime',
+            resolved_hash: '#/runtime',
+            readiness: { state: 'ready', pageReady: true },
+            refresh: {
+              before_click: { buttonReady: true },
+              after_click: { buttonReady: true },
+            },
+          },
+        },
+      });
       expect(blocker.reason).toContain('No safe action routes');
       expect(runtimeRefreshCalls).toEqual([
         { targetHash: '#/settings/runtime', timeoutMs: 98_765 },
@@ -2694,6 +2741,23 @@ describe('packaged first-run VM smoke helpers', () => {
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('binds the effective Runtime phase budget to both live refresh probes', () => {
+    expect(__test.buildRuntimeRefreshProbePlan('#/settings/runtime', 98_765)).toEqual({
+      requestedHash: '#/settings/runtime',
+      resolvedHashPrefixes: ['#/settings/environment'],
+      readinessTimeoutMs: 98_765,
+      preClickIdleTimeoutMs: 98_765,
+      postClickIdleTimeoutMs: 98_765,
+    });
+    expect(__test.buildRuntimeRefreshProbePlan('#/runtime', 98_765)).toEqual({
+      requestedHash: '#/runtime',
+      resolvedHashPrefixes: ['#/runtime'],
+      readinessTimeoutMs: 98_765,
+      preClickIdleTimeoutMs: 98_765,
+      postClickIdleTimeoutMs: 98_765,
+    });
   });
 
   it('keeps the Runtime refresh helper bounded to 30 seconds by default', async () => {
@@ -2716,7 +2780,9 @@ describe('packaged first-run VM smoke helpers', () => {
       await vi.advanceTimersByTimeAsync(__test.DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS - 1);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
-      await expect(operation).rejects.toThrow('Runtime refresh button stayed loading before click: #/settings/runtime');
+      await expect(operation).rejects.toThrow(
+        'Runtime-v2 page did not resolve and become ready before refresh: #/settings/runtime'
+      );
     } finally {
       vi.useRealTimers();
     }

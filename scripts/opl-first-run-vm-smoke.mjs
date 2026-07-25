@@ -5807,14 +5807,20 @@ function visibleRuntimeRefreshButtonExpression(labelPattern = 'Refresh|刷新') 
   }`;
 }
 
-function runtimeStatusReadinessExpression() {
-  return `(() => {
-    if (!window.location.hash.startsWith('#/runtime')) {
+function runtimeStatusReadinessExpression(resolvedHashPrefixes = ['#/runtime']) {
+  const usesStandaloneRuntimeRoute = resolvedHashPrefixes.length === 1 && resolvedHashPrefixes[0] === '#/runtime';
+  const routeReadiness = usesStandaloneRuntimeRoute
+    ? `if (!window.location.hash.startsWith('#/runtime')) {
       window.location.hash = '#/runtime';
       return false;
     }
+    const hashOk = window.location.hash.startsWith('#/runtime');`
+    : `const resolvedHashPrefixes = ${JSON.stringify(resolvedHashPrefixes)};
+    const hashOk = resolvedHashPrefixes.some((prefix) => window.location.hash.startsWith(prefix));
+    if (!hashOk) return false;`;
+  return `(() => {
+    ${routeReadiness}
     const text = document.body?.innerText || '';
-    const hashOk = window.location.hash.startsWith('#/runtime');
     const titleOk = /OPL Runtime Status|OPL 运行状态|Project Runtime Progress|项目运行进度|Project Runtime Overview|项目运行总览/.test(text);
     const summaryOk = /App\\/operator Drilldown|运行状态摘要|Task Overview|任务概览|In progress|进行中|Needs system handling|需要系统处理|Status Load|状态加载/.test(text);
     const loadedOk = /Loaded at|已加载于|Loaded|已加载/.test(text);
@@ -5839,6 +5845,25 @@ function runtimeStatusReadinessExpression() {
         }
       : false;
   })()`;
+}
+
+function buildRuntimeRefreshProbePlan(requestedHash, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
+  const resolvedHashPrefixes =
+    requestedHash === '#/settings/runtime'
+      ? ['#/settings/environment']
+      : requestedHash === '#/runtime'
+        ? ['#/runtime']
+        : null;
+  if (!resolvedHashPrefixes) {
+    throw new Error(`Unsupported Runtime refresh route: ${requestedHash}`);
+  }
+  return {
+    requestedHash,
+    resolvedHashPrefixes,
+    readinessTimeoutMs: timeoutMs,
+    preClickIdleTimeoutMs: timeoutMs,
+    postClickIdleTimeoutMs: timeoutMs,
+  };
 }
 
 async function captureSettingsPage(client, target, options, secret) {
@@ -5902,20 +5927,19 @@ async function waitForButtonIdle(client, labels, failureMessage, timeoutMs = DEF
 }
 
 async function exerciseRuntimeRefresh(client, targetHash, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
+  const probePlan = buildRuntimeRefreshProbePlan(targetHash, timeoutMs);
   await evaluateCdp(client, `window.location.hash = ${cdpString(targetHash)}`);
-  if (targetHash === '#/runtime') {
-    await waitForCdpPredicate(
-      client,
-      runtimeStatusReadinessExpression(),
-      timeoutMs,
-      'Runtime status page did not become ready before refresh'
-    );
-  }
-  await waitForButtonIdle(
+  const readiness = await waitForCdpPredicate(
+    client,
+    runtimeStatusReadinessExpression(probePlan.resolvedHashPrefixes),
+    probePlan.readinessTimeoutMs,
+    `Runtime-v2 page did not resolve and become ready before refresh: ${targetHash}`
+  );
+  const beforeClick = await waitForButtonIdle(
     client,
     ['Refresh', '刷新'],
     `Runtime refresh button stayed loading before click: ${targetHash}`,
-    timeoutMs
+    probePlan.preClickIdleTimeoutMs
   );
   await evaluateCdp(
     client,
@@ -5927,12 +5951,25 @@ async function exerciseRuntimeRefresh(client, targetHash, timeoutMs = DEFAULT_RU
       return true;
     })()`
   );
-  return await waitForButtonIdle(
+  const afterClick = await waitForButtonIdle(
     client,
     ['Refresh', '刷新'],
     `Runtime refresh button stayed loading after click: ${targetHash}`,
-    timeoutMs
+    probePlan.postClickIdleTimeoutMs
   );
+  const resolvedHash = await evaluateCdp(client, 'window.location.hash');
+  if (!probePlan.resolvedHashPrefixes.some((prefix) => resolvedHash.startsWith(prefix))) {
+    throw new Error(`Runtime refresh route resolved to an unexpected view: ${targetHash} -> ${resolvedHash}`);
+  }
+  return {
+    requested_hash: targetHash,
+    resolved_hash: resolvedHash,
+    readiness,
+    refresh: {
+      before_click: beforeClick,
+      after_click: afterClick,
+    },
+  };
 }
 
 function runtimeActionEvidenceExpression() {
@@ -6098,13 +6135,6 @@ async function runSettingsSmoke(options, secret) {
     for (const pageTarget of settingsPageSmokeTargets) {
       const pageState = await (hooks.captureSettingsPage ?? captureSettingsPage)(client, pageTarget, options, secret);
       const interactions = {};
-      if (pageTarget.id === 'runtime') {
-        interactions.settingsRuntimeRefresh = await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
-          client,
-          '#/settings/runtime',
-          runtimeRefreshTimeoutMs
-        );
-      }
       if (pageTarget.id === 'diagnostics') {
         interactions.maintenanceDiagnostics = await (
           hooks.assertMaintenanceDiagnosticsStatus ?? assertMaintenanceDiagnosticsStatus
@@ -6112,16 +6142,28 @@ async function runSettingsSmoke(options, secret) {
       }
       results.push({ ...pageState, interactions });
     }
+    const settingsRuntimeRefresh = await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
+      client,
+      '#/settings/runtime',
+      runtimeRefreshTimeoutMs
+    );
+    results.push({
+      id: 'runtime-settings-alias',
+      requested_hash: '#/settings/runtime',
+      resolved_hash: settingsRuntimeRefresh.resolved_hash,
+      interactions: { runtimeRefresh: settingsRuntimeRefresh },
+    });
+    await captureCdpScreenshot(client, path.join(options.artifacts, 'settings-pages', 'runtime-settings-alias.png'));
+    const standaloneRuntimeRefresh = await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
+      client,
+      '#/runtime',
+      runtimeRefreshTimeoutMs
+    );
     results.push({
       id: 'runtime-status',
-      hash: '#/runtime',
-      interactions: {
-        runtimeRefresh: await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
-          client,
-          '#/runtime',
-          runtimeRefreshTimeoutMs
-        ),
-      },
+      requested_hash: '#/runtime',
+      resolved_hash: standaloneRuntimeRefresh.resolved_hash,
+      interactions: { runtimeRefresh: standaloneRuntimeRefresh },
     });
     await captureCdpScreenshot(client, path.join(options.artifacts, 'settings-pages', 'runtime-status.png'));
     try {
@@ -7868,6 +7910,7 @@ export const __test =
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
+        buildRuntimeRefreshProbePlan,
         exerciseRuntimeRefresh,
         runSettingsSmoke,
         shouldVerifyFullFirstRunEquivalence,
