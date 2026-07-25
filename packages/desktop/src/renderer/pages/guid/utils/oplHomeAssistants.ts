@@ -271,7 +271,7 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[], appStat
     )
   );
   return shortcuts
-    .filter((shortcut) => shortcut.installed && isOplHomeShortcutVisible(shortcut, preferences))
+    .filter((shortcut) => isOplHomeShortcutVisible(shortcut, preferences))
     .flatMap((shortcut, index) => {
       const assistant = assistantsByPackage.get(normalizeAssistantId(shortcut.package_id));
       if (!assistant) return [];

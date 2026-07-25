@@ -106,13 +106,43 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
       return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), entry] as const] : [];
     })
   );
+  const presentations = getOplHomeAgentShortcuts();
   const presentationByTuple = new Map<string, OplHomeAgentShortcut>(
-    getOplHomeAgentShortcuts().map(
+    presentations.map(
       (shortcut) =>
         [`${canonicalizeOplProfessionalAgentId(shortcut.package_id)}\n${shortcut.shortcut_id}`, shortcut] as const
     )
   );
   const descriptors = new Map<string, OplHomeShortcutDescriptor>();
+  presentations.forEach((presentation, sortOrder) => {
+    const canonicalPackageId = canonicalizeOplProfessionalAgentId(presentation.package_id);
+    const directoryEntry = directoryEntries.get(canonicalPackageId);
+    if (!directoryEntry || directoryEntry.package_role !== 'standard_agent') return;
+    const packageId =
+      typeof directoryEntry.package_id === 'string' && directoryEntry.package_id.trim()
+        ? directoryEntry.package_id.trim()
+        : presentation.package_id;
+    const displayName =
+      typeof directoryEntry.display_name === 'string' && directoryEntry.display_name.trim()
+        ? directoryEntry.display_name.trim()
+        : packageId;
+    const tuple = `${canonicalPackageId}\n${presentation.shortcut_id}`;
+    descriptors.set(tuple, {
+      ...presentation,
+      package_id: packageId,
+      primary_label: presentation.primary_label || displayName,
+      package_short_name: presentation.package_short_name || displayName,
+      codex_visible_entry:
+        (typeof directoryEntry.codex_visible_entry === 'string' && directoryEntry.codex_visible_entry.trim()) ||
+        presentation.codex_visible_entry ||
+        packageId,
+      required_skill_ids: [],
+      visible: presentation.default_visible,
+      installed: directoryEntry.installed !== false,
+      preference_source: 'default',
+      sort_order: sortOrder,
+    });
+  });
   for (const entry of records) {
     const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
     const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';

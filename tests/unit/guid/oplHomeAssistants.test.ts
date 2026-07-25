@@ -133,6 +133,53 @@ describe('OPL home assistants', () => {
     expect(directory.every((item) => item.agent_id === undefined && item.agent === undefined)).toBe(true);
   });
 
+  it('projects clean directory packages onto Home and defers unavailable packages to the typed launch gate', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            { package_id: 'mas-scholar-skills', package_role: 'framework_capability_package', installed: true },
+            { package_id: 'mag', display_name: 'Med Auto Grant', package_role: 'standard_agent', installed: false },
+            { package_id: 'mas', display_name: 'Med Auto Science', package_role: 'standard_agent', installed: false },
+            { package_id: 'obf', display_name: 'OPL Book Forge', package_role: 'standard_agent', installed: false },
+            { package_id: 'opl-flow', package_role: 'workflow_profile', installed: true },
+            { package_id: 'oma', display_name: 'OPL Meta Agent', package_role: 'standard_agent', installed: false },
+            { package_id: 'rca', display_name: 'RedCube AI', package_role: 'standard_agent', installed: false },
+          ],
+        },
+        status_index: {
+          home_shortcut_preferences: [],
+          packages: {
+            mas: {
+              package_id: 'mas',
+              operational_ready: false,
+              launch_allowed: false,
+              launch_blocked_reason: 'package_not_installed',
+              allowed_when_blocked: ['status', 'doctor', 'repair'],
+            },
+          },
+        },
+      },
+    };
+
+    const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
+    expect(shortcuts.map((item) => item.shortcut_id)).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
+    expect(shortcuts.every((item) => item.installed === false)).toBe(true);
+    expect(resolveOplHomeAssistants([], appState).map((item) => item.id)).toEqual([
+      'research',
+      'ppt',
+      'grant',
+      'book',
+      'oma',
+    ]);
+    expect(resolveOplPackageLaunchGate(appState, 'mas')).toEqual({
+      state: 'package_unavailable',
+      launchAllowed: false,
+      launchBlockedReason: 'package_not_installed',
+      allowedWhenBlocked: ['status', 'doctor', 'repair'],
+    });
+  });
+
   it('keeps backend assistants as runtime binding without making them membership authority', () => {
     const appState = dynamicAppState();
     const resolved = resolveOplHomeAssistants(
