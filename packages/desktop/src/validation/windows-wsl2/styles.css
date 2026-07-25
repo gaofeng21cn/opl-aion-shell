@@ -1,0 +1,141 @@
+:root {
+  color: CanvasText;
+  background: Canvas;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 0;
+}
+
+button {
+  min-width: 96px;
+  height: 36px;
+  border: 1px solid ButtonText;
+  border-radius: 6px;
+  background: ButtonFace;
+  color: ButtonText;
+  cursor: pointer;
+  font: inherit;
+}
+
+button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.app-shell {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px;
+}
+.header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid GrayText;
+  padding-bottom: 22px;
+}
+.eyebrow {
+  color: GrayText;
+  font-size: 12px;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+h1 {
+  font-size: 25px;
+  font-weight: 650;
+  margin: 0;
+}
+.subtitle {
+  color: GrayText;
+  line-height: 1.5;
+  margin: 8px 0 0;
+  max-width: 680px;
+}
+.notice {
+  color: GrayText;
+  min-height: 24px;
+  padding: 18px 0 6px;
+}
+.status-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.status-card {
+  background: Canvas;
+  border: 1px solid GrayText;
+  border-radius: 6px;
+  min-height: 132px;
+  padding: 18px;
+}
+.status-card h2 {
+  font-size: 16px;
+  font-weight: 650;
+  margin: 0 0 12px;
+}
+.state {
+  display: inline-block;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+.state-observed {
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid GrayText;
+}
+.state-unverified {
+  background: Highlight;
+  color: HighlightText;
+}
+.state-unavailable,
+.state-absent {
+  background: ButtonFace;
+  color: GrayText;
+}
+.detail {
+  color: GrayText;
+  line-height: 1.45;
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+.boundary {
+  border-top: 1px solid GrayText;
+  margin-top: 26px;
+  padding-top: 20px;
+}
+.boundary h2 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.boundary li {
+  color: GrayText;
+  line-height: 1.5;
+  margin: 5px 0;
+}
+
+@media (max-width: 680px) {
+  .app-shell {
+    padding: 20px;
+  }
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  button {
+    width: 100%;
+  }
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+}

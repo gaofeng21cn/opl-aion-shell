@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self';" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OPL Windows WSL2 Validation</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="header">
+        <div>
+          <p id="eyebrow" class="eyebrow"></p>
+          <h1 id="title"></h1>
+          <p id="subtitle" class="subtitle"></p>
+        </div>
+        <button id="refresh" type="button"></button>
+      </header>
+      <section id="notice" class="notice" aria-live="polite"></section>
+      <section id="status-grid" class="status-grid" aria-live="polite"></section>
+      <section class="boundary">
+        <h2 id="boundary-title"></h2>
+        <ul id="boundary-list"></ul>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

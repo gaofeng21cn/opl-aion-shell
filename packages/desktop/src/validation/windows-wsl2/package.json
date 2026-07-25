@@ -1,0 +1,28 @@
+{
+  "name": "opl-windows-wsl2-validation",
+  "version": "0.0.0-validation.0",
+  "private": true,
+  "description": "Non-binding Windows WSL2 technical validation status candidate",
+  "author": "One Person Lab",
+  "main": "main.cjs",
+  "build": {
+    "appId": "com.onepersonlab.windowswsl2validation",
+    "productName": "OPL Windows WSL2 Validation",
+    "electronVersion": "37.10.3",
+    "asar": true,
+    "files": [
+      "**/*"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
