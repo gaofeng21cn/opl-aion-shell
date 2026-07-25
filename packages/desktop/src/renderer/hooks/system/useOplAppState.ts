@@ -856,7 +856,9 @@ export function useOplAppState(
       if (!nextCached) return;
       setPayload(nextCached.payload);
       setLoadedAt(nextCached.loadedAt);
-      setProvenance(requireLive ? DERIVED_BOOTSTRAP_PROVENANCE : nextCached.provenance);
+      setProvenance((currentProvenance) =>
+        currentProvenance === 'live' ? 'live' : requireLive ? DERIVED_BOOTSTRAP_PROVENANCE : nextCached.provenance
+      );
       setLoading(!hasGatewayAccountProjection(nextCached.payload));
     };
     window.addEventListener(APP_STATE_CACHE_UPDATED_EVENT, handleCacheUpdate);

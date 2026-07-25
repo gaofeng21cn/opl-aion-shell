@@ -378,6 +378,25 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     await waitFor(() => expect(authorityConsumer.result.current.provenance).toBe('live'));
   });
 
+  it('does not downgrade live authority when another consumer broadcasts the shared cache', async () => {
+    getAppStateInvoke.mockResolvedValueOnce({
+      ok: true,
+      parsed: { app_state: appStateWithGateway(gatewayProjection({ status: 'connected' })) },
+    });
+    const authorityConsumer = renderHook(() => useOplAppState('fast', { autoLoad: false, requireLive: true }));
+
+    await act(async () => {
+      await authorityConsumer.result.current.load('fast', { forceFresh: true });
+    });
+    await waitFor(() => expect(authorityConsumer.result.current.provenance).toBe('live'));
+
+    act(() => {
+      cacheFastOplAppState({ app_state: appStateWithGateway(gatewayProjection({ status: 'connected' })) }, '20:01:00');
+    });
+
+    expect(authorityConsumer.result.current.provenance).toBe('live');
+  });
+
   it('hydrates a shared fast memory payload that does not yet include the Gateway projection', async () => {
     getAppStateInvoke
       .mockResolvedValueOnce({
