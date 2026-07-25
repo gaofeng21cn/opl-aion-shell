@@ -647,13 +647,46 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('local_authorization_status: localAuthorizationStatus');
     expect(scriptSource).toContain("'rejected_allowed_unsigned'");
     expect(scriptSource).toContain("'failed_allowed_unsigned'");
-    expect(scriptSource).toContain('if (!homebrewFullCask && quarantineAttributeCount !== 0)');
+    expect(scriptSource).toContain('if (!options.requireGatekeeper)');
+    expect(scriptSource).toContain('if (!gatekeeperRequired && quarantineAttributeCount !== 0)');
     expect(scriptSource).toContain('Stable local authorization failed to clear quarantine before first launch.');
-    expect(scriptSource).toContain('Homebrew Full Cask failed the blocking Gatekeeper assessment before first launch.');
+    expect(scriptSource).toContain('Production App failed the blocking Gatekeeper assessment before first launch.');
     expect(scriptSource).toContain('const blockingCodesignFailure = codesign.status !== 0;');
     expect(scriptSource).toContain('if (blockingCodesignFailure)');
     expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
     expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
+  });
+
+  it('preserves quarantine and requires Gatekeeper for production DMG smokes', () => {
+    const appPath = '/Applications/One Person Lab.app';
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-production-gatekeeper-'));
+    try {
+      const passed = vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, {
+        requireGatekeeper: true,
+        countQuarantineAttributes: () => 2,
+        spawnSync: (command: string) => ({ status: 0, stdout: '', stderr: command }),
+      });
+      expect(passed).toMatchObject({
+        status: 'passed',
+        install_origin: 'direct_app_or_dmg',
+        gatekeeper_required: true,
+        quarantine_removal_required: false,
+        quarantine_mutation_performed: false,
+        quarantine_status: 'present',
+        codesign: { status: 0 },
+        spctl: { status: 0 },
+      });
+
+      expect(() =>
+        vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, {
+          requireGatekeeper: true,
+          countQuarantineAttributes: () => 1,
+          spawnSync: (command: string) => ({ status: command === 'spctl' ? 1 : 0, stdout: '', stderr: '' }),
+        })
+      ).toThrow(/blocking Gatekeeper assessment/);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('requires real Gatekeeper acceptance for Full Cask without requiring quarantine removal', () => {

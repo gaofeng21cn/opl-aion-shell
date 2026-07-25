@@ -216,6 +216,7 @@ Options:
                            Use standard for the public macOS app DMG when Full-only bundled
                            module/skill equivalence is not expected.
   --install-mode <mode>     Install mode: dmg or homebrew-cask. Default: dmg.
+  --require-gatekeeper      Preserve quarantine and require Gatekeeper in the guest smoke.
   --homebrew-tap <tap>      Homebrew tap for --install-mode homebrew-cask. Default: gaofeng21cn/one-person-lab.
   --homebrew-cask <name>    Homebrew cask to install. Default: one-person-lab.
   --homebrew-cask-file <path>
@@ -284,6 +285,7 @@ function parseArgs(argv) {
     codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
     runtimeProfile: 'full',
+    requireGatekeeper: false,
     installMode: 'dmg',
     homebrewTap: 'gaofeng21cn/one-person-lab',
     homebrewCask: 'one-person-lab',
@@ -313,6 +315,11 @@ function parseArgs(argv) {
     if (arg === '--help') {
       usage();
       process.exit(0);
+    }
+    if (arg === '--require-gatekeeper') {
+      options.requireGatekeeper = true;
+      explicit.add('requireGatekeeper');
+      continue;
     }
     if (arg === '--no-graphics') {
       options.noGraphics = true;
@@ -2035,6 +2042,7 @@ function guestSmokeCommand(
       : '',
     options.requireCodexConfigWizard ? '--require-codex-config-wizard' : '',
     '--assert-clean',
+    options.requireGatekeeper ? '--require-gatekeeper' : '',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     `--codex-install-phase-timeout-ms ${shellQuote(String(options.codexInstallPhaseTimeoutMs))}`,
@@ -2264,6 +2272,19 @@ function assertGuestSmokeSummary(options, guestSummary) {
       proof?.persistent_database?.same_file_after_session_reload !== true
     ) {
       throw new Error('Guest Full smoke did not prove the required Temporal service supervisor lifecycle.');
+    }
+  }
+  if (options.requireGatekeeper) {
+    const gatekeeper = guestSummary.gatekeeper_launch_policy;
+    if (
+      gatekeeper?.status !== 'passed' ||
+      gatekeeper?.gatekeeper_required !== true ||
+      gatekeeper?.quarantine_removal_required !== false ||
+      gatekeeper?.quarantine_mutation_performed !== false ||
+      gatekeeper?.codesign?.status !== 0 ||
+      gatekeeper?.spctl?.status !== 0
+    ) {
+      throw new Error('Guest production smoke did not prove unmodified Gatekeeper acceptance.');
     }
   }
   if (isHomebrewFullCaskSmoke(options)) {

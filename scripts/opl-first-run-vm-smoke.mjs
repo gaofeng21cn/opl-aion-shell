@@ -335,6 +335,7 @@ Options:
                          observed optional path.
   --guide-screenshots    Capture extra 1920x1080 VM screenshots for the user guide.
   --assert-clean         Fail if OPL state/log or app-local GUI state already exists before launch.
+  --require-gatekeeper   Preserve quarantine and require codesign plus Gatekeeper before first launch.
   --help                 Show this message.
 `);
 }
@@ -379,6 +380,7 @@ function parseArgs(argv) {
     providerCredentialSource: null,
     requireCodexConfigWizard: false,
     assertClean: false,
+    requireGatekeeper: false,
     guideScreenshots: false,
   };
 
@@ -390,6 +392,10 @@ function parseArgs(argv) {
     }
     if (arg === '--assert-clean') {
       options.assertClean = true;
+      continue;
+    }
+    if (arg === '--require-gatekeeper') {
+      options.requireGatekeeper = true;
       continue;
     }
     if (arg === '--require-codex-config-wizard') {
@@ -908,7 +914,9 @@ function installDmgApp(dmgPath, installDir, options = {}) {
     const targetApp = path.join(installDir, path.basename(mountedApp));
     fs.rmSync(targetApp, { recursive: true, force: true });
     runWithDeadline('ditto', [mountedApp, targetApp], deadlineMs, 'install_dmg');
-    spawnSync('xattr', ['-dr', 'com.apple.quarantine', targetApp], { stdio: 'ignore' });
+    if (!options.requireGatekeeper) {
+      spawnSync('xattr', ['-dr', 'com.apple.quarantine', targetApp], { stdio: 'ignore' });
+    }
     return targetApp;
   } finally {
     detachDmg(mountPoint);
@@ -1269,6 +1277,7 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   const runCommand = hooks.spawnSync ?? spawnSync;
   const installOrigin = hooks.installOrigin ?? 'direct_app_or_dmg';
   const homebrewFullCask = installOrigin === 'homebrew_full_cask';
+  const gatekeeperRequired = hooks.requireGatekeeper === true || homebrewFullCask;
   const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     encoding: 'utf8',
   });
@@ -1279,7 +1288,7 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   const localAuthorizationStatus =
     codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed_allowed_unsigned';
   const status =
-    codesign.status === 0 && (homebrewFullCask ? spctl.status === 0 : quarantineAttributeCount === 0)
+    codesign.status === 0 && (gatekeeperRequired ? spctl.status === 0 : quarantineAttributeCount === 0)
       ? 'passed'
       : 'failed';
   const receipt = {
@@ -1287,9 +1296,9 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
     status,
     app_path: appPath,
     install_origin: installOrigin,
-    gatekeeper_required: homebrewFullCask,
-    quarantine_removal_required: !homebrewFullCask,
-    quarantine_mutation_performed: homebrewFullCask ? false : null,
+    gatekeeper_required: gatekeeperRequired,
+    quarantine_removal_required: !gatekeeperRequired,
+    quarantine_mutation_performed: gatekeeperRequired ? false : null,
     quarantine_status: quarantineAttributeCount === 0 ? 'absent' : 'present',
     quarantine_attribute_count: quarantineAttributeCount,
     local_authorization_status: localAuthorizationStatus,
@@ -1306,7 +1315,7 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   };
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.writeFileSync(path.join(artifactsDir, 'gatekeeper-launch-policy.json'), `${JSON.stringify(receipt, null, 2)}\n`);
-  if (!homebrewFullCask && quarantineAttributeCount !== 0) {
+  if (!gatekeeperRequired && quarantineAttributeCount !== 0) {
     throw new Error(
       [
         'Stable local authorization failed to clear quarantine before first launch.',
@@ -1336,10 +1345,10 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
         .join('\n')
     );
   }
-  if (homebrewFullCask && spctl.status !== 0) {
+  if (gatekeeperRequired && spctl.status !== 0) {
     throw new Error(
       [
-        'Homebrew Full Cask failed the blocking Gatekeeper assessment before first launch.',
+        'Production App failed the blocking Gatekeeper assessment before first launch.',
         `spctl status=${spctl.status}`,
         spctl.stdout ? `spctl stdout:\n${spctl.stdout}` : '',
         spctl.stderr ? `spctl stderr:\n${spctl.stderr}` : '',
@@ -7082,7 +7091,10 @@ async function main() {
       options.dmg ? 'install_dmg' : 'resolve_app',
       () =>
         options.dmg
-          ? installDmgApp(options.dmg, options.installDir, { timeout: options.codexInstallPhaseTimeoutMs })
+          ? installDmgApp(options.dmg, options.installDir, {
+              timeout: options.codexInstallPhaseTimeoutMs,
+              requireGatekeeper: options.requireGatekeeper,
+            })
           : options.app,
       {
         dmg: options.dmg,
@@ -7185,7 +7197,10 @@ async function main() {
       );
     }
     gatekeeperLaunchPolicy = await runSmokePhase(writeSmokeEvent, 'verify_gatekeeper_launch_policy', () =>
-      verifyGatekeeperLaunchPolicy(appPath, options.artifacts, { installOrigin: options.installOrigin })
+      verifyGatekeeperLaunchPolicy(appPath, options.artifacts, {
+        installOrigin: options.installOrigin,
+        requireGatekeeper: options.requireGatekeeper,
+      })
     );
     const launchStartedAtMs = Date.now() - 1_000;
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
