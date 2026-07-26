@@ -80,6 +80,8 @@ const fs = require('node:fs');
 const Module = require('node:module');
 const path = require('node:path');
 
+Object.defineProperty(process, 'platform', { value: 'darwin' });
+
 const originalLoad = Module._load;
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request.endsWith('packages/shared-scripts/src/prepare-aioncore.js')) {
