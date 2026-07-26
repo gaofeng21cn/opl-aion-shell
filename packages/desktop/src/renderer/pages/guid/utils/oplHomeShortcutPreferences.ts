@@ -183,7 +183,7 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
     descriptors.set(tuple, {
       ...existing,
       visible: typeof entry.visible === 'boolean' ? entry.visible : existing.visible,
-      installed: entry.installed !== false && existing.installed,
+      installed: existing.installed,
       preference_source: preferenceSource,
       sort_order: typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order) ? entry.sort_order : null,
     });

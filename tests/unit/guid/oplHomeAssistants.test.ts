@@ -399,6 +399,76 @@ describe('OPL home assistants', () => {
     ]);
   });
 
+  it('keeps installed truth owned by the directory while preferences only control visibility and order', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'installed-agent',
+              display_name: 'Installed Agent',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('installed-main', 'Installed', 'installed-agent')],
+            },
+            {
+              package_id: 'missing-agent',
+              display_name: 'Missing Agent',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('missing-main', 'Missing', 'missing-agent', false)],
+            },
+          ],
+        },
+        status_index: {
+          home_shortcut_preferences: [
+            {
+              package_id: 'installed-agent',
+              shortcut_id: 'installed-main',
+              visible: false,
+              sort_order: 1,
+              source: 'user_preference',
+              installed: false,
+            },
+            {
+              package_id: 'missing-agent',
+              shortcut_id: 'missing-main',
+              visible: true,
+              sort_order: 0,
+              source: 'user_preference',
+              installed: true,
+            },
+          ],
+        },
+      },
+    };
+
+    expect(
+      getOplHomeAgentShortcutsFromAppState(appState).map((shortcut) => ({
+        shortcutId: shortcut.shortcut_id,
+        installed: shortcut.installed,
+        visible: shortcut.visible,
+        preferenceSource: shortcut.preference_source,
+        sortOrder: shortcut.sort_order,
+      }))
+    ).toEqual([
+      {
+        shortcutId: 'missing-main',
+        installed: false,
+        visible: true,
+        preferenceSource: 'user_preference',
+        sortOrder: 0,
+      },
+      {
+        shortcutId: 'installed-main',
+        installed: true,
+        visible: false,
+        preferenceSource: 'user_preference',
+        sortOrder: 1,
+      },
+    ]);
+  });
+
   it('uses only explicit user preferences to override App-owned defaults', () => {
     expect(
       getOplHomeShortcutPreferencesFromAppState({
