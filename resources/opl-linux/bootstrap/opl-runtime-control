@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+operation_token=''
+grace_ms=5000
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --operation-token)
+      operation_token="${2:-}"
+      shift 2
+      ;;
+    --grace-ms)
+      grace_ms="${2:-}"
+      shift 2
+      ;;
+    *)
+      printf 'Unsupported runtime-control argument.\n' >&2
+      exit 64
+      ;;
+  esac
+done
+if [[ ! "$operation_token" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] ||
+  [[ ! "$grace_ms" =~ ^[0-9]{1,6}$ ]]; then
+  printf 'Invalid runtime-control input.\n' >&2
+  exit 64
+fi
+
+record="/var/lib/opl/runtime-state/$operation_token.json"
+if [[ ! -f "$record" ]]; then
+  printf '{"status":"already_stopped","survivors":0}\n'
+  exit 0
+fi
+
+pid="$(jq -r '.pid' "$record")"
+expected_starttime="$(jq -r '.starttime' "$record")"
+expected_pgid="$(jq -r '.process_group' "$record")"
+expected_executable="$(jq -r '.executable' "$record")"
+expected_sha256="$(jq -r '.executable_sha256' "$record")"
+expected_carrier="$(jq -r '.carrier_id' "$record")"
+
+if [[ "$expected_carrier" != "OPL-Linux" ]] ||
+  [[ ! -r "/proc/$pid/stat" ]] ||
+  [[ "$(awk '{print $22}' "/proc/$pid/stat")" != "$expected_starttime" ]] ||
+  [[ "$(ps -o pgid= -p "$pid" | tr -d ' ')" != "$expected_pgid" ]] ||
+  [[ "$(readlink -f "/proc/$pid/exe")" != "$expected_executable" ]] ||
+  [[ "$(sha256sum "$expected_executable" | awk '{print $1}')" != "$expected_sha256" ]]; then
+  printf 'Runtime operation identity no longer matches the live process.\n' >&2
+  exit 65
+fi
+
+kill -TERM -- "-$expected_pgid" 2>/dev/null || true
+deadline=$((SECONDS + ((grace_ms + 999) / 1000)))
+while [[ -e "/proc/$pid" ]] && [[ "$SECONDS" -lt "$deadline" ]]; do
+  sleep 0.1
+done
+if [[ -e "/proc/$pid" ]]; then
+  kill -KILL -- "-$expected_pgid" 2>/dev/null || true
+fi
+
+survivors=0
+for env_file in /proc/[0-9]*/environ; do
+  [[ -r "$env_file" ]] || continue
+  if tr '\0' '\n' <"$env_file" 2>/dev/null |
+    grep -Fx "OPL_OPERATION_TOKEN=$operation_token" >/dev/null 2>&1; then
+    survivors=$((survivors + 1))
+  fi
+done
+if [[ "$survivors" -eq 0 ]]; then
+  rm -f "$record"
+fi
+jq -n --arg status "$([[ "$survivors" -eq 0 ]] && printf stopped || printf survivors)" \
+  --argjson survivors "$survivors" \
+  '{status: $status, survivors: $survivors}'
+[[ "$survivors" -eq 0 ]]

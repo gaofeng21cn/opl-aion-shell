@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" != "--json" ]]; then
+  printf 'runtime-inspect requires --json.\n' >&2
+  exit 64
+fi
+
+identity=/etc/opl/identity.json
+if [[ ! -f "$identity" ]]; then
+  printf 'OPL Linux identity is missing.\n' >&2
+  exit 69
+fi
+
+framework_path="$(command -v opl || true)"
+if [[ -z "$framework_path" ]] || [[ ! -x "$framework_path" ]]; then
+  printf 'Framework CLI is unavailable.\n' >&2
+  exit 69
+fi
+framework_realpath="$(readlink -f "$framework_path")"
+framework_sha256="$(sha256sum "$framework_realpath" | awk '{print $1}')"
+
+jq \
+  --arg framework_path "$framework_realpath" \
+  --arg framework_digest "sha256:$framework_sha256" \
+  --arg wsl_interop "${WSL_INTEROP:-}" \
+  '. + {
+    schema: "opl_linux_runtime_inspection.v1",
+    protocol_version: 1,
+    framework_path: $framework_path,
+    framework_digest: $framework_digest,
+    wsl2: ($wsl_interop | length > 0),
+    active_operation_count: ([inputs] | length)
+  }' \
+  "$identity" \
+  < <(find /var/lib/opl/runtime-state -maxdepth 1 -type f -name '*.json' -print 2>/dev/null)

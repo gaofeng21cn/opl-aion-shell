@@ -1,0 +1,16 @@
+{
+  "schema": "opl_linux_product_manifest.v1",
+  "logical_distribution": "OPL-Linux",
+  "physical_distribution": "OPL-Linux",
+  "wsl_version": 2,
+  "architecture": "x86_64",
+  "guest_user": "opl",
+  "codex_home": "/home/opl/.codex",
+  "workspace_root": "/home/opl/code",
+  "native_windows_executor_fallback_allowed": false,
+  "allowed_programs": [
+    "aioncore",
+    "codex-app-server",
+    "opl-cli"
+  ]
+}
