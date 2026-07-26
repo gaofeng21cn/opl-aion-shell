@@ -1007,9 +1007,7 @@ describe('FirstRun readiness page', () => {
   });
 
   it('requires explicit confirmation after Gateway setup before binding model access', async () => {
-    bridgeMocks.getInitializeInvoke
-      .mockResolvedValueOnce(blockedInitializeResult)
-      .mockResolvedValue(initializeResult);
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
     bridgeMocks.getAppStateInvoke
       .mockResolvedValueOnce(gatewayFastStateResult)
       .mockResolvedValueOnce(gatewayManagedKeyStateResult)
@@ -1092,9 +1090,7 @@ describe('FirstRun readiness page', () => {
   });
 
   it('offers explicit model-access confirmation for an existing managed Gateway key', async () => {
-    bridgeMocks.getInitializeInvoke
-      .mockResolvedValueOnce(blockedInitializeResult)
-      .mockResolvedValue(initializeResult);
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
     bridgeMocks.getAppStateInvoke
       .mockResolvedValueOnce(gatewayManagedKeyStateResult)
       .mockResolvedValueOnce(gatewayManagedKeyStateResult)
