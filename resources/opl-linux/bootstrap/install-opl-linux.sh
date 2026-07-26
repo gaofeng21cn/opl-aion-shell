@@ -106,14 +106,29 @@ if [[ -z "$codex_path" ]] || [[ ! -x "$codex_path" ]]; then
   printf 'The packaged Linux Codex executable is missing.\n' >&2
   exit 1
 fi
-codex_sha256="$(sha256sum "$codex_path" | awk '{print $1}')"
+codex_realpath="$(readlink -f "$codex_path")"
+if [[ "$codex_realpath" != "$activation/"* ]]; then
+  printf 'The packaged Linux Codex executable escaped its carrier activation.\n' >&2
+  exit 1
+fi
+ln -sfn "$codex_realpath" /usr/local/bin/codex
+codex_command_path=/usr/local/bin/codex
+codex_command_realpath="$(readlink -f "$codex_command_path")"
+if [[ "$codex_command_realpath" != "$codex_realpath" ]]; then
+  printf 'The Linux Codex command does not resolve to the packaged executable.\n' >&2
+  exit 1
+fi
+codex_sha256="$(sha256sum "$codex_realpath" | awk '{print $1}')"
 
 jq -n \
   --arg guest_install_id "$guest_install_id" \
   --arg carrier_activation_digest "sha256:$runtime_manifest_sha256" \
   --arg aioncore_digest "sha256:$aioncore_sha256" \
   --arg codex_digest "sha256:$codex_sha256" \
-  --arg codex_path "$codex_path" \
+  --arg codex_path "$codex_realpath" \
+  --arg codex_command_path "$codex_command_path" \
+  --arg codex_realpath "$codex_realpath" \
+  --arg codex_command_digest "sha256:$codex_sha256" \
   --arg framework_ref "$framework_ref" \
   '{
     schema: "opl_linux_guest_identity.v1",
@@ -127,6 +142,9 @@ jq -n \
     aioncore_digest: $aioncore_digest,
     codex_digest: $codex_digest,
     codex_path: $codex_path,
+    codex_command_path: $codex_command_path,
+    codex_realpath: $codex_realpath,
+    codex_command_digest: $codex_command_digest,
     framework_ref: $framework_ref,
     codex_home: "/home/opl/.codex",
     workspace_root: "/home/opl/code",

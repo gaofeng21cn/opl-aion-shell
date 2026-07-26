@@ -52,6 +52,9 @@ export type WindowsWslGuestIdentity = {
   aioncore_digest: string;
   codex_digest: string;
   codex_path: string;
+  codex_command_path: '/usr/local/bin/codex';
+  codex_realpath: string;
+  codex_command_digest: string;
   codex_home: '/home/opl/.codex';
   workspace_root: '/home/opl/code';
   framework_path: string;
@@ -297,7 +300,10 @@ export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuest
     !identity.guest_install_id ||
     typeof identity.distribution_generation !== 'number' ||
     typeof identity.codex_path !== 'string' ||
-    !identity.codex_path.startsWith('/opt/opl/carrier/') ||
+    !identity.codex_path.startsWith('/opt/opl/carrier/store/sha256/') ||
+    identity.codex_command_path !== '/usr/local/bin/codex' ||
+    typeof identity.codex_realpath !== 'string' ||
+    identity.codex_realpath !== identity.codex_path ||
     typeof identity.framework_path !== 'string' ||
     !identity.framework_path.startsWith('/home/opl/') ||
     typeof identity.framework_ref !== 'string' ||
@@ -312,7 +318,14 @@ export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuest
   assertDigest(identity.bootstrap_digest, 'bootstrap_digest');
   assertDigest(identity.aioncore_digest, 'aioncore_digest');
   assertDigest(identity.codex_digest, 'codex_digest');
+  assertDigest(identity.codex_command_digest, 'codex_command_digest');
   assertDigest(identity.framework_digest, 'framework_digest');
+  if (identity.codex_command_digest !== identity.codex_digest) {
+    throw new WindowsWslProvisioningError('The owner-bound Codex command does not match the packaged identity.', {
+      stage: 'repair_required',
+      code: 'guest_codex_identity_mismatch',
+    });
+  }
   return identity as WindowsWslGuestIdentity;
 }
 
@@ -542,6 +555,7 @@ export class WindowsWslProvisioner {
         'env',
         'HOME=/home/opl',
         'CODEX_HOME=/home/opl/.codex',
+        'OPL_CODEX_BIN=/usr/local/bin/codex',
         'OPL_WORKSPACE_ROOT=/home/opl/code',
         'OPL_INSTALL_DIR=/home/opl/.opl/one-person-lab',
         `OPL_INSTALL_SCRIPT_URL=${this.product.framework_install_script_url}`,
@@ -646,7 +660,7 @@ export class WindowsWslProvisioner {
 
     try {
       this.readyIdentity = await this.inspect();
-    } catch (error) {
+    } catch {
       await this.bootstrapGuest();
       this.progress('validating_routes', 'Validating the Linux runtime identity.');
       this.readyIdentity = await this.inspect();

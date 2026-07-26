@@ -32,6 +32,19 @@ describe('OPL Linux guest bootstrap', () => {
     expect(runtimeExec.indexOf(`export PATH="${expected}"`)).toBeLessThan(
       runtimeExec.indexOf('program="$(command -v opl || true)"')
     );
+    expect(runtimeExec).toContain('export OPL_CODEX_BIN=/usr/local/bin/codex');
+    expect(runtimeExec).toContain('codex="$OPL_CODEX_BIN"');
+  });
+
+  it('binds the packaged Codex realpath to one inspected command identity', () => {
+    const installer = read('install-opl-linux.sh');
+    expect(installer).toContain('ln -sfn "$codex_realpath" /usr/local/bin/codex');
+    expect(installer).toContain('codex_command_digest: $codex_command_digest');
+
+    const inspect = read('opl-runtime-inspect');
+    expect(inspect).toContain('export OPL_CODEX_BIN=/usr/local/bin/codex');
+    expect(inspect).toContain('codex_command_realpath="$(readlink -f "$codex_command_path")"');
+    expect(inspect).toContain('"sha256:$codex_command_sha256" != "$identity_codex_digest"');
   });
 
   it('counts operation records without feeding filenames into jq', () => {

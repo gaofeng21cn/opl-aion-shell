@@ -32,7 +32,10 @@ function identity() {
     bootstrap_digest: packagedBootstrapDigest,
     aioncore_digest: `sha256:${'2'.repeat(64)}`,
     codex_digest: `sha256:${'3'.repeat(64)}`,
-    codex_path: '/opt/opl/carrier/current/managed-resources/codex',
+    codex_path: '/opt/opl/carrier/store/sha256/activation/managed-resources/codex',
+    codex_command_path: '/usr/local/bin/codex',
+    codex_realpath: '/opt/opl/carrier/store/sha256/activation/managed-resources/codex',
+    codex_command_digest: `sha256:${'3'.repeat(64)}`,
     codex_home: '/home/opl/.codex',
     workspace_root: '/home/opl/code',
     framework_path: '/home/opl/.opl/one-person-lab/bin/opl',
@@ -94,6 +97,15 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     expect(() => validateWindowsWslGuestIdentity({ ...identity(), active_operation_count: -1 })).toThrow(
       WindowsWslProvisioningError
     );
+  });
+
+  it('requires the inspected Codex command to match the packaged identity', () => {
+    expect(() =>
+      validateWindowsWslGuestIdentity({
+        ...identity(),
+        codex_command_digest: `sha256:${'8'.repeat(64)}`,
+      })
+    ).toThrow(WindowsWslProvisioningError);
   });
 
   it('binds the Framework URLs to the exact product ref', () => {
@@ -264,7 +276,12 @@ describe('WindowsWslProvisioner parsing and identity', () => {
       args.includes('/opt/opl/bootstrap/opl-install.sh')
     );
     expect(frameworkActivation?.[1]).toEqual(
-      expect.arrayContaining(['HOME=/home/opl', 'CODEX_HOME=/home/opl/.codex', 'OPL_WORKSPACE_ROOT=/home/opl/code'])
+      expect.arrayContaining([
+        'HOME=/home/opl',
+        'CODEX_HOME=/home/opl/.codex',
+        'OPL_CODEX_BIN=/usr/local/bin/codex',
+        'OPL_WORKSPACE_ROOT=/home/opl/code',
+      ])
     );
   });
 

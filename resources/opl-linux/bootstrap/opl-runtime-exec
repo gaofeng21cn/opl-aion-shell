@@ -38,14 +38,10 @@ export AIONUI_CACHE_DIR=/home/opl/.cache/one-person-lab
 export AIONUI_WORK_DIR=/home/opl/.local/state/one-person-lab/work
 export AIONUI_LOG_DIR=/home/opl/.local/state/one-person-lab/logs
 export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export OPL_CODEX_BIN=/usr/local/bin/codex
 
 carrier=/opt/opl/carrier/current
-codex="$(
-  find "$carrier/managed-resources" \
-    -type f \
-    -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
-    -print -quit
-)"
+codex="$OPL_CODEX_BIN"
 case "$kind" in
   aioncore)
     program="$carrier/aioncore"
@@ -73,8 +69,6 @@ if [[ -e "$record" ]]; then
   printf 'Operation token is already active.\n' >&2
   exit 73
 fi
-
-export OPL_CODEX_BIN="$codex"
 
 setsid "$program" "$@" &
 child_pid=$!
