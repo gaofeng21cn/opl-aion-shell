@@ -4045,7 +4045,15 @@ function homeAssistantStandardLaunchGateExpression(target) {
       const style = window.getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
-    const card = [...document.querySelectorAll(${cdpString(visibleHomeAssistantControlSelector(target))})].find(visible);
+    const controlSelectors = ${JSON.stringify([
+      `[data-testid="home-starter-${target.shortcutId}"]`,
+      `[data-testid="preset-pill-${target.id}"]`,
+      `[data-testid="home-starter-${target.id}"]`,
+      `[data-testid="preset-pill-${target.shortcutId}"]`,
+    ])};
+    const card = controlSelectors
+      .map((selector) => [...document.querySelectorAll(selector)].find(visible))
+      .find(Boolean);
     const input = document.querySelector('textarea[data-testid="guid-input"], input[data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');

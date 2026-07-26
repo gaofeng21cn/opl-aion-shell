@@ -1907,8 +1907,11 @@ describe('packaged first-run VM smoke helpers', () => {
     const dom = new JSDOM(
       `<!doctype html><body>
       <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
+        <button id="colliding-starter-control" title="package_not_installed: repair">
+          <span data-testid="home-starter-mag" data-opl-launch-ready="false" aria-pressed="false">Open MAG user loop</span>
+        </button>
         <button id="starter-control" title="package_not_installed: repair">
-          <span data-testid="home-starter-mas" data-opl-launch-ready="false" aria-pressed="false">Research</span>
+          <span data-testid="home-starter-grant" data-opl-launch-ready="false" aria-pressed="false">MAG</span>
         </button>
         <textarea data-testid="guid-input"></textarea>
         <button data-testid="guid-send-btn">Send</button>
@@ -1922,34 +1925,39 @@ describe('packaged first-run VM smoke helpers', () => {
         value: () => ({ width: 120, height: 32, top: 0, left: 0, right: 120, bottom: 32 }),
       });
     }
+    const collidingStarterControl = window.document.querySelector<HTMLButtonElement>('#colliding-starter-control')!;
     const starterControl = window.document.querySelector<HTMLButtonElement>('#starter-control')!;
-    const starter = window.document.querySelector<HTMLElement>('[data-testid="home-starter-mas"]')!;
+    const starter = window.document.querySelector<HTMLElement>('[data-testid="home-starter-grant"]')!;
     const composer = window.document.querySelector<HTMLElement>('[data-testid="opl-guid-entry"]')!;
     const input = window.document.querySelector<HTMLTextAreaElement>('textarea[data-testid="guid-input"]')!;
     const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    const collidingStarterClick = vi.fn();
     const starterClick = vi.fn();
     const sendClick = vi.fn();
+    collidingStarterControl.addEventListener('click', collidingStarterClick);
     starterControl.addEventListener('click', starterClick);
     sendButton.addEventListener('click', sendClick);
 
-    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]);
     expect(window.eval(expression)).toBe(false);
+    expect(collidingStarterClick).not.toHaveBeenCalled();
     expect(starterClick).toHaveBeenCalledOnce();
 
     expect(window.eval(expression)).toBe(false);
+    expect(collidingStarterClick).not.toHaveBeenCalled();
     expect(starterClick).toHaveBeenCalledOnce();
 
     starter.setAttribute('aria-pressed', 'true');
-    composer.setAttribute('data-opl-active-shortcut', 'research');
+    composer.setAttribute('data-opl-active-shortcut', 'grant');
     expect(window.eval(expression)).toBe(false);
-    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(input.value).toBe('Verify MAG launch gate.');
 
     expect(window.eval(expression)).toBe(false);
     expect(sendClick).toHaveBeenCalledOnce();
 
     const repairMessage = window.document.createElement('div');
     repairMessage.setAttribute('data-testid', 'opl-agent-package-launch-blocked');
-    repairMessage.setAttribute('data-opl-package-id', 'mas');
+    repairMessage.setAttribute('data-opl-package-id', 'mag');
     repairMessage.setAttribute('data-opl-block-reason', 'package_not_installed');
     repairMessage.setAttribute('data-opl-repair-actions', 'install,open_modules');
     repairMessage.textContent = 'package_not_installed: install or open modules';
@@ -1959,7 +1967,7 @@ describe('packaged first-run VM smoke helpers', () => {
     window.document.body.append(repairMessage);
     expect(window.eval(expression)).toMatchObject({
       status: 'passed',
-      assistant_id: 'mas',
+      assistant_id: 'mag',
       selectable_before_selection: true,
       selected: true,
       launch_allowed: false,
