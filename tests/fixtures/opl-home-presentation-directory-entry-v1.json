@@ -1,0 +1,49 @@
+{
+  "package_id": "future.agent-lab",
+  "package_role": "standard_agent",
+  "installed": true,
+  "display_name": "Future Agent Lab",
+  "description": "Generic directory description.",
+  "display_name_i18n": {
+    "zh-CN": "未来智能体实验室",
+    "en-US": "Future Agent Lab"
+  },
+  "description_i18n": {
+    "zh-CN": "由所有者清单投影的动态智能体。",
+    "en-US": "A dynamic Agent projected from its owner manifest."
+  },
+  "session_routing_summary_i18n": {
+    "zh-CN": "启动未来研究会话。",
+    "en-US": "Start a future research session."
+  },
+  "home_shortcuts": [
+    {
+      "shortcut_id": "future-main",
+      "label_i18n": {
+        "zh-CN": "开始未来研究",
+        "en-US": "Start Future Research"
+      },
+      "default_visible": true,
+      "user_configurable": true,
+      "route": {
+        "route_kind": "agent_package_shortcut",
+        "executor": "codex_cli",
+        "codex_visible_entry": "future-agent"
+      }
+    },
+    {
+      "shortcut_id": "future-pinned",
+      "label_i18n": {
+        "zh-CN": "固定未来入口",
+        "en-US": "Pinned Future Entry"
+      },
+      "default_visible": true,
+      "user_configurable": false,
+      "route": {
+        "route_kind": "agent_package_shortcut",
+        "executor": "codex_cli",
+        "codex_visible_entry": "future-agent-pinned"
+      }
+    }
+  ]
+}

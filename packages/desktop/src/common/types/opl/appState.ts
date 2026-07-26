@@ -20,6 +20,18 @@ export type OplStandardAgentCapabilityMetadata = {
   optionalSkillRefs: string[];
 };
 
+export type OplStandardAgentHomeShortcut = {
+  shortcutId: string;
+  labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  defaultVisible: boolean;
+  userConfigurable: boolean;
+  route: {
+    routeKind: 'agent_package_shortcut';
+    executor: 'codex_cli';
+    codexVisibleEntry: string;
+  };
+};
+
 export type OplStandardAgentDirectoryEntry = {
   packageId: string;
   installed: boolean;
@@ -27,6 +39,8 @@ export type OplStandardAgentDirectoryEntry = {
   description: string | null;
   displayNameI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   descriptionI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  sessionRoutingSummaryI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  homeShortcuts: OplStandardAgentHomeShortcut[];
   capabilityMetadata: OplStandardAgentCapabilityMetadata | null;
 };
 
@@ -91,6 +105,43 @@ function parseCapabilityMetadata(value: unknown): OplStandardAgentCapabilityMeta
   return { source, requiredSkillIds, optionalSkillRefs };
 }
 
+function parseHomeShortcuts(value: unknown): OplStandardAgentHomeShortcut[] {
+  if (!Array.isArray(value)) return [];
+  const shortcutIds = new Set<string>();
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || !isRecord(entry.route)) return [];
+    const shortcutId = nonBlankString(entry.shortcut_id);
+    const labelI18n = localizedStrings(entry.label_i18n);
+    const codexVisibleEntry = nonBlankString(entry.route.codex_visible_entry);
+    if (
+      !shortcutId ||
+      shortcutIds.has(shortcutId) ||
+      Object.keys(labelI18n).length === 0 ||
+      typeof entry.default_visible !== 'boolean' ||
+      typeof entry.user_configurable !== 'boolean' ||
+      entry.route.route_kind !== 'agent_package_shortcut' ||
+      entry.route.executor !== 'codex_cli' ||
+      !codexVisibleEntry
+    ) {
+      return [];
+    }
+    shortcutIds.add(shortcutId);
+    return [
+      {
+        shortcutId,
+        labelI18n,
+        defaultVisible: entry.default_visible,
+        userConfigurable: entry.user_configurable,
+        route: {
+          routeKind: 'agent_package_shortcut' as const,
+          executor: 'codex_cli' as const,
+          codexVisibleEntry,
+        },
+      },
+    ];
+  });
+}
+
 /** Parse only the live Framework standard-Agent directory; no cache or Profile fallback is consulted. */
 export function parseOplStandardAgentDirectoryEntries(appState: unknown): OplStandardAgentDirectoryEntry[] {
   const payload = isRecord(appState) ? appState : {};
@@ -111,6 +162,8 @@ export function parseOplStandardAgentDirectoryEntries(appState: unknown): OplSta
         description: nonBlankString(value.description),
         displayNameI18n: localizedStrings(value.display_name_i18n),
         descriptionI18n: localizedStrings(value.description_i18n),
+        sessionRoutingSummaryI18n: localizedStrings(value.session_routing_summary_i18n),
+        homeShortcuts: parseHomeShortcuts(value.home_shortcuts),
         capabilityMetadata: parseCapabilityMetadata(value.capability_metadata),
       },
     ];

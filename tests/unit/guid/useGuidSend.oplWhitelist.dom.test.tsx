@@ -167,6 +167,10 @@ function buildActivationAction(packageId: string, workspaceRequired = true) {
 
 function buildPackageAppState(packageId: string, status: Record<string, unknown> | null, workspaceRequired = true) {
   const shortcutIdByPackage: Record<string, string> = { mas: 'research', oma: 'oma' };
+  const codexEntryByPackage: Record<string, string> = {
+    mas: 'med-autoscience',
+    oma: 'opl-meta-agent',
+  };
   return {
     agent_packages: {
       directory: {
@@ -174,12 +178,15 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
           {
             package_id: packageId,
             display_name: packageId.toUpperCase(),
-            package_role: 'standard_agent',
-            installed: true,
-            capability_metadata: {
-              source: 'normalized_owner_manifest',
-              required_skill_ids: packageId === 'mas' ? ['med-autoscience'] : ['opl-meta-agent'],
-              optional_skill_refs: packageId === 'mas' ? ['officecli-docx'] : [],
+            description: `${packageId.toUpperCase()} package`,
+            display_name_i18n: { 'zh-CN': packageId.toUpperCase(), 'en-US': packageId.toUpperCase() },
+            description_i18n: {
+              'zh-CN': `${packageId.toUpperCase()} package`,
+              'en-US': `${packageId.toUpperCase()} package`,
+            },
+            session_routing_summary_i18n: {
+              'zh-CN': `Use ${packageId.toUpperCase()}`,
+              'en-US': `Use ${packageId.toUpperCase()}`,
             },
             home_shortcuts: [
               {
@@ -190,10 +197,17 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
                 route: {
                   route_kind: 'agent_package_shortcut',
                   executor: 'codex_cli',
-                  codex_visible_entry: packageId === 'mas' ? 'med-autoscience' : 'opl-meta-agent',
+                  codex_visible_entry: codexEntryByPackage[packageId] ?? packageId,
                 },
               },
             ],
+            package_role: 'standard_agent',
+            installed: true,
+            capability_metadata: {
+              source: 'normalized_owner_manifest',
+              required_skill_ids: packageId === 'mas' ? ['med-autoscience'] : ['opl-meta-agent'],
+              optional_skill_refs: packageId === 'mas' ? ['officecli-docx'] : [],
+            },
             package_version: '1.0.0',
             available_actions: [buildActivationAction(packageId, workspaceRequired)],
           },

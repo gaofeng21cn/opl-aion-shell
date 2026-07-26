@@ -54,6 +54,29 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           sha256: 'sha-default',
         },
       },
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'mas',
+              package_role: 'standard_agent',
+              installed: true,
+              display_name: 'Med Auto Science',
+              description: 'Research and paper delivery',
+              display_name_i18n: { 'zh-CN': '医学科研', 'en-US': 'Med Auto Science' },
+              session_routing_summary_i18n: {
+                'zh-CN': '科研和论文交付',
+                'en-US': 'Research and paper delivery',
+              },
+              capability_metadata: {
+                source: 'normalized_owner_manifest',
+                required_skill_ids: ['med-autoscience'],
+                optional_skill_refs: ['officecli-docx'],
+              },
+            },
+          ],
+        },
+      },
     },
     refreshing: false,
     load: mocks.load,

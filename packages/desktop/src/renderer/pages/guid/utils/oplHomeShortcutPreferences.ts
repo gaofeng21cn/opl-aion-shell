@@ -25,6 +25,7 @@ export type OplHomeShortcutDescriptor = Pick<
   | 'default_visible'
   | 'user_configurable'
 > & {
+  primary_label_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   route_kind: 'agent_package_shortcut';
   visible: boolean;
   installed: boolean;
@@ -132,7 +133,13 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
     for (const [sortOrder, shortcut] of recordList(directoryEntry.home_shortcuts).entries()) {
       const shortcutId = nonBlankString(shortcut.shortcut_id);
       const labelI18n = isRecord(shortcut.label_i18n) ? shortcut.label_i18n : {};
-      const primaryLabel = nonBlankString(labelI18n['zh-CN']) ?? nonBlankString(labelI18n['en-US']);
+      const primaryLabelI18n = Object.fromEntries(
+        (['zh-CN', 'en-US'] as const).flatMap((locale) => {
+          const label = nonBlankString(labelI18n[locale]);
+          return label ? [[locale, label]] : [];
+        })
+      ) as Partial<Record<'zh-CN' | 'en-US', string>>;
+      const primaryLabel = primaryLabelI18n['zh-CN'] ?? primaryLabelI18n['en-US'];
       const route = isRecord(shortcut.route) ? shortcut.route : {};
       const executor = nonBlankString(route.executor);
       const codexVisibleEntry = nonBlankString(route.codex_visible_entry);
@@ -153,6 +160,7 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
         shortcut_id: shortcutId,
         package_id: packageId,
         primary_label: primaryLabel,
+        primary_label_i18n: primaryLabelI18n,
         package_short_name: packageShortName,
         codex_visible_entry: codexVisibleEntry,
         required_skill_ids: requiredSkillIds,

@@ -1,22 +1,22 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { parseOplStandardAgentDirectoryEntries } from '@/common/types/opl/appState';
-import {
-  getOplHomeAgentShortcutsFromAppState,
-  getOplHomeShortcutPreferencesFromAppState,
-  isOplHomeShortcutVisible,
-} from './oplHomeShortcutPreferences';
+import { getOplHomeAgentShortcutsFromAppState } from './oplHomeShortcutPreferences';
 
 type OplHomePackageProfile = {
   id: string;
   display_name: string;
+  display_name_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   description: string;
+  description_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
 };
 
 type OplAgentPackageDirectoryEntry = {
   packageId: string;
   displayName: string;
+  displayNameI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   description: string;
+  descriptionI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   installed: boolean;
 };
 
@@ -69,7 +69,7 @@ function appStateRecord(value: unknown): Record<string, unknown> {
 function packageStatusRecords(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.map(appStateRecord).filter((entry) => Object.keys(entry).length > 0);
   return Object.entries(appStateRecord(value)).map(([packageId, entry]) => {
-    const record = { ...appStateRecord(entry) };
+    const record = Object.assign({}, appStateRecord(entry));
     record.package_id ??= packageId;
     return record;
   });
@@ -80,14 +80,13 @@ function packageDirectoryEntry(appState: unknown, packageId: string): Record<str
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const directory = appStateRecord(packages.directory);
-  const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
+  const normalizedPackageId = normalizeAssistantId(packageId);
   return (
     (Array.isArray(directory.entries) ? directory.entries : [])
       .map(appStateRecord)
       .find(
         (entry) =>
-          typeof entry.package_id === 'string' &&
-          canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+          typeof entry.package_id === 'string' && normalizeAssistantId(entry.package_id) === normalizedPackageId
       ) ?? null
   );
 }
@@ -97,12 +96,10 @@ function packageStatusEntry(appState: unknown, packageId: string): Record<string
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const statusIndex = appStateRecord(packages.status_index);
-  const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
+  const normalizedPackageId = normalizeAssistantId(packageId);
   return (
     packageStatusRecords(statusIndex.packages).find(
-      (entry) =>
-        typeof entry.package_id === 'string' &&
-        canonicalizeOplProfessionalAgentId(entry.package_id) === canonicalPackageId
+      (entry) => typeof entry.package_id === 'string' && normalizeAssistantId(entry.package_id) === normalizedPackageId
     ) ?? null
   );
 }
@@ -173,9 +170,20 @@ function agentPackageDirectoryEntries(appState: unknown): OplAgentPackageDirecto
     const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
     const parsed = parsedByPackageId.get(packageId);
     if (!parsed) return [];
-    const displayName = parsed.displayName ?? packageId;
-    const description = parsed.description ?? displayName;
-    return [{ packageId, displayName, description, installed: parsed.installed }];
+    const displayName = parsed.displayNameI18n['zh-CN'] ?? parsed.displayNameI18n['en-US'] ?? parsed.displayName;
+    const description =
+      parsed.descriptionI18n['zh-CN'] ?? parsed.descriptionI18n['en-US'] ?? parsed.description ?? displayName;
+    if (!displayName || !description) return [];
+    return [
+      {
+        packageId,
+        displayName,
+        displayNameI18n: parsed.displayNameI18n,
+        description,
+        descriptionI18n: parsed.descriptionI18n,
+        installed: parsed.installed,
+      },
+    ];
   });
 }
 
@@ -184,21 +192,29 @@ function agentPackageProfiles(appState: unknown): OplHomePackageProfile[] {
     return {
       id: entry.packageId,
       display_name: entry.displayName,
+      display_name_i18n: entry.displayNameI18n,
       description: entry.description,
+      description_i18n: entry.descriptionI18n,
     };
   });
 }
 
 const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
 
+const localizedOrFallback = (
+  localized: Partial<Record<'zh-CN' | 'en-US', string>>,
+  fallback: string
+): Partial<Record<'zh-CN' | 'en-US', string>> =>
+  Object.keys(localized).length > 0 ? { ...localized } : { 'zh-CN': fallback, 'en-US': fallback };
+
 const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: number): Assistant => {
   return {
     id: profile.id,
     source: 'builtin',
     name: profile.display_name,
-    name_i18n: { 'zh-CN': profile.display_name, 'en-US': profile.display_name },
+    name_i18n: localizedOrFallback(profile.display_name_i18n, profile.display_name),
     description: profile.description,
-    description_i18n: { 'zh-CN': profile.description, 'en-US': profile.description },
+    description_i18n: localizedOrFallback(profile.description_i18n, profile.description),
     enabled: true,
     sort_order: sortOrder,
     agent_status: 'missing',
@@ -223,9 +239,9 @@ const mergeAssistantWithProfile = (
   merged.enabled = existing.enabled !== false;
   merged.sort_order = sortOrder;
   merged.name = profile.display_name;
-  merged.name_i18n = { 'zh-CN': profile.display_name, 'en-US': profile.display_name };
+  merged.name_i18n = localizedOrFallback(profile.display_name_i18n, profile.display_name);
   merged.description = profile.description;
-  merged.description_i18n = { 'zh-CN': profile.description, 'en-US': profile.description };
+  merged.description_i18n = localizedOrFallback(profile.description_i18n, profile.description);
   merged.prompts = [...(existing.prompts || [])];
   merged.prompts_i18n = Object.fromEntries(
     Object.entries(existing.prompts_i18n || {}).map(([locale, values]) => [locale, [...values]])
@@ -260,18 +276,13 @@ function resolveOplAssistantsFromProfiles(
 /** Resolve the user-configured shortcut subset rendered on Home. */
 export function resolveOplHomeAssistants(backendAssistants: Assistant[], appState: unknown): OplHomeAssistant[] {
   const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
-  const preferences = getOplHomeShortcutPreferencesFromAppState(appState) ?? {
-    hiddenShortcutIds: [],
-    visibleShortcutIds: [],
-    orderedShortcutIds: [],
-  };
   const assistantsByPackage = new Map(
     resolveOplProfessionalAgentAssistants(backendAssistants, appState).map(
       (assistant) => [normalizeAssistantId(assistant.id), assistant] as const
     )
   );
   return shortcuts
-    .filter((shortcut) => isOplHomeShortcutVisible(shortcut, preferences))
+    .filter((shortcut) => shortcut.visible)
     .flatMap((shortcut, index) => {
       const assistant = assistantsByPackage.get(normalizeAssistantId(shortcut.package_id));
       if (!assistant) return [];
@@ -280,7 +291,7 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[], appStat
           ...assistant,
           id: shortcut.shortcut_id,
           name: shortcut.primary_label,
-          name_i18n: { 'zh-CN': shortcut.primary_label, 'en-US': shortcut.primary_label },
+          name_i18n: { ...shortcut.primary_label_i18n },
           sort_order: index + 1,
           opl_package_id: shortcut.package_id,
           opl_shortcut_id: shortcut.shortcut_id,
