@@ -544,7 +544,6 @@ const FirstRun: React.FC = () => {
       }
       const confirmationAvailable = await completeGatewayAccountSetup();
       setGatewayModelAccessConfirmationAvailable(confirmationAvailable);
-      await refreshInitialize();
     } catch (err) {
       const code = err instanceof GatewayAccountFlowError ? err.code : 'gateway_account_failed';
       setError({ source: 'gateway_account', detail: code, gatewayErrorCode: code });
@@ -552,7 +551,7 @@ const FirstRun: React.FC = () => {
       setGatewayPassword('');
       setActionLoading(null);
     }
-  }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword, refreshInitialize]);
+  }, [completeGatewayAccountSetup, gatewayEmail, gatewayPassword]);
 
   const confirmGatewayModelAccess = useCallback(async () => {
     setActionLoading('gateway_model_access');
