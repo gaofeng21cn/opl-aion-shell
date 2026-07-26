@@ -1936,6 +1936,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(window.eval(expression)).toBe(false);
     expect(starterClick).toHaveBeenCalledOnce();
 
+    expect(window.eval(expression)).toBe(false);
+    expect(starterClick).toHaveBeenCalledOnce();
+
     starter.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-opl-active-shortcut', 'research');
     expect(window.eval(expression)).toBe(false);

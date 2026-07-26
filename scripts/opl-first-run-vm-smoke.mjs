@@ -4064,16 +4064,19 @@ function homeAssistantStandardLaunchGateExpression(target) {
       };
     }
     if (!readinessHint.trim() || card.getAttribute('data-opl-launch-ready') !== 'false') return false;
+    const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
+    const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
     if (
       card.getAttribute('aria-pressed') !== 'true' ||
       composer.getAttribute('data-opl-active-shortcut') !== ${cdpString(target.shortcutId)}
     ) {
-      control.click();
+      if (!attempt.selection_clicked) {
+        control.click();
+        attempt.selection_clicked = true;
+      }
       return false;
     }
     const expectedDraft = ${cdpString(`Verify ${target.shortName} launch gate.`)};
-    const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
-    const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
     if (!attempt.input_filled) {
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
         || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
