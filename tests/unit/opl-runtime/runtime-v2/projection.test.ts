@@ -101,7 +101,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result).toEqual({ state: 'missing', projection: null });
   });
 
-  it('drops an item envelope that does not match its canonical identity', () => {
+  it('rejects an item envelope that does not match its canonical identity', () => {
     const projection = createRuntimeV2Projection();
     projection.items.push({ ...projection.items[0]!, item_id: 'distinct-envelope-for-the-same-work-item' });
 
