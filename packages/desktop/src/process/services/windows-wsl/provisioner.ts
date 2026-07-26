@@ -541,6 +541,8 @@ export class WindowsWslProvisioner {
         '--exec',
         'env',
         'HOME=/home/opl',
+        'CODEX_HOME=/home/opl/.codex',
+        'OPL_WORKSPACE_ROOT=/home/opl/code',
         'OPL_INSTALL_DIR=/home/opl/.opl/one-person-lab',
         `OPL_INSTALL_SCRIPT_URL=${this.product.framework_install_script_url}`,
         `OPL_INSTALL_BRANCH=${this.product.framework_ref}`,

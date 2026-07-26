@@ -260,6 +260,12 @@ describe('WindowsWslProvisioner parsing and identity', () => {
       bootstrap_digest: packagedBootstrapDigest,
     });
     expect(bootstrapCalls).toBe(1);
+    const frameworkActivation = runCommand.mock.calls.find(([, args]) =>
+      args.includes('/opt/opl/bootstrap/opl-install.sh')
+    );
+    expect(frameworkActivation?.[1]).toEqual(
+      expect.arrayContaining(['HOME=/home/opl', 'CODEX_HOME=/home/opl/.codex', 'OPL_WORKSPACE_ROOT=/home/opl/code'])
+    );
   });
 
   it('does not repair a same-name distribution registered outside App-owned data', async () => {
