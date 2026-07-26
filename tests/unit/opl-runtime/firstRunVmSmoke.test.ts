@@ -1630,6 +1630,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("reason: 'starter_disabled_before_selection'");
     expect(expression).toContain("getAttribute('data-opl-launch-ready') !== 'false'");
     expect(expression).toContain("getAttribute('aria-pressed') !== 'true'");
+    expect(expression).toContain('attempt.selection_click_count');
+    expect(expression).toContain('selectionClickCount < 2');
+    expect(expression).not.toContain('attempt.selection_clicked');
     expect(expression).toContain('sendButton.click()');
     expect(expression).toContain('querySelectorAll(\'[data-testid="opl-agent-package-launch-blocked"]\')');
     expect(expression).toContain("getAttribute('data-opl-package-id')");
@@ -1945,12 +1948,13 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(window.eval(expression)).toBe(false);
     expect(collidingStarterClick).not.toHaveBeenCalled();
-    expect(starterClick).toHaveBeenCalledOnce();
+    expect(starterClick).toHaveBeenCalledTimes(2);
 
     starter.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-opl-active-shortcut', 'grant');
     expect(window.eval(expression)).toBe(false);
     expect(input.value).toBe('Verify MAG launch gate.');
+    expect(starterClick).toHaveBeenCalledTimes(2);
 
     expect(window.eval(expression)).toBe(false);
     expect(sendClick).toHaveBeenCalledOnce();
@@ -2048,10 +2052,12 @@ describe('packaged first-run VM smoke helpers', () => {
       masStarter.setAttribute('aria-pressed', 'true');
       composer.setAttribute('data-opl-active-shortcut', 'research');
     });
+    let magSelectionAttempts = 0;
     const magStarterClick = vi.fn(() => {
+      magSelectionAttempts += 1;
+      if (magSelectionAttempts === 1) return;
       masStarter.setAttribute('aria-pressed', 'false');
       magStarter.setAttribute('aria-pressed', 'true');
-      composer.setAttribute('data-opl-active-shortcut', 'grant');
     });
     const sendClick = vi.fn(() => {
       const notice = window.document.createElement('div');
@@ -2095,7 +2101,18 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(window.eval(magExpression)).toBe(false);
     expect(magStarterClick).toHaveBeenCalledOnce();
     expect(window.eval(magExpression)).toBe(false);
+    expect(magStarterClick).toHaveBeenCalledTimes(2);
+    expect(magStarter.getAttribute('aria-pressed')).toBe('true');
+    expect(composer.getAttribute('data-opl-active-shortcut')).toBe('research');
+    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(window.eval(magExpression)).toBe(false);
+    expect(magStarterClick).toHaveBeenCalledTimes(2);
+    expect(input.value).toBe('Verify MAS launch gate.');
+
+    composer.setAttribute('data-opl-active-shortcut', 'grant');
+    expect(window.eval(magExpression)).toBe(false);
     expect(input.value).toBe('Verify MAG launch gate.');
+    expect(magStarterClick).toHaveBeenCalledTimes(2);
     expect(window.eval(magExpression)).toMatchObject({
       status: 'passed',
       assistant_id: 'mag',
@@ -2106,7 +2123,7 @@ describe('packaged first-run VM smoke helpers', () => {
       route_receipt_claimed: false,
       route_hash: '#/guid',
     });
-    expect(magStarterClick).toHaveBeenCalledOnce();
+    expect(magStarterClick).toHaveBeenCalledTimes(2);
     expect(sendClick).toHaveBeenCalledOnce();
     expect(window.document.querySelector('[data-testid="opl-agent-package-launch-blocked"]')).toBeNull();
     dom.window.close();

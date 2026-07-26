@@ -4074,16 +4074,17 @@ function homeAssistantStandardLaunchGateExpression(target) {
     if (!readinessHint.trim() || card.getAttribute('data-opl-launch-ready') !== 'false') return false;
     const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
     const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
-    if (
-      card.getAttribute('aria-pressed') !== 'true' ||
-      composer.getAttribute('data-opl-active-shortcut') !== ${cdpString(target.shortcutId)}
-    ) {
-      if (!attempt.selection_clicked) {
+    if (card.getAttribute('aria-pressed') !== 'true') {
+      const selectionClickCount = Number.isInteger(attempt.selection_click_count)
+        ? attempt.selection_click_count
+        : 0;
+      if (selectionClickCount < 2) {
+        attempt.selection_click_count = selectionClickCount + 1;
         control.click();
-        attempt.selection_clicked = true;
       }
       return false;
     }
+    if (composer.getAttribute('data-opl-active-shortcut') !== ${cdpString(target.shortcutId)}) return false;
     const expectedDraft = ${cdpString(`Verify ${target.shortName} launch gate.`)};
     if (!attempt.input_filled) {
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
