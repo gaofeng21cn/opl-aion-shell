@@ -553,6 +553,118 @@ describe('static-server', () => {
     }
   });
 
+  it('/api/opl-runtime closes Gateway setup, explicit model access, and readback through real action IDs', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    const payloadJson = { group_id: 'codex-group' };
+    await fs.mkdir(resourcesPath, { recursive: true });
+
+    const calls: Array<{ args: readonly string[]; stdin: ReturnType<typeof vi.fn>; stdio: unknown }> = [];
+    const outputs = [
+      { gateway_account: { status: 'connected' } },
+      { model_access: { model_access_ready: false, model_access_source: 'missing' } },
+      { gateway_account: { status: 'connected' } },
+      { model_access: { model_access_ready: true, model_access_source: 'opl_gateway' } },
+    ];
+    vi.mocked(spawn).mockImplementation((command, args, options) => {
+      const child = new EventEmitter() as ReturnType<typeof spawn> & {
+        stdin: { end: ReturnType<typeof vi.fn> };
+        stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+      };
+      const stdinEnd = vi.fn();
+      child.stdin = { end: stdinEnd };
+      child.stdout = new EventEmitter() as typeof child.stdout;
+      child.stderr = new EventEmitter() as typeof child.stderr;
+      child.stdout.setEncoding = () => {};
+      child.stderr.setEncoding = () => {};
+      child.kill = vi.fn() as typeof child.kill;
+      const output = outputs[calls.length];
+      calls.push({ args: args ?? [], stdin: stdinEnd, stdio: (options as { stdio?: unknown }).stdio });
+      queueMicrotask(() => {
+        child.stdout.emit('data', JSON.stringify(output));
+        child.emit('close', 0);
+      });
+      expect(command).toBe('opl');
+      return child;
+    });
+
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      oplRuntimeProxy: { dataDir, projectsDir, resourcesPath },
+    });
+
+    const post = async (route: string, body: Record<string, unknown>) => {
+      const response = await fetch(`${handle.localUrl}/api/opl-runtime/${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(200);
+      return response.json() as Promise<{
+        success: boolean;
+        data: { command: string; surface: string; parsed: Record<string, unknown> };
+      }>;
+    };
+    const setup = await post('execute-action', {
+      actionId: 'gateway_account_complete_setup',
+      payloadJson,
+    });
+    const before = await post('app-state', { profile: 'fast' });
+    const use = await post('execute-action', {
+      actionId: 'gateway_account_use_for_model_access',
+    });
+    const after = await post('app-state', { profile: 'fast' });
+
+    expect(setup.success).toBe(true);
+    expect(setup.data.command).toBe(
+      'opl app action execute --action gateway_account_complete_setup --payload-stdin --json'
+    );
+    expect(before.data.parsed).toEqual({
+      model_access: { model_access_ready: false, model_access_source: 'missing' },
+    });
+    expect(use.data.command).toBe(
+      'opl app action execute --action gateway_account_use_for_model_access --json'
+    );
+    expect(after.data.parsed).toEqual({
+      model_access: { model_access_ready: true, model_access_source: 'opl_gateway' },
+    });
+    expect(calls.map((call) => call.args)).toEqual([
+      [
+        'app',
+        'action',
+        'execute',
+        '--action',
+        'gateway_account_complete_setup',
+        '--payload-stdin',
+        '--json',
+      ],
+      ['app', 'state', '--profile', 'fast', '--json'],
+      [
+        'app',
+        'action',
+        'execute',
+        '--action',
+        'gateway_account_use_for_model_access',
+        '--json',
+      ],
+      ['app', 'state', '--profile', 'fast', '--json'],
+    ]);
+    expect(calls[0].stdin).toHaveBeenCalledWith(JSON.stringify(payloadJson));
+    expect((calls[0].stdio as unknown[])[0]).toBe('pipe');
+    expect((calls[2].stdio as unknown[])[0]).toBe('ignore');
+    expect(JSON.stringify(calls.map((call) => call.args))).not.toContain('codex-group');
+    expect(JSON.stringify({ setup, before, use, after })).not.toContain('codex-group');
+  });
+
   it('/api/opl-runtime/gateway-account-login reuses the runtime proxy and returns only sanitized fields', async () => {
     const backend = await startMockBackend((_req, res) => {
       res.writeHead(500, { 'content-type': 'application/json' });

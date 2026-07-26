@@ -48,6 +48,60 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
     ).toThrow('Invalid Gateway account login request.');
   });
 
+  it('matches Desktop private action payload transport and rejects ambiguous payload sources', () => {
+    const payloadJson = { group_id: 'codex-group' };
+    const spec = __oplRuntimeProxyTest.buildCommandFromRequest('execute-action', {
+      actionId: 'gateway_account_complete_setup',
+      dryRun: true,
+      payloadJson,
+    });
+
+    expect(spec).toEqual({
+      surface: 'app_action',
+      args: [
+        'app',
+        'action',
+        'execute',
+        '--action',
+        'gateway_account_complete_setup',
+        '--dry-run',
+        '--payload-stdin',
+        '--json',
+      ],
+      stdin: JSON.stringify(payloadJson),
+      redactedCommand:
+        'opl app action execute --action gateway_account_complete_setup --dry-run --payload-stdin --json',
+    });
+    expect(JSON.stringify(spec.args)).not.toContain('codex-group');
+    expect(
+      __oplRuntimeProxyTest.buildCommandFromRequest('execute-action', {
+        actionId: 'gateway_account_use_for_model_access',
+        payloadJson: {},
+      })
+    ).toEqual({
+      surface: 'app_action',
+      args: [
+        'app',
+        'action',
+        'execute',
+        '--action',
+        'gateway_account_use_for_model_access',
+        '--payload-stdin',
+        '--json',
+      ],
+      stdin: '{}',
+      redactedCommand:
+        'opl app action execute --action gateway_account_use_for_model_access --payload-stdin --json',
+    });
+    expect(() =>
+      __oplRuntimeProxyTest.buildCommandFromRequest('execute-action', {
+        actionId: 'gateway_account_complete_setup',
+        payloadJson,
+        payloadRefsOnlyJson: { receipt_ref: 'receipt://gateway-login' },
+      })
+    ).toThrow('OPL runtime action accepts only one payload source.');
+  });
+
   it('returns only the typed Gateway mutation result and rejects secret-bearing CLI output', () => {
     expect(
       __oplRuntimeProxyTest.sanitizeGatewayAccountResult({
@@ -204,6 +258,44 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
         delete process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
       } else {
         process.env.OPL_TEMPORAL_ADDRESS_SOURCE = originalTemporalAddressSource;
+      }
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps packaged image Framework and Codex bins ahead of persisted runtime paths', () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-web-image-seed-'));
+    const imageSeedDir = path.join(tempRoot, 'seed');
+    const frameworkBin = path.join(imageSeedDir, 'payload', 'opl_framework', 'bin');
+    const codexBin = path.join(imageSeedDir, 'payload', 'codex_cli', 'bin');
+    const previous = {
+      OPL_CODEX_BIN: process.env.OPL_CODEX_BIN,
+      OPL_FULL_RUNTIME_HOME: process.env.OPL_FULL_RUNTIME_HOME,
+      PATH: process.env.PATH,
+    };
+
+    fs.mkdirSync(frameworkBin, { recursive: true });
+    fs.mkdirSync(codexBin, { recursive: true });
+    fs.writeFileSync(path.join(frameworkBin, 'opl'), '');
+    fs.writeFileSync(path.join(codexBin, 'codex'), '');
+    process.env.OPL_CODEX_BIN = path.join(tempRoot, 'persisted-runtime', 'bin', 'codex');
+    delete process.env.OPL_FULL_RUNTIME_HOME;
+    process.env.PATH = `${path.join(tempRoot, 'data', '.opl', 'one-person-lab', 'bin')}${path.delimiter}/usr/bin`;
+
+    try {
+      const env = __oplRuntimeProxyTest.buildOplEnv({
+        dataDir: path.join(tempRoot, 'data'),
+        projectsDir: path.join(tempRoot, 'projects'),
+        resourcesPath: path.join(tempRoot, 'resources'),
+        imageSeedDir,
+      });
+
+      expect(env.PATH?.split(path.delimiter).slice(0, 2)).toEqual([frameworkBin, codexBin]);
+      expect(env.OPL_CODEX_BIN).toBe(path.join(codexBin, 'codex'));
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
       }
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }

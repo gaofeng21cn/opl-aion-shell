@@ -356,13 +356,30 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
       return { surface: 'runtime_summary', args: ['runtime', 'app-operator-drilldown', '--json'] };
     }
     case 'execute-action': {
-      const args = ['app', 'action', 'execute', '--action', assertSafeIdentifier(body.actionId, 'action id')];
-      if (body.dryRun === true) args.push('--dry-run');
-      if (isRecord(body.payloadRefsOnlyJson) && Object.keys(body.payloadRefsOnlyJson).length > 0) {
-        args.push('--payload', JSON.stringify(body.payloadRefsOnlyJson));
+      const actionId = assertSafeIdentifier(body.actionId, 'action id');
+      const args = ['app', 'action', 'execute', '--action', actionId];
+      const payloadRefsOnlyJson = isRecord(body.payloadRefsOnlyJson) ? body.payloadRefsOnlyJson : null;
+      const payloadJson = isRecord(body.payloadJson) ? body.payloadJson : null;
+      const hasPrivatePayload = payloadJson !== null;
+      if (payloadRefsOnlyJson && payloadJson) {
+        throw new Error('OPL runtime action accepts only one payload source.');
       }
+      if (body.dryRun === true) args.push('--dry-run');
+      if (payloadRefsOnlyJson && Object.keys(payloadRefsOnlyJson).length > 0) {
+        args.push('--payload', JSON.stringify(payloadRefsOnlyJson));
+      }
+      if (hasPrivatePayload) args.push('--payload-stdin');
       args.push('--json');
-      return { surface: 'app_action', args };
+      return {
+        surface: 'app_action',
+        args,
+        ...(hasPrivatePayload
+          ? {
+              stdin: JSON.stringify(payloadJson),
+              redactedCommand: ['opl', ...args].join(' '),
+            }
+          : {}),
+      };
     }
     case 'update-status':
       return { surface: 'update_status', args: ['update', 'status', '--json'] };
@@ -437,10 +454,19 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   const projectsDir = path.resolve(opts.projectsDir ?? process.env.OPL_WORKSPACE_ROOT ?? '/projects');
   const imageManifestPath = opts.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || '';
   const imageSeedDir = opts.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || '';
+  const imageSeedFrameworkBin = imageSeedDir
+    ? path.join(path.resolve(imageSeedDir), 'payload', 'opl_framework', 'bin')
+    : '';
+  const imageSeedCodexBin = imageSeedDir ? path.join(path.resolve(imageSeedDir), 'payload', 'codex_cli', 'bin') : '';
+  const imageSeedCodexExecutable = imageSeedCodexBin ? path.join(imageSeedCodexBin, 'codex') : '';
   const inheritUserOplEnvironment = opts.inheritUserOplEnvironment === true;
   const fullRuntimeHome =
     process.env.OPL_FULL_RUNTIME_HOME?.trim() ||
     resolveDefaultFullRuntimeHome(process.env.HOME?.trim() || os.homedir());
+  const resolvedCodexBin =
+    (pathExistsFile(imageSeedCodexExecutable) ? imageSeedCodexExecutable : '') ||
+    process.env.OPL_CODEX_BIN?.trim() ||
+    (fullRuntimeHome ? path.join(fullRuntimeHome, 'bin', 'codex') : '');
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
@@ -471,12 +497,12 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
     OPL_PROJECTS_DIR: projectsDir,
     ...(imageManifestPath ? { OPL_IMAGE_MANIFEST_PATH: path.resolve(imageManifestPath) } : {}),
     ...(imageSeedDir ? { OPL_IMAGE_SEED_DIR: path.resolve(imageSeedDir) } : {}),
+    ...(resolvedCodexBin ? { OPL_CODEX_BIN: resolvedCodexBin } : {}),
     ...(fullRuntimeHome
       ? {
           OPL_FULL_RUNTIME_HOME: fullRuntimeHome,
           OPL_PACKAGED_SKILLS_ROOT:
             process.env.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(fullRuntimeHome, 'skills'),
-          OPL_CODEX_BIN: process.env.OPL_CODEX_BIN?.trim() || path.join(fullRuntimeHome, 'bin', 'codex'),
           OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
           OPL_MODULE_PATH_MEDAUTOSCIENCE:
             process.env.OPL_MODULE_PATH_MEDAUTOSCIENCE?.trim() || path.join(fullRuntimeHome, 'modules', 'mas'),
@@ -495,6 +521,8 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
     NPM_CONFIG_INCLUDE: 'dev',
     npm_config_include: 'dev',
     PATH: normalizePathEntries([
+      imageSeedFrameworkBin,
+      imageSeedCodexBin,
       fullRuntimeHome ? path.join(fullRuntimeHome, 'bin') : null,
       fullRuntimeHome ? path.join(fullRuntimeHome, 'node', 'bin') : null,
       fullRuntimeHome ? path.join(fullRuntimeHome, 'uv', 'bin') : null,
