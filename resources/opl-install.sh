@@ -5,6 +5,8 @@ OPL_INSTALL_SCRIPT_URL=${OPL_INSTALL_SCRIPT_URL:-https://raw.githubusercontent.c
 OPL_LOCAL_APP_PATH=${OPL_LOCAL_APP_PATH:-/Applications/One Person Lab.app}
 OPL_APP_RELEASE_REPO=${OPL_APP_RELEASE_REPO:-gaofeng21cn/one-person-lab-app}
 OPL_APP_DOCS_REF=${OPL_APP_DOCS_REF:-main}
+OPL_DOCKER_WEBUI_INSTALLER_URL=${OPL_DOCKER_WEBUI_INSTALLER_URL:-https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/scripts/install-docker-webui.sh}
+OPL_INSTALL_RUNTIME_FORM=${OPL_INSTALL_RUNTIME_FORM:-auto}
 
 INSTALL_ARGS=()
 AUTHORIZE_LOCAL_APP=0
@@ -21,16 +23,31 @@ STABLE_MACOS_DMG_URL=${OPL_STABLE_MACOS_DMG_URL:-}
 STABLE_MACOS_DMG_PATH=${OPL_STABLE_MACOS_DMG_PATH:-}
 STABLE_MACOS_OPEN=${OPL_STABLE_MACOS_OPEN:-1}
 STABLE_MACOS_WORK_DIR=''
+INSTALL_SCENARIO=${OPL_INSTALL_SCENARIO:-personal}
+PRINT_INSTALL_ROUTE=0
+OPEN_OPTION_EXPLICIT=''
+SELECTED_INSTALL_ROUTE=''
 
 usage() {
   cat <<'USAGE'
 Usage:
   install.sh [OPL install args...]
+  install.sh [--runtime-form auto|desktop|native-webui|container-webui|headless]
+  install.sh [--server|--isolated|--headless]
   install.sh --stable-macos-install [--full|--standard] [--release-tag vX.Y.Z] [--yes]
   install.sh --authorize-local-app-only [--app-path "/Applications/One Person Lab.app"] [--yes]
 
 Options:
-  By default, install the OPL base plus the optional App GUI without Agent packages.
+  By default, route macOS personal hosts to Desktop, Linux and Windows personal
+  hosts to Container WebUI, and server/isolated hosts to Container WebUI.
+  --runtime-form <form>      Select auto, desktop, native-webui, container-webui, or headless.
+  --desktop                  Require the macOS Desktop/bootstrap path.
+  --native-webui             Fail closed while Native WebUI is not published or supported.
+  --container-webui          Use the Container WebUI installer.
+  --server                   Select the Container WebUI server path.
+  --isolated                 Select the Container WebUI isolation path.
+  --headless                 Install OPL Base only, without an App runtime form.
+  --print-install-route      Resolve and print the selected route without installing.
   --stable-macos-install     Download, copy, locally authorize, and open the Stable App.
   --full                     Require the Full first-install DMG for --stable-macos-install.
   --standard                 Require the standard App DMG for --stable-macos-install.
@@ -119,9 +136,43 @@ while [ "$#" -gt 0 ]; do
       ;;
     --open)
       STABLE_MACOS_OPEN=1
+      OPEN_OPTION_EXPLICIT=--open
       ;;
     --no-open)
       STABLE_MACOS_OPEN=0
+      OPEN_OPTION_EXPLICIT=--no-open
+      ;;
+    --runtime-form)
+      shift
+      if [ "$#" -eq 0 ]; then
+        printf 'Missing value for --runtime-form\n' >&2
+        exit 1
+      fi
+      OPL_INSTALL_RUNTIME_FORM="$1"
+      ;;
+    --runtime-form=*)
+      OPL_INSTALL_RUNTIME_FORM="${arg#--runtime-form=}"
+      ;;
+    --desktop)
+      OPL_INSTALL_RUNTIME_FORM=desktop
+      ;;
+    --native-webui)
+      OPL_INSTALL_RUNTIME_FORM=native-webui
+      ;;
+    --container-webui)
+      OPL_INSTALL_RUNTIME_FORM=container-webui
+      ;;
+    --server)
+      INSTALL_SCENARIO=server
+      ;;
+    --isolated|--isolation)
+      INSTALL_SCENARIO=isolated
+      ;;
+    --headless)
+      OPL_INSTALL_RUNTIME_FORM=headless
+      ;;
+    --print-install-route)
+      PRINT_INSTALL_ROUTE=1
       ;;
     --help|-h)
       usage
@@ -149,6 +200,128 @@ arg_present() {
 
 is_macos() {
   [ "$(uname -s)" = "Darwin" ]
+}
+
+platform_family() {
+  case "$(uname -s)" in
+    Darwin)
+      printf 'macos\n'
+      ;;
+    Linux)
+      printf 'linux\n'
+      ;;
+    MINGW*|MSYS*|CYGWIN*)
+      printf 'windows\n'
+      ;;
+    *)
+      printf 'Unsupported platform for OPL App installer: %s\n' "$(uname -s)" >&2
+      return 1
+      ;;
+  esac
+}
+
+normalize_runtime_form() {
+  case "$OPL_INSTALL_RUNTIME_FORM" in
+    auto)
+      printf 'auto\n'
+      ;;
+    desktop)
+      printf 'desktop\n'
+      ;;
+    native|native-webui|native_webui)
+      printf 'native-webui\n'
+      ;;
+    container|container-webui|container_webui|docker)
+      printf 'container-webui\n'
+      ;;
+    headless|base|base-only|base_only)
+      printf 'headless\n'
+      ;;
+    *)
+      printf 'Unsupported runtime form: %s\n' "$OPL_INSTALL_RUNTIME_FORM" >&2
+      return 1
+      ;;
+  esac
+}
+
+resolve_install_route() {
+  local platform runtime_form
+  platform=$(platform_family) || return 1
+  runtime_form=$(normalize_runtime_form) || return 1
+
+  case "$INSTALL_SCENARIO" in
+    personal|server|isolated)
+      ;;
+    *)
+      printf 'Unsupported install scenario: %s\n' "$INSTALL_SCENARIO" >&2
+      return 1
+      ;;
+  esac
+
+  if [ "$runtime_form" = "headless" ]; then
+    SELECTED_INSTALL_ROUTE=headless
+    return 0
+  fi
+  if [ "$INSTALL_SCENARIO" = "server" ] || [ "$INSTALL_SCENARIO" = "isolated" ]; then
+    if [ "$runtime_form" != "auto" ] && [ "$runtime_form" != "container-webui" ]; then
+      printf 'Server or isolated installs require the Container WebUI runtime form.\n' >&2
+      return 1
+    fi
+    SELECTED_INSTALL_ROUTE=container-webui
+    return 0
+  fi
+
+  case "$runtime_form" in
+    desktop)
+      if [ "$platform" != "macos" ]; then
+        printf 'Desktop installation is currently supported only on macOS.\n' >&2
+        return 1
+      fi
+      SELECTED_INSTALL_ROUTE=desktop
+      ;;
+    native-webui)
+      printf 'Native WebUI is approved_target_not_supported and not_published; use Container WebUI.\n' >&2
+      return 1
+      ;;
+    container-webui)
+      SELECTED_INSTALL_ROUTE=container-webui
+      ;;
+    auto)
+      if [ "$platform" = "macos" ]; then
+        SELECTED_INSTALL_ROUTE=desktop
+      else
+        SELECTED_INSTALL_ROUTE=container-webui
+      fi
+      ;;
+  esac
+}
+
+install_desktop_bootstrap() {
+  if ! arg_present "--with-app"; then
+    INSTALL_ARGS+=("--with-app")
+  fi
+  curl -fsSL "$OPL_INSTALL_SCRIPT_URL" | bash -s -- "${INSTALL_ARGS[@]}"
+}
+
+install_headless_base() {
+  if ! arg_present "--headless"; then
+    INSTALL_ARGS+=("--headless")
+  fi
+  if ! arg_present "--skip-packages" && ! arg_present "--package" && ! arg_present "--packages"; then
+    INSTALL_ARGS+=("--skip-packages")
+  fi
+  curl -fsSL "$OPL_INSTALL_SCRIPT_URL" | bash -s -- "${INSTALL_ARGS[@]}"
+}
+
+install_container_webui() {
+  local container_args=()
+  if [ "$AUTHORIZE_LOCAL_APP_YES" = "1" ]; then
+    container_args+=("--yes")
+  fi
+  if [ "$OPEN_OPTION_EXPLICIT" = "--no-open" ]; then
+    container_args+=("--no-open")
+  fi
+  curl -fsSL "$OPL_DOCKER_WEBUI_INSTALLER_URL" | bash -s -- "${container_args[@]}"
 }
 
 count_quarantine_attrs() {
@@ -506,19 +679,32 @@ if [ "$AUTHORIZE_LOCAL_APP_ONLY" = "1" ]; then
   exit 0
 fi
 
+resolve_install_route
+if [ "$PRINT_INSTALL_ROUTE" = "1" ]; then
+  printf '%s\n' "$SELECTED_INSTALL_ROUTE"
+  exit 0
+fi
+
 if ! command -v curl >/dev/null 2>&1; then
   printf 'Missing required command: curl\n' >&2
   exit 1
 fi
 
-if ! arg_present "--with-app" && ! arg_present "--headless"; then
-  INSTALL_ARGS+=("--with-app")
-fi
-if ! arg_present "--skip-packages" && ! arg_present "--package" && ! arg_present "--packages"; then
-  INSTALL_ARGS+=("--skip-packages")
-fi
-
-curl -fsSL "$OPL_INSTALL_SCRIPT_URL" | bash -s -- "${INSTALL_ARGS[@]}"
+case "$SELECTED_INSTALL_ROUTE" in
+  desktop)
+    install_desktop_bootstrap
+    ;;
+  container-webui)
+    install_container_webui
+    ;;
+  headless)
+    install_headless_base
+    ;;
+  *)
+    printf 'Internal installer routing error: %s\n' "$SELECTED_INSTALL_ROUTE" >&2
+    exit 1
+    ;;
+esac
 
 if [ "$AUTHORIZE_LOCAL_APP" = "1" ]; then
   authorize_local_app
