@@ -19,6 +19,16 @@ type OfficialProfileApplyRuntime = {
 
 type JsonRecord = Record<string, any>;
 
+const PROJECTED_ACTION_COMMAND = ['app', 'action', 'execute'] as const;
+
+type ProjectedPackageAction = {
+  action_id: string;
+  action_ref: string;
+  payload: JsonRecord;
+  required_payload_fields: string[];
+  confirmation_required: boolean;
+};
+
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -40,36 +50,149 @@ function parseJsonResult(result: OplExecution, args: string[]) {
   }
 }
 
-function packageStatus(runtime: OfficialProfileApplyRuntime, packageId: string) {
-  const args = ['packages', 'status', '--package-id', packageId, '--json'];
-  const payload = parseJsonResult(runtime.execute(args), args);
-  const status = payload.opl_agent_package_status;
-  if (!isRecord(status)) throw new Error(`Package ${packageId} status readback is missing opl_agent_package_status.`);
-  return status;
+function fastAppState(runtime: OfficialProfileApplyRuntime) {
+  const args = ['app', 'state', '--profile', 'fast', '--json'];
+  return parseJsonResult(runtime.execute(args), args);
 }
 
-function rootPresence(status: JsonRecord) {
-  const installed = Number(status.installed_package_count ?? 0) > 0;
-  const dependencies = Array.isArray(status.package_dependency_readiness?.dependencies)
-    ? status.package_dependency_readiness.dependencies.filter(
-        (entry: unknown) => isRecord(entry) && entry.required !== false
-      )
-    : [];
+function appStateRecord(payload: JsonRecord) {
+  if (isRecord(payload.app_state)) return payload.app_state;
+  if (isRecord(payload.opl_app_state) && isRecord(payload.opl_app_state.app_state)) {
+    return payload.opl_app_state.app_state;
+  }
+  throw new Error('Fast App state readback is missing app_state.');
+}
+
+function statusIndexPackage(statusIndex: JsonRecord, packageId: string) {
+  if (isRecord(statusIndex.packages)) {
+    const status = statusIndex.packages[packageId];
+    return isRecord(status) ? status : null;
+  }
+  if (Array.isArray(statusIndex.packages)) {
+    return statusIndex.packages.find((entry: unknown) => isRecord(entry) && entry.package_id === packageId) ?? null;
+  }
+  return null;
+}
+
+const dependencyAbsenceStatuses = new Set([
+  'absent',
+  'disabled',
+  'missing',
+  'not_installed',
+  'physical_unavailable',
+  'unavailable',
+]);
+
+function requiredDependencyPresent(dependency: JsonRecord) {
+  if (dependency.required === false) return true;
+  if (dependency.installed === false || dependency.enabled === false) return false;
+  if (typeof dependency.status === 'string' && dependencyAbsenceStatuses.has(dependency.status)) {
+    return false;
+  }
+  if (
+    typeof dependency.physical_surface_status === 'string' &&
+    dependencyAbsenceStatuses.has(dependency.physical_surface_status)
+  ) {
+    return false;
+  }
+  if (dependency.exports_satisfied === false) return false;
+  if (Array.isArray(dependency.missing_required_export_ids) && dependency.missing_required_export_ids.length > 0) {
+    return false;
+  }
+  if (Array.isArray(dependency.missing_required_module_ids) && dependency.missing_required_module_ids.length > 0) {
+    return false;
+  }
+  const reasons = Array.isArray(dependency.reasons)
+    ? dependency.reasons
+    : Array.isArray(dependency.failure_reasons)
+      ? dependency.failure_reasons
+      : [];
   const absenceReasons = new Set([
-    'dependency_lock_missing',
     'dependency_disabled',
+    'dependency_missing',
+    'physical_unavailable',
     'required_exports_missing',
     'required_modules_missing',
   ]);
-  const requiredClosurePresent = dependencies.every(
-    (dependency: JsonRecord) =>
-      dependency.status !== 'missing' &&
-      !(
-        Array.isArray(dependency.reasons) &&
-        dependency.reasons.some((reason: unknown) => typeof reason === 'string' && absenceReasons.has(reason))
-      )
+  return !reasons.some((reason: unknown) => typeof reason === 'string' && absenceReasons.has(reason));
+}
+
+function requiredClosurePresent(status: JsonRecord) {
+  const packageReadiness = isRecord(status.package_dependency_readiness) ? status.package_dependency_readiness : {};
+  if (typeof packageReadiness.status === 'string' && dependencyAbsenceStatuses.has(packageReadiness.status)) {
+    return false;
+  }
+  const dependencyReadiness = isRecord(status.dependency_readiness) ? status.dependency_readiness : {};
+  const dependencies = [
+    ...(Array.isArray(packageReadiness.dependencies) ? packageReadiness.dependencies : []),
+    ...(Array.isArray(dependencyReadiness.checks) ? dependencyReadiness.checks : []),
+  ].filter(isRecord);
+  return dependencies.every(requiredDependencyPresent);
+}
+
+function projectedAction(entry: JsonRecord, packageId: string): ProjectedPackageAction {
+  const recommended = entry.recommended_action_ref;
+  if (!isRecord(recommended)) {
+    throw new Error(`Package ${packageId} has no projected action for Official Profile convergence.`);
+  }
+  const availableActions = Array.isArray(entry.available_actions) ? entry.available_actions.filter(isRecord) : [];
+  const action = availableActions.find(
+    (candidate) => candidate.action_id === recommended.action_id && candidate.action_ref === recommended.action_ref
   );
-  return { installed, requiredClosurePresent };
+  if (!action) {
+    throw new Error(`Package ${packageId} recommended action is not present in available_actions.`);
+  }
+  if (
+    typeof action.action_id !== 'string' ||
+    action.action_id.trim() === '' ||
+    typeof action.action_ref !== 'string' ||
+    action.action_ref.trim() === '' ||
+    !isRecord(action.payload) ||
+    !Array.isArray(action.required_payload_fields) ||
+    action.required_payload_fields.some((field: unknown) => typeof field !== 'string') ||
+    typeof action.confirmation_required !== 'boolean'
+  ) {
+    throw new Error(`Package ${packageId} projected action has an invalid canonical action shape.`);
+  }
+  if (action.payload.package_id !== packageId) {
+    throw new Error(`Package ${packageId} projected action payload targets another Package.`);
+  }
+  for (const field of action.required_payload_fields) {
+    if (!(field in action.payload)) {
+      throw new Error(`Package ${packageId} projected action payload is missing ${field}.`);
+    }
+  }
+  return action as ProjectedPackageAction;
+}
+
+function packageSnapshot(payload: JsonRecord, packageId: string) {
+  const appState = appStateRecord(payload);
+  const agentPackages = isRecord(appState.agent_packages) ? appState.agent_packages : {};
+  const directory = isRecord(agentPackages.directory) ? agentPackages.directory : {};
+  const entries = Array.isArray(directory.entries) ? directory.entries.filter(isRecord) : [];
+  const entry = entries.find((candidate) => candidate.package_id === packageId);
+  if (!entry) {
+    throw new Error(`Official Profile Package ${packageId} is absent from the canonical Package directory.`);
+  }
+  const statusIndex = isRecord(agentPackages.status_index) ? agentPackages.status_index : {};
+  const status = statusIndexPackage(statusIndex, packageId);
+  return {
+    entry,
+    installed: entry.installed === true,
+    requiredClosurePresent: status !== null && requiredClosurePresent(status),
+  };
+}
+
+function executeProjectedAction(runtime: OfficialProfileApplyRuntime, action: ProjectedPackageAction, dryRun: boolean) {
+  const args = [
+    ...PROJECTED_ACTION_COMMAND,
+    '--action',
+    action.action_id,
+    ...(dryRun ? ['--dry-run'] : []),
+    ...(Object.keys(action.payload).length > 0 ? ['--payload', JSON.stringify(action.payload)] : []),
+    '--json',
+  ];
+  return parseJsonResult(runtime.execute(args), args);
 }
 
 function normalizeRoots(rootPackageIds: string[]) {
@@ -92,20 +215,27 @@ export function applyOfficialProfilePackages(input: {
 
   for (const packageId of roots) {
     try {
-      const before = rootPresence(packageStatus(input.runtime, packageId));
+      const before = packageSnapshot(fastAppState(input.runtime), packageId);
       if (before.installed && before.requiredClosurePresent) {
-        items.push({ package_id: packageId, status: 'already_present', action: null, changed: false, error: null });
+        items.push({
+          package_id: packageId,
+          status: 'already_present',
+          action: null,
+          action_ref: null,
+          changed: false,
+          error: null,
+        });
         continue;
       }
 
-      const action = before.installed ? 'update' : 'install';
-      const args = ['packages', action, packageId, ...(input.dryRun ? ['--dry-run'] : []), '--json'];
-      const actionReadback = parseJsonResult(input.runtime.execute(args), args);
+      const action = projectedAction(before.entry, packageId);
+      const actionReadback = executeProjectedAction(input.runtime, action, input.dryRun === true);
       if (input.dryRun) {
         items.push({
           package_id: packageId,
           status: 'validated',
-          action,
+          action: action.action_id,
+          action_ref: action.action_ref,
           changed: false,
           action_readback: actionReadback,
           error: null,
@@ -113,14 +243,15 @@ export function applyOfficialProfilePackages(input: {
         continue;
       }
 
-      const after = rootPresence(packageStatus(input.runtime, packageId));
+      const after = packageSnapshot(fastAppState(input.runtime), packageId);
       if (!after.installed || !after.requiredClosurePresent) {
-        throw new Error(`Package ${packageId} is not present with its required closure after ${action}.`);
+        throw new Error(`Package ${packageId} is not present with its required closure after ${action.action_id}.`);
       }
       items.push({
         package_id: packageId,
-        status: action === 'install' ? 'installed' : 'reconciled',
-        action,
+        status: before.installed ? 'reconciled' : 'installed',
+        action: action.action_id,
+        action_ref: action.action_ref,
         changed: true,
         action_readback: actionReadback,
         error: null,
@@ -130,6 +261,7 @@ export function applyOfficialProfilePackages(input: {
         package_id: packageId,
         status: 'failed',
         action: null,
+        action_ref: null,
         changed: false,
         error: { message: error instanceof Error ? error.message : String(error) },
       });
@@ -158,6 +290,14 @@ export function applyOfficialProfilePackages(input: {
         desired_state_saved: false,
         startup_maintenance_registered: false,
         automatic_reapply_allowed: false,
+      },
+      projection_boundary: {
+        state_source: 'opl app state --profile fast --json',
+        action_source: 'directory.entries[].recommended_action_ref+available_actions[]',
+        action_executor: 'opl app action execute --action <projected-action-id> --json',
+        direct_package_lifecycle_command_used: false,
+        package_action_allowlist_owned: false,
+        carrier_selection_owned: false,
       },
     },
   };

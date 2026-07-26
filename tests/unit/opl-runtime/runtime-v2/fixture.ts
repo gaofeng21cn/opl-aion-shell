@@ -1,5 +1,7 @@
 type FixtureItemOptions = {
   id: string;
+  agentId?: string;
+  domainId?: string;
   workItemId?: string;
   projectId: string;
   projectName: string;
@@ -387,6 +389,8 @@ function tokenObservation(total: number | undefined, missingReason: string) {
 
 function fixtureItem({
   id,
+  agentId = 'mas',
+  domainId = 'medautoscience',
   workItemId = id,
   projectId,
   projectName,
@@ -414,8 +418,8 @@ function fixtureItem({
   return {
     item_id: `${projectId}:${encodeURIComponent(workItemId)}`,
     identity: {
-      agent_id: 'mas',
-      domain_id: 'medautoscience',
+      agent_id: agentId,
+      domain_id: domainId,
       project_id: projectId,
       project_display_name: projectName,
       project_scope_id: `project:${projectId}`,
@@ -493,12 +497,12 @@ function fixtureItem({
       title_key: action.titleKey ?? `lifecycle.${lifecycleSemanticState}.title`,
       summary_key: action.summaryKey ?? `lifecycle.${lifecycleSemanticState}.summary`,
       message_args: action.messageArgs ?? {
-        agent_id: 'mas',
+        agent_id: agentId,
         agent_display_name: action.owner,
       },
       title: action.title,
       summary: action.summary,
-      owner: action.ownerId ?? (action.owner === '你' ? 'user' : 'mas'),
+      owner: action.ownerId ?? (action.owner === '你' ? 'user' : agentId),
       owner_kind: action.ownerKind ?? (action.owner === '你' ? 'user' : 'agent'),
       owner_display_name: action.owner,
     },
@@ -518,7 +522,7 @@ function fixtureItem({
         status: 'True',
         reason: 'domain_inventory_item_resolved',
         message: 'The work item is present in the domain inventory.',
-        owner: 'mas',
+        owner: agentId,
         severity: 'none',
         last_transition_time: '2026-07-13T08:00:00Z',
         observed_generation: `generation:${id}`,
@@ -544,20 +548,20 @@ function fixtureItem({
   };
 }
 
-const AGENTS = [
+const AGENTS: ReadonlyArray<readonly [string, string, string]> = [
   ['mas', 'medautoscience', 'Med Auto Science'],
   ['mag', 'medautogrant', 'Med Auto Grant'],
   ['rca', 'redcube-ai', 'RedCube AI'],
   ['oma', 'opl-meta-agent', 'OPL Meta Agent'],
   ['obf', 'opl-bookforge', 'OPL Book Forge'],
-] as const;
+];
 
-function project(projectId: string, displayName: string) {
+function project(projectId: string, displayName: string, agentId = 'mas', domainId = 'medautoscience') {
   return {
     project_id: projectId,
     scope_id: `project:${projectId}`,
-    agent_id: 'mas',
-    domain_id: 'medautoscience',
+    agent_id: agentId,
+    domain_id: domainId,
     display_name: displayName,
     workspace_path: `/fixtures/${displayName}`,
     binding_status: 'active',
@@ -855,4 +859,76 @@ export function createRuntimeV2AppState() {
       },
     },
   };
+}
+
+export function createRuntimeV2ProjectionWithUnknownAgent() {
+  const projection = createRuntimeV2Projection();
+  const agentId = 'future.agent-lab';
+  const domainId = 'future-agent-lab';
+  const projectId = 'future-agent-project';
+  const displayName = 'Future Agent Lab';
+  projection.agent_catalog.push({
+    agent_id: agentId,
+    domain_id: domainId,
+    display_name: displayName,
+    short_label: displayName,
+    package_id: agentId,
+    scope_id: `agent:${agentId}`,
+  });
+  projection.agent_availability.push({
+    agent_id: agentId,
+    domain_id: domainId,
+    display_name: displayName,
+    availability: 'available',
+    reason: 'configured_carrier_route_ready',
+    package_id: agentId,
+    source_ref: `package://${agentId}`,
+  });
+  projection.project_catalog.push(project(projectId, 'Future Agent Project', agentId, domainId));
+  projection.items.push(
+    fixtureItem({
+      id: 'future-run-001',
+      agentId,
+      domainId,
+      projectId,
+      projectName: 'Future Agent Project',
+      displayName: 'Future Agent Run 001',
+      primaryState: 'awaiting_user_decision',
+      executionState: 'idle',
+      attentionKind: 'user',
+      action: {
+        kind: 'agent_action',
+        titleKey: 'future.agent-lab.action.title',
+        summaryKey: 'future.agent-lab.action.summary',
+        title: 'Review projected request',
+        summary: 'Continue through the owner-projected Agent route.',
+        owner: displayName,
+        ownerId: agentId,
+        messageArgs: { agent_id: agentId, agent_display_name: displayName },
+      },
+      stageMap: [{ id: 'review', displayName: 'Projected review', state: 'waiting_user' }],
+      domainDetailViews: [
+        {
+          item_id: `${projectId}:future-run-001`,
+          view_id: 'future-view',
+          view_kind: 'future_agent_view',
+          title: 'Future Agent View',
+          schema_ref: 'package://future.agent-lab/views/future-view.schema.json',
+          availability: 'unread',
+        },
+      ],
+    })
+  );
+  projection.summary.agent_count += 1;
+  projection.summary.project_count += 1;
+  projection.summary.work_item_count += 1;
+  projection.summary.visible_work_item_count += 1;
+  projection.summary.total_work_item_count += 1;
+  return projection;
+}
+
+export function createRuntimeV2AppStateWithUnknownAgent() {
+  const value = createRuntimeV2AppState();
+  value.app_state.operator.workbench.work_item_projection_v2 = createRuntimeV2ProjectionWithUnknownAgent();
+  return value;
 }

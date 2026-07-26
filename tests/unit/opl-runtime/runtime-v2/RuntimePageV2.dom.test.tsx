@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import { loadOplAppStateFromBridge, resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
-import { createRuntimeV2AppState, createRuntimeV2Projection } from './fixture';
+import { createRuntimeV2AppState, createRuntimeV2AppStateWithUnknownAgent, createRuntimeV2Projection } from './fixture';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -353,6 +353,30 @@ describe('Runtime V2 page', () => {
         receipt_ref: 'receipt://runtime/action',
       },
     });
+  });
+
+  it.each([
+    ['desktop', 1440],
+    ['mobile', 390],
+  ] as const)('renders an unknown Agent from the projection on %s DOM', async (_viewport, width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    window.dispatchEvent(new Event('resize'));
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({ parsed: createRuntimeV2AppStateWithUnknownAgent() });
+
+    render(<RuntimePage />);
+
+    const agentSelector = await screen.findByTestId('runtime-agent-selector');
+    expect(within(agentSelector).getByRole('option', { name: 'Future Agent Lab' })).toHaveValue('future.agent-lab');
+    fireEvent.change(agentSelector, { target: { value: 'future.agent-lab' } });
+    expect(await screen.findByRole('button', { name: /Future Agent Run 001/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Future Agent Run 001/ }));
+
+    const drawer = await screen.findByTestId('runtime-task-detail');
+    expect(drawer).toHaveTextContent('Future Agent Run 001');
+    expect(drawer).toHaveTextContent('Future Agent View');
+    expect(within(drawer).getByTestId('runtime-next-action')).toHaveTextContent('智能体动作');
+    expect(within(drawer).getByTestId('runtime-next-action')).toHaveTextContent('Future Agent Lab');
+    expect(within(agentSelector).getByRole('option', { name: 'Med Auto Science' })).toHaveValue('mas');
   });
 
   it('shows all nine visible items and keeps repeated work item ids distinct by canonical item id', async () => {

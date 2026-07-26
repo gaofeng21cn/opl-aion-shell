@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabilitiesProjection';
+import {
+  buildCapabilitiesViewModel,
+  readOplFlowCapabilityDependencySummary,
+} from '@/renderer/pages/settings/capabilitiesProjection';
 import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -650,6 +653,8 @@ describe('buildCapabilitiesViewModel', () => {
       payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       required_payload_fields: ['manifest_url_ref'],
       confirmation_required: true,
+      semantic: 'install',
+      surface: 'settings',
     };
     const [capability] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
@@ -708,6 +713,8 @@ describe('buildCapabilitiesViewModel', () => {
       payloadRefsOnlyJson: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
       requiredPayloadFields: ['manifest_url_ref'],
       confirmationRequired: true,
+      semantic: 'install',
+      surface: 'settings',
     });
     expect(capability.activationAction).toBeNull();
     expect(capability.availableActions.agent_package_update).toBeUndefined();
@@ -729,6 +736,8 @@ describe('buildCapabilitiesViewModel', () => {
               payload: { manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable' },
               required_payload_fields: ['manifest_url_ref'],
               confirmation_required: false,
+              semantic: 'install',
+              surface: 'settings',
             },
           ],
         },
@@ -790,6 +799,8 @@ describe('buildCapabilitiesViewModel', () => {
       payload: { package_id: 'example-agent' },
       required_payload_fields: ['package_id', 'scope', 'target_workspace or target_quest'],
       confirmation_required: false,
+      semantic: 'activate',
+      surface: 'workspace',
     };
     const [capability] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
@@ -821,6 +832,8 @@ describe('buildCapabilitiesViewModel', () => {
       payload: { package_id: 'example-agent' },
       required_payload_fields: ['package_id'],
       confirmation_required: false,
+      semantic: 'update',
+      surface: 'settings',
     };
     const statusAction = {
       action_id: 'agent_package_uninstall',
@@ -936,6 +949,8 @@ describe('buildCapabilitiesViewModel', () => {
       payload: { package_id: 'example-agent' },
       required_payload_fields: ['package_id', 'exposure_action or shortcut_id'],
       confirmation_required: false,
+      semantic: 'preferences',
+      surface: 'settings',
     };
     const [capability] = buildCapabilitiesViewModel(
       appStateWithPackageDirectory(
@@ -1042,8 +1057,8 @@ describe('buildCapabilitiesViewModel', () => {
           {
             package_id: 'example-agent',
             activation_action: {
-              action_id: 'agent_package_activate',
-              command_ref: 'opl app action execute --action agent_package_activate --payload <json> --json',
+              action_id: 'future_package_activate',
+              command_ref: 'opl app action execute --action future_package_activate --payload <json> --json',
               enabled: true,
               preparation_status: 'prepare_required',
               reason_code: 'scope_reconciliation_required',
@@ -1060,6 +1075,7 @@ describe('buildCapabilitiesViewModel', () => {
     );
 
     expect(capability.activationAction).toMatchObject({
+      actionId: 'future_package_activate',
       enabled: true,
       preparationStatus: 'prepare_required',
       reasonCode: 'scope_reconciliation_required',
@@ -1311,5 +1327,89 @@ describe('buildCapabilitiesViewModel', () => {
       dryRunSummary: 'opl://app-action/task_action_receipt_preview',
       receiptSummary: 'receipt://export/latest',
     });
+  });
+});
+
+describe('Framework package semantic projections', () => {
+  it('selects a settings action by producer semantic without a fixed action id', () => {
+    const actionId = 'future_package_install';
+    const projectedAction = {
+      action_id: actionId,
+      action_ref: `app_state.actions#${actionId}`,
+      payload: { package_id: 'future-package' },
+      required_payload_fields: ['package_id'],
+      confirmation_required: false,
+      semantic: 'install',
+      surface: 'settings',
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'future-package',
+          installed: false,
+          recommended_action: actionId,
+          recommended_action_ref: projectedAction,
+          available_actions: [projectedAction],
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.installAction).toMatchObject({
+      actionId,
+      semantic: 'install',
+      surface: 'settings',
+    });
+    expect(capability.recommendedAction?.actionId).toBe(actionId);
+  });
+
+  it('reads only the Framework directory Flow summary and preserves its dynamic route', () => {
+    const summaries = readOplFlowCapabilityDependencySummary(
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'opl-flow',
+            capability_dependency_summary: [
+              {
+                id: 'future-net-skill',
+                kind: 'codex_skill',
+                relationship: 'required',
+                activation: 'task_routed',
+                presence: 'missing',
+                callability: 'unavailable',
+                user_outcome: 'required_for_workflow',
+                route: {
+                  action_ref: 'app_state.actions#future_flow_repair',
+                  payload: { package_id: 'opl-flow' },
+                  detail_surface: 'opl packages status --package-id opl-flow --json',
+                },
+              },
+            ],
+          },
+        ],
+        [],
+        {
+          managed_update: {
+            flow_dependencies: [{ id: 'legacy-only-skill' }],
+          },
+        }
+      )
+    );
+
+    expect(summaries).toEqual([
+      {
+        id: 'future-net-skill',
+        kind: 'codex_skill',
+        relationship: 'required',
+        activation: 'task_routed',
+        presence: 'missing',
+        callability: 'unavailable',
+        userOutcome: 'required_for_workflow',
+        route: {
+          actionId: 'future_flow_repair',
+          payload: { package_id: 'opl-flow' },
+        },
+      },
+    ]);
   });
 });

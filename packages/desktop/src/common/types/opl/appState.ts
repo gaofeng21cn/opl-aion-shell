@@ -36,6 +36,8 @@ export type OplProjectedPackageAction = {
   payloadRefsOnlyJson: Record<string, unknown>;
   requiredPayloadFields: string[];
   confirmationRequired: boolean;
+  semantic: 'refresh' | 'install' | 'activate' | 'update' | 'repair' | 'preferences' | 'uninstall' | 'custom' | null;
+  surface: 'settings' | 'workspace' | null;
 };
 
 export type OplProjectedActionPayload = {
@@ -43,15 +45,17 @@ export type OplProjectedActionPayload = {
   missingRequiredPayloadFields: string[];
 };
 
-const OPL_PACKAGE_ACTION_IDS = new Set([
-  'refresh_registry',
-  'install_from_manifest_url',
-  'agent_package_update',
-  'agent_package_repair',
-  'agent_package_activate',
-  'agent_package_uninstall',
-  'agent_package_preferences_set',
+const OPL_PACKAGE_ACTION_SEMANTICS = new Set([
+  'refresh',
+  'install',
+  'activate',
+  'update',
+  'repair',
+  'preferences',
+  'uninstall',
+  'custom',
 ]);
+const OPL_PACKAGE_ACTION_SURFACES = new Set(['settings', 'workspace']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -143,7 +147,7 @@ function hasPayloadValue(value: unknown): boolean {
 /** Parse one exact Framework-projected package action without adding Shell fields. */
 export function parseOplProjectedPackageAction(value: unknown): OplProjectedPackageAction | null {
   if (!isRecord(value)) return null;
-  const expectedFields = new Set([
+  const baseFields = new Set([
     'action_id',
     'action_ref',
     'payload',
@@ -151,16 +155,26 @@ export function parseOplProjectedPackageAction(value: unknown): OplProjectedPack
     'confirmation_required',
   ]);
   const fields = Object.keys(value);
+  const fieldSet = new Set(fields);
   const actionId = typeof value.action_id === 'string' ? value.action_id.trim() : '';
   const actionRef = typeof value.action_ref === 'string' ? value.action_ref.trim() : '';
   if (
-    fields.length !== expectedFields.size ||
-    fields.some((field) => !expectedFields.has(field)) ||
-    !OPL_PACKAGE_ACTION_IDS.has(actionId) ||
+    !fields.every((field) => baseFields.has(field) || field === 'semantic' || field === 'surface') ||
+    ![...baseFields].every((field) => fieldSet.has(field)) ||
     actionRef !== `app_state.actions#${actionId}` ||
     !isRecord(value.payload) ||
     !Array.isArray(value.required_payload_fields) ||
     typeof value.confirmation_required !== 'boolean'
+  ) {
+    return null;
+  }
+  const semantic = nonBlankString(value.semantic);
+  const surface = nonBlankString(value.surface);
+  if (
+    !semantic ||
+    !surface ||
+    !OPL_PACKAGE_ACTION_SEMANTICS.has(semantic) ||
+    !OPL_PACKAGE_ACTION_SURFACES.has(surface)
   ) {
     return null;
   }
@@ -174,6 +188,8 @@ export function parseOplProjectedPackageAction(value: unknown): OplProjectedPack
     payloadRefsOnlyJson: { ...value.payload },
     requiredPayloadFields,
     confirmationRequired: value.confirmation_required,
+    semantic: semantic as OplProjectedPackageAction['semantic'],
+    surface: surface as OplProjectedPackageAction['surface'],
   };
 }
 

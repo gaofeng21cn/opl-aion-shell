@@ -54,6 +54,7 @@ import {
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
+  readOplFlowCapabilityDependencySummary,
   type CapabilityActionRefViewModel,
   type CapabilityAvailabilityStatus,
   type CapabilityCandidateReportViewModel,
@@ -63,11 +64,6 @@ import {
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
-import { useManagedUpdateMaintenance } from '@/renderer/services/managedUpdateMaintenance';
-import {
-  readManagedUpdatePlane,
-  readOplFlowManagedCapabilityCatalog,
-} from '@/renderer/services/managedUpdateProjection';
 import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
@@ -406,40 +402,32 @@ function capabilityPackageIdentityValues(packageId: string | null): string[] {
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
   const action = item.recommendedAction;
   if (!action) return null;
-  return ['install_from_manifest_url', 'agent_package_update', 'agent_package_repair', 'refresh_registry'].includes(
-    action.actionId
-  )
+  return action.surface === 'settings' && ['install', 'update', 'repair', 'refresh'].includes(action.semantic ?? '')
     ? action
     : null;
 }
 
-function capabilityProjectedActionTestId(actionId: string): string {
-  if (actionId === 'agent_package_activate') return 'activate';
-  if (actionId === 'install_from_manifest_url') return 'install';
-  if (actionId === 'agent_package_update') return 'update';
-  if (actionId === 'agent_package_repair') return 'repair';
-  if (actionId === 'refresh_registry') return 'refresh';
-  return 'run';
+function capabilityActionForSemantic(
+  item: CapabilityPurposeViewModel | null,
+  semantic: CapabilityPackageActionViewModel['semantic']
+) {
+  if (!item || !semantic) return null;
+  return (
+    Object.values(item.availableActions).find(
+      (action) => action.semantic === semantic && action.surface === 'settings'
+    ) ?? null
+  );
+}
+
+function capabilityProjectedActionTestId(action: CapabilityPackageActionViewModel): string {
+  return action.semantic ?? 'run';
 }
 
 function capabilityProjectedActionLabel(
-  actionId: string,
+  action: CapabilityPackageActionViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
-  const key =
-    actionId === 'refresh_registry'
-      ? 'refresh'
-      : actionId === 'agent_package_activate'
-        ? 'activate'
-        : actionId === 'install_from_manifest_url'
-          ? 'install'
-          : actionId === 'agent_package_update'
-            ? 'update'
-            : actionId === 'agent_package_repair'
-              ? 'repair'
-              : actionId === 'agent_package_uninstall'
-                ? 'uninstall'
-                : 'run';
+  const key = action.semantic ?? 'run';
   return t(`settings.capabilitiesPage.packageManager.actions.${key}`);
 }
 
@@ -1200,13 +1188,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     () => purposeCapabilities.find((item) => item.key === selectedCapabilityKey) ?? null,
     [purposeCapabilities, selectedCapabilityKey]
   );
-  const selectedUpdateAction = selectedCapability?.availableActions.agent_package_update ?? null;
-  const selectedRepairAction = selectedCapability?.availableActions.agent_package_repair ?? null;
-  const selectedPreferenceAction = selectedCapability?.availableActions.agent_package_preferences_set ?? null;
+  const selectedUpdateAction = capabilityActionForSemantic(selectedCapability, 'update');
+  const selectedRepairAction = capabilityActionForSemantic(selectedCapability, 'repair');
+  const selectedPreferenceAction = capabilityActionForSemantic(selectedCapability, 'preferences');
   const selectedSourceLabel = selectedCapability
     ? (capabilitySourceLabel(selectedCapability, t) ?? t('settings.capabilitiesPage.detailValues.notReported'))
     : '';
-  const selectedUninstallAction = selectedCapability?.availableActions.agent_package_uninstall ?? null;
+  const selectedUninstallAction = capabilityActionForSemantic(selectedCapability, 'uninstall');
   const selectedShortcuts = selectedCapability?.packageId
     ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(selectedCapability.packageId)) ?? [])
     : [];
@@ -1357,11 +1345,11 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
     Modal.confirm({
       title: t('settings.capabilitiesPage.packageManager.projectedActionConfirmTitle', {
-        action: capabilityProjectedActionLabel(action.actionId, t),
+        action: capabilityProjectedActionLabel(action, t),
       }),
       content: t('settings.capabilitiesPage.packageManager.projectedActionConfirmContent'),
       okButtonProps: options.danger ? { status: 'danger' } : undefined,
-      okText: capabilityProjectedActionLabel(action.actionId, t),
+      okText: capabilityProjectedActionLabel(action, t),
       cancelText: t('common.cancel'),
       onOk: execute,
     });
@@ -1550,7 +1538,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     }
     const shortcutOrder = getOplOrderedHomeAgentShortcuts(projectedShortcuts);
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
-    const action = item.availableActions.agent_package_preferences_set;
+    const action = capabilityActionForSemantic(item, 'preferences');
     if (!shortcut || !action) return { verified: false, authoritativePreferences: null };
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
     const payload = projectedActionPayload(action, {
@@ -1775,7 +1763,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                           disabled={
                             packageActionBusy ||
                             pendingShortcutIds.has(shortcut.shortcut_id) ||
-                            !item.availableActions.agent_package_preferences_set
+                            !capabilityActionForSemantic(item, 'preferences')
                           }
                           onChange={(checked) => updateShortcutHidden(item, shortcut.shortcut_id, !checked)}
                           data-testid={`agent-package-home-toggle-details-${testIdSuffix}`}
@@ -1799,9 +1787,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 loading={busyAction === rowAction.actionId}
                 disabled={rowActionDisabled}
                 onClick={() => executeProjectedAction(rowAction)}
-                data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction.actionId)}-${item.key}`}
+                data-testid={`agent-package-${capabilityProjectedActionTestId(rowAction)}-${item.key}`}
               >
-                {capabilityProjectedActionLabel(rowAction.actionId, t)}
+                {capabilityProjectedActionLabel(rowAction, t)}
               </Button>
             )}
             <Button
@@ -2763,27 +2751,38 @@ type CapabilitiesSettingsContentProps = {
 export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
-  const managedUpdateMaintenance = useManagedUpdateMaintenance();
   const [flowSyncing, setFlowSyncing] = useState(false);
-  const managedUpdatePlane = React.useMemo(
-    () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appStateQuery.appState),
-    [appStateQuery.appState, managedUpdateMaintenance.result]
-  );
-  const baseDependencyCatalog = managedUpdatePlane.components.find(
-    (component) => component.id === 'opl_base'
-  )?.dependencyCatalog;
-  const flowManagedCatalog = React.useMemo(
-    () => readOplFlowManagedCapabilityCatalog(baseDependencyCatalog),
-    [baseDependencyCatalog]
-  );
+  const flowManagedCatalog = React.useMemo(() => {
+    const summaries = readOplFlowCapabilityDependencySummary(appStateQuery.appState);
+    const dependencies = summaries.map((dependency) => ({
+      id: dependency.id,
+      kind: dependency.kind,
+      installed: dependency.presence === 'present',
+      currentness: dependency.callability === 'callable' ? 'current' : dependency.presence,
+      ownership: dependency.relationship,
+      updateMode: 'explicit_owner_delegated' as const,
+      activationPolicy: dependency.activation,
+      guidance: dependency.userOutcome,
+      external: false,
+    }));
+    const skillDependencies = dependencies.filter((dependency) => dependency.kind === 'codex_skill');
+    return {
+      skillIds: skillDependencies.map((dependency) => dependency.id),
+      skillDependencies,
+      cliDependencies: dependencies.filter((dependency) => dependency.kind === 'cli'),
+      route: summaries.find((dependency) => dependency.route)?.route ?? null,
+    };
+  }, [appStateQuery.appState]);
 
   const syncFlowCapabilities = async () => {
     if (flowSyncing) return;
+    if (!flowManagedCatalog.route) return;
     setFlowSyncing(true);
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: 'settings_sync_capabilities',
+        actionId: flowManagedCatalog.route.actionId,
         dryRun: false,
+        payloadRefsOnlyJson: flowManagedCatalog.route.payload,
       });
       if (result.ok === false) throw new Error(result.error?.message || result.command);
       await appStateQuery.load('fast', { showRefreshing: true });

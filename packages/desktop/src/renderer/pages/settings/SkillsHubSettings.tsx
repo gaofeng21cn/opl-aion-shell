@@ -342,7 +342,9 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{dependency.id}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {localizedCapabilitySummary([dependency.id], dependency.id, t)}
+                      {t(`settings.capabilitiesPage.groups.oplFlowManaged.outcomes.${dependency.guidance}`, {
+                        defaultValue: dependency.id,
+                      })}
                     </Typography.Text>
                     <FlowCapabilityDetails
                       id={dependency.id}

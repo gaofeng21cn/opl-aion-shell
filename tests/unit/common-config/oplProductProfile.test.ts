@@ -9,7 +9,6 @@ import {
   getOplOrdinaryChromeName,
   getOplGlobalFeedbackIssueUrl,
   getOplDefaultExecutorAgentKey,
-  getOplHomeAgentShortcuts,
   getOplHomeComposerStateContract,
   getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
@@ -199,6 +198,7 @@ describe('OPL generated product profile', () => {
     expect(profileModule).not.toHaveProperty('getOplAgentPackageInvocationReceiptPolicy');
     expect(profileModule).not.toHaveProperty('getOplBuiltinAssistantRouteReceiptPolicy');
     expect(profileModule).not.toHaveProperty('getOplFirstPartyPackagePresentations');
+    expect(profileModule).not.toHaveProperty('getOplHomeAgentShortcuts');
   });
 
   it('keeps App-owned GUI defaults for theme, fixed Codex executor, and visible model controls', () => {
@@ -729,11 +729,8 @@ describe('OPL generated product profile', () => {
   });
 
   it('keeps Home shortcut membership on the dynamic Package projection', () => {
-    const shortcuts = getOplHomeAgentShortcuts();
-
-    expect(shortcuts).toEqual([]);
     expect(generatedProfile.gui.home).not.toHaveProperty('home_agent_shortcuts');
-    expect(OPL_PRODUCT_PROFILE.gui.home.home_agent_shortcuts).toEqual([]);
+    expect(OPL_PRODUCT_PROFILE.gui.home).not.toHaveProperty('home_agent_shortcuts');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('professional_agent_packages');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('default_assistants');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('non_default_assistants');
@@ -741,63 +738,24 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids).toEqual(['opl-meta-agent']);
   });
 
-  it('accepts an explicitly empty legacy Home shortcut metadata list', async () => {
-    const profileWithEmptyShortcuts = structuredClone(generatedProfile) as typeof generatedProfile & {
-      gui: { home: { home_agent_shortcuts?: unknown } };
-    };
-    profileWithEmptyShortcuts.gui.home.home_agent_shortcuts = [];
+  it.each([[], [{ shortcut_id: 'legacy-static-shortcut' }]])(
+    'rejects any legacy static Home shortcut authority: %j',
+    async (homeAgentShortcuts) => {
+      const malformedProfile = structuredClone(generatedProfile) as typeof generatedProfile & {
+        gui: { home: { home_agent_shortcuts?: unknown } };
+      };
+      malformedProfile.gui.home.home_agent_shortcuts = homeAgentShortcuts;
 
-    vi.resetModules();
-    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
-      default: profileWithEmptyShortcuts,
-    }));
-    const profileModule = await import('@/common/config/oplProductProfile');
+      vi.resetModules();
+      vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
+        default: malformedProfile,
+      }));
 
-    expect(profileModule.getOplHomeAgentShortcuts()).toEqual([]);
-  });
-
-  const validLegacyShortcut = {
-    shortcut_id: 'research',
-    package_id: 'mas',
-    primary_label: 'Research',
-    package_short_name: 'MAS',
-    codex_visible_entry: 'med-autoscience',
-    required_skill_ids: ['med-autoscience'],
-    source: 'opl_app_home',
-    executor: 'codex_cli',
-    display_policy: 'purpose_first',
-    home_entry_policy: 'visible_click_to_start',
-    default_visible: true,
-    user_configurable: true,
-  };
-
-  it.each([
-    ['non-array value', {}, 'must be an array when present'],
-    ['non-object entry', ['invalid'], 'home_agent_shortcuts[0] must be an object'],
-    ['blank entry field', [{ ...validLegacyShortcut, package_id: ' ' }], 'home_agent_shortcuts[0] has blank fields'],
-    [
-      'duplicate ids',
-      [validLegacyShortcut, { ...validLegacyShortcut }],
-      'home_agent_shortcuts must not contain duplicate ids',
-    ],
-    [
-      'unsupported policy',
-      [{ ...validLegacyShortcut, display_policy: 'fixed_roster' }],
-      'home agent shortcut research has unsupported policy',
-    ],
-  ])('rejects malformed present Home shortcut metadata: %s', async (_name, homeAgentShortcuts, expectedMessage) => {
-    const malformedProfile = structuredClone(generatedProfile) as typeof generatedProfile & {
-      gui: { home: { home_agent_shortcuts?: unknown } };
-    };
-    malformedProfile.gui.home.home_agent_shortcuts = homeAgentShortcuts;
-
-    vi.resetModules();
-    vi.doMock('@/common/config/oplProductProfile/oplProductProfile.generated.json', () => ({
-      default: malformedProfile,
-    }));
-
-    await expect(import('@/common/config/oplProductProfile')).rejects.toThrow(expectedMessage);
-  });
+      await expect(import('@/common/config/oplProductProfile')).rejects.toThrow(
+        'gui.home.home_agent_shortcuts is retired static presentation authority'
+      );
+    }
+  );
 
   it('exposes App-managed OPL Flow context policy without allowing caller mutation', () => {
     const policy = getOplFlowContextPolicy();

@@ -249,7 +249,6 @@ describe('useGuidSend OPL ordinary capability policy', () => {
         extra: expect.objectContaining({
           workspace: '',
           custom_workspace: false,
-          opl_agent_package_invocation: undefined,
         }),
       })
     );
@@ -330,15 +329,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
         transport: { type: 'stdio', command: 'echo' },
       },
     ]);
-    expect(payload.extra.opl_agent_package_invocation).toEqual({
-      route_kind: 'agent_package_shortcut',
-      executor: 'codex_cli',
-      package_id: 'mas',
-      shortcut_id: 'research',
-      codex_visible_entry: 'med-autoscience',
-      required_skill_ids: ['med-autoscience'],
-      source: 'opl_app_home',
-    });
+    expect(payload.extra).not.toHaveProperty('opl_agent_package_invocation');
     expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(payload.extra.opl_agent_package_activation).toBeUndefined();
     expect(payload.extra.opl_assistant_route).toBeUndefined();
@@ -357,15 +348,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     });
 
     const payload = mocks.createConversation.mock.calls[0][0];
-    expect(payload.extra.opl_agent_package_invocation).toEqual({
-      route_kind: 'agent_package_shortcut',
-      executor: 'codex_cli',
-      package_id: 'oma',
-      shortcut_id: 'oma',
-      codex_visible_entry: 'opl-meta-agent',
-      required_skill_ids: ['opl-meta-agent'],
-      source: 'opl_app_home',
-    });
+    expect(payload.extra).not.toHaveProperty('opl_agent_package_invocation');
     expect(payload.extra.opl_assistant_route).toBeUndefined();
     expect(mocks.activatePackage).not.toHaveBeenCalled();
   });

@@ -659,7 +659,6 @@ type AppProductProfile = {
         scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body';
       };
       codex_model_display_options: OplCodexModelDisplayOptions;
-      home_agent_shortcuts: OplHomeAgentShortcut[];
       retired_codex_models_must_not_be_exposed: string[];
     };
     ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
@@ -1271,63 +1270,6 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
   };
 }
 
-function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentShortcut[] {
-  const value = guiHome.home_agent_shortcuts;
-  if (value === undefined) {
-    return [];
-  }
-  if (!Array.isArray(value)) {
-    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must be an array when present');
-  }
-  if (value.length === 0) {
-    return [];
-  }
-
-  const shortcuts = value.map((entry, index): OplHomeAgentShortcut => {
-    if (!isRecord(entry)) {
-      throw new Error(`Invalid OPL product profile: gui.home.home_agent_shortcuts[${index}] must be an object`);
-    }
-    const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';
-    const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
-    const primaryLabel = typeof entry.primary_label === 'string' ? entry.primary_label.trim() : '';
-    const packageShortName = typeof entry.package_short_name === 'string' ? entry.package_short_name.trim() : '';
-    const codexVisibleEntry = typeof entry.codex_visible_entry === 'string' ? entry.codex_visible_entry.trim() : '';
-    if (!shortcutId || !packageId || !primaryLabel || !packageShortName || !codexVisibleEntry) {
-      throw new Error(`Invalid OPL product profile: gui.home.home_agent_shortcuts[${index}] has blank fields`);
-    }
-    if (
-      entry.source !== 'opl_app_home' ||
-      entry.executor !== 'codex_cli' ||
-      entry.display_policy !== 'purpose_first' ||
-      entry.home_entry_policy !== 'visible_click_to_start'
-    ) {
-      throw new Error(`Invalid OPL product profile: home agent shortcut ${shortcutId} has unsupported policy`);
-    }
-    return {
-      shortcut_id: shortcutId,
-      package_id: packageId,
-      primary_label: primaryLabel,
-      package_short_name: packageShortName,
-      codex_visible_entry: codexVisibleEntry,
-      required_skill_ids: readStringArray(entry, 'required_skill_ids', `gui.home.home_agent_shortcuts.${shortcutId}`),
-      source: 'opl_app_home',
-      executor: 'codex_cli',
-      display_policy: 'purpose_first',
-      home_entry_policy: 'visible_click_to_start',
-      default_visible: entry.default_visible === true,
-      user_configurable: entry.user_configurable === true,
-    };
-  });
-  const ids = shortcuts.map((shortcut) => shortcut.shortcut_id);
-  if (new Set(ids).size !== ids.length) {
-    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must not contain duplicate ids');
-  }
-  if (!shortcuts.every((shortcut) => shortcut.user_configurable)) {
-    throw new Error('Invalid OPL product profile: home agent shortcuts must be user configurable');
-  }
-  return shortcuts;
-}
-
 function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHomeComposerStateContract {
   const value = guiHome.home_composer_state_contract;
   if (!isRecord(value) || !isRecord(value.invariants) || !isRecord(value.semantic_probe)) {
@@ -1721,10 +1663,12 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     }
   }
   const guiHomeCandidate = gui.home;
-  if (isRecord(guiHomeCandidate) && Object.prototype.hasOwnProperty.call(guiHomeCandidate, 'home_purpose_entries')) {
-    throw new Error(
-      'Invalid OPL product profile: gui.home.home_purpose_entries is retired static presentation authority'
-    );
+  if (isRecord(guiHomeCandidate)) {
+    for (const field of ['home_purpose_entries', 'home_agent_shortcuts']) {
+      if (Object.prototype.hasOwnProperty.call(guiHomeCandidate, field)) {
+        throw new Error(`Invalid OPL product profile: gui.home.${field} is retired static presentation authority`);
+      }
+    }
   }
   for (const field of [
     'opl_app_session_context',
@@ -2019,7 +1963,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   ) {
     throw new Error('Invalid OPL product profile: GUI home Codex model status label must match the App default model');
   }
-  const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
   const homeComposerStateContract = readHomeComposerStateContract(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   for (const forbiddenField of ['agent_package_invocation_receipt_policy', 'builtin_assistant_route_receipt_policy']) {
@@ -2181,7 +2124,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           scope: 'opl_owned_overlay_surfaces_not_upstream_fork_body',
         },
         codex_model_display_options: codexModelDisplayOptions,
-        home_agent_shortcuts: homeAgentShortcuts,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
       ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
@@ -2960,13 +2902,6 @@ export function getOplDefaultCodexModelDisplayLabel(): string {
 export function getOplModelStatusDisplayText(localeKey: 'zh-CN' | 'en-US' = 'zh-CN'): string {
   const label = getOplHomeModelStatusLabel(localeKey);
   return localeKey === 'en-US' ? `Model: ${label}` : `模型: ${label}`;
-}
-
-export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
-  return OPL_PRODUCT_PROFILE.gui.home.home_agent_shortcuts.map((shortcut) => ({
-    ...shortcut,
-    required_skill_ids: [...shortcut.required_skill_ids],
-  }));
 }
 
 export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilitySelectorPolicy {

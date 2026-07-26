@@ -3108,46 +3108,63 @@ describe('OPL first-run VM smoke scripts', () => {
       fileName: 'one-person-lab-nightly.rb',
       runtimeProfile: 'standard',
     },
-  ])('installs a pre-publication $profile candidate with Formula opl from an isolated local tap', (candidateCase) => {
-    const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cask-candidate-'));
-    const candidate = path.join(candidateDir, candidateCase.fileName);
-    fs.writeFileSync(candidate, `cask "${candidateCase.caskToken}" do\nend\n`);
-    try {
-      const options = tartSmoke.parseArgs([
-        '--source-vm',
-        'clean-vm',
-        '--smoke-profile',
-        candidateCase.profile,
-        '--homebrew-cask-file',
-        candidate,
-        '--dry-run',
-      ]);
-      const command = tartSmoke.guestHomebrewInstallCommand(options);
-      expect(options).toMatchObject({
-        homebrewCaskFile: candidate,
-        homebrewCask: candidateCase.caskToken,
-        runtimeProfile: candidateCase.runtimeProfile,
-      });
-      expect(tartSmoke.buildDryRunPlan(options).homebrew_trusted_casks).toEqual([
-        `opl-local/cask-candidate/${candidateCase.caskToken}`,
-      ]);
-      expect(command).toContain('tap-new opl-local/cask-candidate');
-      expect(command).toContain(`Casks/${candidateCase.fileName}`);
-      expect(command).toContain(`homebrew_cask_ref=opl-local/cask-candidate/${candidateCase.caskToken}`);
-      expect(command).toContain('install --cask "$homebrew_cask_ref"');
-      expect(command).toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
-      expect(command.indexOf('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'')).toBeLessThan(
-        command.indexOf('tap-new opl-local/cask-candidate')
-      );
-      expect(command).toContain(`trust --cask 'opl-local/cask-candidate/${candidateCase.caskToken}'`);
-      expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/");
-      expect(command.indexOf('Standard and Nightly Casks must install Formula opl')).toBeGreaterThan(
-        command.indexOf('install --cask "$homebrew_cask_ref"')
-      );
-    } finally {
-      fs.rmSync(candidateDir, { recursive: true, force: true });
+  ])(
+    'installs a pre-publication $profile candidate from a local tap with Formula opl from the official tap',
+    (candidateCase) => {
+      const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cask-candidate-'));
+      const candidate = path.join(candidateDir, candidateCase.fileName);
+      fs.writeFileSync(candidate, `cask "${candidateCase.caskToken}" do\nend\n`);
+      try {
+        const options = tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--smoke-profile',
+          candidateCase.profile,
+          '--homebrew-cask-file',
+          candidate,
+          '--dry-run',
+        ]);
+        const command = tartSmoke.guestHomebrewInstallCommand(options);
+        expect(options).toMatchObject({
+          homebrewCaskFile: candidate,
+          homebrewCask: candidateCase.caskToken,
+          runtimeProfile: candidateCase.runtimeProfile,
+        });
+        expect(tartSmoke.buildDryRunPlan(options).homebrew_trusted_casks).toEqual([
+          `opl-local/cask-candidate/${candidateCase.caskToken}`,
+        ]);
+        expect(command).toContain('tap-new opl-local/cask-candidate');
+        expect(command).toContain(`Casks/${candidateCase.fileName}`);
+        expect(command).toContain(`homebrew_cask_ref=opl-local/cask-candidate/${candidateCase.caskToken}`);
+        expect(command).toContain('install --cask "$homebrew_cask_ref"');
+        expect(command).toContain('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'');
+        expect(command.indexOf('"$BREW_BIN" tap \'gaofeng21cn/one-person-lab\'')).toBeLessThan(
+          command.indexOf('tap-new opl-local/cask-candidate')
+        );
+        expect(command).toContain(`trust --cask 'opl-local/cask-candidate/${candidateCase.caskToken}'`);
+        expect(command).not.toContain("trust --cask 'gaofeng21cn/one-person-lab/");
+        expect(command.indexOf('Standard and Nightly Casks must install Formula opl')).toBeGreaterThan(
+          command.indexOf('install --cask "$homebrew_cask_ref"')
+        );
+        const guestCommand = tartSmoke.guestSmokeCommand(
+          options,
+          '/tmp/guest/unused.dmg',
+          '/tmp/guest/opl-first-run-vm-smoke.mjs',
+          '/tmp/guest/artifacts',
+          '/tmp/guest/codex-api-key.txt'
+        );
+        const expectedOrigin =
+          candidateCase.caskToken === 'one-person-lab-nightly' ? 'homebrew_nightly_cask' : 'homebrew_standard_cask';
+        expect(guestCommand).toContain(`--install-origin ${expectedOrigin}`);
+        expect(guestCommand).toContain(`--homebrew-cask '${candidateCase.caskToken}'`);
+        for (const root of tartSmoke.officialProfileDesiredRoots()) {
+          expect(guestCommand).toContain(`--official-profile-root '${root}'`);
+        }
+      } finally {
+        fs.rmSync(candidateDir, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   it('installs a pre-publication Full Cask candidate without Formula opl from an isolated local tap', () => {
     const candidateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-cask-candidate-'));
@@ -3427,6 +3444,115 @@ describe('OPL first-run VM smoke scripts', () => {
       );
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { installOrigin: 'homebrew_standard_cask', cask: 'one-person-lab', channel: 'stable' },
+    { installOrigin: 'homebrew_nightly_cask', cask: 'one-person-lab-nightly', channel: 'nightly' },
+  ])('collects a $channel Standard Cask receipt with Formula opl and Official Profile convergence', (carrierCase) => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-standard-cask-receipt-'));
+    const desiredRoots = ['mas', 'mag'];
+    try {
+      const receipt = vmSmoke.collectHomebrewStandardCaskProof(
+        {
+          artifacts,
+          runtimeProfile: 'standard',
+          installOrigin: carrierCase.installOrigin,
+          homebrewCask: carrierCase.cask,
+          officialProfileRoots: desiredRoots,
+          timeoutMs: 10_000,
+          __testHooks: {
+            brewBin: '/fixture/brew',
+            spawnSync: () => ({ status: 0, stdout: '', stderr: '' }),
+            runOplJson: () => ({
+              app_state: {
+                agent_packages: {
+                  directory: {
+                    entries: desiredRoots.map((package_id) => ({ package_id, installed: true })),
+                  },
+                },
+              },
+            }),
+          },
+        },
+        null
+      );
+
+      expect(receipt).toMatchObject({
+        schema: 'opl_homebrew_standard_cask_smoke.v1',
+        status: 'passed',
+        channel: carrierCase.channel,
+        homebrew: {
+          cask: carrierCase.cask,
+          cask_installed: true,
+          formula_opl_installed_after: true,
+        },
+        carrier: {
+          selected_carrier: 'homebrew_formula_opl',
+          active_framework_count: 1,
+        },
+        official_profile: {
+          desired_root_package_ids: desiredRoots,
+          installed_root_package_ids: desiredRoots,
+          restore_action_invoked: false,
+        },
+      });
+      const artifact = path.join(artifacts, `homebrew-${carrierCase.channel}-standard-cask-smoke.json`);
+      expect(JSON.parse(fs.readFileSync(artifact, 'utf8'))).toEqual(receipt);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('fails Standard Cask proof when Formula opl or an Official Profile root is missing', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-standard-cask-failure-'));
+    const baseOptions = {
+      artifacts,
+      runtimeProfile: 'standard',
+      installOrigin: 'homebrew_nightly_cask',
+      homebrewCask: 'one-person-lab-nightly',
+      officialProfileRoots: ['mas', 'mag'],
+      timeoutMs: 10_000,
+    };
+    try {
+      expect(() =>
+        vmSmoke.collectHomebrewStandardCaskProof(
+          {
+            ...baseOptions,
+            __testHooks: {
+              brewBin: '/fixture/brew',
+              spawnSync: (_command: string, args: string[]) => ({
+                status: args.includes('--formula') ? 1 : 0,
+                stdout: '',
+                stderr: '',
+              }),
+            },
+          },
+          null
+        )
+      ).toThrow(/did not install Formula opl/);
+      expect(() =>
+        vmSmoke.collectHomebrewStandardCaskProof(
+          {
+            ...baseOptions,
+            __testHooks: {
+              brewBin: '/fixture/brew',
+              spawnSync: () => ({ status: 0, stdout: '', stderr: '' }),
+              runOplJson: () => ({
+                app_state: {
+                  agent_packages: {
+                    directory: { entries: [{ package_id: 'mas', installed: true }] },
+                  },
+                },
+              }),
+            },
+          },
+          null
+        )
+      ).toThrow(/mag/);
+    } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
   });

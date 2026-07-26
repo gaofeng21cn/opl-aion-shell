@@ -12,6 +12,36 @@ const model = {
 };
 
 describe('buildAgentConversationParams agent type policy', () => {
+  it('does not synthesize static Agent directory or route context', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Codex CLI',
+      workspace: '/tmp/aionui-codex',
+      model,
+    });
+
+    expect(params.extra).not.toHaveProperty('context');
+    expect(params.extra).not.toHaveProperty('opl_app_session_context');
+    expect(params.extra).not.toHaveProperty('opl_agent_package_invocation');
+    expect(params.extra).not.toHaveProperty('opl_assistant_route');
+  });
+
+  it('preserves caller-projected context without adding a static Agent directory', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Codex CLI',
+      workspace: '/tmp/aionui-codex',
+      model,
+      extra: {
+        context: 'Owner-projected context',
+      },
+    });
+
+    expect(params.extra.context).toBe('Owner-projected context');
+    expect(params.extra.context).not.toContain('Med Auto Science');
+    expect(params.extra.context).not.toContain('OPL Meta Agent');
+  });
+
   it('maps only aionrs to top-level aionrs', () => {
     expect(getConversationTypeForBackend('aionrs')).toBe('aionrs');
   });

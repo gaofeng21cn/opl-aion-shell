@@ -49,7 +49,7 @@ export type CapabilityRepairActionViewModel = {
 };
 
 export type CapabilityActivationActionViewModel = {
-  actionId: 'agent_package_activate';
+  actionId: string;
   commandRef: string;
   enabled: boolean;
   preparationStatus: 'not_installed' | 'prepare_required' | 'ready';
@@ -92,6 +92,17 @@ export type CapabilityDependencyClosureViewModel = {
   closureDigest: string | null;
   lastKnownGoodTransactionId: string | null;
   lastKnownGoodClosureDigest: string | null;
+};
+
+export type OplFlowCapabilityDependencySummary = {
+  id: string;
+  kind: string;
+  relationship: 'required' | 'recommended' | 'unknown';
+  activation: string;
+  presence: 'present' | 'missing' | 'unknown';
+  callability: 'callable' | 'unavailable' | 'unknown';
+  userOutcome: string;
+  route: { actionId: string; payload: Record<string, unknown> } | null;
 };
 
 export type CapabilityPurposeViewModel = {
@@ -1094,8 +1105,8 @@ function capabilityActivationAction(
   const preparationStatus = firstString(action.preparation_status);
   const reasonCode = firstString(action.reason_code);
   if (
-    actionId !== 'agent_package_activate' ||
-    commandRef !== 'opl app action execute --action agent_package_activate --payload <json> --json' ||
+    !actionId ||
+    commandRef !== `opl app action execute --action ${actionId} --payload <json> --json` ||
     typeof action.enabled !== 'boolean' ||
     !preparationStatus ||
     !['not_installed', 'prepare_required', 'ready'].includes(preparationStatus) ||
@@ -1237,6 +1248,8 @@ function sameCapabilityPackageAction(
     left.actionId === right.actionId &&
     left.actionRef === right.actionRef &&
     left.confirmationRequired === right.confirmationRequired &&
+    left.semantic === right.semantic &&
+    left.surface === right.surface &&
     JSON.stringify(left.payloadRefsOnlyJson) === JSON.stringify(right.payloadRefsOnlyJson) &&
     JSON.stringify(left.requiredPayloadFields) === JSON.stringify(right.requiredPayloadFields)
   );
@@ -1476,7 +1489,10 @@ function buildCapabilityPurpose(
     availableActions: packageActions.availableActions,
     recommendedActionId: packageActions.recommendedActionId,
     recommendedAction: packageActions.recommendedAction,
-    installAction: packageActions.availableActions.install_from_manifest_url ?? null,
+    installAction:
+      Object.values(packageActions.availableActions).find(
+        (action) => action.semantic === 'install' && action.surface === 'settings'
+      ) ?? null,
     activationAction: capabilityActivationAction(packageStatus),
     dependentGuard: capabilityDependentGuard(packageStatus),
     dependencyClosure: capabilityDependencyClosure(packageStatus),
@@ -1609,4 +1625,52 @@ export function buildCapabilitiesViewModel(
     });
   }
   return [...mergedPurposes.values()];
+}
+
+/** Read only the Flow package's Framework-owned installed dependency projection. */
+export function readOplFlowCapabilityDependencySummary(
+  appState: OplAppStateRecord
+): OplFlowCapabilityDependencySummary[] {
+  const directory = oplRecord(oplRecord(appState.agent_packages).directory);
+  const flow = oplRecordList(directory.entries).find((entry) => firstString(entry.package_id) === 'opl-flow');
+  return oplRecordList(flow?.capability_dependency_summary).flatMap((entry) => {
+    const id = firstString(entry.id);
+    const kind = firstString(entry.kind);
+    const relationship = firstString(entry.relationship);
+    const activation = firstString(entry.activation);
+    const presence = firstString(entry.presence);
+    const callability = firstString(entry.callability);
+    const userOutcome = firstString(entry.user_outcome);
+    const route = oplRecord(entry.route);
+    const actionRef = firstString(route.action_ref);
+    if (
+      !id ||
+      !kind ||
+      !relationship ||
+      !activation ||
+      !presence ||
+      !callability ||
+      !userOutcome ||
+      !['required', 'recommended', 'unknown'].includes(relationship) ||
+      !['present', 'missing', 'unknown'].includes(presence) ||
+      !['callable', 'unavailable', 'unknown'].includes(callability)
+    )
+      return [];
+    const actionId = actionRef?.startsWith('app_state.actions#') ? actionRef.slice('app_state.actions#'.length) : null;
+    return [
+      {
+        id,
+        kind,
+        relationship: relationship as OplFlowCapabilityDependencySummary['relationship'],
+        activation,
+        presence: presence as OplFlowCapabilityDependencySummary['presence'],
+        callability: callability as OplFlowCapabilityDependencySummary['callability'],
+        userOutcome,
+        route:
+          actionId && Object.prototype.toString.call(route.payload) === '[object Object]'
+            ? { actionId, payload: route.payload as Record<string, unknown> }
+            : null,
+      },
+    ];
+  });
 }

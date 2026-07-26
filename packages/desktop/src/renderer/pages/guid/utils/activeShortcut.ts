@@ -11,16 +11,6 @@ export type OplActiveShortcut = {
   source: 'opl_app_home';
 };
 
-export type OplAgentPackageInvocationReceipt = {
-  route_kind: string;
-  executor: string;
-  package_id: string;
-  shortcut_id: string;
-  codex_visible_entry: string;
-  required_skill_ids: string[];
-  source: string;
-};
-
 export function resolveOplActiveShortcut(
   value: string | undefined | null,
   appState: unknown
@@ -38,21 +28,6 @@ export function resolveOplActiveShortcut(
     required_skill_ids: [...shortcut.required_skill_ids],
     route_kind: shortcut.route_kind,
     executor: shortcut.executor,
-    source: shortcut.source,
-  };
-}
-
-export function buildOplShortcutInvocationReceipt(
-  shortcut: OplActiveShortcut | null
-): OplAgentPackageInvocationReceipt | undefined {
-  if (!shortcut) return undefined;
-  return {
-    route_kind: shortcut.route_kind,
-    executor: shortcut.executor,
-    package_id: shortcut.package_id,
-    shortcut_id: shortcut.shortcut_id,
-    codex_visible_entry: shortcut.codex_visible_entry,
-    required_skill_ids: [...shortcut.required_skill_ids],
     source: shortcut.source,
   };
 }

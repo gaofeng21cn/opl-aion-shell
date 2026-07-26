@@ -317,8 +317,8 @@ Options:
                          The standard profile verifies core launch readiness without requiring
                          Full-only bundled modules.
   --install-origin <origin>
-                         Install carrier under test. Use homebrew_full_cask only for the
-                         one-person-lab-full Cask path; default is direct_app_or_dmg.
+                         Install carrier under test: direct_app_or_dmg,
+                         homebrew_standard_cask, homebrew_nightly_cask, or homebrew_full_cask.
   --homebrew-cask <token> Homebrew Cask token expected for a Homebrew-origin smoke.
   --official-profile-root <id>
                          Desired Official Profile root package id. Repeat for each root.
@@ -487,12 +487,31 @@ function parseArgs(argv) {
   if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
   }
-  if (!['direct_app_or_dmg', 'homebrew_full_cask'].includes(options.installOrigin)) {
-    throw new Error('--install-origin must be one of: direct_app_or_dmg, homebrew_full_cask.');
+  const homebrewInstallOrigins = new Map([
+    ['homebrew_standard_cask', { runtimeProfile: 'standard', cask: 'one-person-lab' }],
+    ['homebrew_nightly_cask', { runtimeProfile: 'standard', cask: 'one-person-lab-nightly' }],
+    ['homebrew_full_cask', { runtimeProfile: 'full', cask: 'one-person-lab-full' }],
+  ]);
+  if (options.installOrigin !== 'direct_app_or_dmg' && !homebrewInstallOrigins.has(options.installOrigin)) {
+    throw new Error(
+      '--install-origin must be one of: direct_app_or_dmg, homebrew_standard_cask, homebrew_nightly_cask, homebrew_full_cask.'
+    );
   }
   options.officialProfileRoots = Array.from(new Set(options.officialProfileRoots.map((root) => root.trim()))).filter(
     Boolean
   );
+  const homebrewInstallProfile = homebrewInstallOrigins.get(options.installOrigin);
+  if (
+    homebrewInstallProfile &&
+    (options.runtimeProfile !== homebrewInstallProfile.runtimeProfile ||
+      options.homebrewCask !== homebrewInstallProfile.cask ||
+      options.officialProfileRoots.length === 0)
+  ) {
+    const runtimeLabel = homebrewInstallProfile.runtimeProfile === 'full' ? 'Full' : 'Standard';
+    throw new Error(
+      `${options.installOrigin} requires ${runtimeLabel} runtime, --homebrew-cask ${homebrewInstallProfile.cask}, and Official Profile roots.`
+    );
+  }
   if (
     options.installOrigin === 'homebrew_full_cask' &&
     (options.runtimeProfile !== 'full' ||
@@ -2577,6 +2596,44 @@ function collectHomebrewFullCaskProof(options, secret) {
     official_profile: officialProfile,
   };
   writeJsonArtifact(path.join(options.artifacts, 'homebrew-full-cask-smoke.json'), receipt, secret);
+  return receipt;
+}
+
+function collectHomebrewStandardCaskProof(options, secret) {
+  if (!['homebrew_standard_cask', 'homebrew_nightly_cask'].includes(options.installOrigin)) return null;
+  const expectedCask = options.installOrigin === 'homebrew_nightly_cask' ? 'one-person-lab-nightly' : 'one-person-lab';
+  const channel = options.installOrigin === 'homebrew_nightly_cask' ? 'nightly' : 'stable';
+  const cask = homebrewCommandResult(['list', '--cask', options.homebrewCask], options);
+  const formula = homebrewCommandResult(['list', '--formula', 'opl'], options);
+  if (options.homebrewCask !== expectedCask || cask.status !== 0) {
+    throw new Error(`Homebrew Standard Cask is not installed: ${cask.stderr || cask.stdout}`);
+  }
+  if (formula.status !== 0) throw new Error('Homebrew Standard Cask did not install Formula opl.');
+  const appStateArgs = ['app', 'state', '--profile', 'fast', '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const appState = parseOplJsonResult(
+    runOplJsonImpl(appStateArgs, { ...options, timeoutMs: options.timeoutMs }),
+    appStateArgs
+  );
+  const officialProfile = officialProfileConvergenceFromFastState(appState, options.officialProfileRoots);
+  const receipt = {
+    schema: 'opl_homebrew_standard_cask_smoke.v1',
+    status: 'passed',
+    channel,
+    install_origin: options.installOrigin,
+    homebrew: {
+      cask: options.homebrewCask,
+      cask_installed: true,
+      formula_opl_installed_after: true,
+    },
+    carrier: {
+      selected_carrier: 'homebrew_formula_opl',
+      active_framework_count: 1,
+      active_framework_count_basis: 'Formula opl executed the fast App state probe after Cask installation',
+    },
+    official_profile: officialProfile,
+  };
+  writeJsonArtifact(path.join(options.artifacts, `homebrew-${channel}-standard-cask-smoke.json`), receipt, secret);
   return receipt;
 }
 
@@ -7761,6 +7818,7 @@ async function main() {
     let temporalServiceSupervisorProof = null;
     let packagedRuntimeIntegrity = null;
     let homebrewFullCask = null;
+    let homebrewStandardCask = null;
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
@@ -7817,6 +7875,19 @@ async function main() {
         'homebrew_full_cask',
         () => collectHomebrewFullCaskProof(installedAppOptions, codexApiKey),
         {
+          cask: options.homebrewCask,
+          desired_root_package_ids: options.officialProfileRoots,
+          restore_action_invoked: false,
+        }
+      );
+    }
+    if (['homebrew_standard_cask', 'homebrew_nightly_cask'].includes(options.installOrigin)) {
+      homebrewStandardCask = await runSmokePhase(
+        writeSmokeEvent,
+        'homebrew_standard_cask',
+        () => collectHomebrewStandardCaskProof(installedAppOptions, codexApiKey),
+        {
+          channel: options.installOrigin === 'homebrew_nightly_cask' ? 'nightly' : 'stable',
           cask: options.homebrewCask,
           desired_root_package_ids: options.officialProfileRoots,
           restore_action_invoked: false,
@@ -7896,6 +7967,7 @@ async function main() {
       packaged_runtime_integrity: packagedRuntimeIntegrity,
       gatekeeper_launch_policy: gatekeeperLaunchPolicy,
       homebrew_full_cask: homebrewFullCask,
+      homebrew_standard_cask: homebrewStandardCask,
       guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
@@ -7913,6 +7985,7 @@ async function main() {
       packaged_runtime_integrity: summary.packaged_runtime_integrity?.status ?? null,
       gatekeeper_launch_policy: summary.gatekeeper_launch_policy?.status ?? null,
       homebrew_full_cask: summary.homebrew_full_cask?.status ?? null,
+      homebrew_standard_cask: summary.homebrew_standard_cask?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -8050,6 +8123,7 @@ export const __test =
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
         collectHomebrewFullCaskProof,
+        collectHomebrewStandardCaskProof,
         collectTemporalServiceSupervisorProof,
         officialProfileConvergenceFromFastState,
         reloadTemporalSupervisorSession,

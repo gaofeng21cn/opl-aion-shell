@@ -127,10 +127,6 @@ function enumValue<T extends string>(value: unknown, values: Set<T>): T | null {
   return candidate && values.has(candidate as T) ? (candidate as T) : null;
 }
 
-function hasUniqueIds(values: Array<{ id: string }>): boolean {
-  return new Set(values.map((value) => value.id)).size === values.length;
-}
-
 function parseSourceRefs(value: unknown): RuntimeSourceRef[] | null {
   const source = records(value);
   if (!source) return null;
@@ -264,60 +260,95 @@ function parseVisibility(value: unknown): RuntimeWorkItemVisibility | null {
   return { state, source: projectionSource, updatedAt, controlRef, generation };
 }
 
-function parseDomainDetailViewDescriptors(value: unknown, expectedItemId: string): DomainDetailViewDescriptor[] | null {
-  if (value === null || value === undefined) return [];
+function invalidDomainDetailViewDescriptor(
+  value: JsonRecord,
+  expectedItemId: string
+): DomainDetailViewDescriptor | null {
+  const itemId = requiredString(value.item_id);
+  const viewId = requiredString(value.view_id);
+  const viewKind = requiredString(value.view_kind);
+  if (itemId !== expectedItemId || !viewId || !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(viewId) || !viewKind) {
+    return null;
+  }
+  return {
+    itemId,
+    viewId,
+    viewKind,
+    title: optionalString(value.title),
+    schemaRef: optionalString(value.schema_ref),
+    schemaVersion: optionalString(value.schema_version),
+    availability: 'invalid',
+    revision: null,
+    digest: null,
+  };
+}
+
+function parseDomainDetailViewDescriptors(
+  value: unknown,
+  expectedItemId: string
+): { descriptors: DomainDetailViewDescriptor[]; localDegradationCount: number } {
+  if (value === null || value === undefined) return { descriptors: [], localDegradationCount: 0 };
   const source = records(value);
-  if (!source) return null;
+  if (!source) return { descriptors: [], localDegradationCount: 1 };
   const descriptors: DomainDetailViewDescriptor[] = [];
+  const viewIds = new Set<string>();
+  let localDegradationCount = 0;
   for (const entry of source) {
+    let descriptor: DomainDetailViewDescriptor | null = null;
+    let invalid = false;
     if (
       DOMAIN_DETAIL_DESCRIPTOR_REQUIRED_FIELDS.some((field) => !Object.hasOwn(entry, field)) ||
       Object.keys(entry).some((field) => !DOMAIN_DETAIL_DESCRIPTOR_FIELDS.has(field))
     ) {
-      return null;
-    }
-    const itemId = requiredString(entry.item_id);
-    const viewId = requiredString(entry.view_id);
-    const viewKind = requiredString(entry.view_kind);
-    const title = optionalString(entry.title);
-    const schemaRef = optionalString(entry.schema_ref);
-    const schemaVersion = optionalString(entry.schema_version);
-    const availability = enumValue(entry.availability, DOMAIN_DETAIL_AVAILABILITY);
-    const revision = entry.revision === undefined ? null : nonNegativeInteger(entry.revision);
-    const digest = entry.digest === undefined ? null : requiredString(entry.digest);
-    if (
-      itemId !== expectedItemId ||
-      !viewId ||
-      !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(viewId) ||
-      !viewKind ||
-      (!schemaRef && !schemaVersion) ||
-      !availability
-    ) {
-      return null;
-    }
-    if (entry.title !== null && entry.title !== undefined && !title) return null;
-    if (entry.schema_ref !== null && entry.schema_ref !== undefined && !schemaRef) return null;
-    if (entry.schema_version !== null && entry.schema_version !== undefined && !schemaVersion) return null;
-    if (entry.revision !== undefined && revision === null) return null;
-    if (entry.digest !== undefined && (!digest || !SHA256_DIGEST_PATTERN.test(digest))) {
-      return null;
+      invalid = true;
+      descriptor = invalidDomainDetailViewDescriptor(entry, expectedItemId);
+    } else {
+      const itemId = requiredString(entry.item_id);
+      const viewId = requiredString(entry.view_id);
+      const viewKind = requiredString(entry.view_kind);
+      const title = optionalString(entry.title);
+      const schemaRef = optionalString(entry.schema_ref);
+      const schemaVersion = optionalString(entry.schema_version);
+      const availability = enumValue(entry.availability, DOMAIN_DETAIL_AVAILABILITY);
+      const revision = entry.revision === undefined ? null : nonNegativeInteger(entry.revision);
+      const digest = entry.digest === undefined ? null : requiredString(entry.digest);
+      invalid =
+        itemId !== expectedItemId ||
+        !viewId ||
+        !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(viewId) ||
+        !viewKind ||
+        (!schemaRef && !schemaVersion) ||
+        !availability ||
+        (entry.title !== null && entry.title !== undefined && !title) ||
+        (entry.schema_ref !== null && entry.schema_ref !== undefined && !schemaRef) ||
+        (entry.schema_version !== null && entry.schema_version !== undefined && !schemaVersion) ||
+        (entry.revision !== undefined && revision === null) ||
+        (entry.digest !== undefined && (!digest || !SHA256_DIGEST_PATTERN.test(digest)));
+      descriptor = invalid
+        ? invalidDomainDetailViewDescriptor(entry, expectedItemId)
+        : {
+            itemId: itemId!,
+            viewId: viewId!,
+            viewKind: viewKind!,
+            title,
+            schemaRef,
+            schemaVersion,
+            availability: availability!,
+            revision,
+            digest,
+          };
     }
 
-    const base: DomainDetailViewDescriptor = {
-      itemId,
-      viewId,
-      viewKind,
-      title,
-      schemaRef,
-      schemaVersion,
-      availability,
-      revision,
-      digest,
-    };
-    descriptors.push(base);
+    if (invalid) localDegradationCount += 1;
+    if (!descriptor) continue;
+    if (viewIds.has(descriptor.viewId)) {
+      localDegradationCount += 1;
+      continue;
+    }
+    viewIds.add(descriptor.viewId);
+    descriptors.push(descriptor);
   }
-  if (new Set(descriptors.map((descriptor) => descriptor.viewId)).size !== descriptors.length) return null;
-  return descriptors;
+  return { descriptors, localDegradationCount };
 }
 
 function parseStageMap(value: unknown): RuntimeStage[] | null {
@@ -365,7 +396,7 @@ function parseTimeline(input: {
   return entries;
 }
 
-function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
+function parseWorkItem(value: JsonRecord): { item: RuntimeWorkItem; localDegradationCount: number } | null {
   const identity = record(value.identity);
   const lifecycle = record(value.lifecycle);
   const execution = record(value.execution);
@@ -393,7 +424,7 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
   const sourceRefs = parseSourceRefs(value.source_refs);
   const domainDetailViews = itemEnvelopeId
     ? parseDomainDetailViewDescriptors(value.domain_detail_views, itemEnvelopeId)
-    : null;
+    : { descriptors: [], localDegradationCount: 0 };
   const inventoryObservedAt = requiredString(freshness.inventory_observed_at);
   if (
     !itemEnvelopeId ||
@@ -411,7 +442,6 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
     projectedAction === false ||
     !conditions ||
     !sourceRefs ||
-    !domainDetailViews ||
     !inventoryObservedAt
   ) {
     return null;
@@ -459,35 +489,38 @@ function parseWorkItem(value: JsonRecord): RuntimeWorkItem | null {
       : 'missing_primary_state';
 
   return {
-    id: itemEnvelopeId,
-    workItemId,
-    displayName,
-    agentId,
-    projectId,
-    visibility,
-    businessState,
-    primaryStatus,
-    statusSyncReason,
-    execution: {
-      state: executionState,
-      attemptId,
-      currentStageId,
-      currentStageDisplayName,
-      nextStageId,
-      nextStageDisplayName,
-      startedAt,
-      lastHeartbeatAt,
-      updatedAt,
+    localDegradationCount: domainDetailViews.localDegradationCount,
+    item: {
+      id: itemEnvelopeId,
+      workItemId,
+      displayName,
+      agentId,
+      projectId,
+      visibility,
+      businessState,
+      primaryStatus,
+      statusSyncReason,
+      execution: {
+        state: executionState,
+        attemptId,
+        currentStageId,
+        currentStageDisplayName,
+        nextStageId,
+        nextStageDisplayName,
+        startedAt,
+        lastHeartbeatAt,
+        updatedAt,
+      },
+      stageMap,
+      stageUsage,
+      taskUsage,
+      action: projectedAction,
+      systemAttention,
+      conditions,
+      timeline: parseTimeline({ inventoryObservedAt, executionUpdatedAt: updatedAt, controlUpdatedAt }),
+      sourceRefs,
+      domainDetailViews: domainDetailViews.descriptors,
     },
-    stageMap,
-    stageUsage,
-    taskUsage,
-    action: projectedAction,
-    systemAttention,
-    conditions,
-    timeline: parseTimeline({ inventoryObservedAt, executionUpdatedAt: updatedAt, controlUpdatedAt }),
-    sourceRefs,
-    domainDetailViews,
   };
 }
 
@@ -504,39 +537,48 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
     return null;
   }
 
+  let localDegradationCount = 0;
   const agents: RuntimeAgent[] = [];
+  const agentIds = new Set<string>();
   for (const entry of agentCatalog) {
     const id = requiredString(entry.agent_id);
     const displayName = requiredString(entry.display_name);
-    if (!id || !displayName) return null;
+    if (!id || !displayName || agentIds.has(id)) {
+      localDegradationCount += 1;
+      continue;
+    }
+    agentIds.add(id);
     agents.push({ id, displayName });
   }
-  if (!hasUniqueIds(agents)) return null;
 
   const projects: RuntimeProject[] = [];
+  const projectIds = new Set<string>();
   for (const entry of projectCatalog) {
     const id = requiredString(entry.project_id);
     const agentId = requiredString(entry.agent_id);
     const displayName = requiredString(entry.display_name);
-    if (!id || !agentId || !displayName) return null;
+    if (!id || !agentId || !displayName || projectIds.has(id)) {
+      localDegradationCount += 1;
+      continue;
+    }
+    projectIds.add(id);
     projects.push({ id, agentId, displayName });
   }
-  if (!hasUniqueIds(projects)) return null;
 
-  const parsedItems = itemCatalog.map(parseWorkItem);
-  if (parsedItems.some((item) => !item)) return null;
-  const items = parsedItems as RuntimeWorkItem[];
-  if (!hasUniqueIds(items)) return null;
-
-  const agentIds = new Set(agents.map((agent) => agent.id));
   const projectsById = new Map(projects.map((project) => [project.id, project]));
-  if (
-    items.some((item) => {
-      const project = projectsById.get(item.projectId);
-      return !project || project.agentId !== item.agentId || !agentIds.has(item.agentId);
-    })
-  ) {
-    return null;
+  const itemIds = new Set<string>();
+  const items: RuntimeWorkItem[] = [];
+  for (const entry of itemCatalog) {
+    const parsedItem = parseWorkItem(entry);
+    const item = parsedItem?.item ?? null;
+    const project = item ? projectsById.get(item.projectId) : null;
+    if (!item || itemIds.has(item.id) || !project || project.agentId !== item.agentId || !agentIds.has(item.agentId)) {
+      localDegradationCount += 1;
+      continue;
+    }
+    itemIds.add(item.id);
+    items.push(item);
+    localDegradationCount += parsedItem.localDegradationCount;
   }
 
   const diagnostics: RuntimeProjectionDiagnostic[] = [];
@@ -545,11 +587,17 @@ function parseProjection(value: JsonRecord): RuntimeWorkItemProjectionV2 | null 
     if (!reason) return null;
     diagnostics.push({ reason });
   }
-  const diagnosticCount = nonNegativeInteger(diagnosticEnvelope?.count);
+  const sourceDiagnosticCount = nonNegativeInteger(diagnosticEnvelope?.count);
   const diagnosticDetailPolicy = enumValue(diagnosticEnvelope?.detail_policy, DIAGNOSTIC_DETAIL_POLICIES);
-  if (diagnosticCount === null || !diagnosticDetailPolicy) return null;
-  if (diagnosticDetailPolicy === 'included' && diagnosticCount !== diagnostics.length) return null;
-  if (diagnosticDetailPolicy === 'summary_only' && diagnostics.length > diagnosticCount) return null;
+  if (sourceDiagnosticCount === null || !diagnosticDetailPolicy) return null;
+  if (diagnosticDetailPolicy === 'included' && sourceDiagnosticCount !== diagnostics.length) return null;
+  if (diagnosticDetailPolicy === 'summary_only' && diagnostics.length > sourceDiagnosticCount) return null;
+  if (diagnosticDetailPolicy === 'included') {
+    diagnostics.push(
+      ...Array.from({ length: localDegradationCount }, () => ({ reason: 'runtime_projection_entry_unavailable' }))
+    );
+  }
+  const diagnosticCount = sourceDiagnosticCount + localDegradationCount;
 
   return {
     schemaVersion: WORK_ITEM_PROJECTION_V2_SCHEMA,

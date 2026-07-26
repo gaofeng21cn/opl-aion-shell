@@ -2022,8 +2022,17 @@ function guestSmokeCommand(
   const compiledExpectationsPath = options.compiledExpectations
     ? `${options.guestWorkdir}/app-first-run-compiled-expectations.json`
     : null;
-  const homebrewFullCaskSmoke = isHomebrewFullCaskSmoke(options);
-  const officialRoots = homebrewFullCaskSmoke ? officialProfileDesiredRoots() : [];
+  const homebrewCaskProfile = matchingHomebrewCaskCandidateProfile(options);
+  const homebrewFullCaskSmoke = homebrewCaskProfile?.formulaPolicy === 'forbidden';
+  const homebrewCaskSmoke = Boolean(homebrewCaskProfile);
+  const homebrewInstallOrigin = homebrewFullCaskSmoke
+    ? 'homebrew_full_cask'
+    : homebrewCaskProfile?.caskToken === 'one-person-lab-nightly'
+      ? 'homebrew_nightly_cask'
+      : homebrewCaskProfile?.caskToken === 'one-person-lab'
+        ? 'homebrew_standard_cask'
+        : null;
+  const officialRoots = homebrewCaskSmoke ? officialProfileDesiredRoots() : [];
   const homebrewFormulaStatePath = homebrewFullCaskSmoke
     ? `${options.guestWorkdir}/homebrew-full-formula-state.json`
     : null;
@@ -2072,8 +2081,8 @@ function guestSmokeCommand(
       ? `--cdp-port ${shellQuote(String(options.cdpPort))}`
       : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
-    homebrewFullCaskSmoke ? '--install-origin homebrew_full_cask' : '',
-    homebrewFullCaskSmoke ? `--homebrew-cask ${shellQuote(homebrewCaskToken(options.homebrewCask))}` : '',
+    homebrewInstallOrigin ? `--install-origin ${homebrewInstallOrigin}` : '',
+    homebrewCaskSmoke ? `--homebrew-cask ${shellQuote(homebrewCaskToken(options.homebrewCask))}` : '',
     homebrewFormulaStatePath ? `--homebrew-formula-state ${shellQuote(homebrewFormulaStatePath)}` : '',
     ...officialRoots.map((root) => `--official-profile-root ${shellQuote(root)}`),
     options.guideScreenshots ? '--guide-screenshots' : '',
@@ -2317,6 +2326,30 @@ function assertGuestSmokeSummary(options, guestSummary) {
       JSON.stringify(proof?.official_profile?.installed_root_package_ids) !== JSON.stringify(expectedRoots)
     ) {
       throw new Error('Guest Full Cask smoke did not prove embedded Base and Official Profile convergence.');
+    }
+  }
+  const standardCaskProfile = matchingHomebrewCaskCandidateProfile(options);
+  if (standardCaskProfile?.formulaPolicy === 'required') {
+    const expectedRoots = officialProfileDesiredRoots();
+    const expectedOrigin =
+      standardCaskProfile.caskToken === 'one-person-lab-nightly' ? 'homebrew_nightly_cask' : 'homebrew_standard_cask';
+    const expectedChannel = standardCaskProfile.caskToken === 'one-person-lab-nightly' ? 'nightly' : 'stable';
+    const proof = guestSummary.homebrew_standard_cask;
+    if (
+      guestSummary.install_origin !== expectedOrigin ||
+      proof?.schema !== 'opl_homebrew_standard_cask_smoke.v1' ||
+      proof?.status !== 'passed' ||
+      proof?.channel !== expectedChannel ||
+      proof?.homebrew?.cask !== standardCaskProfile.caskToken ||
+      proof?.homebrew?.cask_installed !== true ||
+      proof?.homebrew?.formula_opl_installed_after !== true ||
+      proof?.carrier?.selected_carrier !== 'homebrew_formula_opl' ||
+      proof?.carrier?.active_framework_count !== 1 ||
+      proof?.official_profile?.restore_action_invoked !== false ||
+      JSON.stringify(proof?.official_profile?.desired_root_package_ids) !== JSON.stringify(expectedRoots) ||
+      JSON.stringify(proof?.official_profile?.installed_root_package_ids) !== JSON.stringify(expectedRoots)
+    ) {
+      throw new Error('Guest Standard Cask smoke did not prove Formula opl and Official Profile convergence.');
     }
   }
   if (options.bootstrapLaunchDiagnostics) {

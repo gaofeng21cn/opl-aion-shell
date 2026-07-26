@@ -44,6 +44,23 @@ const actionFixture = (
 ) => ({
   action_id: actionId,
   action_ref: `app_state.actions#${actionId}`,
+  semantic:
+    actionId === 'install_from_manifest_url'
+      ? 'install'
+      : actionId === 'refresh_registry'
+        ? 'refresh'
+        : actionId === 'agent_package_activate'
+          ? 'activate'
+          : actionId === 'agent_package_update'
+            ? 'update'
+            : actionId === 'agent_package_repair'
+              ? 'repair'
+              : actionId === 'agent_package_preferences_set'
+                ? 'preferences'
+                : actionId === 'agent_package_uninstall'
+                  ? 'uninstall'
+                  : 'custom',
+  surface: 'settings',
   payload,
   required_payload_fields: requiredPayloadFields,
   confirmation_required: confirmationRequired,
@@ -363,6 +380,23 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
   ) => ({
     action_id: actionId,
     action_ref: `app_state.actions#${actionId}`,
+    semantic:
+      actionId === 'install_from_manifest_url'
+        ? 'install'
+        : actionId === 'refresh_registry'
+          ? 'refresh'
+          : actionId === 'agent_package_activate'
+            ? 'activate'
+            : actionId === 'agent_package_update'
+              ? 'update'
+              : actionId === 'agent_package_repair'
+                ? 'repair'
+                : actionId === 'agent_package_preferences_set'
+                  ? 'preferences'
+                  : actionId === 'agent_package_uninstall'
+                    ? 'uninstall'
+                    : 'custom',
+    surface: 'settings',
     payload,
     required_payload_fields: requiredPayloadFields,
     confirmation_required: confirmationRequired,
@@ -2271,6 +2305,46 @@ describe('Agents and capabilities settings', () => {
   });
 
   it('keeps skills and third-party tools on the capabilities page', async () => {
+    appStateOverrides.appState = appStateWithDirectory([
+      {
+        package_id: 'opl-flow',
+        package_role: 'workflow',
+        installed: true,
+        capability_dependency_summary: [
+          {
+            id: 'opl-flow',
+            kind: 'codex_skill',
+            relationship: 'required',
+            activation: 'on_install',
+            presence: 'present',
+            callability: 'callable',
+            user_outcome: 'Coordinate concurrent work',
+            route: {
+              action_ref: 'app_state.actions#settings_sync_capabilities',
+              payload: {},
+            },
+          },
+          {
+            id: 'officecli-pptx',
+            kind: 'codex_skill',
+            relationship: 'required',
+            activation: 'on_install',
+            presence: 'present',
+            callability: 'callable',
+            user_outcome: 'Create presentations',
+          },
+          {
+            id: 'officecli-docx',
+            kind: 'codex_skill',
+            relationship: 'required',
+            activation: 'on_install',
+            presence: 'present',
+            callability: 'callable',
+            user_outcome: 'Create documents',
+          },
+        ],
+      },
+    ]);
     const onTabChange = vi.fn();
     const Harness = () => {
       const [activeTab, setActiveTab] = React.useState<CapabilitiesTab>('opl_flow_managed');
@@ -2307,6 +2381,7 @@ describe('Agents and capabilities settings', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'settings_sync_capabilities',
         dryRun: false,
+        payloadRefsOnlyJson: {},
       })
     );
 

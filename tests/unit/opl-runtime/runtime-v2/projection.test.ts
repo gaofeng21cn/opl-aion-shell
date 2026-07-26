@@ -9,7 +9,12 @@ import {
 import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projection';
 import enUSCommon from '@/renderer/services/i18n/locales/en-US/common.json';
 import zhCNCommon from '@/renderer/services/i18n/locales/zh-CN/common.json';
-import { createRuntimeV2AppState, createRuntimeV2Projection, createScientificReasoningDescriptor } from './fixture';
+import {
+  createRuntimeV2AppState,
+  createRuntimeV2Projection,
+  createRuntimeV2ProjectionWithUnknownAgent,
+  createScientificReasoningDescriptor,
+} from './fixture';
 
 const COMMON_MESSAGES = { 'en-US': enUSCommon, 'zh-CN': zhCNCommon };
 
@@ -96,7 +101,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result).toEqual({ state: 'missing', projection: null });
   });
 
-  it('rejects an item envelope that does not match its canonical identity', () => {
+  it('drops an item envelope that does not match its canonical identity', () => {
     const projection = createRuntimeV2Projection();
     projection.items.push({ ...projection.items[0]!, item_id: 'distinct-envelope-for-the-same-work-item' });
 
@@ -104,7 +109,10 @@ describe('Runtime V2 projection boundary', () => {
       operator: { workbench: { work_item_projection_v2: projection } },
     });
 
-    expect(result).toEqual({ state: 'invalid', projection: null });
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items).toHaveLength(9);
+    expect(result.projection?.items.some((item) => item.agentId === 'mas')).toBe(true);
+    expect(result.projection?.diagnosticCount).toBe(projection.diagnostics.count + 1);
   });
 
   it('parses visibility generation without guessing from lifecycle generation', () => {
@@ -131,18 +139,20 @@ describe('Runtime V2 projection boundary', () => {
     });
   });
 
-  it('rejects malformed visibility state or generation', () => {
+  it('drops only the malformed work item when visibility state or generation is invalid', () => {
     const invalidState = createRuntimeV2Projection();
     invalidState.items[0]!.visibility.state = 'hidden';
     expect(
-      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalidState } } })
-    ).toEqual({ state: 'invalid', projection: null });
+      readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalidState } } }).projection
+        ?.items
+    ).toHaveLength(8);
 
     const invalidGeneration = createRuntimeV2Projection();
     invalidGeneration.items[0]!.visibility.generation = -1;
     expect(
       readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalidGeneration } } })
-    ).toEqual({ state: 'invalid', projection: null });
+        .projection?.items
+    ).toHaveLength(8);
   });
 
   it('does not turn module runtime readback into a work item', () => {
@@ -203,7 +213,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.diagnostics).toEqual([{ reason: 'agent_descriptor_unavailable' }]);
   });
 
-  it('rejects every broken item to project to agent identity chain', () => {
+  it('keeps valid agents available when one item has a broken identity chain', () => {
     const missingProject = createRuntimeV2Projection();
     missingProject.items[0]!.identity.project_id = 'missing-project';
     missingProject.items[0]!.item_id = `missing-project:${missingProject.items[0]!.identity.work_item_id}`;
@@ -220,10 +230,34 @@ describe('Runtime V2 projection boundary', () => {
       });
 
     for (const projection of [missingProject, mismatchedProjectAgent, missingItemAgent]) {
-      expect(
-        readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: projection } } })
-      ).toEqual({ state: 'invalid', projection: null });
+      const result = readRuntimeWorkItemProjectionV2({
+        operator: { workbench: { work_item_projection_v2: projection } },
+      });
+      expect(result.state).toBe('ready');
+      expect(result.projection?.items.length).toBeLessThan(9);
+      expect(result.projection?.agents.some((agent) => agent.id === 'mag')).toBe(true);
     }
+  });
+
+  it('projects an unknown configured Agent without a Package-id branch', () => {
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: createRuntimeV2ProjectionWithUnknownAgent() } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.agents).toContainEqual({ id: 'future.agent-lab', displayName: 'Future Agent Lab' });
+    expect(result.projection?.projects).toContainEqual({
+      id: 'future-agent-project',
+      agentId: 'future.agent-lab',
+      displayName: 'Future Agent Project',
+    });
+    expect(result.projection?.items).toContainEqual(
+      expect.objectContaining({
+        agentId: 'future.agent-lab',
+        projectId: 'future-agent-project',
+        displayName: 'Future Agent Run 001',
+      })
+    );
   });
 
   it('does not claim system handling when the responsibility envelope is incomplete', () => {
@@ -328,13 +362,16 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items[0]?.action?.messageArgs).toMatchObject({ agent_id: 'mas' });
   });
 
-  it('rejects an explicitly invalid owner kind while accepting a legacy missing owner kind', () => {
+  it('drops an explicitly invalid action owner kind while accepting a legacy missing owner kind', () => {
     const invalid = createRuntimeV2Projection();
     invalid.items[0]!.action.owner_kind = '';
-    expect(readRuntimeWorkItemProjectionV2({ operator: { workbench: { work_item_projection_v2: invalid } } })).toEqual({
-      state: 'invalid',
-      projection: null,
+    const invalidResult = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: invalid } },
     });
+    expect(invalidResult.state).toBe('ready');
+    expect(invalidResult.projection?.items).toHaveLength(8);
+    expect(invalidResult.projection?.items.some((item) => item.agentId === 'mas')).toBe(true);
+    expect(invalidResult.projection?.diagnosticCount).toBe(invalid.diagnostics.count + 1);
 
     const legacy = createRuntimeV2Projection();
     delete legacy.items[0]!.action.owner_kind;
@@ -386,7 +423,7 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items[0]?.domainDetailViews[0]).not.toHaveProperty('activeBranch');
   });
 
-  it('rejects descriptor medical prose and other fields outside the refs-only locator contract', () => {
+  it('marks descriptor medical prose outside the refs-only locator contract locally invalid', () => {
     const projection = createRuntimeV2Projection();
     projection.items[0]!.domain_detail_views = [
       {
@@ -395,11 +432,16 @@ describe('Runtime V2 projection boundary', () => {
       },
     ];
 
-    expect(
-      readRuntimeWorkItemProjectionV2({
-        operator: { workbench: { work_item_projection_v2: projection } },
-      })
-    ).toEqual({ state: 'invalid', projection: null });
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items[0]?.domainDetailViews).toEqual([
+      expect.objectContaining({ viewId: 'scientific-reasoning', availability: 'invalid' }),
+    ]);
+    expect(result.projection?.items.some((item) => item.agentId === 'mas')).toBe(true);
+    expect(result.projection?.diagnosticCount).toBe(projection.diagnostics.count + 1);
   });
 
   it('does not mirror the owner renderer schema compatibility', () => {
@@ -473,22 +515,45 @@ describe('Runtime V2 projection boundary', () => {
     expect(result.projection?.items[0]?.domainDetailViews[1]).not.toHaveProperty('latestOutcome');
   });
 
-  it('fails closed for duplicate view ids, unsafe ids, and malformed digests', () => {
-    for (const domainDetailViews of [
-      [createScientificReasoningDescriptor(), createScientificReasoningDescriptor()],
-      [{ ...createScientificReasoningDescriptor(), view_id: '../scientific-reasoning' }],
-      [{ ...createScientificReasoningDescriptor(), digest: `sha256:${'A'.repeat(64)}` }],
-      [{ ...createScientificReasoningDescriptor(), revision: Number.MAX_SAFE_INTEGER + 1 }],
-      [{ ...createScientificReasoningDescriptor(), item_id: 'other:001' }],
-    ]) {
+  it('keeps the work item and marks a malformed owner view locally invalid', () => {
+    const projection = createRuntimeV2ProjectionWithUnknownAgent();
+    const item = projection.items.find((candidate) => candidate.identity.agent_id === 'future.agent-lab')!;
+    item.domain_detail_views[0]!.schema_ref = '';
+
+    const result = readRuntimeWorkItemProjectionV2({
+      operator: { workbench: { work_item_projection_v2: projection } },
+    });
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items.find((candidate) => candidate.agentId === 'future.agent-lab')).toMatchObject({
+      domainDetailViews: [expect.objectContaining({ viewId: 'future-view', availability: 'invalid' })],
+    });
+    expect(result.projection?.items.some((candidate) => candidate.agentId === 'mas')).toBe(true);
+  });
+
+  it('degrades duplicate, unsafe, and malformed view descriptors locally', () => {
+    for (const [domainDetailViews, expectedViewCount, expectedAvailability] of [
+      [[createScientificReasoningDescriptor(), createScientificReasoningDescriptor()], 1, 'unread'],
+      [[{ ...createScientificReasoningDescriptor(), view_id: '../scientific-reasoning' }], 0, null],
+      [[{ ...createScientificReasoningDescriptor(), digest: `sha256:${'A'.repeat(64)}` }], 1, 'invalid'],
+      [[{ ...createScientificReasoningDescriptor(), revision: Number.MAX_SAFE_INTEGER + 1 }], 1, 'invalid'],
+      [[{ ...createScientificReasoningDescriptor(), item_id: 'other:001' }], 0, null],
+    ] as const) {
       const projection = createRuntimeV2Projection();
       projection.items[0]!.domain_detail_views = domainDetailViews;
 
-      expect(
-        readRuntimeWorkItemProjectionV2({
-          operator: { workbench: { work_item_projection_v2: projection } },
-        })
-      ).toEqual({ state: 'invalid', projection: null });
+      const result = readRuntimeWorkItemProjectionV2({
+        operator: { workbench: { work_item_projection_v2: projection } },
+      });
+
+      expect(result.state).toBe('ready');
+      expect(result.projection?.items).toHaveLength(9);
+      expect(result.projection?.items[0]?.domainDetailViews).toHaveLength(expectedViewCount);
+      if (expectedAvailability) {
+        expect(result.projection?.items[0]?.domainDetailViews[0]?.availability).toBe(expectedAvailability);
+      }
+      expect(result.projection?.items.some((item) => item.agentId === 'mas')).toBe(true);
+      expect(result.projection?.diagnosticCount).toBe(projection.diagnostics.count + 1);
     }
   });
 });
