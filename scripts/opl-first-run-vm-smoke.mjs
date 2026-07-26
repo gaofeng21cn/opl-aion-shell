@@ -4097,36 +4097,23 @@ function homeAssistantStandardLaunchGateExpression(target) {
       attempt.input_filled = true;
       return false;
     }
-    const visibleMessages = () => [...document.querySelectorAll('[data-testid="opl-agent-package-launch-blocked"]')].filter(visible);
-    if (!attempt.send_clicked) {
-      if (visibleMessages().length > 0 || sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
-        return false;
-      }
-      sendButton.click();
-      attempt.send_clicked = true;
-      return false;
-    }
-    const message = visibleMessages().find((node) =>
-      node.getAttribute('data-opl-package-id') === ${cdpString(target.packageId)}
+    const setupNotice = document.querySelector('[data-testid="opl-guid-setup-notice"]');
+    const setupAction = document.querySelector('[data-testid="opl-guid-setup-notice-action"]');
+    const coreReadiness = ${homeAssistantCoreReadinessExpression(false)};
+    const modelAccessPrecondition = Boolean(
+      window.location.hash.startsWith('#/guid')
+        && setupNotice?.textContent?.trim()
+        && setupAction
+        && coreReadiness?.known === true
+        && coreReadiness?.workspace_root_ready === true
+        && coreReadiness?.codex_cli_ready === true
+        && coreReadiness?.model_access_ready === false
+        && Array.isArray(coreReadiness?.blockers)
+        && coreReadiness.blockers.length === 1
+        && coreReadiness.blockers[0] === 'model_access'
+        && input.value === expectedDraft
     );
-    if (!window.location.hash.startsWith('#/guid')) return false;
-    if (!message) {
-      const setupNotice = document.querySelector('[data-testid="opl-guid-setup-notice"]');
-      const setupAction = document.querySelector('[data-testid="opl-guid-setup-notice-action"]');
-      const coreReadiness = ${homeAssistantCoreReadinessExpression(false)};
-      const modelAccessPrecondition = Boolean(
-        setupNotice?.textContent?.trim()
-          && setupAction
-          && coreReadiness?.known === true
-          && coreReadiness?.workspace_root_ready === true
-          && coreReadiness?.codex_cli_ready === true
-          && coreReadiness?.model_access_ready === false
-          && Array.isArray(coreReadiness?.blockers)
-          && coreReadiness.blockers.length === 1
-          && coreReadiness.blockers[0] === 'model_access'
-          && input.value === expectedDraft
-      );
-      if (!modelAccessPrecondition) return false;
+    if (modelAccessPrecondition) {
       return {
         status: 'passed',
         assistant_id: ${cdpString(target.id)},
@@ -4149,6 +4136,20 @@ function homeAssistantStandardLaunchGateExpression(target) {
         route_hash: window.location.hash,
       };
     }
+    const visibleMessages = () => [...document.querySelectorAll('[data-testid="opl-agent-package-launch-blocked"]')].filter(visible);
+    if (!attempt.send_clicked) {
+      if (visibleMessages().length > 0 || sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
+        return false;
+      }
+      sendButton.click();
+      attempt.send_clicked = true;
+      return false;
+    }
+    const message = visibleMessages().find((node) =>
+      node.getAttribute('data-opl-package-id') === ${cdpString(target.packageId)}
+    );
+    if (!window.location.hash.startsWith('#/guid')) return false;
+    if (!message) return false;
     const typedReason = message.getAttribute('data-opl-block-reason') || '';
     const repairActions = (message.getAttribute('data-opl-repair-actions') || '').split(',').filter(Boolean);
     if (!typedReason || repairActions.length === 0 || !message.textContent?.trim() || input.value !== expectedDraft) return false;

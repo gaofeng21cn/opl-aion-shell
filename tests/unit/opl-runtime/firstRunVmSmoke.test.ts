@@ -1979,7 +1979,7 @@ describe('packaged first-run VM smoke helpers', () => {
     dom.window.close();
   });
 
-  it('accepts the Standard package repair gate when model access preempts the package message', () => {
+  it('carries the Standard model-access precondition from MAS to MAG without a second send', () => {
     const dom = new JSDOM(
       `<!doctype html><body>
       <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
@@ -1990,6 +1990,14 @@ describe('packaged first-run VM smoke helpers', () => {
           title="package_not_installed: status, doctor, repair"
         >
           Research
+        </button>
+        <button
+          data-testid="home-starter-grant"
+          data-opl-launch-ready="false"
+          aria-pressed="false"
+          title="package_not_installed: status, doctor, repair"
+        >
+          MAG
         </button>
         <textarea data-testid="guid-input"></textarea>
         <button data-testid="guid-send-btn">Send</button>
@@ -2031,13 +2039,19 @@ describe('packaged first-run VM smoke helpers', () => {
       })
     );
 
-    const starter = window.document.querySelector<HTMLButtonElement>('[data-testid="home-starter-research"]')!;
+    const masStarter = window.document.querySelector<HTMLButtonElement>('[data-testid="home-starter-research"]')!;
+    const magStarter = window.document.querySelector<HTMLButtonElement>('[data-testid="home-starter-grant"]')!;
     const composer = window.document.querySelector<HTMLElement>('[data-testid="opl-guid-entry"]')!;
     const input = window.document.querySelector<HTMLTextAreaElement>('textarea[data-testid="guid-input"]')!;
     const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
-    const starterClick = vi.fn(() => {
-      starter.setAttribute('aria-pressed', 'true');
+    const masStarterClick = vi.fn(() => {
+      masStarter.setAttribute('aria-pressed', 'true');
       composer.setAttribute('data-opl-active-shortcut', 'research');
+    });
+    const magStarterClick = vi.fn(() => {
+      masStarter.setAttribute('aria-pressed', 'false');
+      magStarter.setAttribute('aria-pressed', 'true');
+      composer.setAttribute('data-opl-active-shortcut', 'grant');
     });
     const sendClick = vi.fn(() => {
       const notice = window.document.createElement('div');
@@ -2048,18 +2062,20 @@ describe('packaged first-run VM smoke helpers', () => {
       action.textContent = 'Complete setup';
       notice.append(action);
       window.document.body.append(notice);
+      sendButton.disabled = true;
     });
-    starter.addEventListener('click', starterClick);
+    masStarter.addEventListener('click', masStarterClick);
+    magStarter.addEventListener('click', magStarterClick);
     sendButton.addEventListener('click', sendClick);
 
-    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
-    expect(window.eval(expression)).toBe(false);
-    expect(starterClick).toHaveBeenCalledOnce();
-    expect(window.eval(expression)).toBe(false);
+    const masExpression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    expect(window.eval(masExpression)).toBe(false);
+    expect(masStarterClick).toHaveBeenCalledOnce();
+    expect(window.eval(masExpression)).toBe(false);
     expect(input.value).toBe('Verify MAS launch gate.');
-    expect(window.eval(expression)).toBe(false);
+    expect(window.eval(masExpression)).toBe(false);
     expect(sendClick).toHaveBeenCalledOnce();
-    expect(window.eval(expression)).toMatchObject({
+    expect(window.eval(masExpression)).toMatchObject({
       status: 'passed',
       assistant_id: 'mas',
       verification_path: 'model_access_precondition',
@@ -2074,6 +2090,24 @@ describe('packaged first-run VM smoke helpers', () => {
       route_receipt_claimed: false,
       route_hash: '#/guid',
     });
+
+    const magExpression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]);
+    expect(window.eval(magExpression)).toBe(false);
+    expect(magStarterClick).toHaveBeenCalledOnce();
+    expect(window.eval(magExpression)).toBe(false);
+    expect(input.value).toBe('Verify MAG launch gate.');
+    expect(window.eval(magExpression)).toMatchObject({
+      status: 'passed',
+      assistant_id: 'mag',
+      verification_path: 'model_access_precondition',
+      draft_preserved: true,
+      model_access_setup_visible: true,
+      model_access_preempted_package_message: true,
+      route_receipt_claimed: false,
+      route_hash: '#/guid',
+    });
+    expect(magStarterClick).toHaveBeenCalledOnce();
+    expect(sendClick).toHaveBeenCalledOnce();
     expect(window.document.querySelector('[data-testid="opl-agent-package-launch-blocked"]')).toBeNull();
     dom.window.close();
   });
