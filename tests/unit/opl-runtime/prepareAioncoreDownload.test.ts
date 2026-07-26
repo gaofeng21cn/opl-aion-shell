@@ -189,6 +189,7 @@ describe('prepare-aioncore managed resources preparation', () => {
 
     const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
       attempts: 2,
+      platform: 'darwin',
       retryDelayMs: 10,
       sleep: (ms: number) => delays.push(ms),
       logger: { log() {}, warn() {} },
@@ -215,6 +216,36 @@ describe('prepare-aioncore managed resources preparation', () => {
     expect(delays).toEqual([10]);
     expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
     expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
+  });
+
+  it('validates managed Node against the explicit Linux target instead of the build host', () => {
+    const dir = makeTempDir();
+    const targetDir = path.join(dir, 'linux-x64');
+    const binaryPath = path.join(targetDir, 'aioncore');
+    let materializeCalls = 0;
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(binaryPath, 'binary');
+
+    const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
+      attempts: 1,
+      hostPlatform: 'win32',
+      platform: 'linux',
+      logger: { log() {}, warn() {} },
+      execFileSync(_command: string, args: string[]) {
+        if (args.includes('--materialize-internal-file-symlinks')) {
+          materializeCalls += 1;
+          return JSON.stringify({ materialized: [], hardLinked: [], copied: [], removedDangling: [] });
+        }
+        const outputDir = args[args.indexOf('--bundle-out') + 1];
+        const nodeBin = path.join(outputDir, 'node', 'node-v24.11.0-linux-x64', 'bin');
+        fs.mkdirSync(nodeBin, { recursive: true });
+        fs.writeFileSync(path.join(nodeBin, 'node'), 'node');
+      },
+    });
+
+    expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
+    expect(fs.existsSync(path.join(bundleOut, 'node', 'node-v24.11.0-linux-x64', 'bin', 'node'))).toBe(true);
+    expect(materializeCalls).toBe(1);
   });
 
   it('fails closed and removes partial output after all retries fail', () => {
@@ -417,10 +448,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         ],
       })
     );
-    fs.symlinkSync(
-      '../@agentclientprotocol/codex-acp/dist/index.js',
-      path.join(codexRoot, 'node_modules', '.bin', 'codex-acp')
-    );
+    const codexShimPath = path.join(codexRoot, 'node_modules', '.bin', 'codex-acp');
+    if (process.platform !== 'win32') {
+      fs.symlinkSync('../@agentclientprotocol/codex-acp/dist/index.js', codexShimPath);
+    }
 
     const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
     process.env.AIONUI_AIONCORE_CACHE_DIR = cacheRoot;
@@ -445,21 +476,23 @@ describe('prepare-aioncore prepared runtime cache', () => {
       expect(
         fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'))
       ).toBe(true);
-      expect(
-        fs.readlinkSync(
-          path.join(
-            targetDir,
-            'managed-resources',
-            'acp',
-            'codex-acp',
-            '1.1.2',
-            'darwin-arm64',
-            'node_modules',
-            '.bin',
-            'codex-acp'
+      if (process.platform !== 'win32') {
+        expect(
+          fs.readlinkSync(
+            path.join(
+              targetDir,
+              'managed-resources',
+              'acp',
+              'codex-acp',
+              '1.1.2',
+              'darwin-arm64',
+              'node_modules',
+              '.bin',
+              'codex-acp'
+            )
           )
-        )
-      ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
+        ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
+      }
     } finally {
       if (previousCacheDir === undefined) {
         delete process.env.AIONUI_AIONCORE_CACHE_DIR;
@@ -471,6 +504,52 @@ describe('prepare-aioncore prepared runtime cache', () => {
 });
 
 describe('prepare-aioncore managed Node pruning', () => {
+  it.skipIf(process.platform === 'win32')(
+    'materializes internal file symlinks before a Windows packager traverses a Linux bundle',
+    () => {
+      const dir = makeTempDir();
+      const managedResourcesDir = path.join(dir, 'managed-resources');
+      const targetFile = path.join(managedResourcesDir, 'node_modules', 'tool', 'cli.js');
+      const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'tool');
+      fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+      fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+      fs.writeFileSync(targetFile, '#!/usr/bin/env node\n');
+      fs.symlinkSync('../tool/cli.js', shimPath);
+
+      const result = __test__.materializeInternalFileSymlinks(managedResourcesDir);
+
+      expect(fs.lstatSync(shimPath).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(shimPath, 'utf8')).toBe('#!/usr/bin/env node\n');
+      expect(result.materialized).toEqual(['node_modules/.bin/tool']);
+      expect([...result.hardLinked, ...result.copied]).toEqual(['node_modules/.bin/tool']);
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')('rejects managed resource symlinks that escape the bundle', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const outsideFile = path.join(dir, 'outside.js');
+    const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'outside');
+    fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+    fs.writeFileSync(outsideFile, 'outside');
+    fs.symlinkSync(outsideFile, shimPath);
+
+    expect(() => __test__.materializeInternalFileSymlinks(managedResourcesDir)).toThrow(/outside the bundle/);
+  });
+
+  it.skipIf(process.platform === 'win32')('removes dangling symlinks whose targets stay inside the bundle', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'missing');
+    fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+    fs.symlinkSync('../missing/cli.js', shimPath);
+
+    const result = __test__.materializeInternalFileSymlinks(managedResourcesDir);
+
+    expect(fs.existsSync(shimPath)).toBe(false);
+    expect(result.removedDangling).toEqual(['node_modules/.bin/missing']);
+  });
+
   it('keeps npm payloads while pruning non-runtime Node resources', () => {
     const dir = makeTempDir();
     const managedResourcesDir = path.join(dir, 'managed-resources');

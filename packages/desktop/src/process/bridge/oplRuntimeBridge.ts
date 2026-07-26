@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ipcBridge } from '@/common';
 import { OPL_PRODUCT_PROFILE } from '@/common/config/oplProductProfile';
+import { getWindowsWslRuntime, type WindowsWslRuntimeExecution } from '@/process/services/runtime-execution';
 import type {
   IOplConfigureCodexRequest,
   IOplDomainDetailViewRequest,
@@ -184,6 +185,10 @@ type SpawnCommandSpec = {
   command: string;
   args: string[];
   redactedCommand: string;
+  launch?: () => {
+    child: ChildProcessWithoutNullStreams;
+    terminate: (graceMs?: number) => Promise<void>;
+  };
 };
 
 type ResolvedOplCli = {
@@ -1462,16 +1467,27 @@ async function runSpawnJsonCommand(
   const displayCommand = commandSpec.redactedCommand;
   const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
   return new Promise((resolve, reject) => {
-    const child = spawn(commandSpec.command, commandSpec.args, {
-      env: commandSpec.env ?? process.env,
-      stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-    });
+    const launched =
+      commandSpec.launch?.() ??
+      (() => {
+        const child = spawn(commandSpec.command, commandSpec.args, {
+          env: commandSpec.env ?? process.env,
+          stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        }) as ChildProcessWithoutNullStreams;
+        return {
+          child,
+          terminate: async (graceMs = 5000) => {
+            child.kill(graceMs === 0 ? 'SIGKILL' : 'SIGTERM');
+          },
+        };
+      })();
+    const { child } = launched;
     let stdout = '';
     let stderr = '';
     let settled = false;
     const timer = setTimeout(() => {
       settled = true;
-      child.kill('SIGTERM');
+      void launched.terminate(0);
       reject(new Error(`OPL runtime command timed out: ${displayCommand}`));
     }, commandSpec.timeoutMs ?? OPL_COMMAND_TIMEOUT_MS);
 
@@ -1482,7 +1498,7 @@ async function runSpawnJsonCommand(
       if (Buffer.byteLength(stdout, 'utf8') > maxStdoutBytes) {
         settled = true;
         clearTimeout(timer);
-        child.kill('SIGTERM');
+        void launched.terminate(0);
         reject(new Error(`OPL runtime command output exceeded ${maxStdoutBytes} bytes`));
       }
     });
@@ -1533,10 +1549,21 @@ async function runInitializeEventsCommand(
   const displayCommand = commandSpec.redactedCommand;
   const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
   return new Promise((resolve, reject) => {
-    const child = spawn(commandSpec.command, commandSpec.args, {
-      env: commandSpec.env ?? process.env,
-      stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-    });
+    const launched =
+      commandSpec.launch?.() ??
+      (() => {
+        const child = spawn(commandSpec.command, commandSpec.args, {
+          env: commandSpec.env ?? process.env,
+          stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        }) as ChildProcessWithoutNullStreams;
+        return {
+          child,
+          terminate: async (graceMs = 5000) => {
+            child.kill(graceMs === 0 ? 'SIGKILL' : 'SIGTERM');
+          },
+        };
+      })();
+    const { child } = launched;
     let stdout = '';
     let stderr = '';
     let pendingLine = '';
@@ -1544,7 +1571,7 @@ async function runInitializeEventsCommand(
     let settled = false;
     const timer = setTimeout(() => {
       settled = true;
-      child.kill('SIGTERM');
+      void launched.terminate(0);
       reject(new Error(`OPL runtime command timed out: ${displayCommand}`));
     }, commandSpec.timeoutMs ?? OPL_COMMAND_TIMEOUT_MS);
 
@@ -1567,7 +1594,7 @@ async function runInitializeEventsCommand(
       if (Buffer.byteLength(stdout, 'utf8') > maxStdoutBytes) {
         settled = true;
         clearTimeout(timer);
-        child.kill('SIGTERM');
+        void launched.terminate(0);
         reject(new Error(`OPL runtime command output exceeded ${maxStdoutBytes} bytes`));
         return;
       }
@@ -1649,6 +1676,42 @@ function buildOplSpawnCommand(
   };
 }
 
+function buildRuntimeOplSpawnCommand(
+  spec: RuntimeCommandSpec,
+  env = process.env,
+  options: {
+    platform?: NodeJS.Platform;
+    windowsRuntime?: WindowsWslRuntimeExecution | null;
+  } = {}
+): ReturnType<typeof buildOplSpawnCommand> {
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'win32') return buildOplSpawnCommand(spec, env);
+
+  const runtime = options.windowsRuntime ?? getWindowsWslRuntime();
+  if (!runtime) throw new Error('Windows Framework commands require the initialized OPL Linux runtime.');
+  return {
+    surface: spec.surface,
+    command: 'wsl.exe',
+    args: [],
+    stdin: spec.stdin,
+    timeoutMs: spec.timeoutMs,
+    maxStdoutBytes: spec.maxStdoutBytes,
+    env,
+    redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
+    launch: () => {
+      const handle = runtime.spawn({
+        program: 'opl-cli',
+        args: spec.args,
+        stdin: spec.stdin,
+      });
+      return {
+        child: handle.child,
+        terminate: handle.terminate,
+      };
+    },
+  };
+}
+
 function runStandardBootstrapSingleFlight(runBootstrap: () => Promise<void>): Promise<void> {
   if (standardBootstrapCompleted) {
     return Promise.resolve();
@@ -1704,9 +1767,19 @@ function runPackagedStandardBootstrap(): Promise<void> {
   });
 }
 
+async function repairOplRuntimeForHost(): Promise<void> {
+  if (process.platform === 'win32') {
+    const runtime = getWindowsWslRuntime();
+    if (!runtime) throw new Error('Windows Framework repair requires the initialized OPL Linux runtime.');
+    await runtime.ensureReady();
+    return;
+  }
+  await runPackagedStandardBootstrap();
+}
+
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
   try {
-    const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
+    const command = buildRuntimeOplSpawnCommand(spec, buildOplCommandEnv());
     return spec.surface === 'system_initialize'
       ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
       : await runSpawnJsonCommand(command);
@@ -1714,7 +1787,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
     if (isInitializeEventsUnsupportedError(spec, error)) {
       const fallbackSpec = buildInitializeFallbackCommand();
       try {
-        const fallbackCommand = buildOplSpawnCommand(fallbackSpec, buildOplCommandEnv());
+        const fallbackCommand = buildRuntimeOplSpawnCommand(fallbackSpec, buildOplCommandEnv());
         return await runSpawnJsonCommand(fallbackCommand);
       } catch (fallbackError) {
         return commandFailureResult(
@@ -1743,8 +1816,8 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
   }
 
   try {
-    await runPackagedStandardBootstrap();
-    const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
+    await repairOplRuntimeForHost();
+    const command = buildRuntimeOplSpawnCommand(spec, buildOplCommandEnv());
     return spec.surface === 'system_initialize'
       ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
       : await runSpawnJsonCommand(command);
@@ -1936,6 +2009,7 @@ export const __oplRuntimeBridgeTest = {
   buildFullRuntimeBridgeEnv,
   buildOplCommandEnv,
   buildOplSpawnCommand,
+  buildRuntimeOplSpawnCommand,
   buildStartupMaintenanceCommand,
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,

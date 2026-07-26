@@ -23,6 +23,7 @@ import {
   verifyConversationArchiveReceipt,
 } from '../services/localDataLifecycle';
 import type { LocalDataLifecycleInventory, LocalDataLifecycleInventoryInput } from '../services/localDataLifecycle';
+import { resolveHostRuntimeRoots } from '../services/localDataLifecycle/hostRuntimeRoots';
 import { LocalDataLifecycleInventorySnapshotStore } from '../services/localDataLifecycle/inventorySnapshot';
 import type { LocalDataInventoryWorkerResponse } from '../worker/localDataInventoryProtocol';
 
@@ -60,13 +61,13 @@ function shellToolchainRuntimeRoot(): string {
   return path.join(getSystemDir().workDir, 'runtime');
 }
 
-function managedOplRuntimeRoot(): string {
-  const configuredRoot = process.env.OPL_RUNTIME_TOOLCHAIN_ROOT?.trim();
-  if (configuredRoot) return configuredRoot;
-  if (process.platform !== 'darwin') {
-    throw new Error('OPL_RUNTIME_TOOLCHAIN_ROOT is required outside the macOS desktop release.');
-  }
-  return path.join(app.getPath('home'), 'Library', 'Application Support', 'OPL', 'runtime');
+function hostRuntimeRoots() {
+  return resolveHostRuntimeRoots({
+    platform: process.platform,
+    shellToolchainRuntimeRoot: shellToolchainRuntimeRoot(),
+    configuredManagedRuntimeRoot: process.env.OPL_RUNTIME_TOOLCHAIN_ROOT,
+    homeDir: process.platform === 'darwin' ? app.getPath('home') : undefined,
+  });
 }
 
 function updaterCacheRoot(): string {
@@ -100,7 +101,7 @@ function inventoryInput(): LocalDataLifecycleInventoryInput {
     dataRoot: getSystemDir().workDir,
     updaterCacheRoots: [updaterCacheRoot(), ...retiredUpdaterCacheRoots()],
     conversationRoots: [conversationRoot()],
-    runtimeRoots: [shellToolchainRuntimeRoot(), managedOplRuntimeRoot()],
+    runtimeRoots: hostRuntimeRoots().inventoryRoots,
     logsRoot: getSystemDir().logDir,
   };
 }
@@ -203,7 +204,7 @@ export function initLocalDataLifecycleBridge(): void {
   ipcBridge.localDataLifecycle.planRuntimePrune.provider(() =>
     Promise.resolve(
       resolveRuntimePointerPrunePlan({
-        runtimeRoot: managedOplRuntimeRoot(),
+        runtimeRoot: hostRuntimeRoots().pruneRoot,
       })
     )
   );

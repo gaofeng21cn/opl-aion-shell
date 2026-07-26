@@ -29,6 +29,16 @@ if [[ ! "$operation_token" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
   exit 64
 fi
 
+export HOME=/home/opl
+export CODEX_HOME=/home/opl/.codex
+export OPL_WORKSPACE_ROOT=/home/opl/code
+export OPL_OPERATION_TOKEN="$operation_token"
+export OPL_CARRIER_ID=OPL-Linux
+export AIONUI_CACHE_DIR=/home/opl/.cache/one-person-lab
+export AIONUI_WORK_DIR=/home/opl/.local/state/one-person-lab/work
+export AIONUI_LOG_DIR=/home/opl/.local/state/one-person-lab/logs
+export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
 carrier=/opt/opl/carrier/current
 codex="$(
   find "$carrier/managed-resources" \
@@ -58,18 +68,13 @@ fi
 
 state_root=/var/lib/opl/runtime-state
 record="$state_root/$operation_token.json"
-install -d -m 0755 "$state_root"
+install -d -m 0700 "$state_root"
 if [[ -e "$record" ]]; then
   printf 'Operation token is already active.\n' >&2
   exit 73
 fi
 
-export HOME=/home/opl
-export CODEX_HOME=/home/opl/.codex
-export OPL_WORKSPACE_ROOT=/home/opl/code
 export OPL_CODEX_BIN="$codex"
-export OPL_OPERATION_TOKEN="$operation_token"
-export OPL_CARRIER_ID=OPL-Linux
 
 setsid "$program" "$@" &
 child_pid=$!

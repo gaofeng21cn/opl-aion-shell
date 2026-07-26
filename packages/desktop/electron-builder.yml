@@ -160,6 +160,8 @@ extraResources:
     to: opl-branding
   - from: resources/opl-install.sh
     to: opl-install.sh
+  - from: resources/opl-linux
+    to: opl-linux
   - from: resources/official-profile-package-apply.ts
     to: official-profile-package-apply.ts
   # aioncore binary (pre-compiled per platform/arch, ships its own bun runtime)

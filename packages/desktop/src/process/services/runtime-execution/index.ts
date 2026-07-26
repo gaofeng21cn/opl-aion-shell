@@ -1,4 +1,5 @@
 import { WindowsWslRuntimeExecution } from './windowsWslRuntimeExecution';
+import type { WindowsWslProvisioningProgress } from '../windows-wsl/provisioner';
 
 let windowsRuntime: WindowsWslRuntimeExecution | null = null;
 
@@ -6,6 +7,7 @@ export function initializeWindowsWslRuntime(options: {
   platform?: NodeJS.Platform;
   resourcesPath: string;
   userDataPath: string;
+  onProgress?: (progress: WindowsWslProvisioningProgress) => void;
 }): WindowsWslRuntimeExecution | null {
   const platform = options.platform ?? process.platform;
   if (platform !== 'win32') {
@@ -25,9 +27,5 @@ export function requireWindowsWslRuntime(): WindowsWslRuntimeExecution {
   return windowsRuntime;
 }
 
-export type {
-  WindowsWslProcessHandle,
-  WindowsWslProgram,
-  WindowsWslSpawnRequest,
-} from './windowsWslRuntimeExecution';
+export type { WindowsWslProcessHandle, WindowsWslProgram, WindowsWslSpawnRequest } from './windowsWslRuntimeExecution';
 export { WindowsWslRuntimeExecution } from './windowsWslRuntimeExecution';

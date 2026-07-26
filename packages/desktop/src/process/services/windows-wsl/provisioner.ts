@@ -7,6 +7,9 @@ export const OPL_WSL_DISTRIBUTION = 'OPL-Linux';
 export const OPL_WSL_GUEST_USER = 'opl';
 export const OPL_WSL_RUNTIME_INSPECT = '/opt/opl/bootstrap/opl-runtime-inspect';
 const DEFAULT_BASE_DISTRIBUTION = 'Ubuntu-24.04';
+const OPL_WSL_BOOTSTRAP_ENTRYPOINTS = ['opl-runtime-control', 'opl-runtime-exec', 'opl-runtime-inspect'] as const;
+const OPL_WSL_GUEST_PATH =
+  '/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin';
 const MAX_COMMAND_OUTPUT_BYTES = 128 * 1024;
 const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
 
@@ -45,6 +48,7 @@ export type WindowsWslGuestIdentity = {
   architecture: 'x86_64';
   guest_user: 'opl';
   carrier_activation_digest: string;
+  bootstrap_digest: string;
   aioncore_digest: string;
   codex_digest: string;
   codex_path: string;
@@ -52,8 +56,25 @@ export type WindowsWslGuestIdentity = {
   workspace_root: '/home/opl/code';
   framework_path: string;
   framework_digest: string;
+  framework_ref: string;
   native_windows_executor_fallback_allowed: false;
   wsl2: true;
+  active_operation_count: number;
+};
+
+export type WindowsWslProductManifest = {
+  schema: 'opl_linux_product_manifest.v1';
+  logical_distribution: 'OPL-Linux';
+  physical_distribution: 'OPL-Linux';
+  wsl_version: 2;
+  architecture: 'x86_64';
+  guest_user: 'opl';
+  codex_home: '/home/opl/.codex';
+  workspace_root: '/home/opl/code';
+  framework_ref: string;
+  framework_install_script_url: string;
+  framework_source_archive_url: string;
+  native_windows_executor_fallback_allowed: false;
 };
 
 type RunCommand = (
@@ -155,6 +176,17 @@ function parseDistributionInventory(output: string): Map<string, { state: string
   return inventory;
 }
 
+function parseOnlineDistributionNames(output: string): Set<string> {
+  const names = new Set<string>();
+  for (const raw of bounded(output).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || /^NAME\s+FRIENDLY NAME$/i.test(line)) continue;
+    const [name] = line.split(/\s{2,}/);
+    if (name && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) names.add(name);
+  }
+  return names;
+}
+
 function parseJsonObject(value: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -164,6 +196,17 @@ function parseJsonObject(value: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function normalizeWindowsPath(value: string): string {
+  return path.win32
+    .normalize(value.replace(/^\\\\\?\\/, ''))
+    .replace(/[\\/]+$/, '')
+    .toLowerCase();
+}
+
+function sameWindowsPath(left: string, right: string): boolean {
+  return normalizeWindowsPath(left) === normalizeWindowsPath(right);
 }
 
 function assertDigest(value: unknown, field: string): string {
@@ -176,11 +219,59 @@ function assertDigest(value: unknown, field: string): string {
   return value;
 }
 
+function computePackagedBootstrapDigest(bootstrapRoot: string): string {
+  const digest = crypto.createHash('sha256');
+  for (const name of OPL_WSL_BOOTSTRAP_ENTRYPOINTS) {
+    const entrypoint = path.join(bootstrapRoot, name);
+    try {
+      digest.update(name);
+      digest.update('\0');
+      digest.update(fs.readFileSync(entrypoint));
+      digest.update('\0');
+    } catch (error) {
+      throw new WindowsWslProvisioningError(`Unable to read the packaged OPL Linux entrypoint: ${entrypoint}`, {
+        stage: 'blocked_by_policy',
+        code: 'bootstrap_entrypoint_unavailable',
+        cause: error,
+      });
+    }
+  }
+  return `sha256:${digest.digest('hex')}`;
+}
+
+export function validateWindowsWslProductManifest(value: unknown): WindowsWslProductManifest {
+  const manifest =
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  const frameworkRef = manifest?.framework_ref;
+  if (
+    !manifest ||
+    manifest.schema !== 'opl_linux_product_manifest.v1' ||
+    manifest.logical_distribution !== OPL_WSL_DISTRIBUTION ||
+    manifest.physical_distribution !== OPL_WSL_DISTRIBUTION ||
+    manifest.wsl_version !== 2 ||
+    manifest.architecture !== 'x86_64' ||
+    manifest.guest_user !== OPL_WSL_GUEST_USER ||
+    manifest.codex_home !== '/home/opl/.codex' ||
+    manifest.workspace_root !== '/home/opl/code' ||
+    manifest.native_windows_executor_fallback_allowed !== false ||
+    typeof frameworkRef !== 'string' ||
+    !/^[0-9a-f]{40}$/.test(frameworkRef) ||
+    manifest.framework_install_script_url !==
+      `https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/${frameworkRef}/install.sh` ||
+    manifest.framework_source_archive_url !==
+      `https://github.com/gaofeng21cn/one-person-lab/archive/${frameworkRef}.tar.gz`
+  ) {
+    throw new WindowsWslProvisioningError('The packaged OPL Linux product manifest is invalid.', {
+      stage: 'blocked_by_policy',
+      code: 'product_manifest_invalid',
+    });
+  }
+  return manifest as WindowsWslProductManifest;
+}
+
 export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuestIdentity {
   const identity =
-    value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
   if (
     !identity ||
     identity.schema !== 'opl_linux_runtime_inspection.v1' ||
@@ -192,7 +283,9 @@ export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuest
     identity.codex_home !== '/home/opl/.codex' ||
     identity.workspace_root !== '/home/opl/code' ||
     identity.native_windows_executor_fallback_allowed !== false ||
-    identity.wsl2 !== true
+    identity.wsl2 !== true ||
+    !Number.isInteger(identity.active_operation_count) ||
+    (identity.active_operation_count as number) < 0
   ) {
     throw new WindowsWslProvisioningError('The OPL Linux identity does not match the Windows product contract.', {
       stage: 'repair_required',
@@ -206,7 +299,9 @@ export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuest
     typeof identity.codex_path !== 'string' ||
     !identity.codex_path.startsWith('/opt/opl/carrier/') ||
     typeof identity.framework_path !== 'string' ||
-    !identity.framework_path.startsWith('/home/opl/')
+    !identity.framework_path.startsWith('/home/opl/') ||
+    typeof identity.framework_ref !== 'string' ||
+    !/^[0-9a-f]{40}$/.test(identity.framework_ref)
   ) {
     throw new WindowsWslProvisioningError('The OPL Linux identity is incomplete.', {
       stage: 'repair_required',
@@ -214,6 +309,7 @@ export function validateWindowsWslGuestIdentity(value: unknown): WindowsWslGuest
     });
   }
   assertDigest(identity.carrier_activation_digest, 'carrier_activation_digest');
+  assertDigest(identity.bootstrap_digest, 'bootstrap_digest');
   assertDigest(identity.aioncore_digest, 'aioncore_digest');
   assertDigest(identity.codex_digest, 'codex_digest');
   assertDigest(identity.framework_digest, 'framework_digest');
@@ -226,6 +322,8 @@ export class WindowsWslProvisioner {
   private readonly userDataPath: string;
   private readonly runCommand: RunCommand;
   private readonly onProgress?: (progress: WindowsWslProvisioningProgress) => void;
+  private readonly product: WindowsWslProductManifest;
+  private readonly expectedBootstrapDigest: string;
   private readyIdentity: WindowsWslGuestIdentity | null = null;
 
   constructor(options: WindowsWslProvisionerOptions) {
@@ -234,6 +332,20 @@ export class WindowsWslProvisioner {
     this.userDataPath = options.userDataPath;
     this.runCommand = options.runCommand ?? runWindowsWslCommand;
     this.onProgress = options.onProgress;
+    const productPath = path.join(this.resourcesPath, 'opl-linux', 'product.json');
+    try {
+      this.product = validateWindowsWslProductManifest(JSON.parse(fs.readFileSync(productPath, 'utf8')));
+    } catch (error) {
+      if (error instanceof WindowsWslProvisioningError) throw error;
+      throw new WindowsWslProvisioningError(`Unable to read the packaged OPL Linux product manifest: ${productPath}`, {
+        stage: 'blocked_by_policy',
+        code: 'product_manifest_unavailable',
+        cause: error,
+      });
+    }
+    this.expectedBootstrapDigest = computePackagedBootstrapDigest(
+      path.join(this.resourcesPath, 'opl-linux', 'bootstrap')
+    );
   }
 
   private progress(stage: WindowsWslProvisioningStage, detail: string): void {
@@ -250,10 +362,10 @@ export class WindowsWslProvisioner {
     code: string
   ): Promise<WindowsWslCommandResult> {
     if (result.exitCode === 0 && !result.timedOut) return result;
-    throw new WindowsWslProvisioningError(
-      `${stage} failed: ${bounded(result.stderr || result.stdout || code)}`,
-      { stage, code }
-    );
+    throw new WindowsWslProvisioningError(`${stage} failed: ${bounded(result.stderr || result.stdout || code)}`, {
+      stage,
+      code,
+    });
   }
 
   private async enableWslFeatures(): Promise<void> {
@@ -277,11 +389,21 @@ export class WindowsWslProvisioner {
         code: 'wsl_enablement_failed_or_uac_denied',
       });
     }
+    const postEnableStatus = await this.wsl(['--status']);
+    if (postEnableStatus.exitCode === 0 && !postEnableStatus.timedOut) {
+      return;
+    }
     throw new WindowsWslProvisioningError('Windows must restart before OPL Linux setup can continue.', {
       stage: 'restart_required',
       code: 'wsl_restart_required',
       restartRequired: true,
     });
+  }
+
+  private async inspectOnlineDistributions(): Promise<Set<string>> {
+    const result = await this.wsl(['--list', '--online']);
+    await this.requireSuccess(result, 'installing_owned_distribution', 'distribution_catalog_unavailable');
+    return parseOnlineDistributionNames(result.stdout);
   }
 
   private async inspectInventory(): Promise<Map<string, { state: string; version: number | null }>> {
@@ -290,9 +412,59 @@ export class WindowsWslProvisioner {
     return parseDistributionInventory(result.stdout);
   }
 
+  private installLocation(): string {
+    return path.join(this.userDataPath, 'wsl', OPL_WSL_DISTRIBUTION);
+  }
+
+  private async inspectRegisteredDistributionBasePath(): Promise<string | null> {
+    const script = [
+      '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
+      "$root = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss'",
+      `$entry = Get-ChildItem -LiteralPath $root -ErrorAction Stop | ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath } | Where-Object { $_.DistributionName -eq '${OPL_WSL_DISTRIBUTION}' } | Select-Object -First 1`,
+      'if ($null -eq $entry) { exit 3 }',
+      '[pscustomobject]@{ distribution_name = $entry.DistributionName; base_path = $entry.BasePath } | ConvertTo-Json -Compress',
+    ].join('; ');
+    const result = await this.runCommand('powershell.exe', [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      script,
+    ]);
+    if (result.exitCode === 3 && !result.timedOut) return null;
+    await this.requireSuccess(result, 'repair_required', 'distribution_registry_read_failed');
+    const registry = parseJsonObject(result.stdout);
+    return registry?.distribution_name === OPL_WSL_DISTRIBUTION && typeof registry.base_path === 'string'
+      ? registry.base_path
+      : null;
+  }
+
+  private async assertOwnedDistributionLocation(): Promise<void> {
+    const registeredBasePath = await this.inspectRegisteredDistributionBasePath();
+    if (!registeredBasePath || !sameWindowsPath(registeredBasePath, this.installLocation())) {
+      throw new WindowsWslProvisioningError(
+        'The OPL-Linux name is already registered outside the current App-owned data directory.',
+        {
+          stage: 'repair_required',
+          code: 'same_name_foreign_distribution',
+        }
+      );
+    }
+  }
+
   private async installDistribution(): Promise<void> {
     this.progress('installing_owned_distribution', 'Installing the dedicated OPL Linux environment.');
-    const installLocation = path.join(this.userDataPath, 'wsl', OPL_WSL_DISTRIBUTION);
+    const online = await this.inspectOnlineDistributions();
+    if (!online.has(DEFAULT_BASE_DISTRIBUTION)) {
+      throw new WindowsWslProvisioningError(
+        `The required WSL distribution is not available: ${DEFAULT_BASE_DISTRIBUTION}`,
+        {
+          stage: 'installing_owned_distribution',
+          code: 'base_distribution_unavailable',
+        }
+      );
+    }
+    const installLocation = this.installLocation();
     fs.mkdirSync(path.dirname(installLocation), { recursive: true });
     const result = await this.wsl(
       [
@@ -310,6 +482,7 @@ export class WindowsWslProvisioner {
       { timeoutMs: COMMAND_TIMEOUT_MS }
     );
     await this.requireSuccess(result, 'installing_owned_distribution', 'distribution_install_failed');
+    await this.assertOwnedDistributionLocation();
   }
 
   private async translateWindowsPath(windowsPath: string): Promise<string> {
@@ -337,10 +510,9 @@ export class WindowsWslProvisioner {
   private async bootstrapGuest(): Promise<void> {
     this.progress('initializing_guest', 'Initializing the OPL Linux environment.');
     const bootstrapRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-linux', 'bootstrap'));
-    const runtimeRoot = await this.translateWindowsPath(
-      path.join(this.resourcesPath, 'bundled-aioncore', 'linux-x64')
-    );
+    const runtimeRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'bundled-aioncore', 'linux-x64'));
     const frameworkInstaller = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-install.sh'));
+    const productManifest = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-linux', 'product.json'));
     const bootstrapResult = await this.wsl(
       [
         '--distribution',
@@ -353,6 +525,7 @@ export class WindowsWslProvisioner {
         runtimeRoot,
         bootstrapRoot,
         frameworkInstaller,
+        productManifest,
       ],
       { timeoutMs: COMMAND_TIMEOUT_MS }
     );
@@ -366,6 +539,14 @@ export class WindowsWslProvisioner {
         '--user',
         OPL_WSL_GUEST_USER,
         '--exec',
+        'env',
+        'HOME=/home/opl',
+        'OPL_INSTALL_DIR=/home/opl/.opl/one-person-lab',
+        `OPL_INSTALL_SCRIPT_URL=${this.product.framework_install_script_url}`,
+        `OPL_INSTALL_BRANCH=${this.product.framework_ref}`,
+        'OPL_INSTALL_SOURCE_MODE=archive',
+        `OPL_SOURCE_ARCHIVE_URL=${this.product.framework_source_archive_url}`,
+        `PATH=${OPL_WSL_GUEST_PATH}`,
         '/bin/bash',
         '/opt/opl/bootstrap/opl-install.sh',
         '--headless',
@@ -387,7 +568,23 @@ export class WindowsWslProvisioner {
       '--json',
     ]);
     await this.requireSuccess(result, 'validating_routes', 'runtime_inspection_failed');
-    return validateWindowsWslGuestIdentity(parseJsonObject(result.stdout));
+    const identity = validateWindowsWslGuestIdentity(parseJsonObject(result.stdout));
+    if (identity.bootstrap_digest !== this.expectedBootstrapDigest) {
+      throw new WindowsWslProvisioningError(
+        'The installed OPL Linux runtime entrypoints do not match the packaged App cohort.',
+        {
+          stage: 'repair_required',
+          code: 'bootstrap_digest_mismatch',
+        }
+      );
+    }
+    if (identity.framework_ref !== this.product.framework_ref) {
+      throw new WindowsWslProvisioningError('The installed Framework ref does not match the packaged product cohort.', {
+        stage: 'repair_required',
+        code: 'framework_ref_mismatch',
+      });
+    }
+    return identity;
   }
 
   private writeReceipt(identity: WindowsWslGuestIdentity): void {
@@ -441,33 +638,13 @@ export class WindowsWslProvisioner {
           code: 'owned_distribution_registration_failed',
         });
       }
+    } else {
+      await this.assertOwnedDistributionLocation();
     }
 
     try {
       this.readyIdentity = await this.inspect();
     } catch (error) {
-      if (existing) {
-        const foreignIdentity = await this.wsl([
-          '--distribution',
-          OPL_WSL_DISTRIBUTION,
-          '--user',
-          'root',
-          '--exec',
-          'test',
-          '-f',
-          '/etc/opl/identity.json',
-        ]);
-        if (foreignIdentity.exitCode !== 0) {
-          throw new WindowsWslProvisioningError(
-            'The OPL-Linux name is already registered without an OPL owner identity.',
-            {
-              stage: 'repair_required',
-              code: 'same_name_foreign_distribution',
-              cause: error,
-            }
-          );
-        }
-      }
       await this.bootstrapGuest();
       this.progress('validating_routes', 'Validating the Linux runtime identity.');
       this.readyIdentity = await this.inspect();
@@ -481,5 +658,10 @@ export class WindowsWslProvisioner {
 
 export const __windowsWslProvisionerTest = {
   DEFAULT_BASE_DISTRIBUTION,
+  OPL_WSL_GUEST_PATH,
+  computePackagedBootstrapDigest,
+  normalizeWindowsPath,
   parseDistributionInventory,
+  parseOnlineDistributionNames,
+  sameWindowsPath,
 };

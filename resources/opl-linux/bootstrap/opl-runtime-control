@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export HOME=/home/opl
+export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
 operation_token=''
 grace_ms=5000
 while [[ "$#" -gt 0 ]]; do
@@ -57,14 +60,38 @@ if [[ -e "/proc/$pid" ]]; then
   kill -KILL -- "-$expected_pgid" 2>/dev/null || true
 fi
 
-survivors=0
-for env_file in /proc/[0-9]*/environ; do
-  [[ -r "$env_file" ]] || continue
-  if tr '\0' '\n' <"$env_file" 2>/dev/null |
-    grep -Fx "OPL_OPERATION_TOKEN=$operation_token" >/dev/null 2>&1; then
-    survivors=$((survivors + 1))
-  fi
-done
+collect_operation_pids() {
+  local env_file process_id process_uid
+  for env_file in /proc/[0-9]*/environ; do
+    process_id="${env_file#/proc/}"
+    process_id="${process_id%/environ}"
+    [[ "$process_id" != "$$" ]] || continue
+    process_uid="$(stat -c '%u' "/proc/$process_id" 2>/dev/null || true)"
+    [[ "$process_uid" == "$(id -u)" ]] || continue
+    if { tr '\0' '\n' <"$env_file"; } 2>/dev/null |
+      grep -Fx "OPL_OPERATION_TOKEN=$operation_token" >/dev/null 2>&1; then
+      printf '%s\n' "$process_id"
+    fi
+  done
+}
+
+mapfile -t operation_pids < <(collect_operation_pids)
+if [[ "${#operation_pids[@]}" -gt 0 ]]; then
+  kill -TERM "${operation_pids[@]}" 2>/dev/null || true
+  deadline=$((SECONDS + ((grace_ms + 999) / 1000)))
+  while [[ "$SECONDS" -lt "$deadline" ]]; do
+    mapfile -t operation_pids < <(collect_operation_pids)
+    [[ "${#operation_pids[@]}" -gt 0 ]] || break
+    sleep 0.1
+  done
+fi
+mapfile -t operation_pids < <(collect_operation_pids)
+if [[ "${#operation_pids[@]}" -gt 0 ]]; then
+  kill -KILL "${operation_pids[@]}" 2>/dev/null || true
+  sleep 0.1
+fi
+mapfile -t operation_pids < <(collect_operation_pids)
+survivors="${#operation_pids[@]}"
 if [[ "$survivors" -eq 0 ]]; then
   rm -f "$record"
 fi

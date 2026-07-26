@@ -48,14 +48,7 @@ function requireToken(value: string): string {
 }
 
 function wslArgs(...guestArgs: string[]): string[] {
-  return [
-    '--distribution',
-    OPL_WSL_DISTRIBUTION,
-    '--user',
-    OPL_WSL_GUEST_USER,
-    '--exec',
-    ...guestArgs,
-  ];
+  return ['--distribution', OPL_WSL_DISTRIBUTION, '--user', OPL_WSL_GUEST_USER, '--exec', ...guestArgs];
 }
 
 export class WindowsWslRuntimeExecution {
@@ -63,6 +56,7 @@ export class WindowsWslRuntimeExecution {
   private readonly platform: NodeJS.Platform;
   private readonly provisioner: WindowsWslProvisioner;
   private readonly spawnProcess: typeof spawn;
+  private readonly activeHandles = new Map<string, WindowsWslProcessHandle>();
 
   constructor(options: RuntimeOptions) {
     this.platform = options.platform ?? process.platform;
@@ -95,15 +89,7 @@ export class WindowsWslRuntimeExecution {
     const token = requireToken(request.operationToken ?? operationToken());
     return {
       command: 'wsl.exe',
-      args: wslArgs(
-        RUNTIME_EXECUTABLE,
-        '--kind',
-        request.program,
-        '--operation-token',
-        token,
-        '--',
-        ...request.args
-      ),
+      args: wslArgs(RUNTIME_EXECUTABLE, '--kind', request.program, '--operation-token', token, '--', ...request.args),
       operationToken: token,
       redactedCommand: `wsl.exe --distribution <opl-owned> --user opl --exec opl-runtime-exec --kind ${request.program} --operation-token <redacted>`,
     };
@@ -117,7 +103,10 @@ export class WindowsWslRuntimeExecution {
     };
   }
 
-  buildControlCommand(operationTokenValue: string, graceMs = 5000): {
+  buildControlCommand(
+    operationTokenValue: string,
+    graceMs = 5000
+  ): {
     command: 'wsl.exe';
     args: string[];
     redactedCommand: string;
@@ -145,7 +134,7 @@ export class WindowsWslRuntimeExecution {
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
     if (request.stdin !== undefined) child.stdin.end(request.stdin);
-    return {
+    const handle: WindowsWslProcessHandle = {
       child,
       operationToken: command.operationToken,
       terminate: async (graceMs = 5000) => {
@@ -167,6 +156,20 @@ export class WindowsWslRuntimeExecution {
         });
       },
     };
+    this.activeHandles.set(command.operationToken, handle);
+    child.once('close', () => {
+      this.activeHandles.delete(command.operationToken);
+    });
+    return handle;
+  }
+
+  async terminateAll(graceMs = 5000): Promise<void> {
+    const handles = [...this.activeHandles.values()];
+    const results = await Promise.allSettled(handles.map((handle) => handle.terminate(graceMs)));
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      throw new Error(`Failed to stop ${failures.length} OPL Linux runtime operation(s).`);
+    }
   }
 }
 

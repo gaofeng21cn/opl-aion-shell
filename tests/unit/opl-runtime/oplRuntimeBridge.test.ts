@@ -144,6 +144,38 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
+  it('routes Windows Framework commands through the owner-bound OPL Linux runtime', () => {
+    const terminate = vi.fn(async () => {});
+    const runtime = {
+      spawn: vi.fn(() => ({
+        child: {},
+        operationToken: 'framework-test',
+        terminate,
+      })),
+    };
+    const spec = __oplRuntimeBridgeTest.buildAppStateCommand('fast');
+    const command = __oplRuntimeBridgeTest.buildRuntimeOplSpawnCommand(
+      spec,
+      {},
+      {
+        platform: 'win32',
+        windowsRuntime: runtime as never,
+      }
+    );
+
+    expect(command).toMatchObject({
+      command: 'wsl.exe',
+      args: [],
+      redactedCommand: 'opl app state --profile fast --json',
+    });
+    command.launch?.();
+    expect(runtime.spawn).toHaveBeenCalledWith({
+      program: 'opl-cli',
+      args: ['app', 'state', '--profile', 'fast', '--json'],
+      stdin: undefined,
+    });
+  });
+
   it('builds an item-scoped domain detail read without accepting paths or unsafe ids', () => {
     expect(
       __oplRuntimeBridgeTest.buildDomainDetailViewCommand({

@@ -26,6 +26,7 @@ import { classifyBackendStartupFailure } from './process/startup/backendStartupF
 import { shouldRegisterBackendStartup } from './process/startup/singleInstanceGating';
 import { installQuitCleanup } from './process/startup/quitCleanup';
 import { initializeTrayForDesktopMode } from './process/startup/trayStartup';
+import { shouldQuitAfterAllWindowsClosed } from './process/startup/windowAllClosed';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
 import { registerWindowMaximizeListeners } from '@process/bridge';
@@ -76,6 +77,12 @@ import {
 } from './process/utils/tray';
 import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/backend/fullRuntime';
 import { buildOplHostToolEnv } from './process/backend/hostToolEnv';
+import { initializeWindowsWslRuntime, type WindowsWslRuntimeExecution } from './process/services/runtime-execution';
+import {
+  createWindowsWslBackendProcessController,
+  OPL_WSL_BACKEND_BINARY,
+} from './process/services/runtime-execution/windowsWslBackendProcessController';
+import { WindowsWslProvisioningWindow } from './process/services/windows-wsl/provisioningWindow';
 import { readCloseToTraySetting } from './process/utils/closeToTraySetting';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
@@ -207,6 +214,16 @@ let isExplicitQuit = false;
 let appReadyDone = false;
 
 let mainWindow: BrowserWindow;
+const windowsWslProvisioningWindow = process.platform === 'win32' ? new WindowsWslProvisioningWindow() : null;
+const windowsWslRuntime: WindowsWslRuntimeExecution | null = initializeWindowsWslRuntime({
+  resourcesPath: app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources'),
+  userDataPath: app.getPath('userData'),
+  onProgress: (progress) => {
+    const { stage, detail } = progress;
+    console.info(`[OPL-Linux] ${stage}: ${detail}`);
+    windowsWslProvisioningWindow?.update(progress);
+  },
+});
 const backendManager = new BackendLifecycleManager(
   {
     version: app.getVersion(),
@@ -214,7 +231,8 @@ const backendManager = new BackendLifecycleManager(
     resourcesPath: process.resourcesPath,
     userDataPath: app.getPath('userData'),
   },
-  resolveBinaryPath
+  windowsWslRuntime ? () => OPL_WSL_BACKEND_BINARY : resolveBinaryPath,
+  windowsWslRuntime ? createWindowsWslBackendProcessController(windowsWslRuntime) : undefined
 );
 let disposeCronResumeListener: (() => void) | null = null;
 
@@ -606,6 +624,20 @@ const handleAppReady = async (): Promise<void> => {
 
   setSentryDeviceId();
 
+  if (windowsWslRuntime) {
+    try {
+      await windowsWslRuntime.ensureReady();
+      windowsWslProvisioningWindow?.complete();
+      mark('windowsWslRuntime.ensureReady');
+    } catch (error) {
+      console.error('[OPL-Linux] Failed to prepare the Windows Linux runtime:', error);
+      await captureBackendStartupFailure(error);
+      await windowsWslProvisioningWindow?.showFailure(error);
+      app.exit(1);
+      return;
+    }
+  }
+
   try {
     await initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' });
     rendererInitialLanguage = ProcessConfig.getSync('language') ?? app.getLocale();
@@ -909,12 +941,14 @@ if (shouldRegisterBackendStartup(gotTheLock)) {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  // 当关闭到托盘启用时，不退出应用 / Don't quit when close-to-tray is enabled
-  if (getCloseToTrayEnabled()) {
-    return;
-  }
-  // In WebUI mode, don't quit when windows are closed since we're running a web server
-  if (!isWebUIMode && process.platform !== 'darwin') {
+  if (
+    shouldQuitAfterAllWindowsClosed({
+      appReadyDone,
+      closeToTrayEnabled: getCloseToTrayEnabled(),
+      isWebUIMode,
+      platform: process.platform,
+    })
+  ) {
     app.quit();
   }
 });
@@ -951,7 +985,10 @@ installQuitCleanup({
   },
   // Stop aioncore subprocess — backend shutdown kills all agent children
   // transitively (no separate frontend workerTaskManager remains).
-  stopBackend: () => backendManager.stop(),
+  stopBackend: async () => {
+    await backendManager.stop();
+    await windowsWslRuntime?.terminateAll(5000);
+  },
   destroyPetWindow: async () => {
     const { destroyPetWindow } = await import('./process/pet/petManager');
     destroyPetWindow();

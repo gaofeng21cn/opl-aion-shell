@@ -50,6 +50,7 @@ export type {
   BackendLaunchFlags,
   BackendLaunchOptions,
   BackendHandle,
+  BackendProcessController,
   BackendStartOptions,
 } from './backend-launcher.js';
 

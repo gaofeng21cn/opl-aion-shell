@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export HOME=/home/opl
+export CODEX_HOME=/home/opl/.codex
+export OPL_WORKSPACE_ROOT=/home/opl/code
+export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
 if [[ "${1:-}" != "--json" ]]; then
   printf 'runtime-inspect requires --json.\n' >&2
   exit 64
@@ -19,18 +24,32 @@ if [[ -z "$framework_path" ]] || [[ ! -x "$framework_path" ]]; then
 fi
 framework_realpath="$(readlink -f "$framework_path")"
 framework_sha256="$(sha256sum "$framework_realpath" | awk '{print $1}')"
+bootstrap_sha256="$(
+  for name in opl-runtime-control opl-runtime-exec opl-runtime-inspect; do
+    printf '%s\0' "$name"
+    cat "/opt/opl/bootstrap/$name"
+    printf '\0'
+  done | sha256sum | awk '{print $1}'
+)"
+active_operation_count="$(
+  find /var/lib/opl/runtime-state -maxdepth 1 -type f -name '*.json' -print 2>/dev/null |
+    wc -l |
+    tr -d '[:space:]'
+)"
 
 jq \
   --arg framework_path "$framework_realpath" \
   --arg framework_digest "sha256:$framework_sha256" \
+  --arg bootstrap_sha256 "$bootstrap_sha256" \
   --arg wsl_interop "${WSL_INTEROP:-}" \
+  --argjson active_operation_count "$active_operation_count" \
   '. + {
     schema: "opl_linux_runtime_inspection.v1",
     protocol_version: 1,
+    bootstrap_digest: ("sha256:" + $bootstrap_sha256),
     framework_path: $framework_path,
     framework_digest: $framework_digest,
     wsl2: ($wsl_interop | length > 0),
-    active_operation_count: ([inputs] | length)
+    active_operation_count: $active_operation_count
   }' \
-  "$identity" \
-  < <(find /var/lib/opl/runtime-state -maxdepth 1 -type f -name '*.json' -print 2>/dev/null)
+  "$identity"

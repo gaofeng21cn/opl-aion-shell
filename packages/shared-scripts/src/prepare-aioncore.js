@@ -30,6 +30,7 @@ const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
 const MINIMUM_AIONCORE_VERSION = [0, 1, 49];
 const REQUIRED_AIONCORE_OPTIONS = ['--recover-corrupted-database'];
+const MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND = '--materialize-internal-file-symlinks';
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
   'share',
@@ -372,6 +373,90 @@ function normalizeInternalSymlinks(rootDir, options = {}, currentDir = rootDir, 
   return result;
 }
 
+function materializeInternalFileSymlinks(rootDir) {
+  const resolvedRootDir = fs.realpathSync(rootDir);
+  const result = {
+    materialized: [],
+    hardLinked: [],
+    copied: [],
+    removedDangling: [],
+  };
+
+  function visit(currentDir) {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const absolutePath = path.join(currentDir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const relativePath = path.relative(rootDir, absolutePath).split(path.sep).join('/');
+        const linkTarget = fs.readlinkSync(absolutePath);
+        const unresolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
+        if (!isPathInside(unresolvedTarget, resolvedRootDir)) {
+          throw new Error(`Managed resource symlink points outside the bundle: ${relativePath}`);
+        }
+        let resolvedTarget;
+        try {
+          resolvedTarget = fs.realpathSync(absolutePath);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          fs.unlinkSync(absolutePath);
+          result.removedDangling.push(relativePath);
+          continue;
+        }
+        if (!isPathInside(resolvedTarget, resolvedRootDir)) {
+          throw new Error(`Managed resource symlink points outside the bundle: ${relativePath}`);
+        }
+        let targetStat;
+        try {
+          targetStat = fs.statSync(resolvedTarget);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          fs.unlinkSync(absolutePath);
+          result.removedDangling.push(relativePath);
+          continue;
+        }
+        if (!targetStat.isFile()) {
+          throw new Error(`Managed resource symlink target is not a file: ${relativePath}`);
+        }
+
+        fs.unlinkSync(absolutePath);
+        try {
+          fs.linkSync(resolvedTarget, absolutePath);
+          result.hardLinked.push(relativePath);
+        } catch {
+          fs.copyFileSync(resolvedTarget, absolutePath);
+          fs.chmodSync(absolutePath, fs.statSync(resolvedTarget).mode & 0o777);
+          result.copied.push(relativePath);
+        }
+        result.materialized.push(relativePath);
+        continue;
+      }
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+      }
+    }
+  }
+
+  visit(rootDir);
+  return result;
+}
+
+function resolveManagedNodeExecutable(managedResourcesDir, platform) {
+  const nodeRoot = path.join(managedResourcesDir, 'node');
+  const executableParts = nodeExecutableRelativePath(platform);
+  const candidates = fs
+    .readdirSync(nodeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(nodeRoot, entry.name, ...executableParts))
+    .filter((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
+    .toSorted();
+
+  if (candidates.length !== 1) {
+    throw new Error(
+      `Managed resources must contain exactly one ${platform} Node executable, found ${candidates.length}`
+    );
+  }
+  return candidates[0];
+}
+
 function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platform) {
   const nodeRoot = path.join(managedResourcesDir, 'node');
   const result = {
@@ -471,6 +556,8 @@ function getManagedResourcePrepareEnv(baseEnv = process.env) {
 function prepareManagedResources(binaryPath, targetDir, options = {}) {
   const bundleOut = path.join(targetDir, 'managed-resources');
   const dataDir = path.join(targetDir, '.prepare-data');
+  const targetPlatform = options.platform || process.platform;
+  const hostPlatform = options.hostPlatform || process.platform;
   const execFile = options.execFileSync || execFileSync;
   const attempts = parsePositiveInteger(options.attempts, getManagedResourcePrepareAttempts());
   const baseDelayMs = parsePositiveInteger(options.retryDelayMs, getManagedResourcePrepareRetryDelayMs());
@@ -523,7 +610,22 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
   }
 
   removeDirectorySafe(dataDir);
-  const pruneResult = pruneManagedNodeRuntime(bundleOut);
+  if (hostPlatform === 'win32' && targetPlatform === 'linux') {
+    const managedNodeExecutable = resolveManagedNodeExecutable(bundleOut, targetPlatform);
+    const output = execFile(
+      managedNodeExecutable,
+      [__filename, MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND, bundleOut],
+      {
+        encoding: 'utf8',
+        env: options.env || process.env,
+      }
+    );
+    const materialization = JSON.parse(String(output).trim());
+    logger.log(
+      `  Materialized ${materialization.materialized.length} Linux managed-resource symlink(s) for Windows packaging`
+    );
+  }
+  const pruneResult = pruneManagedNodeRuntime(bundleOut, targetPlatform);
   if (pruneResult.pruned.length > 0) {
     console.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
   }
@@ -965,7 +1067,10 @@ function prepareAioncore(options) {
       if (tempDir) removeDirectorySafe(tempDir);
       throw error;
     }
-    const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir);
+    const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir, {
+      execFileSync: compatibilityExecFileSync,
+      platform,
+    });
 
     writePreparedRuntimeManifest(targetDir, {
       platform,
@@ -1004,6 +1109,27 @@ function prepareAioncore(options) {
   throw new Error(`aioncore binary not found for ${runtimeKey} (tag: ${tag})`);
 }
 
+function runInternalCli(args) {
+  if (args[0] !== MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND) return false;
+  const rootDir = args[1];
+  if (!rootDir) {
+    throw new Error(`${MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND} requires a managed resources directory`);
+  }
+  process.stdout.write(`${JSON.stringify(materializeInternalFileSymlinks(path.resolve(rootDir)))}\n`);
+  return true;
+}
+
+if (require.main === module) {
+  try {
+    if (!runInternalCli(process.argv.slice(2))) {
+      throw new Error(`Unknown prepare-aioncore internal command: ${process.argv[2] || '<missing>'}`);
+    }
+  } catch (error) {
+    console.error(error?.message || error);
+    process.exitCode = 1;
+  }
+}
+
 module.exports = {
   getActionsArtifactName,
   getActionsArtifactMissingMessage,
@@ -1015,12 +1141,15 @@ module.exports = {
     downloadFile,
     getAioncoreCachePaths,
     getManagedResourcePrepareEnv,
+    materializeInternalFileSymlinks,
     normalizeInternalSymlinks,
     prepareAioncore,
     prepareManagedResources,
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,
+    resolveManagedNodeExecutable,
+    savePreparedRuntimeToCache,
     writePreparedRuntimeManifest,
   },
 };
