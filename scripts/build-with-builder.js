@@ -265,6 +265,33 @@ function findAppDir(outDir) {
   return null;
 }
 
+function findCompletePackagedMacApp(appDir) {
+  const projectRoot = path.resolve(__dirname, '..');
+  const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+  const productName = packageJson.productName;
+  if (typeof productName !== 'string' || productName.trim() === '') return null;
+
+  const appPath = path.join(appDir, `${productName}.app`);
+  const executablePath = path.join(appPath, 'Contents', 'MacOS', productName);
+  const resourcesDir = path.join(appPath, 'Contents', 'Resources');
+  const appAsarPath = path.join(resourcesDir, 'app.asar');
+  if (
+    !fileExistsAndNonEmpty(executablePath) ||
+    !fs.statSync(executablePath).isFile() ||
+    !fileExistsAndNonEmpty(appAsarPath) ||
+    !fs.statSync(appAsarPath).isFile()
+  ) {
+    return null;
+  }
+  try {
+    fs.accessSync(executablePath, fs.constants.X_OK);
+    assertPackagedUpdaterConfig(resourcesDir, { projectRoot });
+  } catch {
+    return null;
+  }
+  return appPath;
+}
+
 function findMacAppResourcesDirs(outDir) {
   const resourcesDirs = [];
   if (!fs.existsSync(outDir)) return resourcesDirs;
@@ -372,12 +399,9 @@ function buildOplReleaseVersionConfigArg() {
   return `--config.extraMetadata.version=${updaterVersion}`;
 }
 
-// Create DMG using electron-builder --prepackaged with .app path
+// Create DMG using electron-builder --prepackaged with a validated .app path
 // This preserves DMG styling from electron-builder.yml (window size, icon positions, background)
-function createDmgWithPrepackaged(appDir, targetArch) {
-  const appName = fs.readdirSync(appDir).find((f) => f.endsWith('.app'));
-  if (!appName) throw new Error(`No .app found in ${appDir}`);
-  const appPath = path.join(appDir, appName);
+function createDmgWithPrepackaged(appPath, targetArch) {
   const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
 
   execSync(
@@ -397,12 +421,13 @@ function buildWithDmgRetry(cmd, targetArch) {
     execSync(cmd, { stdio: 'inherit', shell: process.platform === 'win32' });
     return;
   } catch (error) {
-    // On non-macOS or if .app doesn't exist, just throw
+    // Only a complete product app proves packaging finished before DMG creation failed.
     const appDir = isMac ? findAppDir(outDir) : null;
-    if (!appDir || dmgExists(outDir)) throw error;
+    const appPath = appDir ? findCompletePackagedMacApp(appDir) : null;
+    if (!appPath || dmgExists(outDir)) throw error;
 
-    // .app exists but no .dmg → DMG creation failed
-    console.log('\n🔄 Build failed during DMG creation (.app exists, .dmg missing)');
+    // Complete product .app exists but no .dmg, so only the DMG target may be retried.
+    console.log('\n🔄 Build failed during DMG creation (complete .app exists, .dmg missing)');
     console.log('   Retrying DMG creation with --prepackaged...');
 
     for (let attempt = 1; attempt <= DMG_RETRY_MAX; attempt++) {
@@ -411,7 +436,7 @@ function buildWithDmgRetry(cmd, targetArch) {
 
       try {
         console.log(`\n📀 DMG retry attempt ${attempt}/${DMG_RETRY_MAX}...`);
-        createDmgWithPrepackaged(appDir, targetArch);
+        createDmgWithPrepackaged(appPath, targetArch);
         console.log('✅ DMG created successfully on retry');
         return;
       } catch (retryError) {

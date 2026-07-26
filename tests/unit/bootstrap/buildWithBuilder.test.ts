@@ -66,6 +66,124 @@ function withOutBundleBackup<T>(callback: () => T, outDir = join(repoRoot, 'out'
   }
 }
 
+function runDmgRetryFixture(fixture: 'incomplete-electron-app' | 'complete-product-app') {
+  const tempDir = mkdtempSync(join(tmpdir(), 'aionui-dmg-retry-test-'));
+  const hookPath = join(tempDir, 'hook.cjs');
+  const commandsPath = join(tempDir, 'commands.json');
+  const fallbackDmgPath = join(repoRoot, 'out/One-Person-Lab-26.7.26-mac-arm64.dmg');
+
+  writeFileSync(
+    hookPath,
+    `
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const Module = require('node:module');
+const path = require('node:path');
+
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request.endsWith('packages/shared-scripts/src/prepare-aioncore.js')) {
+    return { prepareAioncore: () => ({ prepared: true, dir: 'mock-bundled-aioncore', sourceType: 'mock' }) };
+  }
+  if (request === './resolveAioncoreVersion.js' || request.endsWith('/resolveAioncoreVersion.js')) {
+    return { resolveAioncoreVersion: () => 'v-test' };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+function record(command) {
+  const commandsPath = process.env.AIONUI_COMMANDS_FILE;
+  const commands = fs.existsSync(commandsPath) ? JSON.parse(fs.readFileSync(commandsPath, 'utf8')) : [];
+  commands.push(String(command));
+  fs.writeFileSync(commandsPath, JSON.stringify(commands));
+}
+
+function writeCompleteProductApp() {
+  const contentsDir = path.join(process.cwd(), 'out/mac-arm64/One Person Lab.app/Contents');
+  const executablePath = path.join(contentsDir, 'MacOS/One Person Lab');
+  const resourcesDir = path.join(contentsDir, 'Resources');
+  fs.mkdirSync(path.dirname(executablePath), { recursive: true });
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  fs.writeFileSync(executablePath, 'packaged executable');
+  fs.chmodSync(executablePath, 0o755);
+  fs.writeFileSync(path.join(resourcesDir, 'app.asar'), 'packaged app');
+  fs.writeFileSync(
+    path.join(resourcesDir, 'app-update.yml'),
+    [
+      'owner: gaofeng21cn',
+      'repo: one-person-lab-app',
+      'provider: github',
+      'publishAutoUpdate: true',
+      'releaseType: release',
+      'updaterCacheDirName: one-person-lab-aion-shell-updater',
+      '',
+    ].join('\\n')
+  );
+}
+
+function writeIncompleteElectronApp() {
+  const resourcesDir = path.join(process.cwd(), 'out/mac-arm64/Electron.app/Contents/Resources');
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  fs.writeFileSync(path.join(resourcesDir, 'app.asar'), 'partial packaged app');
+}
+
+childProcess.spawnSync = function mockedSpawnSync() {
+  return { status: 0, stdout: '', stderr: '' };
+};
+
+childProcess.execSync = function mockedExecSync(command) {
+  const commandText = String(command);
+  if (commandText.includes('electron-vite build')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+    return Buffer.from('');
+  }
+  if (!commandText.includes('electron-builder')) return Buffer.from('');
+
+  record(commandText);
+  if (commandText.includes('--prepackaged')) {
+    fs.writeFileSync(path.join(process.cwd(), 'out/One-Person-Lab-26.7.26-mac-arm64.dmg'), 'fallback dmg');
+    return Buffer.from('');
+  }
+  if (process.env.AIONUI_DMG_RETRY_FIXTURE === 'complete-product-app') writeCompleteProductApp();
+  else writeIncompleteElectronApp();
+  throw new Error('ORIGINAL_PACKAGING_FAILURE');
+};
+`,
+    'utf8'
+  );
+
+  try {
+    const result = withOutBundleBackup(() => {
+      return spawnSync(process.execPath, ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--force'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AIONUI_COMMANDS_FILE: commandsPath,
+          AIONUI_DMG_RETRY_FIXTURE: fixture,
+          OPL_RELEASE_VERSION: '26.7.26',
+          OPL_UPDATER_VERSION: '26.7.2600',
+          NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+        },
+      });
+    });
+    const commands = existsSync(commandsPath) ? (JSON.parse(readFileSync(commandsPath, 'utf8')) as string[]) : [];
+    return {
+      result,
+      commands,
+      fallbackDmgPresent: existsSync(fallbackDmgPath),
+    };
+  } finally {
+    rmSync(fallbackDmgPath, { force: true });
+    rmSync(`${fallbackDmgPath}.blockmap`, { force: true });
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 describe('build-with-builder', () => {
   it('packages only the bundled runtime for the target platform and architecture', () => {
     const resourcesDir = mkdtempSync(join(tmpdir(), 'aionui-packaged-runtimes-test-'));
@@ -298,6 +416,26 @@ childProcess.execSync = function mockedExecSync(command) {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('does not retry DMG creation from an incomplete Electron.app', () => {
+    const { result, commands, fallbackDmgPresent } = runDmgRetryFixture('incomplete-electron-app');
+
+    expect(result.status).toBe(1);
+    expect(result.stderr || result.stdout).toContain('ORIGINAL_PACKAGING_FAILURE');
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).not.toContain('--prepackaged');
+    expect(fallbackDmgPresent).toBe(false);
+  });
+
+  it('retains the bounded DMG retry for a complete product app', () => {
+    const { result, commands, fallbackDmgPresent } = runDmgRetryFixture('complete-product-app');
+
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toContain('--prepackaged');
+    expect(commands[1]).toContain('out/mac-arm64/One Person Lab.app');
+    expect(fallbackDmgPresent).toBe(true);
   });
 
   it('rejects macOS app bundles without packaged updater config', () => {
