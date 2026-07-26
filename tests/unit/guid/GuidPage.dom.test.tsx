@@ -145,6 +145,30 @@ const shortcutAssistants: Assistant[] = [
   },
 ];
 
+const projectedShortcutIdByPackageId: Record<string, string> = {
+  mas: 'research',
+  mag: 'grant',
+  rca: 'ppt',
+  obf: 'book',
+  oma: 'oma',
+};
+
+const projectedCodexEntryByPackageId: Record<string, string> = {
+  mas: 'med-autoscience',
+  mag: 'med-autogrant',
+  rca: 'redcube-ai',
+  obf: 'opl-bookforge',
+  oma: 'opl-meta-agent',
+};
+
+const projectedShortcutLabelByPackageId: Record<string, Record<'zh-CN' | 'en-US', string>> = {
+  mas: { 'zh-CN': '科研', 'en-US': 'Research' },
+  mag: { 'zh-CN': '基金', 'en-US': 'Grant Writing' },
+  rca: { 'zh-CN': '演示', 'en-US': 'Presentations' },
+  obf: { 'zh-CN': '写书', 'en-US': 'Writing books' },
+  oma: { 'zh-CN': '元智能体', 'en-US': 'Meta agent' },
+};
+
 const selectedAgentInfo: AvailableAgent = {
   id: 'mas',
   custom_agent_id: 'mas',
@@ -467,6 +491,19 @@ describe('GuidPage selected purpose assistant surface', () => {
             description: assistant.description,
             package_role: 'standard_agent',
             installed: true,
+            home_shortcuts: [
+              {
+                shortcut_id: projectedShortcutIdByPackageId[assistant.id],
+                label_i18n: projectedShortcutLabelByPackageId[assistant.id],
+                default_visible: true,
+                user_configurable: true,
+                route: {
+                  route_kind: 'agent_package_shortcut',
+                  executor: 'codex_cli',
+                  codex_visible_entry: projectedCodexEntryByPackageId[assistant.id],
+                },
+              },
+            ],
             capability_metadata: {
               source: 'normalized_owner_manifest',
               required_skill_ids: [

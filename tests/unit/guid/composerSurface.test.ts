@@ -6,24 +6,38 @@ import {
 } from '@/renderer/pages/guid/utils/composerSurface';
 
 describe('OPL Home composer surface', () => {
+  const projectedShortcuts = [
+    ['mas', 'research', 'med-autoscience'],
+    ['mag', 'grant', 'med-autogrant'],
+    ['rca', 'ppt', 'redcube-ai'],
+    ['obf', 'book', 'opl-bookforge'],
+    ['oma', 'oma', 'opl-meta-agent'],
+  ] as const;
   const appState = {
     agent_packages: {
       directory: {
-        entries: ['mas', 'mag', 'rca', 'obf', 'oma'].map((packageId) => ({
+        entries: projectedShortcuts.map(([packageId, shortcutId, codexVisibleEntry]) => ({
           package_id: packageId,
           display_name: packageId.toUpperCase(),
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [
+            {
+              shortcut_id: shortcutId,
+              label_i18n: { 'zh-CN': packageId.toUpperCase(), 'en-US': packageId.toUpperCase() },
+              default_visible: true,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: codexVisibleEntry,
+              },
+            },
+          ],
         })),
       },
       status_index: {
-        home_shortcut_preferences: [
-          ['mas', 'research'],
-          ['mag', 'grant'],
-          ['rca', 'ppt'],
-          ['obf', 'book'],
-          ['oma', 'oma'],
-        ].map(([packageId, shortcutId], sortOrder) => ({
+        home_shortcut_preferences: projectedShortcuts.map(([packageId, shortcutId], sortOrder) => ({
           package_id: packageId,
           shortcut_id: shortcutId,
           visible: true,

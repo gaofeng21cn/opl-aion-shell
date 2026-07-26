@@ -181,6 +181,19 @@ function buildPackageAppState(packageId: string, status: Record<string, unknown>
               required_skill_ids: packageId === 'mas' ? ['med-autoscience'] : ['opl-meta-agent'],
               optional_skill_refs: packageId === 'mas' ? ['officecli-docx'] : [],
             },
+            home_shortcuts: [
+              {
+                shortcut_id: shortcutIdByPackage[packageId] ?? packageId,
+                label_i18n: { 'zh-CN': packageId.toUpperCase(), 'en-US': packageId.toUpperCase() },
+                default_visible: true,
+                user_configurable: true,
+                route: {
+                  route_kind: 'agent_package_shortcut',
+                  executor: 'codex_cli',
+                  codex_visible_entry: packageId === 'mas' ? 'med-autoscience' : 'opl-meta-agent',
+                },
+              },
+            ],
             package_version: '1.0.0',
             available_actions: [buildActivationAction(packageId, workspaceRequired)],
           },

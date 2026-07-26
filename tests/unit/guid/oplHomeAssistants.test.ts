@@ -32,6 +32,23 @@ const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): 
   ...input,
 });
 
+const projectedHomeShortcut = (
+  shortcutId: string,
+  label: string,
+  codexVisibleEntry: string,
+  defaultVisible = true
+) => ({
+  shortcut_id: shortcutId,
+  label_i18n: { 'zh-CN': label, 'en-US': label },
+  default_visible: defaultVisible,
+  user_configurable: true,
+  route: {
+    route_kind: 'agent_package_shortcut',
+    executor: 'codex_cli',
+    codex_visible_entry: codexVisibleEntry,
+  },
+});
+
 const dynamicAppState = () => ({
   agent_packages: {
     directory: {
@@ -42,6 +59,7 @@ const dynamicAppState = () => ({
           description: 'Research',
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [projectedHomeShortcut('research', '科研', 'med-autoscience')],
         },
         {
           package_id: 'mag',
@@ -49,6 +67,7 @@ const dynamicAppState = () => ({
           description: 'Grants',
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [projectedHomeShortcut('grant', '基金', 'med-autogrant')],
           capability_metadata: {
             source: 'normalized_owner_manifest',
             required_skill_ids: ['med-autogrant'],
@@ -61,6 +80,7 @@ const dynamicAppState = () => ({
           description: 'Presentations',
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [projectedHomeShortcut('ppt', '演示', 'redcube-ai')],
         },
         {
           package_id: 'obf',
@@ -68,6 +88,7 @@ const dynamicAppState = () => ({
           description: 'Books',
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [projectedHomeShortcut('book', '写书', 'opl-bookforge')],
         },
         {
           package_id: 'oma',
@@ -75,6 +96,7 @@ const dynamicAppState = () => ({
           description: 'Agents',
           package_role: 'standard_agent',
           installed: true,
+          home_shortcuts: [projectedHomeShortcut('oma', '元智能体', 'opl-meta-agent')],
         },
         {
           package_id: 'opl-flow',
@@ -139,12 +161,42 @@ describe('OPL home assistants', () => {
         directory: {
           entries: [
             { package_id: 'mas-scholar-skills', package_role: 'framework_capability_package', installed: true },
-            { package_id: 'mag', display_name: 'Med Auto Grant', package_role: 'standard_agent', installed: false },
-            { package_id: 'mas', display_name: 'Med Auto Science', package_role: 'standard_agent', installed: false },
-            { package_id: 'obf', display_name: 'OPL Book Forge', package_role: 'standard_agent', installed: false },
+            {
+              package_id: 'mag',
+              display_name: 'Med Auto Grant',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('grant', '基金', 'med-autogrant')],
+            },
+            {
+              package_id: 'mas',
+              display_name: 'Med Auto Science',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('research', '科研', 'med-autoscience')],
+            },
+            {
+              package_id: 'obf',
+              display_name: 'OPL Book Forge',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('book', '写书', 'opl-bookforge')],
+            },
             { package_id: 'opl-flow', package_role: 'workflow_profile', installed: true },
-            { package_id: 'oma', display_name: 'OPL Meta Agent', package_role: 'standard_agent', installed: false },
-            { package_id: 'rca', display_name: 'RedCube AI', package_role: 'standard_agent', installed: false },
+            {
+              package_id: 'oma',
+              display_name: 'OPL Meta Agent',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('oma', '元智能体', 'opl-meta-agent')],
+            },
+            {
+              package_id: 'rca',
+              display_name: 'RedCube AI',
+              package_role: 'standard_agent',
+              installed: false,
+              home_shortcuts: [projectedHomeShortcut('ppt', '演示', 'redcube-ai')],
+            },
           ],
         },
         status_index: {
@@ -163,14 +215,14 @@ describe('OPL home assistants', () => {
     };
 
     const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
-    expect(shortcuts.map((item) => item.shortcut_id)).toEqual(['research', 'ppt', 'grant', 'book', 'oma']);
+    expect(shortcuts.map((item) => item.shortcut_id)).toEqual(['grant', 'research', 'book', 'oma', 'ppt']);
     expect(shortcuts.every((item) => item.installed === false)).toBe(true);
     expect(resolveOplHomeAssistants([], appState).map((item) => item.id)).toEqual([
-      'research',
-      'ppt',
       'grant',
+      'research',
       'book',
       'oma',
+      'ppt',
     ]);
     expect(resolveOplPackageLaunchGate(appState, 'mas')).toEqual({
       state: 'package_unavailable',
@@ -219,6 +271,7 @@ describe('OPL home assistants', () => {
               description: 'Research',
               package_role: 'standard_agent',
               installed: true,
+              home_shortcuts: [projectedHomeShortcut('research', '科研', 'med-autoscience')],
             },
           ],
         },
@@ -274,6 +327,10 @@ describe('OPL home assistants', () => {
               description: 'Future work',
               package_role: 'standard_agent',
               installed: true,
+              home_shortcuts: [
+                projectedHomeShortcut('future-main', 'Future Main', 'future-agent'),
+                projectedHomeShortcut('future-review', 'Future Review', 'future-agent'),
+              ],
             },
           ],
         },
@@ -320,7 +377,7 @@ describe('OPL home assistants', () => {
       {
         id: 'future-review',
         packageId: 'future-agent',
-        label: 'Future Agent',
+        label: 'Future Review',
         description: 'Future work',
         agentId: undefined,
         runtime: undefined,
@@ -331,7 +388,7 @@ describe('OPL home assistants', () => {
       {
         id: 'future-main',
         packageId: 'future-agent',
-        label: 'Future Agent',
+        label: 'Future Main',
         description: 'Future work',
         agentId: undefined,
         runtime: undefined,

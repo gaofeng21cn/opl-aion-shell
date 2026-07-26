@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getOplFirstPartyPackagePresentations, getOplHomeAgentShortcuts } from '@/common/config/oplProductProfile';
 import {
   parseOplProjectedPackageAction,
   type OplAppStateRecord,
@@ -1536,15 +1535,9 @@ export function buildCapabilitiesViewModel(
   }
 
   const normalizedLocaleKey: 'zh-CN' | 'en-US' = localeKey.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
-  const firstPartyPresentationById = new Map(
-    getOplFirstPartyPackagePresentations().map((entry) => [entry.package_id, entry])
-  );
-
-  const shortcutsByPackageId = new Map(getOplHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut]));
   const defaultPurposes = directoryEntries.flatMap((directoryEntry) => {
     const packageId = packageStateId(directoryEntry);
     if (!packageId) return [];
-    const firstPartyPresentation = firstPartyPresentationById.get(packageId);
     const moduleIds = directoryProjectionIds(directoryEntry, packageId);
     const packageStatus = packageStatuses.get(packageId);
     const directoryState: RuntimePackageStateItem = {
@@ -1558,9 +1551,11 @@ export function buildCapabilitiesViewModel(
       .find(Boolean);
     const module = runtimeSourceCarrier ? mergeRuntimeSourceCarrier(undefined, runtimeSourceCarrier) : undefined;
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
-    const shortcut = shortcutsByPackageId.get(packageId);
+    const displayNameI18n = oplRecord(directoryEntry.display_name_i18n);
+    const descriptionI18n = oplRecord(directoryEntry.description_i18n);
+    const homeShortcuts = oplRecordList(directoryEntry.home_shortcuts);
     const title =
-      firstPartyPresentation?.display_name_i18n[normalizedLocaleKey] ??
+      firstString(displayNameI18n[normalizedLocaleKey]) ??
       firstString(directoryEntry.display_name, directoryEntry.title, directoryEntry.name) ??
       packageId;
     const role = firstString(directoryState.package_role, directoryState.role);
@@ -1574,16 +1569,16 @@ export function buildCapabilitiesViewModel(
           key: packageId,
           title,
           description:
-            firstPartyPresentation?.description_i18n[normalizedLocaleKey] ??
+            firstString(descriptionI18n[normalizedLocaleKey]) ??
             firstString(directoryEntry.description, directoryEntry.summary, directoryEntry.purpose) ??
-            shortcut?.primary_label ??
             title,
           tags: [...new Set(tags)],
           moduleIds,
           packageId,
           codexVisibleEntry: firstString(directoryEntry.codex_visible_entry),
-          defaultHomeVisible: shortcut?.default_visible ?? null,
-          userConfigurable: shortcut?.user_configurable ?? false,
+          defaultHomeVisible:
+            homeShortcuts.length > 0 ? homeShortcuts.some((shortcut) => shortcut.default_visible === true) : null,
+          userConfigurable: homeShortcuts.some((shortcut) => shortcut.user_configurable === true),
         },
         directoryState,
         packageStatus,

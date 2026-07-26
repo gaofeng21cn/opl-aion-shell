@@ -64,7 +64,7 @@ const appStateWithDirectory = (
     directory: {
       status: options.directoryStatus ?? 'available',
       status_read_error: options.directoryStatusReadError ?? null,
-      entries,
+      entries: entries.map(withProjectedPackageMetadata),
     },
     status_index: {
       packages: options.statusEntries ?? [],
@@ -79,6 +79,100 @@ const shortcutPackageById: Record<string, string> = {
   ppt: 'rca',
   book: 'obf',
   oma: 'oma',
+};
+
+const projectedPackageMetadataById: Record<
+  string,
+  {
+    displayNameI18n: Record<'zh-CN' | 'en-US', string>;
+    descriptionI18n: Record<'zh-CN' | 'en-US', string>;
+    shortcut?: { shortcutId: string; label: string; codexVisibleEntry: string };
+  }
+> = {
+  mas: {
+    displayNameI18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
+    descriptionI18n: {
+      'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+      'en-US':
+        'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+    },
+    shortcut: { shortcutId: 'research', label: 'Research', codexVisibleEntry: 'mas' },
+  },
+  mag: {
+    displayNameI18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
+    descriptionI18n: {
+      'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
+      'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
+    },
+    shortcut: { shortcutId: 'grant', label: 'Grant Writing', codexVisibleEntry: 'mag' },
+  },
+  rca: {
+    displayNameI18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
+    descriptionI18n: {
+      'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
+      'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
+    },
+    shortcut: { shortcutId: 'ppt', label: 'Presentations', codexVisibleEntry: 'rca' },
+  },
+  obf: {
+    displayNameI18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
+    descriptionI18n: {
+      'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
+      'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
+    },
+    shortcut: { shortcutId: 'book', label: 'Writing books', codexVisibleEntry: 'opl-bookforge' },
+  },
+  oma: {
+    displayNameI18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
+    descriptionI18n: {
+      'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
+      'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
+    },
+    shortcut: { shortcutId: 'oma', label: 'Meta agent', codexVisibleEntry: 'opl-meta-agent' },
+  },
+  'mas-scholar-skills': {
+    displayNameI18n: { 'zh-CN': 'MAS 学术技能', 'en-US': 'MAS Scholar Skills' },
+    descriptionI18n: {
+      'zh-CN': '供医学科研智能体使用的可复用医学科研能力。',
+      'en-US': 'Reusable medical research capabilities consumed by Med Auto Science.',
+    },
+  },
+  'opl-flow': {
+    displayNameI18n: { 'zh-CN': 'OPL Flow', 'en-US': 'OPL Flow' },
+    descriptionI18n: {
+      'zh-CN': 'OPL 推荐工作流配置与受管 Codex 策略。',
+      'en-US': 'Recommended OPL workflow profile and managed Codex policy.',
+    },
+  },
+};
+
+const withProjectedPackageMetadata = (entry: Record<string, unknown>) => {
+  const packageId = typeof entry.package_id === 'string' ? entry.package_id : '';
+  const metadata = projectedPackageMetadataById[packageId];
+  if (!metadata) return entry;
+  return {
+    display_name_i18n: metadata.displayNameI18n,
+    description_i18n: metadata.descriptionI18n,
+    ...(metadata.shortcut
+      ? {
+          codex_visible_entry: metadata.shortcut.codexVisibleEntry,
+          home_shortcuts: [
+            {
+              shortcut_id: metadata.shortcut.shortcutId,
+              label_i18n: { 'zh-CN': metadata.shortcut.label, 'en-US': metadata.shortcut.label },
+              default_visible: true,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: metadata.shortcut.codexVisibleEntry,
+              },
+            },
+          ],
+        }
+      : {}),
+    ...entry,
+  };
 };
 
 const homeShortcutPreference = (
@@ -101,12 +195,13 @@ const defaultHomeShortcutPreferences = () =>
   );
 
 const homeShortcutDirectoryEntries = () =>
-  Object.entries(shortcutPackageById).map(([shortcutId, packageId]) => ({
-    package_id: packageId,
-    display_name: shortcutId,
-    package_role: 'standard_agent',
-    installed: true,
-  }));
+  Object.values(shortcutPackageById).map((packageId) =>
+    withProjectedPackageMetadata({
+      package_id: packageId,
+      package_role: 'standard_agent',
+      installed: true,
+    })
+  );
 
 const homeShortcutAppState = (preferences = defaultHomeShortcutPreferences()) => ({
   agent_packages: {
@@ -125,6 +220,19 @@ const homeShortcutReadback = (shortcutId: string, visible: boolean, sortOrder: n
             display_name: shortcutPackageById[shortcutId] ?? shortcutId,
             package_role: 'standard_agent',
             installed: true,
+            home_shortcuts: [
+              {
+                shortcut_id: shortcutId,
+                label_i18n: { 'zh-CN': shortcutId, 'en-US': shortcutId },
+                default_visible: true,
+                user_configurable: true,
+                route: {
+                  route_kind: 'agent_package_shortcut',
+                  executor: 'codex_cli',
+                  codex_visible_entry: shortcutPackageById[shortcutId] ?? shortcutId,
+                },
+              },
+            ],
           },
         ],
       },
@@ -429,7 +537,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   packageAction('agent_package_uninstall', { package_id: 'example-agent' }, ['package_id'], true),
                 ],
               },
-            ],
+            ].map(withProjectedPackageMetadata),
           },
           status_index: {
             home_shortcut_preferences: defaultHomeShortcutPreferences(),
@@ -649,43 +757,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
 });
 
 vi.mock('@/common/config/oplProductProfile', () => {
-  const homeAgentShortcuts = [
-    {
-      shortcut_id: 'research',
-      package_id: 'mas',
-      primary_label: 'Research',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'grant',
-      package_id: 'mag',
-      primary_label: 'Grant Writing',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'ppt',
-      package_id: 'rca',
-      primary_label: 'Presentations',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'book',
-      package_id: 'obf',
-      primary_label: 'Writing books',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'oma',
-      package_id: 'oma',
-      primary_label: 'Meta agent',
-      user_configurable: true,
-      default_visible: true,
-    },
-  ];
   const professionalAgentPackages = [
     {
       package_id: 'med-autoscience',
@@ -742,65 +813,6 @@ vi.mock('@/common/config/oplProductProfile', () => {
       optional_skill_ids: [],
     },
   ];
-  const firstPartyPackagePresentations = [
-    {
-      package_id: 'mas',
-      display_name_i18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
-      description_i18n: {
-        'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
-        'en-US':
-          'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
-      },
-    },
-    {
-      package_id: 'mag',
-      display_name_i18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
-      description_i18n: {
-        'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
-        'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
-      },
-    },
-    {
-      package_id: 'rca',
-      display_name_i18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
-      description_i18n: {
-        'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
-        'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
-      },
-    },
-    {
-      package_id: 'oma',
-      display_name_i18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
-      description_i18n: {
-        'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
-        'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
-      },
-    },
-    {
-      package_id: 'obf',
-      display_name_i18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
-      description_i18n: {
-        'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
-        'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
-      },
-    },
-    {
-      package_id: 'mas-scholar-skills',
-      display_name_i18n: { 'zh-CN': 'MAS 学术技能', 'en-US': 'MAS Scholar Skills' },
-      description_i18n: {
-        'zh-CN': '供医学科研智能体使用的可复用医学科研能力。',
-        'en-US': 'Reusable medical research capabilities consumed by Med Auto Science.',
-      },
-    },
-    {
-      package_id: 'opl-flow',
-      display_name_i18n: { 'zh-CN': 'OPL Flow', 'en-US': 'OPL Flow' },
-      description_i18n: {
-        'zh-CN': 'OPL 推荐工作流配置与受管 Codex 策略。',
-        'en-US': 'Recommended OPL workflow profile and managed Codex policy.',
-      },
-    },
-  ];
   return {
     canonicalizeOplProfessionalAgentId: (id: string) => {
       const normalized = id.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -820,8 +832,6 @@ vi.mock('@/common/config/oplProductProfile', () => {
     },
     getOplDefaultExecutorAgentKey: () => 'codex',
     getOplDefaultHomeAssistants: () => [],
-    getOplFirstPartyPackagePresentations: () => firstPartyPackagePresentations,
-    getOplHomeAgentShortcuts: () => homeAgentShortcuts,
     getOplProfessionalAgentPackage: (id: string) =>
       professionalAgentPackages.find((agentPackage) => agentPackage.package_id === id),
     getOplProfessionalAgentPackages: () => professionalAgentPackages,
@@ -2727,6 +2737,30 @@ describe('Agents and capabilities settings', () => {
           package_role: 'standard_agent',
           installed: true,
           status: 'ready',
+          home_shortcuts: [
+            {
+              shortcut_id: 'future-main',
+              label_i18n: { 'zh-CN': 'Future Main', 'en-US': 'Future Main' },
+              default_visible: true,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: 'future-agent',
+              },
+            },
+            {
+              shortcut_id: 'future-review',
+              label_i18n: { 'zh-CN': 'Future Review', 'en-US': 'Future Review' },
+              default_visible: true,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: 'future-agent',
+              },
+            },
+          ],
           available_actions: [
             actionFixture('agent_package_preferences_set', { package_id: 'future-agent' }, [
               'package_id',

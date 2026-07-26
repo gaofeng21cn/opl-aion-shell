@@ -12,7 +12,7 @@
     "primary_surface": "desktop_workbench",
     "supported_release_platforms": ["macos-arm64"],
     "positioning": "purpose_first_codex_app_wrapper",
-    "primary_user_path": "chat_first_codex_cli_with_builtin_mas_mag_rca_bookforge_purpose_entries"
+    "primary_user_path": "chat_first_codex_cli_with_dynamic_agent_package_shortcuts"
   },
   "contract_refs": {
     "active_shell": "contracts/app-shell-adapter.json",
@@ -174,7 +174,7 @@
         "workspace_selector_entry": "home.new_session_context_bar",
         "unselected_workspace_control_visible": true,
         "unselected_workspace_control_policy": "localized_choose_project_directory_action_not_projectless_status_placeholder",
-        "home_presentation_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent] + app_state.agent_packages.status_index.home_shortcut_preferences[] + gui.home.home_agent_shortcuts optional migration/display metadata only",
+        "home_presentation_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent] + app_state.agent_packages.status_index.home_shortcut_preferences[]",
         "home_shortcut_visibility_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[visible=true]",
         "home_shortcut_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
@@ -416,96 +416,12 @@
         ]
       },
       "home_agent_shortcuts_metadata_policy": {
-        "role": "optional_migration_and_display_metadata",
-        "allowed_uses": ["localized_label_fallback", "shortcut_alias_migration"],
-        "forbidden_authority": [
-          "catalog_membership",
-          "installed",
-          "present",
-          "callable",
-          "visibility",
-          "sort_order",
-          "actions"
-        ],
-        "runtime_authority_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent] + app_state.agent_packages.status_index.home_shortcut_preferences[]"
+        "role": "owner_projected_package_presentation",
+        "shortcut_source_ref": "app_state.agent_packages.directory.entries[].home_shortcuts[]",
+        "preference_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
+        "package_id_allowlist_allowed": false,
+        "fallback_policy": "omit_invalid_shortcut_and_preserve_other_packages"
       },
-      "home_agent_shortcuts": [
-        {
-          "shortcut_id": "research",
-          "package_id": "mas",
-          "agent_id": "mas",
-          "primary_label": "科研",
-          "package_short_name": "MAS",
-          "codex_visible_entry": "med-autoscience",
-          "required_skill_ids": ["med-autoscience"],
-          "source": "opl_app_home",
-          "executor": "codex_cli",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
-          "user_configurable": true
-        },
-        {
-          "shortcut_id": "ppt",
-          "package_id": "rca",
-          "agent_id": "rca",
-          "primary_label": "演示",
-          "package_short_name": "RCA",
-          "codex_visible_entry": "redcube-ai",
-          "required_skill_ids": ["redcube-ai"],
-          "source": "opl_app_home",
-          "executor": "codex_cli",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
-          "user_configurable": true
-        },
-        {
-          "shortcut_id": "grant",
-          "package_id": "mag",
-          "agent_id": "mag",
-          "primary_label": "基金",
-          "package_short_name": "MAG",
-          "codex_visible_entry": "med-autogrant",
-          "required_skill_ids": ["med-autogrant"],
-          "source": "opl_app_home",
-          "executor": "codex_cli",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
-          "user_configurable": true
-        },
-        {
-          "shortcut_id": "book",
-          "package_id": "obf",
-          "agent_id": "obf",
-          "primary_label": "写书",
-          "package_short_name": "OBF",
-          "codex_visible_entry": "opl-bookforge",
-          "required_skill_ids": ["opl-bookforge"],
-          "source": "opl_app_home",
-          "executor": "codex_cli",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
-          "user_configurable": true
-        },
-        {
-          "shortcut_id": "oma",
-          "package_id": "oma",
-          "agent_id": "oma",
-          "primary_label": "元智能体",
-          "package_short_name": "OMA",
-          "codex_visible_entry": "opl-meta-agent",
-          "required_skill_ids": ["opl-meta-agent"],
-          "source": "opl_app_home",
-          "executor": "codex_cli",
-          "display_policy": "purpose_first",
-          "home_entry_policy": "visible_click_to_start",
-          "default_visible": true,
-          "user_configurable": true
-        }
-      ],
       "retired_codex_models_must_not_be_exposed": [
         "gpt-5.3-codex-spark",
         "gpt-5.3-codex",
@@ -540,8 +456,6 @@
       "composer_position": "floating_bottom_with_safe_inset",
       "active_capability_chip_visible": true,
       "persistent_purpose_selector_visible": false,
-      "agent_package_invocation_receipt_required": true,
-      "assistant_route_receipt_required": true,
       "backend_selector_visible": false,
       "model_selector_visible": true,
       "permission_mode_selector_visible": true,
@@ -864,38 +778,6 @@
       "environment_popover_ref": "interaction_baseline.context_surfaces.environment_popover",
       "must_not_own": ["runtime truth", "domain truth", "artifact body", "memory body", "backend selection authority"]
     },
-    "agent_package_invocation_receipt_policy": {
-      "scope": "package_shortcut_launch_to_codex_conversation",
-      "required_for_package_shortcuts_source_ref": "visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]",
-      "route_kind": "agent_package_shortcut",
-      "executor": "codex_cli",
-      "source": "opl_app_home",
-      "required_fields": [
-        "route_kind",
-        "executor",
-        "package_id",
-        "shortcut_id",
-        "codex_visible_entry",
-        "required_skill_ids",
-        "source"
-      ],
-      "receipt_authority": "launch_fact_only_no_session_behavior_domain_workflow_or_readiness",
-      "must_not_govern": ["session_behavior", "domain_workflow", "domain_readiness"],
-      "must_not_depend_on_visible_backend_selection": true
-    },
-    "agent_package_activation_policy": {
-      "contract_ref": "contracts/app-gui-product-contract.json#agent_package_activation_policy"
-    },
-    "builtin_assistant_route_receipt_policy": {
-      "migration_alias_for": "agent_package_invocation_receipt_policy",
-      "scope": "home_purpose_entry_to_conversation",
-      "required_for_assistants": ["mas", "mag", "rca", "obf"],
-      "route_kind": "builtin_capability",
-      "executor": "codex_cli",
-      "source": "opl_app_home",
-      "required_fields": ["route_kind", "executor", "assistant_id", "assistant_short_name", "source"],
-      "must_not_depend_on_visible_backend_selection": true
-    },
     "ordinary_capability_selector_policy": {
       "scope": "home_composer_and_ordinary_conversation",
       "authority": "owner_or_carrier_skill_projection_and_mcp_negative_filter",
@@ -1018,14 +900,13 @@
       }
     },
     "agent_package_registry": {
-      "directory_lifecycle_authority": "app_state.agent_packages.directory+status_index+actions",
-      "external_registry_role": "optional_candidate_source_adapter",
-      "bundled_default_registry_allowed": false,
-      "external_registry_policy_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.agent_registry_policy",
-      "external_first_party_identity_claims_allowed": false,
-      "external_first_party_trust_claims_allowed": false,
-      "collision_failure_code": "agent_package_registry_first_party_identity_collision",
-      "first_party_manifest_fixture_dir": "contracts/fixtures/agent-package-manifests",
+      "directory_projection_authority": "app_state.agent_packages.directory.entries",
+      "status_projection_authority": "app_state.agent_packages.status_index",
+      "action_projection_authority": "app_state.agent_packages.directory.entries[].available_actions[] + app_state.actions",
+      "presentation_source": "app_state.agent_packages.directory.entries",
+      "unknown_package_policy": "render_without_app_package_id_branch",
+      "manifest_lock_receipt_parser_allowed": false,
+      "action_id_allowlist_allowed": false,
       "catalog_presentation_policy": {
         "section_order": ["professional_agents", "workflow_profiles", "shared_dependencies", "other_packages"],
         "professional_agent_order_source": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
@@ -1066,148 +947,6 @@
           "ordinary_catalog_remains_visible_when_collapsed": true
         }
       },
-      "starter_package_metadata": [
-        {
-          "package_id": "mas",
-          "package_kind": "domain_agent_package",
-          "display_name": "Med Auto Science",
-          "display_name_i18n": {
-            "zh-CN": "Med Auto Science",
-            "en-US": "Med Auto Science"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Medical research workflows for evidence, analysis, writing, figures, and submission.",
-          "description_i18n": {
-            "zh-CN": "用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。",
-            "en-US": "For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission."
-          },
-          "tags": ["medical-research", "evidence", "manuscript"],
-          "package_role": "standard_agent",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mas.json"
-        },
-        {
-          "package_id": "mag",
-          "package_kind": "domain_agent_package",
-          "display_name": "Med Auto Grant",
-          "display_name_i18n": {
-            "zh-CN": "Med Auto Grant",
-            "en-US": "Med Auto Grant"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Grant planning, drafting, critique, revision, and submission workflows.",
-          "description_i18n": {
-            "zh-CN": "用于基金选题、标书与申请书撰写、预算说明和评审回复。",
-            "en-US": "For grant topics, proposals and applications, budget narratives, and reviewer responses."
-          },
-          "tags": ["grant-writing", "proposal", "review"],
-          "package_role": "standard_agent",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mag.json"
-        },
-        {
-          "package_id": "rca",
-          "package_kind": "domain_agent_package",
-          "display_name": "RedCube AI",
-          "display_name_i18n": {
-            "zh-CN": "RedCube AI",
-            "en-US": "RedCube AI"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Visual deliverable, presentation, and figure production workflows.",
-          "description_i18n": {
-            "zh-CN": "用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。",
-            "en-US": "For presentations, reports, charts, and other professional visual deliverables."
-          },
-          "tags": ["visual-deliverables", "presentations", "figures"],
-          "package_role": "standard_agent",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/rca.json"
-        },
-        {
-          "package_id": "oma",
-          "package_kind": "domain_agent_package",
-          "display_name": "OPL Meta Agent",
-          "display_name_i18n": {
-            "zh-CN": "OPL Meta Agent",
-            "en-US": "OPL Meta Agent"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Agent architecture, baseline, takeover, and OPL conformance workflows.",
-          "description_i18n": {
-            "zh-CN": "用于创建、接管、检查和改进 OPL 专业智能体。",
-            "en-US": "For creating, taking over, inspecting, and improving OPL professional agents."
-          },
-          "tags": ["agent-design", "architecture", "conformance"],
-          "package_role": "standard_agent",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/oma.json"
-        },
-        {
-          "package_id": "obf",
-          "package_kind": "domain_agent_package",
-          "display_name": "OPL Book Forge",
-          "display_name_i18n": {
-            "zh-CN": "OPL Book Forge",
-            "en-US": "OPL Book Forge"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Long-form book architecture, drafting, review, and publication workflows.",
-          "description_i18n": {
-            "zh-CN": "用于书稿规划、章节写作、插图表格、排版、审校和导出。",
-            "en-US": "For book planning, chapter writing, figures and tables, layout, editing, and export."
-          },
-          "tags": ["book-authoring", "long-form", "publishing"],
-          "package_role": "standard_agent",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/obf.json"
-        },
-        {
-          "package_id": "mas-scholar-skills",
-          "package_kind": "framework_capability_package",
-          "display_name": "MAS Scholar Skills",
-          "display_name_i18n": {
-            "zh-CN": "MAS 学术技能",
-            "en-US": "MAS Scholar Skills"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Reusable medical research capabilities consumed by Med Auto Science.",
-          "description_i18n": {
-            "zh-CN": "供 Med Auto Science 使用的可复用医学科研能力。",
-            "en-US": "Reusable medical research capabilities consumed by Med Auto Science."
-          },
-          "tags": ["medical-research", "capabilities", "skills"],
-          "package_role": "framework_capability_package",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/mas-scholar-skills.json"
-        },
-        {
-          "package_id": "opl-flow",
-          "package_kind": "workflow_plugin_package",
-          "display_name": "OPL Flow",
-          "display_name_i18n": {
-            "zh-CN": "OPL Flow",
-            "en-US": "OPL Flow"
-          },
-          "publisher": "one-person-lab",
-          "source": "first_party",
-          "trust_tier": "first_party",
-          "description": "Recommended OPL workflow profile and managed Codex policy.",
-          "description_i18n": {
-            "zh-CN": "OPL 推荐工作流配置与受管 Codex 策略。",
-            "en-US": "Recommended OPL workflow profile and managed Codex policy."
-          },
-          "tags": ["workflow-profile", "codex", "policy"],
-          "package_role": "workflow_profile",
-          "manifest_fixture_ref": "contracts/fixtures/agent-package-manifests/opl-flow.json"
-        }
-      ],
       "shell_consumption_policy": "generated_product_profile_only_no_renderer_literal"
     }
   },
@@ -3465,41 +3204,27 @@
               "display_metadata_source": "app_state.agent_packages.directory.entries",
               "display_metadata_policy": "use owner-projected display metadata with a package-id fallback; App profile metadata must not define catalog membership, ordering, status, readiness, or actions",
               "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
-              "source_semantics_policy": "directory entries own catalog membership, installed or present state, callability, installability, coarse readiness, recommended_action_ref, and exact available_actions; status_index and fresh carrier readback add package-id-keyed dependency presence, repair or activation actions, dependent guard, capability exposure, runtime-source readiness, currentness, and status-read diagnostics but cannot override directory lifecycle, readiness, or exact actions; the shell infers none of them",
+              "source_semantics_policy": "directory entries own catalog membership, presentation, installed or present state, callability, readiness, recommended_action_ref, and exact available_actions; status_index and fresh carrier readback add package-id-keyed presence, dependent guard, capability exposure, runtime-source readiness, and status-read diagnostics but cannot override directory lifecycle, readiness, or exact actions; the shell infers none of them",
               "diagnostic_enrichment_projection": "opl app state --profile fast --json#app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[] + app_state.modules.items[]",
               "normalization_policy": "shell uses directory.entries as the only manageable collection, joins optional fresh diagnostics by canonical package_id, and keeps directory lifecycle, presence, callability, readiness, and actions authoritative on overlap",
-              "canonical_directory_absent_policy": "render loading, empty, last-good stale, or failed without synthesizing rows or actions from status_index, runtime_source_carriers, modules, Home shortcuts, or App profile metadata",
+              "canonical_directory_absent_policy": "render loading, empty, last-good stale, or failed without synthesizing rows or actions from status_index, runtime_source_carriers, modules, Home shortcuts, or App metadata",
               "runtime_carrier_failure_policy": "fresh carrier failure projects package-local attention_needed and launch_blocked without changing catalog membership or blocking unrelated packages",
               "catalog_interaction_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.directory_controls",
               "package_action_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.canonical_action_contract",
-              "stage_runtime_activation_contract_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.workspace_activation_contract",
-              "settings_action_scope": "owner_projected_non_activation_actions_only",
-              "settings_activation_execution_allowed": false,
-              "new_conversation_activation_execution_allowed": false,
-              "ordinary_send_activation_execution_allowed": false,
-              "settings_target_workspace_source": null,
-              "global_workspace_root_activation_target_allowed": false,
-              "selected_session_directory_activation_target_allowed": false,
-              "scope_inference_allowed": false,
-              "session_launch_authority": false,
-              "stage_runtime_activation_owner": "one-person-lab_family_runtime",
-              "stage_runtime_workspace_locator_source": "StageRun.workspace_locator_or_StageAttempt.workspace_locator",
+              "settings_action_scope": "owner_projected_settings_actions_only",
+              "settings_action_inference_allowed": false,
               "status_model": {
-                "policy": "multi_axis_package_status_no_single_repair_bucket",
+                "policy": "generic_package_status_projection",
                 "user_facing_projection_ref": "contracts/app-gui-product-contract.json#pages.settings_agents.agent_package_lifecycle_ux.user_facing_status_projection",
                 "localized_metadata_source": "app_state.agent_packages.directory.entries",
                 "axes": [
+                  "presence",
                   "install_state",
-                  "activation_state",
-                  "activation_action",
-                  "update_state",
                   "source_state",
                   "trust_state",
-                  "codex_surface_state",
                   "capability_exposure",
                   "directory_readiness",
                   "dependency_readiness",
-                  "dependent_guard",
                   "runtime_source_readiness",
                   "operational_ready",
                   "launch_allowed"
@@ -3512,11 +3237,8 @@
                 "detail_fields": [
                   "directory_readiness",
                   "dependency_readiness",
-                  "repair_action",
-                  "activation_action",
                   "dependent_guard",
                   "capability_exposure",
-                  "package_dependency_readiness",
                   "runtime_source_readiness",
                   "operational_ready",
                   "launch_allowed",
@@ -3524,16 +3246,8 @@
                   "allowed_when_blocked",
                   "status_read_error"
                 ],
-                "advanced_diagnostics_fields": [
-                  "receipt_refs",
-                  "rollback_ref",
-                  "action_receipt_ref",
-                  "materialization_readiness",
-                  "dependency_closure",
-                  "physical_surface"
-                ],
-                "first_screen_policy": "directory presence and callability plus dependency presence, activation action, dependent guard, exposure, runtime-source readiness, and launch diagnostics are normal detail fields; receipts, rollback refs, materialization internals, closure digests, and physical surfaces are Advanced diagnostics only",
-                "rollback_display_policy": "rollback_ref_is_diagnostic_recovery_reference_not_an_app_owned_rollback_button_or_runtime_truth"
+                "advanced_diagnostics_fields": ["owner_diagnostic_ref", "status_read_error"],
+                "first_screen_policy": "directory presence and callability plus dependency presence, dependent guard, exposure, runtime-source readiness, and launch diagnostics are normal detail fields; private lifecycle storage and physical paths are not App inputs"
               },
               "completion_boundary": "this control-plane contract requires canonical public directory entries and their projected actions for manageable rows; status_index, runtime_source_carriers, modules, and Home shortcuts may enrich diagnostics only and never define catalog membership, lifecycle, readiness, or actions"
             },
@@ -5094,7 +4808,7 @@
               "dedicated package catalog search with package role, availability status, and source filters",
               "visible registry refresh and projected per-row non-activation lifecycle actions",
               "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
-              "starter_package_metadata as replaceable package_id-keyed UI metadata only, never directory membership or status truth",
+              "owner-projected display metadata and shortcuts from app_state.agent_packages.directory.entries",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
               "Developer Mode auto activation state, authorized repository scope, and dirty-worktree protection",
               "per-package automatic, managed, or developer source selection in package details",
@@ -5107,10 +4821,11 @@
             ],
             "management_discoverability": {
               "primary_row_controls": ["home_visibility", "recommended_action", "manage"],
-              "lifecycle_actions": ["install", "update", "repair", "enable", "disable", "hide", "unhide", "uninstall"],
+              "projected_action_source": "app_state.agent_packages.directory.entries[].available_actions[]",
+              "projected_action_semantic_source": "app_state.agent_packages.directory.entries[].available_actions[].semantic",
+              "action_id_allowlist_allowed": false,
               "catalog_search_is_settings_global_search": false,
               "registry_refresh_visibility": "ordinary_visible_action",
-              "manifest_url_install_visibility": "advanced_only",
               "projected_action_policy": "execute only Framework action_id and payload; never infer status, readiness, action ids, or payload fields in the Shell",
               "raw_source_fallback_allowed": false,
               "diagnostic_refs_location": "diagnostics_modal",
@@ -6501,48 +6216,6 @@
     "additional_package_skill_ids": ["opl-meta-agent"],
     "domain_plugin_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
-    "domain_exposure": [
-      {
-        "domain_id": "med-autoscience",
-        "package_id": "mas",
-        "agent_id": "mas",
-        "codex_visible_entry": "med-autoscience",
-        "preferred_app_distribution": "plugin_packaged_skill",
-        "direct_skill_semantics_required": true
-      },
-      {
-        "domain_id": "med-autogrant",
-        "package_id": "mag",
-        "agent_id": "mag",
-        "codex_visible_entry": "med-autogrant",
-        "preferred_app_distribution": "plugin_packaged_skill",
-        "direct_skill_semantics_required": true
-      },
-      {
-        "domain_id": "redcube-ai",
-        "package_id": "rca",
-        "agent_id": "rca",
-        "codex_visible_entry": "redcube-ai",
-        "preferred_app_distribution": "plugin_packaged_skill",
-        "direct_skill_semantics_required": true
-      },
-      {
-        "domain_id": "opl-meta-agent",
-        "package_id": "oma",
-        "agent_id": "oma",
-        "codex_visible_entry": "opl-meta-agent",
-        "preferred_app_distribution": "opl_generated_codex_plugin_surface",
-        "direct_skill_semantics_required": true
-      },
-      {
-        "domain_id": "opl-bookforge",
-        "package_id": "obf",
-        "agent_id": "obf",
-        "codex_visible_entry": "opl-bookforge",
-        "preferred_app_distribution": "opl_generated_codex_plugin_surface",
-        "direct_skill_semantics_required": true
-      }
-    ],
     "class": "opl_base_integrations",
     "opl_packages_projection_ref": "contracts/app-install-exposure-policy.json#exposure_classes.codex_surface",
     "opl_packages_lifecycle_ref": "contracts/app-install-exposure-policy.json#agent_installation_contract.managed_package_distribution"

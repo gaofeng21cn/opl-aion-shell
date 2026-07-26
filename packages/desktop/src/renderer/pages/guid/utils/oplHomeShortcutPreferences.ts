@@ -1,5 +1,4 @@
-import { getOplHomeAgentShortcuts, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
-import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v2';
@@ -26,6 +25,7 @@ export type OplHomeShortcutDescriptor = Pick<
   | 'default_visible'
   | 'user_configurable'
 > & {
+  route_kind: 'agent_package_shortcut';
   visible: boolean;
   installed: boolean;
   preference_source: 'default' | 'user_preference';
@@ -75,6 +75,15 @@ function recordList(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
 
+function nonBlankString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(nonBlankString).filter((entry): entry is string => Boolean(entry)))];
+}
+
 function appStateRecord(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return {};
   return isRecord(value.app_state) ? value.app_state : value;
@@ -106,43 +115,61 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
       return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), entry] as const] : [];
     })
   );
-  const presentations = getOplHomeAgentShortcuts();
-  const presentationByTuple = new Map<string, OplHomeAgentShortcut>(
-    presentations.map(
-      (shortcut) =>
-        [`${canonicalizeOplProfessionalAgentId(shortcut.package_id)}\n${shortcut.shortcut_id}`, shortcut] as const
-    )
-  );
   const descriptors = new Map<string, OplHomeShortcutDescriptor>();
-  presentations.forEach((presentation, sortOrder) => {
-    const canonicalPackageId = canonicalizeOplProfessionalAgentId(presentation.package_id);
-    const directoryEntry = directoryEntries.get(canonicalPackageId);
-    if (!directoryEntry || directoryEntry.package_role !== 'standard_agent') return;
-    const packageId =
-      typeof directoryEntry.package_id === 'string' && directoryEntry.package_id.trim()
-        ? directoryEntry.package_id.trim()
-        : presentation.package_id;
+  for (const [canonicalPackageId, directoryEntry] of directoryEntries) {
+    if (directoryEntry.package_role !== 'standard_agent') continue;
+    const packageId = nonBlankString(directoryEntry.package_id);
+    if (!packageId) continue;
+    const displayNameI18n = isRecord(directoryEntry.display_name_i18n) ? directoryEntry.display_name_i18n : {};
     const displayName =
-      typeof directoryEntry.display_name === 'string' && directoryEntry.display_name.trim()
-        ? directoryEntry.display_name.trim()
-        : packageId;
-    const tuple = `${canonicalPackageId}\n${presentation.shortcut_id}`;
-    descriptors.set(tuple, {
-      ...presentation,
-      package_id: packageId,
-      primary_label: presentation.primary_label || displayName,
-      package_short_name: presentation.package_short_name || displayName,
-      codex_visible_entry:
-        (typeof directoryEntry.codex_visible_entry === 'string' && directoryEntry.codex_visible_entry.trim()) ||
-        presentation.codex_visible_entry ||
-        packageId,
-      required_skill_ids: [],
-      visible: presentation.default_visible,
-      installed: directoryEntry.installed !== false,
-      preference_source: 'default',
-      sort_order: sortOrder,
-    });
-  });
+      nonBlankString(displayNameI18n['zh-CN']) ??
+      nonBlankString(displayNameI18n['en-US']) ??
+      nonBlankString(directoryEntry.display_name) ??
+      packageId;
+    const packageShortName = nonBlankString(directoryEntry.package_short_name) ?? displayName;
+    const capabilityMetadata = isRecord(directoryEntry.capability_metadata) ? directoryEntry.capability_metadata : {};
+    const requiredSkillIds = stringList(capabilityMetadata.required_skill_ids);
+    for (const [sortOrder, shortcut] of recordList(directoryEntry.home_shortcuts).entries()) {
+      const shortcutId = nonBlankString(shortcut.shortcut_id);
+      const labelI18n = isRecord(shortcut.label_i18n) ? shortcut.label_i18n : {};
+      const primaryLabel = nonBlankString(labelI18n['zh-CN']) ?? nonBlankString(labelI18n['en-US']);
+      const route = isRecord(shortcut.route) ? shortcut.route : {};
+      const executor = nonBlankString(route.executor);
+      const codexVisibleEntry = nonBlankString(route.codex_visible_entry);
+      if (
+        !shortcutId ||
+        !primaryLabel ||
+        route.route_kind !== 'agent_package_shortcut' ||
+        executor !== 'codex_cli' ||
+        !codexVisibleEntry ||
+        typeof shortcut.default_visible !== 'boolean' ||
+        typeof shortcut.user_configurable !== 'boolean'
+      ) {
+        continue;
+      }
+      const tuple = `${canonicalPackageId}\n${shortcutId}`;
+      if (descriptors.has(tuple)) continue;
+      descriptors.set(tuple, {
+        shortcut_id: shortcutId,
+        package_id: packageId,
+        primary_label: primaryLabel,
+        package_short_name: packageShortName,
+        codex_visible_entry: codexVisibleEntry,
+        required_skill_ids: requiredSkillIds,
+        route_kind: 'agent_package_shortcut',
+        source: 'opl_app_home',
+        executor: 'codex_cli',
+        display_policy: 'purpose_first',
+        home_entry_policy: 'visible_click_to_start',
+        default_visible: shortcut.default_visible,
+        visible: shortcut.default_visible,
+        installed: directoryEntry.installed !== false,
+        preference_source: 'default',
+        user_configurable: shortcut.user_configurable,
+        sort_order: sortOrder,
+      });
+    }
+  }
   for (const entry of records) {
     const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
     const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';
@@ -151,33 +178,13 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
     if (!packageId || !shortcutId || !directoryEntry || directoryEntry.package_role !== 'standard_agent') continue;
     const tuple = `${canonicalPackageId}\n${shortcutId}`;
     const existing = descriptors.get(tuple);
-    if (existing && existing.preference_source === 'user_preference') continue;
-    const presentation = presentationByTuple.get(tuple);
-    const displayName =
-      typeof directoryEntry.display_name === 'string' && directoryEntry.display_name.trim()
-        ? directoryEntry.display_name.trim()
-        : packageId;
+    if (!existing || existing.preference_source === 'user_preference') continue;
     const preferenceSource = entry.source === 'user_preference' ? 'user_preference' : 'default';
     descriptors.set(tuple, {
-      shortcut_id: shortcutId,
-      package_id: packageId,
-      primary_label: presentation?.primary_label ?? displayName,
-      package_short_name: presentation?.package_short_name ?? displayName,
-      codex_visible_entry:
-        (typeof directoryEntry.codex_visible_entry === 'string' && directoryEntry.codex_visible_entry.trim()) ||
-        presentation?.codex_visible_entry ||
-        packageId,
-      required_skill_ids: [],
-      source: 'opl_app_home',
-      executor: 'codex_cli',
-      display_policy: 'purpose_first',
-      home_entry_policy: 'visible_click_to_start',
-      default_visible:
-        preferenceSource === 'default' ? entry.visible === true : (presentation?.default_visible ?? false),
-      visible: entry.visible === true,
-      installed: entry.installed !== false && directoryEntry.installed !== false,
+      ...existing,
+      visible: typeof entry.visible === 'boolean' ? entry.visible : existing.visible,
+      installed: entry.installed !== false && existing.installed,
       preference_source: preferenceSource,
-      user_configurable: true,
       sort_order: typeof entry.sort_order === 'number' && Number.isFinite(entry.sort_order) ? entry.sort_order : null,
     });
   }
@@ -309,7 +316,7 @@ export function getOplOrderedHomeAgentShortcuts<T extends Pick<OplHomeAgentShort
   shortcuts?: T[]
 ): T[] {
   const preferences = getOplHomeShortcutPreferences();
-  return sortShortcuts(shortcuts ?? (getOplHomeAgentShortcuts() as unknown as T[]), preferences.orderedShortcutIds);
+  return sortShortcuts(shortcuts ?? [], preferences.orderedShortcutIds);
 }
 
 export function isOplHomeShortcutVisible(
@@ -322,16 +329,13 @@ export function isOplHomeShortcutVisible(
 }
 
 export function getOplVisibleHomeAgentShortcuts(): OplHomeAgentShortcut[] {
-  const preferences = getOplHomeShortcutPreferences();
-  return sortShortcuts(getOplHomeAgentShortcuts(), preferences.orderedShortcutIds).filter((shortcut) =>
-    isOplHomeShortcutVisible(shortcut, preferences)
-  );
+  return [];
 }
 
 export function setOplHomeShortcutHidden(
   shortcutId: string,
   hidden: boolean,
-  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id' | 'default_visible'>> = getOplHomeAgentShortcuts()
+  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id' | 'default_visible'>> = []
 ): OplHomeShortcutPreferences {
   const preferences = getOplHomeShortcutPreferences();
   const hiddenIds = new Set(preferences.hiddenShortcutIds);
@@ -355,7 +359,7 @@ export function setOplHomeShortcutHidden(
 export function moveOplHomeShortcut(
   shortcutId: string,
   direction: -1 | 1,
-  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id'>> = getOplHomeAgentShortcuts()
+  availableShortcuts: Array<Pick<OplHomeAgentShortcut, 'shortcut_id'>> = []
 ): OplHomeShortcutPreferences {
   const shortcuts = getOplOrderedHomeAgentShortcuts(availableShortcuts);
   const ids = shortcuts.map((shortcut) => shortcut.shortcut_id);

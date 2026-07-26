@@ -2,94 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabilitiesProjection';
 import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
-vi.mock('@/common/config/oplProductProfile', () => ({
-  getOplHomeAgentShortcuts: () => [
-    {
-      shortcut_id: 'research',
-      package_id: 'mas',
-      primary_label: 'Research',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'automations',
-      package_id: 'oma',
-      primary_label: 'Meta agent',
-      user_configurable: true,
-      default_visible: true,
-    },
-    {
-      shortcut_id: 'vendor-tool',
-      package_id: 'vendor.tool',
-      primary_label: 'Vendor Tool',
-      user_configurable: true,
-      default_visible: false,
-    },
-  ],
-  getOplFirstPartyPackagePresentations: () => [
-    {
-      package_id: 'mas',
-      display_name_i18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
-      description_i18n: {
-        'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
-        'en-US':
-          'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
-      },
-    },
-    {
-      package_id: 'mag',
-      display_name_i18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
-      description_i18n: {
-        'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
-        'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
-      },
-    },
-    {
-      package_id: 'rca',
-      display_name_i18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
-      description_i18n: {
-        'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
-        'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
-      },
-    },
-    {
-      package_id: 'oma',
-      display_name_i18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
-      description_i18n: {
-        'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
-        'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
-      },
-    },
-    {
-      package_id: 'obf',
-      display_name_i18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
-      description_i18n: {
-        'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
-        'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
-      },
-    },
-    {
-      package_id: 'mas-scholar-skills',
-      display_name_i18n: { 'zh-CN': 'MAS 学术技能', 'en-US': 'MAS Scholar Skills' },
-      description_i18n: {
-        'zh-CN': '供医学科研智能体使用的可复用医学科研能力。',
-        'en-US': 'Reusable medical research capabilities consumed by Med Auto Science.',
-      },
-    },
-    {
-      package_id: 'opl-flow',
-      display_name_i18n: { 'zh-CN': 'OPL Flow', 'en-US': 'OPL Flow' },
-      description_i18n: {
-        'zh-CN': 'OPL 推荐工作流配置与受管 Codex 策略。',
-        'en-US': 'Recommended OPL workflow profile and managed Codex policy.',
-      },
-    },
-  ],
-  getOplProfessionalAgentPackages: () => {
-    throw new Error('Capabilities must not read Professional Profile membership');
-  },
-}));
-
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
   oplRecordList: (value: unknown) =>
@@ -133,13 +45,24 @@ describe('localizedCapabilitySummary', () => {
 });
 
 describe('buildCapabilitiesViewModel', () => {
-  it('uses App-owned localized metadata for every first-party package', () => {
+  it('uses owner-projected localized directory metadata for every package', () => {
+    const localizedMetadata: Record<string, [string, string]> = {
+      mas: ['医学科研智能体', '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。'],
+      mag: ['医学基金智能体', '用于基金选题、标书与申请书撰写、预算说明和评审回复。'],
+      rca: ['演示与视觉智能体', '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。'],
+      oma: ['元智能体', '用于创建、接管、检查和改进 OPL 专业智能体。'],
+      obf: ['写书智能体', '用于书稿规划、章节写作、插图表格、排版、审校和导出。'],
+      'mas-scholar-skills': ['MAS 学术技能', '供医学科研智能体使用的可复用医学科研能力。'],
+      'opl-flow': ['OPL Flow', 'OPL 推荐工作流配置与受管 Codex 策略。'],
+    };
     const capabilities = buildCapabilitiesViewModel(
       appStateWithPackageDirectory(
-        ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'].map((packageId) => ({
+        Object.entries(localizedMetadata).map(([packageId, [displayName, description]]) => ({
           package_id: packageId,
           display_name: `Runtime ${packageId}`,
           description: `Runtime description for ${packageId}`,
+          display_name_i18n: { 'zh-CN': displayName, 'en-US': `Runtime ${packageId}` },
+          description_i18n: { 'zh-CN': description, 'en-US': `Runtime description for ${packageId}` },
           installed: true,
         }))
       ),
@@ -163,26 +86,39 @@ describe('buildCapabilitiesViewModel', () => {
 
   it('treats dirty developer checkouts as source instead of repair', () => {
     const [research] = buildCapabilitiesViewModel(
-      appStateWithPackageDirectory([{ package_id: 'mas', domain_id: 'med-autoscience', installed: true }], [], {
-        runtime_source_carriers: {
-          items: [
-            {
-              package_id: 'med-autoscience',
-              carrier_id: 'medautoscience',
-              source_origin: 'sibling_workspace',
-              source_policy: {
-                effective_install_update_source: 'git_checkout',
-                configured_by: 'developer_mode',
+      appStateWithPackageDirectory(
+        [
+          {
+            package_id: 'mas',
+            domain_id: 'med-autoscience',
+            display_name: 'Med Auto Science',
+            description:
+              'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+            installed: true,
+          },
+        ],
+        [],
+        {
+          runtime_source_carriers: {
+            items: [
+              {
+                package_id: 'med-autoscience',
+                carrier_id: 'medautoscience',
+                source_origin: 'sibling_workspace',
+                source_policy: {
+                  effective_install_update_source: 'git_checkout',
+                  configured_by: 'developer_mode',
+                },
+                git: {
+                  dirty: true,
+                  sync_status: 'behind',
+                  short_sha: '4d4dead',
+                },
               },
-              git: {
-                dirty: true,
-                sync_status: 'behind',
-                short_sha: '4d4dead',
-              },
-            },
-          ],
-        },
-      }),
+            ],
+          },
+        }
+      ),
       'en-US'
     );
 
@@ -261,7 +197,23 @@ describe('buildCapabilitiesViewModel', () => {
   it('keeps punctuation-significant third-party package ids as distinct directory rows', () => {
     const capabilities = buildCapabilitiesViewModel(
       appStateWithPackageDirectory([
-        { package_id: 'vendor.tool', display_name: 'Vendor Tool' },
+        {
+          package_id: 'vendor.tool',
+          display_name: 'Vendor Tool',
+          home_shortcuts: [
+            {
+              shortcut_id: 'vendor-tool',
+              label_i18n: { 'en-US': 'Vendor Tool' },
+              default_visible: false,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: 'vendor-tool',
+              },
+            },
+          ],
+        },
         { package_id: 'vendortool', display_name: 'VendorTool' },
       ]),
       'en-US'

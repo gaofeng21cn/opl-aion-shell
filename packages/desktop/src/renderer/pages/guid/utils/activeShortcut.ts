@@ -1,4 +1,3 @@
-import { getOplAgentPackageInvocationReceiptPolicy } from '@/common/config/oplProductProfile';
 import { getOplHomeAgentShortcutsFromAppState } from './oplHomeShortcutPreferences';
 
 export type OplActiveShortcut = {
@@ -7,6 +6,9 @@ export type OplActiveShortcut = {
   package_short_name: string;
   codex_visible_entry: string;
   required_skill_ids: string[];
+  route_kind: 'agent_package_shortcut';
+  executor: 'codex_cli';
+  source: 'opl_app_home';
 };
 
 export type OplAgentPackageInvocationReceipt = {
@@ -33,7 +35,10 @@ export function resolveOplActiveShortcut(
     package_id: shortcut.package_id,
     package_short_name: shortcut.package_short_name,
     codex_visible_entry: shortcut.codex_visible_entry,
-    required_skill_ids: [],
+    required_skill_ids: [...shortcut.required_skill_ids],
+    route_kind: shortcut.route_kind,
+    executor: shortcut.executor,
+    source: shortcut.source,
   };
 }
 
@@ -41,14 +46,13 @@ export function buildOplShortcutInvocationReceipt(
   shortcut: OplActiveShortcut | null
 ): OplAgentPackageInvocationReceipt | undefined {
   if (!shortcut) return undefined;
-  const policy = getOplAgentPackageInvocationReceiptPolicy();
   return {
-    route_kind: policy.route_kind,
-    executor: policy.executor,
+    route_kind: shortcut.route_kind,
+    executor: shortcut.executor,
     package_id: shortcut.package_id,
     shortcut_id: shortcut.shortcut_id,
     codex_visible_entry: shortcut.codex_visible_entry,
     required_skill_ids: [...shortcut.required_skill_ids],
-    source: policy.source,
+    source: shortcut.source,
   };
 }

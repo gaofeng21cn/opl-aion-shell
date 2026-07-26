@@ -163,29 +163,6 @@ export type OplFirstPartyPackagePresentation = {
   description_i18n: Record<'zh-CN' | 'en-US', string>;
 };
 
-export type OplAgentPackageInvocationReceiptPolicy = {
-  scope: 'package_shortcut_launch_to_codex_conversation';
-  required_for_package_shortcuts_source_ref: 'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]';
-  route_kind: 'agent_package_shortcut';
-  executor: 'codex_cli';
-  source: 'opl_app_home';
-  required_fields: string[];
-  receipt_authority: 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness';
-  must_not_govern: string[];
-  must_not_depend_on_visible_backend_selection: true;
-};
-
-export type OplBuiltinAssistantRouteReceiptPolicy = {
-  migration_alias_for?: 'agent_package_invocation_receipt_policy';
-  scope: 'home_purpose_entry_to_conversation';
-  required_for_assistants: string[];
-  route_kind: 'builtin_capability';
-  executor: 'codex_cli';
-  source: 'opl_app_home';
-  required_fields: string[];
-  must_not_depend_on_visible_backend_selection: true;
-};
-
 export type OplAgentReferenceAdmissionPolicy = {
   active_agent_package_cardinality: 'zero_or_one';
   selection_authority: 'home_starter_new_session_capability_palette_explicit_capability_route_or_explicit_pre_send_at_mention_agent_selection';
@@ -577,8 +554,14 @@ export type OplSettingsControlPlaneActionContract = {
 };
 
 export type OplAgentPackageRegistry = {
-  shell_consumption_policy: string;
-  starter_package_metadata: OplFirstPartyPackagePresentation[];
+  directory_projection_authority: 'app_state.agent_packages.directory.entries';
+  status_projection_authority: 'app_state.agent_packages.status_index';
+  action_projection_authority: 'app_state.agent_packages.directory.entries[].available_actions[] + app_state.actions';
+  presentation_source: 'app_state.agent_packages.directory.entries';
+  unknown_package_policy: 'render_without_app_package_id_branch';
+  manifest_lock_receipt_parser_allowed: false;
+  action_id_allowlist_allowed: false;
+  shell_consumption_policy: 'generated_product_profile_only_no_renderer_literal';
 };
 
 export type OplNativeAutomationPolicy = {
@@ -679,8 +662,6 @@ type AppProductProfile = {
       home_agent_shortcuts: OplHomeAgentShortcut[];
       retired_codex_models_must_not_be_exposed: string[];
     };
-    agent_package_invocation_receipt_policy: OplAgentPackageInvocationReceiptPolicy;
-    builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
     ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
     agent_package_registry: OplAgentPackageRegistry;
   };
@@ -1292,8 +1273,14 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
 
 function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentShortcut[] {
   const value = guiHome.home_agent_shortcuts;
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must be a non-empty array');
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must be an array when present');
+  }
+  if (value.length === 0) {
+    return [];
   }
 
   const shortcuts = value.map((entry, index): OplHomeAgentShortcut => {
@@ -1334,11 +1321,6 @@ function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentS
   const ids = shortcuts.map((shortcut) => shortcut.shortcut_id);
   if (new Set(ids).size !== ids.length) {
     throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must not contain duplicate ids');
-  }
-  for (const required of ['research', 'grant', 'ppt', 'book']) {
-    if (!ids.includes(required)) {
-      throw new Error(`Invalid OPL product profile: home agent shortcuts must include ${required}`);
-    }
   }
   if (!shortcuts.every((shortcut) => shortcut.user_configurable)) {
     throw new Error('Invalid OPL product profile: home agent shortcuts must be user configurable');
@@ -1423,138 +1405,33 @@ function readAgentPackageRegistry(gui: Record<string, unknown>): OplAgentPackage
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: gui.agent_package_registry must be an object');
   }
-  const metadata = value.starter_package_metadata;
-  if (!Array.isArray(metadata)) {
+  if (Object.prototype.hasOwnProperty.call(value, 'starter_package_metadata')) {
     throw new Error(
-      'Invalid OPL product profile: gui.agent_package_registry.starter_package_metadata must be an array'
+      'Invalid OPL product profile: gui.agent_package_registry.starter_package_metadata is forbidden static Package authority'
     );
   }
-  return {
-    shell_consumption_policy: readString(value, 'shell_consumption_policy', 'gui.agent_package_registry'),
-    starter_package_metadata: metadata.map((entry, index) => {
-      if (!isRecord(entry)) {
-        throw new Error(
-          `Invalid OPL product profile: gui.agent_package_registry.starter_package_metadata[${index}] must be an object`
-        );
-      }
-      const context = `gui.agent_package_registry.starter_package_metadata[${index}]`;
-      const packageId = readString(entry, 'package_id', context);
-      const displayName = readString(entry, 'display_name', context);
-      const description = readString(entry, 'description', context);
-      const displayNameI18n = isRecord(entry.display_name_i18n)
-        ? readStringRecord(entry.display_name_i18n, `${context}.display_name_i18n`)
-        : { 'zh-CN': displayName, 'en-US': displayName };
-      const descriptionI18n = isRecord(entry.description_i18n)
-        ? readStringRecord(entry.description_i18n, `${context}.description_i18n`)
-        : { 'zh-CN': description, 'en-US': description };
-      return {
-        package_id: packageId,
-        display_name: displayName,
-        description,
-        display_name_i18n: {
-          'zh-CN': displayNameI18n['zh-CN'],
-          'en-US': displayNameI18n['en-US'],
-        },
-        description_i18n: {
-          'zh-CN': descriptionI18n['zh-CN'],
-          'en-US': descriptionI18n['en-US'],
-        },
-      };
-    }),
-  };
-}
-
-function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): OplAgentPackageInvocationReceiptPolicy {
-  const value = gui.agent_package_invocation_receipt_policy;
-  if (!isRecord(value)) {
-    throw new Error('Invalid OPL product profile: gui.agent_package_invocation_receipt_policy must be an object');
-  }
-  const requiredFields = readStringArray(value, 'required_fields', 'gui.agent_package_invocation_receipt_policy');
-  const mustNotGovern = readStringArray(value, 'must_not_govern', 'gui.agent_package_invocation_receipt_policy');
   if (
-    value.scope !== 'package_shortcut_launch_to_codex_conversation' ||
-    value.route_kind !== 'agent_package_shortcut' ||
-    value.executor !== 'codex_cli' ||
-    value.source !== 'opl_app_home' ||
-    value.required_for_package_shortcuts !== undefined ||
-    value.required_for_package_shortcuts_source_ref !==
-      'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]' ||
-    value.receipt_authority !== 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness' ||
-    value.must_not_depend_on_visible_backend_selection !== true
+    value.directory_projection_authority !== 'app_state.agent_packages.directory.entries' ||
+    value.status_projection_authority !== 'app_state.agent_packages.status_index' ||
+    value.action_projection_authority !==
+      'app_state.agent_packages.directory.entries[].available_actions[] + app_state.actions' ||
+    value.presentation_source !== 'app_state.agent_packages.directory.entries' ||
+    value.unknown_package_policy !== 'render_without_app_package_id_branch' ||
+    value.manifest_lock_receipt_parser_allowed !== false ||
+    value.action_id_allowlist_allowed !== false ||
+    value.shell_consumption_policy !== 'generated_product_profile_only_no_renderer_literal'
   ) {
-    throw new Error('Invalid OPL product profile: agent package invocation receipt policy is unsupported');
-  }
-  for (const requiredField of [
-    'route_kind',
-    'executor',
-    'package_id',
-    'shortcut_id',
-    'codex_visible_entry',
-    'required_skill_ids',
-    'source',
-  ]) {
-    if (!requiredFields.includes(requiredField)) {
-      throw new Error(`Invalid OPL product profile: package invocation receipt policy must include ${requiredField}`);
-    }
-  }
-  for (const forbiddenAuthority of ['session_behavior', 'domain_workflow', 'domain_readiness']) {
-    if (!mustNotGovern.includes(forbiddenAuthority)) {
-      throw new Error(
-        `Invalid OPL product profile: package invocation receipt policy must not govern ${forbiddenAuthority}`
-      );
-    }
+    throw new Error('Invalid OPL product profile: gui.agent_package_registry dynamic projection policy is unsupported');
   }
   return {
-    scope: 'package_shortcut_launch_to_codex_conversation',
-    required_for_package_shortcuts_source_ref:
-      'visible standard_agent shortcuts projected from app_state.agent_packages.directory.entries + status_index.home_shortcut_preferences[]',
-    route_kind: 'agent_package_shortcut',
-    executor: 'codex_cli',
-    source: 'opl_app_home',
-    required_fields: requiredFields,
-    receipt_authority: 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness',
-    must_not_govern: mustNotGovern,
-    must_not_depend_on_visible_backend_selection: true,
-  };
-}
-
-function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): OplBuiltinAssistantRouteReceiptPolicy {
-  const value = gui.builtin_assistant_route_receipt_policy;
-  if (!isRecord(value)) {
-    throw new Error('Invalid OPL product profile: gui.builtin_assistant_route_receipt_policy must be an object');
-  }
-  const requiredForAssistants = readStringArray(
-    value,
-    'required_for_assistants',
-    'gui.builtin_assistant_route_receipt_policy'
-  );
-  const requiredFields = readStringArray(value, 'required_fields', 'gui.builtin_assistant_route_receipt_policy');
-  if (
-    requiredForAssistants.join(',') !== ['mas', 'mag', 'rca', 'obf'].join(',') ||
-    value.scope !== 'home_purpose_entry_to_conversation' ||
-    value.route_kind !== 'builtin_capability' ||
-    value.executor !== 'codex_cli' ||
-    value.source !== 'opl_app_home' ||
-    value.must_not_depend_on_visible_backend_selection !== true
-  ) {
-    throw new Error('Invalid OPL product profile: built-in assistant route receipt policy is unsupported');
-  }
-  for (const requiredField of ['route_kind', 'executor', 'assistant_id', 'assistant_short_name', 'source']) {
-    if (!requiredFields.includes(requiredField)) {
-      throw new Error(`Invalid OPL product profile: route receipt policy must include ${requiredField}`);
-    }
-  }
-  return {
-    ...(value.migration_alias_for === 'agent_package_invocation_receipt_policy'
-      ? { migration_alias_for: 'agent_package_invocation_receipt_policy' as const }
-      : {}),
-    scope: 'home_purpose_entry_to_conversation',
-    required_for_assistants: requiredForAssistants,
-    route_kind: 'builtin_capability',
-    executor: 'codex_cli',
-    source: 'opl_app_home',
-    required_fields: requiredFields,
-    must_not_depend_on_visible_backend_selection: true,
+    directory_projection_authority: 'app_state.agent_packages.directory.entries',
+    status_projection_authority: 'app_state.agent_packages.status_index',
+    action_projection_authority: 'app_state.agent_packages.directory.entries[].available_actions[] + app_state.actions',
+    presentation_source: 'app_state.agent_packages.directory.entries',
+    unknown_package_policy: 'render_without_app_package_id_branch',
+    manifest_lock_receipt_parser_allowed: false,
+    action_id_allowlist_allowed: false,
+    shell_consumption_policy: 'generated_product_profile_only_no_renderer_literal',
   };
 }
 
@@ -2145,8 +2022,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
   const homeComposerStateContract = readHomeComposerStateContract(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
-  const agentPackageInvocationReceiptPolicy = readAgentPackageInvocationReceiptPolicy(gui);
-  const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
+  for (const forbiddenField of ['agent_package_invocation_receipt_policy', 'builtin_assistant_route_receipt_policy']) {
+    if (Object.prototype.hasOwnProperty.call(gui, forbiddenField)) {
+      throw new Error(`Invalid OPL product profile: gui.${forbiddenField} is forbidden static Package authority`);
+    }
+  }
   const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
   const agentPackageRegistry = readAgentPackageRegistry(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
@@ -2304,8 +2184,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         home_agent_shortcuts: homeAgentShortcuts,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
-      agent_package_invocation_receipt_policy: agentPackageInvocationReceiptPolicy,
-      builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
       ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
       agent_package_registry: agentPackageRegistry,
     },
@@ -3089,32 +2967,6 @@ export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
     ...shortcut,
     required_skill_ids: [...shortcut.required_skill_ids],
   }));
-}
-
-export function getOplFirstPartyPackagePresentations(): OplFirstPartyPackagePresentation[] {
-  return OPL_PRODUCT_PROFILE.gui.agent_package_registry.starter_package_metadata.map((entry) => ({
-    ...entry,
-    display_name_i18n: { ...entry.display_name_i18n },
-    description_i18n: { ...entry.description_i18n },
-  }));
-}
-
-export function getOplAgentPackageInvocationReceiptPolicy(): OplAgentPackageInvocationReceiptPolicy {
-  const policy = OPL_PRODUCT_PROFILE.gui.agent_package_invocation_receipt_policy;
-  return {
-    ...policy,
-    required_fields: [...policy.required_fields],
-    must_not_govern: [...policy.must_not_govern],
-  };
-}
-
-export function getOplBuiltinAssistantRouteReceiptPolicy(): OplBuiltinAssistantRouteReceiptPolicy {
-  const policy = OPL_PRODUCT_PROFILE.gui.builtin_assistant_route_receipt_policy;
-  return {
-    ...policy,
-    required_for_assistants: [...policy.required_for_assistants],
-    required_fields: [...policy.required_fields],
-  };
 }
 
 export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilitySelectorPolicy {
