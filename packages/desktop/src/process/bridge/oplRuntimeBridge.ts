@@ -1702,7 +1702,6 @@ function buildRuntimeOplSpawnCommand(
       const handle = runtime.spawn({
         program: 'opl-cli',
         args: spec.args,
-        stdin: spec.stdin,
       });
       return {
         child: handle.child,

@@ -172,7 +172,35 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(runtime.spawn).toHaveBeenCalledWith({
       program: 'opl-cli',
       args: ['app', 'state', '--profile', 'fast', '--json'],
-      stdin: undefined,
+    });
+  });
+
+  it('keeps Windows Framework stdin under the command runner single-write boundary', () => {
+    const terminate = vi.fn(async () => {});
+    const runtime = {
+      spawn: vi.fn(() => ({
+        child: {},
+        operationToken: 'framework-stdin-test',
+        terminate,
+      })),
+    };
+    const spec = __oplRuntimeBridgeTest.buildConfigureCodexCommand({
+      apiKey: 'compatibility-test-key',
+    });
+    const command = __oplRuntimeBridgeTest.buildRuntimeOplSpawnCommand(
+      spec,
+      {},
+      {
+        platform: 'win32',
+        windowsRuntime: runtime as never,
+      }
+    );
+
+    expect(command.stdin).toBe('compatibility-test-key\n');
+    command.launch?.();
+    expect(runtime.spawn).toHaveBeenCalledWith({
+      program: 'opl-cli',
+      args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
     });
   });
 
