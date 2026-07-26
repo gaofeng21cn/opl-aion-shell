@@ -5848,22 +5848,91 @@ function runtimeStatusReadinessExpression(resolvedHashPrefixes = ['#/runtime']) 
 }
 
 function buildRuntimeRefreshProbePlan(requestedHash, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
-  const resolvedHashPrefixes =
-    requestedHash === '#/settings/runtime'
-      ? ['#/settings/environment']
-      : requestedHash === '#/runtime'
-        ? ['#/runtime']
-        : null;
-  if (!resolvedHashPrefixes) {
-    throw new Error(`Unsupported Runtime refresh route: ${requestedHash}`);
+  if (requestedHash === '#/settings/runtime') {
+    return {
+      requestedHash,
+      mode: 'settings-maintenance-updates',
+      aliasResolvedHash: '#/settings/environment',
+      refreshHash: '#/settings/environment?section=updates',
+      readinessTimeoutMs: timeoutMs,
+      preClickIdleTimeoutMs: timeoutMs,
+      postClickIdleTimeoutMs: timeoutMs,
+    };
   }
-  return {
-    requestedHash,
-    resolvedHashPrefixes,
-    readinessTimeoutMs: timeoutMs,
-    preClickIdleTimeoutMs: timeoutMs,
-    postClickIdleTimeoutMs: timeoutMs,
-  };
+  if (requestedHash === '#/runtime') {
+    return {
+      requestedHash,
+      mode: 'runtime-v2',
+      resolvedHashPrefixes: ['#/runtime'],
+      readinessTimeoutMs: timeoutMs,
+      preClickIdleTimeoutMs: timeoutMs,
+      postClickIdleTimeoutMs: timeoutMs,
+    };
+  }
+  throw new Error(`Unsupported Runtime refresh route: ${requestedHash}`);
+}
+
+function settingsRuntimeAliasResolutionExpression(requestedHash, aliasResolvedHash) {
+  return `(() => {
+    const requestedHash = ${cdpString(requestedHash)};
+    const aliasResolvedHash = ${cdpString(aliasResolvedHash)};
+    return window.location.hash === aliasResolvedHash
+      ? { requestedHash, aliasResolvedHash, hash: window.location.hash }
+      : false;
+  })()`;
+}
+
+function settingsMaintenanceUpdatesReadinessExpression(refreshHash) {
+  return `(() => {
+    const hashOk = window.location.hash === ${cdpString(refreshHash)};
+    const ownerSurfaceReady = Boolean(document.querySelector('[data-testid="settings-page-maintenance"]'));
+    const destinationReady = Boolean(document.querySelector('[data-testid="settings-maintenance-destination"][data-maintenance-destination="updates"]'));
+    const refreshButton = document.querySelector('[data-testid="opl-managed-update-refresh"]');
+    const refreshPresent = Boolean(refreshButton);
+    if (!hashOk || !ownerSurfaceReady || !destinationReady || !refreshPresent) return false;
+    const rect = refreshButton.getBoundingClientRect();
+    const style = window.getComputedStyle(refreshButton);
+    const refreshVisible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    return refreshVisible
+      ? { hash: window.location.hash, ownerSurfaceReady, destinationReady, refreshPresent, refreshVisible }
+      : false;
+  })()`;
+}
+
+function settingsUpdatesRefreshButtonIdleExpression() {
+  return `(() => {
+    const selector = '[data-testid="opl-managed-update-refresh"]';
+    const button = document.querySelector(selector);
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    const style = window.getComputedStyle(button);
+    const visible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    const busy = button.className.includes('arco-btn-loading') || button.getAttribute('aria-busy') === 'true';
+    const disabled = button.disabled || button.getAttribute('aria-disabled') === 'true';
+    return visible && !busy && !disabled
+      ? { buttonReady: true, selector, className: button.className, ariaBusy: button.getAttribute('aria-busy') }
+      : false;
+  })()`;
+}
+
+function settingsUpdatesRefreshClickExpression() {
+  return `(() => {
+    const selector = '[data-testid="opl-managed-update-refresh"]';
+    const button = document.querySelector(selector);
+    if (!button) throw new Error('Settings maintenance update refresh button was not found');
+    const rect = button.getBoundingClientRect();
+    const style = window.getComputedStyle(button);
+    const visible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    const busy = button.className.includes('arco-btn-loading') || button.getAttribute('aria-busy') === 'true';
+    const disabled = button.disabled || button.getAttribute('aria-disabled') === 'true';
+    if (!visible || busy || disabled) throw new Error('Settings maintenance update refresh button was not actionable');
+    button.click();
+    return { clicked: true, selector, hash: window.location.hash };
+  })()`;
+}
+
+async function waitForSettingsUpdatesRefreshIdle(client, failureMessage, timeoutMs) {
+  return await waitForCdpPredicate(client, settingsUpdatesRefreshButtonIdleExpression(), timeoutMs, failureMessage);
 }
 
 async function captureSettingsPage(client, target, options, secret) {
@@ -5929,6 +5998,52 @@ async function waitForButtonIdle(client, labels, failureMessage, timeoutMs = DEF
 async function exerciseRuntimeRefresh(client, targetHash, timeoutMs = DEFAULT_RUNTIME_REFRESH_TIMEOUT_MS) {
   const probePlan = buildRuntimeRefreshProbePlan(targetHash, timeoutMs);
   await evaluateCdp(client, `window.location.hash = ${cdpString(targetHash)}`);
+  if (probePlan.mode === 'settings-maintenance-updates') {
+    const aliasResolution = await waitForCdpPredicate(
+      client,
+      settingsRuntimeAliasResolutionExpression(probePlan.requestedHash, probePlan.aliasResolvedHash),
+      probePlan.readinessTimeoutMs,
+      `Settings Runtime alias did not resolve before maintenance refresh: ${targetHash}`
+    );
+    await evaluateCdp(client, `window.location.hash = ${cdpString(probePlan.refreshHash)}`);
+    const readiness = await waitForCdpPredicate(
+      client,
+      settingsMaintenanceUpdatesReadinessExpression(probePlan.refreshHash),
+      probePlan.readinessTimeoutMs,
+      `Settings maintenance updates surface did not become ready before refresh: ${targetHash}`
+    );
+    const beforeClick = await waitForSettingsUpdatesRefreshIdle(
+      client,
+      `Settings maintenance update refresh button stayed busy before click: ${targetHash}`,
+      probePlan.preClickIdleTimeoutMs
+    );
+    const click = await evaluateCdp(client, settingsUpdatesRefreshClickExpression());
+    const afterClick = await waitForSettingsUpdatesRefreshIdle(
+      client,
+      `Settings maintenance update refresh button stayed busy after click: ${targetHash}`,
+      probePlan.postClickIdleTimeoutMs
+    );
+    const resolvedHash = await evaluateCdp(client, 'window.location.hash');
+    if (resolvedHash !== probePlan.refreshHash) {
+      throw new Error(`Settings maintenance refresh route resolved unexpectedly: ${targetHash} -> ${resolvedHash}`);
+    }
+    return {
+      requested_hash: targetHash,
+      alias_resolved_hash: aliasResolution.aliasResolvedHash ?? aliasResolution.hash,
+      resolved_hash: resolvedHash,
+      navigation: {
+        requested_hash: targetHash,
+        alias_resolved_hash: aliasResolution.aliasResolvedHash ?? aliasResolution.hash,
+        refresh_hash: probePlan.refreshHash,
+      },
+      readiness,
+      refresh: {
+        before_click: beforeClick,
+        click,
+        after_click: afterClick,
+      },
+    };
+  }
   const readiness = await waitForCdpPredicate(
     client,
     runtimeStatusReadinessExpression(probePlan.resolvedHashPrefixes),

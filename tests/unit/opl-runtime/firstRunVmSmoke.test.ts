@@ -2659,9 +2659,11 @@ describe('packaged first-run VM smoke helpers', () => {
         assertMaintenanceDiagnosticsStatus: async () => ({ diagnosticsVisible: true }),
         exerciseRuntimeRefresh: async (_client: unknown, targetHash: string, timeoutMs?: number) => {
           runtimeRefreshCalls.push({ targetHash, timeoutMs });
-          const resolvedHash = targetHash === '#/settings/runtime' ? '#/settings/environment' : '#/runtime';
+          const aliasResolvedHash = targetHash === '#/settings/runtime' ? '#/settings/environment' : undefined;
+          const resolvedHash = aliasResolvedHash ? '#/settings/environment?section=updates' : '#/runtime';
           return {
             requested_hash: targetHash,
+            alias_resolved_hash: aliasResolvedHash,
             resolved_hash: resolvedHash,
             readiness: { hash: resolvedHash, state: 'ready', pageReady: true },
             refresh: {
@@ -2703,11 +2705,12 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(summary.pages.find((page: { id: string }) => page.id === 'runtime-settings-alias')).toMatchObject({
         id: 'runtime-settings-alias',
         requested_hash: '#/settings/runtime',
-        resolved_hash: '#/settings/environment',
+        resolved_hash: '#/settings/environment?section=updates',
         interactions: {
           runtimeRefresh: {
             requested_hash: '#/settings/runtime',
-            resolved_hash: '#/settings/environment',
+            alias_resolved_hash: '#/settings/environment',
+            resolved_hash: '#/settings/environment?section=updates',
             readiness: { state: 'ready', pageReady: true },
             refresh: {
               before_click: { buttonReady: true },
@@ -2746,18 +2749,126 @@ describe('packaged first-run VM smoke helpers', () => {
   it('binds the effective Runtime phase budget to both live refresh probes', () => {
     expect(__test.buildRuntimeRefreshProbePlan('#/settings/runtime', 98_765)).toEqual({
       requestedHash: '#/settings/runtime',
-      resolvedHashPrefixes: ['#/settings/environment'],
+      mode: 'settings-maintenance-updates',
+      aliasResolvedHash: '#/settings/environment',
+      refreshHash: '#/settings/environment?section=updates',
       readinessTimeoutMs: 98_765,
       preClickIdleTimeoutMs: 98_765,
       postClickIdleTimeoutMs: 98_765,
     });
     expect(__test.buildRuntimeRefreshProbePlan('#/runtime', 98_765)).toEqual({
       requestedHash: '#/runtime',
+      mode: 'runtime-v2',
       resolvedHashPrefixes: ['#/runtime'],
       readinessTimeoutMs: 98_765,
       preClickIdleTimeoutMs: 98_765,
       postClickIdleTimeoutMs: 98_765,
     });
+  });
+
+  it('resolves the Settings Runtime alias before using the icon-only maintenance updates refresh', async () => {
+    const expressions: string[] = [];
+    const client = {
+      send: vi.fn(async (method: string, params?: { expression?: string }) => {
+        if (method !== 'Runtime.evaluate') return {};
+        const expression = params?.expression ?? '';
+        expressions.push(expression);
+        if (expression === 'window.location.hash') {
+          return { result: { value: '#/settings/environment?section=updates' } };
+        }
+        if (expression.includes('aliasResolvedHash')) {
+          return {
+            result: {
+              value: {
+                requestedHash: '#/settings/runtime',
+                aliasResolvedHash: '#/settings/environment',
+              },
+            },
+          };
+        }
+        if (expression.includes('settings-maintenance-destination')) {
+          return {
+            result: {
+              value: {
+                hash: '#/settings/environment?section=updates',
+                ownerSurfaceReady: true,
+                destinationReady: true,
+                refreshPresent: true,
+              },
+            },
+          };
+        }
+        if (expression.includes('buttonReady')) {
+          return { result: { value: { buttonReady: true, selector: '[data-testid="opl-managed-update-refresh"]' } } };
+        }
+        if (expression.includes('button.click()')) {
+          return { result: { value: { clicked: true, selector: '[data-testid="opl-managed-update-refresh"]' } } };
+        }
+        return { result: { value: true } };
+      }),
+    };
+
+    const result = await __test.exerciseRuntimeRefresh(client, '#/settings/runtime', 98_765);
+
+    expect(result).toMatchObject({
+      requested_hash: '#/settings/runtime',
+      alias_resolved_hash: '#/settings/environment',
+      resolved_hash: '#/settings/environment?section=updates',
+      readiness: {
+        ownerSurfaceReady: true,
+        destinationReady: true,
+        refreshPresent: true,
+      },
+      refresh: {
+        before_click: { buttonReady: true },
+        click: { clicked: true },
+        after_click: { buttonReady: true },
+      },
+    });
+    expect(expressions).toContain('window.location.hash = "#/settings/runtime"');
+    expect(expressions).toContain('window.location.hash = "#/settings/environment?section=updates"');
+    expect(expressions.some((expression) => expression.includes('[data-testid="settings-page-maintenance"]'))).toBe(
+      true
+    );
+    expect(
+      expressions.some((expression) =>
+        expression.includes('[data-testid="settings-maintenance-destination"][data-maintenance-destination="updates"]')
+      )
+    ).toBe(true);
+    const aliasRefreshExpressions = expressions.filter((expression) =>
+      expression.includes('[data-testid="opl-managed-update-refresh"]')
+    );
+    expect(aliasRefreshExpressions.length).toBeGreaterThanOrEqual(3);
+    expect(aliasRefreshExpressions.every((expression) => !expression.includes('Refresh|刷新'))).toBe(true);
+  });
+
+  it('keeps standalone Runtime refresh on the runtime-v2 page and text-labelled button', async () => {
+    const expressions: string[] = [];
+    const client = {
+      send: vi.fn(async (method: string, params?: { expression?: string }) => {
+        if (method !== 'Runtime.evaluate') return {};
+        const expression = params?.expression ?? '';
+        expressions.push(expression);
+        if (expression === 'window.location.hash') return { result: { value: '#/runtime' } };
+        if (expression.includes('runtime-v2-page')) {
+          return { result: { value: { hash: '#/runtime', state: 'ready', pageReady: true } } };
+        }
+        if (expression.includes('buttonReady')) return { result: { value: { buttonReady: true } } };
+        return { result: { value: true } };
+      }),
+    };
+
+    const result = await __test.exerciseRuntimeRefresh(client, '#/runtime', 98_765);
+
+    expect(result).toMatchObject({
+      requested_hash: '#/runtime',
+      resolved_hash: '#/runtime',
+      readiness: { state: 'ready', pageReady: true },
+    });
+    expect(result).not.toHaveProperty('alias_resolved_hash');
+    expect(expressions.some((expression) => expression.includes('[data-testid="runtime-v2-page"]'))).toBe(true);
+    expect(expressions.some((expression) => expression.includes('[data-testid="runtime-refresh-button"]'))).toBe(true);
+    expect(expressions.some((expression) => expression.includes('Refresh|刷新'))).toBe(true);
   });
 
   it('keeps the Runtime refresh helper bounded to 30 seconds by default', async () => {
@@ -2781,7 +2892,7 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       await expect(operation).rejects.toThrow(
-        'Runtime-v2 page did not resolve and become ready before refresh: #/settings/runtime'
+        'Settings Runtime alias did not resolve before maintenance refresh: #/settings/runtime'
       );
     } finally {
       vi.useRealTimers();
