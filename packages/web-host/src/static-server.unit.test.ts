@@ -631,31 +631,14 @@ describe('static-server', () => {
     expect(before.data.parsed).toEqual({
       model_access: { model_access_ready: false, model_access_source: 'missing' },
     });
-    expect(use.data.command).toBe(
-      'opl app action execute --action gateway_account_use_for_model_access --json'
-    );
+    expect(use.data.command).toBe('opl app action execute --action gateway_account_use_for_model_access --json');
     expect(after.data.parsed).toEqual({
       model_access: { model_access_ready: true, model_access_source: 'opl_gateway' },
     });
     expect(calls.map((call) => call.args)).toEqual([
-      [
-        'app',
-        'action',
-        'execute',
-        '--action',
-        'gateway_account_complete_setup',
-        '--payload-stdin',
-        '--json',
-      ],
+      ['app', 'action', 'execute', '--action', 'gateway_account_complete_setup', '--payload-stdin', '--json'],
       ['app', 'state', '--profile', 'fast', '--json'],
-      [
-        'app',
-        'action',
-        'execute',
-        '--action',
-        'gateway_account_use_for_model_access',
-        '--json',
-      ],
+      ['app', 'action', 'execute', '--action', 'gateway_account_use_for_model_access', '--json'],
       ['app', 'state', '--profile', 'fast', '--json'],
     ]);
     expect(calls[0].stdin).toHaveBeenCalledWith(JSON.stringify(payloadJson));

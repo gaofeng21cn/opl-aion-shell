@@ -90,8 +90,7 @@ describe('OPL WebUI runtime proxy installation boundary', () => {
         '--json',
       ],
       stdin: '{}',
-      redactedCommand:
-        'opl app action execute --action gateway_account_use_for_model_access --payload-stdin --json',
+      redactedCommand: 'opl app action execute --action gateway_account_use_for_model_access --payload-stdin --json',
     });
     expect(() =>
       __oplRuntimeProxyTest.buildCommandFromRequest('execute-action', {
