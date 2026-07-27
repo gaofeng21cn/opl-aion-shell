@@ -1,5 +1,6 @@
 import { canonicalizeOplProfessionalAgentId, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
+import { getOplPackageAppContributionsFromAppState } from './oplAppContributions';
 
 const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v2';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
@@ -30,6 +31,16 @@ export type OplHomeShortcutDescriptor = Pick<
   visible: boolean;
   installed: boolean;
   preference_source: 'default' | 'user_preference';
+  sort_order: number | null;
+};
+
+export type OplHomeAppNavigationDescriptor = {
+  navigation_id: string;
+  package_id: string;
+  label_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  view_id: string;
+  icon_id: string | null;
+  installed: boolean;
   sort_order: number | null;
 };
 
@@ -194,6 +205,28 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
       left.package_id.localeCompare(right.package_id) ||
       left.shortcut_id.localeCompare(right.shortcut_id)
   );
+}
+
+/** Resolve role-neutral Package navigation without assuming an Agent route or executor. */
+export function getOplHomeAppNavigationFromAppState(appState: unknown): OplHomeAppNavigationDescriptor[] {
+  return getOplPackageAppContributionsFromAppState(appState)
+    .flatMap(({ packageId, installed, contributions }) =>
+      contributions.navigation.map((entry) => ({
+        navigation_id: entry.navigationId,
+        package_id: packageId,
+        label_i18n: { ...entry.labelI18n },
+        view_id: entry.viewId,
+        icon_id: entry.iconId ?? null,
+        installed,
+        sort_order: entry.sortOrder ?? null,
+      }))
+    )
+    .toSorted(
+      (left, right) =>
+        (left.sort_order ?? Number.MAX_SAFE_INTEGER) - (right.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+        left.package_id.localeCompare(right.package_id) ||
+        left.navigation_id.localeCompare(right.navigation_id)
+    );
 }
 
 function shortcutPreferencesFromRecords(records: Record<string, unknown>[]): OplHomeShortcutPreferences | null {

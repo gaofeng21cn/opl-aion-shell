@@ -1,7 +1,17 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
+import type {
+  OplAppContributionBadge,
+  OplAppContributionCommand,
+  OplAppContributionView,
+} from '@/common/types/opl/appState';
 import { parseOplStandardAgentDirectoryEntries } from '@/common/types/opl/appState';
-import { getOplHomeAgentShortcutsFromAppState } from './oplHomeShortcutPreferences';
+import { getOplPackageAppContributionsFromAppState } from './oplAppContributions';
+import {
+  getOplHomeAgentShortcutsFromAppState,
+  getOplHomeAppNavigationFromAppState,
+  type OplHomeAppNavigationDescriptor,
+} from './oplHomeShortcutPreferences';
 
 type OplHomePackageProfile = {
   id: string;
@@ -23,6 +33,12 @@ type OplAgentPackageDirectoryEntry = {
 export type OplHomeAssistant = Assistant & {
   opl_package_id: string;
   opl_shortcut_id: string;
+};
+
+export type OplHomeAppContribution = OplHomeAppNavigationDescriptor & {
+  view: OplAppContributionView;
+  commands: OplAppContributionCommand[];
+  badges: OplAppContributionBadge[];
 };
 
 export type OplPackageLaunchGate = {
@@ -298,6 +314,27 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[], appStat
         },
       ];
     });
+}
+
+/** Resolve visible, schema-driven Home contributions alongside legacy Agent shortcuts. */
+export function resolveOplHomeAppContributions(appState: unknown): OplHomeAppContribution[] {
+  const contributionsByPackage = new Map(
+    getOplPackageAppContributionsFromAppState(appState).map((entry) => [entry.packageId, entry.contributions] as const)
+  );
+  return getOplHomeAppNavigationFromAppState(appState).flatMap((navigation) => {
+    const contributions = contributionsByPackage.get(navigation.package_id);
+    const view = contributions?.views.find((entry) => entry.viewId === navigation.view_id);
+    if (!contributions || !view) return [];
+    const commandIds = new Set(view.commandIds ?? []);
+    return [
+      {
+        ...navigation,
+        view,
+        commands: contributions.commands.filter((command) => commandIds.has(command.commandId)),
+        badges: contributions.badges.filter((badge) => (view.badgeIds ?? []).includes(badge.badgeId)),
+      },
+    ];
+  });
 }
 
 /** Resolve installed Agent Packages from the Framework directory for selection surfaces. */

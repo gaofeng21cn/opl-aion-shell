@@ -14,6 +14,60 @@ export type OplAppStatePayload = {
   app_state?: OplAppStateRecord;
 } & OplAppStateRecord;
 
+export type OplAppContributionViewType =
+  | 'list_detail'
+  | 'timeline'
+  | 'approval_diff'
+  | 'task_board'
+  | 'artifact_view'
+  | 'activity_log';
+
+export type OplAppContributionNavigation = {
+  navigationId: string;
+  labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  viewId: string;
+  iconId?: string;
+  sortOrder?: number;
+};
+
+export type OplAppContributionView = {
+  viewId: string;
+  viewType: OplAppContributionViewType;
+  titleI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  dataRef: string;
+  commandIds?: string[];
+  badgeIds?: string[];
+  emptyStateI18n?: Partial<Record<'zh-CN' | 'en-US', string>>;
+};
+
+export type OplAppContributionCommand = {
+  commandId: string;
+  labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  actionRef: string;
+  confirmationRequired?: boolean;
+};
+
+export type OplAppContributionBadge = {
+  badgeId: string;
+  labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
+  dataRef: string;
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'critical';
+};
+
+export type OplAppContributions = {
+  schemaVersion: 'opl-app-contributions.v1';
+  navigation: OplAppContributionNavigation[];
+  views: OplAppContributionView[];
+  commands: OplAppContributionCommand[];
+  badges: OplAppContributionBadge[];
+};
+
+export type OplPackageAppContributions = {
+  packageId: string;
+  installed: boolean;
+  contributions: OplAppContributions;
+};
+
 export type OplStandardAgentCapabilityMetadata = {
   source: string;
   requiredSkillIds: string[];
