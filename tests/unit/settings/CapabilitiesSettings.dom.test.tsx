@@ -1354,7 +1354,9 @@ describe('Agents and capabilities settings', () => {
       'Advance medical research, papers, and data analysis'
     );
     expect(within(research).queryByText(/For research planning/)).not.toBeInTheDocument();
-    expect(within(research).getByText('Available')).toBeInTheDocument();
+    expect(within(research).getByText('Available').closest('.arco-tag')).toHaveClass(
+      '!text-[color:rgb(var(--gray-8))]'
+    );
     const bookforge = screen.getByTestId('capability-purpose-obf');
     expect(within(bookforge).getByText('Available')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-open-details-obf'));
@@ -1971,7 +1973,13 @@ describe('Agents and capabilities settings', () => {
     expect(
       within(screen.getByTestId('capability-purpose-example-agent')).getByText('Repair required')
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Repair required').closest('.arco-tag')
+    ).toHaveClass('!text-danger-8');
     fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
+    expect(
+      within(screen.getByTestId('capability-details-example-agent')).getByText('Repair required').closest('.arco-tag')
+    ).toHaveClass('!text-danger-8');
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
     expect(screen.getByTestId('capability-details-example-agent')).toHaveTextContent('package status unavailable');
   });
@@ -2001,6 +2009,9 @@ describe('Agents and capabilities settings', () => {
       },
     ]);
     const installView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(
+      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Install required').closest('.arco-tag')
+    ).toHaveClass('!text-warning-8');
     fireEvent.click(screen.getByTestId('agent-package-install-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

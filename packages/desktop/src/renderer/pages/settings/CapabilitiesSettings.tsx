@@ -87,6 +87,13 @@ function capabilityStatusColor(status: CapabilityAvailabilityStatus): 'orange' |
   return 'gray';
 }
 
+function capabilityStatusTextClass(status: CapabilityAvailabilityStatus): string {
+  const tone = capabilityStatusColor(status);
+  if (tone === 'orange') return '!text-warning-8';
+  if (tone === 'red') return '!text-danger-8';
+  return '!text-[color:rgb(var(--gray-8))]';
+}
+
 function capabilityStatusLabel(
   status: CapabilityAvailabilityStatus,
   t: (key: string, options?: Record<string, string>) => string
@@ -1734,7 +1741,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 t
               )}`}
             >
-              <Tag color={capabilityStatusColor(item.availabilityStatus)}>
+              <Tag
+                color={capabilityStatusColor(item.availabilityStatus)}
+                className={capabilityStatusTextClass(item.availabilityStatus)}
+              >
                 {capabilityStatusLabel(item.availabilityStatus, t)}
               </Tag>
             </span>
@@ -2098,7 +2108,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     </Typography.Text>
                   </div>
                   <div className='flex shrink-0 items-center gap-8px'>
-                    <Tag color={capabilityStatusColor(selectedCapability.availabilityStatus)}>
+                    <Tag
+                      color={capabilityStatusColor(selectedCapability.availabilityStatus)}
+                      className={capabilityStatusTextClass(selectedCapability.availabilityStatus)}
+                    >
                       {capabilityStatusLabel(selectedCapability.availabilityStatus, t)}
                     </Tag>
                     <Button
