@@ -27,6 +27,58 @@ type UseFileChangesReturn = {
   resetFile: (file_path: string, operation: FileChangeInfo['operation']) => Promise<void>;
 };
 
+type SnapshotLease = {
+  consumers: number;
+  info: SnapshotInfo | null;
+  queue: Promise<void>;
+};
+
+const snapshotLeases = new Map<string, SnapshotLease>();
+
+function acquireSnapshot(workspace: string): Promise<SnapshotInfo> {
+  const lease = snapshotLeases.get(workspace) ?? {
+    consumers: 0,
+    info: null,
+    queue: Promise.resolve(),
+  };
+  snapshotLeases.set(workspace, lease);
+  lease.consumers += 1;
+
+  const request = lease.queue.then(async () => {
+    if (lease.info) return lease.info;
+    const info = await ipcBridge.fileSnapshot.init.invoke({ workspace });
+    lease.info = info;
+    return info;
+  });
+  lease.queue = request.then<void, void>(
+    () => {},
+    () => {}
+  );
+  return request;
+}
+
+function releaseSnapshot(workspace: string): void {
+  const lease = snapshotLeases.get(workspace);
+  if (!lease) return;
+  lease.consumers = Math.max(0, lease.consumers - 1);
+
+  lease.queue = lease.queue
+    .then(async () => {
+      if (lease.consumers > 0) return;
+      try {
+        if (lease.info) {
+          await ipcBridge.fileSnapshot.dispose.invoke({ workspace });
+        }
+      } finally {
+        lease.info = null;
+        if (lease.consumers === 0 && snapshotLeases.get(workspace) === lease) {
+          snapshotLeases.delete(workspace);
+        }
+      }
+    })
+    .catch(() => {});
+}
+
 export function useFileChanges({ workspace }: UseFileChangesParams): UseFileChangesReturn {
   const [result, setResult] = useState<CompareResult>({ staged: [], unstaged: [] });
   const [loading, setLoading] = useState(false);
@@ -36,22 +88,26 @@ export function useFileChanges({ workspace }: UseFileChangesParams): UseFileChan
   useEffect(() => {
     if (!workspace) return;
 
+    let active = true;
     initializedRef.current = false;
     setResult({ staged: [], unstaged: [] });
     setSnapshotInfo(null);
 
-    ipcBridge.fileSnapshot.init
-      .invoke({ workspace })
+    acquireSnapshot(workspace)
       .then((info) => {
+        if (!active) return;
         setSnapshotInfo(info);
         initializedRef.current = true;
       })
       .catch((err) => {
+        if (!active) return;
         console.error('[useFileChanges] Failed to init snapshot:', err);
       });
 
     return () => {
-      ipcBridge.fileSnapshot.dispose.invoke({ workspace }).catch(() => {});
+      active = false;
+      initializedRef.current = false;
+      releaseSnapshot(workspace);
     };
   }, [workspace]);
 
