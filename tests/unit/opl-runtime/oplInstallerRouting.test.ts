@@ -116,7 +116,7 @@ describe.skipIf(process.platform === 'win32')('OPL installer runtime routing', (
     expect(fs.existsSync(curlLog)).toBe(false);
   });
 
-  it('keeps Native WebUI approved but unavailable without probing or downloading', () => {
+  it('requires a verified Native WebUI artifact without probing or downloading', () => {
     const nativeTemp = path.join(root, 'native-temp');
     fs.mkdirSync(nativeTemp);
 
@@ -125,8 +125,8 @@ describe.skipIf(process.platform === 'win32')('OPL installer runtime routing', (
     });
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('approved_target_not_supported');
-    expect(result.stderr).toContain('not_published');
+    expect(result.stderr).toContain('A verified OPL Native WebUI artifact is required');
+    expect(result.stderr).toContain('Provide mirror/version plus an exact verifier URL and SHA256');
     expect(fs.readdirSync(nativeTemp)).toEqual([]);
     expect(fs.existsSync(curlLog)).toBe(false);
   });

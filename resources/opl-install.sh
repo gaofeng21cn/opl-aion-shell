@@ -292,7 +292,7 @@ normalize_runtime_form() {
       ;;
     *)
       printf 'Unsupported runtime form: %s\n' "$OPL_INSTALL_RUNTIME_FORM" >&2
-      exit 1
+      return 1
       ;;
   esac
 }
@@ -422,7 +422,7 @@ verified_native_artifact_available() {
 resolve_install_route() {
   local platform runtime_form
   platform=$(platform_family)
-  runtime_form=$(normalize_runtime_form)
+  runtime_form=$(normalize_runtime_form) || return 1
 
   if [ "$platform" = "unsupported" ]; then
     printf 'Unsupported platform for OPL App installer: %s\n' "$(uname -s)" >&2
@@ -908,7 +908,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 trap cleanup_native_installer EXIT
-SELECTED_INSTALL_ROUTE=$(resolve_install_route)
+SELECTED_INSTALL_ROUTE=$(resolve_install_route) || exit 1
 if [ "$PRINT_INSTALL_ROUTE" = "1" ]; then
   printf '%s\n' "$SELECTED_INSTALL_ROUTE"
   exit 0
