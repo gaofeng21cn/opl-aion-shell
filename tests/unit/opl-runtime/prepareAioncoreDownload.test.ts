@@ -103,6 +103,64 @@ describe('prepare-aioncore compatibility gate', () => {
       })
     ).toThrow(/unrecognized --version output/);
   });
+
+  it('accepts a target-executed prepared runtime manifest without requiring host WSL', () => {
+    const runtimeDir = makeTempDir();
+    fs.writeFileSync(
+      path.join(runtimeDir, 'manifest.json'),
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: ['--recover-corrupted-database'],
+        },
+      })
+    );
+
+    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+  });
+
+  it('rejects a prepared runtime manifest with a stale version or missing recovery support', () => {
+    const runtimeDir = makeTempDir();
+    const manifestPath = path.join(runtimeDir, 'manifest.json');
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.49',
+        compatibility: {
+          reportedVersion: '0.1.49',
+          requiredOptions: [],
+        },
+      })
+    );
+
+    expect(() => __test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toThrow(
+      /version mismatch/
+    );
+
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: [],
+        },
+      })
+    );
+    expect(() => __test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toThrow(
+      /missing required option --recover-corrupted-database/
+    );
+  });
 });
 
 describe('prepare-aioncore download retry', () => {

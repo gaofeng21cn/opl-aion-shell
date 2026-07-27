@@ -285,6 +285,43 @@ function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) 
   return { version: reportedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
 }
 
+function assertPreparedRuntimeManifestCompatibility(runtimeDir, platform, arch, expectedVersion) {
+  const manifestPath = path.join(runtimeDir, 'manifest.json');
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Prepared AionCore runtime manifest is unreadable: ${manifestPath}`, { cause: error });
+  }
+
+  const expected = normalizeAioncoreVersion(expectedVersion);
+  const declared = normalizeAioncoreVersion(manifest.version);
+  const reported = normalizeAioncoreVersion(manifest.compatibility?.reportedVersion);
+  const requiredOptions = Array.isArray(manifest.compatibility?.requiredOptions)
+    ? manifest.compatibility.requiredOptions
+    : [];
+
+  if (manifest.platform !== platform || manifest.arch !== arch) {
+    throw new Error(
+      `Prepared AionCore runtime target mismatch: expected ${platform}-${arch}, received ${manifest.platform}-${manifest.arch}`
+    );
+  }
+  if (!expected || declared !== expected || reported !== expected) {
+    throw new Error(
+      `Prepared AionCore runtime version mismatch: expected ${expected || '<missing>'}, declared ${
+        declared || '<missing>'
+      }, reported ${reported || '<missing>'}`
+    );
+  }
+  for (const option of REQUIRED_AIONCORE_OPTIONS) {
+    if (!requiredOptions.includes(option)) {
+      throw new Error(`Prepared AionCore runtime compatibility is missing required option ${option}`);
+    }
+  }
+
+  return { version: reported, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
+}
+
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -973,7 +1010,14 @@ function downloadAndExtract(platform, arch, tag) {
  * @returns {{ prepared: true; dir: string; sourceType: string }}
  */
 function prepareAioncore(options) {
-  const { projectRoot, platform, arch, version = 'latest', compatibilityExecFileSync } = options;
+  const {
+    projectRoot,
+    platform,
+    arch,
+    version = 'latest',
+    compatibilityExecFileSync,
+    materializeInternalSymlinksForWindows = false,
+  } = options;
   const runtimeKey = `${platform}-${arch}`;
   const actionsRunId = (process.env.AIONUI_BACKEND_RUN_ID || '').trim();
 
@@ -1001,6 +1045,46 @@ function prepareAioncore(options) {
   console.log(
     `Preparing aioncore for ${runtimeKey} (${actionsRunId ? `actions run: ${actionsRunId}` : `version: ${tag}`})`
   );
+
+  const preparedRuntimeDir = (
+    options.preparedRuntimeDir ||
+    process.env.AIONUI_PREPARED_AIONCORE_RUNTIME_DIR ||
+    ''
+  ).trim();
+  if (preparedRuntimeDir) {
+    const sourceDir = path.resolve(preparedRuntimeDir);
+    if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+      throw new Error(`Prepared AionCore runtime directory is missing: ${sourceDir}`);
+    }
+    if (sourceDir === path.resolve(targetDir)) {
+      throw new Error('Prepared AionCore runtime directory must be separate from the packaging target.');
+    }
+
+    removeDirectorySafe(targetDir);
+    copyDirectorySafe(sourceDir, targetDir);
+    try {
+      assertPreparedRuntimeManifestCompatibility(targetDir, platform, arch, tag);
+      const verification = verifyBundledAioncoreResources({
+        resourcesDir: path.join(projectRoot, 'resources'),
+        electronPlatformName: platform,
+        targetArch: arch,
+      });
+      if (verification.missing.length > 0 || verification.invalid.length > 0) {
+        throw new Error(
+          `Prepared AionCore runtime artifact is invalid: ${[
+            ...verification.missing.map((entry) => `missing ${entry}`),
+            ...verification.invalid,
+          ].join(', ')}`
+        );
+      }
+    } catch (error) {
+      removeDirectorySafe(targetDir);
+      throw error;
+    }
+
+    console.log(`  Using target-executed prepared runtime artifact: ${sourceDir}`);
+    return { prepared: true, dir: targetDir, sourceType: 'prepared-runtime-artifact' };
+  }
 
   if (
     restorePreparedRuntimeFromCache({
@@ -1070,6 +1154,7 @@ function prepareAioncore(options) {
     const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir, {
       execFileSync: compatibilityExecFileSync,
       platform,
+      hostPlatform: materializeInternalSymlinksForWindows ? 'win32' : process.platform,
     });
 
     writePreparedRuntimeManifest(targetDir, {
@@ -1137,6 +1222,7 @@ module.exports = {
   prepareAioncore,
   __test__: {
     assertAioncoreCompatibility,
+    assertPreparedRuntimeManifestCompatibility,
     defaultAioncoreCacheRoot,
     downloadFile,
     getAioncoreCachePaths,
