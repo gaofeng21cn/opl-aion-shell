@@ -55,15 +55,15 @@ export function getDefaultAutoUpdateCacheRoot(options: DefaultAutoUpdateCacheRoo
   const env = options.env ?? process.env;
 
   if (platform === 'darwin') {
-    return path.join(homeDir, 'Library', 'Caches', options.appCacheDirName);
+    return path.posix.join(homeDir, 'Library', 'Caches', options.appCacheDirName);
   }
   if (platform === 'win32') {
-    return path.join(
-      env.LOCALAPPDATA || env.APPDATA || path.join(homeDir, 'AppData', 'Local'),
+    return path.win32.join(
+      env.LOCALAPPDATA || env.APPDATA || path.win32.join(homeDir, 'AppData', 'Local'),
       options.appCacheDirName
     );
   }
-  return path.join(env.XDG_CACHE_HOME || path.join(homeDir, '.cache'), options.appCacheDirName);
+  return path.posix.join(env.XDG_CACHE_HOME || path.posix.join(homeDir, '.cache'), options.appCacheDirName);
 }
 
 function normalizeInsideRoot(root: string, candidate: string): string | null {

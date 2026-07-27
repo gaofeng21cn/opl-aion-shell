@@ -37,7 +37,7 @@ describe('getDefaultAutoUpdateCacheRoot', () => {
         homeDir: 'C:\\Users\\test',
         platform: 'win32',
       })
-    ).toBe(path.join('C:\\Users\\test\\AppData\\Local', 'one-person-lab-aion-shell-updater'));
+    ).toBe(path.win32.join('C:\\Users\\test\\AppData\\Local', 'one-person-lab-aion-shell-updater'));
 
     expect(
       getDefaultAutoUpdateCacheRoot({
