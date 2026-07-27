@@ -1,2 +1,3 @@
 mobile/
 contracts/opl-native-profile.json
+packages/desktop/src/common/config/oplProductProfile/oplProductProfile.generated.json
