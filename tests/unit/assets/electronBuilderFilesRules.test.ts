@@ -84,6 +84,15 @@ function runtimeDependencyClosure(rootPackages: string[]): string[] {
 }
 
 describe('electron-builder files rules', () => {
+  it('normalizes Windows-style app.asar entries before runtime dependency checks', () => {
+    expect(packagedRuntime.normalizeAsarEntry('\\node_modules\\axios\\package.json')).toBe(
+      'node_modules/axios/package.json'
+    );
+    expect(packagedRuntime.normalizeAsarEntry('/node_modules/axios/package.json')).toBe(
+      'node_modules/axios/package.json'
+    );
+  });
+
   it('keeps main-process runtime dependencies explicitly included', () => {
     const rules = readRules();
 
