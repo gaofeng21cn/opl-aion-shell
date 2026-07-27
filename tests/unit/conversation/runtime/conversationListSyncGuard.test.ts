@@ -279,6 +279,23 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged).toEqual([cached, expect.objectContaining({ id: 'thread-1', name: 'Canonical task' })]);
   });
 
+  it('preserves pre-canonical local Codex conversations that have no canonical join key', () => {
+    const legacy = {
+      id: 'legacy-local',
+      name: 'Legacy local conversation',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        workspace: '/tmp/legacy-project',
+      },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([legacy], directory([thread()]));
+
+    expect(merged).toEqual([legacy, expect.objectContaining({ id: 'thread-1', name: 'Canonical task' })]);
+  });
+
   it('retains unmatched non-Codex local rows without title or workspace deduplication', () => {
     const local = {
       id: 'local-gemini',

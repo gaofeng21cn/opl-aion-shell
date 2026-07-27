@@ -161,6 +161,11 @@ export const mergeCanonicalThreadDirectory = (
       return false;
     }
 
+    // Pre-canonical AionUI conversations have no App Server join key. A
+    // complete canonical directory cannot prove those local user records are
+    // stale, so keep them visible as legacy conversations.
+    if (!threadId) return true;
+
     // Only a complete overview may retire unmatched Codex cache rows. A bounded
     // recent directory remains useful without turning older local rows into ghosts.
     if (!directory.complete) return true;
