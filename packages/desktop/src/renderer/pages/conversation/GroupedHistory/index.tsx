@@ -624,7 +624,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                 tabIndex={0}
                                 aria-label={t('conversation.history.newConversationWithWorkspace')}
                                 className={classNames(
-                                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
+                                  'opl-codex-icon-button flex-center cursor-pointer sider-action-btn',
                                   isMobile ? 'flex' : 'hidden group-hover:flex'
                                 )}
                                 onClick={(e) => {

@@ -7,9 +7,9 @@
 import { ipcBridge } from '@/common';
 import AtFileMenu from '@/renderer/components/chat/AtFileMenu';
 import BtwOverlay from '@/renderer/components/chat/BtwOverlay';
-import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
 import { useBtwCommand } from '@/renderer/components/chat/BtwOverlay/useBtwCommand';
+import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
@@ -360,7 +360,7 @@ const SendBox: React.FC<{
   const [isSingleLine, setIsSingleLine] = useState(!effectiveDefaultMultiLine);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const isInputActive = isInputFocused;
-  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const { activeShadow } = useInputFocusRing();
   const containerRef = useRef<HTMLDivElement>(null);
   const singleLineWidthRef = useRef<number>(0);
   const measurementCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1448,7 +1448,7 @@ const SendBox: React.FC<{
     <div className={className}>
       <div
         ref={containerRef}
-        className={`sendbox-panel relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${isOverlayOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed sendbox-panel--dragging' : ''}`}
+        className={`sendbox-panel opl-codex-composer ${isInputActive ? 'opl-codex-composer--focused' : ''} ${isFileDragging ? 'opl-codex-composer--dragging sendbox-panel--dragging' : ''} relative p-16px flex flex-col ${isOverlayOpen ? 'overflow-visible' : 'overflow-hidden'}`}
         data-testid='conversation-composer'
         data-composer-palette-boundary='true'
         style={{
@@ -1457,11 +1457,8 @@ const SendBox: React.FC<{
             ? {
                 backgroundColor: 'var(--color-primary-light-1)',
                 borderColor: 'rgb(var(--primary-3))',
-                borderWidth: '1px',
               }
             : {
-                borderWidth: '1px',
-                borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
                 boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)',
               }),
         }}
@@ -1477,7 +1474,7 @@ const SendBox: React.FC<{
           question={btwCommand.question}
         />
         {isAtFileMenuOpen && (
-          <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+          <div className='opl-codex-menu absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             <AtFileMenu
               activeIndex={atFileMenuActiveIndex}
               emptyText={
@@ -1495,7 +1492,7 @@ const SendBox: React.FC<{
           </div>
         )}
         {isCommandMenuOpen && (
-          <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+          <div className='opl-codex-menu absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             {conversationExport.step === 'menu' ? (
               <SlashCommandMenu
                 title={t('messages.export.menuTitle')}

@@ -158,16 +158,16 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       <div
         id={'c-' + conversation.id}
         className={classNames(
-          'chat-history__item h-34px rd-8px flex items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0 transition-colors',
+          'chat-history__item opl-codex-rail-row h-34px flex items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0',
           collapsed ? 'justify-center px-0' : 'justify-start gap-8px pr-16px',
           // dimIcon means this row sits inside a project/cron parent — visually indent the row content while keeping the bg full-width
           !collapsed && (dimIcon ? 'pl-34px' : 'pl-10px'),
           {
-            'hover:bg-fill-3': !batchMode && !selected,
-            '!bg-fill-3': selected,
             'bg-[rgba(var(--primary-6),0.08)]': batchMode && checked,
           }
         )}
+        data-selected={selected ? 'true' : 'false'}
+        aria-current={selected ? 'page' : undefined}
         onClick={handleRowClick}
         onContextMenu={handleRowContextMenu}
       >
@@ -227,6 +227,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <Dropdown
               droplist={
                 <Menu
+                  className='opl-codex-menu'
                   onClickMenuItem={(key) => {
                     if (key === 'pin') {
                       onTogglePin(conversation);
@@ -328,13 +329,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               unmountOnExit={false}
             >
               <span
-                className={classNames(
-                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                  {
-                    flex: isMobile || menuVisible,
-                    'hidden group-hover:flex': !isMobile && !menuVisible,
-                  }
-                )}
+                className={classNames('opl-codex-icon-button flex-center cursor-pointer sider-action-btn', {
+                  flex: isMobile || menuVisible,
+                  'hidden group-hover:flex': !isMobile && !menuVisible,
+                })}
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenMenu(conversation);

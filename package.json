@@ -46,6 +46,7 @@
     "i18n:types": "node scripts/generate-i18n-types.js",
     "validate:packaged-runtime": "node scripts/validate-packaged-runtime.js",
     "validate:opl-package": "node scripts/validate-packaged-runtime.js --scan-all",
+    "compare:gui-visual-cohort": "bunx tsx scripts/compare-gui-visual-cohort.ts",
     "release:smoke:opl-first-run-vm": "node scripts/opl-first-run-vm-smoke.mjs",
     "release:smoke:opl-first-run-vm:tart": "node scripts/opl-first-run-tart-smoke.mjs",
     "test:opl-first-run-vm": "npm run release:smoke:opl-first-run-vm --",

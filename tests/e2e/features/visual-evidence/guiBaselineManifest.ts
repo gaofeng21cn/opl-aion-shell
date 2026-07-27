@@ -151,6 +151,13 @@ export class GuiBaselineManifestWriter {
           shell_head: this.shellHead,
           command: this.command,
           evidence_scope: 'route_state_non_empty_and_layout_only',
+          visual_reference_cohort: {
+            authority: 'one-person-lab-app',
+            contract_ref: 'one-person-lab-app/contracts/app-gui-visual-reference-cohort.json',
+            relation: 'external_authority_reference_only',
+            scene_matrix_copied: false,
+            parity_evaluated_by_this_manifest: false,
+          },
           claims: {
             route_state_non_empty: true,
             layout_bounds_checked: true,
@@ -159,6 +166,7 @@ export class GuiBaselineManifestWriter {
           },
           notes: [
             'Each entry is bound to the exact clean Shell HEAD, route, viewport, theme, locale, state, anchors, and layout checks.',
+            'The App visual reference cohort remains external authority; this Shell manifest does not copy its scene matrix.',
             'The manifest does not establish 1:1 visual parity, packaged-app currentness, or release readiness.',
           ],
           entries: this.entries,

@@ -1,0 +1,138 @@
+/*
+ * App-owned Codex visual primitives. This is intentionally a thin renderer
+ * overlay: product truth remains in one-person-lab-app contracts.
+ */
+
+:root {
+  --opl-codex-composer-radius: 22px;
+  --opl-codex-composer-border: var(--opl-composer-border);
+  --opl-codex-composer-border-focus: var(--opl-composer-border-focus);
+  --opl-codex-composer-shadow: var(--opl-composer-shadow);
+  --opl-codex-composer-focus-shadow: var(--opl-composer-focus-shadow);
+  --opl-codex-control-radius: 6px;
+  --opl-codex-menu-radius: 10px;
+  --opl-codex-menu-shadow: 0 8px 24px color-mix(in srgb, var(--color-text-1) 10%, transparent);
+  --opl-codex-rail-row-height: 34px;
+  --opl-codex-rail-row-radius: 8px;
+  --opl-codex-icon-button-size: 20px;
+  --opl-codex-settings-row-gap: 20px;
+  --opl-codex-settings-row-padding-block: 12px;
+}
+
+.opl-codex-composer {
+  border: 1px solid var(--opl-codex-composer-border);
+  border-radius: var(--opl-codex-composer-radius);
+  background: var(--dialog-fill-0);
+  box-shadow: var(--opl-codex-composer-shadow);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.opl-codex-composer.opl-codex-composer--focused,
+.opl-codex-composer:focus-within {
+  border-color: var(--opl-codex-composer-border-focus);
+  box-shadow: var(--opl-codex-composer-focus-shadow);
+}
+
+.opl-codex-composer.opl-codex-composer--dragging {
+  border-style: dashed;
+  background: var(--color-primary-light-1);
+}
+
+.opl-codex-composer textarea {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
+.opl-codex-composer textarea::placeholder {
+  color: var(--opl-composer-placeholder);
+  opacity: 1;
+}
+
+.opl-codex-rail-row {
+  min-height: var(--opl-codex-rail-row-height);
+  border-radius: var(--opl-codex-rail-row-radius);
+  background: transparent;
+  color: var(--text-primary);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.opl-codex-rail-row:hover {
+  background: var(--opl-sidebar-hover);
+}
+
+.opl-codex-rail-row[data-selected='true'],
+.opl-codex-rail-row[aria-current='page'] {
+  background: var(--opl-sidebar-active);
+}
+
+.opl-codex-icon-button {
+  display: inline-flex;
+  width: var(--opl-codex-icon-button-size);
+  height: var(--opl-codex-icon-button-size);
+  flex: 0 0 var(--opl-codex-icon-button-size);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--opl-codex-control-radius);
+  background: transparent;
+  color: var(--text-secondary);
+  line-height: 0;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.opl-codex-icon-button:hover {
+  background: var(--color-fill-2);
+  color: var(--text-primary);
+}
+
+.opl-codex-icon-button:focus-visible {
+  outline: 2px solid var(--opl-focus-ring);
+  outline-offset: 2px;
+}
+
+.opl-codex-menu {
+  border: 1px solid var(--border-base);
+  border-radius: var(--opl-codex-menu-radius);
+  background: var(--bg-1);
+  box-shadow: var(--opl-codex-menu-shadow);
+}
+
+.opl-codex-menu.arco-menu,
+.opl-codex-menu .arco-menu {
+  padding-block: 4px;
+}
+
+.opl-codex-menu .arco-menu-item,
+.opl-codex-menu.arco-menu .arco-menu-item {
+  min-height: 32px;
+  border-radius: var(--opl-codex-control-radius);
+  margin-inline: 4px;
+}
+
+.opl-codex-menu .arco-menu-item:hover,
+.opl-codex-menu.arco-menu .arco-menu-item:hover {
+  background: var(--color-fill-2);
+}
+
+.opl-codex-settings-row,
+.opl-settings-row {
+  gap: var(--opl-codex-settings-row-gap);
+  padding-block: var(--opl-codex-settings-row-padding-block);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --opl-codex-composer-radius: 16px;
+    --opl-codex-settings-row-gap: 10px;
+  }
+}

@@ -525,9 +525,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
   align-items: center;
-  gap: 20px;
+  gap: var(--opl-codex-settings-row-gap);
   min-width: 0;
-  padding: 12px 0;
+  padding-block: var(--opl-codex-settings-row-padding-block);
 }
 
 .opl-settings-row + .opl-settings-row {
@@ -1070,7 +1070,7 @@
 
   .opl-settings-row {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    gap: var(--opl-codex-settings-row-gap);
   }
 
   .opl-settings-row__meta {

@@ -137,7 +137,7 @@ const GuidPage: React.FC = () => {
   const navState = location.state as GuidNavigationState | null;
   const guidContainerRef = useRef<HTMLDivElement>(null);
   const preservePostInstallPromptRef = useRef(false);
-  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const { activeShadow } = useInputFocusRing();
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
   const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(null);
   const { appState } = useOplAppState('fast');
