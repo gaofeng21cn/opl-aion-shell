@@ -7,6 +7,42 @@ function dependencyPath(projectRoot, packageName) {
   return path.join(projectRoot, 'node_modules', ...packageName.split('/'));
 }
 
+function findPackageStoreNodeModules(packageDir) {
+  let current = path.dirname(packageDir);
+  while (path.basename(current) !== 'node_modules') {
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+  return current;
+}
+
+function copyLocalDependencyLinks(packageDir, targetDir) {
+  const sourceNodeModules = findPackageStoreNodeModules(targetDir);
+  if (!sourceNodeModules) return;
+
+  const packageJson = JSON.parse(fs.readFileSync(path.join(targetDir, 'package.json'), 'utf8'));
+  const dependencyNames = new Set([
+    ...Object.keys(packageJson.dependencies ?? {}),
+    ...Object.keys(packageJson.optionalDependencies ?? {}),
+  ]);
+  const destinationNodeModules = path.join(packageDir, 'node_modules');
+  fs.mkdirSync(destinationNodeModules, { recursive: true });
+  for (const dependencyName of dependencyNames) {
+    const sourceDependency = path.join(sourceNodeModules, ...dependencyName.split('/'));
+    if (!fs.existsSync(sourceDependency)) {
+      continue;
+    }
+    const destinationDependency = path.join(destinationNodeModules, ...dependencyName.split('/'));
+    fs.mkdirSync(path.dirname(destinationDependency), { recursive: true });
+    fs.symlinkSync(
+      fs.realpathSync(sourceDependency),
+      destinationDependency,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+  }
+}
+
 function materializePackagedRuntimeDependencies(projectRoot, packageNames = REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES) {
   const restored = [];
   const materialized = [];
@@ -42,6 +78,7 @@ function materializePackagedRuntimeDependencies(projectRoot, packageNames = REQU
           dereference: true,
           errorOnExist: true,
         });
+        copyLocalDependencyLinks(stagedDir, targetDir);
         fs.rmSync(packageDir, { recursive: true, force: true });
         fs.renameSync(stagedDir, packageDir);
       } catch (error) {

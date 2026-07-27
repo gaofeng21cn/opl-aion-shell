@@ -192,19 +192,36 @@ describe('electron-builder files rules', () => {
 
   it('materializes linked runtime packages for builder traversal and restores the links', () => {
     const root = mkdtempSync(resolve(tmpdir(), 'opl-runtime-materializer-'));
-    const target = resolve(root, 'store', 'axios');
+    const target = resolve(root, 'store', 'axios@1', 'node_modules', 'axios');
+    const siblingDependency = resolve(root, 'store', 'form-data@1', 'node_modules', 'form-data');
     const linkedPackage = resolve(root, 'node_modules', 'axios');
     mkdirSync(target, { recursive: true });
+    mkdirSync(siblingDependency, { recursive: true });
+    mkdirSync(resolve(target, '..'), { recursive: true });
     mkdirSync(resolve(linkedPackage, '..'), { recursive: true });
-    writeFileSync(resolve(target, 'package.json'), `${JSON.stringify({ name: 'axios' })}\n`);
+    writeFileSync(
+      resolve(target, 'package.json'),
+      `${JSON.stringify({ name: 'axios', dependencies: { 'form-data': '^1.0.0' } })}\n`
+    );
     writeFileSync(resolve(target, 'index.js'), 'module.exports = true;\n');
+    writeFileSync(resolve(siblingDependency, 'package.json'), `${JSON.stringify({ name: 'form-data' })}\n`);
     symlinkSync(target, linkedPackage, process.platform === 'win32' ? 'junction' : 'dir');
+    symlinkSync(
+      siblingDependency,
+      resolve(target, '..', 'form-data'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
 
     try {
       const materialization = runtimeMaterializer.materializePackagedRuntimeDependencies(root, ['axios']);
       expect(materialization.materialized).toEqual(['axios']);
       expect(lstatSync(linkedPackage).isSymbolicLink()).toBe(false);
       expect(readFileSync(resolve(linkedPackage, 'index.js'), 'utf8')).toContain('module.exports');
+      expect(readFileSync(resolve(linkedPackage, 'node_modules', 'form-data', 'package.json'), 'utf8')).toContain(
+        '"name":"form-data"'
+      );
+      expect(lstatSync(resolve(linkedPackage, 'node_modules', 'form-data')).isSymbolicLink()).toBe(true);
+      expect(realpathSync(resolve(linkedPackage, 'node_modules', 'form-data'))).toBe(realpathSync(siblingDependency));
 
       materialization.restore();
       expect(lstatSync(linkedPackage).isSymbolicLink()).toBe(true);
