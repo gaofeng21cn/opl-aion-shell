@@ -670,6 +670,22 @@ function runtimeProvider<Data, Params>(
   };
 }
 
+function electronProviderWithWebFallback<Data, Params>(
+  channel: string,
+  webFallback: (params: Params) => Data
+): BridgeProvider<Data, Params> {
+  const electronProvider = bridge.buildProvider<Data, Params>(channel);
+  return {
+    provider: electronProvider.provider,
+    invoke: ((params?: Params) => {
+      if (isWebUiBrowserMode()) {
+        return Promise.resolve(webFallback(params as Params));
+      }
+      return (electronProvider.invoke as (p?: Params) => Promise<Data>)(params);
+    }) as BridgeProvider<Data, Params>['invoke'],
+  };
+}
+
 function runtimeEmitter<Params>(channel: string, eventName: string) {
   const electronEmitter = bridge.buildEmitter<Params>(channel);
   const webEmitter = wsMappedEmitter<Params>(eventName, (raw) => raw as Params);
@@ -773,7 +789,15 @@ export const oplRuntime = {
 // ---------------------------------------------------------------------------
 
 export const codexThreads = {
-  list: bridge.buildProvider<CodexThreadDirectory, CodexThreadDirectoryRequest>('codex-threads.list'),
+  list: electronProviderWithWebFallback<CodexThreadDirectory, CodexThreadDirectoryRequest>(
+    'codex-threads.list',
+    () => ({
+      schema: 'opl_codex_thread_directory.v1',
+      host: 'webui-local-cache',
+      complete: false,
+      threads: [],
+    })
+  ),
   read: bridge.buildProvider<CodexThreadDetail, CodexThreadIdRequest>('codex-threads.read'),
   start: bridge.buildProvider<CodexThreadDescriptor, CodexThreadStartRequest>('codex-threads.start'),
   resume: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.resume'),
