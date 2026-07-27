@@ -2696,7 +2696,7 @@ describe('Agents and capabilities settings', () => {
         app_action_execution: {
           result: {
             opl_agent_package_install: {
-              package_lock: { package_id: 'example-agent' },
+              package_id: 'example-agent',
             },
           },
         },
@@ -2920,7 +2920,7 @@ describe('Agents and capabilities settings', () => {
         app_action_execution: {
           result: {
             opl_agent_package_install: {
-              package_lock: { package_id: 'example-agent' },
+              package_id: 'example-agent',
             },
           },
         },

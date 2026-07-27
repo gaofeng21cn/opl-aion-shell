@@ -164,7 +164,7 @@ function packageIdFromInstallResult(result: IOplRuntimeCommandResult | null | un
   const execution = oplRecord(parsed.app_action_execution);
   const actionResult = oplRecord(execution.result);
   const install = oplRecord(actionResult.opl_agent_package_install);
-  return oplString(oplRecord(install.package_lock).package_id) ?? oplString(install.package_id);
+  return oplString(install.package_id);
 }
 
 function installedPackageReadback(
