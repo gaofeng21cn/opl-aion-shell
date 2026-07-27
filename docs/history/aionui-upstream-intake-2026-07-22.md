@@ -4,6 +4,22 @@ Machine receipt: `contracts/aionui-upstream-intake.json`. The receipt is the
 offline currentness and managed-runtime projection boundary; this document
 retains the human classification rationale.
 
+## Review update - 2026-07-27
+
+The official stable range from `v2.1.39`
+(`1b215f2fcb9d220bc66bf3b4961835ded07d5797`) through `v2.1.41`
+(`2d8925fc67a97a20996fadcd2a0862b778b572ba`) was reviewed. The range changes
+180 files with 7,405 insertions and 1,782 deletions. It includes the direct-CLI
+session path, permission and team lifecycle UI changes, assistant ordering,
+desktop completion notifications, keyboard shortcuts, and AionCore upgrades
+through `v0.1.52`.
+
+The disposition is `reviewed_deferred`. These changes cross the OPL App product
+contract, managed-runtime identity, and preserved Shell overlay boundaries, so
+they are not absorbed as a broad upstream merge. The absorbed release remains
+`v2.1.39` with AionCore `v0.1.50`; any future selective intake requires its own
+App-authorized source manifest and focused validation.
+
 ## Authority
 
 - Shell candidate base: `201f338604299caaf1deaf94995fa176393c1165`.
