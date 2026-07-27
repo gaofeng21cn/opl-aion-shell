@@ -5,11 +5,10 @@
  */
 
 import { Button } from '@arco-design/web-react';
-import { BookOpen, Microscope, Robot, Slide, Write } from '@icon-park/react';
+import { Robot } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { resolveOplPackageLaunchGate, type OplHomeAssistant } from '../utils/oplHomeAssistants';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -24,19 +23,8 @@ type HomeStartersProps = {
   onClear?: () => void;
 };
 
-function starterIcon(packageId: string): React.ReactNode {
-  switch (canonicalizeOplProfessionalAgentId(packageId)) {
-    case 'mas':
-      return <Microscope {...OPL_CHROME_ICON_PROPS} />;
-    case 'mag':
-      return <Write {...OPL_CHROME_ICON_PROPS} />;
-    case 'rca':
-      return <Slide {...OPL_CHROME_ICON_PROPS} />;
-    case 'obf':
-      return <BookOpen {...OPL_CHROME_ICON_PROPS} />;
-    default:
-      return <Robot {...OPL_CHROME_ICON_PROPS} />;
-  }
+function starterIcon(): React.ReactNode {
+  return <Robot {...OPL_CHROME_ICON_PROPS} />;
 }
 
 const HomeStarters: React.FC<HomeStartersProps> = ({
@@ -86,7 +74,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 data-testid={`starter-icon-${assistant.opl_shortcut_id}`}
                 aria-hidden='true'
               >
-                {starterIcon(assistant.opl_package_id)}
+                {starterIcon()}
               </span>
               <span className={styles.homeStarterLabel}>{label}</span>
             </Button>

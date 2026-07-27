@@ -1,4 +1,4 @@
-import { canonicalizeOplProfessionalAgentId, type OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
+import type { OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
 import { getOplPackageAppContributionsFromAppState } from './oplAppContributions';
 
@@ -116,11 +116,11 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
   const directoryEntries = new Map(
     recordList(directory.entries).flatMap((entry) => {
       const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
-      return packageId ? [[canonicalizeOplProfessionalAgentId(packageId), entry] as const] : [];
+      return packageId ? [[packageId, entry] as const] : [];
     })
   );
   const descriptors = new Map<string, OplHomeShortcutDescriptor>();
-  for (const [canonicalPackageId, directoryEntry] of directoryEntries) {
+  for (const [directoryPackageId, directoryEntry] of directoryEntries) {
     if (directoryEntry.package_role !== 'standard_agent') continue;
     const packageId = nonBlankString(directoryEntry.package_id);
     if (!packageId) continue;
@@ -157,7 +157,7 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
       ) {
         continue;
       }
-      const tuple = `${canonicalPackageId}\n${shortcutId}`;
+      const tuple = `${directoryPackageId}\n${shortcutId}`;
       if (descriptors.has(tuple)) continue;
       descriptors.set(tuple, {
         shortcut_id: shortcutId,
@@ -184,10 +184,9 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
   for (const entry of records) {
     const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
     const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';
-    const canonicalPackageId = canonicalizeOplProfessionalAgentId(packageId);
-    const directoryEntry = directoryEntries.get(canonicalPackageId);
+    const directoryEntry = directoryEntries.get(packageId);
     if (!packageId || !shortcutId || !directoryEntry || directoryEntry.package_role !== 'standard_agent') continue;
-    const tuple = `${canonicalPackageId}\n${shortcutId}`;
+    const tuple = `${packageId}\n${shortcutId}`;
     const existing = descriptors.get(tuple);
     if (!existing || existing.preference_source === 'user_preference') continue;
     const preferenceSource = entry.source === 'user_preference' ? 'user_preference' : 'default';

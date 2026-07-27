@@ -14,6 +14,7 @@ import {
   getOplHomeAgentShortcutsFromAppState,
   getOplHomeShortcutPreferencesFromAppState,
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
+import { resolveOplActiveShortcut } from '@/renderer/pages/guid/utils/activeShortcut';
 import { resolveOplStandardAgentCapabilityMetadata } from '@/common/types/opl/appState';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
@@ -155,6 +156,107 @@ describe('OPL home assistants', () => {
     expect(directory.every((item) => item.agent_id === undefined && item.agent === undefined)).toBe(true);
   });
 
+  it('joins a backend assistant only through its descriptor-declared Codex entry', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'future-research',
+              display_name: 'Future Research',
+              description: 'Descriptor owned',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('future-main', 'Future', 'future-research-cli')],
+            },
+          ],
+        },
+        status_index: { home_shortcut_preferences: [] },
+      },
+    };
+
+    const resolved = resolveOplProfessionalAgentAssistants(
+      [assistant({ id: 'future_research_cli', name: 'Owner runtime', enabled_skills: ['owner-skill'] })],
+      appState
+    );
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({
+      id: 'future-research',
+      name: 'Future Research',
+      enabled_skills: ['owner-skill'],
+    });
+  });
+
+  it('fails closed when descriptors claim the same backend assistant identity', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'first-agent',
+              display_name: 'First',
+              description: 'First descriptor',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('first-main', 'First', 'shared-owner-entry')],
+            },
+            {
+              package_id: 'second-agent',
+              display_name: 'Second',
+              description: 'Second descriptor',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('second-main', 'Second', 'shared-owner-entry')],
+            },
+          ],
+        },
+        status_index: { home_shortcut_preferences: [] },
+      },
+    };
+
+    const resolved = resolveOplProfessionalAgentAssistants(
+      [assistant({ id: 'shared-owner-entry', name: 'Ambiguous backend', enabled_skills: ['owner-skill'] })],
+      appState
+    );
+
+    expect(resolved.map((entry) => entry.enabled_skills)).toEqual([[], []]);
+  });
+
+  it('resolves legacy Home selection only through one descriptor-declared identity', () => {
+    const appState = {
+      agent_packages: {
+        directory: {
+          entries: [
+            {
+              package_id: 'future-research',
+              display_name: 'Future Research',
+              description: 'Descriptor owned',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('future-main', 'Future', 'future-research-cli')],
+            },
+            {
+              package_id: 'other-research',
+              display_name: 'Other Research',
+              description: 'Independent descriptor',
+              package_role: 'standard_agent',
+              installed: true,
+              home_shortcuts: [projectedHomeShortcut('other-main', 'Other', 'other-research-cli')],
+            },
+          ],
+        },
+        status_index: { home_shortcut_preferences: [] },
+      },
+    };
+
+    expect(resolveOplActiveShortcut('future_research_cli', appState)).toMatchObject({
+      package_id: 'future-research',
+      shortcut_id: 'future-main',
+    });
+    expect(resolveOplActiveShortcut('unclaimed-runtime', appState)).toBeNull();
+  });
+
   it('projects clean directory packages onto Home and defers unavailable packages to the typed launch gate', () => {
     const appState = {
       agent_packages: {
@@ -260,7 +362,7 @@ describe('OPL home assistants', () => {
     expect(resolved.every((item) => item.enabled_skills.length === 0)).toBe(true);
   });
 
-  it('joins long directory identities to short backend and presentation aliases without changing membership', () => {
+  it('joins a backend identity only when the owner descriptor declares it without changing membership', () => {
     const appState = {
       agent_packages: {
         directory: {
@@ -271,7 +373,7 @@ describe('OPL home assistants', () => {
               description: 'Research',
               package_role: 'standard_agent',
               installed: true,
-              home_shortcuts: [projectedHomeShortcut('research', '科研', 'med-autoscience')],
+              home_shortcuts: [projectedHomeShortcut('research', '科研', 'mas')],
             },
           ],
         },
@@ -747,7 +849,7 @@ describe('OPL home assistants', () => {
       },
     };
 
-    expect(resolveOplPackageLaunchGate(appState, 'mas')).toMatchObject({
+    expect(resolveOplPackageLaunchGate(appState, 'med-autoscience')).toMatchObject({
       state: 'degraded',
       launchAllowed: false,
       launchBlockedReason: 'live_verification_deferred',

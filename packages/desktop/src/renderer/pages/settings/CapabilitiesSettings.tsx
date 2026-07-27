@@ -29,7 +29,6 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { oplProjectedRequirementAlternatives } from '@/common/types/opl/appState';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
@@ -374,12 +373,10 @@ function capabilityCatalogGroupKey(
   entry: CapabilityCatalogEntry,
   allCapabilities: CapabilityPurposeViewModel[]
 ): CapabilityCatalogGroupKey {
-  const parentIds = new Set(capabilityPackageIdentityValues(entry.item.packageId));
+  const parentIds = new Set(entry.item.packageId ? [entry.item.packageId] : []);
   const allDependents = parentIds.size
     ? allCapabilities.filter((candidate) =>
-        candidate.dependentGuard?.requiredByPackageIds.some((requiredPackageId) =>
-          capabilityPackageIdentityValues(requiredPackageId).some((id) => parentIds.has(id))
-        )
+        candidate.dependentGuard?.requiredByPackageIds.some((requiredPackageId) => parentIds.has(requiredPackageId))
       )
     : [];
   if (
@@ -403,7 +400,7 @@ function capabilityRoleGroupKey(item: CapabilityPurposeViewModel): 'agents' | 'w
 
 function capabilityPackageIdentityValues(packageId: string | null): string[] {
   if (!packageId) return [];
-  return [...new Set([packageId, canonicalizeOplProfessionalAgentId(packageId)])];
+  return [packageId];
 }
 
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
@@ -895,7 +892,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const shortcutsByPackageId = React.useMemo(() => {
     const shortcuts = new Map<string, typeof orderedShortcuts>();
     orderedShortcuts.forEach((shortcut) => {
-      const packageId = canonicalizeOplProfessionalAgentId(shortcut.package_id);
+      const packageId = shortcut.package_id;
       shortcuts.set(packageId, [...(shortcuts.get(packageId) ?? []), shortcut]);
     });
     return shortcuts;
@@ -1119,7 +1116,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     : '';
   const selectedUninstallAction = capabilityActionForSemantic(selectedCapability, 'uninstall');
   const selectedShortcuts = selectedCapability?.packageId
-    ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(selectedCapability.packageId)) ?? [])
+    ? (shortcutsByPackageId.get(selectedCapability.packageId) ?? [])
     : [];
   const selectedHomeLabel =
     selectedShortcuts.length === 0
@@ -1557,9 +1554,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     (item) => capabilityRoleGroupKey(item) === 'supporting'
   ).length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
-    const shortcuts = item.packageId
-      ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(item.packageId)) ?? [])
-      : [];
+    const shortcuts = item.packageId ? (shortcutsByPackageId.get(item.packageId) ?? []) : [];
     return shortcuts.some((shortcut) => isOplHomeShortcutVisible(shortcut, shortcutPreferences));
   }).length;
   const resetCatalogFilters = () => {
@@ -1596,9 +1591,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   };
 
   const renderCapabilityRow = (item: CapabilityPurposeViewModel, parent: CapabilityPurposeViewModel | null = null) => {
-    const shortcuts = item.packageId
-      ? (shortcutsByPackageId.get(canonicalizeOplProfessionalAgentId(item.packageId)) ?? [])
-      : [];
+    const shortcuts = item.packageId ? (shortcutsByPackageId.get(item.packageId) ?? []) : [];
     const rowAction = capabilityRowAction(item);
     const rowActionPayload = rowAction ? projectedActionPayload(rowAction) : null;
     const rowActionDisabled = Boolean(

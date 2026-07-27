@@ -15,10 +15,21 @@ export function resolveOplActiveShortcut(
   value: string | undefined | null,
   appState: unknown
 ): OplActiveShortcut | null {
-  if (!value) return null;
-  const shortcut = getOplHomeAgentShortcutsFromAppState(appState).find(
-    (entry) => entry.package_id === value || entry.shortcut_id === value
+  const identity = value
+    ?.trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  if (!identity) return null;
+  const matches = getOplHomeAgentShortcutsFromAppState(appState).filter((entry) =>
+    [entry.package_id, entry.shortcut_id, entry.codex_visible_entry].some(
+      (candidate) =>
+        candidate
+          .trim()
+          .toLocaleLowerCase()
+          .replace(/[^a-z0-9]/g, '') === identity
+    )
   );
+  const shortcut = matches.length === 1 ? matches[0] : null;
   if (!shortcut) return null;
   return {
     shortcut_id: shortcut.shortcut_id,

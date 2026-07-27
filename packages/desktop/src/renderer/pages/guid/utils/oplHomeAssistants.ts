@@ -1,5 +1,4 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import type {
   OplAppContributionBadge,
   OplAppContributionCommand,
@@ -15,6 +14,7 @@ import {
 
 type OplHomePackageProfile = {
   id: string;
+  assistantIds: string[];
   display_name: string;
   display_name_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   description: string;
@@ -23,6 +23,7 @@ type OplHomePackageProfile = {
 
 type OplAgentPackageDirectoryEntry = {
   packageId: string;
+  assistantIds: string[];
   displayName: string;
   displayNameI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   description: string;
@@ -96,14 +97,10 @@ function packageDirectoryEntry(appState: unknown, packageId: string): Record<str
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const directory = appStateRecord(packages.directory);
-  const normalizedPackageId = normalizeAssistantId(packageId);
   return (
     (Array.isArray(directory.entries) ? directory.entries : [])
       .map(appStateRecord)
-      .find(
-        (entry) =>
-          typeof entry.package_id === 'string' && normalizeAssistantId(entry.package_id) === normalizedPackageId
-      ) ?? null
+      .find((entry) => typeof entry.package_id === 'string' && entry.package_id === packageId) ?? null
   );
 }
 
@@ -112,10 +109,9 @@ function packageStatusEntry(appState: unknown, packageId: string): Record<string
   const state = appStateRecord(payload.app_state ?? payload);
   const packages = appStateRecord(state.agent_packages);
   const statusIndex = appStateRecord(packages.status_index);
-  const normalizedPackageId = normalizeAssistantId(packageId);
   return (
     packageStatusRecords(statusIndex.packages).find(
-      (entry) => typeof entry.package_id === 'string' && normalizeAssistantId(entry.package_id) === normalizedPackageId
+      (entry) => typeof entry.package_id === 'string' && entry.package_id === packageId
     ) ?? null
   );
 }
@@ -193,6 +189,7 @@ function agentPackageDirectoryEntries(appState: unknown): OplAgentPackageDirecto
     return [
       {
         packageId,
+        assistantIds: [...new Set(parsed.homeShortcuts.map((shortcut) => shortcut.route.codexVisibleEntry))],
         displayName,
         displayNameI18n: parsed.displayNameI18n,
         description,
@@ -207,6 +204,7 @@ function agentPackageProfiles(appState: unknown): OplHomePackageProfile[] {
   return agentPackageDirectoryEntries(appState).map((entry) => {
     return {
       id: entry.packageId,
+      assistantIds: entry.assistantIds,
       display_name: entry.displayName,
       display_name_i18n: entry.displayNameI18n,
       description: entry.description,
@@ -215,7 +213,16 @@ function agentPackageProfiles(appState: unknown): OplHomePackageProfile[] {
   });
 }
 
-const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
+function normalizeDescriptorIdentity(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function descriptorIdentityValues(profile: OplHomePackageProfile): string[] {
+  return [...new Set([profile.id, ...profile.assistantIds].map(normalizeDescriptorIdentity).filter(Boolean))];
+}
 
 const localizedOrFallback = (
   localized: Partial<Record<'zh-CN' | 'en-US', string>>,
@@ -274,13 +281,24 @@ function resolveOplAssistantsFromProfiles(
   backendAssistants: Assistant[],
   profiles: OplHomePackageProfile[]
 ): Assistant[] {
-  const backendById = new Map<string, Assistant>();
+  const profilesByIdentity = new Map<string, OplHomePackageProfile[]>();
+  for (const profile of profiles) {
+    for (const identity of descriptorIdentityValues(profile)) {
+      profilesByIdentity.set(identity, [...(profilesByIdentity.get(identity) ?? []), profile]);
+    }
+  }
+  const backendByIdentity = new Map<string, Assistant[]>();
   for (const assistant of backendAssistants) {
-    backendById.set(normalizeAssistantId(assistant.id), assistant);
+    const identity = normalizeDescriptorIdentity(assistant.id);
+    backendByIdentity.set(identity, [...(backendByIdentity.get(identity) ?? []), assistant]);
   }
 
   return profiles.map((profile, index) => {
-    const existing = backendById.get(normalizeAssistantId(profile.id));
+    const matches = descriptorIdentityValues(profile).flatMap((identity) => {
+      const owners = profilesByIdentity.get(identity) ?? [];
+      return owners.length === 1 && owners[0] === profile ? (backendByIdentity.get(identity) ?? []) : [];
+    });
+    const existing = matches.length === 1 ? matches[0] : undefined;
     if (!existing) {
       return buildAssistantFromProfile(profile, index + 1);
     }
@@ -294,13 +312,13 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[], appStat
   const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
   const assistantsByPackage = new Map(
     resolveOplProfessionalAgentAssistants(backendAssistants, appState).map(
-      (assistant) => [normalizeAssistantId(assistant.id), assistant] as const
+      (assistant) => [assistant.id, assistant] as const
     )
   );
   return shortcuts
     .filter((shortcut) => shortcut.visible)
     .flatMap((shortcut, index) => {
-      const assistant = assistantsByPackage.get(normalizeAssistantId(shortcut.package_id));
+      const assistant = assistantsByPackage.get(shortcut.package_id);
       if (!assistant) return [];
       return [
         {
