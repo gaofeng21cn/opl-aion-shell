@@ -8,6 +8,8 @@ set -eu
 : "${OPL_IMAGE_MANIFEST_PATH:=/opt/opl/image-manifest.json}"
 : "${OPL_IMAGE_SEED_DIR:=/opt/opl/seed}"
 : "${AIONUI_WEB_BIN:=/app/aionui-web/aionui-web}"
+: "${OPL_OFFICIAL_PROFILE_APPLY_BIN:=/app/aionui-web/opl-official-profile-apply}"
+: "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER:=${OPL_DATA_DIR}/.official-profile-first-install-complete}"
 
 export AIONUI_DATA_DIR
 export OPL_DATA_DIR
@@ -208,6 +210,32 @@ if command -v opl >/dev/null 2>&1; then
   fi
   log "running OPL runtime substrate startup maintenance"
   opl system startup-maintenance --scope runtime_substrate --json || fail "OPL startup maintenance failed"
+  if [ "${seed_strategy}" != "metadata_only" ]; then
+    if [ -e "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}" ]; then
+      [ -f "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}" ] \
+        || fail "Official Profile first-install marker is not a file: ${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}"
+      log "Official Profile first-install marker already exists; preserving user Package choices"
+    else
+      [ -x "${OPL_OFFICIAL_PROFILE_APPLY_BIN}" ] \
+        || fail "Official Profile helper is not executable: ${OPL_OFFICIAL_PROFILE_APPLY_BIN}"
+      marker_temp="${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}.$$"
+      log "applying the App Official Profile for first install"
+      if "${OPL_OFFICIAL_PROFILE_APPLY_BIN}" \
+        --intent first_install \
+        --profile embedded \
+        --opl-bin "$(command -v opl)" > "${marker_temp}"; then
+        cat "${marker_temp}"
+        mv "${marker_temp}" "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}" \
+          || fail "cannot record Official Profile first-install completion"
+        log "Official Profile first-install completed"
+      else
+        profile_status="$?"
+        cat "${marker_temp}" >&2 || true
+        rm -f "${marker_temp}" || true
+        fail "Official Profile first-install failed with status ${profile_status}"
+      fi
+    fi
+  fi
 else
   log "OPL maintenance CLI not found; skipping startup maintenance"
 fi

@@ -23,6 +23,7 @@ describe.skipIf(process.platform === 'win32')('OPL WebUI Docker entrypoint', () 
     manifestPath: string;
     seedDir: string;
     webBin: string;
+    officialProfileBin: string;
     fakeBin: string;
   } {
     const dataDir = path.join(tmp, 'data');
@@ -31,6 +32,7 @@ describe.skipIf(process.platform === 'win32')('OPL WebUI Docker entrypoint', () 
     const manifestPath = path.join(tmp, 'image-manifest.json');
     const fakeBin = path.join(tmp, 'bin');
     const webBin = path.join(tmp, 'aionui-web');
+    const officialProfileBin = path.join(tmp, 'opl-official-profile-apply');
     fs.mkdirSync(path.join(seedDir, 'payload'), { recursive: true });
     fs.mkdirSync(fakeBin, { recursive: true });
     fs.writeFileSync(
@@ -82,6 +84,18 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     );
     fs.chmodSync(path.join(fakeBin, 'opl'), 0o755);
     fs.writeFileSync(
+      officialProfileBin,
+      `#!/usr/bin/env sh
+printf '%s\\n' "$*" >> "${tmp}/official-profile-args"
+if [ "\${OPL_TEST_PROFILE_FAIL:-}" = "1" ]; then
+  printf '%s\\n' '{"official_profile_package_apply":{"status":"failed"}}'
+  exit 17
+fi
+printf '%s\\n' '{"official_profile_package_apply":{"status":"completed"}}'
+`
+    );
+    fs.chmodSync(officialProfileBin, 0o755);
+    fs.writeFileSync(
       webBin,
       `#!/usr/bin/env sh
 printf '%s\\n' "$*" > "${tmp}/webui-args"
@@ -89,7 +103,7 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
 `
     );
     fs.chmodSync(webBin, 0o755);
-    return { dataDir, projectsDir, manifestPath, seedDir, webBin, fakeBin };
+    return { dataDir, projectsDir, manifestPath, seedDir, webBin, officialProfileBin, fakeBin };
   }
 
   function writeSlimFixture() {
@@ -128,6 +142,7 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
         OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
         OPL_IMAGE_SEED_DIR: fixture.seedDir,
         AIONUI_WEB_BIN: fixture.webBin,
+        OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
       },
     });
 
@@ -138,7 +153,65 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
     ]);
     expect(fs.readFileSync(path.join(tmp, 'maintenance-manifest-path'), 'utf8').trim()).toBe(fixture.manifestPath);
     expect(fs.readFileSync(path.join(tmp, 'maintenance-seed-dir'), 'utf8').trim()).toBe(fixture.seedDir);
+    expect(fs.readFileSync(path.join(tmp, 'official-profile-args'), 'utf8').trim()).toMatch(
+      /^--intent first_install --profile embedded --opl-bin /
+    );
+    expect(
+      JSON.parse(fs.readFileSync(path.join(fixture.dataDir, '.official-profile-first-install-complete'), 'utf8'))
+        .official_profile_package_apply.status
+    ).toBe('completed');
     expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start --remote --port 3000');
+  });
+
+  it('applies a missing first-install marker once for existing data, then preserves Package choices', () => {
+    const fixture = writeFixture();
+    fs.mkdirSync(fixture.dataDir, { recursive: true });
+    fs.writeFileSync(path.join(fixture.dataDir, 'existing-user.db'), 'preserve\n');
+    const env = {
+      ...process.env,
+      PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      AIONUI_DATA_DIR: fixture.dataDir,
+      OPL_DATA_DIR: fixture.dataDir,
+      OPL_PROJECTS_DIR: fixture.projectsDir,
+      OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+      OPL_IMAGE_SEED_DIR: fixture.seedDir,
+      AIONUI_WEB_BIN: fixture.webBin,
+      OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
+    };
+
+    const first = spawnSync('sh', [entrypointPath, 'start'], { encoding: 'utf8', env });
+    const second = spawnSync('sh', [entrypointPath, 'start'], { encoding: 'utf8', env });
+
+    expect(first.status).toBe(0);
+    expect(second.status).toBe(0);
+    expect(second.stderr).toContain('preserving user Package choices');
+    expect(fs.readFileSync(path.join(tmp, 'official-profile-args'), 'utf8').trim().split(/\r?\n/)).toHaveLength(1);
+    expect(fs.readFileSync(path.join(fixture.dataDir, 'existing-user.db'), 'utf8')).toBe('preserve\n');
+  });
+
+  it('fails before WebUI startup and leaves no marker when Official Profile convergence fails', () => {
+    const fixture = writeFixture();
+    const result = spawnSync('sh', [entrypointPath, 'start'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+        AIONUI_DATA_DIR: fixture.dataDir,
+        OPL_DATA_DIR: fixture.dataDir,
+        OPL_PROJECTS_DIR: fixture.projectsDir,
+        OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+        OPL_IMAGE_SEED_DIR: fixture.seedDir,
+        AIONUI_WEB_BIN: fixture.webBin,
+        OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
+        OPL_TEST_PROFILE_FAIL: '1',
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('"status":"failed"');
+    expect(result.stderr).toContain('Official Profile first-install failed with status 17');
+    expect(fs.existsSync(path.join(fixture.dataDir, '.official-profile-first-install-complete'))).toBe(false);
+    expect(fs.existsSync(path.join(tmp, 'webui-args'))).toBe(false);
   });
 
   it('skips seed apply for slim metadata-only images and still starts maintenance and WebUI', () => {
@@ -155,6 +228,7 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
         OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
         OPL_IMAGE_SEED_DIR: fixture.seedDir,
         AIONUI_WEB_BIN: fixture.webBin,
+        OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
       },
     });
 
@@ -163,6 +237,7 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
     expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim()).toBe(
       'system startup-maintenance --scope runtime_substrate --json'
     );
+    expect(fs.existsSync(path.join(tmp, 'official-profile-args'))).toBe(false);
     expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start');
   });
 
@@ -234,6 +309,7 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
         OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
         OPL_IMAGE_SEED_DIR: fixture.seedDir,
         AIONUI_WEB_BIN: fixture.webBin,
+        OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
         OPL_WEBUI_DEPLOYMENT_MODE: 'cloud',
         OPL_WEBUI_PASSWORD_FILE: passwordFile,
         OPL_GATEWAY_API_KEY_FILE: gatewayKeyFile,
