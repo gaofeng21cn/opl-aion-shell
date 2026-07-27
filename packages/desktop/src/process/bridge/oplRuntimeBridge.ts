@@ -511,6 +511,13 @@ const GATEWAY_ACCOUNT_ERROR_CODES = new Set<IOplGatewayAccountErrorCode>([
   'gateway_account_failed',
 ]);
 
+const GATEWAY_ACCOUNT_ERROR_CODE_ALIASES = new Map<string, IOplGatewayAccountErrorCode>([
+  ['credentials_stdin_invalid', 'invalid_request'],
+  ['reauth_required', 'auth_expired'],
+  ['network_timeout', 'network_unreachable'],
+  ['gateway_unavailable', 'network_unreachable'],
+]);
+
 const SECRET_FIELD_NAMES = new Set([
   'password',
   'token',
@@ -533,20 +540,39 @@ function containsSecretField(value: unknown): boolean {
   });
 }
 
+function normalizeGatewayAccountErrorCode(value: unknown): IOplGatewayAccountErrorCode | null {
+  if (typeof value !== 'string') return null;
+  return GATEWAY_ACCOUNT_ERROR_CODES.has(value as IOplGatewayAccountErrorCode)
+    ? (value as IOplGatewayAccountErrorCode)
+    : (GATEWAY_ACCOUNT_ERROR_CODE_ALIASES.get(value) ?? null);
+}
+
 function readGatewayAccountErrorCode(value: unknown): IOplGatewayAccountErrorCode | null {
   if (!isRecord(value)) return null;
-  const direct = typeof value.error_code === 'string' ? value.error_code : null;
-  const nested = isRecord(value.error) && typeof value.error.code === 'string' ? value.error.code : null;
-  const candidate = direct ?? nested;
-  return candidate && GATEWAY_ACCOUNT_ERROR_CODES.has(candidate as IOplGatewayAccountErrorCode)
-    ? (candidate as IOplGatewayAccountErrorCode)
-    : null;
+  const error = isRecord(value.error) ? value.error : null;
+  const details = isRecord(value.details) ? value.details : null;
+  const errorDetails = error && isRecord(error.details) ? error.details : null;
+  for (const candidate of [value.error_code, error?.code, details?.reason_code, errorDetails?.reason_code]) {
+    const normalized = normalizeGatewayAccountErrorCode(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function readGatewayAccountErrorCodeFromText(text: string): IOplGatewayAccountErrorCode | null {
+  for (const match of text.matchAll(/"(?:reason_code|error_code)"\s*:\s*"([^"]+)"/gi)) {
+    const normalized = normalizeGatewayAccountErrorCode(match[1]);
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 function inferGatewayAccountErrorCode(result: IOplRuntimeCommandResult): IOplGatewayAccountErrorCode {
   const parsedCode = readGatewayAccountErrorCode(result.parsed);
   if (parsedCode) return parsedCode;
   const text = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`.toLowerCase();
+  const structuredCode = readGatewayAccountErrorCodeFromText(text);
+  if (structuredCode) return structuredCode;
   if (/invalid credentials|invalid password|unauthorized|401/.test(text)) return 'invalid_credentials';
   if (/disabled|suspended/.test(text)) return 'account_disabled';
   if (/turnstile|captcha|totp|two-factor|mfa|challenge/.test(text)) return 'mfa_or_challenge_required';

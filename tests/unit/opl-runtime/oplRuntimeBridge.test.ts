@@ -1594,6 +1594,37 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toEqual({ ok: false, errorCode: 'invalid_credentials', stateRefreshRequired: false });
   });
 
+  it('preserves the Framework reason code from a failed Gateway CLI envelope', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '',
+        parsed: null,
+        ok: false,
+        error: {
+          message:
+            'OPL runtime command failed (1): {"version":"g2","error":{"code":"launcher_failed","details":{"reason_code":"invalid_credentials"}}}',
+        },
+      })
+    ).toEqual({ ok: false, errorCode: 'invalid_credentials', stateRefreshRequired: false });
+  });
+
+  it('maps Framework transport reason codes to stable Gateway UI errors', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '',
+        parsed: null,
+        ok: false,
+        error: {
+          message: 'OPL runtime command failed (2): {"error":{"details":{"reason_code":"credentials_stdin_invalid"}}}',
+        },
+      })
+    ).toEqual({ ok: false, errorCode: 'invalid_request', stateRefreshRequired: false });
+  });
+
   it('parses initialize event envelopes and returns the complete payload as the command result payload', () => {
     const phaseEvent = __oplRuntimeBridgeTest.readInitializeEventEnvelope(
       JSON.stringify({
