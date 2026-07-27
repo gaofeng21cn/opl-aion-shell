@@ -2853,9 +2853,12 @@ describe('packaged first-run VM smoke helpers', () => {
             result: {
               value: {
                 hash: '#/settings/environment?section=updates',
+                state: 'ready',
+                pageReady: true,
                 ownerSurfaceReady: true,
                 destinationReady: true,
                 refreshPresent: true,
+                refreshVisible: true,
               },
             },
           };
@@ -2877,9 +2880,12 @@ describe('packaged first-run VM smoke helpers', () => {
       alias_resolved_hash: '#/settings/environment',
       resolved_hash: '#/settings/environment?section=updates',
       readiness: {
+        state: 'ready',
+        pageReady: true,
         ownerSurfaceReady: true,
         destinationReady: true,
         refreshPresent: true,
+        refreshVisible: true,
       },
       refresh: {
         before_click: { buttonReady: true },
@@ -2896,6 +2902,9 @@ describe('packaged first-run VM smoke helpers', () => {
       expressions.some((expression) =>
         expression.includes('[data-testid="settings-maintenance-destination"][data-maintenance-destination="updates"]')
       )
+    ).toBe(true);
+    expect(
+      expressions.some((expression) => expression.includes("state: 'ready'") && expression.includes('pageReady: true'))
     ).toBe(true);
     const aliasRefreshExpressions = expressions.filter((expression) =>
       expression.includes('[data-testid="opl-managed-update-refresh"]')

@@ -5964,7 +5964,15 @@ function settingsMaintenanceUpdatesReadinessExpression(refreshHash) {
     const style = window.getComputedStyle(refreshButton);
     const refreshVisible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     return refreshVisible
-      ? { hash: window.location.hash, ownerSurfaceReady, destinationReady, refreshPresent, refreshVisible }
+      ? {
+          hash: window.location.hash,
+          state: 'ready',
+          pageReady: true,
+          ownerSurfaceReady,
+          destinationReady,
+          refreshPresent,
+          refreshVisible,
+        }
       : false;
   })()`;
 }
