@@ -6,6 +6,7 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BackendHttpError } from '@/common/adapter/httpBridge';
 import { useSlashCommands } from '@/renderer/hooks/chat/useSlashCommands';
 
 const { getSlashCommandsInvokeMock } = vi.hoisted(() => ({
@@ -104,5 +105,50 @@ describe('useSlashCommands', () => {
         },
       ]);
     });
+  });
+
+  it('treats a missing idle agent as an empty command list without logging an error', async () => {
+    const conversationId = 'conv-idle-agent';
+    getSlashCommandsInvokeMock.mockResolvedValue([
+      {
+        command: 'review',
+        description: 'Review the current diff',
+      },
+    ]);
+
+    const initial = renderHook(() =>
+      useSlashCommands(conversationId, {
+        conversation_type: 'acp',
+        agentStatus: 'session_active',
+      })
+    );
+    await waitFor(() => {
+      expect(initial.result.current).toHaveLength(1);
+    });
+    initial.unmount();
+
+    getSlashCommandsInvokeMock.mockRejectedValue(
+      new BackendHttpError({
+        method: 'GET',
+        path: `/api/conversations/${conversationId}/slash-commands`,
+        status: 404,
+        body: { code: 'NOT_FOUND', error: 'No active agent for this conversation' },
+      })
+    );
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const restored = renderHook(() =>
+      useSlashCommands(conversationId, {
+        conversation_type: 'acp',
+        agentStatus: 'session_active',
+      })
+    );
+
+    await waitFor(() => {
+      expect(getSlashCommandsInvokeMock).toHaveBeenCalledTimes(2);
+      expect(restored.result.current).toEqual([]);
+    });
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -251,7 +251,8 @@ export const conversation = {
     })
   ),
   getSlashCommands: httpGet<AcpSlashCommandApiItem[], { conversation_id: string }>(
-    (p) => `/api/conversations/${p.conversation_id}/slash-commands`
+    (p) => `/api/conversations/${p.conversation_id}/slash-commands`,
+    { silentStatuses: [404] }
   ),
   askSideQuestion: httpPost<ConversationSideQuestionResult, { conversation_id: string; question: string }>(
     (p) => `/api/conversations/${p.conversation_id}/side-question`,
