@@ -541,7 +541,7 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capabilities.find((item) => item.packageId === 'blocked-agent')?.status).toBe('ready');
   });
 
-  it('normalizes generic repair, dependent guard, and closure diagnostics', () => {
+  it('normalizes generic repair and dependent guard diagnostics', () => {
     const capability = buildCapabilitiesViewModel(
       {
         agent_packages: {
@@ -549,12 +549,6 @@ describe('buildCapabilitiesViewModel', () => {
             entries: [
               {
                 package_id: 'example-agent',
-                dependency_closure: {
-                  transaction_id: 'tx-1',
-                  closure_digest: 'sha256:current',
-                  last_known_good_transaction_id: 'tx-0',
-                  last_known_good_closure_digest: 'sha256:previous',
-                },
               },
             ],
           },
@@ -572,12 +566,6 @@ describe('buildCapabilitiesViewModel', () => {
                   required_count: 1,
                   ready_count: 0,
                   checks: [],
-                  closure: {
-                    transaction_id: 'tx-1',
-                    closure_digest: 'sha256:current',
-                    last_known_good_transaction_id: 'tx-0',
-                    last_known_good_closure_digest: 'sha256:previous',
-                  },
                 },
                 repair_action: {
                   action_id: 'agent_package_repair',
@@ -617,12 +605,6 @@ describe('buildCapabilitiesViewModel', () => {
     expect(capability.dependentGuard).toMatchObject({
       requiredByPackageIds: ['consumer-agent'],
       uninstallAllowed: false,
-    });
-    expect(capability.dependencyClosure).toEqual({
-      transactionId: 'tx-1',
-      closureDigest: 'sha256:current',
-      lastKnownGoodTransactionId: 'tx-0',
-      lastKnownGoodClosureDigest: 'sha256:previous',
     });
   });
 
@@ -749,47 +731,6 @@ describe('buildCapabilitiesViewModel', () => {
       manifest_url_ref: 'opl://agent-package-manifest/example-agent/stable',
     });
     expect(capability.installAction?.payloadRefsOnlyJson).not.toHaveProperty('package_id');
-  });
-
-  it('projects receipt and physical skill diagnostics only from status_index', () => {
-    const [capability] = buildCapabilitiesViewModel(
-      appStateWithPackageDirectory(
-        [
-          {
-            package_id: 'example-agent',
-            package_lock_ref: 'directory-lock-must-not-win',
-            physical_surface: { status: 'directory-must-not-win' },
-          },
-        ],
-        [
-          {
-            package_id: 'example-agent',
-            package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
-            action_receipt_ref: 'opl://agent-package-action/example-agent/install-1',
-            rollback_ref: 'opl://agent-package-rollback/example-agent/install-1',
-            physical_surface: {
-              status: 'materialized',
-              plugin_id: 'example-agent',
-              materialized_required_skill_ids: ['example-core', 'example-review'],
-              materialized_required_skill_paths: ['/codex/skills/example-core', '/codex/skills/example-review'],
-              reload_required: true,
-            },
-          },
-        ]
-      ),
-      'en-US'
-    );
-
-    expect(capability.packageLockRef).toBe('opl://agent-package-lock/example-agent/1.0.0');
-    expect(capability.actionReceiptRef).toBe('opl://agent-package-action/example-agent/install-1');
-    expect(capability.rollbackRef).toBe('opl://agent-package-rollback/example-agent/install-1');
-    expect(capability.physicalSurface).toMatchObject({
-      status: 'materialized',
-      pluginId: 'example-agent',
-      materializedRequiredSkillIds: ['example-core', 'example-review'],
-      materializedRequiredSkillPaths: ['/codex/skills/example-core', '/codex/skills/example-review'],
-      reloadRequired: true,
-    });
   });
 
   it('requires the recommended action ref to exactly match its available action', () => {

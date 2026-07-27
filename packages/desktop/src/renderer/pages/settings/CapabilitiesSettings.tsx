@@ -676,21 +676,6 @@ function capabilityDiagnosticRows(
       value: sourceKind,
     },
     {
-      key: 'packageLockRef',
-      label: t('settings.capabilitiesPage.detailLabels.packageLockRef'),
-      value: item.packageLockRef,
-    },
-    {
-      key: 'actionReceiptRef',
-      label: t('settings.capabilitiesPage.detailLabels.actionReceiptRef'),
-      value: item.actionReceiptRef,
-    },
-    {
-      key: 'rollbackRef',
-      label: t('settings.capabilitiesPage.detailLabels.rollbackRef'),
-      value: item.rollbackRef,
-    },
-    {
       key: 'installActionRef',
       label: t('settings.capabilitiesPage.detailLabels.installActionRef'),
       value: item.installAction?.actionRef,
@@ -706,26 +691,6 @@ function capabilityDiagnosticRows(
       value: item.repairAction?.commandRef,
     },
     {
-      key: 'dependencyClosureTransactionId',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureTransactionId'),
-      value: item.dependencyClosure?.transactionId,
-    },
-    {
-      key: 'dependencyClosureDigest',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureDigest'),
-      value: item.dependencyClosure?.closureDigest,
-    },
-    {
-      key: 'dependencyClosureLastKnownGoodTransactionId',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodTransactionId'),
-      value: item.dependencyClosure?.lastKnownGoodTransactionId,
-    },
-    {
-      key: 'dependencyClosureLastKnownGoodDigest',
-      label: t('settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodDigest'),
-      value: item.dependencyClosure?.lastKnownGoodClosureDigest,
-    },
-    {
       key: 'manifestUrl',
       label: t('settings.capabilitiesPage.detailLabels.manifestUrl', { defaultValue: 'Manifest URL' }),
       value: item.manifestUrl,
@@ -734,55 +699,6 @@ function capabilityDiagnosticRows(
       key: 'registryUrl',
       label: t('settings.capabilitiesPage.detailLabels.registryUrl', { defaultValue: 'Registry URL' }),
       value: item.registryUrl,
-    },
-    {
-      key: 'physicalSurfaceStatus',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceStatus'),
-      value: item.physicalSurface?.status,
-    },
-    item.physicalSurface?.reloadRequired !== null && item.physicalSurface?.reloadRequired !== undefined
-      ? {
-          key: 'physicalSurfaceReloadRequired',
-          label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired'),
-          value: item.physicalSurface.reloadRequired
-            ? t('settings.capabilitiesPage.detailValues.yes')
-            : t('settings.capabilitiesPage.detailValues.no'),
-        }
-      : null,
-    {
-      key: 'physicalSurfacePluginId',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfacePluginId'),
-      value: item.physicalSurface?.pluginId,
-    },
-    {
-      key: 'physicalSurfaceMarketplaceId',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplaceId'),
-      value: item.physicalSurface?.marketplaceId,
-    },
-    {
-      key: 'physicalSurfaceCachePath',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceCachePath'),
-      value: item.physicalSurface?.codexPluginCachePath,
-    },
-    {
-      key: 'physicalSurfaceMarketplacePath',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplacePath'),
-      value: item.physicalSurface?.marketplacePath,
-    },
-    {
-      key: 'physicalSurfaceConfigPath',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath'),
-      value: item.physicalSurface?.codexConfigPath,
-    },
-    {
-      key: 'physicalSurfaceRequiredSkillIds',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillIds'),
-      value: item.physicalSurface?.materializedRequiredSkillIds.join(', '),
-    },
-    {
-      key: 'physicalSurfaceRequiredSkillPaths',
-      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillPaths'),
-      value: item.physicalSurface?.materializedRequiredSkillPaths.join(', '),
     },
   ].filter((row): row is CapabilityDetailRow => Boolean(row && hasTextValue(row.value)));
 }

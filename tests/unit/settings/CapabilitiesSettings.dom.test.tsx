@@ -583,29 +583,10 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   last_sync_at: '2026-06-30T01:00:00Z',
                 },
                 source_kind: 'registry',
-                package_lock_ref: 'opl://agent-package-lock/mas/0.1.0a4',
-                action_receipt_ref: 'opl://agent-package-action/mas/install-1',
-                rollback_ref: 'opl://agent-package-rollback/mas/install-1',
-                physical_surface: {
-                  status: 'materialized',
-                  plugin_id: 'mas',
-                  marketplace_id: 'opl-agent-mas-local',
-                  codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
-                  marketplace_path:
-                    '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
-                  codex_config_path: '/tmp/codex/config.toml',
-                  materialized_required_skill_ids: ['med-autoscience', 'medical-research-lit'],
-                  materialized_required_skill_paths: [
-                    '/tmp/codex/skills/med-autoscience',
-                    '/tmp/codex/skills/medical-research-lit',
-                  ],
-                  reload_required: true,
-                },
               },
               {
                 package_id: 'mag',
                 capability_exposure: { status: 'disabled' },
-                package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
                 repair_action: {
                   action_id: 'agent_package_repair',
                   command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
@@ -626,7 +607,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 package_id: 'example-agent',
                 status: 'ready',
                 capability_exposure: { status: 'visible' },
-                package_lock_ref: 'opl://agent-package-lock/example-agent/1.0.0',
                 operational_ready: false,
                 launch_allowed: false,
                 launch_blocked_reason: 'required_export_missing',
@@ -638,12 +618,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                   checks: [
                     { package_id: 'example-provider', ready: false, failure_reasons: ['required_export_missing'] },
                   ],
-                  closure: {
-                    transaction_id: 'tx-example-1',
-                    closure_digest: 'sha256:example-current',
-                    last_known_good_transaction_id: 'tx-example-0',
-                    last_known_good_closure_digest: 'sha256:example-previous',
-                  },
                 },
                 repair_action: {
                   action_id: 'agent_package_repair',
@@ -1009,18 +983,6 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.defaultHomeVisible': 'Default Home shortcut',
         'settings.capabilitiesPage.detailLabels.userConfigurable': 'User configurable',
         'settings.capabilitiesPage.detailLabels.sourceKind': 'Source kind',
-        'settings.capabilitiesPage.detailLabels.packageLockRef': 'Package lock receipt',
-        'settings.capabilitiesPage.detailLabels.actionReceiptRef': 'Action receipt',
-        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Recovery reference',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceStatus': 'Installed Codex surface',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired': 'Codex reload required',
-        'settings.capabilitiesPage.detailLabels.physicalSurfacePluginId': 'Installed plugin',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplaceId': 'Local marketplace',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceCachePath': 'Plugin cache path',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplacePath': 'Marketplace path',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath': 'Codex config path',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillIds': 'Materialized required skills',
-        'settings.capabilitiesPage.detailLabels.physicalSurfaceRequiredSkillPaths': 'Materialized required skill paths',
         'settings.capabilitiesPage.detailLabels.version': 'Version',
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
@@ -1036,11 +998,6 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.disableDisabledReason': 'Cannot disable',
         'settings.capabilitiesPage.detailLabels.uninstallDisabledReason': 'Cannot uninstall',
         'settings.capabilitiesPage.detailLabels.repairCommandRef': 'Repair command reference',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureTransactionId': 'Closure transaction',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureDigest': 'Closure digest',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodTransactionId':
-          'Last known good transaction',
-        'settings.capabilitiesPage.detailLabels.dependencyClosureLastKnownGoodDigest': 'Last known good closure digest',
         'settings.capabilitiesPage.dependencyReadiness.ready': 'Ready',
         'settings.capabilitiesPage.dependencyReadiness.repair_required': 'Repair required',
         'settings.capabilitiesPage.dependencyReadiness.blocked': 'Blocked',
@@ -1430,12 +1387,6 @@ describe('Agents and capabilities settings', () => {
     expect(within(detailedResearch).queryByText('git_checkout')).not.toBeInTheDocument();
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
-    expect(detailedResearch.textContent).toContain('Materialized required skills');
-    expect(within(detailedResearch).getByText('med-autoscience, medical-research-lit')).toBeInTheDocument();
-    expect(detailedResearch.textContent).toContain('Materialized required skill paths');
-    expect(
-      within(detailedResearch).getByText('/tmp/codex/skills/med-autoscience, /tmp/codex/skills/medical-research-lit')
-    ).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
@@ -3146,7 +3097,7 @@ describe('Agents and capabilities settings', () => {
     );
   });
 
-  it('renders generic dependency repair and dependent guards without exposing closure diagnostics by default', async () => {
+  it('renders generic dependency repair and dependent guards', async () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
@@ -3158,8 +3109,6 @@ describe('Agents and capabilities settings', () => {
     expect(within(readiness).getByText('status, doctor, repair')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-enabled-toggle-example-agent')).toBeDisabled();
     expect(screen.getByTestId('agent-package-uninstall-example-agent')).toBeDisabled();
-    expect(screen.queryByText('sha256:example-current')).not.toBeInTheDocument();
-
     fireEvent.click(screen.getByTestId('agent-package-repair-example-agent'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -3168,10 +3117,6 @@ describe('Agents and capabilities settings', () => {
         payloadRefsOnlyJson: { package_id: 'example-agent' },
       })
     );
-
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
-    expect(screen.getByText('sha256:example-current')).toBeInTheDocument();
-    expect(screen.getByText('sha256:example-previous')).toBeInTheDocument();
   });
 
   it('does not synthesize a repair execution from status-index repair metadata', () => {

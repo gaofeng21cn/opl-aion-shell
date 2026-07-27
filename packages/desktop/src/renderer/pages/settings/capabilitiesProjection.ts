@@ -87,13 +87,6 @@ export type CapabilityDependentGuardViewModel = {
   uninstallReasonCode: string | null;
 };
 
-export type CapabilityDependencyClosureViewModel = {
-  transactionId: string | null;
-  closureDigest: string | null;
-  lastKnownGoodTransactionId: string | null;
-  lastKnownGoodClosureDigest: string | null;
-};
-
 export type OplFlowCapabilityDependencySummary = {
   id: string;
   kind: string;
@@ -136,12 +129,8 @@ export type CapabilityPurposeViewModel = {
   managedCheckoutPath: string | null;
   developerCheckoutPath: string | null;
   sourceFallbackReason: string | null;
-  packageLockRef: string | null;
-  actionReceiptRef: string | null;
-  rollbackRef: string | null;
   manifestUrl: string | null;
   registryUrl: string | null;
-  physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
   dependencyReadiness: CapabilityDependencyReadinessViewModel | null;
   operationalReady: boolean | null;
   launchAllowed: boolean | null;
@@ -154,7 +143,6 @@ export type CapabilityPurposeViewModel = {
   installAction: CapabilityPackageActionViewModel | null;
   activationAction: CapabilityActivationActionViewModel | null;
   dependentGuard: CapabilityDependentGuardViewModel | null;
-  dependencyClosure: CapabilityDependencyClosureViewModel | null;
   enabled: boolean | null;
   hidden: boolean | null;
   status: CapabilityStatus;
@@ -210,12 +198,8 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'managedCheckoutPath'
   | 'developerCheckoutPath'
   | 'sourceFallbackReason'
-  | 'packageLockRef'
-  | 'actionReceiptRef'
-  | 'rollbackRef'
   | 'manifestUrl'
   | 'registryUrl'
-  | 'physicalSurface'
   | 'dependencyReadiness'
   | 'operationalReady'
   | 'launchAllowed'
@@ -228,7 +212,6 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'installAction'
   | 'activationAction'
   | 'dependentGuard'
-  | 'dependencyClosure'
   | 'enabled'
   | 'hidden'
   | 'workflowRefs'
@@ -275,18 +258,6 @@ export type CapabilityActionRefViewModel = {
   status: string | null;
   dryRunSummary: string | null;
   receiptSummary: string | null;
-};
-
-export type CapabilityPhysicalSurfaceViewModel = {
-  status: string | null;
-  reloadRequired: boolean | null;
-  pluginId: string | null;
-  marketplaceId: string | null;
-  codexPluginCachePath: string | null;
-  marketplacePath: string | null;
-  codexConfigPath: string | null;
-  materializedRequiredSkillIds: string[];
-  materializedRequiredSkillPaths: string[];
 };
 
 const DISPLAY_TOKEN_LABELS: Record<string, string> = {
@@ -1123,20 +1094,6 @@ function capabilityActivationAction(
   };
 }
 
-function capabilityDependencyClosure(
-  packageState: RuntimePackageStateItem | undefined
-): CapabilityDependencyClosureViewModel | null {
-  const readiness = capabilityDependencyReadinessRecord(packageState);
-  const closure = firstRecord(readiness.closure, packageState?.dependency_closure);
-  if (Object.keys(closure).length === 0) return null;
-  return {
-    transactionId: firstString(closure.transaction_id),
-    closureDigest: firstString(closure.closure_digest),
-    lastKnownGoodTransactionId: firstString(closure.last_known_good_transaction_id),
-    lastKnownGoodClosureDigest: firstString(closure.last_known_good_closure_digest),
-  };
-}
-
 function capabilitySourceKind(
   packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined
@@ -1154,18 +1111,6 @@ function capabilitySourceKind(
     sourcePolicy.source,
     sourcePolicy.mode
   );
-}
-
-function capabilityPackageLockRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
-  return refValue(packageStatus?.package_lock_ref) ?? refValue(packageStatus?.lock_ref);
-}
-
-function capabilityActionReceiptRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
-  return refValue(packageStatus?.action_receipt_ref);
-}
-
-function capabilityRollbackRef(packageStatus: RuntimePackageStateItem | undefined): string | null {
-  return refValue(packageStatus?.rollback_ref);
 }
 
 function capabilityManifestUrl(directoryState: RuntimePackageStateItem | undefined): string | null {
@@ -1216,28 +1161,6 @@ function capabilityPackageEnabled(packageStatus: RuntimePackageStateItem | undef
 
 function capabilityPackageHidden(packageStatus: RuntimePackageStateItem | undefined): boolean | null {
   return capabilityExposureState(packageStatus)?.hidden ?? null;
-}
-
-function capabilityPhysicalSurface(
-  packageStatus: RuntimePackageStateItem | undefined
-): CapabilityPhysicalSurfaceViewModel | null {
-  const surface = oplRecord(packageStatus?.physical_surface);
-  if (Object.keys(surface).length === 0) return null;
-  return {
-    status: firstString(surface.status, surface.state),
-    reloadRequired: nullableBool(surface.reload_required),
-    pluginId: firstString(surface.plugin_id),
-    marketplaceId: firstString(surface.marketplace_id),
-    codexPluginCachePath: firstString(surface.codex_plugin_cache_path),
-    marketplacePath: firstString(surface.marketplace_path),
-    codexConfigPath: firstString(surface.codex_config_path),
-    materializedRequiredSkillIds: listValues(surface.materialized_required_skill_ids)
-      .map(oplString)
-      .filter((id): id is string => Boolean(id)),
-    materializedRequiredSkillPaths: listValues(surface.materialized_required_skill_paths)
-      .map(oplString)
-      .filter((path): path is string => Boolean(path)),
-  };
 }
 
 function sameCapabilityPackageAction(
@@ -1328,12 +1251,8 @@ function buildCapabilityPurpose(
     | 'managedCheckoutPath'
     | 'developerCheckoutPath'
     | 'sourceFallbackReason'
-    | 'packageLockRef'
-    | 'actionReceiptRef'
-    | 'rollbackRef'
     | 'manifestUrl'
     | 'registryUrl'
-    | 'physicalSurface'
     | 'dependencyReadiness'
     | 'operationalReady'
     | 'launchAllowed'
@@ -1346,7 +1265,6 @@ function buildCapabilityPurpose(
     | 'installAction'
     | 'activationAction'
     | 'dependentGuard'
-    | 'dependencyClosure'
     | 'enabled'
     | 'hidden'
     | 'workflowRefs'
@@ -1466,13 +1384,9 @@ function buildCapabilityPurpose(
       }
       return firstString(sourcePolicy.fallback_reason);
     })(),
-    packageLockRef: capabilityPackageLockRef(packageStatus),
-    actionReceiptRef: capabilityActionReceiptRef(packageStatus),
-    rollbackRef: capabilityRollbackRef(packageStatus),
     manifestUrl: capabilityManifestUrl(directoryState),
     registryUrl:
       firstString(oplRecord(directoryState?.source_explanation).registry_url) ?? capabilityRegistryUrl(directoryState),
-    physicalSurface: capabilityPhysicalSurface(packageStatus),
     dependencyReadiness: capabilityDependencyReadiness(packageStatus),
     operationalReady,
     launchAllowed,
@@ -1495,7 +1409,6 @@ function buildCapabilityPurpose(
       ) ?? null,
     activationAction: capabilityActivationAction(packageStatus),
     dependentGuard: capabilityDependentGuard(packageStatus),
-    dependencyClosure: capabilityDependencyClosure(packageStatus),
     enabled: capabilityPackageEnabled(packageStatus),
     hidden: capabilityPackageHidden(packageStatus),
     status,
