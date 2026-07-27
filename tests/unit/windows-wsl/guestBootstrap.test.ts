@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 const bootstrapRoot = path.resolve(__dirname, '../../../resources/opl-linux/bootstrap');
@@ -34,6 +35,19 @@ describe('OPL Linux guest bootstrap', () => {
     );
     expect(runtimeExec).toContain('export OPL_CODEX_BIN=/usr/local/bin/codex');
     expect(runtimeExec).toContain('codex="$OPL_CODEX_BIN"');
+  });
+
+  it('preserves stdin for detached runtime programs', () => {
+    const runtimeExec = read('opl-runtime-exec');
+    expect(runtimeExec).toContain('setsid "$program" "$@" <&0 &');
+
+    const payload = '{"group_id":"group-1"}';
+    const detached = spawnSync('bash', ['-c', 'setsid cat <&0 & child=$!; wait "$child"'], {
+      encoding: 'utf8',
+      input: payload,
+    });
+    expect(detached.status).toBe(0);
+    expect(detached.stdout).toBe(payload);
   });
 
   it('binds the packaged Codex realpath to one inspected command identity', () => {

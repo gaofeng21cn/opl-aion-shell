@@ -70,7 +70,7 @@ if [[ -e "$record" ]]; then
   exit 73
 fi
 
-setsid "$program" "$@" &
+setsid "$program" "$@" <&0 &
 child_pid=$!
 child_starttime="$(awk '{print $22}' "/proc/$child_pid/stat")"
 child_pgid="$(ps -o pgid= -p "$child_pid" | tr -d ' ')"
