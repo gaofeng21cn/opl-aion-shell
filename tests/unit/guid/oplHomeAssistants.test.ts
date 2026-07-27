@@ -472,34 +472,20 @@ describe('OPL home assistants', () => {
   it('uses only explicit user preferences to override App-owned defaults', () => {
     expect(
       getOplHomeShortcutPreferencesFromAppState({
-        opl_agent_packages: {
-          home_shortcut_preferences: [
-            { shortcut_id: 'grant', visible: true, sort_order: 0, source: 'default' },
-            { shortcut_id: 'book', visible: false, sort_order: 1, source: 'default' },
-            { shortcut_id: 'ppt', visible: true, sort_order: 2, source: 'user_preference' },
-          ],
+        agent_packages: {
+          status_index: {
+            home_shortcut_preferences: [
+              { shortcut_id: 'grant', visible: true, sort_order: 0, source: 'default' },
+              { shortcut_id: 'book', visible: false, sort_order: 1, source: 'default' },
+              { shortcut_id: 'ppt', visible: true, sort_order: 2, source: 'user_preference' },
+            ],
+          },
         },
       })
     ).toEqual({
       hiddenShortcutIds: [],
       visibleShortcutIds: ['ppt'],
       orderedShortcutIds: ['ppt'],
-    });
-  });
-
-  it('preserves an explicit user preference that hides Book Forge', () => {
-    expect(
-      getOplHomeShortcutPreferencesFromAppState({
-        opl_agent_package_status: {
-          home_shortcut_preferences: [
-            { shortcut_id: 'book', visible: false, sort_order: 3, source: 'user_preference' },
-          ],
-        },
-      })
-    ).toEqual({
-      hiddenShortcutIds: ['book'],
-      visibleShortcutIds: [],
-      orderedShortcutIds: ['book'],
     });
   });
 

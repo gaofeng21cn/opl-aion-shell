@@ -94,15 +94,7 @@ function shortcutPreferenceRecords(appState: unknown): Record<string, unknown>[]
   const state = appStateRecord(appState);
   const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
   const statusIndex = isRecord(agentPackages.status_index) ? agentPackages.status_index : {};
-  const legacyPackages = isRecord(state.opl_agent_packages) ? state.opl_agent_packages : {};
-  const legacyPackageStatus = isRecord(state.opl_agent_package_status) ? state.opl_agent_package_status : {};
-  const projectedSurfaces = [
-    recordList(statusIndex.home_shortcut_preferences),
-    recordList(agentPackages.home_shortcut_preferences),
-    recordList(legacyPackages.home_shortcut_preferences),
-    recordList(legacyPackageStatus.home_shortcut_preferences),
-  ];
-  return projectedSurfaces.find((records) => records.length > 0) ?? [];
+  return recordList(statusIndex.home_shortcut_preferences);
 }
 
 export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHomeShortcutDescriptor[] {
