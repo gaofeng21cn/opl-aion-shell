@@ -17,17 +17,7 @@ const VIEW_TYPES = new Set<OplAppContributionViewType>([
   'activity_log',
 ]);
 const BADGE_TONES = new Set(['neutral', 'info', 'success', 'warning', 'critical']);
-const FORBIDDEN_FIELDS = new Set([
-  'component',
-  'code',
-  'path',
-  'url',
-  'react',
-  'electron',
-  'html',
-  'javascript',
-  'js',
-]);
+const FORBIDDEN_FIELDS = new Set(['component', 'code', 'path', 'url', 'react', 'electron', 'html', 'javascript', 'js']);
 const ROOT_FIELDS = new Set(['schema_version', 'navigation', 'views', 'commands', 'badges']);
 const NAVIGATION_FIELDS = new Set(['navigation_id', 'label_i18n', 'view_id', 'icon_id', 'sort_order']);
 const VIEW_FIELDS = new Set([
@@ -41,8 +31,7 @@ const VIEW_FIELDS = new Set([
 ]);
 const COMMAND_FIELDS = new Set(['command_id', 'label_i18n', 'action_ref', 'confirmation_required']);
 const STABLE_ID = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
-const STABLE_REF =
-  /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/;
+const STABLE_REF = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/;
 const MAX_ITEMS = 100;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,10 +99,7 @@ function parseNavigation(value: unknown): OplAppContributionNavigation | null {
     !viewId ||
     iconId === null ||
     (sortOrder !== undefined &&
-      (typeof sortOrder !== 'number' ||
-        !Number.isInteger(sortOrder) ||
-        sortOrder < -10000 ||
-        sortOrder > 10000))
+      (typeof sortOrder !== 'number' || !Number.isInteger(sortOrder) || sortOrder < -10000 || sortOrder > 10000))
   ) {
     return null;
   }
@@ -134,8 +120,7 @@ function parseView(value: unknown): OplAppContributionView | null {
   const dataRef = stableRef(value.data_ref);
   const commandIds = value.command_ids === undefined ? undefined : stringArray(value.command_ids);
   const badgeIds = value.badge_ids === undefined ? undefined : stringArray(value.badge_ids);
-  const emptyStateI18n =
-    value.empty_state_i18n === undefined ? undefined : localizedStrings(value.empty_state_i18n);
+  const emptyStateI18n = value.empty_state_i18n === undefined ? undefined : localizedStrings(value.empty_state_i18n);
   if (
     !viewId ||
     !viewType ||
@@ -188,13 +173,7 @@ function parseBadge(value: unknown): OplAppContributionBadge | null {
   const labelI18n = localizedStrings(value.label_i18n);
   const dataRef = stableRef(value.data_ref);
   const tone = parseOptionalString(value.tone);
-  if (
-    !badgeId ||
-    !labelI18n ||
-    !dataRef ||
-    tone === null ||
-    (tone !== undefined && !BADGE_TONES.has(tone))
-  ) {
+  if (!badgeId || !labelI18n || !dataRef || tone === null || (tone !== undefined && !BADGE_TONES.has(tone))) {
     return null;
   }
   return {
