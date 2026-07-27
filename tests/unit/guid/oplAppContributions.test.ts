@@ -121,6 +121,48 @@ describe('OPL App contributions', () => {
     ]);
   });
 
+  it('accepts omitted optional collections used by real Package descriptors', () => {
+    const personaContributions = {
+      schema_version: 'opl-app-contributions.v1',
+      navigation: [
+        {
+          navigation_id: 'persona.today',
+          label_i18n: { 'zh-CN': 'Persona', 'en-US': 'Persona' },
+          view_id: 'persona.today',
+        },
+      ],
+      views: [
+        {
+          view_id: 'persona.today',
+          view_type: 'activity_log',
+          title_i18n: { 'zh-CN': 'PI 数字分身', 'en-US': 'PI Persona' },
+          data_ref: 'personal.context.v1#today',
+        },
+      ],
+    };
+
+    expect(parseOplAppContributions(personaContributions)).toEqual({
+      schemaVersion: 'opl-app-contributions.v1',
+      navigation: [
+        {
+          navigationId: 'persona.today',
+          labelI18n: { 'zh-CN': 'Persona', 'en-US': 'Persona' },
+          viewId: 'persona.today',
+        },
+      ],
+      views: [
+        {
+          viewId: 'persona.today',
+          viewType: 'activity_log',
+          titleI18n: { 'zh-CN': 'PI 数字分身', 'en-US': 'PI Persona' },
+          dataRef: 'personal.context.v1#today',
+        },
+      ],
+      commands: [],
+      badges: [],
+    });
+  });
+
   it('resolves visible Home navigation without standard-Agent or Codex route filtering', () => {
     const appState = {
       agent_packages: {

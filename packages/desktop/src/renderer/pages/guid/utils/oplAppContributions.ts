@@ -196,6 +196,14 @@ function parseUniqueList<T>(
   return new Set(entries.map(identity)).size === entries.length ? entries : null;
 }
 
+function parseOptionalUniqueList<T>(
+  value: unknown,
+  parse: (entry: unknown) => T | null,
+  identity: (entry: T) => string
+): T[] | null {
+  return value === undefined ? [] : parseUniqueList(value, parse, identity);
+}
+
 export function parseOplAppContributions(value: unknown): OplAppContributions | null {
   if (
     !isRecord(value) ||
@@ -205,10 +213,10 @@ export function parseOplAppContributions(value: unknown): OplAppContributions | 
   ) {
     return null;
   }
-  const navigation = parseUniqueList(value.navigation, parseNavigation, (entry) => entry.navigationId);
-  const views = parseUniqueList(value.views, parseView, (entry) => entry.viewId);
-  const commands = parseUniqueList(value.commands, parseCommand, (entry) => entry.commandId);
-  const badges = parseUniqueList(value.badges, parseBadge, (entry) => entry.badgeId);
+  const navigation = parseOptionalUniqueList(value.navigation, parseNavigation, (entry) => entry.navigationId);
+  const views = parseOptionalUniqueList(value.views, parseView, (entry) => entry.viewId);
+  const commands = parseOptionalUniqueList(value.commands, parseCommand, (entry) => entry.commandId);
+  const badges = parseOptionalUniqueList(value.badges, parseBadge, (entry) => entry.badgeId);
   if (!navigation || !views || !commands || !badges) return null;
   if (navigation.length + views.length + commands.length + badges.length === 0) return null;
 
