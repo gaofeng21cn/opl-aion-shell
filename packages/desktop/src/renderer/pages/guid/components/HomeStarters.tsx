@@ -5,7 +5,7 @@
  */
 
 import { Button } from '@arco-design/web-react';
-import { Robot } from '@icon-park/react';
+import { Microscope } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,7 @@ type HomeStartersProps = {
 };
 
 function starterIcon(): React.ReactNode {
-  return <Robot {...OPL_CHROME_ICON_PROPS} />;
+  return <Microscope {...OPL_CHROME_ICON_PROPS} />;
 }
 
 const HomeStarters: React.FC<HomeStartersProps> = ({
