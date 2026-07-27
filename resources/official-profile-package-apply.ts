@@ -19,8 +19,6 @@ type OfficialProfileApplyRuntime = {
 
 type JsonRecord = Record<string, any>;
 
-const PROJECTED_ACTION_COMMAND = ['app', 'action', 'execute'] as const;
-
 type ProjectedPackageAction = {
   action_id: string;
   action_ref: string;
@@ -185,7 +183,9 @@ function packageSnapshot(payload: JsonRecord, packageId: string) {
 
 function executeProjectedAction(runtime: OfficialProfileApplyRuntime, action: ProjectedPackageAction, dryRun: boolean) {
   const args = [
-    ...PROJECTED_ACTION_COMMAND,
+    'app',
+    'action',
+    'execute',
     '--action',
     action.action_id,
     ...(dryRun ? ['--dry-run'] : []),

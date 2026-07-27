@@ -88,7 +88,15 @@
     "appearance": {
       "default_css_theme_id": "default-theme",
       "default_css_theme_name": "Default",
-      "codex_theme_default_enabled": false
+      "codex_theme_default_enabled": false,
+      "visual_reference_cohort_ref": "contracts/app-gui-visual-reference-cohort.json",
+      "shared_visual_primitives": [
+        "composer",
+        "rail_row",
+        "icon_button",
+        "menu",
+        "settings_row"
+      ]
     },
     "ui_locale_policy": {
       "explicit_user_preference": "preserve_across_launches",
