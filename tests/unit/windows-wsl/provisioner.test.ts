@@ -346,12 +346,7 @@ describe('WindowsWslProvisioner parsing and identity', () => {
           0,
           JSON.stringify({
             distribution_name: 'OPL-Linux',
-            base_path: path.join(
-              path.dirname(path.dirname(userDataPath)),
-              '30286627648',
-              'wsl',
-              'OPL-Linux'
-            ),
+            base_path: path.join(path.dirname(path.dirname(userDataPath)), '30286627648', 'wsl', 'OPL-Linux'),
           })
         );
       }
@@ -482,12 +477,7 @@ describe('WindowsWslProvisioner parsing and identity', () => {
           0,
           JSON.stringify({
             distribution_name: 'OPL-Linux',
-            base_path: path.join(
-              path.dirname(path.dirname(userDataPath)),
-              '30286627648',
-              'wsl',
-              'OPL-Linux'
-            ),
+            base_path: path.join(path.dirname(path.dirname(userDataPath)), '30286627648', 'wsl', 'OPL-Linux'),
           })
         );
       }
