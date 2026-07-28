@@ -236,7 +236,7 @@ const AcpSendBox: React.FC<{
       const prepared = await prepareRuntimeSync();
       if (prepared) {
         const preparedMode = getPreparedRuntimeMode(prepared);
-        if (!cancelled && preparedMode && sessionModes.some((mode) => mode.value === preparedMode)) {
+        if (!cancelled && preparedMode && availableAgentModes.some((mode) => mode.value === preparedMode)) {
           setCurrentMode(preparedMode);
         }
         return;
@@ -249,7 +249,7 @@ const AcpSendBox: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync, sessionModes]);
+  }, [availableAgentModes, conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
 
   const handlePaletteModeChange = useCallback(
     async (mode: string) => {

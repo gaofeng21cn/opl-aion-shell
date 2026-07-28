@@ -477,8 +477,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
           id: 'mode',
           category: 'mode',
           option_type: 'select',
-          current_value: 'agent',
-          options: [{ value: 'agent', label: 'Agent' }],
+          current_value: 'full-access',
+          options: [{ value: 'full-access', label: 'Full access' }],
         },
       ],
       runtime: {
@@ -496,6 +496,12 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
 
     await waitFor(() => expect(acpModelInfoMocks.warmupConversation).toHaveBeenCalledWith('codex-conversation'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-permission-full-access')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
     expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
   });
 
