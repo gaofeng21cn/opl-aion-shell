@@ -46,6 +46,74 @@ describe('managed Codex ACP publisher policy', () => {
 });
 
 describe('prepare-aioncore compatibility gate', () => {
+  it('statically validates a cross-platform target without executing its binary on the host', () => {
+    const calls: string[][] = [];
+    const result = __test__.resolveAioncoreCompatibility('/tmp/linux-aioncore', 'v0.1.50', {
+      skipHostProbe: true,
+      targetPlatform: 'linux',
+      hostPlatform: 'win32',
+      execFileSync(_command: string, args: string[]) {
+        calls.push(args);
+        throw new Error('cross-platform binary must not execute on the host');
+      },
+    });
+
+    expect(result).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('accepts a target-prepared runtime manifest for cross-platform packaging', () => {
+    const dir = makeTempDir();
+    const runtimeDir = path.join(dir, 'linux-x64');
+    fs.mkdirSync(runtimeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runtimeDir, 'manifest.json'),
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: '0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: ['--recover-corrupted-database'],
+        },
+      })
+    );
+
+    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', '0.1.50')).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+  });
+
+  it('does not allow compatibility probes to be skipped for a native target', () => {
+    expect(() =>
+      __test__.resolveAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
+        skipHostProbe: true,
+        targetPlatform: 'win32',
+        hostPlatform: 'win32',
+      })
+    ).toThrow(/only be skipped for a cross-platform target/);
+  });
+
+  it('keeps the native Linux probe available for Windows cross-builds from Linux', () => {
+    const calls: string[][] = [];
+    expect(() =>
+      __test__.resolveAioncoreCompatibility('/tmp/linux-aioncore', 'v0.1.50', {
+        skipHostProbe: false,
+        targetPlatform: 'linux',
+        hostPlatform: 'linux',
+        execFileSync(_command: string, args: string[]) {
+          calls.push(args);
+          return args[0] === '--version' ? 'aioncore 0.1.50\n' : 'Options:\n  --recover-corrupted-database\n';
+        },
+      })
+    ).not.toThrow();
+    expect(calls).toEqual([['--version'], ['--help']]);
+  });
+
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 
@@ -102,6 +170,64 @@ describe('prepare-aioncore compatibility gate', () => {
         },
       })
     ).toThrow(/unrecognized --version output/);
+  });
+
+  it('accepts a target-executed prepared runtime manifest without requiring host WSL', () => {
+    const runtimeDir = makeTempDir();
+    fs.writeFileSync(
+      path.join(runtimeDir, 'manifest.json'),
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: ['--recover-corrupted-database'],
+        },
+      })
+    );
+
+    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+  });
+
+  it('rejects a prepared runtime manifest with a stale version or missing recovery support', () => {
+    const runtimeDir = makeTempDir();
+    const manifestPath = path.join(runtimeDir, 'manifest.json');
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.49',
+        compatibility: {
+          reportedVersion: '0.1.49',
+          requiredOptions: [],
+        },
+      })
+    );
+
+    expect(() => __test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toThrow(
+      /version mismatch/
+    );
+
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: 'v0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: [],
+        },
+      })
+    );
+    expect(() => __test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toThrow(
+      /missing required option --recover-corrupted-database/
+    );
   });
 });
 
@@ -189,6 +315,7 @@ describe('prepare-aioncore managed resources preparation', () => {
 
     const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
       attempts: 2,
+      platform: 'darwin',
       retryDelayMs: 10,
       sleep: (ms: number) => delays.push(ms),
       logger: { log() {}, warn() {} },
@@ -215,6 +342,36 @@ describe('prepare-aioncore managed resources preparation', () => {
     expect(delays).toEqual([10]);
     expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
     expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
+  });
+
+  it('validates managed Node against the explicit Linux target instead of the build host', () => {
+    const dir = makeTempDir();
+    const targetDir = path.join(dir, 'linux-x64');
+    const binaryPath = path.join(targetDir, 'aioncore');
+    let materializeCalls = 0;
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(binaryPath, 'binary');
+
+    const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
+      attempts: 1,
+      hostPlatform: 'win32',
+      platform: 'linux',
+      logger: { log() {}, warn() {} },
+      execFileSync(_command: string, args: string[]) {
+        if (args.includes('--materialize-internal-file-symlinks')) {
+          materializeCalls += 1;
+          return JSON.stringify({ materialized: [], hardLinked: [], copied: [], removedDangling: [] });
+        }
+        const outputDir = args[args.indexOf('--bundle-out') + 1];
+        const nodeBin = path.join(outputDir, 'node', 'node-v24.11.0-linux-x64', 'bin');
+        fs.mkdirSync(nodeBin, { recursive: true });
+        fs.writeFileSync(path.join(nodeBin, 'node'), 'node');
+      },
+    });
+
+    expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
+    expect(fs.existsSync(path.join(bundleOut, 'node', 'node-v24.11.0-linux-x64', 'bin', 'node'))).toBe(true);
+    expect(materializeCalls).toBe(1);
   });
 
   it('fails closed and removes partial output after all retries fail', () => {
@@ -417,10 +574,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         ],
       })
     );
-    fs.symlinkSync(
-      '../@agentclientprotocol/codex-acp/dist/index.js',
-      path.join(codexRoot, 'node_modules', '.bin', 'codex-acp')
-    );
+    const codexShimPath = path.join(codexRoot, 'node_modules', '.bin', 'codex-acp');
+    if (process.platform !== 'win32') {
+      fs.symlinkSync('../@agentclientprotocol/codex-acp/dist/index.js', codexShimPath);
+    }
 
     const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
     process.env.AIONUI_AIONCORE_CACHE_DIR = cacheRoot;
@@ -445,21 +602,23 @@ describe('prepare-aioncore prepared runtime cache', () => {
       expect(
         fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'))
       ).toBe(true);
-      expect(
-        fs.readlinkSync(
-          path.join(
-            targetDir,
-            'managed-resources',
-            'acp',
-            'codex-acp',
-            '1.1.2',
-            'darwin-arm64',
-            'node_modules',
-            '.bin',
-            'codex-acp'
+      if (process.platform !== 'win32') {
+        expect(
+          fs.readlinkSync(
+            path.join(
+              targetDir,
+              'managed-resources',
+              'acp',
+              'codex-acp',
+              '1.1.2',
+              'darwin-arm64',
+              'node_modules',
+              '.bin',
+              'codex-acp'
+            )
           )
-        )
-      ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
+        ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
+      }
     } finally {
       if (previousCacheDir === undefined) {
         delete process.env.AIONUI_AIONCORE_CACHE_DIR;
@@ -471,6 +630,52 @@ describe('prepare-aioncore prepared runtime cache', () => {
 });
 
 describe('prepare-aioncore managed Node pruning', () => {
+  it.skipIf(process.platform === 'win32')(
+    'materializes internal file symlinks before a Windows packager traverses a Linux bundle',
+    () => {
+      const dir = makeTempDir();
+      const managedResourcesDir = path.join(dir, 'managed-resources');
+      const targetFile = path.join(managedResourcesDir, 'node_modules', 'tool', 'cli.js');
+      const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'tool');
+      fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+      fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+      fs.writeFileSync(targetFile, '#!/usr/bin/env node\n');
+      fs.symlinkSync('../tool/cli.js', shimPath);
+
+      const result = __test__.materializeInternalFileSymlinks(managedResourcesDir);
+
+      expect(fs.lstatSync(shimPath).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(shimPath, 'utf8')).toBe('#!/usr/bin/env node\n');
+      expect(result.materialized).toEqual(['node_modules/.bin/tool']);
+      expect([...result.hardLinked, ...result.copied]).toEqual(['node_modules/.bin/tool']);
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')('rejects managed resource symlinks that escape the bundle', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const outsideFile = path.join(dir, 'outside.js');
+    const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'outside');
+    fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+    fs.writeFileSync(outsideFile, 'outside');
+    fs.symlinkSync(outsideFile, shimPath);
+
+    expect(() => __test__.materializeInternalFileSymlinks(managedResourcesDir)).toThrow(/outside the bundle/);
+  });
+
+  it.skipIf(process.platform === 'win32')('removes dangling symlinks whose targets stay inside the bundle', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const shimPath = path.join(managedResourcesDir, 'node_modules', '.bin', 'missing');
+    fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+    fs.symlinkSync('../missing/cli.js', shimPath);
+
+    const result = __test__.materializeInternalFileSymlinks(managedResourcesDir);
+
+    expect(fs.existsSync(shimPath)).toBe(false);
+    expect(result.removedDangling).toEqual(['node_modules/.bin/missing']);
+  });
+
   it('keeps npm payloads while pruning non-runtime Node resources', () => {
     const dir = makeTempDir();
     const managedResourcesDir = path.join(dir, 'managed-resources');

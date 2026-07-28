@@ -9,6 +9,7 @@ import {
   createProductionCodexAppServerAdapter,
   type CodexAppServerRpc,
 } from '@/process/services/codexAppServer/adapter';
+import type { WindowsWslRuntimeExecution } from '@/process/services/runtime-execution';
 
 const processMocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 
@@ -73,7 +74,7 @@ function asChildProcess(child: FakeCodexProcess): ChildProcessWithoutNullStreams
 
 function useProductionProcess(child: FakeCodexProcess): CodexAppServerAdapter {
   processMocks.spawn.mockReturnValue(asChildProcess(child));
-  return createProductionCodexAppServerAdapter();
+  return createProductionCodexAppServerAdapter({ platform: 'linux' });
 }
 
 const rawThread = (id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -476,5 +477,38 @@ describe('Codex app-server production stdio transport', () => {
         message: 'Unsupported server request: item/tool/requestUserInput',
       },
     });
+  });
+
+  it('uses the owner-bound Linux Codex process on Windows without resolving or spawning a native CLI', async () => {
+    const child = new FakeCodexProcess((record, process) => {
+      if (record.method === 'initialize' && record.id !== undefined) {
+        process.reply(record.id, { userAgent: 'Codex/0.144.6' });
+      }
+      if (record.method === 'thread/list' && record.id !== undefined) {
+        process.reply(record.id, { data: [], nextCursor: null });
+      }
+    });
+    const terminate = vi.fn(async () => {});
+    const windowsRuntime = {
+      spawn: vi.fn(() => ({
+        child: asChildProcess(child),
+        operationToken: 'codex-app-server-test',
+        terminate,
+      })),
+    } as unknown as WindowsWslRuntimeExecution;
+    const adapter = createProductionCodexAppServerAdapter({
+      platform: 'win32',
+      windowsRuntime,
+    });
+
+    await adapter.listThreads();
+    adapter.dispose();
+
+    expect(windowsRuntime.spawn).toHaveBeenCalledWith({
+      program: 'codex-app-server',
+      args: ['app-server', '--stdio'],
+    });
+    expect(processMocks.spawn).not.toHaveBeenCalled();
+    expect(terminate).toHaveBeenCalledWith(5000);
   });
 });

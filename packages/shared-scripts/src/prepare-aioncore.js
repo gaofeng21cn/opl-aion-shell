@@ -30,6 +30,7 @@ const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
 const MINIMUM_AIONCORE_VERSION = [0, 1, 49];
 const REQUIRED_AIONCORE_OPTIONS = ['--recover-corrupted-database'];
+const MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND = '--materialize-internal-file-symlinks';
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
   'share',
@@ -185,6 +186,8 @@ function restorePreparedRuntimeFromCache({
   arch,
   expectedVersion,
   compatibilityExecFileSync,
+  skipCompatibilityProbe = false,
+  hostPlatform = process.platform,
 }) {
   if (!fs.existsSync(cacheRuntimeDir)) return false;
   if (!isPreparedRuntimeValid(resourcesRoot, platform, arch)) return false;
@@ -192,8 +195,11 @@ function restorePreparedRuntimeFromCache({
   removeDirectorySafe(targetDir);
   copyDirectorySafe(cacheRuntimeDir, targetDir);
   try {
-    assertAioncoreCompatibility(path.join(targetDir, getBinaryName(platform)), expectedVersion, {
+    resolveAioncoreCompatibility(path.join(targetDir, getBinaryName(platform)), expectedVersion, {
       execFileSync: compatibilityExecFileSync,
+      skipHostProbe: skipCompatibilityProbe,
+      targetPlatform: platform,
+      hostPlatform,
     });
   } catch (error) {
     removeDirectorySafe(targetDir);
@@ -231,6 +237,26 @@ function compareStableVersions(left, right) {
     if (delta !== 0) return delta;
   }
   return 0;
+}
+
+function staticAioncoreCompatibility(expectedVersion) {
+  const normalizedExpectedVersion = normalizeAioncoreVersion(expectedVersion);
+  const versionParts = normalizedExpectedVersion.split('.').map(Number);
+  if (
+    !normalizedExpectedVersion ||
+    versionParts.length !== 3 ||
+    versionParts.some((part) => !Number.isInteger(part) || part < 0)
+  ) {
+    throw new Error(
+      `AionCore compatibility check cannot be skipped without an exact stable version, received ${
+        normalizedExpectedVersion || '<missing>'
+      }`
+    );
+  }
+  if (compareStableVersions(versionParts, MINIMUM_AIONCORE_VERSION) < 0) {
+    throw new Error(`AionCore recovery requires AionCore >= 0.1.49, reported ${normalizedExpectedVersion}`);
+  }
+  return { version: normalizedExpectedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
 }
 
 function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
@@ -282,6 +308,53 @@ function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) 
   }
 
   return { version: reportedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
+}
+
+function resolveAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
+  if (options.skipHostProbe) {
+    if (options.targetPlatform === options.hostPlatform) {
+      throw new Error('AionCore compatibility probe may only be skipped for a cross-platform target.');
+    }
+    return staticAioncoreCompatibility(expectedVersion);
+  }
+  return assertAioncoreCompatibility(binaryPath, expectedVersion, options);
+}
+
+function assertPreparedRuntimeManifestCompatibility(runtimeDir, platform, arch, expectedVersion) {
+  const manifestPath = path.join(runtimeDir, 'manifest.json');
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Prepared AionCore runtime manifest is unreadable: ${manifestPath}`, { cause: error });
+  }
+
+  const expected = normalizeAioncoreVersion(expectedVersion);
+  const declared = normalizeAioncoreVersion(manifest.version);
+  const reported = normalizeAioncoreVersion(manifest.compatibility?.reportedVersion);
+  const requiredOptions = Array.isArray(manifest.compatibility?.requiredOptions)
+    ? manifest.compatibility.requiredOptions
+    : [];
+
+  if (manifest.platform !== platform || manifest.arch !== arch) {
+    throw new Error(
+      `Prepared AionCore runtime target mismatch: expected ${platform}-${arch}, received ${manifest.platform}-${manifest.arch}`
+    );
+  }
+  if (!expected || declared !== expected || reported !== expected) {
+    throw new Error(
+      `Prepared AionCore runtime version mismatch: expected ${expected || '<missing>'}, declared ${
+        declared || '<missing>'
+      }, reported ${reported || '<missing>'}`
+    );
+  }
+  for (const option of REQUIRED_AIONCORE_OPTIONS) {
+    if (!requiredOptions.includes(option)) {
+      throw new Error(`Prepared AionCore runtime compatibility is missing required option ${option}`);
+    }
+  }
+
+  return { version: reported, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
 }
 
 function parsePositiveInteger(value, fallback) {
@@ -370,6 +443,91 @@ function normalizeInternalSymlinks(rootDir, options = {}, currentDir = rootDir, 
   }
 
   return result;
+}
+
+function materializeInternalFileSymlinks(rootDir) {
+  const logicalRootDir = path.resolve(rootDir);
+  const resolvedRootDir = fs.realpathSync(logicalRootDir);
+  const result = {
+    materialized: [],
+    hardLinked: [],
+    copied: [],
+    removedDangling: [],
+  };
+
+  function visit(currentDir) {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const absolutePath = path.join(currentDir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const relativePath = path.relative(logicalRootDir, absolutePath).split(path.sep).join('/');
+        const linkTarget = fs.readlinkSync(absolutePath);
+        const unresolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
+        if (!isPathInside(unresolvedTarget, logicalRootDir)) {
+          throw new Error(`Managed resource symlink points outside the bundle: ${relativePath}`);
+        }
+        let resolvedTarget;
+        try {
+          resolvedTarget = fs.realpathSync(absolutePath);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          fs.unlinkSync(absolutePath);
+          result.removedDangling.push(relativePath);
+          continue;
+        }
+        if (!isPathInside(resolvedTarget, resolvedRootDir)) {
+          throw new Error(`Managed resource symlink points outside the bundle: ${relativePath}`);
+        }
+        let targetStat;
+        try {
+          targetStat = fs.statSync(resolvedTarget);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          fs.unlinkSync(absolutePath);
+          result.removedDangling.push(relativePath);
+          continue;
+        }
+        if (!targetStat.isFile()) {
+          throw new Error(`Managed resource symlink target is not a file: ${relativePath}`);
+        }
+
+        fs.unlinkSync(absolutePath);
+        try {
+          fs.linkSync(resolvedTarget, absolutePath);
+          result.hardLinked.push(relativePath);
+        } catch {
+          fs.copyFileSync(resolvedTarget, absolutePath);
+          fs.chmodSync(absolutePath, fs.statSync(resolvedTarget).mode & 0o777);
+          result.copied.push(relativePath);
+        }
+        result.materialized.push(relativePath);
+        continue;
+      }
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+      }
+    }
+  }
+
+  visit(logicalRootDir);
+  return result;
+}
+
+function resolveManagedNodeExecutable(managedResourcesDir, platform) {
+  const nodeRoot = path.join(managedResourcesDir, 'node');
+  const executableParts = nodeExecutableRelativePath(platform);
+  const candidates = fs
+    .readdirSync(nodeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(nodeRoot, entry.name, ...executableParts))
+    .filter((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
+    .toSorted();
+
+  if (candidates.length !== 1) {
+    throw new Error(
+      `Managed resources must contain exactly one ${platform} Node executable, found ${candidates.length}`
+    );
+  }
+  return candidates[0];
 }
 
 function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platform) {
@@ -471,6 +629,8 @@ function getManagedResourcePrepareEnv(baseEnv = process.env) {
 function prepareManagedResources(binaryPath, targetDir, options = {}) {
   const bundleOut = path.join(targetDir, 'managed-resources');
   const dataDir = path.join(targetDir, '.prepare-data');
+  const targetPlatform = options.platform || process.platform;
+  const hostPlatform = options.hostPlatform || process.platform;
   const execFile = options.execFileSync || execFileSync;
   const attempts = parsePositiveInteger(options.attempts, getManagedResourcePrepareAttempts());
   const baseDelayMs = parsePositiveInteger(options.retryDelayMs, getManagedResourcePrepareRetryDelayMs());
@@ -523,7 +683,22 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
   }
 
   removeDirectorySafe(dataDir);
-  const pruneResult = pruneManagedNodeRuntime(bundleOut);
+  if (hostPlatform === 'win32' && targetPlatform === 'linux') {
+    const managedNodeExecutable = resolveManagedNodeExecutable(bundleOut, targetPlatform);
+    const output = execFile(
+      managedNodeExecutable,
+      [__filename, MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND, bundleOut],
+      {
+        encoding: 'utf8',
+        env: options.env || process.env,
+      }
+    );
+    const materialization = JSON.parse(String(output).trim());
+    logger.log(
+      `  Materialized ${materialization.materialized.length} Linux managed-resource symlink(s) for Windows packaging`
+    );
+  }
+  const pruneResult = pruneManagedNodeRuntime(bundleOut, targetPlatform);
   if (pruneResult.pruned.length > 0) {
     console.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
   }
@@ -871,7 +1046,14 @@ function downloadAndExtract(platform, arch, tag) {
  * @returns {{ prepared: true; dir: string; sourceType: string }}
  */
 function prepareAioncore(options) {
-  const { projectRoot, platform, arch, version = 'latest', compatibilityExecFileSync } = options;
+  const {
+    projectRoot,
+    platform,
+    arch,
+    version = 'latest',
+    compatibilityExecFileSync,
+    materializeInternalSymlinksForWindows = false,
+  } = options;
   const runtimeKey = `${platform}-${arch}`;
   const actionsRunId = (process.env.AIONUI_BACKEND_RUN_ID || '').trim();
 
@@ -900,6 +1082,46 @@ function prepareAioncore(options) {
     `Preparing aioncore for ${runtimeKey} (${actionsRunId ? `actions run: ${actionsRunId}` : `version: ${tag}`})`
   );
 
+  const preparedRuntimeDir = (
+    options.preparedRuntimeDir ||
+    process.env.AIONUI_PREPARED_AIONCORE_RUNTIME_DIR ||
+    ''
+  ).trim();
+  if (preparedRuntimeDir) {
+    const sourceDir = path.resolve(preparedRuntimeDir);
+    if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+      throw new Error(`Prepared AionCore runtime directory is missing: ${sourceDir}`);
+    }
+    if (sourceDir === path.resolve(targetDir)) {
+      throw new Error('Prepared AionCore runtime directory must be separate from the packaging target.');
+    }
+
+    removeDirectorySafe(targetDir);
+    copyDirectorySafe(sourceDir, targetDir);
+    try {
+      assertPreparedRuntimeManifestCompatibility(targetDir, platform, arch, tag || version);
+      const verification = verifyBundledAioncoreResources({
+        resourcesDir: path.join(projectRoot, 'resources'),
+        electronPlatformName: platform,
+        targetArch: arch,
+      });
+      if (verification.missing.length > 0 || verification.invalid.length > 0) {
+        throw new Error(
+          `Prepared AionCore runtime artifact is invalid: ${[
+            ...verification.missing.map((entry) => `missing ${entry}`),
+            ...verification.invalid,
+          ].join(', ')}`
+        );
+      }
+    } catch (error) {
+      removeDirectorySafe(targetDir);
+      throw error;
+    }
+
+    console.log(`  Using target-executed prepared runtime artifact: ${sourceDir}`);
+    return { prepared: true, dir: targetDir, sourceType: 'prepared-runtime-artifact' };
+  }
+
   if (
     restorePreparedRuntimeFromCache({
       cacheRuntimeDir: cachePaths.runtimeDir,
@@ -907,8 +1129,10 @@ function prepareAioncore(options) {
       resourcesRoot: cachePaths.resourcesRoot,
       platform,
       arch,
-      expectedVersion: tag,
+      expectedVersion: tag || version,
       compatibilityExecFileSync,
+      skipCompatibilityProbe: options.skipCompatibilityProbe === true,
+      hostPlatform: process.platform,
     })
   ) {
     console.log(`  Using cached bundled aioncore: ${path.relative(process.cwd(), cachePaths.runtimeDir)}`);
@@ -957,15 +1181,22 @@ function prepareAioncore(options) {
     ensureExecutableMode(targetBinaryPath);
     let compatibility;
     try {
-      compatibility = assertAioncoreCompatibility(targetBinaryPath, tag, {
+      compatibility = resolveAioncoreCompatibility(targetBinaryPath, tag || version, {
         execFileSync: compatibilityExecFileSync,
+        skipHostProbe: options.skipCompatibilityProbe === true,
+        targetPlatform: platform,
+        hostPlatform: process.platform,
       });
     } catch (error) {
       removeDirectorySafe(targetDir);
       if (tempDir) removeDirectorySafe(tempDir);
       throw error;
     }
-    const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir);
+    const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir, {
+      execFileSync: compatibilityExecFileSync,
+      platform,
+      hostPlatform: materializeInternalSymlinksForWindows ? 'win32' : process.platform,
+    });
 
     writePreparedRuntimeManifest(targetDir, {
       platform,
@@ -1004,6 +1235,27 @@ function prepareAioncore(options) {
   throw new Error(`aioncore binary not found for ${runtimeKey} (tag: ${tag})`);
 }
 
+function runInternalCli(args) {
+  if (args[0] !== MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND) return false;
+  const rootDir = args[1];
+  if (!rootDir) {
+    throw new Error(`${MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND} requires a managed resources directory`);
+  }
+  process.stdout.write(`${JSON.stringify(materializeInternalFileSymlinks(path.resolve(rootDir)))}\n`);
+  return true;
+}
+
+if (require.main === module) {
+  try {
+    if (!runInternalCli(process.argv.slice(2))) {
+      throw new Error(`Unknown prepare-aioncore internal command: ${process.argv[2] || '<missing>'}`);
+    }
+  } catch (error) {
+    console.error(error?.message || error);
+    process.exitCode = 1;
+  }
+}
+
 module.exports = {
   getActionsArtifactName,
   getActionsArtifactMissingMessage,
@@ -1011,16 +1263,22 @@ module.exports = {
   prepareAioncore,
   __test__: {
     assertAioncoreCompatibility,
+    resolveAioncoreCompatibility,
+    staticAioncoreCompatibility,
+    assertPreparedRuntimeManifestCompatibility,
     defaultAioncoreCacheRoot,
     downloadFile,
     getAioncoreCachePaths,
     getManagedResourcePrepareEnv,
+    materializeInternalFileSymlinks,
     normalizeInternalSymlinks,
     prepareAioncore,
     prepareManagedResources,
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,
+    resolveManagedNodeExecutable,
+    savePreparedRuntimeToCache,
     writePreparedRuntimeManifest,
   },
 };

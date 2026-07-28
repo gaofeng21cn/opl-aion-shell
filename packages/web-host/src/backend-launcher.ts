@@ -85,6 +85,20 @@ export type BackendDirConfig = {
   logDir: string;
 };
 
+export type BackendProcessController = {
+  spawn: (
+    binaryPath: string,
+    args: string[],
+    options: {
+      stdio: ['pipe', 'pipe', 'pipe'];
+      env: NodeJS.ProcessEnv;
+      detached: boolean;
+    }
+  ) => ChildProcess;
+  terminate: (childProcess: ChildProcess, signal: 'SIGTERM' | 'SIGKILL') => Promise<void> | void;
+  validateRecoveryCompatibility?: (binaryPath: string) => Promise<unknown> | unknown;
+};
+
 export type BackendLaunchOptions = {
   app: AppMetadata;
   resolveBackend: BackendBinaryResolver;
@@ -409,6 +423,12 @@ function killBackendProcessTree(childProcess: ChildProcess | null, signal: 'SIGT
   }
 }
 
+const defaultBackendProcessController: BackendProcessController = {
+  spawn: (binaryPath, args, options) => spawn(binaryPath, args, options),
+  terminate: killBackendProcessTree,
+  validateRecoveryCompatibility: assertAioncoreRecoveryCompatibility,
+};
+
 async function probeHealthCheckTcpConnect(port: number, timeoutMs = 1_000): Promise<Partial<HealthCheckDiagnostics>> {
   const start = Date.now();
   return await new Promise((resolve) => {
@@ -470,7 +490,8 @@ export class BackendLifecycleManager {
 
   constructor(
     private readonly appMeta: AppMetadata,
-    private readonly resolveBackend: BackendBinaryResolver
+    private readonly resolveBackend: BackendBinaryResolver,
+    private readonly processController: BackendProcessController = defaultBackendProcessController
   ) {}
 
   get port(): number {
@@ -548,7 +569,7 @@ export class BackendLifecycleManager {
     }
     if (launchFlags.recoverCorruptedDatabase === true) {
       try {
-        assertAioncoreRecoveryCompatibility(binaryPath);
+        await this.processController.validateRecoveryCompatibility?.(binaryPath);
       } catch (error) {
         this._status = 'error';
         throw new BackendStartupError(
@@ -639,7 +660,7 @@ export class BackendLifecycleManager {
     }
 
     try {
-      this.childProcess = spawn(binaryPath, args, {
+      this.childProcess = this.processController.spawn(binaryPath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: dirs ? buildSpawnEnv(dirs) : process.env,
         detached: process.platform !== 'win32',
@@ -654,7 +675,8 @@ export class BackendLifecycleManager {
     backendPid = this.childProcess.pid;
     const pid = backendPid;
     const killOnExit = () => {
-      if (pid) killBackendProcessTree(this.childProcess, 'SIGKILL');
+      if (!pid || !this.childProcess) return;
+      void Promise.resolve(this.processController.terminate(this.childProcess, 'SIGKILL')).catch(() => {});
     };
     process.on('exit', killOnExit);
 
@@ -790,7 +812,9 @@ export class BackendLifecycleManager {
     } catch (error) {
       if (error instanceof BackendStartupError && error.details.stage === 'listen_timeout') {
         startupSettled = true;
-        killBackendProcessTree(this.childProcess, 'SIGKILL');
+        if (this.childProcess) {
+          await this.processController.terminate(this.childProcess, 'SIGKILL');
+        }
         this.childProcess = null;
         this._status = 'error';
       }
@@ -816,7 +840,9 @@ export class BackendLifecycleManager {
         return this._port;
       }
       startupSettled = true;
-      killBackendProcessTree(this.childProcess, 'SIGKILL');
+      if (this.childProcess) {
+        await this.processController.terminate(this.childProcess, 'SIGKILL');
+      }
       this.childProcess = null;
       this._status = 'error';
       throw healthTimeoutError;
@@ -837,17 +863,18 @@ export class BackendLifecycleManager {
     this._status = 'stopped';
     const dataDir = this._lastDbPath;
 
-    killBackendProcessTree(childProcess, 'SIGTERM');
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        killBackendProcessTree(childProcess, 'SIGKILL');
-        resolve();
-      }, 5000);
-      childProcess.on('exit', () => {
-        clearTimeout(timeout);
+    let exited = false;
+    const exitPromise = new Promise<void>((resolve) => {
+      childProcess.once('exit', () => {
+        exited = true;
         resolve();
       });
     });
+    await this.processController.terminate(childProcess, 'SIGTERM');
+    await Promise.race([exitPromise, delayMs(5000)]);
+    if (!exited) {
+      await this.processController.terminate(childProcess, 'SIGKILL');
+    }
     await cleanupRegisteredAgentProcesses(dataDir);
     this.childProcess = null;
   }

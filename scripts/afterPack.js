@@ -23,11 +23,30 @@ function resolveResourcesDir(electronPlatformName, appOutDir, packager) {
   return path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources');
 }
 
+function resolvePackagedAioncoreTarget(electronPlatformName, targetArch) {
+  if (electronPlatformName === 'win32') {
+    if (targetArch !== 'x64') {
+      throw new Error(`The OPL Windows WSL2 runtime currently supports x64 only, received ${targetArch}`);
+    }
+    return {
+      platform: 'linux',
+      arch: 'x64',
+      runtimeKey: 'linux-x64',
+    };
+  }
+  return {
+    platform: electronPlatformName,
+    arch: targetArch,
+    runtimeKey: `${electronPlatformName}-${targetArch}`,
+  };
+}
+
 function verifyBundledResources(resourcesDir, electronPlatformName, targetArch) {
+  const runtimeTarget = resolvePackagedAioncoreTarget(electronPlatformName, targetArch);
   const result = verifyBundledAioncoreResources({
     resourcesDir,
-    electronPlatformName,
-    targetArch,
+    electronPlatformName: runtimeTarget.platform,
+    targetArch: runtimeTarget.arch,
   });
 
   if (result.missing.length > 0) {
@@ -53,7 +72,7 @@ function pruneNonTargetBundledRuntimes(resourcesDir, electronPlatformName, targe
   const bundledRoot = path.join(resourcesDir, 'bundled-aioncore');
   if (!fs.existsSync(bundledRoot)) return [];
 
-  const runtimeKey = `${electronPlatformName}-${targetArch}`;
+  const { runtimeKey } = resolvePackagedAioncoreTarget(electronPlatformName, targetArch);
   const removed = [];
   for (const entry of fs.readdirSync(bundledRoot, { withFileTypes: true })) {
     if (entry.name === runtimeKey || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
@@ -61,6 +80,26 @@ function pruneNonTargetBundledRuntimes(resourcesDir, electronPlatformName, targe
     removed.push(entry.name);
   }
   return removed.sort();
+}
+
+function verifyWindowsWslResources(resourcesDir, electronPlatformName) {
+  if (electronPlatformName !== 'win32') return;
+  const required = [
+    'opl-linux/product.json',
+    'opl-linux/bootstrap/install-opl-linux.sh',
+    'opl-linux/bootstrap/opl-runtime-exec',
+    'opl-linux/bootstrap/opl-runtime-control',
+    'opl-linux/bootstrap/opl-runtime-inspect',
+    'bundled-aioncore/linux-x64/aioncore',
+    'bundled-aioncore/linux-x64/manifest.json',
+  ];
+  const missing = required.filter((relativePath) => !fs.existsSync(path.join(resourcesDir, relativePath)));
+  if (missing.length > 0) {
+    throw new Error(`Packaged Windows OPL Linux resources are missing: ${missing.join(', ')}`);
+  }
+  if (fs.existsSync(path.join(resourcesDir, 'bundled-aioncore', 'win32-x64'))) {
+    throw new Error('Packaged Windows App contains a forbidden native Agent runtime fallback: win32-x64');
+  }
 }
 
 module.exports = async function afterPack(context) {
@@ -90,6 +129,7 @@ module.exports = async function afterPack(context) {
     if (removedRuntimes.length > 0) {
       console.log(`   ✓ Removed non-target bundled runtimes: ${removedRuntimes.join(', ')}`);
     }
+    verifyWindowsWslResources(resourcesDir, electronPlatformName);
 
     const resourcesContents = fs.readdirSync(resourcesDir);
     console.log(`   Contents: ${resourcesContents.join(', ')}`);
@@ -263,4 +303,8 @@ module.exports = async function afterPack(context) {
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
 };
 
-module.exports.__test__ = { pruneNonTargetBundledRuntimes };
+module.exports.__test__ = {
+  pruneNonTargetBundledRuntimes,
+  resolvePackagedAioncoreTarget,
+  verifyWindowsWslResources,
+};

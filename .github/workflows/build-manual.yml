@@ -35,6 +35,26 @@ on:
         required: false
         type: string
         default: ''
+      windows_rc_release_version:
+        description: 'Required for Windows builds: Preview version such as 26.7.28-rc.3'
+        required: false
+        type: string
+        default: ''
+      windows_rc_app_sha:
+        description: 'Required for Windows builds: exact 40-character App source commit'
+        required: false
+        type: string
+        default: ''
+      windows_rc_app_tree:
+        description: 'Required for Windows builds: exact 40-character App source tree'
+        required: false
+        type: string
+        default: ''
+      windows_rc_shell_sha:
+        description: 'Required for Windows builds: exact 40-character Shell commit to build'
+        required: false
+        type: string
+        default: ''
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
@@ -86,9 +106,13 @@ jobs:
     uses: ./.github/workflows/_build-reusable.yml
     with:
       matrix: ${{ needs.prepare-matrix.outputs.matrix }}
-      ref: ${{ inputs.branch }}
+      ref: ${{ (startsWith(inputs.platform, 'windows') || inputs.platform == 'all') && inputs.windows_rc_shell_sha || inputs.branch }}
       skip_code_quality: ${{ inputs.skip_code_quality }}
       aioncore_run_id: ${{ inputs.aioncore_run_id }}
+      windows_rc_release_version: ${{ inputs.windows_rc_release_version }}
+      windows_rc_app_sha: ${{ inputs.windows_rc_app_sha }}
+      windows_rc_app_tree: ${{ inputs.windows_rc_app_tree }}
+      windows_rc_shell_sha: ${{ inputs.windows_rc_shell_sha }}
       append_commit_hash: true
       upload_installers_only: true
     secrets: inherit

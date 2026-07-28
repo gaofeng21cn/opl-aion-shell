@@ -17,6 +17,8 @@ import type {
   CodexThreadHistoryItem,
   CodexThreadStartRequest,
 } from '@/common/types/codex/appServerThreads';
+import { getWindowsWslRuntime } from '../runtime-execution';
+import type { WindowsWslRuntimeExecution } from '../runtime-execution';
 import { resolveCodexCliPath } from './codexCliResolver';
 
 type JsonRecord = Record<string, unknown>;
@@ -52,6 +54,7 @@ type SpawnCodexAppServerProcess = (
   args: string[],
   options: { env: NodeJS.ProcessEnv; windowsHide: boolean }
 ) => CodexAppServerProcess;
+type StopCodexAppServerProcess = (process: CodexAppServerProcess) => void;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 const DEFAULT_PAGE_SIZE = 100;
@@ -259,6 +262,10 @@ function defaultSpawn(
   });
 }
 
+function defaultStop(process: CodexAppServerProcess): void {
+  process.kill();
+}
+
 class StdioCodexAppServerTransport implements CodexAppServerRpc {
   private process: CodexAppServerProcess | null = null;
   private startPromise: Promise<void> | null = null;
@@ -272,7 +279,8 @@ class StdioCodexAppServerTransport implements CodexAppServerRpc {
     private readonly executable: string | (() => string),
     private readonly env: NodeJS.ProcessEnv = process.env,
     private readonly requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
-    private readonly spawnProcess: SpawnCodexAppServerProcess = defaultSpawn
+    private readonly spawnProcess: SpawnCodexAppServerProcess = defaultSpawn,
+    private readonly stopProcess: StopCodexAppServerProcess = defaultStop
   ) {}
 
   async request<T>(method: string, params: unknown, timeoutMs = this.requestTimeoutMs): Promise<T> {
@@ -283,7 +291,7 @@ class StdioCodexAppServerTransport implements CodexAppServerRpc {
   dispose(): void {
     this.disposed = true;
     this.rejectPending(new Error('Codex app-server adapter was disposed.'));
-    this.process?.kill();
+    if (this.process) this.stopProcess(this.process);
     this.process = null;
     this.startPromise = null;
   }
@@ -324,7 +332,7 @@ class StdioCodexAppServerTransport implements CodexAppServerRpc {
       );
       this.write({ method: 'initialized' });
     })().catch((error) => {
-      this.process?.kill();
+      if (this.process) this.stopProcess(this.process);
       this.process = null;
       this.startPromise = null;
       throw error;
@@ -573,18 +581,16 @@ export class CodexAppServerAdapter {
     let cursor: string | null = null;
     const visitedCursors = new Set<string>();
     for (let page = 0; page < this.maxPages; page += 1) {
-      const response = requiredRecord(
-        await this.rpc.request('thread/list', {
-          cursor,
-          limit: this.pageSize,
-          sortKey: 'updated_at',
-          sortDirection: 'desc',
-          archived,
-          useStateDbOnly: true,
-          ...(workspace ? { cwd: workspace } : {}),
-        }),
-        'thread list response'
-      );
+      const threadListParams = {
+        cursor,
+        limit: this.pageSize,
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+        archived,
+        useStateDbOnly: true,
+        ...(workspace ? { cwd: workspace } : {}),
+      };
+      const response = requiredRecord(await this.rpc.request('thread/list', threadListParams), 'thread list response');
       if (!Array.isArray(response.data)) throw new Error('Invalid Codex app-server thread list data.');
       response.data.forEach((value) => threads.push({ thread: parseThread(value), archived }));
       cursor = optionalString(response.nextCursor);
@@ -596,6 +602,36 @@ export class CodexAppServerAdapter {
   }
 }
 
-export function createProductionCodexAppServerAdapter(): CodexAppServerAdapter {
+export function createProductionCodexAppServerAdapter(
+  options: {
+    platform?: NodeJS.Platform;
+    windowsRuntime?: WindowsWslRuntimeExecution | null;
+  } = {}
+): CodexAppServerAdapter {
+  const platform = options.platform ?? process.platform;
+  if (platform === 'win32') {
+    const runtime = options.windowsRuntime ?? getWindowsWslRuntime();
+    if (!runtime) throw new Error('Windows Codex App Server requires the initialized OPL Linux runtime.');
+    const handles = new WeakMap<CodexAppServerProcess, ReturnType<WindowsWslRuntimeExecution['spawn']>>();
+    const spawnProcess: SpawnCodexAppServerProcess = (_executable, args) => {
+      const handle = runtime.spawn({ program: 'codex-app-server', args });
+      handles.set(handle.child, handle);
+      return handle.child;
+    };
+    const stopProcess: StopCodexAppServerProcess = (process) => {
+      const handle = handles.get(process);
+      if (!handle) throw new Error('The Codex App Server process is not owned by OPL Linux.');
+      void handle.terminate(5000);
+    };
+    return new CodexAppServerAdapter({
+      rpc: new StdioCodexAppServerTransport(
+        'codex',
+        process.env,
+        DEFAULT_REQUEST_TIMEOUT_MS,
+        spawnProcess,
+        stopProcess
+      ),
+    });
+  }
   return new CodexAppServerAdapter({ rpc: new StdioCodexAppServerTransport(resolveCodexCliPath) });
 }

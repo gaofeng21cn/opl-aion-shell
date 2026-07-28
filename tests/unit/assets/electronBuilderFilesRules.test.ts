@@ -1,4 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -6,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 const configPath = resolve(__dirname, '../../../packages/desktop/electron-builder.yml');
 const packagedRuntime = await import('../../../scripts/validate-packaged-runtime.js');
+const runtimeMaterializer = await import('../../../scripts/materialize-packaged-runtime-dependencies.js');
 const requireFromHere = createRequire(import.meta.url);
 
 function readRules(): string[] {
@@ -73,6 +84,15 @@ function runtimeDependencyClosure(rootPackages: string[]): string[] {
 }
 
 describe('electron-builder files rules', () => {
+  it('normalizes Windows-style app.asar entries before runtime dependency checks', () => {
+    expect(packagedRuntime.normalizeAsarEntry('\\node_modules\\axios\\package.json')).toBe(
+      'node_modules/axios/package.json'
+    );
+    expect(packagedRuntime.normalizeAsarEntry('/node_modules/axios/package.json')).toBe(
+      'node_modules/axios/package.json'
+    );
+  });
+
   it('keeps main-process runtime dependencies explicitly included', () => {
     const rules = readRules();
 
@@ -177,5 +197,67 @@ describe('electron-builder files rules', () => {
     expect([...packagedRuntime.REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES].sort()).toEqual(
       runtimeDependencyClosure(['@office-ai/platform'])
     );
+  });
+
+  it('materializes linked runtime packages for builder traversal and restores the links', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'opl-runtime-materializer-'));
+    const target = resolve(root, 'store', 'axios@1', 'node_modules', 'axios');
+    const siblingDependency = resolve(root, 'store', 'form-data@1', 'node_modules', 'form-data');
+    const linkedPackage = resolve(root, 'node_modules', 'axios');
+    mkdirSync(target, { recursive: true });
+    mkdirSync(siblingDependency, { recursive: true });
+    mkdirSync(resolve(target, '..'), { recursive: true });
+    mkdirSync(resolve(linkedPackage, '..'), { recursive: true });
+    writeFileSync(
+      resolve(target, 'package.json'),
+      `${JSON.stringify({ name: 'axios', dependencies: { 'form-data': '^1.0.0' } })}\n`
+    );
+    writeFileSync(resolve(target, 'index.js'), 'module.exports = true;\n');
+    writeFileSync(resolve(siblingDependency, 'package.json'), `${JSON.stringify({ name: 'form-data' })}\n`);
+    symlinkSync(target, linkedPackage, process.platform === 'win32' ? 'junction' : 'dir');
+    symlinkSync(
+      siblingDependency,
+      resolve(target, '..', 'form-data'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+
+    try {
+      const materialization = runtimeMaterializer.materializePackagedRuntimeDependencies(root, ['axios']);
+      expect(materialization.materialized).toEqual(['axios']);
+      expect(lstatSync(linkedPackage).isSymbolicLink()).toBe(false);
+      expect(readFileSync(resolve(linkedPackage, 'index.js'), 'utf8')).toContain('module.exports');
+      expect(readFileSync(resolve(linkedPackage, 'node_modules', 'form-data', 'package.json'), 'utf8')).toContain(
+        '"name":"form-data"'
+      );
+      expect(lstatSync(resolve(linkedPackage, 'node_modules', 'form-data')).isSymbolicLink()).toBe(true);
+      expect(realpathSync(resolve(linkedPackage, 'node_modules', 'form-data'))).toBe(realpathSync(siblingDependency));
+
+      materialization.restore();
+      expect(lstatSync(linkedPackage).isSymbolicLink()).toBe(true);
+      expect(realpathSync(linkedPackage)).toBe(realpathSync(target));
+      materialization.restore();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('restores earlier links when materialization fails partway through', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'opl-runtime-materializer-rollback-'));
+    const target = resolve(root, 'store', 'axios');
+    const linkedPackage = resolve(root, 'node_modules', 'axios');
+    mkdirSync(target, { recursive: true });
+    mkdirSync(resolve(linkedPackage, '..'), { recursive: true });
+    writeFileSync(resolve(target, 'package.json'), `${JSON.stringify({ name: 'axios' })}\n`);
+    symlinkSync(target, linkedPackage, process.platform === 'win32' ? 'junction' : 'dir');
+
+    try {
+      expect(() =>
+        runtimeMaterializer.materializePackagedRuntimeDependencies(root, ['axios', 'missing-package'])
+      ).toThrow('Packaged runtime dependency is not installed: missing-package');
+      expect(lstatSync(linkedPackage).isSymbolicLink()).toBe(true);
+      expect(realpathSync(linkedPackage)).toBe(realpathSync(target));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
