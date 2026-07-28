@@ -95,14 +95,23 @@ describe('mergeCanonicalThreadDirectory', () => {
     });
   });
 
-  it('projects a managed Documents Codex task as a projectless sidebar row', () => {
+  it('groups a managed Documents Codex task from its canonical recorded cwd', () => {
     const workspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
 
-    expect(projected.extra).toMatchObject({ workspace, custom_workspace: false });
+    expect(projected.extra).toMatchObject({ workspace, custom_workspace: true });
     expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
-      expect.objectContaining({ type: 'conversation', conversation: projected }),
+      expect.objectContaining({
+        type: 'workspace',
+        workspaceGroup: expect.objectContaining({ workspace, conversations: [projected] }),
+      }),
     ]);
+  });
+
+  it('does not let a project id replace a missing canonical recorded cwd', () => {
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace: '', projectId: 'project' })]));
+
+    expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
   });
 
   it('preserves an explicitly projectless marker until the canonical cwd is adopted', () => {
