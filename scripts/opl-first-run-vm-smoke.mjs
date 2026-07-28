@@ -43,6 +43,14 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
 const FULL_RUNTIME_MANIFEST = 'full-package-manifest.json';
+const LOWERCASE_GIT_SHA = /^[0-9a-f]{40}$/;
+const FRAMEWORK_IDENTITY_SOURCES = new Set([
+  'explicit_source_commit',
+  'install_ref',
+  'source_archive_url',
+  'github_commit_api',
+  'git_head',
+]);
 const MAIN_BOOTSTRAP_FATAL_MARKER = 'aionui.main_bootstrap_fatal.v1';
 const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
 const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
@@ -316,6 +324,9 @@ Options:
                          The full profile verifies bundled runtime/module/skill equivalence.
                          The standard profile verifies core launch readiness without requiring
                          Full-only bundled modules.
+  --expected-framework-sha <sha>
+                         Exact published-cohort Framework commit expected from the installed
+                         Standard state or packaged Full runtime manifest.
   --install-origin <origin>
                          Install carrier under test: direct_app_or_dmg,
                          homebrew_standard_cask, homebrew_nightly_cask, or homebrew_full_cask.
@@ -372,6 +383,7 @@ function parseArgs(argv) {
       ? Number(process.env.OPL_FIRST_RUN_HOST_DEADLINE_EPOCH_MS)
       : null,
     runtimeProfile: 'full',
+    expectedFrameworkSha: null,
     installOrigin: 'direct_app_or_dmg',
     homebrewCask: null,
     homebrewFormulaState: null,
@@ -446,6 +458,7 @@ function parseArgs(argv) {
     else if (arg === '--codex-npm-cache-dir') options.codexNpmCacheDir = path.resolve(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
+    else if (arg === '--expected-framework-sha') options.expectedFrameworkSha = value;
     else if (arg === '--install-origin') options.installOrigin = value;
     else if (arg === '--homebrew-cask') options.homebrewCask = value;
     else if (arg === '--homebrew-formula-state') options.homebrewFormulaState = path.resolve(value);
@@ -486,6 +499,9 @@ function parseArgs(argv) {
   }
   if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
+  }
+  if (options.expectedFrameworkSha && !LOWERCASE_GIT_SHA.test(options.expectedFrameworkSha)) {
+    throw new Error('--expected-framework-sha must be a lowercase 40-character Git commit SHA.');
   }
   const homebrewInstallOrigins = new Map([
     ['homebrew_standard_cask', { runtimeProfile: 'standard', cask: 'one-person-lab' }],
@@ -1549,6 +1565,37 @@ function readJsonRecord(filePath) {
   }
 }
 
+function readRequiredRegularJsonRecord(filePath, label) {
+  let stat;
+  try {
+    stat = fs.lstatSync(filePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} is missing: ${filePath} (${message})`);
+  }
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size <= 0) {
+    throw new Error(`${label} must be a nonempty regular non-symlink file: ${filePath}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} is not valid JSON: ${filePath} (${message})`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${label} must contain a JSON object: ${filePath}`);
+  }
+  return parsed;
+}
+
+function assertLowercaseGitSha(value, label) {
+  if (!LOWERCASE_GIT_SHA.test(value ?? '')) {
+    throw new Error(`${label} must be a lowercase 40-character Git commit SHA.`);
+  }
+  return value;
+}
+
 function isUsableFullRuntimeHome(runtimeHome) {
   return Boolean(runtimeHome && fs.existsSync(path.join(runtimeHome, 'bin', 'opl')));
 }
@@ -1600,6 +1647,96 @@ function describePackagedFullRuntime(appPath) {
     runtime_home: runtimeHome,
     opl_path: oplPath,
     missing_reason: missingReason,
+  };
+}
+
+function buildFullRuntimeSourceIdentity(appPath, expectedFrameworkSha) {
+  const expected = assertLowercaseGitSha(expectedFrameworkSha, 'Expected Framework SHA');
+  const packaged = describePackagedFullRuntime(appPath);
+  if (packaged.status !== 'found' || !packaged.manifest_path || !packaged.runtime_home) {
+    throw new Error(
+      `Full runtime source identity requires the installed App packaged runtime: ${packaged.missing_reason ?? 'missing'}.`
+    );
+  }
+  const manifest = readRequiredRegularJsonRecord(packaged.manifest_path, 'Full runtime manifest');
+  const resolvedFrameworkSha = manifest?.resolved_refs?.opl_framework?.resolved_commit;
+  const componentFrameworkSha = manifest?.components?.opl?.git_commit;
+  assertLowercaseGitSha(resolvedFrameworkSha, 'Full runtime manifest resolved Framework SHA');
+  assertLowercaseGitSha(componentFrameworkSha, 'Full runtime manifest component Framework SHA');
+  if (resolvedFrameworkSha !== componentFrameworkSha) {
+    throw new Error('Full runtime manifest Framework source identities do not match each other.');
+  }
+  if (resolvedFrameworkSha !== expected) {
+    throw new Error(
+      `Full runtime manifest Framework SHA mismatch: expected ${expected}, observed ${resolvedFrameworkSha}.`
+    );
+  }
+  return {
+    schema: 'opl_full_runtime_source_identity.v1',
+    status: 'passed',
+    source: 'packaged_app_resource',
+    expected_framework_sha: expected,
+    observed_framework_sha: resolvedFrameworkSha,
+    exact_match: true,
+    manifest_path: packaged.manifest_path,
+    manifest_version: manifest.manifest_version ?? null,
+    component_framework_sha: componentFrameworkSha,
+  };
+}
+
+function buildInstalledFrameworkSourceIdentity(appState, expectedFrameworkSha) {
+  const expected = assertLowercaseGitSha(expectedFrameworkSha, 'Expected Framework SHA');
+  const release = appState?.app_state?.release;
+  const installedIdentity = release?.installed_framework_source_identity;
+  if (!release || typeof release !== 'object' || Array.isArray(release)) {
+    throw new Error('Standard Framework source identity requires app_state.release from the installed Framework.');
+  }
+  if (!installedIdentity || typeof installedIdentity !== 'object' || Array.isArray(installedIdentity)) {
+    throw new Error(
+      'Standard Framework source identity requires app_state.release.installed_framework_source_identity.'
+    );
+  }
+  const identityKeys = Object.keys(installedIdentity).sort();
+  const expectedIdentityKeys = ['framework_sha', 'identity_source', 'install_mode', 'schema'].sort();
+  if (JSON.stringify(identityKeys) !== JSON.stringify(expectedIdentityKeys)) {
+    throw new Error('Installed Framework source identity has an unexpected key set.');
+  }
+  if (installedIdentity.schema !== 'opl_framework_installed_source_identity.v1') {
+    throw new Error('Installed Framework source identity has an unexpected schema.');
+  }
+  const observed = assertLowercaseGitSha(installedIdentity.framework_sha, 'Installed Framework SHA');
+  if (installedIdentity.install_mode !== 'archive') {
+    throw new Error('Standard published DMG must report install_mode=archive for its installed Framework identity.');
+  }
+  if (!FRAMEWORK_IDENTITY_SOURCES.has(installedIdentity.identity_source)) {
+    throw new Error('Installed Framework source identity has an unsupported identity_source.');
+  }
+  const projectedShas = [
+    release.opl_framework_revision,
+    release.framework_revision,
+    release.installed_framework_source_sha,
+  ];
+  if (projectedShas.some((value) => value !== observed)) {
+    throw new Error('Installed Framework release projection does not consistently expose the installed source SHA.');
+  }
+  if (
+    release.framework_revision_source !== 'installed_source_identity' ||
+    release.installed_framework_source_identity_source !== installedIdentity.identity_source
+  ) {
+    throw new Error('Installed Framework release projection does not bind its revision to the installed identity.');
+  }
+  if (observed !== expected) {
+    throw new Error(`Installed Framework SHA mismatch: expected ${expected}, observed ${observed}.`);
+  }
+  return {
+    schema: 'opl_framework_installed_source_identity.v1',
+    status: 'passed',
+    install_mode: 'archive',
+    expected_framework_sha: expected,
+    observed_framework_sha: observed,
+    exact_match: true,
+    identity_source: installedIdentity.identity_source,
+    evidence_source: 'opl app state --profile fast --json',
   };
 }
 
@@ -2507,6 +2644,32 @@ function collectAppReleaseRuntimeEvidence(options, secret) {
     status: summary.status,
     action_id: summary.action_id,
     artifacts: written,
+  };
+}
+
+function collectReleaseSourceIdentity(options, secret) {
+  if (!options.expectedFrameworkSha) {
+    return {
+      installed_framework_source_identity: null,
+      full_runtime_source_identity: null,
+    };
+  }
+  if (options.runtimeProfile === 'standard') {
+    const args = ['app', 'state', '--profile', 'fast', '--json'];
+    const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+    const appState = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
+    const identity = buildInstalledFrameworkSourceIdentity(appState, options.expectedFrameworkSha);
+    writeJsonArtifact(path.join(options.artifacts, 'installed-framework-source-identity.json'), identity, secret);
+    return {
+      installed_framework_source_identity: identity,
+      full_runtime_source_identity: null,
+    };
+  }
+  const identity = buildFullRuntimeSourceIdentity(options.appPath, options.expectedFrameworkSha);
+  writeJsonArtifact(path.join(options.artifacts, 'full-runtime-source-identity.json'), identity, secret);
+  return {
+    installed_framework_source_identity: null,
+    full_runtime_source_identity: identity,
   };
 }
 
@@ -7902,6 +8065,16 @@ async function main() {
         }
       );
     }
+    const releaseSourceIdentity = await runSmokePhase(
+      writeSmokeEvent,
+      'release_source_identity',
+      () => collectReleaseSourceIdentity(installedAppOptions, codexApiKey),
+      {
+        runtime_profile: options.runtimeProfile,
+        expected_framework_sha: options.expectedFrameworkSha,
+        required: Boolean(options.expectedFrameworkSha),
+      }
+    );
     captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
@@ -7970,6 +8143,8 @@ async function main() {
       codex_functional_check: codexFunctionalCheck,
       codex_ai_self_check: codexAiSelfCheck,
       app_release_runtime_evidence: appReleaseRuntimeEvidence,
+      installed_framework_source_identity: releaseSourceIdentity.installed_framework_source_identity,
+      full_runtime_source_identity: releaseSourceIdentity.full_runtime_source_identity,
       temporal_service_supervisor_proof: temporalServiceSupervisorProof,
       packaged_runtime_integrity_pre_launch: preLaunchPackagedRuntimeIntegrity,
       packaged_runtime_integrity: packagedRuntimeIntegrity,
@@ -8123,6 +8298,9 @@ export const __test =
         exerciseRuntimeRefresh,
         runSettingsSmoke,
         shouldVerifyFullFirstRunEquivalence,
+        buildInstalledFrameworkSourceIdentity,
+        buildFullRuntimeSourceIdentity,
+        collectReleaseSourceIdentity,
         buildCodexFunctionalCheckReceipt,
         assertCodexFunctionalCheckReceipt,
         buildCodexAiSelfCheckPrompt,

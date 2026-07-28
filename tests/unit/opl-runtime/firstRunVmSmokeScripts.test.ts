@@ -315,7 +315,7 @@ function createFullRuntimeEquivalenceFixture() {
   return { root, codexHome, runtimeHome };
 }
 
-function createPackagedFullRuntimeAppFixture() {
+function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-packaged-full-app-'));
   const appPath = path.join(root, 'One Person Lab.app');
   const payloadRoot = path.join(appPath, 'Contents', 'Resources', 'opl-full-runtime');
@@ -324,9 +324,34 @@ function createPackagedFullRuntimeAppFixture() {
   fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
   writeFile(
     path.join(payloadRoot, 'manifest', 'full-package-manifest.json'),
-    `${JSON.stringify({ version: '26.6.21' })}\n`
+    `${JSON.stringify({
+      manifest_version: 2,
+      version: '26.6.21',
+      components: { opl: { git_commit: frameworkSha } },
+      resolved_refs: { opl_framework: { resolved_commit: frameworkSha } },
+    })}\n`
   );
   return { root, appPath, runtimeHome };
+}
+
+function installedFrameworkAppState(frameworkSha = 'b'.repeat(40)) {
+  return {
+    app_state: {
+      release: {
+        opl_framework_revision: frameworkSha,
+        framework_revision: frameworkSha,
+        framework_revision_source: 'installed_source_identity',
+        installed_framework_source_sha: frameworkSha,
+        installed_framework_source_identity_source: 'source_archive_url',
+        installed_framework_source_identity: {
+          schema: 'opl_framework_installed_source_identity.v1',
+          framework_sha: frameworkSha,
+          install_mode: 'archive',
+          identity_source: 'source_archive_url',
+        },
+      },
+    },
+  };
 }
 
 function createPackagedAppWithMainEntry(content: string) {
@@ -535,6 +560,61 @@ describe('OPL first-run VM smoke scripts', () => {
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
     }
+  });
+
+  it('binds Full source identity to the packaged manifest Framework commit', () => {
+    const frameworkSha = 'a'.repeat(40);
+    const fixture = createPackagedFullRuntimeAppFixture(frameworkSha);
+    try {
+      writeFile(path.join(fixture.runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', 0o755);
+      expect(vmSmoke.buildFullRuntimeSourceIdentity(fixture.appPath, frameworkSha)).toEqual({
+        schema: 'opl_full_runtime_source_identity.v1',
+        status: 'passed',
+        source: 'packaged_app_resource',
+        expected_framework_sha: frameworkSha,
+        observed_framework_sha: frameworkSha,
+        exact_match: true,
+        manifest_path: path.join(
+          fixture.appPath,
+          'Contents',
+          'Resources',
+          'opl-full-runtime',
+          'manifest',
+          'full-package-manifest.json'
+        ),
+        manifest_version: 2,
+        component_framework_sha: frameworkSha,
+      });
+      expect(() => vmSmoke.buildFullRuntimeSourceIdentity(fixture.appPath, 'c'.repeat(40))).toThrow(
+        /Framework SHA mismatch/
+      );
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it('binds Standard source identity to the installed Framework app-state projection', () => {
+    const frameworkSha = 'b'.repeat(40);
+    expect(
+      vmSmoke.buildInstalledFrameworkSourceIdentity(installedFrameworkAppState(frameworkSha), frameworkSha)
+    ).toEqual({
+      schema: 'opl_framework_installed_source_identity.v1',
+      status: 'passed',
+      install_mode: 'archive',
+      expected_framework_sha: frameworkSha,
+      observed_framework_sha: frameworkSha,
+      exact_match: true,
+      identity_source: 'source_archive_url',
+      evidence_source: 'opl app state --profile fast --json',
+    });
+    expect(() =>
+      vmSmoke.buildInstalledFrameworkSourceIdentity(installedFrameworkAppState(frameworkSha), 'c'.repeat(40))
+    ).toThrow(/Installed Framework SHA mismatch/);
+    const gitIdentity = installedFrameworkAppState(frameworkSha);
+    gitIdentity.app_state.release.installed_framework_source_identity.install_mode = 'git';
+    expect(() => vmSmoke.buildInstalledFrameworkSourceIdentity(gitIdentity, frameworkSha)).toThrow(
+      /install_mode=archive/
+    );
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {
@@ -886,6 +966,209 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).not.toThrow();
+  });
+
+  it('derives the exact Framework cohort from published artifact identity and forwards it to the guest', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-published-framework-identity-'));
+    const frameworkSha = 'd'.repeat(40);
+    try {
+      writeFile(
+        path.join(artifacts, 'published-artifact-identity.json'),
+        `${JSON.stringify({
+          schema: 'opl_app_post_publication_artifact_identity.v1',
+          verified: true,
+          cohort: { framework_sha: frameworkSha },
+        })}\n`
+      );
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--artifacts',
+        artifacts,
+        '--dry-run',
+      ]);
+      expect(options.expectedFrameworkSha).toBe(frameworkSha);
+      const command = tartSmoke.guestSmokeCommand(
+        options,
+        '/tmp/guest/One-Person-Lab.dmg',
+        '/tmp/guest/opl-first-run-vm-smoke.mjs',
+        '/tmp/guest/artifacts',
+        null
+      );
+      expect(command).toContain(`--expected-framework-sha '${frameworkSha}'`);
+      expect(() =>
+        tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--dmg',
+          '/tmp/One-Person-Lab.dmg',
+          '--runtime-profile',
+          'standard',
+          '--artifacts',
+          artifacts,
+          '--expected-framework-sha',
+          'e'.repeat(40),
+          '--dry-run',
+        ])
+      ).toThrow(/does not match published-artifact-identity/);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('writes and validates the Standard installed Framework identity artifact from app state', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-framework-identity-'));
+    const frameworkSha = 'b'.repeat(40);
+    try {
+      const result = vmSmoke.collectReleaseSourceIdentity(
+        {
+          runtimeProfile: 'standard',
+          expectedFrameworkSha: frameworkSha,
+          artifacts,
+          timeoutMs: 10_000,
+          __testHooks: { runOplJson: () => JSON.stringify(installedFrameworkAppState(frameworkSha)) },
+        },
+        null
+      );
+      expect(result.installed_framework_source_identity).toMatchObject({
+        schema: 'opl_framework_installed_source_identity.v1',
+        status: 'passed',
+        install_mode: 'archive',
+        observed_framework_sha: frameworkSha,
+        exact_match: true,
+      });
+      const hostArtifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-framework-host-'));
+      try {
+        fs.mkdirSync(path.join(hostArtifacts, 'artifacts'), { recursive: true });
+        fs.copyFileSync(
+          path.join(artifacts, 'installed-framework-source-identity.json'),
+          path.join(hostArtifacts, 'artifacts', 'installed-framework-source-identity.json')
+        );
+        const options = {
+          runtimeProfile: 'standard',
+          expectedFrameworkSha: frameworkSha,
+          providerCredentialPresent: false,
+          codexApiKeyFile: '',
+        };
+        expect(() =>
+          tartSmoke.assertGuestSmokeSummary(
+            options,
+            {
+              status: 'passed',
+              runtime_profile: 'standard',
+              provider_configuration: {
+                status: 'not_requested',
+                requested: false,
+                credential_source: null,
+                credential_present: false,
+                manual_user_input_required: false,
+                mutation_performed: false,
+                blocking_release_gate: false,
+              },
+              installed_framework_source_identity: result.installed_framework_source_identity,
+            },
+            hostArtifacts
+          )
+        ).not.toThrow();
+        const identityPath = path.join(hostArtifacts, 'artifacts', 'installed-framework-source-identity.json');
+        const symlinkTarget = path.join(hostArtifacts, 'installed-framework-source-identity-target.json');
+        fs.renameSync(identityPath, symlinkTarget);
+        fs.symlinkSync(symlinkTarget, identityPath);
+        expect(() =>
+          tartSmoke.assertGuestSmokeSummary(
+            options,
+            {
+              status: 'passed',
+              runtime_profile: 'standard',
+              provider_configuration: {
+                status: 'not_requested',
+                requested: false,
+                credential_source: null,
+                credential_present: false,
+                manual_user_input_required: false,
+                mutation_performed: false,
+                blocking_release_gate: false,
+              },
+              installed_framework_source_identity: result.installed_framework_source_identity,
+            },
+            hostArtifacts
+          )
+        ).toThrow(/nonempty regular non-symlink/);
+      } finally {
+        fs.rmSync(hostArtifacts, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('writes and validates the Full identity artifact from the installed App packaged manifest', () => {
+    const frameworkSha = 'a'.repeat(40);
+    const fixture = createPackagedFullRuntimeAppFixture(frameworkSha);
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-framework-identity-'));
+    try {
+      writeFile(path.join(fixture.runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', 0o755);
+      const result = vmSmoke.collectReleaseSourceIdentity(
+        {
+          runtimeProfile: 'full',
+          expectedFrameworkSha: frameworkSha,
+          artifacts,
+          appPath: fixture.appPath,
+        },
+        null
+      );
+      expect(result.full_runtime_source_identity).toMatchObject({
+        schema: 'opl_full_runtime_source_identity.v1',
+        status: 'passed',
+        source: 'packaged_app_resource',
+        observed_framework_sha: frameworkSha,
+        exact_match: true,
+      });
+      const hostArtifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-framework-host-'));
+      try {
+        fs.mkdirSync(path.join(hostArtifacts, 'artifacts'), { recursive: true });
+        fs.copyFileSync(
+          path.join(artifacts, 'full-runtime-source-identity.json'),
+          path.join(hostArtifacts, 'artifacts', 'full-runtime-source-identity.json')
+        );
+        expect(() =>
+          tartSmoke.assertGuestSmokeSummary(
+            {
+              runtimeProfile: 'full',
+              expectedFrameworkSha: frameworkSha,
+              providerCredentialPresent: false,
+              codexApiKeyFile: '',
+              bootstrapLaunchDiagnostics: false,
+            },
+            {
+              status: 'passed',
+              runtime_profile: 'full',
+              provider_configuration: {
+                status: 'not_requested',
+                requested: false,
+                credential_source: null,
+                credential_present: false,
+                manual_user_input_required: false,
+                mutation_performed: false,
+                blocking_release_gate: false,
+              },
+              full_runtime_source_identity: result.full_runtime_source_identity,
+              temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
+            },
+            hostArtifacts
+          )
+        ).not.toThrow();
+      } finally {
+        fs.rmSync(hostArtifacts, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('forwards focused launch diagnostics into the guest without secondary release smokes', () => {
