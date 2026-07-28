@@ -46,6 +46,35 @@ describe('managed Codex ACP publisher policy', () => {
 });
 
 describe('prepare-aioncore compatibility gate', () => {
+  it('statically validates a cross-platform target without executing its binary on the host', () => {
+    const calls: string[][] = [];
+    const result = __test__.resolveAioncoreCompatibility('/tmp/linux-aioncore', 'v0.1.50', {
+      skipHostProbe: true,
+      targetPlatform: 'linux',
+      hostPlatform: 'win32',
+      execFileSync(_command: string, args: string[]) {
+        calls.push(args);
+        throw new Error('cross-platform binary must not execute on the host');
+      },
+    });
+
+    expect(result).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('does not allow compatibility probes to be skipped for a native target', () => {
+    expect(() =>
+      __test__.resolveAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
+        skipHostProbe: true,
+        targetPlatform: 'win32',
+        hostPlatform: 'win32',
+      })
+    ).toThrow(/only be skipped for a cross-platform target/);
+  });
+
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 

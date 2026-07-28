@@ -186,6 +186,8 @@ function restorePreparedRuntimeFromCache({
   arch,
   expectedVersion,
   compatibilityExecFileSync,
+  skipCompatibilityProbe = false,
+  hostPlatform = process.platform,
 }) {
   if (!fs.existsSync(cacheRuntimeDir)) return false;
   if (!isPreparedRuntimeValid(resourcesRoot, platform, arch)) return false;
@@ -193,8 +195,11 @@ function restorePreparedRuntimeFromCache({
   removeDirectorySafe(targetDir);
   copyDirectorySafe(cacheRuntimeDir, targetDir);
   try {
-    assertAioncoreCompatibility(path.join(targetDir, getBinaryName(platform)), expectedVersion, {
+    resolveAioncoreCompatibility(path.join(targetDir, getBinaryName(platform)), expectedVersion, {
       execFileSync: compatibilityExecFileSync,
+      skipHostProbe: skipCompatibilityProbe,
+      targetPlatform: platform,
+      hostPlatform,
     });
   } catch (error) {
     removeDirectorySafe(targetDir);
@@ -232,6 +237,26 @@ function compareStableVersions(left, right) {
     if (delta !== 0) return delta;
   }
   return 0;
+}
+
+function staticAioncoreCompatibility(expectedVersion) {
+  const normalizedExpectedVersion = normalizeAioncoreVersion(expectedVersion);
+  const versionParts = normalizedExpectedVersion.split('.').map(Number);
+  if (
+    !normalizedExpectedVersion ||
+    versionParts.length !== 3 ||
+    versionParts.some((part) => !Number.isInteger(part) || part < 0)
+  ) {
+    throw new Error(
+      `AionCore compatibility check cannot be skipped without an exact stable version, received ${
+        normalizedExpectedVersion || '<missing>'
+      }`
+    );
+  }
+  if (compareStableVersions(versionParts, MINIMUM_AIONCORE_VERSION) < 0) {
+    throw new Error(`AionCore recovery requires AionCore >= 0.1.49, reported ${normalizedExpectedVersion}`);
+  }
+  return { version: normalizedExpectedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
 }
 
 function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
@@ -283,6 +308,16 @@ function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) 
   }
 
   return { version: reportedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
+}
+
+function resolveAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
+  if (options.skipHostProbe) {
+    if (options.targetPlatform === options.hostPlatform) {
+      throw new Error('AionCore compatibility probe may only be skipped for a cross-platform target.');
+    }
+    return staticAioncoreCompatibility(expectedVersion);
+  }
+  return assertAioncoreCompatibility(binaryPath, expectedVersion, options);
 }
 
 function assertPreparedRuntimeManifestCompatibility(runtimeDir, platform, arch, expectedVersion) {
@@ -1094,8 +1129,10 @@ function prepareAioncore(options) {
       resourcesRoot: cachePaths.resourcesRoot,
       platform,
       arch,
-      expectedVersion: tag,
+      expectedVersion: tag || version,
       compatibilityExecFileSync,
+      skipCompatibilityProbe: options.skipCompatibilityProbe === true,
+      hostPlatform: process.platform,
     })
   ) {
     console.log(`  Using cached bundled aioncore: ${path.relative(process.cwd(), cachePaths.runtimeDir)}`);
@@ -1144,8 +1181,11 @@ function prepareAioncore(options) {
     ensureExecutableMode(targetBinaryPath);
     let compatibility;
     try {
-      compatibility = assertAioncoreCompatibility(targetBinaryPath, tag, {
+      compatibility = resolveAioncoreCompatibility(targetBinaryPath, tag || version, {
         execFileSync: compatibilityExecFileSync,
+        skipHostProbe: options.skipCompatibilityProbe === true,
+        targetPlatform: platform,
+        hostPlatform: process.platform,
       });
     } catch (error) {
       removeDirectorySafe(targetDir);
@@ -1223,6 +1263,8 @@ module.exports = {
   prepareAioncore,
   __test__: {
     assertAioncoreCompatibility,
+    resolveAioncoreCompatibility,
+    staticAioncoreCompatibility,
     assertPreparedRuntimeManifestCompatibility,
     defaultAioncoreCacheRoot,
     downloadFile,

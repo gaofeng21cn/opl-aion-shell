@@ -741,6 +741,7 @@ try {
     arch: isWindowsBuild ? 'x64' : targetArch,
     version: resolveAioncoreVersion(projectRoot),
     compatibilityExecFileSync: isWindowsBuild ? createWindowsWslLinuxExecFileSync() : undefined,
+    skipCompatibilityProbe: isWindowsBuild,
   });
 
   // 6. Prepare hub resources (index.json + extension zips for offline fallback)
