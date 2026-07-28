@@ -25,6 +25,11 @@ const require = createRequire(import.meta.url);
 const afterPack = require('../../../scripts/afterPack.js') as {
   __test__: {
     pruneNonTargetBundledRuntimes: (resourcesDir: string, electronPlatformName: string, targetArch: string) => string[];
+    resolvePackagedAioncoreTarget: (
+      electronPlatformName: string,
+      targetArch: string
+    ) => { platform: string; arch: string; runtimeKey: string };
+    verifyWindowsWslResources: (resourcesDir: string, electronPlatformName: string) => void;
   };
 };
 
@@ -135,7 +140,7 @@ childProcess.spawnSync = function mockedSpawnSync() {
 
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -200,6 +205,55 @@ describe('build-with-builder', () => {
 
       expect(removed).toEqual(['linux-arm64', 'linux-x64']);
       expect(readdirSync(bundledRoot).sort()).toEqual(['darwin-arm64', 'manifest.json']);
+    } finally {
+      rmSync(resourcesDir, { recursive: true, force: true });
+    }
+  });
+
+  it('packages the Linux x64 carrier for Windows and removes the native Agent fallback', () => {
+    const resourcesDir = mkdtempSync(join(tmpdir(), 'opl-windows-wsl-runtime-test-'));
+    const bundledRoot = join(resourcesDir, 'bundled-aioncore');
+    mkdirSync(join(bundledRoot, 'linux-x64'), { recursive: true });
+    mkdirSync(join(bundledRoot, 'win32-x64'), { recursive: true });
+
+    try {
+      expect(afterPack.__test__.resolvePackagedAioncoreTarget('win32', 'x64')).toEqual({
+        platform: 'linux',
+        arch: 'x64',
+        runtimeKey: 'linux-x64',
+      });
+      expect(() => afterPack.__test__.resolvePackagedAioncoreTarget('win32', 'arm64')).toThrow(/supports x64 only/);
+      const removed = afterPack.__test__.pruneNonTargetBundledRuntimes(resourcesDir, 'win32', 'x64');
+      expect(removed).toEqual(['win32-x64']);
+      expect(readdirSync(bundledRoot)).toEqual(['linux-x64']);
+    } finally {
+      rmSync(resourcesDir, { recursive: true, force: true });
+    }
+  });
+
+  it('requires the OPL Linux bootstrap and rejects a packaged native Windows runtime', () => {
+    const resourcesDir = mkdtempSync(join(tmpdir(), 'opl-windows-wsl-resources-test-'));
+    const required = [
+      'opl-linux/product.json',
+      'opl-linux/bootstrap/install-opl-linux.sh',
+      'opl-linux/bootstrap/opl-runtime-exec',
+      'opl-linux/bootstrap/opl-runtime-control',
+      'opl-linux/bootstrap/opl-runtime-inspect',
+      'bundled-aioncore/linux-x64/aioncore',
+      'bundled-aioncore/linux-x64/manifest.json',
+    ];
+    try {
+      for (const relativePath of required) {
+        const absolutePath = join(resourcesDir, relativePath);
+        mkdirSync(resolve(absolutePath, '..'), { recursive: true });
+        writeFileSync(absolutePath, 'fixture');
+      }
+      expect(() => afterPack.__test__.verifyWindowsWslResources(resourcesDir, 'win32')).not.toThrow();
+
+      mkdirSync(join(resourcesDir, 'bundled-aioncore/win32-x64'), { recursive: true });
+      expect(() => afterPack.__test__.verifyWindowsWslResources(resourcesDir, 'win32')).toThrow(
+        /forbidden native Agent runtime fallback/
+      );
     } finally {
       rmSync(resourcesDir, { recursive: true, force: true });
     }
@@ -270,7 +324,7 @@ function writePackagedMacApp() {
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   record(commandText);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -368,7 +422,7 @@ function writePackagedMacApp() {
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   record(commandText);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -430,7 +484,7 @@ childProcess.execSync = function mockedExecSync(command) {
     expect(fallbackDmgPresent).toBe(false);
   });
 
-  it('retains the bounded DMG retry for a complete product app', () => {
+  it.skipIf(process.platform !== 'darwin')('retains the bounded DMG retry for a complete product app', () => {
     const { result, commands, fallbackDmgPresent } = runDmgRetryFixture('complete-product-app');
 
     expect(result.status, result.stderr || result.stdout).toBe(0);
@@ -465,7 +519,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
 
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -534,7 +588,7 @@ function record(command) {
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   record(commandText);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -582,21 +636,25 @@ childProcess.execSync = function mockedExecSync(command) {
 
   it.each([
     {
-      args: ['arm64', '--win', '--arm64'],
-      expectedArch: 'arm64',
+      args: ['x64', '--win', '--x64'],
+      expectedArch: 'x64',
+      expectedPlatform: 'linux',
     },
     {
       args: ['auto', '--mac', '--x64'],
       expectedArch: 'x64',
+      expectedPlatform: process.platform,
     },
-  ])('prepares bundled AionCore for $expectedArch with args $args', ({ args, expectedArch }) => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'aionui-build-test-'));
-    const hookPath = join(tempDir, 'hook.cjs');
-    const callsPath = join(tempDir, 'prepare-calls.json');
+  ])(
+    'prepares bundled AionCore for $expectedPlatform-$expectedArch with args $args',
+    ({ args, expectedArch, expectedPlatform }) => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'aionui-build-test-'));
+      const hookPath = join(tempDir, 'hook.cjs');
+      const callsPath = join(tempDir, 'prepare-calls.json');
 
-    writeFileSync(
-      hookPath,
-      `
+      writeFileSync(
+        hookPath,
+        `
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const Module = require('node:module');
@@ -641,7 +699,7 @@ function ensurePlaceholder(relativePath) {
 
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
@@ -667,30 +725,39 @@ childProcess.execSync = function mockedExecSync(command) {
   return Buffer.from('');
 };
 `,
-      'utf8'
-    );
+        'utf8'
+      );
 
-    try {
-      const result = withOutBundleBackup(() => {
-        return spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args, '--force'], {
-          cwd: repoRoot,
-          encoding: 'utf8',
-          env: {
-            ...process.env,
-            AIONUI_PREPARE_CALLS_FILE: callsPath,
-            NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
-          },
+      try {
+        const result = withOutBundleBackup(() => {
+          return spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args, '--force'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            env: {
+              ...process.env,
+              AIONUI_PREPARE_CALLS_FILE: callsPath,
+              NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+            },
+          });
         });
-      });
 
-      expect(result.status, result.stderr || result.stdout).toBe(0);
+        expect(result.status, result.stderr || result.stdout).toBe(0);
 
-      const calls = JSON.parse(readFileSync(callsPath, 'utf8')) as Array<{ arch?: string } | null>;
-      expect(calls).toContainEqual(expect.objectContaining({ arch: expectedArch }));
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
+        const calls = JSON.parse(readFileSync(callsPath, 'utf8')) as Array<{
+          arch?: string;
+          platform?: string;
+        } | null>;
+        expect(calls).toContainEqual(
+          expect.objectContaining({
+            arch: expectedArch,
+            platform: expectedPlatform,
+          })
+        );
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   it('rejects empty Vite bundle entrypoints before packaging', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'aionui-empty-build-test-'));
@@ -705,7 +772,7 @@ const path = require('node:path');
 
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
-  if (commandText.includes('electron-vite build')) {
+  if (commandText.includes('electron-vite')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), '');

@@ -7,7 +7,7 @@
  * - Falls back to standard bunx if vx is not available
  */
 
-const { execSync, execFileSync, spawnSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -29,8 +29,28 @@ function isVxAvailable() {
  * Note: does NOT add 'vx' prefix here — the caller's cmdPrefix (e.g. 'vx --with msvc')
  * already provides the vx entry point, so we must not nest another 'vx' call.
  */
-function getBunxCommand() {
-  return process.platform === 'win32' ? 'bun x' : 'bun x';
+function resolveBunExecutable({ env = process.env, execPath = process.execPath } = {}) {
+  const explicitExecutable = env.BUN_EXECUTABLE?.trim();
+  if (explicitExecutable) {
+    const resolvedExecutable = path.resolve(explicitExecutable);
+    if (!fs.existsSync(resolvedExecutable) || !fs.statSync(resolvedExecutable).isFile()) {
+      throw new Error(`BUN_EXECUTABLE does not resolve to a file: ${resolvedExecutable}`);
+    }
+    return resolvedExecutable;
+  }
+
+  if (/^bun(?:x)?(?:\.exe)?$/i.test(path.basename(execPath))) {
+    return execPath;
+  }
+  return 'bun';
+}
+
+function quoteCommandExecutable(executable) {
+  return /\s/.test(executable) ? `"${executable.replace(/"/g, '\\"')}"` : executable;
+}
+
+function getBunxCommand(options) {
+  return `${quoteCommandExecutable(resolveBunExecutable(options))} x`;
 }
 
 /**
@@ -250,21 +270,12 @@ function rebuildSingleModule(options) {
         : `${bunxCmd} ${prebuildArgs.join(' ')}`;
       console.log(`     Running: ${fullCmd}`);
 
-      if (useShell) {
-        execSync(fullCmd, {
-          cwd: moduleRoot,
-          env,
-          stdio: 'inherit',
-          shell: true,
-        });
-      } else {
-        execFileSync(bunxCmd, prebuildArgs, {
-          cwd: moduleRoot,
-          env,
-          stdio: 'inherit',
-          shell: true,
-        });
-      }
+      execSync(fullCmd, {
+        cwd: moduleRoot,
+        env,
+        stdio: 'inherit',
+        shell: useShell || process.platform === 'win32',
+      });
 
       console.log(`     ✓ prebuild-install succeeded`);
       return true;
@@ -303,21 +314,12 @@ function rebuildSingleModule(options) {
       : `${bunxCmd} ${rebuildArgs.join(' ')}`;
     console.log(`     Running: ${fullCmd}`);
 
-    if (useShell) {
-      execSync(fullCmd, {
-        cwd: projectRoot,
-        env,
-        stdio: 'inherit',
-        shell: true,
-      });
-    } else {
-      execFileSync(bunxCmd, rebuildArgs, {
-        cwd: projectRoot,
-        env,
-        stdio: 'inherit',
-        shell: true,
-      });
-    }
+    execSync(fullCmd, {
+      cwd: projectRoot,
+      env,
+      stdio: 'inherit',
+      shell: useShell || process.platform === 'win32',
+    });
     return true;
   } catch (error) {
     console.error(`❌ Failed to rebuild ${moduleName}:`, error.message);
@@ -396,6 +398,7 @@ module.exports = {
   verifyModuleBinary,
   canCrossCompileFromSource,
   isVxAvailable,
+  resolveBunExecutable,
   getBunxCommand,
   getCommandPrefix,
 };

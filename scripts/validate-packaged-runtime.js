@@ -89,6 +89,10 @@ function packageJsonRelativePath(packageName) {
   return path.join('node_modules', ...packagePathSegments(packageName), 'package.json').replace(/\\/g, '/');
 }
 
+function normalizeAsarEntry(entry) {
+  return entry.replace(/^[\\/]+/, '').replace(/\\/g, '/');
+}
+
 function loadAsar() {
   try {
     return require('@electron/asar');
@@ -109,7 +113,7 @@ function appAsarContainsPackage(appAsarPath, packageName) {
   if (!asar?.listPackage) {
     throw new Error('@electron/asar is required to validate packaged app.asar archives');
   }
-  const entries = asar.listPackage(appAsarPath).map((entry) => entry.replace(/^\/+/, ''));
+  const entries = asar.listPackage(appAsarPath).map(normalizeAsarEntry);
   return entries.includes(relativePackageJson);
 }
 
@@ -290,6 +294,7 @@ if (require.main === module) {
 module.exports = {
   REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES,
   REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES,
+  normalizeAsarEntry,
   packageJsonRelativePath,
   listProductionNodeModulePaths,
   validateMainProcessRuntimeDependencies,

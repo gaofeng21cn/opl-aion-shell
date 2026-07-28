@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HOME=/home/opl
+export CODEX_HOME=/home/opl/.codex
+export OPL_WORKSPACE_ROOT=/home/opl/code
+export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export OPL_CODEX_BIN=/usr/local/bin/codex
+
+if [[ "${1:-}" != "--json" ]]; then
+  printf 'runtime-inspect requires --json.\n' >&2
+  exit 64
+fi
+
+identity=/etc/opl/identity.json
+if [[ ! -f "$identity" ]]; then
+  printf 'OPL Linux identity is missing.\n' >&2
+  exit 69
+fi
+
+identity_codex_realpath="$(jq -er '.codex_realpath' "$identity")"
+identity_codex_digest="$(jq -er '.codex_digest' "$identity")"
+codex_command_path="$(command -v codex || true)"
+if [[ "$codex_command_path" != "$OPL_CODEX_BIN" ]] || [[ ! -x "$codex_command_path" ]]; then
+  printf 'The owner-bound Codex command is unavailable.\n' >&2
+  exit 69
+fi
+codex_command_realpath="$(readlink -f "$codex_command_path")"
+codex_command_sha256="$(sha256sum "$codex_command_realpath" | awk '{print $1}')"
+if [[ "$codex_command_realpath" != "$identity_codex_realpath" ]] ||
+  [[ "sha256:$codex_command_sha256" != "$identity_codex_digest" ]]; then
+  printf 'The owner-bound Codex command does not match the guest identity.\n' >&2
+  exit 65
+fi
+
+framework_path="$(command -v opl || true)"
+if [[ -z "$framework_path" ]] || [[ ! -x "$framework_path" ]]; then
+  printf 'Framework CLI is unavailable.\n' >&2
+  exit 69
+fi
+framework_realpath="$(readlink -f "$framework_path")"
+framework_sha256="$(sha256sum "$framework_realpath" | awk '{print $1}')"
+bootstrap_sha256="$(
+  for name in opl-runtime-control opl-runtime-exec opl-runtime-inspect; do
+    printf '%s\0' "$name"
+    cat "/opt/opl/bootstrap/$name"
+    printf '\0'
+  done | sha256sum | awk '{print $1}'
+)"
+active_operation_count="$(
+  find /var/lib/opl/runtime-state -maxdepth 1 -type f -name '*.json' -print 2>/dev/null |
+    wc -l |
+    tr -d '[:space:]'
+)"
+
+jq \
+  --arg framework_path "$framework_realpath" \
+  --arg framework_digest "sha256:$framework_sha256" \
+  --arg codex_command_path "$codex_command_path" \
+  --arg codex_realpath "$codex_command_realpath" \
+  --arg codex_command_digest "sha256:$codex_command_sha256" \
+  --arg bootstrap_sha256 "$bootstrap_sha256" \
+  --arg wsl_interop "${WSL_INTEROP:-}" \
+  --argjson active_operation_count "$active_operation_count" \
+  '. + {
+    schema: "opl_linux_runtime_inspection.v1",
+    protocol_version: 1,
+    bootstrap_digest: ("sha256:" + $bootstrap_sha256),
+    codex_command_path: $codex_command_path,
+    codex_realpath: $codex_realpath,
+    codex_command_digest: $codex_command_digest,
+    framework_path: $framework_path,
+    framework_digest: $framework_digest,
+    wsl2: ($wsl_interop | length > 0),
+    active_operation_count: $active_operation_count
+  }' \
+  "$identity"

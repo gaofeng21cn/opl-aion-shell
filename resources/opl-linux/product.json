@@ -1,0 +1,15 @@
+{
+  "schema": "opl_linux_product_manifest.v1",
+  "logical_distribution": "OPL-Linux",
+  "physical_distribution": "OPL-Linux",
+  "wsl_version": 2,
+  "architecture": "x86_64",
+  "guest_user": "opl",
+  "codex_home": "/home/opl/.codex",
+  "workspace_root": "/home/opl/code",
+  "framework_ref": "81c65f304d5dc58518dbffa89ba709a185f0f376",
+  "framework_install_script_url": "https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/81c65f304d5dc58518dbffa89ba709a185f0f376/install.sh",
+  "framework_source_archive_url": "https://github.com/gaofeng21cn/one-person-lab/archive/81c65f304d5dc58518dbffa89ba709a185f0f376.tar.gz",
+  "native_windows_executor_fallback_allowed": false,
+  "allowed_programs": ["aioncore", "codex-app-server", "opl-cli"]
+}

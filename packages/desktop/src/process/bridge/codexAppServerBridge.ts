@@ -9,6 +9,7 @@ import { ipcBridge } from '@/common';
 import { type CodexAppServerAdapter, createProductionCodexAppServerAdapter } from '../services/codexAppServer/adapter';
 
 let activeAdapter: CodexAppServerAdapter | null = null;
+let activeAdapterFactory: () => CodexAppServerAdapter = createProductionCodexAppServerAdapter;
 let quitHandlerInstalled = false;
 
 export function disposeCodexAppServerBridge(): void {
@@ -16,23 +17,28 @@ export function disposeCodexAppServerBridge(): void {
   activeAdapter = null;
 }
 
-export function initCodexAppServerBridge(
-  adapter: CodexAppServerAdapter = createProductionCodexAppServerAdapter()
-): void {
-  disposeCodexAppServerBridge();
-  activeAdapter = adapter;
+function getActiveAdapter(): CodexAppServerAdapter {
+  activeAdapter ??= activeAdapterFactory();
+  return activeAdapter;
+}
 
-  ipcBridge.codexThreads.list.provider((request) => adapter.listThreads(request));
-  ipcBridge.codexThreads.read.provider(({ threadId }) => adapter.readThread(threadId));
-  ipcBridge.codexThreads.start.provider((request) => adapter.startThread(request));
-  ipcBridge.codexThreads.resume.provider(({ threadId }) => adapter.resumeThread(threadId));
-  ipcBridge.codexThreads.fork.provider(({ threadId }) => adapter.forkThread(threadId));
-  ipcBridge.codexThreads.rename.provider(({ threadId, name }) => adapter.renameThread(threadId, name));
-  ipcBridge.codexThreads.updateSettings.provider(({ threadId, cwd }) => adapter.updateThreadSettings(threadId, cwd));
-  ipcBridge.codexThreads.archive.provider(({ threadId }) => adapter.archiveThread(threadId));
-  ipcBridge.codexThreads.unarchive.provider(({ threadId }) => adapter.unarchiveThread(threadId));
-  ipcBridge.codexThreads.delete.provider(({ threadId }) => adapter.deleteThread(threadId));
-  ipcBridge.codexThreads.startReview.provider((request) => adapter.startReview(request));
+export function initCodexAppServerBridge(adapter?: CodexAppServerAdapter): void {
+  disposeCodexAppServerBridge();
+  activeAdapterFactory = adapter ? () => adapter : createProductionCodexAppServerAdapter;
+
+  ipcBridge.codexThreads.list.provider((request) => getActiveAdapter().listThreads(request));
+  ipcBridge.codexThreads.read.provider(({ threadId }) => getActiveAdapter().readThread(threadId));
+  ipcBridge.codexThreads.start.provider((request) => getActiveAdapter().startThread(request));
+  ipcBridge.codexThreads.resume.provider(({ threadId }) => getActiveAdapter().resumeThread(threadId));
+  ipcBridge.codexThreads.fork.provider(({ threadId }) => getActiveAdapter().forkThread(threadId));
+  ipcBridge.codexThreads.rename.provider(({ threadId, name }) => getActiveAdapter().renameThread(threadId, name));
+  ipcBridge.codexThreads.updateSettings.provider(({ threadId, cwd }) =>
+    getActiveAdapter().updateThreadSettings(threadId, cwd)
+  );
+  ipcBridge.codexThreads.archive.provider(({ threadId }) => getActiveAdapter().archiveThread(threadId));
+  ipcBridge.codexThreads.unarchive.provider(({ threadId }) => getActiveAdapter().unarchiveThread(threadId));
+  ipcBridge.codexThreads.delete.provider(({ threadId }) => getActiveAdapter().deleteThread(threadId));
+  ipcBridge.codexThreads.startReview.provider((request) => getActiveAdapter().startReview(request));
 
   if (!quitHandlerInstalled) {
     quitHandlerInstalled = true;

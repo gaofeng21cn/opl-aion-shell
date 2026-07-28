@@ -70,6 +70,33 @@ class IntersectionObserverMock {
 
 global.IntersectionObserver = IntersectionObserverMock as unknown as typeof IntersectionObserver;
 
+class WebSocketMock extends EventTarget {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+
+  readonly url: string;
+  readyState = WebSocketMock.CONNECTING;
+
+  constructor(url: string | URL) {
+    super();
+    this.url = String(url);
+  }
+
+  send() {}
+
+  close() {
+    this.readyState = WebSocketMock.CLOSED;
+  }
+}
+
+Object.defineProperty(globalThis, 'WebSocket', {
+  configurable: true,
+  value: WebSocketMock,
+  writable: true,
+});
+
 // Mock requestAnimationFrame
 global.requestAnimationFrame = (callback: FrameRequestCallback) => {
   return setTimeout(() => callback(Date.now()), 0) as unknown as number;

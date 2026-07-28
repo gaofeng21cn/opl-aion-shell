@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+kind=''
+operation_token=''
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --kind)
+      kind="${2:-}"
+      shift 2
+      ;;
+    --operation-token)
+      operation_token="${2:-}"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      printf 'Unsupported runtime-exec argument.\n' >&2
+      exit 64
+      ;;
+  esac
+done
+
+if [[ ! "$operation_token" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+  printf 'Invalid operation token.\n' >&2
+  exit 64
+fi
+
+export HOME=/home/opl
+export CODEX_HOME=/home/opl/.codex
+export OPL_WORKSPACE_ROOT=/home/opl/code
+export OPL_OPERATION_TOKEN="$operation_token"
+export OPL_CARRIER_ID=OPL-Linux
+export AIONUI_CACHE_DIR=/home/opl/.cache/one-person-lab
+export AIONUI_WORK_DIR=/home/opl/.local/state/one-person-lab/work
+export AIONUI_LOG_DIR=/home/opl/.local/state/one-person-lab/logs
+export PATH="/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export OPL_CODEX_BIN=/usr/local/bin/codex
+
+carrier=/opt/opl/carrier/current
+codex="$OPL_CODEX_BIN"
+case "$kind" in
+  aioncore)
+    program="$carrier/aioncore"
+    expected_executable="$(readlink -f "$program")"
+    ;;
+  codex-app-server)
+    program="$codex"
+    expected_executable="$(readlink -f "$program")"
+    ;;
+  opl-cli)
+    program="$(command -v opl || true)"
+    node_path="$(command -v node || true)"
+    expected_executable="$(readlink -f "$node_path")"
+    ;;
+  *)
+    printf 'Unsupported runtime program.\n' >&2
+    exit 64
+    ;;
+esac
+if [[ -z "$program" ]] || [[ ! -x "$program" ]] || [[ -z "$expected_executable" ]] ||
+  [[ ! -x "$expected_executable" ]]; then
+  printf 'Runtime program is unavailable: %s\n' "$kind" >&2
+  exit 69
+fi
+
+state_root=/var/lib/opl/runtime-state
+record="$state_root/$operation_token.json"
+install -d -m 0700 "$state_root"
+if [[ -e "$record" ]]; then
+  printf 'Operation token is already active.\n' >&2
+  exit 73
+fi
+cleanup_record() {
+  rm -f "$record.pending" "$record"
+}
+trap cleanup_record EXIT
+
+setsid "$program" "$@" <&0 &
+child_pid=$!
+
+identity_deadline=$((SECONDS + 5))
+while [[ -r "/proc/$child_pid/stat" ]] &&
+  [[ "$(readlink -f "/proc/$child_pid/exe")" != "$expected_executable" ]] &&
+  [[ "$SECONDS" -lt "$identity_deadline" ]]; do
+  sleep 0.01
+done
+if [[ ! -r "/proc/$child_pid/stat" ]]; then
+  set +e
+  wait "$child_pid"
+  exit_code=$?
+  set -e
+  exit "$exit_code"
+fi
+program_realpath="$(readlink -f "/proc/$child_pid/exe")"
+if [[ "$program_realpath" != "$expected_executable" ]]; then
+  kill -TERM -- "-$(ps -o pgid= -p "$child_pid" | tr -d ' ')" 2>/dev/null || true
+  wait "$child_pid" 2>/dev/null || true
+  printf 'Runtime program did not reach its expected executable identity: %s\n' "$kind" >&2
+  exit 70
+fi
+
+child_starttime="$(awk '{print $22}' "/proc/$child_pid/stat")"
+child_pgid="$(ps -o pgid= -p "$child_pid" | tr -d ' ')"
+program_sha256="$(sha256sum "$program_realpath" | awk '{print $1}')"
+
+jq -n \
+  --arg token "$operation_token" \
+  --arg kind "$kind" \
+  --arg carrier "OPL-Linux" \
+  --arg starttime "$child_starttime" \
+  --arg pgid "$child_pgid" \
+  --arg executable "$program_realpath" \
+  --arg executable_sha256 "$program_sha256" \
+  --argjson pid "$child_pid" \
+  '{
+    schema: "opl_linux_runtime_operation.v1",
+    operation_token: $token,
+    program_kind: $kind,
+    carrier_id: $carrier,
+    pid: $pid,
+    starttime: $starttime,
+    process_group: $pgid,
+    executable: $executable,
+    executable_sha256: $executable_sha256
+  }' >"$record.pending"
+chmod 0600 "$record.pending"
+mv "$record.pending" "$record"
+
+forward_term() {
+  kill -TERM -- "-$child_pgid" 2>/dev/null || true
+}
+trap forward_term TERM INT
+
+set +e
+wait "$child_pid"
+exit_code=$?
+set -e
+exit "$exit_code"

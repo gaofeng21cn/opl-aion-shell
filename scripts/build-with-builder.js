@@ -11,7 +11,7 @@
  * - Directory-only packaging: use --dir-only to produce the unpacked app bundle
  */
 
-const { execSync, spawnSync } = require('child_process');
+const { execFileSync, execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -399,13 +399,50 @@ function buildOplReleaseVersionConfigArg() {
   return `--config.extraMetadata.version=${updaterVersion}`;
 }
 
+function resolvePackageCommand(commandName) {
+  const executableName = process.platform === 'win32' ? `${commandName}.exe` : commandName;
+  const localExecutable = path.resolve(__dirname, '..', 'node_modules', '.bin', executableName);
+  if (fs.existsSync(localExecutable) && fs.statSync(localExecutable).isFile()) {
+    return `"${localExecutable}"`;
+  }
+  return `bunx ${commandName}`;
+}
+
+function createWindowsWslLinuxExecFileSync() {
+  if (process.platform !== 'win32') return undefined;
+  const toLinuxPath = (windowsPath) =>
+    String(
+      execFileSync('wsl.exe', ['--exec', 'wslpath', '-a', windowsPath], {
+        encoding: 'utf8',
+        timeout: 15000,
+      })
+    ).trim();
+  const translateArg = (value) => (/^[A-Za-z]:[\\/]/.test(value) ? toLinuxPath(value) : value);
+  return (executable, args, options = {}) => {
+    const linuxExecutable = translateArg(path.resolve(executable));
+    const linuxArgs = args.map((arg) => translateArg(String(arg)));
+    const managedEnv = options.env ?? {};
+    const guestEnv = [
+      'AIONUI_BUNDLED_MANAGED_RESOURCES',
+      'npm_config_fetch_timeout',
+      'npm_config_fetch_retries',
+      'npm_config_audit',
+      'npm_config_fund',
+    ].flatMap((key) => (managedEnv[key] === undefined ? [] : [`${key}=${managedEnv[key]}`]));
+    return execFileSync('wsl.exe', ['--exec', 'env', ...guestEnv, linuxExecutable, ...linuxArgs], {
+      ...options,
+      env: process.env,
+    });
+  };
+}
+
 // Create DMG using electron-builder --prepackaged with a validated .app path
 // This preserves DMG styling from electron-builder.yml (window size, icon positions, background)
 function createDmgWithPrepackaged(appPath, targetArch) {
   const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
 
   execSync(
-    `bunx electron-builder --config packages/desktop/electron-builder.yml --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}`.trim(),
+    `${resolvePackageCommand('electron-builder')} --config packages/desktop/electron-builder.yml --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}`.trim(),
     {
       stdio: 'inherit',
       shell: process.platform === 'win32',
@@ -643,7 +680,7 @@ try {
     // Run electron-vite to build all bundles (main + preload + renderer)
     cleanViteBundleOutput();
     console.log(`📦 Building ${targetArch}...`);
-    execSync(`bunx electron-vite build --config packages/desktop/electron.vite.config.ts`, {
+    execSync(`${resolvePackageCommand('electron-vite')} build --config packages/desktop/electron.vite.config.ts`, {
       stdio: 'inherit',
       shell: process.platform === 'win32',
       env: {
@@ -694,11 +731,17 @@ try {
   const { prepareAioncore } = require('../packages/shared-scripts/src/prepare-aioncore.js');
   const { resolveAioncoreVersion } = require('./resolveAioncoreVersion.js');
   const projectRoot = path.resolve(__dirname, '..');
+  const isWindowsBuild = builderArgs.includes('--win');
+  if (isWindowsBuild && targetArch !== 'x64') {
+    throw new Error(`The OPL Windows WSL2 runtime currently supports x64 only, received ${targetArch}`);
+  }
   prepareAioncore({
     projectRoot,
-    platform: process.platform,
-    arch: targetArch,
+    platform: isWindowsBuild ? 'linux' : process.platform,
+    arch: isWindowsBuild ? 'x64' : targetArch,
     version: resolveAioncoreVersion(projectRoot),
+    compatibilityExecFileSync: isWindowsBuild ? createWindowsWslLinuxExecFileSync() : undefined,
+    skipCompatibilityProbe: isWindowsBuild && process.platform !== 'linux',
   });
 
   // 6. Prepare hub resources (index.json + extension zips for offline fallback)
@@ -781,8 +824,8 @@ try {
     }
   }
 
-  const isWindowsBuild = builderArgs.includes('--win') || builderArgs.includes('--all');
-  if (isWindowsBuild) {
+  const packagesWindows = builderArgs.includes('--win') || builderArgs.includes('--all');
+  if (packagesWindows) {
     cleanupWindowsPackOutput();
   }
   cleanupStaleDistributableArtifacts(oplReleaseVersion);
@@ -790,57 +833,69 @@ try {
   const normalizedBuilderArgs = normalizeBuilderTargetArgs(builderArgs);
   const builderTargetArgs = dirOnly ? '--dir' : [normalizedBuilderArgs, nsisInclude].filter(Boolean).join(' ');
   const builderCommand =
-    `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
+    `${resolvePackageCommand('electron-builder')} --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
   const shouldRequirePackagedMacApp =
     normalizedBuilderArgs.includes('--mac') ||
     normalizedBuilderArgs.includes('--all') ||
     (dirOnly && process.platform === 'darwin');
-  try {
-    buildWithDmgRetry(builderCommand, targetArch);
-  } catch (error) {
-    const winExePath = path.join(outDir, 'win-unpacked', 'AionUi.exe');
-    const firstError = formatExecError(error);
-    const canRetryWithoutExecutableEdit =
-      process.platform === 'win32' && isWindowsBuild && process.env.CI !== 'true' && fs.existsSync(winExePath);
-
-    if (!canRetryWithoutExecutableEdit) {
-      throw error;
-    }
-
-    console.log('⚠️  Windows local build failed after AionUi.exe was produced.');
-    if (firstError) {
-      console.log('   First failure summary:');
-      console.log(
-        firstError
-          .split(/\r?\n/)
-          .slice(0, 6)
-          .map((line) => `   ${line}`)
-          .join('\n')
-      );
-    }
-    console.log('   Retrying local build with win.signAndEditExecutable=false...');
-    console.log('   This fallback is intended for transient rcedit / file-lock failures on developer machines.');
-    killWindowsProcesses(['AionUi.exe', 'electron.exe']);
-    cleanupWindowsPackOutput();
-
-    try {
-      buildWithDmgRetry(`${builderCommand} --config.win.signAndEditExecutable=false`, targetArch);
-    } catch (retryError) {
-      const retryFailure = formatExecError(retryError);
-      throw new Error(
-        [
-          'Windows local retry with win.signAndEditExecutable=false also failed.',
-          'First failure:',
-          firstError || String(error),
-          'Retry failure:',
-          retryFailure || String(retryError),
-        ].join('\n')
-      );
-    }
+  const runtimeDependencyMaterialization = packagesWindows
+    ? require('./materialize-packaged-runtime-dependencies.js').materializePackagedRuntimeDependencies(projectRoot)
+    : null;
+  if (runtimeDependencyMaterialization?.materialized.length > 0) {
+    console.log(
+      `📦 Materialized ${runtimeDependencyMaterialization.materialized.length} linked main-process runtime dependencies for Windows packaging`
+    );
   }
+  try {
+    try {
+      buildWithDmgRetry(builderCommand, targetArch);
+    } catch (error) {
+      const winExePath = path.join(outDir, 'win-unpacked', 'AionUi.exe');
+      const firstError = formatExecError(error);
+      const canRetryWithoutExecutableEdit =
+        process.platform === 'win32' && isWindowsBuild && process.env.CI !== 'true' && fs.existsSync(winExePath);
 
-  assertPackagedMacUpdaterConfigs(outDir, shouldRequirePackagedMacApp);
-  console.log('✅ Build completed!');
+      if (!canRetryWithoutExecutableEdit) {
+        throw error;
+      }
+
+      console.log('⚠️  Windows local build failed after AionUi.exe was produced.');
+      if (firstError) {
+        console.log('   First failure summary:');
+        console.log(
+          firstError
+            .split(/\r?\n/)
+            .slice(0, 6)
+            .map((line) => `   ${line}`)
+            .join('\n')
+        );
+      }
+      console.log('   Retrying local build with win.signAndEditExecutable=false...');
+      console.log('   This fallback is intended for transient rcedit / file-lock failures on developer machines.');
+      killWindowsProcesses(['AionUi.exe', 'electron.exe']);
+      cleanupWindowsPackOutput();
+
+      try {
+        buildWithDmgRetry(`${builderCommand} --config.win.signAndEditExecutable=false`, targetArch);
+      } catch (retryError) {
+        const retryFailure = formatExecError(retryError);
+        throw new Error(
+          [
+            'Windows local retry with win.signAndEditExecutable=false also failed.',
+            'First failure:',
+            firstError || String(error),
+            'Retry failure:',
+            retryFailure || String(retryError),
+          ].join('\n')
+        );
+      }
+    }
+
+    assertPackagedMacUpdaterConfigs(outDir, shouldRequirePackagedMacApp);
+    console.log('✅ Build completed!');
+  } finally {
+    runtimeDependencyMaterialization?.restore();
+  }
 } catch (error) {
   console.error('❌ Build failed:', error.message);
   process.exit(1);

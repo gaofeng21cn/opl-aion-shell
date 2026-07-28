@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   __oplRuntimeBridgeTest,
@@ -141,6 +142,108 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(__oplRuntimeBridgeTest.buildAppStateCommand('full')).toEqual({
       surface: 'app_state_full',
       args: ['app', 'state', '--profile', 'full', '--json'],
+    });
+  });
+
+  it('routes Windows Framework commands through the owner-bound OPL Linux runtime', () => {
+    const terminate = vi.fn(async () => {});
+    const finalize = vi.fn(async () => {});
+    const runtime = {
+      spawn: vi.fn(() => ({
+        child: {},
+        operationToken: 'framework-test',
+        terminate,
+        finalize,
+      })),
+    };
+    const spec = __oplRuntimeBridgeTest.buildAppStateCommand('fast');
+    const command = __oplRuntimeBridgeTest.buildRuntimeOplSpawnCommand(
+      spec,
+      {},
+      {
+        platform: 'win32',
+        windowsRuntime: runtime as never,
+      }
+    );
+
+    expect(command).toMatchObject({
+      command: 'wsl.exe',
+      args: [],
+      redactedCommand: 'opl app state --profile fast --json',
+    });
+    const launched = command.launch?.();
+    expect(runtime.spawn).toHaveBeenCalledWith({
+      program: 'opl-cli',
+      args: ['app', 'state', '--profile', 'fast', '--json'],
+    });
+    expect(launched?.finalize).toBe(finalize);
+  });
+
+  it('keeps Windows Framework stdin under the command runner single-write boundary', () => {
+    const terminate = vi.fn(async () => {});
+    const finalize = vi.fn(async () => {});
+    const runtime = {
+      spawn: vi.fn(() => ({
+        child: {},
+        operationToken: 'framework-stdin-test',
+        terminate,
+        finalize,
+      })),
+    };
+    const spec = __oplRuntimeBridgeTest.buildConfigureCodexCommand({
+      apiKey: 'compatibility-test-key',
+    });
+    const command = __oplRuntimeBridgeTest.buildRuntimeOplSpawnCommand(
+      spec,
+      {},
+      {
+        platform: 'win32',
+        windowsRuntime: runtime as never,
+      }
+    );
+
+    expect(command.stdin).toBe('compatibility-test-key\n');
+    command.launch?.();
+    expect(runtime.spawn).toHaveBeenCalledWith({
+      program: 'opl-cli',
+      args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
+    });
+  });
+
+  it('waits for owner-bound finalization before resolving a Windows Framework JSON command', async () => {
+    let releaseFinalize!: () => void;
+    const finalization = new Promise<void>((resolve) => {
+      releaseFinalize = resolve;
+    });
+    const finalize = vi.fn(() => finalization);
+    const child = spawn(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({ ready: true }))'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }) as ChildProcessWithoutNullStreams;
+    const resultPromise = __oplRuntimeBridgeTest.runSpawnJsonCommand({
+      surface: 'app_state_fast',
+      command: 'wsl.exe',
+      args: [],
+      redactedCommand: 'opl app state --profile fast --json',
+      launch: () => ({
+        child,
+        terminate: async () => {
+          child.kill('SIGTERM');
+        },
+        finalize,
+      }),
+    });
+    let settled = false;
+    void resultPromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => expect(finalize).toHaveBeenCalledTimes(1));
+    expect(settled).toBe(false);
+    releaseFinalize();
+
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: true,
+      parsed: { ready: true },
     });
   });
 
@@ -1534,6 +1637,37 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toEqual({ ok: false, errorCode: 'invalid_credentials', stateRefreshRequired: false });
   });
 
+  it('preserves the Framework reason code from a failed Gateway CLI envelope', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '',
+        parsed: null,
+        ok: false,
+        error: {
+          message:
+            'OPL runtime command failed (1): {"version":"g2","error":{"code":"launcher_failed","details":{"reason_code":"invalid_credentials"}}}',
+        },
+      })
+    ).toEqual({ ok: false, errorCode: 'invalid_credentials', stateRefreshRequired: false });
+  });
+
+  it('maps Framework transport reason codes to stable Gateway UI errors', () => {
+    expect(
+      __oplRuntimeBridgeTest.sanitizeGatewayAccountResult({
+        surface: 'gateway_account',
+        command: 'opl connect gateway login --credentials-stdin --json',
+        stdout: '',
+        parsed: null,
+        ok: false,
+        error: {
+          message: 'OPL runtime command failed (2): {"error":{"details":{"reason_code":"credentials_stdin_invalid"}}}',
+        },
+      })
+    ).toEqual({ ok: false, errorCode: 'invalid_request', stateRefreshRequired: false });
+  });
+
   it('parses initialize event envelopes and returns the complete payload as the command result payload', () => {
     const phaseEvent = __oplRuntimeBridgeTest.readInitializeEventEnvelope(
       JSON.stringify({
@@ -1621,6 +1755,62 @@ describe('OPL runtime bridge command whitelist', () => {
       parsed: {
         system_initialize: {
           setup_flow: { ready_to_launch: false },
+        },
+      },
+    });
+  });
+
+  it('waits for owner-bound finalization before resolving initialize event streaming', async () => {
+    const completeLine = JSON.stringify({
+      event: {
+        surface_id: 'opl_system_initialize_event',
+        event_type: 'complete',
+        phase: 'summary',
+        label: 'Initialize payload ready',
+        sequence: 1,
+        observed_at: '2026-07-28T00:00:00.000Z',
+        payload: {
+          system_initialize: {
+            setup_flow: { ready_to_launch: true },
+          },
+        },
+      },
+    });
+    let releaseFinalize!: () => void;
+    const finalization = new Promise<void>((resolve) => {
+      releaseFinalize = resolve;
+    });
+    const finalize = vi.fn(() => finalization);
+    const child = spawn(process.execPath, ['-e', `process.stdout.write(${JSON.stringify(`${completeLine}\n`)})`], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }) as ChildProcessWithoutNullStreams;
+    const resultPromise = __oplRuntimeBridgeTest.runInitializeEventsCommand({
+      surface: 'system_initialize',
+      command: 'wsl.exe',
+      args: [],
+      redactedCommand: 'opl system initialize --events --json',
+      launch: () => ({
+        child,
+        terminate: async () => {
+          child.kill('SIGTERM');
+        },
+        finalize,
+      }),
+    });
+    let settled = false;
+    void resultPromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => expect(finalize).toHaveBeenCalledTimes(1));
+    expect(settled).toBe(false);
+    releaseFinalize();
+
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: true,
+      parsed: {
+        system_initialize: {
+          setup_flow: { ready_to_launch: true },
         },
       },
     });
