@@ -231,8 +231,7 @@ const AcpSendBox: React.FC<{
   const cachedAgentModes = useAgentModesForBackend(backend);
   const availableAgentModes = useMemo(() => {
     if (preparedModes.length === 0) return cachedAgentModes;
-    const preparedValues = new Set(preparedModes.map((mode) => mode.value));
-    return [...preparedModes, ...cachedAgentModes.filter((mode) => !preparedValues.has(mode.value))];
+    return preparedModes;
   }, [cachedAgentModes, preparedModes]);
   const sessionModes = useMemo(() => filterNonPermissionAccessModes(availableAgentModes), [availableAgentModes]);
   const isModeSurfaceOpen = isMobile ? isMobileSheetOpen : isPaletteOpen;

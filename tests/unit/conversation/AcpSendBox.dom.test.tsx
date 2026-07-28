@@ -539,6 +539,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
         'true'
       )
     );
+    expect(screen.queryByTestId('mobile-action-sheet-option-permission-full-access')).not.toBeInTheDocument();
     expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
   });
 

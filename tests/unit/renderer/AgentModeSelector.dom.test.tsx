@@ -59,7 +59,12 @@ vi.mock('@arco-design/web-react', () => {
         {children}
       </button>
     ),
-    Dropdown: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    Dropdown: ({ children, droplist }: { children: React.ReactNode; droplist?: React.ReactNode }) => (
+      <>
+        {children}
+        {droplist}
+      </>
+    ),
     Menu,
     Message: { success: vi.fn(), error: vi.fn() },
   };
@@ -133,6 +138,8 @@ describe('AgentModeSelector runtime preparation', () => {
       expect(screen.getByTestId('mode-selector')).toHaveAttribute('data-current-mode', 'runtime-agent');
     });
     expect(screen.getByTestId('mode-selector')).toHaveTextContent('Runtime Agent');
+    expect(screen.getByTestId('aionrs-mode-option-runtime-agent')).toBeInTheDocument();
+    expect(screen.queryByTestId('aionrs-mode-option-full-access')).not.toBeInTheDocument();
     expect(getModeInvokeMock).not.toHaveBeenCalled();
   });
 

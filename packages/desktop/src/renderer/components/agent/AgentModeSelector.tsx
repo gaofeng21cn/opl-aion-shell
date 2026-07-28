@@ -136,8 +136,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     }
   }, [backend]);
 
-  // The prepared runtime catalog is current for this conversation. Keep cached
-  // or static entries only as additional choices until the next live refresh.
+  // A non-empty prepared catalog is authoritative for this conversation.
   const modes = useMemo(() => {
     const fallbackModes =
       dynamicModes && dynamicModes.length > 0
@@ -146,8 +145,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
           ? cachedModes
           : getAgentModes(backend);
     if (preparedModes.length === 0) return fallbackModes;
-    const preparedValues = new Set(preparedModes.map((mode) => mode.value));
-    return [...preparedModes, ...fallbackModes.filter((mode) => !preparedValues.has(mode.value))];
+    return preparedModes;
   }, [dynamicModes, cachedModes, backend, preparedModes]);
   const defaultMode = modes[0]?.value ?? 'default';
   // Validate initialMode against available modes; fall back to backend's default
