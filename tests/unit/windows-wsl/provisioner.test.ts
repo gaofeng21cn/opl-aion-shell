@@ -52,7 +52,8 @@ describe('WindowsWslProvisioner parsing and identity', () => {
   let resourcesPath: string;
 
   beforeEach(() => {
-    userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-wsl-provisioner-'));
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-wsl-provisioner-'));
+    userDataPath = path.join(tempRoot, 'OPL-RC-Acceptance', '30324758135', 'user-data');
     resourcesPath = path.join(userDataPath, 'resources');
     const bootstrapRoot = path.join(resourcesPath, 'opl-linux', 'bootstrap');
     fs.mkdirSync(bootstrapRoot, { recursive: true });
@@ -285,6 +286,113 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     );
   });
 
+  it('repairs a stale Framework ref even when the bootstrap digest is current', async () => {
+    let inspectCalls = 0;
+    let bootstrapCalls = 0;
+    const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
+      if (command === 'powershell.exe') {
+        return result(
+          0,
+          JSON.stringify({
+            distribution_name: 'OPL-Linux',
+            base_path: path.join(userDataPath, 'wsl', 'OPL-Linux'),
+          })
+        );
+      }
+      if (args.join(' ') === '--status') return result(0);
+      if (args.join(' ') === '--list --verbose') {
+        return result(0, 'NAME          STATE           VERSION\r\nOPL-Linux     Running         2\r\n');
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-runtime-inspect')) {
+        inspectCalls += 1;
+        return result(
+          0,
+          JSON.stringify({
+            ...identity(),
+            framework_ref: inspectCalls === 1 ? 'b'.repeat(40) : 'a'.repeat(40),
+          })
+        );
+      }
+      if (args.includes('/etc/opl/identity.json')) return result(0);
+      if (args.includes('wslpath')) {
+        return result(0, `/mnt/d/opl/${path.basename(args.at(-1) ?? 'resource')}\n`);
+      }
+      if (args.some((value) => value.endsWith('/install-opl-linux.sh'))) {
+        bootstrapCalls += 1;
+        return result(0);
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-install.sh')) return result(0);
+      throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+    });
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand,
+    });
+
+    await expect(provisioner.ensureReady()).resolves.toMatchObject({
+      framework_ref: 'a'.repeat(40),
+    });
+    expect(bootstrapCalls).toBe(1);
+  });
+
+  it('repairs a stale Framework ref from an older App-owned path', async () => {
+    let inspectCalls = 0;
+    let bootstrapCalls = 0;
+    const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
+      if (command === 'powershell.exe') {
+        return result(
+          0,
+          JSON.stringify({
+            distribution_name: 'OPL-Linux',
+            base_path: path.join(
+              path.dirname(path.dirname(userDataPath)),
+              '30286627648',
+              'wsl',
+              'OPL-Linux'
+            ),
+          })
+        );
+      }
+      if (args.join(' ') === '--status') return result(0);
+      if (args.join(' ') === '--list --verbose') {
+        return result(0, 'NAME          STATE           VERSION\r\nOPL-Linux     Stopped         2\r\n');
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-runtime-inspect')) {
+        inspectCalls += 1;
+        return result(
+          0,
+          JSON.stringify({
+            ...identity(),
+            framework_ref: inspectCalls < 3 ? 'b'.repeat(40) : 'a'.repeat(40),
+          })
+        );
+      }
+      if (args.includes('/etc/opl/identity.json')) return result(0);
+      if (args.includes('wslpath')) {
+        return result(0, `/mnt/d/opl/${path.basename(args.at(-1) ?? 'resource')}\n`);
+      }
+      if (args.some((value) => value.endsWith('/install-opl-linux.sh'))) {
+        bootstrapCalls += 1;
+        return result(0);
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-install.sh')) return result(0);
+      throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+    });
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand,
+    });
+
+    await expect(provisioner.ensureReady()).resolves.toMatchObject({
+      framework_ref: 'a'.repeat(40),
+    });
+    expect(bootstrapCalls).toBe(1);
+  });
+
   it('does not repair a same-name distribution registered outside App-owned data', async () => {
     const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
       if (command === 'powershell.exe') {
@@ -321,6 +429,50 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     ).toBe(false);
   });
 
+  it('bounds prior-task rebinding to the acceptance-owned root', () => {
+    expect(
+      __windowsWslProvisionerTest.isWindowsPathWithin(
+        'C:\\Users\\gaofe\\AppData\\Local\\OPL-RC-Acceptance',
+        'C:\\Users\\gaofe\\AppData\\Local\\OPL-RC-Acceptance\\30286627648\\wsl\\OPL-Linux'
+      )
+    ).toBe(true);
+    expect(
+      __windowsWslProvisionerTest.isWindowsPathWithin(
+        'C:\\Users\\gaofe\\AppData\\Local\\OPL-RC-Acceptance',
+        'C:\\Users\\gaofe\\AppData\\Local\\Other\\OPL-Linux'
+      )
+    ).toBe(false);
+  });
+
+  it('does not rebind a foreign path even when the guest identity is current', async () => {
+    const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
+      if (command === 'powershell.exe') {
+        return result(
+          0,
+          JSON.stringify({
+            distribution_name: 'OPL-Linux',
+            base_path: 'C:\\Foreign\\OPL-Linux',
+          })
+        );
+      }
+      if (args.join(' ') === '--status') return result(0);
+      if (args.join(' ') === '--list --verbose') {
+        return result(0, 'NAME          STATE           VERSION\r\nOPL-Linux     Stopped         2\r\n');
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+    });
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand,
+    });
+
+    await expect(provisioner.ensureReady()).rejects.toMatchObject({
+      code: 'same_name_foreign_distribution',
+    });
+  });
+
   it('rebinds a prior task-owned path when the existing guest proves the OPL identity contract', async () => {
     let inspectCalls = 0;
     let bootstrapCalls = 0;
@@ -330,7 +482,12 @@ describe('WindowsWslProvisioner parsing and identity', () => {
           0,
           JSON.stringify({
             distribution_name: 'OPL-Linux',
-            base_path: 'C:\\Users\\gaofe\\AppData\\Local\\OPL-RC-Acceptance\\30286627648\\wsl\\OPL-Linux',
+            base_path: path.join(
+              path.dirname(path.dirname(userDataPath)),
+              '30286627648',
+              'wsl',
+              'OPL-Linux'
+            ),
           })
         );
       }
@@ -344,7 +501,7 @@ describe('WindowsWslProvisioner parsing and identity', () => {
           0,
           JSON.stringify({
             ...identity(),
-            bootstrap_digest: inspectCalls === 1 ? `sha256:${'9'.repeat(64)}` : packagedBootstrapDigest,
+            bootstrap_digest: inspectCalls <= 2 ? `sha256:${'9'.repeat(64)}` : packagedBootstrapDigest,
           })
         );
       }

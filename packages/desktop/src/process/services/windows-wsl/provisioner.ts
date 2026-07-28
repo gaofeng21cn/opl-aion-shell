@@ -212,6 +212,12 @@ function sameWindowsPath(left: string, right: string): boolean {
   return normalizeWindowsPath(left) === normalizeWindowsPath(right);
 }
 
+function isWindowsPathWithin(basePath: string, candidatePath: string): boolean {
+  const base = normalizeWindowsPath(basePath);
+  const candidate = normalizeWindowsPath(candidatePath);
+  return candidate === base || candidate.startsWith(`${base}\\`);
+}
+
 function assertDigest(value: unknown, field: string): string {
   if (typeof value !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(value)) {
     throw new WindowsWslProvisioningError(`Guest identity field is invalid: ${field}`, {
@@ -429,6 +435,20 @@ export class WindowsWslProvisioner {
     return path.join(this.userDataPath, 'wsl', OPL_WSL_DISTRIBUTION);
   }
 
+  private isAppOwnedDistributionPath(basePath: string): boolean {
+    if (isWindowsPathWithin(this.userDataPath, basePath)) return true;
+
+    // Acceptance runs use one stable root with per-run user-data directories.
+    // Keep sibling-task rebinding bounded to that explicit root; production
+    // installs use the current product data directory above.
+    const normalizedUserData = normalizeWindowsPath(this.userDataPath);
+    const marker = '\\opl-rc-acceptance\\';
+    const markerIndex = normalizedUserData.indexOf(marker);
+    if (markerIndex < 0) return false;
+    const acceptanceRoot = normalizedUserData.slice(0, markerIndex + marker.length - 1);
+    return isWindowsPathWithin(acceptanceRoot, basePath);
+  }
+
   private async inspectRegisteredDistributionBasePath(): Promise<string | null> {
     const script = [
       '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
@@ -466,13 +486,42 @@ export class WindowsWslProvisioner {
     return validateWindowsWslGuestIdentity(parseJsonObject(result.stdout));
   }
 
+  private assertGuestCurrentness(identity: WindowsWslGuestIdentity): WindowsWslGuestIdentity {
+    if (identity.bootstrap_digest !== this.expectedBootstrapDigest) {
+      throw new WindowsWslProvisioningError(
+        'The installed OPL Linux runtime entrypoints do not match the packaged App cohort.',
+        {
+          stage: 'repair_required',
+          code: 'bootstrap_digest_mismatch',
+        }
+      );
+    }
+    if (identity.framework_ref !== this.product.framework_ref) {
+      throw new WindowsWslProvisioningError('The installed Framework ref does not match the packaged product cohort.', {
+        stage: 'repair_required',
+        code: 'framework_ref_mismatch',
+      });
+    }
+    return identity;
+  }
+
   private async assertOwnedDistributionLocation(): Promise<void> {
     const registeredBasePath = await this.inspectRegisteredDistributionBasePath();
     if (registeredBasePath && sameWindowsPath(registeredBasePath, this.installLocation())) return;
+    if (!registeredBasePath || !this.isAppOwnedDistributionPath(registeredBasePath)) {
+      throw new WindowsWslProvisioningError(
+        'The OPL-Linux name is already registered outside the current App-owned data directory.',
+        {
+          stage: 'repair_required',
+          code: 'same_name_foreign_distribution',
+        }
+      );
+    }
 
     // A prior App install may have registered the same logical distro under an
-    // older task-owned path. Reuse it only after the guest proves the OPL
-    // identity contract; arbitrary same-name WSL distributions remain blocked.
+    // older task-owned path. Accept ownership only after both its path and
+    // guest identity are App-bound. ensureReady() separately reconciles the
+    // packaged bootstrap and Framework currentness before reuse.
     try {
       await this.inspectGuestIdentity();
       return;
@@ -597,23 +646,7 @@ export class WindowsWslProvisioner {
   }
 
   async inspect(): Promise<WindowsWslGuestIdentity> {
-    const identity = await this.inspectGuestIdentity();
-    if (identity.bootstrap_digest !== this.expectedBootstrapDigest) {
-      throw new WindowsWslProvisioningError(
-        'The installed OPL Linux runtime entrypoints do not match the packaged App cohort.',
-        {
-          stage: 'repair_required',
-          code: 'bootstrap_digest_mismatch',
-        }
-      );
-    }
-    if (identity.framework_ref !== this.product.framework_ref) {
-      throw new WindowsWslProvisioningError('The installed Framework ref does not match the packaged product cohort.', {
-        stage: 'repair_required',
-        code: 'framework_ref_mismatch',
-      });
-    }
-    return identity;
+    return this.assertGuestCurrentness(await this.inspectGuestIdentity());
   }
 
   private writeReceipt(identity: WindowsWslGuestIdentity): void {
@@ -690,6 +723,7 @@ export const __windowsWslProvisionerTest = {
   OPL_WSL_GUEST_PATH,
   computePackagedBootstrapDigest,
   normalizeWindowsPath,
+  isWindowsPathWithin,
   parseDistributionInventory,
   parseOnlineDistributionNames,
   sameWindowsPath,
