@@ -10,7 +10,6 @@ import type { AcpSessionConfigOption } from '@/common/types/platform/acpTypes';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import {
   getPreparedRuntimeMode,
-  invalidatePreparedRuntimeSnapshot,
   type PreparedConversationRuntime,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
@@ -176,10 +175,11 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
       const prepared = await beforeRuntimeSync?.();
       if (prepared) {
         const preparedMode = getPreparedRuntimeMode(prepared);
-        if (!cancelled && preparedMode && modes.some((mode) => mode.value === preparedMode)) {
+        if (cancelled) return;
+        if (preparedMode && modes.some((mode) => mode.value === preparedMode)) {
           setCurrentMode(preparedMode);
+          return;
         }
-        return;
       }
 
       const result = await ipcBridge.acpConversation.getMode.invoke({ conversation_id });
@@ -219,7 +219,6 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
           conversation_id,
           mode,
         });
-        invalidatePreparedRuntimeSnapshot(conversation_id);
         const confirmedMode = confirmed.mode || mode;
 
         setCurrentMode(confirmedMode);

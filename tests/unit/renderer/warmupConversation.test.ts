@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getWarmupConversationStatus,
-  invalidatePreparedRuntimeSnapshot,
   resetWarmupConversationStateForTests,
   warmupConversation,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
@@ -82,16 +81,7 @@ describe('warmupConversation', () => {
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
   });
 
-  it('skips repeated warmup after a conversation is already ready', async () => {
-    ensureRuntimeInvokeMock.mockResolvedValue(snapshot);
-
-    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
-    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
-
-    expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-probes runtime after the prepared snapshot is invalidated', async () => {
+  it('re-probes completed warmups instead of reusing a stale snapshot', async () => {
     const updatedSnapshot = {
       ...snapshot,
       config_options: snapshot.config_options.map((option) =>
@@ -101,7 +91,6 @@ describe('warmupConversation', () => {
     ensureRuntimeInvokeMock.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(updatedSnapshot);
 
     await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
-    invalidatePreparedRuntimeSnapshot('conv-1');
     await expect(warmupConversation('conv-1')).resolves.toEqual(updatedSnapshot);
 
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);

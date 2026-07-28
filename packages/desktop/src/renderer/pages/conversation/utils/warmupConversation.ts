@@ -17,7 +17,6 @@ const IDLE_STATUS: WarmupConversationStatus = {
 };
 
 const warmupByConversation = new Map<string, Promise<EnsureConversationRuntimeResponse>>();
-const snapshotByConversation = new Map<string, EnsureConversationRuntimeResponse>();
 const statusByConversation = new Map<string, WarmupConversationStatus>();
 const listenersByConversation = new Map<string, Set<() => void>>();
 const ensureConversationRuntime = httpPost<EnsureConversationRuntimeResponse, { conversation_id: string }>(
@@ -64,10 +63,6 @@ export function getPreparedRuntimeMode(snapshot: PreparedConversationRuntime): s
   return modeOption?.current_value?.trim() || null;
 }
 
-export function invalidatePreparedRuntimeSnapshot(conversation_id: string): void {
-  snapshotByConversation.delete(conversation_id);
-}
-
 export function warmupConversation(conversation_id: string): Promise<EnsureConversationRuntimeResponse> {
   const existing = warmupByConversation.get(conversation_id);
   if (existing) {
@@ -75,10 +70,6 @@ export function warmupConversation(conversation_id: string): Promise<EnsureConve
   }
 
   const previous = getWarmupConversationStatus(conversation_id);
-  if (previous.phase === 'ready') {
-    const snapshot = snapshotByConversation.get(conversation_id);
-    if (snapshot) return Promise.resolve(snapshot);
-  }
   const nextAttempt = previous.attempt + 1;
   setWarmupStatus(conversation_id, {
     phase: 'preparing',
@@ -88,7 +79,6 @@ export function warmupConversation(conversation_id: string): Promise<EnsureConve
   const promise = ensureConversationRuntime
     .invoke({ conversation_id })
     .then((snapshot) => {
-      snapshotByConversation.set(conversation_id, snapshot);
       setWarmupStatus(conversation_id, {
         phase: 'ready',
         attempt: nextAttempt,
@@ -114,7 +104,6 @@ export function warmupConversation(conversation_id: string): Promise<EnsureConve
 
 export function resetWarmupConversationStateForTests(): void {
   warmupByConversation.clear();
-  snapshotByConversation.clear();
   statusByConversation.clear();
   listenersByConversation.clear();
 }

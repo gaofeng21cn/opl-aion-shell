@@ -25,7 +25,6 @@ import type {
 } from '@/common/types/platform/acpTypes';
 import { configService } from '@/common/config/configService';
 import { savePreferredCodexSelection, savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
-import { invalidatePreparedRuntimeSnapshot } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import {
@@ -561,7 +560,6 @@ export const useAcpModelInfo = ({
       try {
         await prepareRuntimeOnce();
         const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
-        invalidatePreparedRuntimeSnapshot(conversation_id);
         confirmedModelInfo = confirmed.model_info ?? null;
         if (confirmedModelInfo) {
           updateModelInfo(confirmedModelInfo);

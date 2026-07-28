@@ -98,7 +98,7 @@ describe('AgentModeSelector runtime preparation', () => {
   });
 
   it('keeps the valid initial permission mode and skips GET when preparation returned a snapshot', async () => {
-    const beforeRuntimeSync = vi.fn().mockResolvedValue(preparedRuntime('agent'));
+    const beforeRuntimeSync = vi.fn().mockResolvedValue(preparedRuntime('full-access'));
 
     render(
       <AgentModeSelector
@@ -117,6 +117,29 @@ describe('AgentModeSelector runtime preparation', () => {
 
   it('uses the live mode endpoint when runtime preparation has no snapshot', async () => {
     const beforeRuntimeSync = vi.fn().mockResolvedValue(undefined);
+    getModeInvokeMock.mockResolvedValue({ mode: 'read-only', initialized: true });
+
+    render(
+      <AgentModeSelector
+        backend='codex'
+        conversation_id='conv-1'
+        compact
+        initialMode='full-access'
+        beforeRuntimeSync={beforeRuntimeSync}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mode-selector')).toHaveAttribute('data-current-mode', 'read-only');
+    });
+    expect(getModeInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('uses the live mode endpoint when the prepared snapshot has no mode', async () => {
+    const beforeRuntimeSync = vi.fn().mockResolvedValue({
+      ...preparedRuntime('agent'),
+      config_options: [],
+    });
     getModeInvokeMock.mockResolvedValue({ mode: 'read-only', initialized: true });
 
     render(

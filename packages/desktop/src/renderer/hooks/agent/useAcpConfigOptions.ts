@@ -13,7 +13,6 @@ import type {
   EnsureConversationRuntimeResponse,
   SetConfigOptionResponse,
 } from '@/common/types/platform/acpTypes';
-import { invalidatePreparedRuntimeSnapshot } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 
@@ -223,7 +222,6 @@ export function useAcpConfigOptions({
         if (!hasObservedValue(response, optionId, value)) {
           throw new Error('config_not_observed');
         }
-        invalidatePreparedRuntimeSnapshot(conversation_id);
         replaceSnapshot(response.config_options);
         return response.config_options;
       } finally {
@@ -246,14 +244,12 @@ export function useAcpConfigOptions({
         const payload = message.data as { config_options?: AcpConfigOptionDto[] } | AcpConfigOptionDto[];
         const next = Array.isArray(payload) ? payload : payload.config_options;
         if (Array.isArray(next)) {
-          invalidatePreparedRuntimeSnapshot(conversation_id);
           replaceSnapshot(next);
         }
       }
       if (message.type === 'agent_status') {
         const payload = message.data as { status?: string } | undefined;
         if (payload?.status === 'session_active') {
-          invalidatePreparedRuntimeSnapshot(conversation_id);
           void reload({ preferPreparedSnapshot: false }).catch(() => {});
         }
       }
