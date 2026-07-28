@@ -175,13 +175,13 @@ export const mergeCanonicalThreadDirectory = (
   directory.threads.forEach((thread) => {
     const cached = cachedByThreadId.get(thread.id);
     if (!cached) return;
-    const hasCanonicalProjectAffinity = Boolean(thread.projectId.trim());
+    const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
     cachedByThreadId.set(thread.id, {
       ...cached,
       extra: {
         ...cached.extra,
         workspace: thread.workspace,
-        custom_workspace: hasCanonicalProjectAffinity,
+        custom_workspace: hasCanonicalRecordedCwd,
       },
     });
   });

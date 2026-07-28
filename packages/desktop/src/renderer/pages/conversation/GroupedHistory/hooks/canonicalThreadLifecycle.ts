@@ -32,7 +32,7 @@ export function projectCanonicalCodexThread(
 ): Extract<TChatConversation, { type: 'acp' }> {
   const parsedTimestamp = Date.parse(thread.updatedAt);
   const modifiedAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
-  const hasCanonicalProjectAffinity = Boolean(thread.projectId.trim());
+  const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
   return {
     ...(cached ?? {
       id: thread.id,
@@ -49,7 +49,7 @@ export function projectCanonicalCodexThread(
       ...cached?.extra,
       backend: 'codex',
       workspace: thread.workspace,
-      custom_workspace: hasCanonicalProjectAffinity,
+      custom_workspace: hasCanonicalRecordedCwd,
       acp_session_id: thread.id,
       canonical_thread_id: thread.id,
       canonical_thread_stub: cached ? false : options.materialized !== true,
@@ -71,14 +71,11 @@ export async function adoptProjectlessCanonicalConversation(
 
   try {
     const canonicalBefore = await ipcBridge.codexThreads.read.invoke({ threadId });
-    if (canonicalBefore.thread.projectId.trim()) return false;
+    if (canonicalBefore.thread.workspace.trim()) return false;
 
     await ipcBridge.codexThreads.updateSettings.invoke({ threadId, cwd: selectedWorkspace });
     const canonicalReadback = await ipcBridge.codexThreads.read.invoke({ threadId });
-    if (
-      canonicalReadback.thread.workspace !== selectedWorkspace ||
-      canonicalReadback.thread.projectId !== selectedWorkspace
-    ) {
+    if (canonicalReadback.thread.workspace !== selectedWorkspace) {
       throw new Error('Canonical thread cwd readback did not match the selected project.');
     }
 
