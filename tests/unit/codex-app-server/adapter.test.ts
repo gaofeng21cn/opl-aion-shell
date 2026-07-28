@@ -127,10 +127,11 @@ describe('CodexAppServerAdapter', () => {
         cursor: null,
         limit: 2,
         archived: false,
+        useStateDbOnly: true,
         cwd: '/workspace/project',
-        sourceKinds: expect.arrayContaining(['cli', 'appServer', 'subAgentReview']),
       })
     );
+    expect(request.mock.calls[0]?.[1]).not.toHaveProperty('sourceKinds');
     expect(request).toHaveBeenNthCalledWith(2, 'thread/list', expect.objectContaining({ cursor: 'next' }));
     expect(request).toHaveBeenNthCalledWith(3, 'thread/list', expect.objectContaining({ archived: true }));
   });

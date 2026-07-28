@@ -406,7 +406,7 @@ function capabilityPackageIdentityValues(packageId: string | null): string[] {
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
   const action = item.recommendedAction;
   if (!action) return null;
-  return action.surface === 'settings' && ['install', 'update', 'repair', 'refresh'].includes(action.semantic ?? '')
+  return action.surface === 'settings' && ['install', 'update', 'repair'].includes(action.semantic ?? '')
     ? action
     : null;
 }
@@ -1771,9 +1771,9 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 <OplRefreshIconButton
                   size='small'
                   label={t('settings.capabilitiesPage.packageManager.refreshRegistry')}
-                  loading={busyAction === 'refresh_registry' || catalogRefreshing}
-                  disabled={packageMutationBusy}
-                  onClick={() => executePackageAction('refresh_registry')}
+                  loading={catalogRefreshing}
+                  disabled={catalogRefreshing}
+                  onClick={() => void appStateQuery.load('fast', { showRefreshing: true, forceFresh: true })}
                   data-testid='agent-package-refresh-registry'
                 />
               </span>

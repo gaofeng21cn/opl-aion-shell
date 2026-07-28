@@ -59,18 +59,6 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 20;
 const MAX_STDERR_CHARS = 2_000;
-const OPL_VISIBLE_THREAD_SOURCE_KINDS = [
-  'cli',
-  'vscode',
-  'exec',
-  'appServer',
-  'subAgent',
-  'subAgentReview',
-  'subAgentCompact',
-  'subAgentThreadSpawn',
-  'subAgentOther',
-  'unknown',
-] as const;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -590,8 +578,8 @@ export class CodexAppServerAdapter {
           limit: this.pageSize,
           sortKey: 'updated_at',
           sortDirection: 'desc',
-          sourceKinds: OPL_VISIBLE_THREAD_SOURCE_KINDS,
           archived,
+          useStateDbOnly: true,
           ...(workspace ? { cwd: workspace } : {}),
         }),
         'thread list response'
