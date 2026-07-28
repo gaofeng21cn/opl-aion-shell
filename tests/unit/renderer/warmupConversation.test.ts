@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getWarmupConversationStatus,
+  invalidatePreparedRuntimeSnapshot,
   resetWarmupConversationStateForTests,
   warmupConversation,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
@@ -88,6 +89,22 @@ describe('warmupConversation', () => {
     await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
 
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-probes runtime after the prepared snapshot is invalidated', async () => {
+    const updatedSnapshot = {
+      ...snapshot,
+      config_options: snapshot.config_options.map((option) =>
+        option.id === 'mode' ? { ...option, current_value: 'full-access' } : option
+      ),
+    };
+    ensureRuntimeInvokeMock.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(updatedSnapshot);
+
+    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
+    invalidatePreparedRuntimeSnapshot('conv-1');
+    await expect(warmupConversation('conv-1')).resolves.toEqual(updatedSnapshot);
+
+    expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
   });
 
   it('does not turn a missing runtime ensure route into ready state', async () => {

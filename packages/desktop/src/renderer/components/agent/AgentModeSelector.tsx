@@ -10,6 +10,7 @@ import type { AcpSessionConfigOption } from '@/common/types/platform/acpTypes';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import {
   getPreparedRuntimeMode,
+  invalidatePreparedRuntimeSnapshot,
   type PreparedConversationRuntime,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
@@ -218,6 +219,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
           conversation_id,
           mode,
         });
+        invalidatePreparedRuntimeSnapshot(conversation_id);
         const confirmedMode = confirmed.mode || mode;
 
         setCurrentMode(confirmedMode);

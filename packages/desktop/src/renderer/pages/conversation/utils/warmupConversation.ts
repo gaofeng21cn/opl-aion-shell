@@ -64,6 +64,10 @@ export function getPreparedRuntimeMode(snapshot: PreparedConversationRuntime): s
   return modeOption?.current_value?.trim() || null;
 }
 
+export function invalidatePreparedRuntimeSnapshot(conversation_id: string): void {
+  snapshotByConversation.delete(conversation_id);
+}
+
 export function warmupConversation(conversation_id: string): Promise<EnsureConversationRuntimeResponse> {
   const existing = warmupByConversation.get(conversation_id);
   if (existing) {

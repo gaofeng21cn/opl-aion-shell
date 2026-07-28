@@ -53,7 +53,11 @@ import {
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getConversationRuntimeWorkspaceErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
-import { getPreparedRuntimeMode, warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
+import {
+  getPreparedRuntimeMode,
+  invalidatePreparedRuntimeSnapshot,
+  warmupConversation,
+} from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
@@ -253,6 +257,7 @@ const AcpSendBox: React.FC<{
       try {
         await prepareRuntimeSync();
         const confirmed = await ipcBridge.acpConversation.setMode.invoke({ conversation_id, mode });
+        invalidatePreparedRuntimeSnapshot(conversation_id);
         const confirmedMode = confirmed.mode || mode;
         setCurrentMode(confirmedMode);
         if (backend) void savePreferredMode(backend, confirmedMode);
