@@ -73,17 +73,19 @@ export const useConversationActions = ({
       blurActiveElement();
 
       void (async () => {
+        let conversationId = conversation.id;
         if (conversation.type === 'acp' && conversation.extra.canonical_thread_stub) {
           const threadId = conversation.extra.canonical_thread_id ?? conversation.extra.acp_session_id;
           if (!threadId || materializingThreadIdsRef.current.has(threadId)) return;
           materializingThreadIdsRef.current.add(threadId);
           try {
-            await ipcBridge.conversation.createWithConversation.invoke({
+            const createdConversation = await ipcBridge.conversation.createWithConversation.invoke({
               conversation: {
                 ...conversation,
                 extra: { ...conversation.extra, canonical_thread_stub: false },
               },
             });
+            conversationId = createdConversation.id;
             emitter.emit('chat.history.refresh');
           } catch (error) {
             console.error('Failed to materialize canonical Codex task:', error);
@@ -94,8 +96,8 @@ export const useConversationActions = ({
           }
         }
 
-        markAsRead(conversation.id);
-        void navigate(`/conversation/${conversation.id}`);
+        markAsRead(conversationId);
+        void navigate(`/conversation/${conversationId}`);
         onSessionClick?.();
       })();
     },

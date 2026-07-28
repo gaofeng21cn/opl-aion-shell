@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { IConversationMcpStatus, IProvider, TChatConversation, TProviderWithModel } from '@/common/config/storage';
-import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/icons/add-chat.svg';
 import { usePresetAssistantInfo, resolveAssistantConfigId } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/styles/colors';
@@ -89,7 +88,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
   );
 };
 
-const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
+export const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isCreatingRef = useRef(false);
@@ -104,7 +103,6 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
           if (isCreatingRef.current) return;
           isCreatingRef.current = true;
           try {
-            const id = uuid();
             // Fetch latest conversation from DB to ensure session_mode is current
             const latest = await getConversationOrNull(conversation.id);
             const source = latest || conversation;
@@ -116,17 +114,16 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
                     acp_session_updated_at: undefined,
                   }
                 : (source.extra as Record<string, unknown> | undefined);
-            await ipcBridge.conversation.createWithConversation.invoke({
+            const createdConversation = await ipcBridge.conversation.createWithConversation.invoke({
               conversation: {
                 ...source,
-                id,
                 created_at: Date.now(),
                 modified_at: Date.now(),
                 // Clear runtime session fields so ordinary OPL conversations do not inherit Team MCP state.
                 extra: sanitizeOplOrdinaryConversationExtra(sourceExtra),
               } as TChatConversation,
             });
-            void navigate(`/conversation/${id}`);
+            void navigate(`/conversation/${createdConversation.id}`);
             emitter.emit('chat.history.refresh');
           } catch (error) {
             console.error('Failed to create conversation:', error);

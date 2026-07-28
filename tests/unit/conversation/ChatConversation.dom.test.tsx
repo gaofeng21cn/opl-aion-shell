@@ -1,8 +1,15 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { TChatConversation } from '@/common/config/storage';
-import ChatConversation from '@/renderer/pages/conversation/components/ChatConversation';
+import ChatConversation, { _AddNewConversation } from '@/renderer/pages/conversation/components/ChatConversation';
+
+const conversationMocks = vi.hoisted(() => ({
+  createWithConversation: vi.fn(),
+  emit: vi.fn(),
+  getConversationOrNull: vi.fn(),
+  navigate: vi.fn(),
+}));
 
 const runtimeView = vi.hoisted(() => ({
   view: { state: 'running' },
@@ -15,6 +22,7 @@ const runtimeView = vi.hoisted(() => ({
 vi.mock('@/common', () => ({
   ipcBridge: {
     conversation: {
+      createWithConversation: { invoke: conversationMocks.createWithConversation },
       getAssociateConversation: { invoke: vi.fn().mockResolvedValue([]) },
       stop: { invoke: vi.fn().mockResolvedValue(undefined) },
       update: { invoke: vi.fn().mockResolvedValue(true) },
@@ -31,8 +39,16 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => conversationMocks.navigate,
   useLocation: () => ({ state: {} }),
+}));
+
+vi.mock('@/renderer/pages/conversation/utils/conversationCache', () => ({
+  getConversationOrNull: conversationMocks.getConversationOrNull,
+}));
+
+vi.mock('@/renderer/utils/emitter', () => ({
+  emitter: { emit: conversationMocks.emit },
 }));
 
 vi.mock('swr', () => ({
@@ -175,6 +191,29 @@ const codexConversation = (): TChatConversation =>
 describe('ChatConversation composer and side-panel surface', () => {
   beforeEach(() => {
     runtimeView.stopActiveTurn.mockClear();
+    conversationMocks.createWithConversation.mockReset();
+    conversationMocks.emit.mockClear();
+    conversationMocks.getConversationOrNull.mockReset();
+    conversationMocks.navigate.mockClear();
+  });
+
+  it('opens a workspace clone with the server-assigned conversation id', async () => {
+    const source = acpConversation('codex');
+    source.extra.workspace = '/workspace/project';
+    conversationMocks.getConversationOrNull.mockResolvedValue(source);
+    conversationMocks.createWithConversation.mockResolvedValue({
+      ...source,
+      id: 'server-created-conversation',
+    });
+
+    render(<_AddNewConversation conversation={source} />);
+    fireEvent.click(screen.getByRole('button', { name: 'conversation.workspace.createNewConversation' }));
+
+    await waitFor(() =>
+      expect(conversationMocks.navigate).toHaveBeenCalledWith('/conversation/server-created-conversation')
+    );
+    expect(conversationMocks.createWithConversation).toHaveBeenCalledOnce();
+    expect(conversationMocks.emit).toHaveBeenCalledWith('chat.history.refresh');
   });
 
   it('keeps Codex model and cron controls out of the side panel', () => {

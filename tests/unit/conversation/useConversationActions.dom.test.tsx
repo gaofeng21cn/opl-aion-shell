@@ -156,7 +156,9 @@ describe('conversation archive actions', () => {
   });
 
   it('materializes an App Server task projection before opening it', async () => {
-    mocks.createWithConversation.mockResolvedValue(undefined);
+    mocks.createWithConversation.mockResolvedValue({
+      id: 'local-conversation-1',
+    });
     const markAsRead = vi.fn();
     const canonicalStub = {
       id: 'thread-1',
@@ -183,14 +185,14 @@ describe('conversation archive actions', () => {
     );
     act(() => result.current.handleConversationClick(canonicalStub));
 
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/conversation/thread-1'));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/conversation/local-conversation-1'));
     expect(mocks.createWithConversation).toHaveBeenCalledWith({
       conversation: expect.objectContaining({
         id: 'thread-1',
         extra: expect.objectContaining({ canonical_thread_stub: false }),
       }),
     });
-    expect(markAsRead).toHaveBeenCalledWith('thread-1');
+    expect(markAsRead).toHaveBeenCalledWith('local-conversation-1');
   });
 
   it('routes canonical lifecycle actions with the canonical id during ACP id migration', async () => {
@@ -433,6 +435,49 @@ describe('conversation archive actions', () => {
     expect(mocks.messageSuccess).toHaveBeenCalledWith('conversation.history.moveToProjectSuccess');
     expect(mocks.messageError).not.toHaveBeenCalled();
     expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh');
+  });
+
+  it('reads back a materialized canonical stub using the server-assigned conversation id', async () => {
+    const projectlessStub = {
+      id: 'thread-stub',
+      name: 'Projectless stub task',
+      type: 'acp',
+      created_at: 1,
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-stub',
+        canonical_thread_stub: true,
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.createWithConversation.mockResolvedValue({ id: 'local-stub-conversation' });
+    mocks.get.mockResolvedValue({
+      ...projectlessStub,
+      id: 'local-stub-conversation',
+      extra: {
+        ...projectlessStub.extra,
+        workspace: '/workspace/project',
+        custom_workspace: true,
+        canonical_thread_stub: false,
+      },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectlessStub],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectlessStub, '/workspace/project')).toBe(true);
+    expect(mocks.get).toHaveBeenCalledWith({ id: 'local-stub-conversation' });
   });
 
   it('keeps the conversation projectless when canonical cwd readback does not match', async () => {

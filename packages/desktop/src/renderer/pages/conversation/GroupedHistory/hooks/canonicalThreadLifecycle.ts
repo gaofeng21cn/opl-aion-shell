@@ -89,8 +89,12 @@ export async function adoptProjectlessCanonicalConversation(
       },
     };
     try {
+      let localConversationId = conversation.id;
       if (conversation.extra.canonical_thread_stub) {
-        await ipcBridge.conversation.createWithConversation.invoke({ conversation: nextConversation });
+        const createdConversation = await ipcBridge.conversation.createWithConversation.invoke({
+          conversation: nextConversation,
+        });
+        localConversationId = createdConversation.id;
       } else {
         const updated = await ipcBridge.conversation.update.invoke({
           id: conversation.id,
@@ -105,7 +109,7 @@ export async function adoptProjectlessCanonicalConversation(
         if (!updated) throw new Error('Local project affinity projection update was rejected.');
       }
 
-      const localReadback = await ipcBridge.conversation.get.invoke({ id: conversation.id });
+      const localReadback = await ipcBridge.conversation.get.invoke({ id: localConversationId });
       if (
         canonicalCodexThreadId(localReadback) !== threadId ||
         localReadback.extra.workspace !== selectedWorkspace ||
