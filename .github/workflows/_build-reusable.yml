@@ -27,6 +27,22 @@ on:
         description: 'Optional AionCore Manual Build workflow run id to bundle instead of the pinned release'
         type: string
         default: ''
+      windows_rc_release_version:
+        description: 'Preview version sealed into Windows RC artifacts'
+        type: string
+        default: ''
+      windows_rc_app_sha:
+        description: 'Exact App source commit sealed into Windows RC artifacts'
+        type: string
+        default: ''
+      windows_rc_app_tree:
+        description: 'Exact App source tree sealed into Windows RC artifacts'
+        type: string
+        default: ''
+      windows_rc_shell_sha:
+        description: 'Exact Shell commit expected at checkout for Windows RC artifacts'
+        type: string
+        default: ''
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
@@ -152,6 +168,22 @@ jobs:
           SHORT=$(git rev-parse --short HEAD)
           echo "short=$SHORT" >> $GITHUB_OUTPUT
           echo "Commit: $SHORT"
+
+      - name: Validate Windows RC cohort inputs
+        if: matrix.platform == 'windows-x64'
+        shell: bash
+        env:
+          OPL_WINDOWS_RC_RELEASE_VERSION: ${{ inputs.windows_rc_release_version }}
+          OPL_WINDOWS_RC_APP_SHA: ${{ inputs.windows_rc_app_sha }}
+          OPL_WINDOWS_RC_APP_TREE: ${{ inputs.windows_rc_app_tree }}
+          OPL_WINDOWS_RC_SHELL_SHA: ${{ inputs.windows_rc_shell_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$OPL_WINDOWS_RC_RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+          [[ "$OPL_WINDOWS_RC_APP_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OPL_WINDOWS_RC_APP_TREE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OPL_WINDOWS_RC_SHELL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$OPL_WINDOWS_RC_SHELL_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -407,6 +439,7 @@ jobs:
           }
         env:
           WINDOWS_BUILD_COMMAND: ${{ matrix.command }}
+          OPL_RELEASE_VERSION: ${{ inputs.windows_rc_release_version }}
           AIONUI_BACKEND_RUN_ID: ${{ inputs.aioncore_run_id }}
           AIONUI_PREPARED_AIONCORE_RUNTIME_DIR: ${{ runner.temp }}/prepared-aioncore-linux-x64
           # Node.js memory limit for vite bundling (prevents OOM during build)
@@ -636,6 +669,22 @@ jobs:
           fi
           echo "✅ asar isolation verified: no packages/web-cli entries"
 
+      - name: Seal Windows RC build cohort
+        if: >-
+          matrix.platform == 'windows-x64' &&
+          success() &&
+          steps.windows-build.outputs.result == 'success'
+        shell: bash
+        env:
+          OPL_WINDOWS_RC_RELEASE_VERSION: ${{ inputs.windows_rc_release_version }}
+          OPL_WINDOWS_RC_APP_SHA: ${{ inputs.windows_rc_app_sha }}
+          OPL_WINDOWS_RC_APP_TREE: ${{ inputs.windows_rc_app_tree }}
+          OPL_WINDOWS_RC_SHELL_SHA: ${{ inputs.windows_rc_shell_sha }}
+          OPL_WINDOWS_RC_PLATFORM: ${{ matrix.platform }}
+          OPL_WINDOWS_RC_ARCH: ${{ matrix.arch }}
+          OPL_WINDOWS_RC_ARTIFACT_NAME: ${{ inputs.append_commit_hash && format('{0}-{1}', matrix.artifact-name, steps.commit.outputs.short) || matrix.artifact-name }}
+        run: node scripts/release/generate-windows-rc-build-cohort.mjs
+
       # Upload artifacts when:
       # - Build succeeded (all platforms)
       # - macOS: notarization timeout but artifacts exist (handled in build step)
@@ -670,6 +719,7 @@ jobs:
             out/AionUi-*-win32-*.zip
             out/AionUi-*-mac-*.zip
             out/*.yml
+            out/opl-windows-rc-build-cohort.json
           if-no-files-found: warn
           retention-days: 7
 
