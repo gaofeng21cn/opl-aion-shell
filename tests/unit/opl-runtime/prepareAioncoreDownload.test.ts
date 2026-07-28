@@ -65,6 +65,29 @@ describe('prepare-aioncore compatibility gate', () => {
     expect(calls).toEqual([]);
   });
 
+  it('accepts a target-prepared runtime manifest for cross-platform packaging', () => {
+    const dir = makeTempDir();
+    const runtimeDir = path.join(dir, 'linux-x64');
+    fs.mkdirSync(runtimeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runtimeDir, 'manifest.json'),
+      JSON.stringify({
+        platform: 'linux',
+        arch: 'x64',
+        version: '0.1.50',
+        compatibility: {
+          reportedVersion: '0.1.50',
+          requiredOptions: ['--recover-corrupted-database'],
+        },
+      })
+    );
+
+    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toEqual({
+      version: '0.1.50',
+      requiredOptions: ['--recover-corrupted-database'],
+    });
+  });
+
   it('does not allow compatibility probes to be skipped for a native target', () => {
     expect(() =>
       __test__.resolveAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
