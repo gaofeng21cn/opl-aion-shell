@@ -572,18 +572,16 @@ export class CodexAppServerAdapter {
     let cursor: string | null = null;
     const visitedCursors = new Set<string>();
     for (let page = 0; page < this.maxPages; page += 1) {
-      const response = requiredRecord(
-        await this.rpc.request('thread/list', {
-          cursor,
-          limit: this.pageSize,
-          sortKey: 'updated_at',
-          sortDirection: 'desc',
-          archived,
-          useStateDbOnly: true,
-          ...(workspace ? { cwd: workspace } : {}),
-        }),
-        'thread list response'
-      );
+      const threadListParams = {
+        cursor,
+        limit: this.pageSize,
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+        archived,
+        useStateDbOnly: true,
+        ...(workspace ? { cwd: workspace } : {}),
+      };
+      const response = requiredRecord(await this.rpc.request('thread/list', threadListParams), 'thread list response');
       if (!Array.isArray(response.data)) throw new Error('Invalid Codex app-server thread list data.');
       response.data.forEach((value) => threads.push({ thread: parseThread(value), archived }));
       cursor = optionalString(response.nextCursor);
