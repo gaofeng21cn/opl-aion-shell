@@ -96,6 +96,7 @@ import {
   fromApiConversation,
   fromApiPaginatedConversations,
   toApiModelOptional,
+  type CreateConversationBodyInput,
 } from './apiModelMapper';
 import {
   httpDelete,
@@ -191,17 +192,8 @@ export const conversation = {
   ),
   createWithConversation: withResponseMap(
     httpPost<TChatConversation, { conversation: TChatConversation }>('/api/conversations/clone', (p) => {
-      const isAionrs = p.conversation.type === 'aionrs';
-      const { model: _rawModel, ...rest } = p.conversation as TChatConversation & {
-        model?: TProviderWithModel;
-      };
-      const clonedConversation: Record<string, unknown> = { ...rest };
-      if (isAionrs) {
-        const model = toApiModelOptional(_rawModel);
-        if (model) clonedConversation.model = model;
-      }
       return {
-        conversation: clonedConversation,
+        conversation: buildCreateConversationBody(p.conversation as CreateConversationBodyInput),
       };
     }),
     fromApiConversation
