@@ -21,10 +21,13 @@ function sha256File(filePath) {
   return hash.digest('hex');
 }
 
-function fileIdentity(rootDir, filePath) {
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile() || stat.size === 0) {
-    throw new Error(`Required cohort file is missing or empty: ${path.relative(rootDir, filePath)}`);
+function fileIdentity(rootDir, filePath, { allowEmpty = false } = {}) {
+  const stat = fs.statSync(filePath, { throwIfNoEntry: false });
+  if (!stat?.isFile()) {
+    throw new Error(`Required cohort file is missing or not a regular file: ${path.relative(rootDir, filePath)}`);
+  }
+  if (!allowEmpty && stat.size === 0) {
+    throw new Error(`Required cohort file is empty: ${path.relative(rootDir, filePath)}`);
   }
   return {
     path: path.relative(rootDir, filePath).replaceAll(path.sep, '/'),
@@ -58,7 +61,7 @@ export function treeIdentity(rootDir, treePath) {
   let sizeBytes = 0;
   for (const filePath of files) {
     const relativePath = path.relative(treePath, filePath).replaceAll(path.sep, '/');
-    const identity = fileIdentity(rootDir, filePath);
+    const identity = fileIdentity(rootDir, filePath, { allowEmpty: true });
     sizeBytes += identity.size_bytes;
     hash.update(relativePath);
     hash.update('\0');

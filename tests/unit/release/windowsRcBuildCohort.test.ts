@@ -29,6 +29,7 @@ describe('Windows RC build cohort', () => {
 
     write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, 'installer');
     write(root, 'out/win-unpacked/One Person Lab.exe', 'application');
+    write(root, 'out/win-unpacked/resources/app.asar.unpacked/node_modules/node-addon-api/nothing.c', '');
     write(
       root,
       'resources/opl-linux/product.json',
@@ -47,7 +48,7 @@ describe('Windows RC build cohort', () => {
       'codex'
     );
 
-    const cohort = generateWindowsRcBuildCohort({
+    const options = {
       rootDir: root,
       env: {
         OPL_WINDOWS_RC_RELEASE_VERSION: releaseVersion,
@@ -61,7 +62,8 @@ describe('Windows RC build cohort', () => {
         GITHUB_RUN_ATTEMPT: '1',
       },
       git: (...args: string[]) => (args.at(-1) === 'HEAD^{tree}' ? shellTree : shellSha),
-    });
+    };
+    const cohort = generateWindowsRcBuildCohort(options);
 
     expect(cohort).toMatchObject({
       schema: 'opl_windows_rc_build_cohort.v1',
@@ -97,10 +99,21 @@ describe('Windows RC build cohort', () => {
     expect(cohort.artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(cohort.packaged_tree).toMatchObject({
       path: 'out/win-unpacked',
-      file_count: 1,
+      file_count: 2,
       digest_contract: 'sha256(relative_path+NUL+size+NUL+file_sha256+LF)',
     });
     expect(cohort.runtime.codex.path).toContain('@openai/codex-linux-x64/vendor/');
+
+    write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, '');
+    expect(() => generateWindowsRcBuildCohort(options)).toThrow(
+      `Required cohort file is empty: out${path.sep}One-Person-Lab-${releaseVersion}-win-x64.exe`
+    );
+
+    write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, 'installer');
+    fs.rmSync(path.join(root, 'resources/bundled-aioncore/linux-x64/manifest.json'));
+    expect(() => generateWindowsRcBuildCohort(options)).toThrow(
+      `Required cohort file is missing or not a regular file: resources${path.sep}bundled-aioncore${path.sep}linux-x64${path.sep}manifest.json`
+    );
   });
 
   it('rejects a non-RC version before creating a preview seal', () => {
