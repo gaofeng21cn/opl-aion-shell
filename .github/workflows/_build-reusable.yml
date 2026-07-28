@@ -126,7 +126,10 @@ jobs:
       ${{
         always() &&
         (inputs.skip_code_quality || needs.code-quality.result == 'success') &&
-        (!startsWith(matrix.platform, 'windows') || needs.prepare-windows-aioncore.result == 'success')
+        (
+          needs.prepare-windows-aioncore.result == 'success' ||
+          needs.prepare-windows-aioncore.result == 'skipped'
+        )
       }}
 
     outputs:
